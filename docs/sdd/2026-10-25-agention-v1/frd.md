@@ -322,6 +322,8 @@ Recorded from the design conversation.
     exotic configurations such as hooks. Nerftools is a good example.
 21. Restrictions may follow the direction of attention (an agent asking for it, the operator giving
     it). Done properly, this extends to attention requests to other agents.
+22. The shared developer artifact repository is `wf-agentic-dev`; the operator creates it on GitHub.
+    Product MCP configurations such as Agention's are per developer and stay out of it.
 
 ## Out of scope for v1
 
@@ -337,8 +339,6 @@ Recorded from the design conversation.
 
 1. How the agent states its session. The HLA proposes a per-session MCP URL path, pending
    real-install verification on both hosts.
-2. Where the shared Wayfarer developer artifact set lives and how repositories consume it (ruling
-   19). Its curation is a cross-repository effort of its own; this effort consumes it.
 
 ## Definition of done
 

@@ -241,8 +241,11 @@ evidence.
   version files, PR-plus-main CI triggers, a PR template.
 - Task runner: any runner that covers backend, frontend and plugin generation (ruling 20); the plan
   selects the simplest that fits, aligned with sibling conventions.
-- Developer guidance: consumed from the shared Wayfarer developer artifact set with a small local
-  overlay (ruling 19); Rulesync generates the committed per-tool outputs.
+- Developer guidance: the shared `wf-agentic-dev` set (rulings 19, 22) is vendored at a pinned commit
+  into `vendor/wf-agentic-dev/` and layered with the local `.rulesync/` overlay through Rulesync
+  `inputRoots` (shared first, local last). A check verifies the vendored copy against its pinned
+  commit and that the overlay only adds files. Rulesync generates the committed Claude Code and Codex
+  outputs. Rulesync `sources` is not used because it carries only skills and rules.
 
 ## Validation and requirement coverage
 
