@@ -5,8 +5,9 @@
 
 ## Executive summary
 
-No reviewed system separates what is asked of a human from how it affects the work, and none pairs a
-per-identity read cursor with stale-write rejection on a shared log. The pieces exist separately:
+Among the systems reviewed, none separates what is asked of a human from how it affects the work.
+JMAP comes closest to pairing per-user read state with state-checked writes, but not on a shared,
+attributed log. The pieces exist separately:
 A2A and MCP Tasks model task state, MCP elicitation models structured responses, GitHub and Linear
 separate action from awareness, Matrix separates read receipts from "caught up", and JMAP and event
 stores provide state-checked writes. Agention combines them under an honor-system trust model. Host
@@ -18,10 +19,10 @@ research settles tool naming and constrains how agents state their session.
 
 | Finding | Source | Consequence |
 | --- | --- | --- |
-| Claude Code remote MCP entries accept a `headers` map and expand `${VAR}` and `${VAR:-default}` in `url` and `headers`. An unset variable without a default stays as the literal text, with a warning. | S1 | A header can carry the session. An unset variable sends literal text, which the server rejects as an unknown session. |
-| A configured `Authorization` header disables Claude Code's native OAuth for that server. Coexistence of other custom headers with OAuth is not stated. | S1 | The session must not ride `Authorization`. Coexistence is verified by a real install before relying on it. |
+| Claude Code remote MCP entries accept a `headers` map and expand `${VAR}` and `${VAR:-default}` in `url` and `headers`. An unset variable without a default stays as the literal text, with a warning. Claude Code stores OAuth sign-ins per endpoint. | S1 | Distinct per-session URLs keep tokens separate for sessions under one OS user, so the session is stated as a URL path segment. Headers remain a fallback. |
+| A configured `Authorization` header disables Claude Code's native OAuth for that server. Coexistence of other custom headers with OAuth is not stated. | S1 | Another reason to prefer the URL path over a header. |
 | Plugin MCP configuration documents only plugin variables (`CLAUDE_PLUGIN_ROOT`, `user_config`), not arbitrary environment expansion. | S2 | Unverified for arbitrary environment variables. The MCP entry is per installation anyway (the origin differs per operator), so `agention setup` prints it rather than the plugin shipping it. |
-| Codex supports streamable HTTP with OAuth (`codex mcp login`), static `http_headers` and `env_http_headers` (header name to environment variable). It does not document expansion in `url`. Tool calls time out after 60 seconds by default. | S3 | A header works on Codex through either key. Long-poll waits stay well under 60 seconds. |
+| Codex supports streamable HTTP with OAuth (`codex mcp login`), static `http_headers` and `env_http_headers` (header name to environment variable). It does not document expansion in `url`. Tool calls time out after 60 seconds by default. | S3 | A static per-session URL needs no expansion. Long-poll waits stay well under 60 seconds. |
 | MCP tool names SHOULD use `A-Za-z0-9_-.`, 1 to 128 characters. The Anthropic API tool-name pattern excludes dots, and hosts rewrite unsupported characters (Codex rewriting is reported by secondary sources only). | S5, S6, S8, S4 | Tool names use lowercase letters, digits and underscores (`item_create`). |
 
 ### Attention and task models
@@ -54,12 +55,14 @@ research settles tool naming and constrains how agents state their session.
   do not accept them uniformly.
 - A plugin can ship the MCP server entry with environment-derived session headers: not documented.
 - Custom headers coexist with Claude Code native OAuth: plausible but not documented.
+- Hosts store OAuth tokens per server entry name: Claude Code documents per-endpoint storage instead.
 
 ## Open questions
 
-1. Host behavior with several sessions of one agent under one OS user. Hosts store OAuth tokens per
-   server entry, so each session needs its own entry (distinct name or scope). Verify on both hosts.
-2. Whether Claude Code keeps native OAuth when a non-`Authorization` custom header is configured.
+1. Whether per-endpoint OAuth storage keeps distinct tokens for per-session URLs under one OS user on
+   both hosts (documented for Claude Code, unverified for Codex).
+2. Whether Claude Code keeps native OAuth when a non-`Authorization` custom header is configured
+   (relevant only to the header fallback).
 3. Whether Codex rewrites or truncates tool names (only secondary sources).
 
 ## Sources
