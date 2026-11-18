@@ -4,6 +4,7 @@
   "description": "Repository tooling for Agention; each component is an npm workspace.",
   "license": "MIT",
   "workspaces": [
+    "packages/api",
     "packages/build",
     "apps/web"
   ],
