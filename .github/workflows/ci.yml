@@ -32,6 +32,16 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
+      # The browser gate needs Chromium's headless shell, which lifecycle
+      # scripts cannot install, at the version the lockfile pins, with the
+      # system libraries it needs. Playwright runs only once the registry
+      # signatures check out. scripts/check.sh reinstalls the dependencies itself.
+      - name: Install Chromium for the browser gate
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+          npx playwright install --with-deps --only-shell chromium
+
       - name: scripts/check.sh
         run: scripts/check.sh
 

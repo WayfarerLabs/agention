@@ -1,0 +1,13 @@
+{
+  "name": "@wayfarerlabs/agention-private-files",
+  "private": true,
+  "description": "The rule for files private to the OS user, which the server's database and the bridge's key files obey.",
+  "type": "module",
+  "exports": {
+    ".": "./src/private-files.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

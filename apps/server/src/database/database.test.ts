@@ -1,0 +1,568 @@
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Database, DatabaseOpenError, type DatabaseOpenReason } from "./database.ts";
+import { applicationId, migrations } from "./migrations.ts";
+
+let root: string;
+
+beforeEach(() => {
+  root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-database-")));
+});
+
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true });
+});
+
+function mode(target: string): number {
+  return statSync(target).mode & 0o7777;
+}
+
+function reasonOf(fn: () => unknown): DatabaseOpenReason | undefined {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof DatabaseOpenError) {
+      return error.reason;
+    }
+    throw error;
+  }
+  return undefined;
+}
+
+function withRaw<T>(file: string, fn: (connection: DatabaseSync) => T): T {
+  const connection = new DatabaseSync(file);
+  try {
+    return fn(connection);
+  } finally {
+    connection.close();
+  }
+}
+
+describe("Database.open", () => {
+  it("creates a database with every migration applied and every table strict", () => {
+    const file = path.join(root, "data", "agention.db");
+    const database = Database.open(file);
+    try {
+      const pragma = (name: string) =>
+        Object.values(database.prepare(`PRAGMA ${name}`).get() ?? {})[0];
+      expect(pragma("user_version")).toBe(migrations.length);
+      expect(pragma("application_id")).toBe(applicationId);
+      expect(pragma("journal_mode")).toBe("wal");
+      expect(pragma("foreign_keys")).toBe(1);
+      const tables = database
+        .prepare(
+          "SELECT name, strict FROM pragma_table_list WHERE schema = 'main' AND type = 'table'",
+        )
+        .all()
+        .filter((table) => !String(table.name).startsWith("sqlite_"));
+      expect(tables.length).toBeGreaterThan(0);
+      expect(tables.filter((table) => table.strict !== 1)).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("reopens an existing database and keeps its data", () => {
+    const file = path.join(root, "agention.db");
+    const first = Database.open(file);
+    first.prepare("INSERT INTO agents (name, created_at) VALUES ('kept', 1)").run();
+    first.close();
+    const second = Database.open(file);
+    try {
+      expect(second.prepare("SELECT name FROM agents").all()).toEqual([{ name: "kept" }]);
+    } finally {
+      second.close();
+    }
+  });
+
+  it("refuses a database written by a newer release without changing it", () => {
+    const file = path.join(root, "agention.db");
+    Database.open(file).close();
+    withRaw(file, (connection) =>
+      connection.exec(`PRAGMA user_version = ${migrations.length + 1}`),
+    );
+    const before = readFileSync(file);
+    expect(reasonOf(() => Database.open(file))).toBe("newer_schema");
+    expect(readFileSync(file)).toEqual(before);
+  });
+
+  it("refuses a file that is not a SQLite database without changing it", () => {
+    const file = path.join(root, "agention.db");
+    writeFileSync(file, "not a database, but someone's notes", { mode: 0o600 });
+    const before = readFileSync(file);
+    expect(reasonOf(() => Database.open(file))).toBe("not_sqlite");
+    expect(readFileSync(file)).toEqual(before);
+    expect(readdirSync(root)).toEqual(["agention.db"]);
+  });
+
+  it("refuses another application's SQLite database without changing it", () => {
+    const file = path.join(root, "agention.db");
+    withRaw(file, (connection) => connection.exec("CREATE TABLE theirs (x)"));
+    chmodSync(file, 0o600);
+    const before = readFileSync(file);
+    expect(reasonOf(() => Database.open(file))).toBe("not_agention");
+    expect(readFileSync(file)).toEqual(before);
+    expect(readdirSync(root)).toEqual(["agention.db"]);
+  });
+
+  it("refuses a SQLite database stamped with another application id", () => {
+    const file = path.join(root, "agention.db");
+    withRaw(file, (connection) =>
+      connection.exec(`PRAGMA application_id = ${applicationId + 1}; PRAGMA user_version = 2;
+        CREATE TABLE kept (x)`),
+    );
+    chmodSync(file, 0o600);
+    const before = readFileSync(file);
+    expect(reasonOf(() => Database.open(file))).toBe("not_agention");
+    expect(readFileSync(file)).toEqual(before);
+  });
+
+  it.each(["000", "022", "077", "700"])("makes new files private under umask %s", (umask) => {
+    const previous = process.umask(parseInt(umask, 8));
+    try {
+      const directory = path.join(root, "a", "b");
+      const file = path.join(directory, "agention.db");
+      const database = Database.open(file);
+      database.prepare("INSERT INTO agents (name, created_at) VALUES ('x', 1)").run();
+      try {
+        expect(mode(path.join(root, "a"))).toBe(0o700);
+        expect(mode(directory)).toBe(0o700);
+        for (const companion of [file, `${file}-wal`, `${file}-shm`]) {
+          expect(mode(companion)).toBe(0o600);
+        }
+      } finally {
+        database.close();
+      }
+    } finally {
+      process.umask(previous);
+    }
+  });
+
+  // The private-file rule is the package's to test; here, each path the
+  // database opens is refused once, as a DatabaseOpenError with the rule's
+  // reason.
+  describe("refuses unsafe paths without changing them", () => {
+    it("a data directory others can read", () => {
+      const directory = path.join(root, "shared");
+      mkdirSync(directory, { mode: 0o700 });
+      chmodSync(directory, 0o750);
+      expect(reasonOf(() => Database.open(path.join(directory, "agention.db")))).toBe(
+        "directory_not_private",
+      );
+      expect(mode(directory)).toBe(0o750);
+      expect(readdirSync(directory)).toEqual([]);
+    });
+
+    it("a symlinked database file", () => {
+      const target = path.join(root, "elsewhere.db");
+      writeFileSync(target, "", { mode: 0o600 });
+      symlinkSync(target, path.join(root, "agention.db"));
+      expect(reasonOf(() => Database.open(path.join(root, "agention.db")))).toBe("not_a_file");
+      expect(readFileSync(target, "utf8")).toBe("");
+    });
+
+    it("a symlinked companion file", () => {
+      const file = path.join(root, "agention.db");
+      Database.open(file).close();
+      symlinkSync(path.join(root, "elsewhere"), `${file}-wal`);
+      expect(reasonOf(() => Database.open(file))).toBe("not_a_file");
+    });
+  });
+});
+
+describe("Database.transaction", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  const insert = (name: string) =>
+    database.prepare("INSERT INTO agents (name, created_at) VALUES (?, 1)").run(name);
+  const names = () => database.prepare("SELECT name FROM agents ORDER BY name").all();
+
+  it("commits what the function wrote and returns its result", () => {
+    expect(database.transaction(() => (insert("a"), 7))).toBe(7);
+    expect(names()).toEqual([{ name: "a" }]);
+  });
+
+  it("rolls back when the function throws", () => {
+    expect(() =>
+      database.transaction(() => {
+        insert("a");
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+    expect(names()).toEqual([]);
+  });
+
+  it("rolls back and refuses a function that returns a promise", () => {
+    expect(() =>
+      database.transaction(() => {
+        insert("a");
+        return Promise.resolve();
+      }),
+    ).toThrow(TypeError);
+    expect(names()).toEqual([]);
+    expect(database.transaction(() => (insert("b"), true))).toBe(true);
+  });
+});
+
+describe("messages, asks, answers and withdrawals", () => {
+  let database: Database;
+
+  // insert writes a row to a table, with the given columns.
+  function insert(table: string, columns: Record<string, string | number | Buffer>): void {
+    const names = Object.keys(columns);
+    database
+      .prepare(
+        `INSERT INTO ${table} (${names.join(", ")}) VALUES (${names.map(() => "?").join(", ")})`,
+      )
+      .run(...Object.values(columns));
+  }
+
+  // insertMessage writes a message to thread 1, by the session unless the
+  // columns say otherwise.
+  function insertMessage(seq: number, columns: Record<string, string | number> = {}): void {
+    insert("messages", {
+      thread_id: 1,
+      seq,
+      session_id: 1,
+      session_pos: seq,
+      actor_id: 2,
+      created_at: 1,
+      request_id: `r${seq}`,
+      digest: Buffer.alloc(32),
+      ...columns,
+    });
+  }
+
+  const asked = {
+    thread_id: 1,
+    seq: 1,
+    question: "q",
+    suggestions: '[{"label":"a","description":""}]',
+    multiple: 0,
+    impact: "none",
+    priority: "normal",
+  };
+
+  // A session's thread whose first message says hello and asks ask 1, and the
+  // operator's message 2.
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+    database.prepare("INSERT INTO people (name, created_at) VALUES ('operator', 1)").run();
+    database.prepare("INSERT INTO agents (name, created_at) VALUES ('agent', 1)").run();
+    database
+      .prepare("INSERT INTO sessions (agent_id, name, last_pos, created_at) VALUES (1, 's', 9, 1)")
+      .run();
+    database.prepare("INSERT INTO actors (person_id) VALUES (1)").run();
+    database.prepare("INSERT INTO actors (session_id) VALUES (1)").run();
+    database
+      .prepare(
+        `INSERT INTO threads (session_id, number, requester_actor_id, audience_actor_id, title,
+           created_at, last_seq)
+         VALUES (1, 1, 2, 1, 't', 1, 1)`,
+      )
+      .run();
+    insertMessage(1, { text: "hello" });
+    insert("asks", { ...asked, number: 1 });
+    insertMessage(2, { actor_id: 1 });
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  it("are append-only", () => {
+    insert("answers", { thread_id: 1, seq: 2, ask: 1, declined: 1 });
+    insertMessage(3);
+    insert("withdrawals", { thread_id: 1, seq: 3, ask: 1, reason: "r" });
+    const message = `(thread_id, seq, session_id, session_pos, actor_id, created_at, request_id,
+      digest, text) VALUES (1, 1, 1, 1, 2, 1, 'r', x'${"00".repeat(32)}', 'replaced')`;
+    const ask = `(thread_id, number, seq, question, suggestions, multiple, impact, priority)
+      VALUES (1, 1, 1, 'replaced', '[]', 0, 'none', 'normal')`;
+    const answer = "(thread_id, seq, ask, declined, text) VALUES (1, 2, 1, 0, 'replaced')";
+    const withdrawal = "(thread_id, seq, ask, reason) VALUES (1, 3, 1, 'replaced')";
+    for (const statement of [
+      "UPDATE messages SET text = 'changed'",
+      "DELETE FROM messages",
+      `INSERT OR REPLACE INTO messages ${message}`,
+      `REPLACE INTO messages ${message}`,
+      "UPDATE asks SET question = 'changed'",
+      "DELETE FROM asks",
+      `INSERT OR REPLACE INTO asks ${ask}`,
+      `REPLACE INTO asks ${ask}`,
+      "UPDATE answers SET declined = 0, text = 'changed'",
+      "DELETE FROM answers",
+      `INSERT OR REPLACE INTO answers ${answer}`,
+      `REPLACE INTO answers ${answer}`,
+      "UPDATE withdrawals SET reason = 'changed'",
+      "DELETE FROM withdrawals",
+      `INSERT OR REPLACE INTO withdrawals ${withdrawal}`,
+      `REPLACE INTO withdrawals ${withdrawal}`,
+    ]) {
+      expect(() => database.prepare(statement).run()).toThrow();
+    }
+    expect(database.prepare("SELECT text FROM messages WHERE seq = 1").all()).toEqual([
+      { text: "hello" },
+    ]);
+    expect(database.prepare("SELECT question FROM asks").all()).toEqual([{ question: "q" }]);
+    expect(database.prepare("SELECT declined FROM answers").all()).toEqual([{ declined: 1 }]);
+    expect(database.prepare("SELECT reason FROM withdrawals").all()).toEqual([{ reason: "r" }]);
+  });
+
+  it("are replaced at most once each", () => {
+    insertMessage(3, { replaces_seq: 1 });
+    expect(() => insertMessage(4, { replaces_seq: 1 })).toThrow();
+    insertMessage(4, { replaces_seq: 3 });
+  });
+
+  it("hold a message's detail only beside its text", () => {
+    insertMessage(3, { text: "Summary.", detail: "At length." });
+    expect(() => insertMessage(4, { detail: "At length." })).toThrow();
+  });
+
+  it.each([
+    ["a decline", { declined: 1 }],
+    ["picks", { declined: 0, picks: "[0]" }],
+    ["own words", { declined: 0, text: "x" }],
+    ["picks and own words", { declined: 0, picks: "[0]", text: "x" }],
+  ])("hold an answer of %s", (_, columns) => {
+    insert("answers", { thread_id: 1, seq: 2, ask: 1, ...columns });
+  });
+
+  it.each([
+    ["an empty list of references", { message_references: "[]" }],
+    ["a replacement of itself", { replaces_seq: 3 }],
+    ["a replacement of a message that does not exist", { replaces_seq: 0 }],
+  ])("refuse a message with %s", (_, columns) => {
+    expect(() => insertMessage(3, columns)).toThrow();
+  });
+
+  it.each([
+    ["an ask numbered as one before it", { number: 1 }],
+    ["an ask numbered 0", { number: 0 }],
+    ["an ask on no message", { number: 2, seq: 9 }],
+    ["an ask without a question", { number: 2, question: null as unknown as string }],
+    ["an ask's effort of no known length", { number: 2, effort: "soon" }],
+    ["several picks over one suggested answer", { number: 2, multiple: 1 }],
+  ])("refuse %s", (_, columns) => {
+    expect(() => insert("asks", { ...asked, ...columns })).toThrow();
+  });
+
+  it.each([
+    ["an answer to an ask that does not exist", { ask: 2, declined: 1 }],
+    ["an answer on no message", { seq: 9, declined: 1 }],
+    ["an answer with neither picks nor own words", { declined: 0 }],
+    ["a decline with picks", { declined: 1, picks: "[0]" }],
+    ["a decline with own words", { declined: 1, text: "x" }],
+  ])("refuse %s", (_, columns) => {
+    expect(() => insert("answers", { thread_id: 1, seq: 2, ask: 1, ...columns })).toThrow();
+  });
+
+  it.each([
+    ["a withdrawal of an ask that does not exist", { ask: 2 }],
+    ["a withdrawal on no message", { seq: 9 }],
+    ["a withdrawal without a reason", { reason: null as unknown as string }],
+  ])("refuse %s", (_, columns) => {
+    expect(() =>
+      insert("withdrawals", { thread_id: 1, seq: 2, ask: 1, reason: "r", ...columns }),
+    ).toThrow();
+  });
+
+  it("refuse a message withdrawing an ask twice", () => {
+    insert("withdrawals", { thread_id: 1, seq: 2, ask: 1, reason: "r" });
+    expect(() => insert("withdrawals", { thread_id: 1, seq: 2, ask: 1, reason: "s" })).toThrow();
+  });
+
+  it("refuse a message answering an ask twice", () => {
+    insert("answers", { thread_id: 1, seq: 2, ask: 1, declined: 1 });
+    expect(() =>
+      insert("answers", { thread_id: 1, seq: 2, ask: 1, declined: 0, text: "x" }),
+    ).toThrow();
+  });
+});
+
+describe("the operator, registrations and threads", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+    database.prepare("INSERT INTO people (name, created_at) VALUES ('operator', 1)").run();
+    database.prepare("INSERT INTO agents (name, created_at) VALUES ('agent', 1)").run();
+    database.prepare("INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 's', 1)").run();
+    database.prepare("INSERT INTO actors (person_id) VALUES (1)").run();
+    database.prepare("INSERT INTO actors (session_id) VALUES (1)").run();
+    database
+      .prepare(
+        `INSERT INTO threads (session_id, number, requester_actor_id, audience_actor_id, title,
+           created_at, last_seq)
+         VALUES (1, 1, 2, 1, 't', 1, 1)`,
+      )
+      .run();
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  it("hold one operator, whose id is 1", () => {
+    expect(() =>
+      database.prepare("INSERT INTO people (name, created_at) VALUES ('second', 1)").run(),
+    ).toThrow();
+    expect(() => database.prepare("UPDATE people SET id = 2").run()).toThrow();
+  });
+
+  // registration writes a registration with the given status and session.
+  const registration = (status: string, sessionId: number | null) =>
+    database
+      .prepare(
+        `INSERT INTO registrations (public_key, proposed_agent, proposed_session, status,
+           session_id, created_at, expires_at, decided_at, revoked_at)
+         VALUES (?, 'agent', 's', ?, ?, 1, 2, ?, ?)`,
+      )
+      .run(
+        `key-${status}-${sessionId}`,
+        status,
+        sessionId,
+        status === "pending" ? null : 1,
+        status === "revoked" ? 1 : null,
+      );
+
+  it.each([
+    ["pending", null],
+    ["approved", 1],
+    ["rejected", null],
+    ["revoked", 1],
+  ])("hold a %s registration with its session set exactly when decided onto one", (status, id) => {
+    registration(status, id);
+  });
+
+  it.each([
+    ["pending", 1],
+    ["approved", null],
+    ["rejected", 1],
+    ["revoked", null],
+  ])("refuse a %s registration whose session says otherwise", (status, id) => {
+    expect(() => registration(status, id)).toThrow();
+  });
+
+  it("let a thread change only its latest sequence", () => {
+    database.prepare("UPDATE threads SET last_seq = 2").run();
+    // How SQLite reports a trigger's refusal: SQLITE_CONSTRAINT_TRIGGER.
+    const refusal = (statement: string) => {
+      try {
+        database.prepare(statement).run();
+      } catch (error) {
+        return (error as { errcode?: number }).errcode;
+      }
+      return undefined;
+    };
+    for (const change of [
+      "id = 2",
+      "session_id = 2",
+      "number = 2",
+      "requester_actor_id = 1",
+      "audience_actor_id = 2",
+      "title = 'changed'",
+      "created_at = 2",
+      "title = 'changed', last_seq = 3",
+    ]) {
+      expect([change, refusal(`UPDATE threads SET ${change}`)]).toEqual([change, 1811]);
+    }
+    expect(database.prepare("SELECT title, last_seq FROM threads").all()).toEqual([
+      { title: "t", last_seq: 2 },
+    ]);
+  });
+});
+
+describe("the instance", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  const name = () =>
+    (database.prepare("SELECT name FROM instance").get() as { name: string | null }).name;
+
+  it("takes a server name once and refuses changing it after", () => {
+    expect(name()).toBeNull();
+    database.prepare("UPDATE instance SET name = 'Work'").run();
+    database.prepare("UPDATE instance SET name = 'Work'").run();
+    for (const statement of [
+      "UPDATE instance SET name = 'Play'",
+      "UPDATE instance SET name = NULL",
+      "DELETE FROM instance",
+      "REPLACE INTO instance (id, challenge_key, name) VALUES (1, randomblob(32), 'Play')",
+    ]) {
+      expect(() => database.prepare(statement).run()).toThrow();
+    }
+    expect(name()).toBe("Work");
+  });
+});
+
+describe("passkeys", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+    database.prepare("INSERT INTO people (name, created_at) VALUES ('operator', 1)").run();
+    for (const id of [1, 2]) {
+      database
+        .prepare(
+          `INSERT INTO passkeys (id, person_id, credential_id, name, data, created_at)
+           VALUES (?, 1, ?, 'p', '{}', 1)`,
+        )
+        .run(id, `c${id}`);
+      database
+        .prepare(
+          `INSERT INTO browser_sessions (hash, person_id, passkey_id, csrf_token, created_at,
+             idle_expires_at, absolute_expires_at) VALUES (?, 1, ?, 't', 1, 2, 2)`,
+        )
+        .run(Buffer.alloc(32, id), id);
+    }
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  it("take the browser sessions they signed in with them", () => {
+    database.prepare("DELETE FROM passkeys WHERE id = 1").run();
+    expect(database.prepare("SELECT passkey_id FROM browser_sessions").all()).toEqual([
+      { passkey_id: 2 },
+    ]);
+  });
+
+  it("refuse a passkey link without the operator's name", () => {
+    expect(() =>
+      database
+        .prepare("INSERT INTO passkey_links (hash, operator_name, expires_at) VALUES (?, NULL, 1)")
+        .run(Buffer.alloc(32)),
+    ).toThrow();
+  });
+});

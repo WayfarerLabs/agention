@@ -1,0 +1,140 @@
+import { threadFilters, threadsQuery } from "@wayfarerlabs/agention-api";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { markRead } from "./marks.ts";
+import { seenStep } from "./presence.ts";
+import { revokeRegistration } from "./registrations.ts";
+import { defaultQuietAfter } from "./store.ts";
+import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
+import { countThreads, listThreads } from "./thread-lists.ts";
+
+let fixture: Fixture;
+let agent: Agent;
+
+beforeEach(() => {
+  fixture = new Fixture();
+  agent = fixture.registerAgent("builder", "main");
+});
+
+afterEach(() => {
+  fixture.close();
+});
+
+const target = (number = 1) => threadTarget(agent, number);
+
+// The thread as the operator, its audience, sees it.
+const thread = (number = 1) => fixture.thread(fixture.operator, target(number)).thread;
+
+const lastSeen = () =>
+  (
+    fixture.db.prepare("SELECT last_seen_at FROM sessions WHERE id = ?").get(agent.sessionId) as {
+      last_seen_at: number | null;
+    }
+  ).last_seen_at;
+
+describe("last seen", () => {
+  it("is stamped only when that moves it a minute or more", () => {
+    expect(lastSeen()).toBeNull();
+    fixture.seen(agent);
+    const first = fixture.now;
+    expect(lastSeen()).toBe(first);
+    fixture.advance(seenStep - 1);
+    fixture.seen(agent);
+    expect(lastSeen()).toBe(first);
+    fixture.advance(1);
+    fixture.seen(agent);
+    expect(lastSeen()).toBe(first + seenStep);
+  });
+
+  it("moves back with a clock stepped back, so it never holds still", () => {
+    fixture.seen(agent);
+    fixture.advance(-5 * seenStep);
+    fixture.seen(agent);
+    expect(lastSeen()).toBe(fixture.now);
+  });
+
+  it("is stamped only while the registration is approved", () => {
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    fixture.seen(agent);
+    expect(lastSeen()).toBeNull();
+  });
+});
+
+describe("quiet", () => {
+  it("holds for a session never seen, and once it goes unseen past the threshold", () => {
+    fixture.startThread(agent);
+    expect(thread().presence).toEqual({ quiet: true });
+    fixture.seen(agent);
+    const seenAt = new Date(fixture.now).toISOString();
+    expect(thread().presence).toEqual({ last_seen_at: seenAt, quiet: false });
+    // Quiet allows the minute a stamp may lag behind the latest call.
+    fixture.advance(defaultQuietAfter + seenStep);
+    expect(thread().presence?.quiet).toBe(false);
+    fixture.advance(1);
+    expect(thread().presence).toEqual({ last_seen_at: seenAt, quiet: true });
+  });
+
+  it("follows the server's threshold, and never holds for a session calling within it", () => {
+    const short = new Fixture({ quietAfter: seenStep });
+    try {
+      const own = short.registerAgent("builder", "main");
+      short.startThread(own);
+      const quiet = () => short.thread(short.operator, threadTarget(own, 1)).thread.presence?.quiet;
+      // Calling every 59 seconds stamps every other call, and is never quiet.
+      for (let call = 0; call < 10; call++) {
+        short.seen(own);
+        expect(quiet()).toBe(false);
+        short.advance(59_000);
+        expect(quiet()).toBe(false);
+      }
+      short.advance(2 * seenStep);
+      expect(quiet()).toBe(true);
+    } finally {
+      short.close();
+    }
+  });
+
+  it("is the audience's to see, never the session's own", () => {
+    fixture.startThread(agent);
+    const own = fixture.thread(agent.identity, target()).thread;
+    expect(own).not.toHaveProperty("presence");
+    expect(own).not.toHaveProperty("stranded");
+  });
+});
+
+describe("stranded", () => {
+  beforeEach(() => {
+    fixture.startThread(agent, { title: "written to" });
+    fixture.write(fixture.operator, target(1), { text: "Over to you." });
+    fixture.startThread(agent, { title: "read" });
+    fixture.write(fixture.operator, target(2), { text: "Over to you." });
+    markRead(fixture.store, agent.identity, target(2), { through: 2 });
+    fixture.startThread(agent, { title: "not written to" });
+    fixture.seen(agent);
+  });
+
+  const stranded = () =>
+    listThreads(
+      fixture.store,
+      fixture.operator,
+      threadsQuery.parse({ agent_read: "stranded" }),
+    ).threads.map((each) => each.title);
+
+  it("holds an operator's message the session has not read while it is quiet", () => {
+    expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([false, false, false]);
+    expect(stranded()).toEqual([]);
+    fixture.advance(defaultQuietAfter + seenStep + 1);
+    expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([true, false, false]);
+    expect(stranded()).toEqual(["written to"]);
+    // The agent coming back ends it, before it reads a thing.
+    fixture.seen(agent);
+    expect(thread(1).stranded).toBe(false);
+  });
+
+  it("holds such a message while the session has no active credential, seen or not", () => {
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    expect(thread(1)).toMatchObject({ stranded: true, presence: { quiet: false } });
+    expect(stranded()).toEqual(["written to"]);
+    const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+  });
+});
