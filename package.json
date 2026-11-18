@@ -1,0 +1,24 @@
+{
+  "name": "agention-repository",
+  "private": true,
+  "description": "Repository tooling for Agention; each component is an npm workspace.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/build",
+    "apps/web"
+  ],
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "cspell": "10.4.0",
+    "esbuild": "0.28.2",
+    "markdownlint-cli2": "0.24.0",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  },
+  "overrides": {
+    "markdownlint": {
+      "re2js": "2.8.7"
+    }
+  }
+}

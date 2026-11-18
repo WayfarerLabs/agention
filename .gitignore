@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+apps/web/dist/
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Environment and secret files
+.env
+.env.*
+
+# Personal tmuxinator configuration
+.tmuxinator.yml
