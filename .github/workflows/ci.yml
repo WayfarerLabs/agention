@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The SDD gate compares the branch with the merge-base of its base.
+          fetch-depth: 0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -42,7 +44,10 @@ jobs:
           npm audit signatures
           npx playwright install --with-deps --only-shell chromium
 
+      # The SDD gate's base: scripts/check-sdd.sh explains HEAD^1.
       - name: scripts/check.sh
+        env:
+          SDD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
         run: scripts/check.sh
 
   # The one required status check. Branch protection names this job across

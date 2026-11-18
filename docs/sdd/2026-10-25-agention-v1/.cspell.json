@@ -1,0 +1,22 @@
+{
+  "version": "0.2",
+  "import": ["../../../.cspell.json"],
+  "words": [
+    "adrs",
+    "autolinks",
+    "Baymard",
+    "CSSOM",
+    "govulncheck",
+    "inlines",
+    "JMAP",
+    "lockdown",
+    "nerftools",
+    "sandboxed",
+    "staticcheck",
+    "streamable",
+    "triaging",
+    "unarchived",
+    "WCAG",
+    "Zulip"
+  ]
+}

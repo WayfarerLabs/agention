@@ -12,7 +12,8 @@
 # the browser gate, which drives them. --packages DIR runs only the install
 # and the build gate, which builds the published packages and checks each as
 # npm would publish it, and keeps the tarballs it checked in DIR, which must
-# be empty or missing; the release workflow publishes those.
+# be empty or missing; the release workflow publishes those. The SDD gate
+# compares the branch with SDD_BASE, which CI sets, or with origin/main.
 # ============================================================================
 
 set -euo pipefail
@@ -191,6 +192,10 @@ if [[ $mode != packages ]]; then
 
     step "Plugin drift"
     scripts/generate-plugins.sh --check
+
+    step "SDD records"
+    scripts/check-sdd.test.sh
+    scripts/check-sdd.sh ${SDD_BASE:+"$SDD_BASE"}
 fi
 
 if [[ $mode != fast ]]; then
