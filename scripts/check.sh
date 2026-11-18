@@ -186,5 +186,8 @@ if [[ $fast -eq 0 ]]; then
     npm run --silent --workspace apps/web test:browser
 fi
 
+step "Plugin drift"
+scripts/generate-plugins.sh --check
+
 echo ""
 echo "All checks passed."

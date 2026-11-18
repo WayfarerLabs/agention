@@ -1,0 +1,18 @@
+{
+  "name": "agention",
+  "version": "0.0.0",
+  "description": "Connects agents to Agention, a self-hosted attention inbox: they start threads with their operator, ask what they need answered, and read the replies.",
+  "skills": "./skills/",
+  "author": {
+    "name": "Wayfarer Labs"
+  },
+  "homepage": "https://github.com/WayfarerLabs/agention",
+  "repository": "https://github.com/WayfarerLabs/agention",
+  "license": "MIT",
+  "keywords": [
+    "agention",
+    "attention",
+    "inbox",
+    "mcp"
+  ]
+}

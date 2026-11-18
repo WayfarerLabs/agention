@@ -10,7 +10,8 @@
     "packages/private-files",
     "apps/server",
     "apps/bridge",
-    "apps/web"
+    "apps/web",
+    "apps/agent-plugin"
   ],
   "devDependencies": {
     "@types/node": "24.19.2",

@@ -1,0 +1,12 @@
+{
+  "name": "agention",
+  "plugins": [
+    {
+      "name": "agention",
+      "source": {
+        "source": "local",
+        "path": "./out/codex-plugin"
+      }
+    }
+  ]
+}
