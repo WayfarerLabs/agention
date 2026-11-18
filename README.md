@@ -1,3 +1,77 @@
 # Agention
 
 A self-hosted attention inbox for autonomous agents and the people working with them.
+
+One person can run many largely autonomous agent sessions. Each session occasionally needs that
+person: a question answered, a decision noticed, something done in another system, a result
+reviewed. Agention gives those sessions threads in which to say what they need and ask what they
+want answered, and gives the person one phone-friendly list of threads in which to read and answer
+them. Agents read the answers through the same interface they write through.
+
+Agention never grants permissions, injects text into an agent's conversation, or controls an agent
+harness. It records and shows; the agent decides what to do with an answer.
+
+## Status
+
+Agention v1 is under development, and usable from its first release, 0.1.0. Each release is
+published to npm: the server and operator CLI as `@wayfarerlabs/agention`, and the agent bridge as
+`@wayfarerlabs/agention-mcp`. The Claude Code and Codex plugins install from this repository's
+plugin marketplace, and the [operator guide](docs/operator-guide.md) takes you from installing the
+server to agents asking and you answering. The repository contains:
+
+- the `agention` command, the server and operator CLI: `agention serve` runs the HTTP API, with
+  passkey sign-in for the person and key authentication for agents, over the server's database and
+  store, and `agention passkey-link` issues the link that registers the person's passkeys;
+- the web UI, which the server serves: the person signs in with a passkey, works through one thread
+  list, reads and answers threads, archives them, approves agents' registrations, and manages their
+  passkeys;
+- the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
+  starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
+  and checks for new messages;
+- the API contract, which the server, the bridge and the web UI share;
+- the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
+  run the bridge at the version they pin.
+
+[docs/architecture.md](docs/architecture.md) describes what exists.
+
+## Design
+
+Agention is TypeScript on Node. One server process serves an HTTP API and a web UI for the person
+from one HTTPS origin, with all state in one SQLite file. Agents do not call the API directly: each
+agent host runs the agent bridge, a small MCP server that the Agention plugin starts with a pinned
+`npx` command, and the bridge turns each tool call into one API request. Each agent session
+authenticates with its own key, which the person approves by matching a short code; the person signs
+in with passkeys. The server terminates TLS itself or runs on loopback behind a TLS terminator such
+as `tailscale serve`, the path the operator guide documents.
+[ADR 0001](docs/adrs/0001-agention-v1-architecture.md) records the design and the alternatives
+considered.
+
+Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
+provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY.md) describes.
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers building from source, the checks CI runs, the contribution
+process and releasing. The [operator guide](docs/operator-guide.md) lists the commands, available
+and planned.
+
+## Repository layout
+
+Each component is an npm workspace, and one lockfile covers them all.
+
+| Path                                          | Contents                                                                                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api/`                               | The API contract shared by the server, the bridge and the web UI                                                                               |
+| `packages/build/`                             | The bundle build for the published packages, with their license notices                                                                        |
+| `packages/private-files/`                     | The private-file rule the server and the bridge share                                                                                          |
+| `apps/server/`                                | The server and operator CLI, npm package `@wayfarerlabs/agention`                                                                              |
+| `apps/bridge/`                                | The agent bridge, npm package `@wayfarerlabs/agention-mcp`                                                                                     |
+| `apps/web/`                                   | The React web UI                                                                                                                               |
+| `apps/agent-plugin/`                          | The canonical agent plugin definition and its generator                                                                                        |
+| `out/`, `.claude-plugin/`, `.agents/plugins/` | Generated Claude Code and Codex plugins and catalogs (committed)                                                                               |
+| `scripts/`                                    | Check, lint and plugin generation scripts                                                                                                      |
+| `docs/`                                       | Architecture, operator guide, decision records (`docs/adrs/`), the development contract and its checklists, and design documents (`docs/sdd/`) |
+
+## License
+
+[MIT](LICENSE)
