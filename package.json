@@ -9,6 +9,7 @@
     "packages/build",
     "packages/private-files",
     "apps/server",
+    "apps/bridge",
     "apps/web"
   ],
   "devDependencies": {

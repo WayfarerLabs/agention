@@ -176,8 +176,10 @@ if [[ $fast -eq 0 ]]; then
     trap 'rm -rf "$scratch"' EXIT
     # The server's build runs the web UI's build first and ships it.
     npm run --silent --workspace apps/server build
+    npm run --silent --workspace apps/bridge build
     check_package apps/server agention version
     check_server_serves
+    check_package apps/bridge agention-mcp --version
 
     step "Browser"
     # Chromium drives the web UI the built server serves, over TLS.
