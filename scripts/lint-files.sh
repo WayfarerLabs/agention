@@ -28,8 +28,8 @@ require_npm_tools || exit 1
 
 cd "$REPO_ROOT" || exit 1
 bin="$REPO_ROOT/node_modules/.bin"
-prettier_globs=('**/*.md' '**/*.json' '**/*.jsonc' '**/*.yml' '**/*.yaml' '**/*.ts' '**/*.tsx' '**/*.html')
-cspell_globs=('**/*.md' '**/*.ts' '**/*.tsx' '**/*.html' '**/*.sh' '**/*.yml' '**/*.yaml')
+prettier_globs=('**/*.md' '**/*.json' '**/*.jsonc' '**/*.yml' '**/*.yaml' '**/*.ts' '**/*.tsx' '**/*.html' '**/*.css')
+cspell_globs=('**/*.md' '**/*.ts' '**/*.tsx' '**/*.html' '**/*.css' '**/*.sh' '**/*.yml' '**/*.yaml')
 
 if [[ $fix -eq 1 ]]; then
     echo "--- prettier --write ---"

@@ -1,0 +1,348 @@
+import type {
+  PasskeyList,
+  PasskeyRemoved,
+  PasskeySummary,
+  SessionState,
+} from "@wayfarerlabs/agention-api";
+import { type FormEvent, useId, useState } from "react";
+import { ApiFailure, request } from "../api.ts";
+import {
+  ConfirmButton,
+  Failure,
+  Loadable,
+  PageHeading,
+  Status,
+  Tags,
+  usePageTitle,
+} from "../components.tsx";
+import { useAction, useResource } from "../data.ts";
+import { Time } from "../format.tsx";
+import { addPasskey, passkeysSupported, signIn } from "../passkeys.ts";
+import { useSession } from "../session.tsx";
+
+// The passkeys page: the operator's passkeys, each named, with the one that
+// signed this browser in marked. They add one on this device, rename any, and
+// remove any but the last. Another device signs in with a passkey they hold
+// and adds its own there. Adding and removing need a recent sign-in, which
+// the page offers.
+
+const loadPasskeys = () => request<PasskeyList>("GET", "/passkeys");
+
+// nameProblem says why a passkey name cannot be sent: a blank one.
+export const nameProblem = (name: string) =>
+  name.trim() === "" ? "Name the passkey first." : undefined;
+
+// PasskeyNameField is the one field that names a passkey.
+export function PasskeyNameField({
+  label,
+  value,
+  onChange,
+  problem,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  problem: string | undefined;
+}) {
+  const id = useId();
+  return (
+    <>
+      <label htmlFor={id}>{label}</label>
+      <p className="hint" id={`${id}-hint`}>
+        Such as the device that holds it.
+      </p>
+      <input
+        id={id}
+        value={value}
+        maxLength={50}
+        aria-invalid={problem === undefined ? undefined : true}
+        aria-describedby={`${id}-hint${problem === undefined ? "" : ` ${id}-error`}`}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {problem !== undefined && (
+        <p id={`${id}-error`} className="field-error">
+          {problem}
+        </p>
+      )}
+    </>
+  );
+}
+
+// needingRecent runs a change that needs a recent sign-in. When the server
+// finds the sign-in too old, though the page last saw it recent, the page
+// reads the list again, so it offers to sign in again.
+async function needingRecent<T>(change: Promise<T>, refresh: () => void): Promise<T> {
+  try {
+    return await change;
+  } catch (failure) {
+    if (failure instanceof ApiFailure && failure.code === "not_allowed") {
+      refresh();
+    }
+    throw failure;
+  }
+}
+
+const unsupported = "This browser lacks the passkey support Agention needs, so it cannot do this.";
+
+export function Passkeys() {
+  usePageTitle("Passkeys");
+  const list = useResource<PasskeyList>(loadPasskeys);
+  return (
+    <>
+      <PageHeading visuallyHidden>Passkeys</PageHeading>
+      <Loadable data={list.data} failure={list.failure} retry={list.refresh}>
+        {(data) => <PasskeysBody data={data} refresh={list.refresh} />}
+      </Loadable>
+    </>
+  );
+}
+
+function PasskeysBody({ data, refresh }: { data: PasskeyList; refresh: () => void }) {
+  const hint = useId();
+  const onlyHint = useId();
+  const recentHint = data.recent ? undefined : hint;
+  const only = data.passkeys.length === 1;
+  return (
+    <>
+      {!data.recent && <SignInAgain hint={hint} onSignedIn={refresh} />}
+      <ul className="passkeys">
+        {data.passkeys.map((passkey) => (
+          <PasskeyItem
+            key={passkey.id}
+            passkey={passkey}
+            removable={data.recent && !only}
+            describedBy={recentHint ?? (only ? onlyHint : undefined)}
+            refresh={refresh}
+          />
+        ))}
+      </ul>
+      {only && (
+        <p id={onlyHint} className="hint">
+          Your only passkey cannot be removed: add another first.
+        </p>
+      )}
+      <AddHere recent={data.recent} describedBy={recentHint} refresh={refresh} />
+    </>
+  );
+}
+
+// SignInAgain says why adding and removing are unavailable, and signs in
+// again, which replaces this browser's session with a recent one.
+function SignInAgain({ hint, onSignedIn }: { hint: string; onSignedIn: () => void }) {
+  const session = useSession();
+  const action = useAction();
+  const again = async () => {
+    const state = await action.run(signIn);
+    if (state !== undefined) {
+      session.update(state);
+      onSignedIn();
+    }
+  };
+  return (
+    <div className="notice">
+      <p id={hint}>Adding or removing a passkey needs a sign-in within the last 10 minutes.</p>
+      <Failure failure={action.failure} />
+      {passkeysSupported() ? (
+        <div className="actions">
+          <button type="button" disabled={action.pending} onClick={() => void again()}>
+            Sign in again
+          </button>
+        </div>
+      ) : (
+        <p>{unsupported}</p>
+      )}
+    </div>
+  );
+}
+
+function PasskeyItem({
+  passkey,
+  removable,
+  describedBy,
+  refresh,
+}: {
+  passkey: PasskeySummary;
+  removable: boolean;
+  describedBy: string | undefined;
+  refresh: () => void;
+}) {
+  const session = useSession();
+  const action = useAction();
+  const [renaming, setRenaming] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const remove = async () => {
+    setStatus("");
+    const removed = await action.run((csrf) =>
+      needingRecent(
+        request<PasskeyRemoved>("POST", `/passkeys/${passkey.id}/remove`, { csrf }),
+        refresh,
+      ),
+    );
+    if (removed?.signed_out === true) {
+      const signedOut: SessionState = { signed_in: false, operator_exists: true };
+      session.update(signedOut);
+    } else if (removed !== undefined) {
+      refresh();
+    }
+  };
+
+  return (
+    <li>
+      <article className="passkey" aria-label={`Passkey ${passkey.name}`}>
+        <h2>{passkey.name}</h2>
+        <p className="where">
+          Added <Time value={passkey.created_at} />
+          {" · "}
+          {passkey.last_used_at === undefined ? (
+            "never used to sign in"
+          ) : (
+            <>
+              last signed in <Time value={passkey.last_used_at} />
+            </>
+          )}
+        </p>
+        {passkey.current && <Tags tags={[{ label: "Signed in this browser", tone: "accent" }]} />}
+        {renaming ? (
+          <RenameForm
+            passkey={passkey}
+            onDone={(renamed) => {
+              setRenaming(false);
+              if (renamed) {
+                setStatus("Renamed.");
+                refresh();
+              }
+            }}
+          />
+        ) : (
+          <div className="actions">
+            <button type="button" className="secondary" onClick={() => setRenaming(true)}>
+              Rename
+            </button>
+            <ConfirmButton
+              label="Remove"
+              confirmLabel="Remove this passkey"
+              question={
+                passkey.current
+                  ? `Remove ${passkey.name}? It signed this browser in, so this browser signs out too.`
+                  : `Remove ${passkey.name}? Every browser it signed in signs out.`
+              }
+              disabled={!removable || action.pending}
+              describedBy={describedBy}
+              onConfirm={() => void remove()}
+            />
+          </div>
+        )}
+        <Failure failure={action.failure} />
+        {status !== "" && <Status>{status}</Status>}
+      </article>
+    </li>
+  );
+}
+
+function RenameForm({
+  passkey,
+  onDone,
+}: {
+  passkey: PasskeySummary;
+  onDone: (renamed: boolean) => void;
+}) {
+  const action = useAction();
+  const [name, setName] = useState(passkey.name);
+  const [problem, setProblem] = useState<string>();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const blank = nameProblem(name);
+    setProblem(blank);
+    if (blank !== undefined) {
+      return;
+    }
+    const done = await action.run((csrf) =>
+      request("POST", `/passkeys/${passkey.id}/name`, { csrf, body: { name } }),
+    );
+    if (done !== undefined) {
+      onDone(true);
+    }
+  };
+  return (
+    <form noValidate onSubmit={(event) => void submit(event)}>
+      <PasskeyNameField label="New name" value={name} onChange={setName} problem={problem} />
+      <Failure failure={action.failure} />
+      <div className="actions">
+        <button type="submit" disabled={action.pending}>
+          Save
+        </button>
+        <button type="button" className="secondary" onClick={() => onDone(false)}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// AddHere adds a passkey on this device, under the name given.
+function AddHere({
+  recent,
+  describedBy,
+  refresh,
+}: {
+  recent: boolean;
+  describedBy: string | undefined;
+  refresh: () => void;
+}) {
+  const action = useAction();
+  const [name, setName] = useState("");
+  const [problem, setProblem] = useState<string>();
+  const [status, setStatus] = useState("");
+  const id = useId();
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    setStatus("");
+    const blank = nameProblem(name);
+    setProblem(blank);
+    if (blank !== undefined) {
+      return;
+    }
+    const added = await action.run(async (csrf) => {
+      await needingRecent(addPasskey(name, csrf), refresh);
+      return true;
+    });
+    if (added === true) {
+      setName("");
+      setStatus("Passkey added.");
+      refresh();
+    }
+  };
+  return (
+    <section aria-labelledby={`${id}-heading`}>
+      <h2 id={`${id}-heading`}>Add a passkey on this device</h2>
+      <p className="hint">
+        For another device, sign in there with a passkey you hold, such as your phone's, through
+        that browser's cross-device sign-in, then add the device's own passkey there.
+      </p>
+      {passkeysSupported() ? (
+        <form noValidate onSubmit={(event) => void add(event)}>
+          <PasskeyNameField
+            label="Passkey name"
+            value={name}
+            onChange={setName}
+            problem={problem}
+          />
+          <Failure failure={action.failure} />
+          <div className="actions">
+            <button
+              type="submit"
+              disabled={!recent || action.pending}
+              aria-describedby={describedBy}
+            >
+              Add a passkey
+            </button>
+          </div>
+          {status !== "" && <Status>{status}</Status>}
+        </form>
+      ) : (
+        <p>{unsupported}</p>
+      )}
+    </section>
+  );
+}
