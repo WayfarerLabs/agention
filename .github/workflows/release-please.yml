@@ -1,0 +1,37 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  # Rebuilds the release pull request without a push to main, for example after
+  # it conflicts with main.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    # The release pull request is opened with a GitHub App token so that CI runs
+    # on it (events created with the default GITHUB_TOKEN do not trigger
+    # workflows). Until the app is configured, the workflow is skipped.
+    if: vars.RELEASE_APP_CLIENT_ID != ''
+    # The App's private key is a secret of this environment, which only main
+    # may use, so no other branch's copy of this workflow can mint the token
+    # that creates v* tags.
+    environment: release-please
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app-token
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

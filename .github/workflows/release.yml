@@ -1,0 +1,114 @@
+name: Release
+
+# release-please tags each release when its pull request merges, with its
+# GitHub App's token, so the tag push starts this workflow. A repository
+# ruleset lets only that App create v* tags, and the App's key is a secret of
+# an environment only main may use, and main changes only through reviewed
+# pull requests with the required check, so a v* tag marks a merged release
+# pull request.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # Builds and checks both packages, and uploads the tarballs it checked for
+  # the publish job. It holds no OIDC token, so nothing it runs, the
+  # dependencies included, can publish.
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      node-version: ${{ steps.node-pin.outputs.node-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No registry-url: it would configure a token, and trusted publishing
+      # needs none. A release builds from a clean install, never a cache.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Read the Node.js pin for the publish job
+        id: node-pin
+        run: echo "node-version=$(tr -d '[:space:]' <.node-version)" >>"$GITHUB_OUTPUT"
+
+      # The plugin definition's version is the bridge version the committed
+      # plugins pin, which the publish job's order relies on.
+      - name: Refuse a tag the versions do not match
+        run: |
+          for manifest in apps/server/package.json apps/bridge/package.json apps/agent-plugin/plugin.json; do
+            version="$(node -p 'require(process.argv[1]).version' "$PWD/$manifest")"
+            if [[ "$version" != "${GITHUB_REF_NAME#v}" ]]; then
+              echo "::error::$manifest is version $version, which is not the tag $GITHUB_REF_NAME."
+              exit 1
+            fi
+          done
+
+      # Installs the locked dependencies, builds both packages, proves each
+      # packed package's command prints its package.json version, which the
+      # step above matched to the tag, and keeps the tarballs it checked.
+      - name: scripts/check.sh --packages
+        run: scripts/check.sh --packages "$RUNNER_TEMP/packages"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: ${{ runner.temp }}/packages/
+          if-no-files-found: error
+
+  # Publishes the build job's tarballs to npm through trusted publishing,
+  # running no repository code. Each package's trusted publisher names this
+  # workflow and the npm environment, which only v* tags may use.
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: npm
+    timeout-minutes: 10
+    permissions:
+      # npm exchanges the job's OIDC token for a short-lived publish token,
+      # and the provenance is signed for the same workflow identity.
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ needs.build.outputs.node-version }}
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: ${{ runner.temp }}/packages
+
+      # Both tarballs are checked before either is published. The bridge goes
+      # first, since the plugins on main already pin this version of it. A
+      # version already on npm, published by an earlier run that failed part
+      # way, is skipped, so a rerun finishes the release; the registry refuses
+      # a version twice whatever this check says. --provenance makes a publish
+      # that cannot carry provenance fail rather than go out without it.
+      - name: Publish to npm
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          names=(@wayfarerlabs/agention-mcp @wayfarerlabs/agention)
+          # npm packs @scope/name at a version as scope-name-version.tgz.
+          tarball() { echo "$RUNNER_TEMP/packages/$(tr / - <<<"${1#@}")-$version.tgz"; }
+          for name in "${names[@]}"; do
+            packed="$(tar -xzOf "$(tarball "$name")" package/package.json |
+              node -p 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); m.name + "@" + m.version')"
+            if [[ "$packed" != "$name@$version" ]]; then
+              echo "::error::$(tarball "$name") holds $packed, not $name@$version."
+              exit 1
+            fi
+          done
+          for name in "${names[@]}"; do
+            if npm view "$name@$version" version >/dev/null; then
+              echo "$name@$version is already on npm, so it is skipped."
+            else
+              npm publish "$(tarball "$name")" --provenance --ignore-scripts
+            fi
+          done

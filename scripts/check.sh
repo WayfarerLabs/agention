@@ -9,19 +9,33 @@
 # checks. The first gate installs the locked dependencies with `npm ci`.
 # The browser gate needs Chromium's headless shell, installed once with
 # `npx playwright install --only-shell chromium`. --fast skips the builds and
-# the browser gate, which drives them.
+# the browser gate, which drives them. --packages DIR runs only the install
+# and the build gate, which builds the published packages and checks each as
+# npm would publish it, and keeps the tarballs it checked in DIR, which must
+# be empty or missing; the release workflow publishes those.
 # ============================================================================
 
 set -euo pipefail
 
-usage="Usage: scripts/check.sh [--fast]"
-fast=0
+usage="Usage: scripts/check.sh [--fast | --packages DIR]"
+mode=all
+packages_dir=""
 case "$#:${1:-}" in
     0:) ;;
-    1:--fast) fast=1 ;;
+    1:--fast) mode=fast ;;
+    2:--packages) mode=packages packages_dir="$2" ;;
     1:-h | 1:--help) echo "$usage" && exit 0 ;;
     *) echo "$usage" >&2 && exit 2 ;;
 esac
+if [[ -n "$packages_dir" ]]; then
+    if [[ -e "$packages_dir" && -n "$(ls -A "$packages_dir")" ]]; then
+        echo "check.sh: $packages_dir must be empty, so it holds only the packages checked now." >&2
+        exit 2
+    fi
+    mkdir -p "$packages_dir"
+    # Absolute, since the checks run from the repository root.
+    packages_dir="$(cd "$packages_dir" && pwd)"
+fi
 
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 require_command node "Install the version in .node-version."
@@ -40,7 +54,8 @@ step() {
 # beside the bundle; and, installed from the tarball into a directory of its
 # own, its command starts through node_modules/.bin and prints the version in
 # its package.json. It leaves the unpacked and installed package in
-# $package_dir for further checks.
+# $package_dir for further checks, and copies the tarball it checked into
+# $packages_dir when one is given.
 check_package() {
     local workspace="$1" command="$2" version_arg="$3"
     local dir tarball manifest declared bin want got status=0
@@ -80,6 +95,9 @@ check_package() {
     if [[ $status -ne 0 || "$got" != "$want" ]]; then
         echo "$workspace: '$command $version_arg' exited with status $status and printed '$got', want '$want'." >&2
         return 1
+    fi
+    if [[ -n "$packages_dir" ]]; then
+        cp "$dir/$tarball" "$packages_dir/"
     fi
     echo "$workspace: $want"
 }
@@ -158,19 +176,24 @@ step "Dependency integrity"
 npm ci --ignore-scripts --no-audit --no-fund
 npm audit signatures
 
-step "Format and lint"
-scripts/lint-files.sh
+if [[ $mode != packages ]]; then
+    step "Format and lint"
+    scripts/lint-files.sh
 
-step "Types"
-npm run --workspaces typecheck
+    step "Types"
+    npm run --workspaces typecheck
 
-step "Tests"
-npm run --workspaces test
+    step "Tests"
+    npm run --workspaces test
 
-step "Vulnerabilities"
-npm audit --audit-level=high
+    step "Vulnerabilities"
+    npm audit --audit-level=high
 
-if [[ $fast -eq 0 ]]; then
+    step "Plugin drift"
+    scripts/generate-plugins.sh --check
+fi
+
+if [[ $mode != fast ]]; then
     step "Build"
     scratch="$(mktemp -d)"
     trap 'rm -rf "$scratch"' EXIT
@@ -181,13 +204,12 @@ if [[ $fast -eq 0 ]]; then
     check_server_serves
     check_package apps/bridge agention-mcp --version
 
-    step "Browser"
-    # Chromium drives the web UI the built server serves, over TLS.
-    npm run --silent --workspace apps/web test:browser
+    if [[ $mode == all ]]; then
+        step "Browser"
+        # Chromium drives the web UI the built server serves, over TLS.
+        npm run --silent --workspace apps/web test:browser
+    fi
 fi
-
-step "Plugin drift"
-scripts/generate-plugins.sh --check
 
 echo ""
 echo "All checks passed."
