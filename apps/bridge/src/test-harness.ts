@@ -1,0 +1,237 @@
+// A real Agention server over TLS, run in this process from apps/server, and
+// bridges connected to it through the MCP SDK's client, for the bridge's
+// tests.
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { type PublicKey, publicKey } from "@wayfarerlabs/agention-api";
+import { createApp } from "@wayfarerlabs/agention/src/http/app.ts";
+import { type Listening, listen } from "@wayfarerlabs/agention/src/http/listener.ts";
+import { defaultRates } from "@wayfarerlabs/agention/src/http/rates.ts";
+import { testCertificate } from "@wayfarerlabs/agention/src/http/test-certificate.ts";
+import { Harness } from "@wayfarerlabs/agention/src/http/test-harness.ts";
+import { Hono } from "hono";
+import { createPrivateKey, createPublicKey } from "node:crypto";
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { getCACertificates, setDefaultCACertificates } from "node:tls";
+import { type BridgeEnvironment, createBridge } from "./bridge.ts";
+
+// The server's certificate, made once for the test file, which this process
+// trusts the way NODE_EXTRA_CA_CERTS makes a bridge trust a private authority.
+export const certificate = testCertificate();
+setDefaultCACertificates([...getCACertificates("default"), certificate.cert]);
+
+// The names the bridges propose unless a test says otherwise.
+export const agent = "builder";
+export const session = "main";
+
+// What a tool answered: its text, the JSON it holds if any, and whether it
+// is an error.
+export interface Answer {
+  isError: boolean;
+  text: string;
+  json: unknown;
+}
+
+export class TestBridge {
+  readonly client: Client;
+
+  constructor(client: Client) {
+    this.client = client;
+  }
+
+  async call(name: string, args: Record<string, unknown> = {}): Promise<Answer> {
+    const result = await this.client.callTool({ name, arguments: args });
+    const [content] = result.content as { type: string; text: string }[];
+    const text = content?.text ?? "";
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = undefined;
+    }
+    return { isError: result.isError === true, text, json };
+  }
+
+  // ok calls a tool that must succeed and returns its JSON.
+  async ok(name: string, args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    const answer = await this.call(name, args);
+    if (answer.isError) {
+      throw new Error(`${name} failed: ${answer.text}`);
+    }
+    return answer.json as Record<string, unknown>;
+  }
+
+  // error calls a tool that must fail and returns its API error.
+  async error(
+    name: string,
+    args: Record<string, unknown> = {},
+  ): Promise<{ code: string; message: string; field?: string; missed?: unknown[] }> {
+    const answer = await this.call(name, args);
+    const body = answer.json as { error?: { code: string; message: string } } | undefined;
+    if (!answer.isError || body?.error === undefined) {
+      throw new Error(`${name} did not fail with an API error: ${answer.text}`);
+    }
+    return body.error;
+  }
+
+  close(): Promise<void> {
+    return this.client.close();
+  }
+}
+
+export class BridgeHarness {
+  // The operator's side: the server's store, with a signed-in browser.
+  readonly server = new Harness();
+  readonly home = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-bridge-")));
+  readonly bridges: TestBridge[] = [];
+  readonly logged: string[] = [];
+  // Runs before the server handles each request on the TLS listener, which
+  // waits for it; a response it returns answers the request instead.
+  beforeRequest: ((request: Request) => Response | void | Promise<Response | void>) | undefined;
+  #listening: Listening | undefined;
+  #origin = "";
+
+  // The origin names the port the listener is given, so the server's app is
+  // made once it listens, behind a front that hands it each request.
+  async start(): Promise<this> {
+    let app: Hono | undefined;
+    const front = new Hono().all("*", async (c) => {
+      const answer = await this.beforeRequest?.(c.req.raw);
+      if (answer !== undefined) {
+        return answer;
+      }
+      if (app === undefined) {
+        throw new Error("the server is not ready");
+      }
+      return app.fetch(c.req.raw, c.env);
+    });
+    this.#listening = await listen(
+      front,
+      { host: "127.0.0.1", port: 0 },
+      { cert: Buffer.from(certificate.cert), key: Buffer.from(certificate.key) },
+    );
+    this.#origin = `https://localhost:${this.#listening.address.port}`;
+    app = createApp({
+      store: this.server.fixture.store,
+      origin: this.#origin,
+      name: "Agention",
+      webRoot: undefined,
+      // The fixture's clock stands still, so no budget refills; these tests
+      // are not about budgets.
+      rates: { ...defaultRates, key: { burst: 10_000, interval: 1000 } },
+      shutdown: this.server.shutdown.signal,
+      log: (message) => this.logged.push(message),
+    });
+    return this;
+  }
+
+  get origin(): string {
+    return this.#origin;
+  }
+
+  // bridge starts a bridge with the environment an agent host would give it,
+  // signing with the server's clock, and connects a client to it.
+  async bridge(environment: BridgeEnvironment = {}, home = this.home): Promise<TestBridge> {
+    const server = createBridge({
+      environment: {
+        AGENTION_URL: this.#origin,
+        AGENTWORKS_AGENT: agent,
+        AGENTWORKS_SESSION: session,
+        ...environment,
+      },
+      home,
+      clock: () => this.server.fixture.now,
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "agention-bridge-test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    const bridge = new TestBridge(client);
+    this.bridges.push(bridge);
+    return bridge;
+  }
+
+  // keyFile is where the bridges keep a session's key.
+  keyFile(names: { agent: string; session: string } = { agent, session }): string {
+    const server = new URL(this.#origin).host;
+    return path.join(
+      this.home,
+      ".config",
+      "agention",
+      server,
+      names.agent,
+      names.session,
+      "key.pem",
+    );
+  }
+
+  // keyOnDisk is the public key of the key the key file now holds.
+  keyOnDisk(names?: { agent: string; session: string }): PublicKey {
+    const privateKey = createPrivateKey(readFileSync(this.keyFile(names), "utf8"));
+    return publicKey.parse(createPublicKey(privateKey).export({ format: "jwk" }).x);
+  }
+
+  registrations(): { id: number; public_key: string; status: string }[] {
+    return this.server.fixture.db
+      .prepare("SELECT id, public_key, status FROM registrations ORDER BY id")
+      .all() as { id: number; public_key: string; status: string }[];
+  }
+
+  // The operator's decisions, through the web API.
+
+  approve(
+    key: PublicKey,
+    granted: { agent: string; session: string } = { agent, session },
+  ): Promise<void> {
+    return this.server.approveKey(key, granted);
+  }
+
+  reject(key: PublicKey): Promise<void> {
+    return this.#decide(key, "reject");
+  }
+
+  revoke(key: PublicKey): Promise<void> {
+    return this.#decide(key, "revoke");
+  }
+
+  async #decide(key: PublicKey, decision: string): Promise<void> {
+    const response = await this.server.web(
+      "POST",
+      `/registrations/${this.server.registrationId(key)}/${decision}`,
+    );
+    if (response.status !== 200) {
+      throw new Error(`${decision} failed: ${JSON.stringify(response.body)}`);
+    }
+  }
+
+  // operatorWrites sends a message to a thread as the operator, through the
+  // web API, and returns the message's sequence.
+  async operatorWrites(
+    thread: number,
+    message: Record<string, unknown>,
+    names: { agent: string; session: string } = { agent, session },
+  ): Promise<number> {
+    const path = `/s/${names.agent}/${names.session}/threads/${thread}`;
+    const read = await this.server.web("GET", path);
+    const seenThrough = (read.body as { thread: { last_seq: number } }).thread.last_seq;
+    const response = await this.server.web("POST", `${path}/messages`, {
+      request_id: `operator-${thread}-${seenThrough}`,
+      seen_through: seenThrough,
+      ...message,
+    });
+    if (response.status !== 200) {
+      throw new Error(`the operator's write failed: ${JSON.stringify(response.body)}`);
+    }
+    return (response.body as { seq: number }).seq;
+  }
+
+  async close(): Promise<void> {
+    await Promise.all(this.bridges.map((bridge) => bridge.close()));
+    // Shutting down ends the long polls, so the listener can close.
+    this.server.shutdown.abort();
+    await this.#listening?.close();
+    this.server.close();
+    rmSync(this.home, { recursive: true, force: true });
+  }
+}

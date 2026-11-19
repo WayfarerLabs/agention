@@ -1,0 +1,9 @@
+{
+  "config": {
+    "default": true,
+    // Prettier wraps prose at its printWidth; line length is not linted twice.
+    "MD013": false,
+  },
+  "gitignore": true,
+  "ignores": ["out/**", "CHANGELOG.md"],
+}

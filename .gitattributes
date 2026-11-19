@@ -1,0 +1,3 @@
+# LF everywhere, in the object store and the working tree, so formatting and
+# the generated-output drift check behave the same on every platform.
+* text=auto eol=lf

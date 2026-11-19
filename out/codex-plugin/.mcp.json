@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "agention": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wayfarerlabs/agention-mcp@0.0.0"
+      ],
+      "env_vars": [
+        "AGENTION_URL",
+        "AGENTWORKS_AGENT",
+        "AGENTWORKS_SESSION",
+        "NODE_EXTRA_CA_CERTS"
+      ]
+    }
+  }
+}

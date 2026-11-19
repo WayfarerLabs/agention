@@ -1,0 +1,87 @@
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { canonicalOrigin } from "@wayfarerlabs/agention-api";
+import { homedir } from "node:os";
+import path from "node:path";
+import packageJson from "../package.json" with { type: "json" };
+import { AgentApi } from "./agent-api.ts";
+import { Session, type SessionEnvironment } from "./session.ts";
+import { type Connection, registerTools } from "./tools.ts";
+
+// The variables the bridge reads: the server's origin, the names of the
+// session an agent host runs, which register's arguments override, and Node's
+// switch for skipping certificate checks, which the bridge refuses.
+export interface BridgeEnvironment extends SessionEnvironment {
+  AGENTION_URL?: string | undefined;
+  NODE_TLS_REJECT_UNAUTHORIZED?: string | undefined;
+}
+
+export interface BridgeOptions {
+  environment: BridgeEnvironment;
+  // The home directory, under which the session's key lives.
+  home: string;
+  // The clock tokens are minted by, in Unix milliseconds.
+  clock?: () => number;
+}
+
+// createBridge builds the bridge's MCP server for one agent session. A setting
+// the bridge cannot work with does not stop it: every tool answers with what
+// to fix, so the agent can say so.
+export function createBridge(options: BridgeOptions): McpServer {
+  const server = new McpServer(
+    { name: "agention", version: packageJson.version },
+    { capabilities: { tools: {} } },
+  );
+  registerTools(server, connect(options));
+  return server;
+}
+
+function connect(options: BridgeOptions): Connection {
+  const { environment, home } = options;
+  // Tokens and message text never cross TLS the bridge has not verified.
+  if (environment.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+    return {
+      problem:
+        "Unset NODE_TLS_REJECT_UNAUTHORIZED, since the bridge sends its tokens and message " +
+        "text only over TLS whose certificate Node has verified.",
+    };
+  }
+  // The key file's path appears in messages, so a home no file system would
+  // take is refused before it can make one long.
+  if (home === "" || !path.isAbsolute(home) || Buffer.byteLength(home) > 4096) {
+    return {
+      problem:
+        "Set HOME to an absolute directory of at most 4,096 bytes, under which the bridge keeps " +
+        "the session's key.",
+    };
+  }
+  const url = environment.AGENTION_URL;
+  if (url === undefined || url === "") {
+    return {
+      problem:
+        "Set AGENTION_URL to the Agention server's origin, such as https://agention.example.com.",
+    };
+  }
+  let origin: string;
+  try {
+    origin = canonicalOrigin(url);
+  } catch (error) {
+    return {
+      problem: `Set AGENTION_URL to the Agention server's origin, since ${(error as Error).message}.`,
+    };
+  }
+  const api = new AgentApi({ origin, clock: options.clock ?? Date.now });
+  return { api, session: new Session({ api, home, environment }) };
+}
+
+// serveStdio runs the bridge for the agent host that started this process,
+// on its standard input and output, and resolves once the host closes them.
+// It serves the protocol revisions hosts negotiate with initialize.
+export async function serveStdio(): Promise<void> {
+  const server = createBridge({ environment: process.env, home: homedir() });
+  const closed = new Promise<void>((resolve) => {
+    server.server.onclose = resolve;
+  });
+  await server.connect(new StdioServerTransport());
+  await closed;
+}

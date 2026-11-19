@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+apps/*/dist/
+# The web UI build, copied into the server package by its build
+apps/server/web/
+
+# Browser test output
+apps/web/test-results/
+
+# Temporary files left by an interrupted plugin generation run
+.gen-*
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Environment and secret files
+.env
+.env.*
+
+# Personal tmuxinator configuration
+.tmuxinator.yml

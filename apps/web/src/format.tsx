@@ -1,0 +1,194 @@
+import type {
+  Author,
+  Effort,
+  Impact,
+  Presence,
+  Priority,
+  ThreadStatus,
+  ThreadSummary,
+} from "@wayfarerlabs/agention-api";
+
+// Words and times for the views.
+
+const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const absolute = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+const units: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 365 * 24 * 3600],
+  ["month", 30 * 24 * 3600],
+  ["week", 7 * 24 * 3600],
+  ["day", 24 * 3600],
+  ["hour", 3600],
+  ["minute", 60],
+];
+
+export function relativeTime(iso: string, now = Date.now()): string {
+  const seconds = (Date.parse(iso) - now) / 1000;
+  for (const [unit, size] of units) {
+    if (Math.abs(seconds) >= size) {
+      return relative.format(Math.trunc(seconds / size), unit);
+    }
+  }
+  return seconds < 0 ? "just now" : "in under a minute";
+}
+
+// Time shows when something happened relative to now, with the exact time in
+// the element's machine-readable value and its tooltip.
+export function Time({ value }: { value: string }) {
+  return (
+    <time dateTime={value} title={absolute.format(Date.parse(value))}>
+      {relativeTime(value)}
+    </time>
+  );
+}
+
+export function absoluteTime(iso: string): string {
+  return absolute.format(Date.parse(iso));
+}
+
+const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+const day = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+// today says whether a time falls on today's date.
+const today = (iso: string, now = Date.now()) =>
+  new Date(iso).toDateString() === new Date(now).toDateString();
+
+// sinceTime says briefly when something last happened: the time of day when
+// it was today, and the date when earlier.
+export function sinceTime(iso: string, now = Date.now()): string {
+  const at = new Date(iso);
+  return today(iso, now) ? clock.format(at) : day.format(at);
+}
+
+// Since shows when something last happened, briefly, with the exact time in
+// the element's machine-readable value and its tooltip; with at, it leads
+// with "at" before a time of day or "on" before a date.
+export function Since({ value, at = false }: { value: string; at?: boolean }) {
+  return (
+    <>
+      {at && (today(value) ? "at " : "on ")}
+      <time dateTime={value} title={absolute.format(Date.parse(value))}>
+        {sinceTime(value)}
+      </time>
+    </>
+  );
+}
+
+const dayAndClock = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+// dueTime says briefly when something is due: the time of day when that is
+// today; otherwise the date too, with its year when it is not this year's.
+function dueTime(iso: string, now = Date.now()): string {
+  const at = new Date(iso);
+  if (today(iso, now)) {
+    return clock.format(at);
+  }
+  return at.getFullYear() === new Date(now).getFullYear()
+    ? dayAndClock.format(at)
+    : absolute.format(at);
+}
+
+// DueTime shows when something is due, briefly, with the exact time in the
+// element's machine-readable value and its tooltip.
+export function DueTime({ value }: { value: string }) {
+  return (
+    <time dateTime={value} title={absolute.format(Date.parse(value))}>
+      {dueTime(value)}
+    </time>
+  );
+}
+
+// lastSeenWords says when a session was last seen: "last seen 14:02", or
+// "never seen".
+export function lastSeenWords(presence: Presence): string {
+  return presence.last_seen_at === undefined
+    ? "never seen"
+    : `last seen ${sinceTime(presence.last_seen_at)}`;
+}
+
+// settledWords says, muted, of a thread with no ask open, that its asks were
+// answered, or withdrawn, with the latest reason.
+export function settledWords(thread: ThreadSummary): string | undefined {
+  if (thread.status === "answered") {
+    return "Answered";
+  }
+  return thread.status === "withdrawn" && thread.withdrawal !== undefined
+    ? `Withdrawn: ${thread.withdrawal.reason}`
+    : undefined;
+}
+
+// A thread's status, as the filter sheet offers it.
+export const statusLabel: Record<ThreadStatus, TerseLabel> = {
+  open: { shown: "Open", spoken: "Open" },
+  answered: { shown: "Answered", spoken: "Answered" },
+  withdrawn: { shown: "Withdrawn", spoken: "Withdrawn" },
+  none: { shown: "None", spoken: "No asks" },
+};
+
+// plural counts things in words: "1 thread", "12 threads".
+export const plural = (count: number, one: string) => `${count} ${one}${count === 1 ? "" : "s"}`;
+
+// quoted writes labels as a reader sees them chosen: “Ship it”, “Hold”.
+export const quoted = (labels: string[]) => labels.map((label) => `“${label}”`).join(", ");
+
+// The last choice on an ask's card, for the operator's own words.
+export const otherLabel = "Other";
+
+export function authorName(author: Author): string {
+  return author.kind === "person" ? author.name : `${author.agent}/${author.session}`;
+}
+
+export const priorityLabel: Record<Priority, string> = {
+  urgent: "Urgent",
+  high: "High priority",
+  normal: "Normal priority",
+  low: "Low priority",
+};
+
+// The tone a priority draws the eye with, where it has one.
+export const priorityTone: Record<Priority, string | undefined> = {
+  urgent: "danger",
+  high: "warning",
+  normal: undefined,
+  low: undefined,
+};
+
+// A terse label, as a tag or a segment shows it, with the words assistive
+// technology says for it.
+export interface TerseLabel {
+  shown: string;
+  spoken: string;
+}
+
+// plain is a label said as it is shown.
+export const plain = (text: string): TerseLabel => ({ shown: text, spoken: text });
+
+export function Spoken({ shown, spoken }: TerseLabel) {
+  return shown === spoken ? (
+    shown
+  ) : (
+    <>
+      <span aria-hidden="true">{shown}</span>
+      <span className="visually-hidden">{spoken}</span>
+    </>
+  );
+}
+
+// An ask's effort.
+export const effortLabel: Record<Effort, TerseLabel> = {
+  quick: { shown: "Quick", spoken: "Quick" },
+  under_15m: { shown: "≤15m", spoken: "Under 15 minutes" },
+  under_1h: { shown: "≤1h", spoken: "Under an hour" },
+  longer: { shown: ">1h", spoken: "An hour or more" },
+};
+
+export const impactLabel: Record<Impact, string> = {
+  blocking: "Blocking",
+  assuming: "Proceeding on an assumption",
+  none: "Not blocking",
+};

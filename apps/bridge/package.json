@@ -1,0 +1,46 @@
+{
+  "name": "@wayfarerlabs/agention-mcp",
+  "version": "0.0.0",
+  "description": "The Agention agent bridge: the MCP server agent hosts run to reach an Agention server.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WayfarerLabs/agention.git",
+    "directory": "apps/bridge"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "agention-mcp": "dist/agention-mcp.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@wayfarerlabs/agention": "*",
+    "@wayfarerlabs/agention-api": "*",
+    "@wayfarerlabs/agention-build": "*",
+    "@wayfarerlabs/agention-private-files": "*",
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1",
+    "content-type": "1.0.5",
+    "fast-deep-equal": "3.1.3",
+    "fast-uri": "3.1.8",
+    "hono": "4.13.18",
+    "jose": "6.2.13",
+    "json-schema-traverse": "1.0.0",
+    "zod": "4.6.7"
+  }
+}

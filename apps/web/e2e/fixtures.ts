@@ -1,0 +1,204 @@
+// The browser tests' servers: the built Agention server, serving its built web
+// UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
+// A second server on another port of the same host starts for the tests that
+// ask for it, presenting the same certificate, as servers sharing a host may.
+//
+// Passkeys need a secure context whose certificate the browser accepts and a
+// relying party that is a domain name; the server refuses an IP address as
+// its origin. So Chromium resolves agention.test to the loopback address
+// (--host-resolver-rules), and trusts the test certificate made for that name
+// by its public key (--ignore-certificate-errors-spki-list). Trusting that one
+// key makes the page a real secure context, where ignoring certificate errors
+// altogether would only bypass them.
+import { test as base } from "@playwright/test";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { createHash, X509Certificate } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+// The server's own test certificate maker, so both suites make certificates
+// one way.
+import { testCertificate } from "../../server/src/http/test-certificate.ts";
+import type { AgentServer } from "./agent.ts";
+
+export const hostName = "agention.test";
+
+// The server's name, holding characters HTML would read as markup unless the
+// server escapes them.
+export const serverName = `Work <&"> co`;
+
+// The second server's name.
+export const secondServerName = "Personal";
+
+// The server bundle the server package's build writes, beside the web UI it
+// ships in web/.
+const serverBundle = fileURLToPath(new URL("../../server/dist/agention.js", import.meta.url));
+
+// How long a server may take to start serving: less than a fixture may take,
+// so a start that hangs is ended here.
+const startLimit = 30_000;
+
+export interface Agention extends AgentServer {
+  // passkeyLink runs agention passkey-link and returns the link it prints.
+  passkeyLink(): string;
+}
+
+// The certificate every server of a worker presents for the host, and the
+// base64 SHA-256 of its public key, which Chromium trusts.
+interface HostCertificate {
+  cert: string;
+  key: string;
+  spki: string;
+}
+
+function hostCertificate(): HostCertificate {
+  const certificate = testCertificate(hostName);
+  const spki = createHash("sha256")
+    .update(new X509Certificate(certificate.cert).publicKey.export({ type: "spki", format: "der" }))
+    .digest("base64");
+  return { ...certificate, spki };
+}
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      probe.close(() =>
+        typeof address === "object" && address !== null
+          ? resolve(address.port)
+          : reject(new Error("no port")),
+      );
+    });
+  });
+}
+
+async function startServer(
+  name: string,
+  certificate: HostCertificate,
+): Promise<{ agention: Agention; stop(): Promise<void> }> {
+  if (!existsSync(serverBundle)) {
+    throw new Error("the server is not built; run npm run -w apps/server build first");
+  }
+  const root = mkdtempSync(path.join(tmpdir(), "agention-browser-"));
+  const data = path.join(root, "data");
+  mkdirSync(data, { mode: 0o700 });
+  const certFile = path.join(root, "cert.pem");
+  const keyFile = path.join(root, "key.pem");
+  writeFileSync(certFile, certificate.cert);
+  writeFileSync(keyFile, certificate.key, { mode: 0o600 });
+
+  const port = await freePort();
+  const origin = `https://${hostName}:${port}`;
+  const server: ChildProcess = spawn(
+    process.execPath,
+    [
+      serverBundle,
+      "serve",
+      "--data",
+      data,
+      "--origin",
+      origin,
+      "--listen",
+      `127.0.0.1:${port}`,
+      "--tls-cert",
+      certFile,
+      "--tls-key",
+      keyFile,
+      "--name",
+      name,
+    ],
+    { stdio: ["ignore", "ignore", "pipe"] },
+  );
+  let log = "";
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`agention serve did not start within ${startLimit} ms:\n${log}`)),
+        startLimit,
+      );
+      server.stderr?.setEncoding("utf8");
+      server.stderr?.on("data", (chunk: string) => {
+        log += chunk;
+        if (log.includes("agention: serving")) {
+          resolve();
+        }
+      });
+      server.on("error", reject);
+      server.on("exit", (code) => reject(new Error(`agention serve exited with ${code}:\n${log}`)));
+    });
+  } catch (error) {
+    // A server that never served would outlive the worker, holding its port.
+    server.kill("SIGKILL");
+    rmSync(root, { recursive: true, force: true });
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const agention: Agention = {
+    origin,
+    port,
+    certificate: certificate.cert,
+    passkeyLink: () =>
+      execFileSync(
+        process.execPath,
+        [serverBundle, "passkey-link", "--data", data, "--origin", origin],
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      ).trim(),
+  };
+  const stop = async () => {
+    const exited = new Promise((resolve) => server.once("exit", resolve));
+    server.kill("SIGTERM");
+    await exited;
+    rmSync(root, { recursive: true, force: true });
+  };
+  return { agention, stop };
+}
+
+// serving starts a server under a name for a worker's tests, and stops it
+// after them.
+const serving =
+  (name: string) =>
+  async (
+    { certificate }: { certificate: HostCertificate },
+    use: (agention: Agention) => Promise<void>,
+  ) => {
+    const { agention, stop } = await startServer(name, certificate);
+    await use(agention);
+    await stop();
+  };
+
+export const test = base.extend<
+  object,
+  { certificate: HostCertificate; agention: Agention; secondServer: Agention }
+>({
+  certificate: [
+    async ({}, use) => {
+      await use(hostCertificate());
+    },
+    { scope: "worker" },
+  ],
+  agention: [serving(serverName), { scope: "worker" }],
+  secondServer: [serving(secondServerName), { scope: "worker" }],
+  launchOptions: [
+    async ({ certificate }, use) => {
+      await use({
+        args: [
+          `--host-resolver-rules=MAP ${hostName} 127.0.0.1`,
+          `--ignore-certificate-errors-spki-list=${certificate.spki}`,
+        ],
+      });
+    },
+    { scope: "worker" },
+  ],
+});
+
+export { expect } from "@playwright/test";

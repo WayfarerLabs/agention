@@ -1,0 +1,48 @@
+# Weekly dependency update proposals. Patch and minor updates are grouped per
+# ecosystem; major updates arrive as standalone pull requests because they
+# usually need review. A release is proposed only once it is seven days old,
+# the hold-back CONTRIBUTING.md describes. Commit messages are Conventional
+# Commits (chore(deps): ...), which release-please relies on.
+version: 2
+updates:
+  # One lockfile covers the repository tools and every workspace.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      npm-patch-and-minor:
+        update-types: [patch, minor]
+    # The agent bridge pins these to the versions that @modelcontextprotocol/server
+    # carries inlined in its own build, so their license notices ship with the
+    # bridge. They move only with that package, and the build names any that
+    # falls behind.
+    ignore:
+      - dependency-name: ajv
+      - dependency-name: ajv-formats
+      - dependency-name: content-type
+      - dependency-name: fast-deep-equal
+      - dependency-name: fast-uri
+      - dependency-name: json-schema-traverse
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      actions-patch-and-minor:
+        update-types: [patch, minor]

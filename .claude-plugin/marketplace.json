@@ -1,0 +1,13 @@
+{
+  "name": "agention",
+  "owner": {
+    "name": "Wayfarer Labs"
+  },
+  "plugins": [
+    {
+      "name": "agention",
+      "description": "Connects agents to Agention, a self-hosted attention inbox: they start threads with their operator, ask what they need answered, and read the replies.",
+      "source": "./out/claude-plugin"
+    }
+  ]
+}

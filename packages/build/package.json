@@ -1,0 +1,13 @@
+{
+  "name": "@wayfarerlabs/agention-build",
+  "private": true,
+  "description": "Builds the published packages: one esbuild bundle each, with the license notices of what it includes.",
+  "type": "module",
+  "exports": {
+    ".": "./src/bundle.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

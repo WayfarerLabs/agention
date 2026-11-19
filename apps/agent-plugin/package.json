@@ -1,0 +1,10 @@
+{
+  "name": "@wayfarerlabs/agention-agent-plugin",
+  "private": true,
+  "description": "The canonical Agention agent plugin definition and the generator that renders it for each host.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Superseded pull request runs are cancelled; a run on main is never cancelled once started.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Every gate lives in scripts/check.sh, the same script contributors run
+  # locally, so CI and local checks cannot drift apart. Its first gate
+  # installs the locked npm dependencies.
+  check:
+    runs-on: ubuntu-24.04
+    # The gates take a few minutes; a hung install or test fails well before
+    # GitHub's six-hour default.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The SDD gate compares the branch with the merge-base of its base.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      # The browser gate needs Chromium's headless shell, which lifecycle
+      # scripts cannot install, at the version the lockfile pins, with the
+      # system libraries it needs. Playwright runs only once the registry
+      # signatures check out. scripts/check.sh reinstalls the dependencies itself.
+      - name: Install Chromium for the browser gate
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+          npx playwright install --with-deps --only-shell chromium
+
+      # The SDD gate's base: scripts/check-sdd.sh explains HEAD^1.
+      - name: scripts/check.sh
+        env:
+          SDD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+        run: scripts/check.sh
+
+  # The one required status check. Branch protection names this job across
+  # Wayfarer repositories, so jobs can be added or renamed without editing it.
+  ci-success:
+    if: always()
+    needs: [check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify all required jobs passed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            echo "::error::One or more required CI jobs did not succeed."
+            exit 1
+          fi
+          echo "All required CI jobs passed."

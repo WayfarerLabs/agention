@@ -1,0 +1,17 @@
+{
+  "name": "@wayfarerlabs/agention-api",
+  "private": true,
+  "description": "The HTTP API contract shared by the server, the agent bridge and the web UI.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./registration-code": "./src/registration-code.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

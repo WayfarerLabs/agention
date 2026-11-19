@@ -1,0 +1,395 @@
+# Contributing
+
+Contributions of every size are welcome, from typo fixes to features. For anything beyond a small
+fix, please open an issue or discussion first so the approach can be agreed before you invest in it.
+
+Agention holds a high bar for design, code and documentation. This guide explains what a change
+needs before it can merge.
+
+## Prerequisites
+
+- **Node.js** at the exact version in [`.node-version`](.node-version), with the npm it bundles.
+  Version managers such as mise and asdf can read `.node-version` once their idiomatic (legacy)
+  version file support is enabled for Node.
+- **Git** and **Bash**.
+
+Install the locked npm dependencies once, and again whenever `package-lock.json` changes:
+
+```bash
+npm ci --ignore-scripts
+```
+
+`.npmrc` also disables lifecycle scripts for every npm command, so no dependency's install script
+ever runs. `scripts/check.sh` runs `npm ci` itself as its first gate.
+
+The browser gate needs Chromium's headless shell, at the version the lockfile pins. Install it once
+after installing the dependencies, and again when the `@playwright/test` version changes:
+
+```bash
+npx playwright install --only-shell chromium
+```
+
+On Linux, `npx playwright install --with-deps --only-shell chromium` also installs the system
+libraries it needs, as CI does.
+
+## Repository structure
+
+Every component is an npm workspace, listed in the root `package.json`, and one root
+`package-lock.json` locks them all. The root `package.json` also holds the repository's own tools:
+TypeScript, Vitest, esbuild, Prettier, markdownlint-cli2 and cspell.
+
+| Workspace                | Package                                          | What it is                                            |
+| ------------------------ | ------------------------------------------------ | ----------------------------------------------------- |
+| `packages/api`           | `@wayfarerlabs/agention-api` (private)           | The API contract: request and response schemas        |
+| `packages/build`         | `@wayfarerlabs/agention-build` (private)         | The bundle build the published packages use           |
+| `packages/private-files` | `@wayfarerlabs/agention-private-files` (private) | The private-file rule the server and the bridge share |
+| `apps/server`            | `@wayfarerlabs/agention`                         | The server and the `agention` operator CLI            |
+| `apps/bridge`            | `@wayfarerlabs/agention-mcp`                     | The agent bridge, the `agention-mcp` command          |
+| `apps/web`               | `@wayfarerlabs/agention-web` (private)           | The React web UI, built with Vite                     |
+| `apps/agent-plugin`      | `@wayfarerlabs/agention-agent-plugin` (private)  | The canonical plugin definition and its generator     |
+
+`@wayfarerlabs/agention-api` has no build step: its `exports` point at its TypeScript source, so a
+workspace that imports it type-checks against the contract itself, and a change to the contract
+fails the type check of every side it breaks.
+
+A workspace that imports another declares it in its `package.json` with the range `*`. The published
+packages declare it under `devDependencies`, like everything else their bundles include (see
+[Dependencies](#dependencies)).
+
+### TypeScript
+
+Node runs the TypeScript sources directly by stripping their types, in development and for the
+plugin generator; Vitest compiles them for the tests. Each workspace's `tsconfig.json` extends
+[`tsconfig.base.json`](tsconfig.base.json), which keeps every source runnable under Node:
+
+- only erasable syntax (`erasableSyntaxOnly`): no enums, namespaces or parameter properties;
+- type-only imports and exports marked with `type` (`verbatimModuleSyntax`);
+- relative imports name the `.ts` file they import, such as `./cli.ts`.
+
+The base configuration is strict, including `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes`. The web UI overrides only what a browser bundle needs.
+
+## Building
+
+The server and the bridge each build into a single-file esbuild bundle, which is what their npm
+packages contain, through `packages/build`. The server's build first builds the web UI with Vite and
+copies it into `apps/server/web/`, which the server package ships and serves. Beside each bundle the
+build writes `THIRD-PARTY-NOTICES.txt`, the license of every npm package the bundle includes and,
+for the server, of every package in the web UI's build. Each bundle also includes its package's
+`package.json`, so it reports the version it was built at:
+
+```bash
+npm run -w apps/server build      # apps/web/dist/, apps/server/web/, apps/server/dist/agention.js
+node apps/server/dist/agention.js version
+
+npm run -w apps/bridge build      # apps/bridge/dist/agention-mcp.js
+node apps/bridge/dist/agention-mcp.js --version
+
+npm run -w apps/web build         # apps/web/dist/ alone
+```
+
+During development you can run a command from source instead, for example
+`node apps/server/src/main.ts version`. Run from source, the server serves the web UI in
+`apps/server/web/` if a build put one there, and a placeholder page otherwise.
+
+## Checks
+
+`scripts/check.sh` runs every gate CI requires, in CI's order. CI runs the same script, so a local
+pass means CI will pass the same checks.
+
+```bash
+scripts/check.sh                  # everything CI runs
+scripts/check.sh --fast           # skips the builds and the browser gate
+scripts/check.sh --packages DIR   # only the install and the build, keeping the checked tarballs in DIR
+```
+
+| Gate                 | What it guards                                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependency integrity | A clean install matching the lockfile's checksums, and npm registry signatures                                                                                                                                                                                                                                                                              |
+| Format and lint      | Formatting, Markdown structure and spelling (`scripts/lint-files.sh`)                                                                                                                                                                                                                                                                                       |
+| Types                | `tsc --noEmit` in every workspace                                                                                                                                                                                                                                                                                                                           |
+| Tests                | The Vitest suite of every workspace                                                                                                                                                                                                                                                                                                                         |
+| Vulnerabilities      | Known advisories of high severity or above in npm dependencies                                                                                                                                                                                                                                                                                              |
+| Plugin drift         | Committed plugin outputs match their sources                                                                                                                                                                                                                                                                                                                |
+| SDD records          | A completed plan checkbox in `docs/sdd/` never changes once merged, and a locked SDD changes only its `locked.md` (`scripts/check-sdd.sh`)                                                                                                                                                                                                                  |
+| Build                | Both bundles, the server's with the web UI; each package, installed from its tarball, runs and prints its version, and the server serves its web UI and begins a passkey sign-in                                                                                                                                                                            |
+| Browser              | The web UI, served by the built server over TLS, in Chromium with virtual passkey authenticators: the server's name, passkey link and sign-in, a second passkey, approval, answers, a message's detail, a stale write, Markdown, hostile text, unread marks, archiving, and the list's filters, their counts, its order, the order's direction and grouping |
+
+Read [`scripts/check.sh`](scripts/check.sh) for the exact commands; it is the single definition of
+the gates.
+
+The install, signature and vulnerability checks need network access. A local Node version that
+differs from `.node-version` produces a warning, not a failure, since CI always uses the pinned
+version.
+
+### Formatting and spelling
+
+Format and lint every file you change:
+
+```bash
+scripts/lint-files.sh --fix
+```
+
+`--fix` applies Prettier and the markdownlint fixes it can, then re-checks. cspell cannot fix
+anything: correct the spelling, or add a genuine word to `.cspell.json`.
+
+### Working on one component
+
+Each workspace has its own scripts for work on it alone:
+
+```bash
+npm run -w apps/server test        # Vitest, for any workspace
+npm run -w apps/server typecheck   # tsc --noEmit, for any workspace
+npm run -w apps/web test:browser   # the browser tests, against the server's last build
+```
+
+The web UI talks only to the server that serves it, and passkeys need that server's HTTPS origin, so
+try UI changes by building the server package and running it as the
+[operator guide](docs/operator-guide.md#running-the-server) describes.
+
+### Generated plugins
+
+The Claude Code and Codex plugins under `out/` and the catalogs in `.claude-plugin/` and
+`.agents/plugins/` are generated from `apps/agent-plugin/plugin.json` and
+`apps/agent-plugin/skills/` by `apps/agent-plugin/gen/`, which Node runs directly. Never edit the
+outputs by hand. After changing the sources or the generator, regenerate and commit the outputs in
+the same change:
+
+```bash
+scripts/generate-plugins.sh
+```
+
+To try an unreleased bridge on a host, pack it and render the plugins against the tarball, each time
+into a new directory of your own:
+
+```bash
+dev="${XDG_CACHE_HOME:-$HOME/.cache}/agention-dev"
+mkdir -p "$dev"
+render="$(mktemp -d "$dev/XXXXXX")"
+npm run -w apps/bridge build
+tarball="$(npm pack --silent -w apps/bridge --pack-destination "$render")"
+scripts/generate-plugins.sh --bridge-package "$render/$tarball" --out "$render/plugins"
+```
+
+The plugins it writes run the bridge with `npx -y --package=<tarball> agention-mcp`, and differ from
+the committed plugins in nothing else. Depending on the npm version, npx can keep running a bridge
+it installed earlier from the same tarball path, so each render packs into a new directory; the
+generator also refuses an `--out` that already exists.
+
+`$render/plugins` is laid out like the repository, with each host's catalog: add it to the host as a
+local plugin marketplace and install `agention` from it. When you are done, uninstall the plugin and
+remove the marketplace from the host, then delete the directory.
+
+## Dependencies
+
+- Pin every dependency exactly. npm packages are pinned by exact versions in the workspaces'
+  `package.json` files and by the single root `package-lock.json`; there are no separate version
+  files. GitHub Actions are pinned by full commit SHA with the version in a comment.
+- No dependency may need an install script, since lifecycle scripts never run. That rules out native
+  addons; tools with native binaries, such as esbuild and TypeScript, ship them as optional platform
+  packages that work without one.
+- The server and bridge packages are bundles that declare no dependencies, so installing them
+  resolves nothing beyond what the lockfile built. They list everything their bundles include, other
+  workspaces too, under `devDependencies`; the build gate fails a published package that declares
+  `dependencies`, `optionalDependencies`, `peerDependencies` or bundled dependencies.
+- Each published package ships a copy of the repository's `LICENSE` and, beside its bundle, the
+  license notices of the npm packages the bundle includes. The build gate checks both are in the
+  tarball and that the `LICENSE` copy matches.
+- A package a bundle includes may have inlined other npm packages in its own build, as the MCP SDK
+  builds in its JSON Schema validator. List each under the bundling package's `devDependencies` at
+  the inlined version, so its license notice ships and the vulnerability check covers it; the build
+  names any that is missing. Those pins move only with the package that carries them inlined, so
+  `.github/dependabot.yml` ignores them, and upgrading that package means updating them in the same
+  change.
+- When adding or upgrading, choose the newest stable release that is at least seven days old, check
+  its advisories and provenance, and change the manifest and lockfile together. The wait gives a
+  broken or compromised release time to be caught. `.npmrc` sets npm's `min-release-age` to 7, so an
+  install resolves only releases at least seven days old across the whole tree, and Dependabot waits
+  as long before proposing one. Apply the same wait by hand to Node.js and the GitHub Actions.
+  Node.js follows its 24 line, the oldest the published packages support (their `engines`), so the
+  checks run on the oldest Node a user may have.
+- A security fix may skip the wait. When a published advisory affects a pinned or locked version and
+  no fixed release in the release line in use is seven days old, take the first fixed release and
+  only the new releases it requires, pinned exactly, and add each npm package among them to
+  `min-release-age-exclude` in `.npmrc`. Record the advisory and the releases in this list, and
+  remove the record and the exclusions at the first deliberate update after the releases turn seven
+  days old.
+- An `overrides` entry in the root `package.json` replaces a vulnerable transitive dependency that
+  its parent pins exactly, with the parent named so the override reaches nothing else, at the
+  release closest to the parent's pin that fixes the advisory. Remove it once the parent depends on
+  a fixed version: an override left behind keeps forcing that version on later releases of the
+  parent, which may need another.
+- A dependency that shapes the architecture or the supply chain (a framework, an authentication or
+  storage library) gets an ADR recording the choice and its alternatives.
+- Dependabot proposes weekly updates. Review them like any other change.
+- Advisories below the vulnerability gate's threshold that remain, and why:
+  - `fast-uri` (`GHSA-w74x-v6f9-j3xg` and `GHSA-wjr9-j795-jxcr`, moderate; `GHSA-xhq7-xmqj-769h` and
+    `GHSA-333x-w4r6-6crp`, low), in the copy inlined in `@modelcontextprotocol/server`, which the
+    bridge bundles. The bridge registers no output schemas and uses no elicitation, so nothing
+    reaches the affected code. It moves with that package, once a release carries a fixed
+    `fast-uri`.
+  - `katex` (`GHSA-238p-pmpm-9mq7`, low), reached through markdownlint-cli2, which only reads this
+    repository's own Markdown. Every fixed release is outside micromark-extension-math's `^0.16.0`
+    range, so it stays until markdownlint takes the fix.
+- The `overrides` entry holds markdownlint's `re2js` at 2.8.7, which fixes `GHSA-gg6h-894w-4m9c`
+  (high) in the 2.8.6 that markdownlint 0.42.0 pins.
+
+## Commits and pull requests
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). release-please
+reads them to choose the next version and write `CHANGELOG.md`, so the type matters: `feat` and
+`fix` appear in the changelog, and a `BREAKING CHANGE:` footer marks a breaking change. Keep each
+footer to one paragraph.
+
+Agention is pre-1.0. Releases start at 0.1.0; until 1.0.0, `feat` and breaking changes bump the
+minor version and `fix` bumps the patch version, so no change bumps the major version on its own. A
+maintainer cuts 1.0.0 deliberately, with a `Release-As: 1.0.0` footer on a commit to `main`.
+
+One version covers the server, the bridge and the plugins. The release pull request writes it
+everywhere it appears (the root and published `package.json` files, the lockfile, and the plugin
+definition and generated plugins, including the bridge's package spec), so never change a version by
+hand.
+
+A pull request should:
+
+- do one thing, explained in its description;
+- pass `scripts/check.sh`;
+- include tests for changed behavior, written against behavior at a boundary rather than the shape
+  of the implementation;
+- update the documentation that the change makes stale, in the same pull request;
+- add or supersede an ADR when it makes or changes a significant decision.
+
+## Releasing
+
+Maintainers release from `main`, and only CI publishes:
+
+1. Changes land on `main` with Conventional Commit messages, and release-please keeps a release pull
+   request open that sets the next version everywhere it appears and writes its changelog entry.
+2. Merging the release pull request tags its commit `vX.Y.Z` and publishes the GitHub release. That
+   merge is a release's human approval; CI publishes with no further step.
+3. The tag starts [`release.yml`](.github/workflows/release.yml). Its build job refuses a tag that
+   is not the version of both packages and of the plugin definition, runs
+   `scripts/check.sh --packages DIR`, and uploads the tarballs it checked and kept in `DIR` as the
+   run's artifact. Its publish job, the only one that can publish, runs no repository code: it
+   publishes those tarballs, `@wayfarerlabs/agention-mcp` first and then `@wayfarerlabs/agention`,
+   through npm's trusted publishing, with provenance and no token. A version already on npm is
+   skipped, so a run that failed part way finishes with **Re-run failed jobs**, which reuses the
+   build's artifact while the repository keeps it, 90 days by default. **Re-run all jobs** would
+   upload the artifact again, which collides with the one the first build uploaded.
+4. The committed plugins already pin the new bridge, since the release pull request updated them
+   with everything else. Until the release workflow has published it, a plugin installed from `main`
+   names a bridge version npm does not have yet, so fix a failed release promptly.
+
+### Checking a release
+
+```bash
+npm view @wayfarerlabs/agention@X.Y.Z dist.attestations.provenance.predicateType
+npm view @wayfarerlabs/agention-mcp@X.Y.Z dist.attestations.provenance.predicateType
+npx -y @wayfarerlabs/agention-mcp@X.Y.Z --version
+```
+
+Each package's provenance names `https://slsa.dev/provenance/v1`, and its version's page on
+npmjs.com shows the provenance, with the commit and the workflow run that built it. The bridge
+prints `agention-mcp X.Y.Z`.
+
+### One-time setup
+
+The repository's owner sets these up once, before the first release:
+
+1. **Private vulnerability reporting.** Enable it in the repository's security settings. It is the
+   channel [SECURITY.md](SECURITY.md) names, and a new public repository starts with it off.
+2. **Branch protection on `main`.** Apply the branch protection Wayfarer uses across its
+   repositories, or confirm it is applied: `main` takes changes only through reviewed pull requests,
+   with the `ci-success` check required.
+3. **The release-please GitHub App.** Create a GitHub App owned by the `WayfarerLabs` organization,
+   with its webhook inactive and the repository permissions Contents and Pull requests set to read
+   and write, and install it on the `agention` repository alone. Create an environment named
+   `release-please` that only the `main` branch may deploy from, and set its secret
+   `RELEASE_APP_PRIVATE_KEY` to a private key generated for the App. In the repository's Actions
+   settings, set the variable `RELEASE_APP_CLIENT_ID` to the App's client ID; it can stay a
+   repository variable, since the job's `if` reads it before any environment applies, and until it
+   is set the release-please workflow is skipped. release-please opens its pull request and tags
+   releases with the App's token, so CI runs on the pull request and the tag starts the release
+   workflow. Then run the Release Please workflow from the Actions tab, or push to `main`, to open
+   the first release pull request.
+4. **The `v*` tag ruleset.** Add a repository ruleset for tags matching `v*` that restricts their
+   creation, update and deletion, with the release-please App as its only bypass actor.
+5. **The `npm` environment.** Create an environment named `npm` in the repository, and limit its
+   deployment branches and tags to the tag pattern `v*`, with no branch.
+6. **Each package's trusted publisher.** npm sets up a trusted publisher only on a package that
+   exists, so each package starts as a [placeholder](#the-placeholder). Then add the package's
+   trusted publisher on npmjs.com, under its Settings → Trusted publishing: GitHub Actions,
+   organization `WayfarerLabs`, repository `agention`, workflow filename `release.yml`, environment
+   `npm`, and `npm publish` allowed beside the `npm stage publish` npm always allows. A trusted
+   publisher that has not published within two days of being added expires, so add each one within
+   the two days before the release that first publishes its package.
+7. **No tokens.** Once that release is out and checked, set each package's Settings → Publishing
+   access to "Require two-factor authentication and disallow tokens". Trusted publishing uses no
+   token, so it goes on working.
+
+Together these let only a merged release pull request publish: only the App may create `v*` tags,
+its key is usable only from `main`, which changes only through reviewed pull requests with the
+required check, and only `v*` tags may use the `npm` environment that each trusted publisher names.
+The repository must stay public: npm attaches provenance only to a package published from a public
+repository, and the release workflow's explicit `--provenance` fails a release otherwise.
+
+A package added later starts the same way: publish and deprecate its placeholder, add it beside the
+others to the package checks in `scripts/check.sh`, to `release.yml` and to
+`release-please-config.json`, add its trusted publisher within the two days before the release that
+first publishes it, and disallow tokens once that release is out.
+
+### The placeholder
+
+A package's placeholder is version `0.0.0-placeholder`, never `0.0.0`, which the committed plugins
+pin before the first release. It holds only a `package.json`. Signed in to npm (`npm login`) as a
+member of the `@wayfarerlabs` organization who may publish, run this once for each package, with
+`name` set to the package's name:
+
+```bash
+name=@wayfarerlabs/agention   # then @wayfarerlabs/agention-mcp
+dir="$(mktemp -d)"
+cat >"$dir/package.json" <<EOF
+{
+  "name": "$name",
+  "version": "0.0.0-placeholder",
+  "description": "Reserves this name for Agention, whose releases start at 0.1.0.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WayfarerLabs/agention.git"
+  }
+}
+EOF
+npm publish "$dir" --tag placeholder --access public --dry-run
+npm publish "$dir" --tag placeholder --access public
+npm deprecate "$name@0.0.0-placeholder" "This version only reserves the name. Install 0.1.0 or later."
+npm view "$name" dist-tags
+rm -r "$dir"
+```
+
+The dry run shows what will be published. npm publishes a prerelease version only under a tag named
+with `--tag`. A new package's first version takes `latest` as well, so until 0.1.0 is published,
+`latest` names the deprecated placeholder, which installs no command; 0.1.0 then takes `latest`, as
+every release does.
+
+## Architecture decision records
+
+Significant decisions are recorded as ADRs in [`docs/adrs/`](docs/adrs/), in the format of
+[ADR 0000](docs/adrs/0000-record-architecture-decisions.md). Number them sequentially; `.adr-dir`
+lets [adr-tools](https://github.com/npryce/adr-tools) find the directory. An accepted ADR is a
+historical record: change a decision by writing a new ADR that supersedes it, and mark the old one
+as superseded. The one exception is ADR 0001, which records the v1 architecture as a whole: until v1
+is released it is amended in place, and its status lists each amendment.
+
+## Design documents
+
+A significant effort is designed before it is built, in a spec-driven development (SDD) directory,
+`docs/sdd/<YYYY>-<MM>-<DD>-<slug>/`: its requirements, architecture, plan and low-level designs, and
+the maintainer's rulings that shaped them. Its decisions move into the ADRs and the permanent docs
+before it locks, so nothing under `docs/sdd/` is needed to understand or work with the current
+system. The SDD records gate in [Checks](#checks) keeps each record as it merged, until a locked SDD
+is removed down to its `locked.md`.
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
