@@ -207,7 +207,8 @@ remove the marketplace from the host, then delete the directory.
   install resolves only releases at least seven days old across the whole tree, and Dependabot waits
   as long before proposing one. Apply the same wait by hand to Node.js and the GitHub Actions.
   Node.js follows its 24 line, the oldest the published packages support (their `engines`), so the
-  checks run on the oldest Node a user may have.
+  checks run on the oldest Node a user may have. `@types/node` follows the same line, so Dependabot
+  ignores its major updates.
 - A security fix may skip the wait. When a published advisory affects a pinned or locked version and
   no fixed release in the release line in use is seven days old, take the first fixed release and
   only the new releases it requires, pinned exactly, and add each npm package among them to

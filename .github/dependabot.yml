@@ -20,11 +20,14 @@ updates:
     groups:
       npm-patch-and-minor:
         update-types: [patch, minor]
-    # The agent bridge pins these to the versions that @modelcontextprotocol/server
-    # carries inlined in its own build, so their license notices ship with the
-    # bridge. They move only with that package, and the build names any that
-    # falls behind.
     ignore:
+      # Node.js stays on its 24 line, and @types/node follows it.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # The agent bridge pins these to the versions that @modelcontextprotocol/server
+      # carries inlined in its own build, so their license notices ship with the
+      # bridge. They move only with that package, and the build names any that
+      # falls behind.
       - dependency-name: ajv
       - dependency-name: ajv-formats
       - dependency-name: content-type
