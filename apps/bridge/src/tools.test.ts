@@ -1,4 +1,6 @@
 import {
+  agentApi,
+  agentApiHeader,
   includeArchivedFilter,
   markInput,
   messageFields,
@@ -201,6 +203,70 @@ describe("a redirect", () => {
     expect([answer.isError, answer.json]).toEqual([true, undefined]);
     expect(answer.text).toContain("AGENTION_URL");
     expect(reached).toBe(0);
+  });
+});
+
+describe("the agent API version", () => {
+  // answerWith answers every request in place of the server: Agention's JSON
+  // with the status given, stating the version given, or none.
+  function answerWith(status: number, body: unknown, version?: string): void {
+    harness.beforeRequest = () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: {
+          "content-type": "application/json",
+          ...(version === undefined ? {} : { [agentApiHeader]: version }),
+        },
+      });
+  }
+
+  const pending = { status: "pending", code: "7KQ2M-X9D4R", expires_at: "2026-11-20T12:00:00Z" };
+
+  it("is stated on every request the bridge makes", async () => {
+    const stated: (string | null)[] = [];
+    const bridge = await approvedBridge();
+    harness.beforeRequest = (request) => {
+      stated.push(request.headers.get(agentApiHeader));
+    };
+    await bridge.ok("register");
+    await bridge.ok("thread_create", newThread("r1"));
+    await bridge.ok("thread_get", { thread: 1 });
+    await bridge.ok("thread_read", { thread: 1, through: 1 });
+    expect(stated.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(stated)).toEqual(new Set([String(agentApi.version)]));
+  });
+
+  it.each([
+    ["none", undefined],
+    ["an older one", String(agentApi.version - 1)],
+    ["one that is no version", "two"],
+  ])("refuses an answer stating %s, its body unused", async (_, version) => {
+    const bridge = await harness.bridge();
+    answerWith(200, pending, version);
+    const refused = await bridge.call("register");
+    expect([refused.isError, refused.json]).toEqual([true, undefined]);
+    answerWith(404, { error: { code: "not_found", message: "not found" } }, version);
+    const failed = await bridge.call("register");
+    expect([failed.isError, failed.json]).toEqual([true, undefined]);
+  });
+
+  it("takes an answer stating its own version or a newer one, however long", async () => {
+    const bridge = await harness.bridge();
+    for (const version of [agentApi.version, agentApi.version + 1, "99999999999999999999"]) {
+      answerWith(200, pending, String(version));
+      expect(await bridge.ok("register")).toMatchObject({ status: "pending", code: pending.code });
+    }
+  });
+
+  it("leaves an answer without Agention's JSON, such as a proxy's, to the problem it names", async () => {
+    const bridge = await harness.bridge();
+    harness.beforeRequest = () => new Response("Bad Gateway", { status: 502 });
+    const proxied = await bridge.call("register");
+    answerWith(200, pending);
+    const older = await bridge.call("register");
+    expect([proxied.isError, older.isError]).toEqual([true, true]);
+    // Each is a problem of its own, which says what to do about it.
+    expect(proxied.text).not.toEqual(older.text);
   });
 });
 

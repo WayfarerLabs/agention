@@ -2,7 +2,7 @@
 // bridges connected to it through the MCP SDK's client, for the bridge's
 // tests.
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
-import { type PublicKey, publicKey } from "@wayfarerlabs/agention-api";
+import { agentApi, agentApiHeader, type PublicKey, publicKey } from "@wayfarerlabs/agention-api";
 import { createApp } from "@wayfarerlabs/agention/src/http/app.ts";
 import { type Listening, listen } from "@wayfarerlabs/agention/src/http/listener.ts";
 import { defaultRates } from "@wayfarerlabs/agention/src/http/rates.ts";
@@ -24,6 +24,15 @@ setDefaultCACertificates([...getCACertificates("default"), certificate.cert]);
 // The names the bridges propose unless a test says otherwise.
 export const agent = "builder";
 export const session = "main";
+
+// serverJson answers a request in place of the server, as this release's
+// server would: with the JSON given, stating the agent API version it speaks.
+export function serverJson(body: unknown, status = 200): Response {
+  return Response.json(body, {
+    status,
+    headers: { [agentApiHeader]: String(agentApi.version) },
+  });
+}
 
 // What a tool answered: its text, the JSON it holds if any, and whether it
 // is an error.

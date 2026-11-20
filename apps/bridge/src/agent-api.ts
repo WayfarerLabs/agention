@@ -1,5 +1,11 @@
-import type { ErrorBody } from "@wayfarerlabs/agention-api";
+import {
+  agentApi,
+  agentApiHeader,
+  agentApiVersion,
+  type ErrorBody,
+} from "@wayfarerlabs/agention-api";
 import { SignJWT } from "jose";
+import packageJson from "../package.json" with { type: "json" };
 import { ApiFailure, BridgeError, operatorProblem, settingProblem } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 
@@ -43,9 +49,10 @@ export interface AgentApiOptions {
 }
 
 // AgentApi makes requests on the server's agent API, each signed by a token
-// minted for it. Requests go only to the origin: a redirect is answered as an
-// error, never followed, and nothing the bridge writes includes a token. A
-// body is always sent as a string, so it declares its length.
+// minted for it and stating the agent API version the bridge speaks. Requests
+// go only to the origin: a redirect is answered as an error, never followed,
+// and nothing the bridge writes includes a token. A body is always sent as a
+// string, so it declares its length.
 export class AgentApi {
   readonly origin: string;
   readonly #clock: () => number;
@@ -57,7 +64,8 @@ export class AgentApi {
 
   // request returns the body of a successful answer. It throws ApiFailure
   // for an answer in the API's error shape, and BridgeError when the server
-  // cannot be reached or answers with something else.
+  // cannot be reached, is older than the bridge or answers with something
+  // else.
   async request(key: SessionKey, request: ApiRequest): Promise<unknown> {
     const url = new URL(`/api/agent${request.path}`, this.origin);
     for (const [name, value] of Object.entries(request.query ?? {})) {
@@ -76,6 +84,7 @@ export class AgentApi {
         headers: {
           accept: "application/json",
           authorization: `Bearer ${token}`,
+          [agentApiHeader]: String(agentApi.version),
           ...(request.body === undefined ? {} : { "content-type": "application/json" }),
         },
         ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
@@ -101,9 +110,11 @@ export class AgentApi {
       body = undefined;
     }
     if (status >= 200 && status < 300 && body !== undefined) {
+      this.#requireVersion(response);
       return body;
     }
     if (isErrorBody(body)) {
+      this.#requireVersion(response);
       throw new ApiFailure(body);
     }
     // Agention answers its own failures in its JSON, so a server error
@@ -120,6 +131,25 @@ export class AgentApi {
     throw settingProblem(
       `The server at ${this.origin} answered ${status} with something other than Agention's JSON`,
       "set AGENTION_URL to the Agention server's origin",
+    );
+  }
+
+  // requireVersion refuses an answer in Agention's JSON from a server that
+  // states an older agent API version than the bridge's, or none, before
+  // anything uses the answer: such a server ignores what it does not know of
+  // a request, so a field the bridge sent could go missing without a word. A
+  // newer server's answers are used: it serves this bridge's version, or
+  // refuses it in words of its own.
+  #requireVersion(response: Response): void {
+    const stated = agentApiVersion.safeParse(response.headers.get(agentApiHeader) ?? undefined);
+    if (stated.success && stated.data >= agentApi.version) {
+      return;
+    }
+    throw operatorProblem(
+      `The Agention server at ${this.origin} is older than this bridge, ` +
+        `${packageJson.version}, and does not speak its version of the agent API`,
+      `upgrade the server to ${packageJson.version} or later, or pin the Agention plugin to ` +
+        "the server's release and restart this session, resuming it to keep this conversation",
     );
   }
 
