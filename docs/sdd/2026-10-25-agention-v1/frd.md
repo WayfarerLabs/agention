@@ -4,13 +4,14 @@
 <!-- cspell:ignore levl seperate dismissable doind botton -->
 <!-- cspell:ignore locatoin sesson hsould Pleae keepging consise agnet probaly Arhive autoinc -->
 <!-- cspell:ignore additiona somehing empahsize goint miconstrued Informaiton -->
-<!-- cspell:ignore subscibe certianly especiallyas everytihng Fwiw -->
+<!-- cspell:ignore subscibe certianly especiallyas everytihng Fwiw haveto -->
 
 - Status: Approved by the operator 2026-10-25; amended by rulings 23 to 28 on 2026-10-27, rulings 29
   to 31 on 2026-10-28, rulings 32 to 39 on 2026-10-30, rulings 40 to 44 on 2026-10-31, rulings 45 to
   47 on 2026-11-01, ruling 48 on 2026-11-05, rulings 49 to 52 on 2026-11-06, ruling 53 on
   2026-11-08, rulings 54 and 55 on 2026-11-09, rulings 56 and 57 on 2026-11-10, ruling 58 on
-  2026-11-11, rulings 59 and 60 on 2026-11-18 and ruling 61 on 2026-11-19
+  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 66 on
+  2026-11-20
 - Date: 2026-10-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD (ruling 59); paths below are relative to
   its root
@@ -1089,6 +1090,50 @@ Recorded from the design conversation.
     be an optional path." Taken: the guide covers hosting behind any TLS terminator, such as a
     reverse proxy, or with the server terminating TLS itself, and documents `tailscale serve` as an
     optional way; nothing in the setup assumes Tailscale.
+64. (2026-11-20, while testing 0.2.1) "Ok. And then what's next in terms of agention functionality?
+    I don't want to bite off the push/thin client/auth rework stuff yet. Perhaps we park that in a
+    new SDD?" "I could be wrong but I think session status is the next step, right?" "Also, is there
+    any good reason why I shouldn't be able to initiate a thread from my side?" The operator also
+    asked about an API for integrations that act for them. The lead proposed cutting Delivery 3 so
+    that sessions come first; parking the rework in a new SDD; operator-started threads with the
+    sessions view, since an agent sees a new thread only while it checks; and the integration API
+    with the rework, since it needs the same credential decision. The operator chose "Sessions
+    first" and "With the sessions view", and answered: "Actually, let's create a GitHub issue for
+    this. That's cleaner than an SDD that might sit for a while." and, for the integration API,
+    "Great a GitHub Issue for this, too." Taken: Delivery 3 splits, sessions first (the status tool,
+    the session log, stopped sessions in stranded, the sessions view replacing the registrations
+    page, and the check that agent routes only grow), groups, tags, message search, Mermaid and
+    backup after; the operator starts threads on a session from the sessions view, overtaking ruling
+    11 for threads; the rework and the integration API are GitHub issues, not an SDD.
+65. (2026-11-20, on the sessions delivery's design) Asked four questions, the operator chose "One
+    status tool" over an envelope on every call; answered on where unread session updates show:
+    "Separate sessions view for now. We'll figure out that integrated view as a second step"; chose
+    "You write, agent asks" for the threads they start; and answered on whether an agent reports
+    itself stopped each time it finishes what it was asked: "The main function of stopped is an
+    indication of whether the agent is likely to see additional messages. It should be set
+    accordingly." Taken: one `session_update` tool carries state, outcome, title, goal, percent and
+    a note, and no other call carries them; unread updates show in the sessions view, and the thread
+    list takes them in a later step; the operator's thread has a title and a first message without
+    asks, the session stays its requester, and the agent replies in it; stopped means the session is
+    not likely to see new messages until something starts it again, so an agent reports stopped when
+    it stops checking Agention and working when it resumes.
+66. (2026-11-20, using 0.2.1) "For me, I really like the option to jump right to a new question on a
+    thread where you've read some stuff. However, in thinking about this more:" "1. Unless I missed
+    it, it only works for asks. New messages should get the same treatment. Basically a "Jump to
+    unread" CTA." "2. That said, we should at least offer the option (probably default) for newest
+    first sorting, which gets rid of that. I'm open to this being the only option." "Also, if I'm
+    not mistaken, there's no way to unselect an ask option. Decline means something different,
+    right? I just accidentally selected an option for an ask that I didn't want to answer right then
+    and didn't see a way to then not answer it at that moment." The lead answered that picking only
+    stages an answer, which the composer's Remove clears out of view, and that Decline records that
+    the operator will not answer; it proposed a Clear on the ask card and newest first as the only
+    order. The operator answered: "Totally agreed on "Clear". That's exactly right." "But then let's
+    leave the order as-is for now and just turn the new ask jump to a general "Jump to unread"
+    action. I do worry that newest first will cause me to miss things (you haveto scroll past stuff
+    to then read in the right order). No order toggle for now." Taken: messages stay oldest first
+    with no toggle; the thread's head jumps in turn to each unread message and each ask still open
+    to the operator; an ask card with an answer staged offers Clear, which removes it as the
+    composer's Remove does.
 
 ## Out of scope for v1
 

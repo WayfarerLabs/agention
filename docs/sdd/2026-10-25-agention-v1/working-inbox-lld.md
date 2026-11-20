@@ -1134,8 +1134,11 @@ its head, and answering happens on the message that asked (rulings 31 to 34).
   session without an active credential shows its tag). Beside the title sits **Archive all**, which
   first shows every message through the latest, then archives through it, is unavailable while an
   ask is open to the operator and says why, and returns to the list, as email does. The head shows
-  the archive box while the thread is archived for the operator. When asks are open, a count jumps
-  to the next of those the thread's roll-up lists, loading its page when needed.
+  the archive box while the thread is archived for the operator. **Jump to unread** visits, in
+  thread order and round again, each message the operator has not read and each ask still open to
+  them that the thread's roll-up lists, read or not, loading its page when needed; it reads **Jump
+  to open ask** once only open asks remain, and is hidden when there is neither (ruling 66).
+  Messages stay oldest first.
 - **Options.** Each live message has a ⋯ options button ("Options for message N") that discloses its
   uncommon actions as buttons; Escape, choosing an action, a tap elsewhere or focus moving on to
   another control closes it, and one is open at a time. Closing returns focus to its button without
