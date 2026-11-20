@@ -1,3 +1,4 @@
+export * from "./agent-api.ts";
 export * from "./bounds.ts";
 export * from "./errors.ts";
 export * from "./names.ts";

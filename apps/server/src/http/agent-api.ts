@@ -18,6 +18,7 @@ import {
   updateSession,
   waitForThreads,
 } from "../store/index.ts";
+import { requireServedAgentApiVersion } from "./agent-api-version.ts";
 import { parseBody, parseQuery, sessionTarget } from "./input.ts";
 import type { RateBudgets } from "./rates.ts";
 import { type IdentityEnv, threadRoutes } from "./thread-routes.ts";
@@ -35,9 +36,10 @@ export interface AgentApiOptions {
 // The least time between two logged failures to mark a session seen.
 export const seenFailureLogInterval = 60_000;
 
-// agentApi is the agent bridge's API, mounted at /api/agent. Every request
-// carries a token signed by its session's key; cookies are refused, so a
-// browser's sign-in never works here.
+// agentApi is the agent bridge's API, mounted at /api/agent. A request
+// stating an agent API version the server does not serve is refused first.
+// Every request carries a token signed by its session's key; cookies are
+// refused, so a browser's sign-in never works here.
 export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   const { store, origin, budgets, log } = options;
   const api = new Hono<IdentityEnv>();
@@ -59,6 +61,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
     }
   };
 
+  api.use(requireServedAgentApiVersion);
   api.use(async (c, next) => {
     if (c.req.header("cookie") !== undefined) {
       throw unauthenticated("the agent API does not accept cookies");

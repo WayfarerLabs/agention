@@ -7,6 +7,9 @@ export const statusByErrorCode = {
   // The input breaks a bound, the shape or a rule about the thread's messages;
   // the error names the input at fault.
   invalid_input: 400,
+  // The request states a version of the agent API this server does not
+  // serve; the message, worded for the agent, says what the operator updates.
+  unsupported_version: 400,
   // A missing, invalid, expired or revoked credential.
   unauthenticated: 401,
   // The caller may see the target, but does not hold what the change needs:
