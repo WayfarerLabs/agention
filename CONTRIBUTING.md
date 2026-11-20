@@ -232,8 +232,6 @@ remove the marketplace from the host, then delete the directory.
   - `katex` (`GHSA-238p-pmpm-9mq7`, low), reached through markdownlint-cli2, which only reads this
     repository's own Markdown. Every fixed release is outside micromark-extension-math's `^0.16.0`
     range, so it stays until markdownlint takes the fix.
-- The `overrides` entry holds markdownlint's `re2js` at 2.8.7, which fixes `GHSA-gg6h-894w-4m9c`
-  (high) in the 2.8.6 that markdownlint 0.42.0 pins.
 
 ## Commits and pull requests
 
