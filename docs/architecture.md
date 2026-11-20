@@ -383,10 +383,10 @@ its key file, its tokens and where its requests may go.
 - **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`. When it is missing or not an
   HTTPS origin, when the home directory is not an absolute path of at most 4,096 bytes, or when
   `NODE_TLS_REJECT_UNAUTHORIZED` turns certificate checks off, the bridge still serves, and every
-  tool answers with what to fix. The session's names come from the first `register` call that gives
-  them, else from `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, a name `register` leaves out falling
-  back to its variable. Whichever the bridge uses first fixes the session for the life of the
-  process; naming another afterwards is `invalid_input`.
+  tool answers with what the operator must change. The session's names come from the first
+  `register` call that gives them, else from `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, a name
+  `register` leaves out falling back to its variable. Whichever the bridge uses first fixes the
+  session for the life of the process; naming another afterwards is `invalid_input`.
 - **Key file.** `apps/bridge/src/key-file.ts` keeps one key per server, agent and session, selected
   by the proposed names, and is the bridge's only state. Its operations are synchronous. Every
   request reads the file, so bridges sharing a session sign with the key now on disk. Only
@@ -430,10 +430,12 @@ its key file, its tokens and where its requests may go.
   field never drops silently; the server's request schemas ignore unknown fields, so a newer bridge
   still works against it. An answer is the API's JSON as text, and a call the server refuses is an
   error result holding the API's error JSON. A problem the bridge finds itself, such as its
-  configuration, an unreachable server, missing names or a cancelled call, is an error result of one
-  plain sentence saying what to do. `message_wait` gives every error but `invalid_input` no sooner
-  than its `wait_seconds` would have ended, counted from the call's start, so an agent that waits
-  again at once does not call a server it cannot use in a tight loop.
+  configuration, an unreachable server, missing names or a cancelled call, is an error result in
+  plain text, worded for the agent: what to do, or, for what only the operator can fix, to tell them
+  at the terminal what to change and whether the session must restart. `apps/bridge/src/errors.ts`
+  words those. `message_wait` gives every error but `invalid_input` no sooner than its
+  `wait_seconds` would have ended, counted from the call's start, so an agent that waits again at
+  once does not call a server it cannot use in a tight loop.
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`. A page of messages or threads over the limit is asked for

@@ -1,6 +1,6 @@
 import type { ErrorBody } from "@wayfarerlabs/agention-api";
 import { SignJWT } from "jose";
-import { ApiFailure, BridgeError } from "./errors.ts";
+import { ApiFailure, BridgeError, operatorProblem, settingProblem } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 
 // How long a token the bridge mints stays valid. The server accepts tokens
@@ -88,9 +88,10 @@ export class AgentApi {
     }
     const { status } = response;
     if (status >= 300 && status < 400) {
-      throw new BridgeError(
-        `Check AGENTION_URL, since the server at ${this.origin} redirected the request and the ` +
-          "bridge sends its requests to that origin alone.",
+      throw settingProblem(
+        `The server at ${this.origin} redirected the bridge's request, and the bridge sends its ` +
+          "requests to that origin alone",
+        "set AGENTION_URL to the Agention server's own origin",
       );
     }
     let body: unknown;
@@ -105,9 +106,20 @@ export class AgentApi {
     if (isErrorBody(body)) {
       throw new ApiFailure(body);
     }
-    throw new BridgeError(
-      `Check AGENTION_URL, since the server at ${this.origin} answered ${status} with ` +
-        "something other than Agention's JSON.",
+    // Agention answers its own failures in its JSON, so a server error
+    // without it comes from a proxy, such as tailscale serve while the server
+    // behind it is stopped, or one AGENTION_URL names by mistake.
+    if (status >= 500) {
+      throw operatorProblem(
+        `The server at ${this.origin} answered ${status} without Agention's JSON, as a proxy ` +
+          "does when the server behind it is not running",
+        `check that the Agention server is running and that AGENTION_URL is its origin, ` +
+          restartAfterURL,
+      );
+    }
+    throw settingProblem(
+      `The server at ${this.origin} answered ${status} with something other than Agention's JSON`,
+      "set AGENTION_URL to the Agention server's origin",
     );
   }
 
@@ -121,23 +133,28 @@ export class AgentApi {
     }
     if (timedOut) {
       return new BridgeError(
-        `Try again later, since the Agention server at ${this.origin} did not answer in time.`,
+        `Try again later, since the Agention server at ${this.origin} did not answer in time, ` +
+          "and tell the operator at your terminal if it keeps happening.",
       );
     }
     const cause = (error as { cause?: { code?: unknown; message?: unknown } }).cause;
     const detail = String(cause?.code ?? cause?.message ?? (error as Error).message);
     if (untrustedCertificate.has(detail)) {
-      return new BridgeError(
-        `Set NODE_EXTRA_CA_CERTS to a file with the certificate of the authority that issued ` +
-          `the certificate of the Agention server at ${this.origin}, which Node does not trust ` +
-          `(${detail}).`,
+      return settingProblem(
+        `Node does not trust the certificate of the Agention server at ${this.origin} (${detail})`,
+        "set NODE_EXTRA_CA_CERTS to a file with the certificate of the authority that issued it",
       );
     }
-    return new BridgeError(
-      `Check that the Agention server at ${this.origin} is running and reachable (${detail}).`,
+    return operatorProblem(
+      `The Agention server at ${this.origin} cannot be reached (${detail})`,
+      `check that it is running and that AGENTION_URL is its origin, ${restartAfterURL}`,
     );
   }
 }
+
+// A changed AGENTION_URL, like every setting, takes effect once the session
+// restarts.
+const restartAfterURL = "restarting the session after changing AGENTION_URL";
 
 // The TLS errors of a certificate whose authority Node does not trust.
 const untrustedCertificate = new Set([

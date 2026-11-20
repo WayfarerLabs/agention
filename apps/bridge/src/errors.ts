@@ -1,4 +1,5 @@
 import type { ErrorBody, ErrorCode } from "@wayfarerlabs/agention-api";
+import packageJson from "../package.json" with { type: "json" };
 
 // A tool fails in one of two ways. ApiFailure is an answer in the API's error
 // shape: one the server gave, or one the bridge gives in the server's terms
@@ -25,4 +26,36 @@ export class ApiFailure extends Error {
 
 export class BridgeError extends Error {
   override name = "BridgeError";
+}
+
+// A BridgeError's message is worded for the agent. What only the operator can
+// fix, the agent tells them at its terminal, since Agention is what is not
+// working.
+
+// The operator guide's section on the bridge's settings, at this bridge's
+// release.
+const settingsGuide =
+  "https://github.com/WayfarerLabs/agention/blob/" +
+  `v${packageJson.version}/docs/operator-guide.md#agents`;
+
+// settingProblem is a problem with a setting the agent host gave the bridge
+// as the session started, which changes only once the session restarts.
+// problem is a sentence without its period, and fix what the operator changes.
+export function settingProblem(problem: string, fix: string): BridgeError {
+  return new BridgeError(
+    `${problem}. Only the operator can fix that, so tell them at your terminal to ${fix}, and ` +
+      `then restart the session, resuming it to keep this conversation; ${settingsGuide} says ` +
+      "how. Carry on meanwhile, and try again once they have restarted it.",
+  );
+}
+
+// operatorProblem is a problem the operator fixes while the session runs, on
+// the server, the way to it or this machine. problem is a sentence without
+// its period, and fix says what the operator does.
+export function operatorProblem(problem: string, fix: string, options?: ErrorOptions): BridgeError {
+  return new BridgeError(
+    `${problem}. Only the operator can fix that, so tell them at your terminal to ${fix}. ` +
+      "Carry on meanwhile, and try again at natural points.",
+    options,
+  );
 }
