@@ -192,9 +192,10 @@ remove the marketplace from the host, then delete the directory.
   resolves nothing beyond what the lockfile built. They list everything their bundles include, other
   workspaces too, under `devDependencies`; the build gate fails a published package that declares
   `dependencies`, `optionalDependencies`, `peerDependencies` or bundled dependencies.
-- Each published package ships a copy of the repository's `LICENSE` and, beside its bundle, the
-  license notices of the npm packages the bundle includes. The build gate checks both are in the
-  tarball and that the `LICENSE` copy matches.
+- Each published package ships a copy of the repository's `LICENSE`, its own `README.md`, which npm
+  shows as the package's page, and, beside its bundle, the license notices of the npm packages the
+  bundle includes. The build gate checks all three are in the tarball and that the `LICENSE` copy
+  matches.
 - A package a bundle includes may have inlined other npm packages in its own build, as the MCP SDK
   builds in its JSON Schema validator. List each under the bundling package's `devDependencies` at
   the inlined version, so its license notice ships and the vulnerability check covers it; the build

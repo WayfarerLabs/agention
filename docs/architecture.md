@@ -31,13 +31,14 @@ the license of every npm package the bundle includes and, for the server, of eve
 web build, which Vite reports. An included package whose own build inlined other npm packages names
 them in its files' region comments; the bundle's notices include those too, read from copies the
 bundling package lists under `devDependencies` at the inlined versions, and the build fails if one
-is missing. Each package carries a copy of the repository's `LICENSE`. Each bundle embeds its
-package's `package.json` at build time and reports that version.
+is missing. Each package carries a copy of the repository's `LICENSE` and a `README.md` of its own
+for its npm page. Each bundle embeds its package's `package.json` at build time and reports that
+version.
 
 The checks pack each package as npm would publish it, confirm it declares no dependencies and ships
-both license files, then install it from the tarball outside the repository and run its command
-through `node_modules/.bin`, which must print the package's version. The installed server is also
-started on loopback, and must serve the web UI its package ships and answer the API.
+both license files and a `README.md`, then install it from the tarball outside the repository and
+run its command through `node_modules/.bin`, which must print the package's version. The installed
+server is also started on loopback, and must serve the web UI its package ships and answer the API.
 
 ## API contract
 
