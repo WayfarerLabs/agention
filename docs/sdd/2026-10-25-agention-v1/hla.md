@@ -79,8 +79,8 @@ erDiagram
 ```
 
 - **Agent**: name.
-- **Session**: agent, name, title, last seen. State, outcome, goal and percent are a projection of
-  the session log.
+- **Session**: agent, name, last seen. Its state, outcome, title, goal and percent are read from the
+  latest entry of the session log, never stored on the session.
 - **Registration**: one agent credential. Proposed agent and session names, the session key's public
   half and the code derived from it, status (pending, approved, rejected, revoked; a pending
   registration past its expiry counts as expired), and the granted session once approved.
@@ -97,7 +97,8 @@ erDiagram
 - **Answer**: the message carrying it, the number of the ask it answers, and either a decline or the
   picked suggestions and the answerer's own words, at least one of them. A message may answer
   several asks, each once.
-- **Session entry**: session, sequence, time, and any of state, outcome, goal, percent, note.
+- **Session entry**: session, sequence, time, the credential that wrote it, the session's state,
+  outcome, title, goal and percent after it, and the entry's own note.
 - **Thread mark**: actor, thread, the sequence read through and the sequence archived through. The
   session log has a read cursor of the same kind.
 - **Session group**: name, member sessions, one level deep. Operator-only (R28).
@@ -198,7 +199,6 @@ write(identity, thread, seen_through, request_id, message):
   validate bounds                                        # before taking the write lock
   BEGIN IMMEDIATE
   authorize(identity, thread.session)                    # not_found otherwise
-  apply envelope if present                              # R23, independent of the outcome below
   prior = message(actor=identity.actor, request_id)
   if prior: return prior.result if digest(op, thread, message) == prior.digest
             else REQUEST_ID_CONFLICT
@@ -241,15 +241,13 @@ unread(actor, thread):
 
 - A transaction is one synchronous function: nothing awaits between `BEGIN` and `COMMIT`, so writes
   never interleave in the server process.
-- Every return path commits, so an envelope persists even when the write itself is stale or
-  rejected.
 - `thread_create` has no `seen_through`; its request id deduplicates it.
 - Reading, marking unread and archiving never change the thread or its sequence, so none conflicts
   with a write; marking unread only lowers the caller's own cursor, so it never claims a message the
   caller has not seen. Archive marks are never shown to the other party (R17).
 - Archiving is refused over an open ask, an answer is never retracted, and every new ask arrives
   after the mark, so an archived message never carries an ask open to its archiver.
-- Session envelopes are last-writer-wins (R23).
+- Session updates are last-writer-wins and exempt from the stale rule (R23).
 - The web UI keeps the draft on `STALE`, shows the missed messages, and resubmits with one action.
   With one operator and occasional agent writes, starvation is not a practical risk.
 
@@ -257,20 +255,19 @@ unread(actor, thread):
 
 The bridge defines the tools from the shared schemas; each tool is one request on `/api/agent/`.
 
-| Tool             | Target  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `register`       | session | Submit or check this session's registration; answers with the code to relay until the operator approves.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `thread_create`  | session | New thread: title and a first message with optional Markdown text and detail, asks, topic and references.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `message_send`   | thread  | Append a message: any of text and detail, references, asks, withdrawals of its own open asks, a topic, and the earlier message it replaces.                                                                                                                                                                                                                                                                                                                                                                                               |
-| `thread_get`     | thread  | The thread with its topic, roll-ups and open asks, a page of messages with replacements and answers resolved, both parties' read cursors, and the caller's archive mark.                                                                                                                                                                                                                                                                                                                                                                  |
-| `thread_list`    | session | Paged threads the agent has not archived, or with archived ones included, filtered by title search, status, unread and topic (R18).                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `thread_read`    | thread  | Mark read through a message without writing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `thread_archive` | thread  | Archive through a message, so the agent's own list shows what is still live.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `message_wait`   | session | Long-poll for threads with unread messages. Returns a paged result and an opaque `since` value; passing it back waits only for newer messages, so an agent that leaves something unread does not loop hot. A zero wait answers at once, which is how an agent checks for answers as it works (ruling 48); a longer one is for an agent with no other work and open asks or unread messages, or for a waiter of its own (ruling 61). A zero wait with an envelope is the quiet-stretch check-in. Authorization is rechecked on every wake. |
+| Tool             | Target  | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `register`       | session | Submit or check this session's registration; answers with the code to relay until the operator approves.                                                                                                                                                                                                                                                                                                                                                                      |
+| `thread_create`  | session | New thread: title and a first message with optional Markdown text and detail, asks, topic and references.                                                                                                                                                                                                                                                                                                                                                                     |
+| `message_send`   | thread  | Append a message: any of text and detail, references, asks, withdrawals of its own open asks, a topic, and the earlier message it replaces.                                                                                                                                                                                                                                                                                                                                   |
+| `thread_get`     | thread  | The thread with its topic, roll-ups and open asks, a page of messages with replacements and answers resolved, both parties' read cursors, and the caller's archive mark.                                                                                                                                                                                                                                                                                                      |
+| `thread_list`    | session | Paged threads the agent has not archived, or with archived ones included, filtered by title search, status, unread and topic (R18).                                                                                                                                                                                                                                                                                                                                           |
+| `thread_read`    | thread  | Mark read through a message without writing.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `thread_archive` | thread  | Archive through a message, so the agent's own list shows what is still live.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `session_update` | session | Report the session's state (working, idle, or stopped with an outcome), title, goal, percent and a note; a field left out is unchanged (R22, R23, ruling 65).                                                                                                                                                                                                                                                                                                                 |
+| `message_wait`   | session | Long-poll for threads with unread messages. Returns a paged result and an opaque `since` value; passing it back waits only for newer messages, so an agent that leaves something unread does not loop hot. A zero wait answers at once, which is how an agent checks for answers as it works (ruling 48); a longer one is for an agent with no other work and open asks or unread messages, or for a waiter of its own (ruling 61). Authorization is rechecked on every wake. |
 
-- Every write carries a request id; `message_send` also carries `seen_through`.
-- Every tool except `register` accepts the optional session envelope (state, outcome, goal, percent,
-  note).
+- Every write to a thread carries a request id; `message_send` also carries `seen_through`.
 - Tool names use lowercase letters, digits and underscores, because hosts and the Anthropic API do
   not accept dots uniformly.
 - `message_wait` caps its wait well below the 60-second Codex default tool timeout.
@@ -291,7 +288,7 @@ The operator's routes under `/api/web/` provide exactly the operations in R26:
 - registration approval, rejection and revocation.
 
 They also serve one thread list (R25): the threads the operator has not archived, narrowed by
-filters that combine with AND (title search, extended to messages' text and detail in Delivery 3;
+filters that combine with AND (title search, extended to messages' text and detail in Delivery 4;
 status and the properties of one open ask; unread, and unread by the agent or stranded; agents,
 sessions and topics, several of each combined with OR; later group and tag (R28)), with archived
 threads included on request, in the sort the operator chooses, viewed flat or grouped by session or
@@ -300,7 +297,9 @@ agent. For each filter value, they count the threads it keeps with every other f
 All web mutations require the CSRF token and exact origin, and web routes refuse an `Authorization`
 header. Agent routes under `/api/agent/` refuse cookies. The thread routes are the same handlers on
 both mounts, so role and message checks are shared. Agent routes only grow once released, because
-agent machines run whatever bridge version their plugin pins.
+agent machines run whatever bridge version their plugin pins. Every agent request and answer states
+the agent API version it speaks, a missing one meaning 1; a bridge refuses a server older than
+itself and the server a bridge outside its versions, so a mismatch fails loudly (R33, ruling 67).
 
 The web UI renders Markdown as R14 requires; the Working inbox LLD chooses and configures the
 renderer.
@@ -311,12 +310,14 @@ refresh on an interval while visible and on focus (R27). A 401 anywhere returns 
 
 ## Sessions and presence
 
-- Session entries are appended only when an envelope changes something; identical envelopes are
-  no-ops.
+- A `session_update` appends a log entry only when it changes something; an identical update is a
+  no-op.
 - Last seen is stamped on every authenticated agent call. Quiet uses a configurable threshold
   (default 15 minutes). Delivery 2 carries last seen, quiet, and stranded from quiet or a missing
-  credential (ruling 48); the envelope's states, and stopped's part in stranded, come in Delivery 3.
-- A stopped session resumes with any later envelope carrying a working or waiting state.
+  credential (ruling 48); session states, and stopped's part in stranded, come with the sessions
+  delivery.
+- Stopped means the session is not likely to see new messages until something starts it again
+  (ruling 65). A stopped session resumes with any later update carrying a working or idle state.
 - Revoking a session's credential leaves the session and threads in place, marked as having no
   active credential (R5).
 
@@ -335,6 +336,10 @@ session, and grouped by session each of its topics, carries a roll-up of the thr
 keep there (how many, how many unread, whether any is blocked on the operator, the highest open
 priority, and whether all are archived) and is placed by its first thread under the sort; an agent's
 roll-up and place compose from its sessions'.
+
+A session is waiting on the operator while it has open asks, counted from its threads' asks in the
+sessions view beside what the session reports it is doing, never reported by the session itself
+(ruling 68).
 
 ## Operation
 
@@ -395,7 +400,7 @@ the server, the bridge and the plugins. Real installs on both hosts are the acce
 | R1-R7        | Store and HTTP tests: cross-session access returns not_found for every operation, reading and archiving included; actor stamped from authentication; registration lifecycle including expiry, revocation and re-grant; token checks (signature, origin, lifetime); revocation during long polls; neither credential works on the other mount.                                                                                                                                         |
 | R8-R18       | Store tests over the log: live messages, open asks and status per replacement, answer and withdrawal case; asks and topics requester-only, answers audience-only, replacement author-only; an answer only to an open ask; archive refused over an open ask, undone by another party's later message and kept by one's own; list filters. Text round-trips verbatim. Web component tests that raw HTML, images and non-HTTPS links render inert and plain fields render as plain text. |
 | R19-R21      | Concurrency tests: one of two racing writes lands, the other gets STALE with the missed messages; reading and archiving never conflict; request-id replay and conflict; each derived signal and roll-up; each sort's order, and narrowing by an ask's properties.                                                                                                                                                                                                                     |
-| R22-R24      | Envelope no-op and change cases, envelope applied when the call fails, resume after stop; last seen, the quiet threshold and stranded in Delivery 2.                                                                                                                                                                                                                                                                                                                                  |
+| R22-R24      | Status update no-op and change cases, resume after stop, stopped in stranded; last seen, the quiet threshold and stranded in Delivery 2.                                                                                                                                                                                                                                                                                                                                              |
 | R25-R29      | Component tests for views, operator operations and stale-draft handling; real-phone acceptance for passkeys and refresh.                                                                                                                                                                                                                                                                                                                                                              |
 | R30-R34      | Listener mode matrix; per-class rate budgets; bounds and error types; backup taken while serving restores cleanly; live run behind `tailscale serve` from a separate VM.                                                                                                                                                                                                                                                                                                              |
 | R35-R38      | Real Claude Code and Codex installs of the generated plugins running the bridge; CI checks; release dry run.                                                                                                                                                                                                                                                                                                                                                                          |
