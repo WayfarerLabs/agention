@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
+import { settingProblem } from "./errors.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
 import { type Connection, registerTools } from "./tools.ts";
 
@@ -35,7 +36,7 @@ export const instructions =
 
 // createBridge builds the bridge's MCP server for one agent session. A setting
 // the bridge cannot work with does not stop it: every tool answers with what
-// to fix, so the agent can say so.
+// the operator must change, so the agent can tell them.
 export function createBridge(options: BridgeOptions): McpServer {
   const server = new McpServer(
     { name: "agention", version: packageJson.version },
@@ -50,25 +51,31 @@ function connect(options: BridgeOptions): Connection {
   // Tokens and message text never cross TLS the bridge has not verified.
   if (environment.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
     return {
-      problem:
-        "Unset NODE_TLS_REJECT_UNAUTHORIZED, since the bridge sends its tokens and message " +
-        "text only over TLS whose certificate Node has verified.",
+      problem: settingProblem(
+        "NODE_TLS_REJECT_UNAUTHORIZED is 0, and the bridge sends its tokens and message text " +
+          "only over TLS whose certificate Node has verified",
+        "unset NODE_TLS_REJECT_UNAUTHORIZED",
+      ),
     };
   }
   // The key file's path appears in messages, so a home no file system would
   // take is refused before it can make one long.
   if (home === "" || !path.isAbsolute(home) || Buffer.byteLength(home) > 4096) {
     return {
-      problem:
-        "Set HOME to an absolute directory of at most 4,096 bytes, under which the bridge keeps " +
-        "the session's key.",
+      problem: settingProblem(
+        "HOME is not an absolute directory of at most 4,096 bytes, under which the bridge keeps " +
+          "the session's key",
+        "set HOME to an absolute directory of at most 4,096 bytes",
+      ),
     };
   }
   const url = environment.AGENTION_URL;
   if (url === undefined || url === "") {
     return {
-      problem:
-        "Set AGENTION_URL to the Agention server's origin, such as https://agention.example.com.",
+      problem: settingProblem(
+        "AGENTION_URL is not set",
+        "set AGENTION_URL to the Agention server's origin, such as https://agention.example.com",
+      ),
     };
   }
   let origin: string;
@@ -76,7 +83,10 @@ function connect(options: BridgeOptions): Connection {
     origin = canonicalOrigin(url);
   } catch (error) {
     return {
-      problem: `Set AGENTION_URL to the Agention server's origin, since ${(error as Error).message}.`,
+      problem: settingProblem(
+        `AGENTION_URL ${(error as Error).message}`,
+        "set AGENTION_URL to the Agention server's origin",
+      ),
     };
   }
   const api = new AgentApi({ origin, clock: options.clock ?? Date.now });

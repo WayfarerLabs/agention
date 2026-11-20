@@ -24,7 +24,7 @@ import {
   writeSync,
 } from "node:fs";
 import path from "node:path";
-import { BridgeError } from "./errors.ts";
+import { BridgeError, operatorProblem, settingProblem } from "./errors.ts";
 import type { SessionNames } from "./session.ts";
 
 const keyName = "key.pem";
@@ -169,9 +169,10 @@ export class KeyFile {
   // must exist, and returns its real path, where the key file is written.
   #directory(): string {
     if (!this.#homeIsDirectory()) {
-      throw new BridgeError(
-        `Set HOME to an existing directory, since ${this.#home} is not one; the bridge ` +
-          "creates only the directories below it.",
+      throw settingProblem(
+        `HOME, ${this.#home}, is not an existing directory, and the bridge creates only the ` +
+          "directories below it",
+        "set HOME to an existing directory",
       );
     }
     try {
@@ -229,7 +230,7 @@ export class KeyFile {
     if (!(error instanceof PrivateFileError)) {
       return this.#unusable(error);
     }
-    return new BridgeError(advice(error), { cause: error });
+    return refusalOf(error);
   }
 
   #unusable(error: unknown): BridgeError {
@@ -238,47 +239,64 @@ export class KeyFile {
   }
 }
 
-// advice says what to change about a path that breaks the private-file rule,
-// so that only this user can read or replace the session's key.
-function advice({ reason, path: at, code }: PrivateFileError): string {
+// refusalOf says what to change about a path that breaks the private-file
+// rule, so that only this user can read or replace the session's key, and
+// keeps the refusal as its cause. A directory above the bridge's own, such as
+// the home directory, is the operator's to change.
+function refusalOf(error: PrivateFileError): BridgeError {
+  const { reason, path: at, code } = error;
   const quoted = shellQuoted(at);
+  const cause = { cause: error };
   switch (reason) {
     case "unsupported_platform":
-      return (
-        "Run the bridge on a system that reports who owns a file, such as Linux or macOS, " +
-        "so that it can keep the session's key private."
+      return new BridgeError(
+        "This system does not report who owns a file, so the bridge cannot keep the session's " +
+          "key private. Only the operator can fix that, so tell them at your terminal that the " +
+          "bridge needs a system that does, such as Linux or macOS. Carry on without Agention.",
+        cause,
       );
     case "inaccessible":
-      return (
+      return new BridgeError(
         `Check that this user can search every directory down to ${at}, and read and write ` +
-        `the session's key there (${code ?? "unknown error"}).`
+          `the session's key there (${code ?? "unknown error"}).`,
+        cause,
       );
     case "not_a_directory":
-      return (
+      return new BridgeError(
         `Replace ${at} with a directory, or a symlink to one, since the session's key is kept ` +
-        "below it."
+          "below it.",
+        cause,
       );
     case "foreign_ancestor":
-      return (
-        `Ask an administrator to give ${at} to you or to root, since another user owns it and ` +
-        "could replace the session's key."
+      return operatorProblem(
+        `Another user owns ${at}, a directory above the session's key, and could replace the key`,
+        `have an administrator give ${at} to this user or to root`,
+        cause,
       );
     case "writable_ancestor":
-      return `Run chmod go-w ${quoted}, so that no other user can replace the session's key.`;
+      return operatorProblem(
+        `Other users can write to ${at}, a directory above the session's key, and could ` +
+          "replace the key",
+        `run chmod go-w ${quoted}`,
+        cause,
+      );
     case "directory_not_private":
-      return (
+      return new BridgeError(
         `${at} must belong to you, with mode 700, so that only you can reach the session's ` +
-        `key; if it is yours, run chmod 700 ${quoted}.`
+          `key; if it is yours, run chmod 700 ${quoted}.`,
+        cause,
       );
     case "not_a_file":
-      return (
+      return new BridgeError(
         `Replace ${at} with the session's key file, or remove it and call register to make ` +
-        "a new key, since the bridge never reads a key through a symlink."
+          "a new key, since the bridge never reads a key through a symlink.",
+        cause,
       );
     case "file_not_private":
-      return (
+      return new BridgeError(
         `${at} must belong to you, with mode 600, so that only you can read the session's ` +
-        `key; if it is yours, run chmod 600 ${quoted}.`
+          `key; if it is yours, run chmod 600 ${quoted}.`,
+        cause,
       );
   }
 }

@@ -7,7 +7,7 @@ import {
   type RegistrationStatus,
 } from "@wayfarerlabs/agention-api";
 import type { AgentApi } from "./agent-api.ts";
-import { ApiFailure, BridgeError } from "./errors.ts";
+import { ApiFailure, BridgeError, settingProblem } from "./errors.ts";
 import { KeyFile, type SessionKey } from "./key-file.ts";
 
 // An agent and session by name.
@@ -196,9 +196,10 @@ export class Session {
     });
     const parsed = registrationState.safeParse(answer);
     if (!parsed.success) {
-      throw new BridgeError(
-        `Check AGENTION_URL, since the server at ${this.#api.origin} answered the registration ` +
-          "with something other than Agention's JSON.",
+      throw settingProblem(
+        `The server at ${this.#api.origin} answered the registration with something other ` +
+          "than Agention's JSON",
+        "set AGENTION_URL to the Agention server's origin",
       );
     }
     return parsed.data;

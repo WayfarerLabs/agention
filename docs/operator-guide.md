@@ -597,7 +597,12 @@ Claude Code also passes the `env` of its
 bridge among them, so `"env": { "AGENTION_URL": "https://agention.example.ts.net" }` in
 `~/.claude/settings.json` reaches the bridge in Claude Code without a shell profile.
 
-An agent's first call to Agention registers its session, which then waits for your approval.
+An agent's first call to Agention registers its session, which then waits for your approval. When
+the bridge can't work, because a setting is missing or wrong or the server can't be reached, the
+agent tells you at its terminal what to change. The agent host gives the bridge its settings when
+the session starts, so after changing one, restart the session from a shell that has the change, a
+new terminal if you changed a shell profile; resuming it, with `claude --continue` or
+`codex resume --last`, keeps its conversation.
 
 ## Approving agents
 

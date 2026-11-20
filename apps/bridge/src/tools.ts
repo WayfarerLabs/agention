@@ -33,7 +33,7 @@ import type { Session } from "./session.ts";
 
 // What the tools act through: the server's API and the session, or why the
 // bridge cannot reach them.
-export type Connection = { api: AgentApi; session: Session } | { problem: string };
+export type Connection = { api: AgentApi; session: Session } | { problem: BridgeError };
 
 // Every tool is truthfully annotated as neither read-only nor destructive,
 // and as acting on a closed world: messages are append-only, a key is replaced
@@ -115,7 +115,7 @@ export function registerTools(server: McpServer, connection: Connection): void {
 
   const connected = (): { api: AgentApi; session: Session } => {
     if ("problem" in connection) {
-      throw new BridgeError(connection.problem);
+      throw connection.problem;
     }
     return connection;
   };
