@@ -60,6 +60,16 @@ API enforces the server's part of them on every request, and the web UI renders 
   requests, so exhausting them never refuses a valid key, passkey or link; someone who can reach the
   server can still exhaust the budget for registering new agent keys and delay new registrations.
 
+The plugin's skill has an agent take a message the operator wrote exactly as it takes the operator's
+words at its terminal: answers, instructions and corrections carry the operator's authority, within
+the limits the agent already works under, and no agent can write as the operator (**Identity and
+provenance**, above). So whatever can act as the operator can direct every approved agent within
+that agent's own permissions: a passkey, a browser signed in with one, and the server itself,
+meaning the user that runs it (so an agent running as that user can act as the operator), its data
+directory, `agention passkey-link` on its machine, and whatever terminates TLS for its origin, such
+as `tailscale serve` or a reverse proxy. Guard them as you would the agents' terminals. Inert
+content matters for the same reason: a script running in the web UI could write as the operator.
+
 ### Private files
 
 The server's data directory and database, and each agent bridge session's key file, are private to

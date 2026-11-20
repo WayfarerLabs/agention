@@ -40,8 +40,10 @@ always named by the request, and the credential only authorizes it (the **Identi
 invariant in `SECURITY.md` "Security model"). The default grant is one session; a later grant across
 sessions, or identity from an external issuer, needs no change to the API (ADR 0001 "Agents,
 sessions and threads"), and that seam stays a seam: no code depends on it. Look for a target
-inferred from a credential, an actor or session taken from a payload, and grants widened by anything
-a client controls.
+inferred from a credential, an actor or session taken from a payload, grants widened by anything a
+client controls, and any way to write as the person other than the operator's own sign-in, a second
+person included: agents take the person's messages as the operator's direction (`SECURITY.md`
+"Security model").
 
 ## A3. Isolation, and unknown equals unauthorized
 
@@ -137,8 +139,9 @@ from message text is drawn in isolation, so drawing it can neither run anything 
 nor fetch anything, and shows as an image, with the content security policy kept strict. Look for
 content-driven fetches or previews, raw HTML or images other than such a diagram reaching the DOM, a
 diagram drawn outside its isolation, classes or styles taken from text, live non-HTTPS links, links
-to URLs that `isLinkableUrl` refuses, search text read as query syntax, and instruction-shaped
-message content treated as direction anywhere, including the usage skill.
+to URLs that `isLinkableUrl` refuses, search text read as query syntax, and message content treated
+as the operator's direction anywhere, the usage skill included, unless the operator wrote it (its
+author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 
