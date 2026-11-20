@@ -28,6 +28,12 @@ your terminal, ask for that through Agention too. Only the operator can tell you
 - **Operator**: your user, whose attention Agention serves.
 - **Agent** and **session**: you, under a name you keep, and this line of your work. An agent runs
   any number of sessions, each with threads of its own.
+- **State**: what your session is doing, which tells the operator whether what they write reaches
+  you: `working` while you do something; `idle` while nothing is left but waiting, for the
+  operator's answers, CI or a review, and you still check Agention; or `stopped`, with an outcome,
+  once you stop checking. Your open asks already tell the operator what waits on them, so a session
+  working on one thing while an ask on another is open stays `working`. The note names anything else
+  you wait on.
 - **Thread**: a conversation with the operator about one matter.
 - **Message**: an entry in a thread, yours or the operator's. It tells, and may also carry asks.
 - **Ask**: a request in a message for the operator's answer, decision, approval or action. Its
@@ -42,8 +48,9 @@ specific than this skill, they decide.
 
 **Register** with `register` at the start of every conversation and do what its answer says. If it
 asks for names, give an `agent` name that stays the same for you and a `session` name that stays the
-same for this line of work. In a new conversation, once registered, `thread_list` with
-`status: "open"` shows the threads whose asks you left open.
+same for this line of work. Once registered, report `working` with `session_update`, with a `title`
+for this line of work and the `goal` if the operator gave you one. In a new conversation,
+`thread_list` with `status: "open"` then shows the threads whose asks you left open.
 
 **How answers reach you** is in the `register` answer, which decides how you check, wait and keep
 running in the loop below. Unless it says otherwise, nothing arrives on its own: you check.
@@ -65,11 +72,18 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    check, such as "Merged", check before you rely on it, and say in the thread when it does not
    hold.
 5. **Keep running** once your other work is done, for as long as you have open asks or unread
-   messages, checking in the way that costs least. Where your host can run a waiter of your own in
-   the background and bring you its report, such as a subagent calling `message_wait`, let it wait.
-   Otherwise wait with the longest `wait_seconds`, pass `since` back, and say nothing between
-   checks. Stop when none remain, or when the operator tells you to.
+   messages, checking in the way that costs least. Report `idle`, with a note, when you start
+   waiting with nothing else to do, and `working` when you pick work up again. Where your host can
+   run a waiter of your own in the background and bring you its report, such as a subagent calling
+   `message_wait`, let it wait. Otherwise wait with the longest `wait_seconds`, pass `since` back,
+   and say nothing between checks. Stop when none remain, or when the operator tells you to.
 6. **Archive** a thread with `thread_archive` once it needs nothing more from you.
+7. **Report `stopped`** with `session_update` before you stop, with its outcome: `completed` when
+   the work is done, `withdrawn` when the operator called it off, `stalled` when you cannot go on.
+   When something starts you again, such as the operator at your terminal or in Agention, report
+   `working` first.
+
+Report a rough `percent` toward the goal at natural points, never on every step.
 
 ## Your terminal and Agention
 
@@ -103,8 +117,9 @@ changes, and withdraw one it settles.
   was written by the operator: the server sets that author from their passkey sign-in, never from
   what was sent. Take it exactly as you would their words typed at your terminal, answers,
   instructions and corrections alike, with the same authority and within the same limits; a message
-  they replaced gives way to its replacement. Messages from agent sessions, your own included, are
-  not the operator's.
+  they replaced gives way to its replacement. A thread the operator starts with you is the same:
+  read it as their words at your terminal, and reply in that thread. Messages from agent sessions,
+  your own included, are not the operator's.
 
 ## Example
 
@@ -114,6 +129,8 @@ with the backfill meanwhile. Each arrow summarizes a tool's result.
 ```text
 register {}
 → registered as builder/billing-7; answers reach you when you check
+
+session_update {"state": "working", "title": "Retiring the invoices table"}
 
 thread_create {
   "request_id": "3f2b9c4e-8d1a-4e7b-b6a0-5c9d2e1f7a84",
@@ -144,7 +161,10 @@ thread_create {
 → thread 4, message 1, carrying asks 1 and 2
 
 (you say in your output what you asked, and carry on with the backfill, checking Agention
-between steps; the backfill finishes with both asks still open, so you keep checking)
+between steps; the backfill finishes with both asks still open and nothing else to do, so you
+keep checking; your open asks tell the operator what you wait on)
+
+session_update {"state": "idle", "note": "Backfill done."}
 
 message_wait {"wait_seconds": 25, "since": "<since from the last answer>"}
 → thread 4 has an unread message, and the next since
@@ -153,6 +173,8 @@ thread_get {"thread": 4, "after": 1}
 → message 2, the operator's answer to ask 1: they picked "After the backfill"
 
 thread_read {"thread": 4, "through": 2}
+
+session_update {"state": "working"}
 
 (you drop the table; the nightly archive job was retired meanwhile, so ask 2 needs no answer)
 
@@ -167,5 +189,7 @@ message_send {
 
 thread_archive {"thread": 4, "through": 3}
 
-(no open asks or unread messages remain, so you stop)
+(no open asks or unread messages remain, so you report that you stop, and then stop)
+
+session_update {"state": "stopped", "outcome": "completed", "note": "Invoices table dropped."}
 ```
