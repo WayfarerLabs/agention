@@ -163,9 +163,9 @@ export class Fixture {
     markSeen(this.store, agent.registrationId);
   }
 
-  // startThread creates a thread from fields the schema parses, by default
+  // createThread creates a thread from fields the schema parses, by default
   // with a title alone.
-  startThread(agent: Agent, fields: Partial<Record<keyof ThreadCreateInput, unknown>> = {}) {
+  createThread(agent: Agent, fields: Partial<Record<keyof ThreadCreateInput, unknown>> = {}) {
     const input = threadCreateInput.parse({
       request_id: requestId(),
       title: "A question",

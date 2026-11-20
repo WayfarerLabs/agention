@@ -54,7 +54,7 @@ const titles = (page: { threads: { title: string }[] }) => page.threads.map((t) 
 // after the last, so newest-first order is the order of creation reversed.
 function start(title: string, fields: Record<string, unknown> = {}, from: Agent = agent) {
   fixture.advance(1);
-  return fixture.startThread(from, { title, ...fields }).number;
+  return fixture.createThread(from, { title, ...fields }).number;
 }
 
 describe("the priority order", () => {
@@ -526,7 +526,7 @@ describe("reversed orders", () => {
     for (const [title, fields] of shapes) {
       fixture.advance(1);
       for (const from of [agent, agent, reviewer]) {
-        fixture.startThread(from, { title, ...fields });
+        fixture.createThread(from, { title, ...fields });
       }
     }
     fixture.advance(1);
@@ -762,14 +762,14 @@ describe("positions", () => {
       if (elsewhere > 0) {
         const other = instance.registerAgent("reviewer", "main");
         for (let i = 0; i < elsewhere; i++) {
-          instance.startThread(other);
+          instance.createThread(other);
         }
       }
       const own = instance.registerAgent("builder", "main");
       for (const priority of ["high", "high", "low"]) {
         instance.advance(1);
-        instance.startThread(own, { asks: [{ question: "q", priority }] });
-        instance.startThread(own);
+        instance.createThread(own, { asks: [{ question: "q", priority }] });
+        instance.createThread(own);
       }
       const cursors: string[] = [];
       let cursor: string | undefined;

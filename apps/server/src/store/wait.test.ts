@@ -46,8 +46,8 @@ async function settled(promise: Promise<unknown>): Promise<boolean> {
 
 describe("waitForThreads", () => {
   it("answers at once with the threads that have unread messages", async () => {
-    fixture.startThread(agent);
-    fixture.startThread(agent);
+    fixture.createThread(agent);
+    fixture.createThread(agent);
     expect(numbers(await wait({ wait: "0" }))).toEqual([]);
     fixture.write(fixture.operator, threadTarget(agent, 2), { text: "answer" });
     const result = await wait({ wait: "20" });
@@ -56,13 +56,13 @@ describe("waitForThreads", () => {
   });
 
   it("checks at once by default, with nothing to report", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(await settled(wait())).toBe(true);
   });
 
   it("waits from since for a newer message, and wakes when one commits", async () => {
-    fixture.startThread(agent);
-    fixture.startThread(agent);
+    fixture.createThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, threadTarget(agent, 1), { text: "left unread" });
     const first = await wait();
     expect(numbers(first)).toEqual([1]);
@@ -76,7 +76,7 @@ describe("waitForThreads", () => {
   });
 
   it("is not woken by the operator reading, marking unread or archiving", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, threadTarget(agent, 1), { text: "More." });
     const pending = wait({ wait: "20" });
     const position = () =>
@@ -95,7 +95,7 @@ describe("waitForThreads", () => {
   });
 
   it("is not woken again by messages the agent archived without reading", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, threadTarget(agent, 1), { text: "Done here." });
     expect(numbers(await wait({ wait: "0" }))).toEqual([1]);
     archiveThread(fixture.store, agent.identity, threadTarget(agent, 1), { through: 2 });
@@ -107,7 +107,7 @@ describe("waitForThreads", () => {
   });
 
   it("delivers a withdrawal, which the agent has not read", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, threadTarget(agent, 1), { text: "Hold on." });
     markRead(fixture.store, agent.identity, threadTarget(agent, 1), { through: 2 });
     const pending = wait({ wait: "20" });
@@ -116,7 +116,7 @@ describe("waitForThreads", () => {
   });
 
   it("ends with nothing when the wait runs out", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     const result = await wait({ wait: "1" });
     expect(result.threads).toEqual([]);
     expect(fixture.store.notifier.waiting(agent.sessionId)).toBe(0);
@@ -145,7 +145,7 @@ describe("waitForThreads", () => {
 
   it("continues a full page from the threads it left out", async () => {
     for (let i = 0; i < 5; i++) {
-      fixture.startThread(agent);
+      fixture.createThread(agent);
     }
     for (const number of [4, 2, 5, 1, 3]) {
       fixture.write(fixture.operator, threadTarget(agent, number), { text: "news" });
@@ -160,7 +160,7 @@ describe("waitForThreads", () => {
   });
 
   it("treats a since beyond the session's latest position as none", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, threadTarget(agent, 1), { text: "unread" });
     const beyond = encodeCursor("since", [1000]);
     expect(numbers(await wait({ since: beyond, wait: "0" }))).toEqual([1]);

@@ -40,8 +40,8 @@ beforeEach(() => {
   fixture = new Fixture();
   mine = fixture.registerAgent("builder", "main");
   theirs = fixture.registerAgent("reviewer", "main");
-  fixture.startThread(mine);
-  fixture.startThread(theirs);
+  fixture.createThread(mine);
+  fixture.createThread(theirs);
 });
 
 afterEach(() => {
@@ -150,7 +150,7 @@ describe("a foreign session", () => {
 
   it("is never found by another identity's search, nor counted for it", () => {
     for (const agent of [mine, theirs]) {
-      fixture.startThread(agent, { title: "Release notes", asks: [{ question: "Ship?" }] });
+      fixture.createThread(agent, { title: "Release notes", asks: [{ question: "Ship?" }] });
     }
     const search = { search: "release" };
     const own = listSessionThreads(

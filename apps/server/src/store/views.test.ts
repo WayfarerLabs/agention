@@ -138,7 +138,7 @@ it("derives what a fold over each thread's log derives", () => {
         .get(agent.sessionId) as { n: number }
     ).n;
     if (count === 0 || random.chance(0.05)) {
-      fixture.startThread(agent, random.chance(0.5) ? { asks: someAsks(), topic: "start" } : {});
+      fixture.createThread(agent, random.chance(0.5) ? { asks: someAsks(), topic: "start" } : {});
       continue;
     }
     const target = threadTarget(agent, 1 + Math.floor(random.pick([0, 0.3, 0.6, 0.9]) * count));

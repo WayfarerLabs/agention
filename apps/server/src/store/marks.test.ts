@@ -61,7 +61,7 @@ const unreadCount = (identity: Identity = fixture.operator) =>
 
 describe("marking read", () => {
   it("raises the caller's cursor and never lowers it", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(), { text: "More." });
     expect(read(2)).toEqual({ requester: 2, audience: 2 });
     expect(read(1)).toEqual({ requester: 2, audience: 2 });
@@ -69,12 +69,12 @@ describe("marking read", () => {
   });
 
   it("refuses a sequence beyond the latest message", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(failure(() => read(2))).toEqual({ code: "invalid_input", field: "through" });
   });
 
   it("writes no message and wakes no one", async () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     const woken = fixture.store.notifier.wait(agent.sessionId, 50);
     read(1);
     expect(await woken).toBe("timeout");
@@ -84,7 +84,7 @@ describe("marking read", () => {
 
 describe("unread", () => {
   it("counts only live messages by another party", () => {
-    fixture.startThread(agent, { text: "Draft." });
+    fixture.createThread(agent, { text: "Draft." });
     fixture.write(agent.identity, target(), { text: "Better.", replaces: 1 });
     expect(unreadCount()).toBe(1);
     expect(unreadCount(agent.identity)).toBe(0);
@@ -94,21 +94,21 @@ describe("unread", () => {
   });
 
   it("counts a replacement carrying nothing, so the other party learns of it", () => {
-    fixture.startThread(agent, { text: "Shipping today." });
+    fixture.createThread(agent, { text: "Shipping today." });
     read(1);
     fixture.write(agent.identity, target(), { replaces: 1 });
     expect(unreadCount()).toBe(1);
   });
 
   it("counts a withdrawal of an ask, so the operator learns of it", () => {
-    fixture.startThread(agent, { asks: [{ question: "Ship it?" }] });
+    fixture.createThread(agent, { asks: [{ question: "Ship it?" }] });
     read(1);
     fixture.write(agent.identity, target(), { withdrawals: [{ ask: 1, reason: "Shipped." }] });
     expect(unreadCount()).toBe(1);
   });
 
   it("never counts an archived message, read or not", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(), { text: "More." });
     fixture.write(agent.identity, target(), { text: "And more." });
     expect(unreadCount()).toBe(3);
@@ -125,7 +125,7 @@ describe("unread", () => {
 
 describe("marking unread", () => {
   it("moves the cursor back to just before the message it starts from, never forward", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(), { text: "More." });
     fixture.write(agent.identity, target(), { text: "And more." });
     expect(read(3).audience).toBe(3);
@@ -138,7 +138,7 @@ describe("marking unread", () => {
   });
 
   it("counts only other actors' messages from there as unread", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, target(), { text: "Noted." });
     fixture.write(agent.identity, target(), { text: "More." });
     read(3);
@@ -147,14 +147,14 @@ describe("marking unread", () => {
   });
 
   it("refuses a message beyond the thread's latest", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(failure(() => unread(2))).toEqual({ code: "invalid_input", field: "from" });
   });
 });
 
 describe("archiving", () => {
   it("raises the caller's own mark, which the other party never sees", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(archive(1)).toEqual({ read_through: 0, archived_through: 1 });
     expect(archive(0)).toEqual({ read_through: 0, archived_through: 1 });
     expect(fixture.thread(agent.identity, target()).marks).toEqual({
@@ -164,7 +164,7 @@ describe("archiving", () => {
   });
 
   it("is refused over an ask open to the caller, naming the field, until it is answered", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(), { asks: [{ question: "Ship it?" }] });
     expect(archive(1).archived_through).toBe(1);
     expect(failure(() => archive(2))).toEqual({ code: "invalid_input", field: "through" });
@@ -173,12 +173,12 @@ describe("archiving", () => {
   });
 
   it("is never refused to the requester over its own asks", () => {
-    fixture.startThread(agent, { asks: [{ question: "Ship it?" }] });
+    fixture.createThread(agent, { asks: [{ question: "Ship it?" }] });
     expect(archive(1, agent.identity).archived_through).toBe(1);
   });
 
   it("refuses a sequence beyond the latest message", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(failure(() => archive(2))).toEqual({ code: "invalid_input", field: "through" });
   });
 });
@@ -192,7 +192,7 @@ describe("archived threads", () => {
       .map((thread) => thread.number);
 
   it("stays archived until another party's live message follows the caller's archive mark", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(operatorList()).toEqual([1]);
     // The agent's own new thread is in its list too.
     expect(agentList()).toEqual([1]);
@@ -210,7 +210,7 @@ describe("archived threads", () => {
   });
 
   it("carry the mark on over the caller's own replies that follow the message archived", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, target(), { text: "Reply." });
     fixture.write(fixture.operator, target(), { text: "And more." });
     fixture.write(agent.identity, target(), { text: "Noted." });
@@ -226,7 +226,7 @@ describe("archived threads", () => {
   });
 
   it("archive a thread through a message followed only by the caller's own reply", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, target(), { text: "Reply." });
     expect(archive(1)).toEqual({ read_through: 2, archived_through: 2 });
     const { thread, marks } = fixture.thread(fixture.operator, target());
@@ -234,7 +234,7 @@ describe("archived threads", () => {
   });
 
   it("stay archived when the caller writes, its archive mark moving to its own message", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     archive(1);
     fixture.write(fixture.operator, target(), { text: "One more thing." });
     expect(fixture.thread(fixture.operator, target()).marks).toEqual({
@@ -250,7 +250,7 @@ describe("archived threads", () => {
   });
 
   it("never holds an ask open to the caller", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     archive(1);
     fixture.write(agent.identity, target(), { asks: [{ question: "Ship it?" }] });
     expect(operatorList()).toEqual([1]);
@@ -258,8 +258,8 @@ describe("archived threads", () => {
   });
 
   it("are only the threads the caller archived", () => {
-    fixture.startThread(agent);
-    fixture.startThread(agent);
+    fixture.createThread(agent);
+    fixture.createThread(agent);
     fixture.write(fixture.operator, target(2), { text: "Read it." });
     expect(archivedForOperator()).toEqual([]);
     archive(2, agent.identity, 2);
@@ -277,8 +277,8 @@ describe("bulk marks", () => {
   });
 
   it("read each thread through the message the list showed, so a later one stays unread", () => {
-    fixture.startThread(agent);
-    fixture.startThread(agent);
+    fixture.createThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(2), { text: "Arrived after the list." });
     const result = bulkRead(fixture.store, fixture.operator, {
       threads: [shown(1, 1), shown(2, 1)],
@@ -291,8 +291,8 @@ describe("bulk marks", () => {
   });
 
   it("read every thread or none", () => {
-    fixture.startThread(agent);
-    fixture.startThread(agent);
+    fixture.createThread(agent);
+    fixture.createThread(agent);
     const attempt = (threads: ReturnType<typeof shown>[]) =>
       failure(() => bulkRead(fixture.store, fixture.operator, { threads }));
     expect(attempt([shown(1, 1), shown(2, 5)])).toEqual({
@@ -307,12 +307,12 @@ describe("bulk marks", () => {
   });
 
   it("archive each thread through the message the list showed, skipping open asks", () => {
-    fixture.startThread(agent);
-    fixture.startThread(agent);
+    fixture.createThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(2), {
       asks: [{ question: "Ship it?" }, { question: "Today?" }],
     });
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     fixture.write(agent.identity, target(3), { text: "Arrived after the list." });
     const result = bulkArchive(fixture.store, fixture.operator, {
       threads: [shown(1, 1), shown(2, 2), shown(3, 1)],

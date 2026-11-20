@@ -11,7 +11,9 @@ let agent: Agent;
 beforeEach(() => {
   fixture = new Fixture();
   agent = fixture.registerAgent("builder", "main");
-  fixture.startThread(agent, { asks: [{ question: "Ship it?", suggestions: [{ label: "Yes" }] }] });
+  fixture.createThread(agent, {
+    asks: [{ question: "Ship it?", suggestions: [{ label: "Yes" }] }],
+  });
 });
 
 afterEach(() => {
@@ -163,10 +165,10 @@ describe("request ids", () => {
 
   it("replay a create without starting a second thread", () => {
     const id = requestId();
-    const first = fixture.startThread(agent, { request_id: id, title: "Once" });
+    const first = fixture.createThread(agent, { request_id: id, title: "Once" });
     expect(first).toEqual({ number: 2, seq: 1 });
-    expect(fixture.startThread(agent, { request_id: id, title: "Once" })).toEqual(first);
-    expect(fixture.startThread(agent).number).toBe(3);
+    expect(fixture.createThread(agent, { request_id: id, title: "Once" })).toEqual(first);
+    expect(fixture.createThread(agent).number).toBe(3);
   });
 
   it("refuse a reused id with different content", () => {
@@ -181,11 +183,11 @@ describe("request ids", () => {
   it("tell writes apart by their detail too, a create's and a message's", () => {
     const created = requestId();
     const thread = { request_id: created, title: "Once", text: "Summary.", detail: "At length." };
-    const started = fixture.startThread(agent, thread);
-    expect(fixture.startThread(agent, thread)).toEqual(started);
-    expect(caught(() => fixture.startThread(agent, { ...thread, detail: "Otherwise." })).code).toBe(
-      "request_id_conflict",
-    );
+    const started = fixture.createThread(agent, thread);
+    expect(fixture.createThread(agent, thread)).toEqual(started);
+    expect(
+      caught(() => fixture.createThread(agent, { ...thread, detail: "Otherwise." })).code,
+    ).toBe("request_id_conflict");
     const sent = requestId();
     const message = { request_id: sent, text: "Summary.", detail: "At length." };
     const first = fixture.write(fixture.operator, target(), message);
@@ -199,7 +201,7 @@ describe("request ids", () => {
   });
 
   it("refuse the same id and content on another thread", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     const id = requestId();
     fixture.write(fixture.operator, target(), { request_id: id, text: "same" });
     const error = caught(() =>
@@ -210,7 +212,7 @@ describe("request ids", () => {
 
   it("refuse a message reusing the id of a create", () => {
     const id = requestId();
-    fixture.startThread(agent, { request_id: id });
+    fixture.createThread(agent, { request_id: id });
     const error = caught(() =>
       fixture.write(agent.identity, threadTarget(agent, 2), { request_id: id, text: "m" }),
     );

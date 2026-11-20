@@ -163,7 +163,7 @@ describe("approveRegistration", () => {
 
   it("grants an existing session with its whole history to a further credential", () => {
     const first = fixture.registerAgent("builder", "main");
-    fixture.startThread(first, { title: "Earlier work" });
+    fixture.createThread(first, { title: "Earlier work" });
     const { id } = submit();
     approveRegistration(
       fixture.store,
@@ -268,7 +268,7 @@ describe("revokeRegistration", () => {
   it("ends the credential and keeps the session, its threads and its other credentials", () => {
     const first = fixture.registerAgent("builder", "main");
     const second = fixture.registerAgent("builder", "main");
-    fixture.startThread(first, { title: "Kept" });
+    fixture.createThread(first, { title: "Kept" });
     fixture.advance(hour);
     const { registration } = revokeRegistration(
       fixture.store,

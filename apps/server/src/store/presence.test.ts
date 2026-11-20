@@ -61,7 +61,7 @@ describe("last seen", () => {
 
 describe("quiet", () => {
   it("holds for a session never seen, and once it goes unseen past the threshold", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(thread().presence).toEqual({ quiet: true });
     fixture.seen(agent);
     const seenAt = new Date(fixture.now).toISOString();
@@ -77,7 +77,7 @@ describe("quiet", () => {
     const short = new Fixture({ quietAfter: seenStep });
     try {
       const own = short.registerAgent("builder", "main");
-      short.startThread(own);
+      short.createThread(own);
       const quiet = () => short.thread(short.operator, threadTarget(own, 1)).thread.presence?.quiet;
       // Calling every 59 seconds stamps every other call, and is never quiet.
       for (let call = 0; call < 10; call++) {
@@ -94,7 +94,7 @@ describe("quiet", () => {
   });
 
   it("is the audience's to see, never the session's own", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     const own = fixture.thread(agent.identity, target()).thread;
     expect(own).not.toHaveProperty("presence");
     expect(own).not.toHaveProperty("stranded");
@@ -103,12 +103,12 @@ describe("quiet", () => {
 
 describe("stranded", () => {
   beforeEach(() => {
-    fixture.startThread(agent, { title: "written to" });
+    fixture.createThread(agent, { title: "written to" });
     fixture.write(fixture.operator, target(1), { text: "Over to you." });
-    fixture.startThread(agent, { title: "read" });
+    fixture.createThread(agent, { title: "read" });
     fixture.write(fixture.operator, target(2), { text: "Over to you." });
     markRead(fixture.store, agent.identity, target(2), { through: 2 });
-    fixture.startThread(agent, { title: "not written to" });
+    fixture.createThread(agent, { title: "not written to" });
     fixture.seen(agent);
   });
 
