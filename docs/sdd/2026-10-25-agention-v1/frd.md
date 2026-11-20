@@ -3,13 +3,14 @@
 <!-- cspell:ignore stanard differnent Everytihng satisifes lineaar diffferent hthe -->
 <!-- cspell:ignore levl seperate dismissable doind botton -->
 <!-- cspell:ignore locatoin sesson hsould Pleae keepging consise agnet probaly Arhive autoinc -->
-<!-- cspell:ignore additiona somehing empahsize goint -->
+<!-- cspell:ignore additiona somehing empahsize goint miconstrued Informaiton -->
+<!-- cspell:ignore subscibe certianly especiallyas everytihng Fwiw -->
 
 - Status: Approved by the operator 2026-10-25; amended by rulings 23 to 28 on 2026-10-27, rulings 29
   to 31 on 2026-10-28, rulings 32 to 39 on 2026-10-30, rulings 40 to 44 on 2026-10-31, rulings 45 to
   47 on 2026-11-01, ruling 48 on 2026-11-05, rulings 49 to 52 on 2026-11-06, ruling 53 on
   2026-11-08, rulings 54 and 55 on 2026-11-09, rulings 56 and 57 on 2026-11-10, ruling 58 on
-  2026-11-11 and ruling 59 on 2026-11-18
+  2026-11-11, rulings 59 and 60 on 2026-11-18 and ruling 61 on 2026-11-19
 - Date: 2026-10-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD (ruling 59); paths below are relative to
   its root
@@ -352,13 +353,17 @@ restore it, following documented steps. History is retained indefinitely.
 
 **R35. One concise agent skill.** A single canonical usage skill, distributed as Claude Code and
 Codex plugins generated from one canonical plugin definition and installable from the repository,
-leads with the normal loop and a concrete example, states a small set of hard rules, and relies on
-tool schemas for payload shapes. Agention adds no waiting to an agent's work: the skill has it ask
-and carry on, check for answers as it works, check for itself what it can see, and stop as it
-otherwise would, never waiting on an answer itself; a subagent of its own may wait, so long as the
-agent carries on. The skill has every message stand on its own: its text says what the matter is and
-what is needed, and its detail carries everything else the operator needs to decide on it or
-understand it without looking elsewhere (ruling 53).
+leads with asking through Agention and never waiting at the terminal for an answer, then following
+the bridge, the normal loop and a concrete example, states a small set of hard rules, and relies on
+tool schemas for payload shapes. The agent bridge tells every agent host the same when it connects,
+before the skill loads (ruling 60), and its answers say how answers reach the agent, which the skill
+follows (ruling 61). Agention adds no waiting to an agent's work: the skill has it ask and carry on,
+check for answers as it works and check for itself what it can see. Once its other work is done, the
+agent keeps running while it has open asks or unread messages, checking in the way that costs least,
+such as through a waiter of its own, and stops when none remain or the operator tells it to (ruling
+61). A message without an ask is as normal as one with asks. The skill has every message stand on
+its own: its text says what the matter is and what is needed, and its detail carries everything else
+the operator needs to decide on it or understand it without looking elsewhere (ruling 53).
 
 **R36. Agentworks is optional.** Setup may default agent and session names from `AGENTWORKS_AGENT`
 and `AGENTWORKS_SESSION` when present. Nothing else depends on Agentworks.
@@ -968,6 +973,99 @@ Recorded from the design conversation.
     pull request carries its SDD changes; every dependency is the newest stable release at least
     seven days old when chosen, unless a security fix cannot wait; and the phone check of rulings 57
     and 58 follows the move.
+60. (2026-11-18, after reviewing the released plugin's skill) "And then I just reviewed the skill
+    text in detail. We need to be a lot stronger about this replacing any built-in question asking
+    tool. Also, you say that this is just information, not direction. That makes no sense, right?
+    This should be considered authenticated operator input, no different than normal harness/console
+    input." Asked whether leaving plan mode, which the host approves at the terminal, stays with the
+    host: "Plan mode is effectively dead these days. I don't think it's worth mentioning. We could
+    say something general like "if there's something the operator needs to do in the console (e.g.
+    exit plan mode), use Agention to bring it to their attention". And you need to check your
+    information. Codex definitely has a question tool outside of plan mode. I believe it's always
+    non-blocking but I could be wrong." And on the skill's "The operator decides from Agention
+    alone, often on a phone, never at your terminal": "I think you are trying to emphasize that the
+    operator should not need to go to the terminal or any other source ot get additional information
+    in order to respond to a thread, but this could easily be miconstrued. At the end of hte day, it
+    should be perfectly natural/normal for an operator to switch back and forth between the terminal
+    and agention. Informaiton provided via the terminal should be used to refine/replace/withdraw
+    Agention threads. Please clean this up, too." Asked whether the bridge should also tell agent
+    hosts that Agention replaces their question tools, and whether R35 should say the skill leads
+    with that: "Yes, the bridge should say that this replaces the standard question tool and that
+    should be the first thing mentioned in the skill (updating R35)." Then: "Also, it should be
+    possible for hte user to just pay attention to the console and ignore Agention during that
+    time." "I think we've made it clear that the Agention threads should get updated automatically,
+    but do we need to emphasize that the content from the thread should also be echo'd to the
+    console in case the user is paying attention there? Again, the key is that it shouldn't be done
+    in a blocking manner (e.g. by using the question tool)." Asked about Codex's non-blocking
+    question tool: "Talk to me about the codex tool." "At a high level, we shouldn't go overboard
+    here or else we lose credibility. If a harness has a non-blocking question tool, that's ok to
+    use. I think our focus should be on the blocking aspect." Taken: the skill's description and its
+    body open with the rule that every question, decision or approval an agent would put to its user
+    goes to the operator through Agention, whatever calls for it, and that the agent never waits at
+    the terminal for an answer, neither through a question tool that waits (`AskUserQuestion`,
+    Codex's `request_user_input`) nor by ending its turn, until the operator says otherwise, and the
+    bridge says the same to every agent host when it connects; whatever it sends the operator in
+    Agention, the agent also shows at the terminal and carries on, in its output or through a
+    question tool that does not wait, such as Codex's `request_user_input_async`, so the operator
+    can follow the terminal alone for a while; when something needs the operator at the terminal,
+    the agent asks for it through Agention; an agent takes a message the operator wrote, whose
+    author the server sets from their passkey sign-in, exactly as it takes the operator's words at
+    its terminal, with the same authority and within the same limits, while messages from agent
+    sessions are not the operator's; the operator moves between the terminal and Agention as suits
+    them, and the agent brings its threads in line with what it is told at the terminal, replacing
+    or withdrawing asks; and every message stands on its own, so the operator never needs the
+    terminal or another source to answer it.
+
+61. (2026-11-19, on how answers reach agents, and the operator's draft of the skill) The operator
+    pushed a draft of the skill and asked: "So is all this non-blocking stuff misguided? Did we
+    build the bridge in such a way that it takes advantage of native mcp subscibe/listen? I could be
+    wrong, but I believe that's a key part of the answer, right?" The lead answered that the bridge
+    has no push and that standard MCP notifications reach neither host's model, while Claude Code
+    offers channels and Codex an app-server queue. The operator answered: "Yeah, so I feel like the
+    right general path is to support both polling and push modes, likely through both flags to the
+    bridge as well as different skills text (maybe via templating)?" "But we definitely want to test
+    this first, certianly for Claude Code. And I further authorize you to scour the Codex repository
+    if you haven't already and to test Codex if you need to." Then: "Check out `codex queue`". The
+    lead reported that in Claude Code a channel event, and a background hook that exits with code 2,
+    each wake an idle session, and that `codex queue` starts a turn in an idle Codex session or,
+    with `--resume`, in a closed one. The operator answered: "Yeah, so I'm thinking we organize this
+    as something like 'push methods', where the bridge would be started with an optional method (via
+    env var or cli arg). Ultimately we probably also support an "auto detect push" mode that
+    attempts to figure out works given its harness." "But the poll mode is the floor. It must work
+    well as some harnesses will undoubtedly need it." "And then in terms of the skill, I think we
+    have two options: 1. Use a templated skill so that sections can be swapped out for the different
+    plugins 2. Make it more dynamic, likely with the bridge reporting whether push is currently
+    supported, and then instructions that take that into account" "My head was initially on #1, but
+    I think #2 is the obvious right answer, especiallyas we can only bake one version into a plugin
+    and auto mode would clearly not work." "So the final decision: incorporate push now or leave it
+    for a future release? I'm inclined to leave it for a future release. If nothing else, it will
+    force us to get the poll mode working well." The lead agreed. The operator then: "Fwiw, I'm
+    pretty sure you get some env vars from Claude. But we can save that for later." "And more or
+    less agreed on the skill. That said, we can already start leaning into the "follow the bridge's
+    instructions", right?" "Please take a fresh look at the skill and my rewrites. I'm perfectly
+    happy to rewrite R35 or anything else if that's the right thing to do." "And in polling mode, we
+    do indeed want the agent to keep running. This can be couched with "as long as there are open
+    asks and/or unread messages". Likewise, we may want to suggest that they take steps to minimize
+    token usage from polling. But we don't want them to stop." On the lead's review of the draft:
+    "1. Something like "Load when using Agention", right?" "2. Yeah, understood. The initial text
+    gave the impression that everytihng had to be an ask. I just want to make sure that agents
+    understand that ask-less messages for informational purposes are totally normal and good." "3.
+    Agreed. And tbh I really didn't want to use the word "channel" as it means something for Claude
+    (and probably others). Please rewrite this as you see fit." "4. Agreed." "5. Agreed." "6. Yes
+    please" (restoring the points the draft dropped, "never" over "please avoid", and the typo
+    fixes) "Please take a crack and then pass it to a Fable-tier dev with a focus on conciseness and
+    completeness." Then: "And then we really haven't released Agention in any real capacity. I don't
+    like that we have all this noise in terms of adrs and decisions. I know it's against the normal
+    rules but I'd like you to clean up a bit where it makes sense to do so." And on a test that held
+    the bridge's instructions to a length: "And please, please do not test wording. A test that only
+    pins wording offers no more protection than the wording alone." Taken, overtaking ruling 48's
+    stopping: push methods wait for a later release, and polling, v1's only method, must work well
+    on its own; the skill follows the bridge, whose answers say how answers reach the agent; with
+    polling, an agent whose other work is done keeps running while it has open asks or unread
+    messages, checking in the way that costs least, and stops when none remain or the operator tells
+    it to; a message without an ask is normal; the skill's description says to load it whenever the
+    agent uses Agention; until v1 is released, ADR 0001 states its decisions as they stand, without
+    a log of amendments; and no test pins wording.
 
 ## Out of scope for v1
 
@@ -979,9 +1077,12 @@ Recorded from the design conversation.
 - Embedded Tailscale mode, Tailscale ACL lockdown, and reachability from machines shared in from
   another tailnet. These are deployment follow-ups.
 - Push notifications, email, or any delivery channel beyond the web UI.
+- Push methods, by which the bridge wakes an agent when a message lands, chosen at start or detected
+  from the host; polling is v1's only method (ruling 61).
 - Executing, fetching or acting on message content; granting permissions; controlling harnesses.
 - Managing a session's goal or whether the session continues. The host does both; Agention reports
-  what a session states (R22) and adds no waiting of its own (ruling 48).
+  what a session states (R22), adds no waiting to its work (ruling 48), and has the agent keep
+  running only while it has open asks or unread messages (ruling 61).
 
 ## Open questions
 

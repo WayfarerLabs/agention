@@ -4,38 +4,9 @@ Date: 2026-10-25
 
 ## Status
 
-Accepted. Implementation is in progress; [docs/architecture.md](../architecture.md) tracks what
-exists. Later ADRs will record decisions made while building.
-
-Until v1 is released, this ADR is amended in place rather than superseded, and each amendment is
-listed here:
-
-- 2026-10-27: the server moved from Go to TypeScript on Node; agents reach it through an agent
-  bridge that Agention publishes, instead of an MCP endpoint on the server; and agents authenticate
-  with keys the operator approves, instead of OAuth. The earlier choices are recorded under
-  [Alternatives considered](#alternatives-considered).
-- 2026-10-28: the server's HTTP framework and authentication libraries, and the agent bridge's MCP
-  SDK, are recorded under [Repository and supply chain](#repository-and-supply-chain).
-- 2026-10-30: agents and the operator work in threads of messages, where the party seeking attention
-  may ask the other something; each party archives a thread it is done with; and one thread list
-  serves the operator, holding the threads not archived and narrowed by filters that combine, title
-  search among them.
-- 2026-10-31: an ask states how long answering takes, when the requester can judge it; a message may
-  carry several asks, each numbered within its thread, and several answers; an identity archives a
-  thread through a message it chooses, all of it by default, its own writing keeps the thread
-  archived, and an archived message is never unread; and the operator's list takes several values of
-  a filter, combined with OR, counts what each value keeps, and is viewed flat or grouped by session
-  or by agent.
-- 2026-11-05: an ask is withdrawn by a later message naming it with a reason, which is never undone,
-  instead of by replacing its message; a thread's status rolls up its asks; and agents never wait on
-  Agention, which shows when a session has gone quiet and which threads it left stranded.
-- 2026-11-06: releases publish to npm from their tag alone, through npm's trusted publishing with
-  provenance, so CI holds no npm token.
-- 2026-11-08: every message stands on its own: its text is a summary of at most 1,000 characters,
-  and a Markdown detail beside it carries the rest, folded under the text in the web UI.
-- 2026-11-18: every dependency is the newest stable release at least seven days old when it is
-  chosen, unless a security fix cannot wait, and npm and Dependabot hold to that wait; see
-  [Repository and supply chain](#repository-and-supply-chain).
+Accepted. [docs/architecture.md](../architecture.md) describes what exists. Until v1 is released
+this ADR is edited in place to state each decision as it stands; later decisions get ADRs of their
+own.
 
 ## Context
 
@@ -44,12 +15,10 @@ and today those needs are scattered across terminals and chats that the person h
 Agention is a self-hosted place where sessions say what they need and the person answers, from a
 phone or a desktop browser.
 
-An earlier prototype proved the infrastructure (agent OAuth, human passkeys, isolated storage) but
-modeled each request for attention as one of a fixed set of kinds, each with its own lifecycle.
-Whether a request still needs attention, how it affects the agent's work, how the person should
-answer and whether it is settled are largely independent of each other. Combining them into kinds
-produced special cases wherever a real situation did not fit a kind. v1 rebuilds the product around
-those dimensions kept separate.
+Whether a request for attention still needs it, how it affects the agent's work, how the person
+should answer and whether it is settled are largely independent of each other. A fixed set of kinds,
+each with its own lifecycle, turns every situation that fits no kind into a special case, so
+Agention keeps those dimensions separate.
 
 Agents usually run unattended, under hosts such as Claude Code and Codex, on machines with no
 browser and often no person in front of them. Connecting one to Agention must not need a browser on
@@ -67,7 +36,9 @@ Agention therefore does not build enforcement around reporting behavior. It enfo
 system cannot provide: who wrote each message, isolation between sessions, append-only attributed
 history, role checks (only a thread's requester asks, and only its audience answers), and that
 message content is inert (displayed, never executed or fetched). Whether and what to report is
-steered by defaults, the agent skill and visible signals.
+steered by defaults, the agent skill and visible signals. Because authorship is enforced, the skill
+has an agent take a message the operator wrote as the operator's direction, exactly as their words
+at its terminal; messages from agent sessions are not the operator's.
 
 ### One Node server and one SQLite database
 
@@ -166,6 +137,12 @@ another landed first, the write fails as stale and returns the missed messages. 
 carries a client request identifier, so retries are safe and a reused identifier with different
 content is rejected. Marking never conflicts with a write.
 
+### One thread list
+
+One thread list serves the operator: the threads they have not archived, narrowed by filters that
+combine, title search among them. A filter takes several values, combined with OR, and counts what
+each value keeps, and the list is viewed flat or grouped by session or by agent.
+
 ### People and agents authenticate separately
 
 People authenticate with passkeys. Each agent session has its own Ed25519 key pair, which the bridge
@@ -253,17 +230,17 @@ These are deliberate limits, not gaps to fill later without a new decision:
   to the audience, but the server never acts on them. What a missed deadline means is entirely the
   requester's choice.
 - **Goals are never inferred or managed.** A session's goal and progress are only what the agent
-  explicitly reports, and Agention never decides whether a session continues.
-- **Agents never wait on Agention.** An agent asks and carries on, checking for answers as it works,
-  and one that has done what it can stops as it otherwise would; a waiter of its own may wait while
-  it carries on. Agention shows when a session was last seen, whether it has gone quiet, and which
-  threads hold messages it has not read while it is quiet or has no credential, so the person knows
-  to resume it.
+  explicitly reports.
+- **Agention never holds up an agent's work.** An agent asks and carries on, checking for answers as
+  it works, and once its other work is done keeps checking, as cheaply as it can, while it has open
+  asks or unread messages. Agention shows when a session was last seen, whether it has gone quiet,
+  and which threads hold messages it has not read while it is quiet or has no credential, so the
+  person knows to resume it.
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
   agent's conversation, or control an agent harness.
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through
   the bridge, over the plain HTTP API, with keys the operator approved. Serving MCP or running OAuth
-  on the server would bring back the machinery the bridge removed.
+  on the server would need the machinery the bridge avoids.
 - **No agent secret on the server.** The server keeps agents' public keys and nothing an attacker
   could replay, so a copy of the database cannot impersonate an agent.
 
@@ -273,13 +250,12 @@ These are deliberate limits, not gaps to fill later without a new decision:
   would each be conventional on their own, but together they make a self-hosted tool much harder to
   run, back up and secure, for load that one process handles easily. The same boundaries exist as
   modules inside the one server.
-- **Go for the server.** Agention's first foundation, in a repository before this one, was a single
-  Go binary: a static executable, a strong standard library, and no runtime to install. Once agents
-  connect through a bridge that Agention publishes for `npx`, the bridge is naturally a Node
-  program, and keeping the server, the bridge and the web UI in one language lets one shared package
-  of schemas be checked by the compiler on every side. Node's built-in SQLite keeps the server free
-  of native addons. The cost is a Node runtime on the server and agent machines instead of one
-  static binary.
+- **Go for the server.** A single Go binary offers a static executable, a strong standard library,
+  and no runtime to install. Once agents connect through a bridge that Agention publishes for `npx`,
+  the bridge is naturally a Node program, and keeping the server, the bridge and the web UI in one
+  language lets one shared package of schemas be checked by the compiler on every side. Node's
+  built-in SQLite keeps the server free of native addons. The cost is a Node runtime on the server
+  and agent machines instead of one static binary.
 - **OAuth through the hosts' MCP clients.** The server would be a remote MCP endpoint and an OAuth
   authorization server, and each host's MCP client would sign in. Neither host's client implements
   the OAuth device grant, so approving a sign-in needs a browser on the agent's machine, which
@@ -292,6 +268,10 @@ These are deliberate limits, not gaps to fill later without a new decision:
   so the code reaches only its standard error and the host's log, where the agent cannot read it to
   relay, and the host's startup waits on the approval. It also still needs the OAuth server above.
   Agention's own bridge answers the host at once and hands the code to the agent through a tool.
+- **The operator's messages as information only.** Agents would weigh every message, the operator's
+  included, as information that never overrides their instructions. The operator's messages are
+  authenticated, though, so the operator would have to repeat at the terminal what they already said
+  in Agention.
 - **Permissions keyed on person versus agent.** Simpler to state while every thread flows from an
   agent to the operator, but it writes that direction into every check. Roles stored on the thread
   cost the same checks and admit any direction.
@@ -306,8 +286,8 @@ These are deliberate limits, not gaps to fill later without a new decision:
   in full.
 - **Kinds instead of independent dimensions.** A fixed set of kinds (question, decision, approval,
   notice) is easy to explain, but every kind fixes a combination of what is asked, how the work is
-  affected and how to answer. Real situations keep needing combinations no kind covers, and the
-  prototype that tried this accumulated special cases. Independent fields compose without them.
+  affected and how to answer. Real situations keep needing combinations no kind covers, each a
+  special case. Independent fields compose without them.
 - **Items that open and close.** Each matter as one item whose fields say what it asks and how to
   respond, with a log of messages, field changes, closes and reopens. An item asks one thing at a
   time, and closing it makes the two parties agree when the matter is done. Threads let any message

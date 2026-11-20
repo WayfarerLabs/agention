@@ -77,6 +77,10 @@ Researched for FRD rulings 32 to 34 and 37.
 | Survey and form practice ends a choice list with "Other (please specify)", whose text field appears beside it once chosen.                                                                                                                                                                           | S49, S50, S51 | Every ask with suggestions ends with Other, opening a text field on the ask; the answerer's own words belong to the answer, apart from the message's text.                                                             |
 | Material separates choice chips (one of a set) from filter chips (toggles that combine).                                                                                                                                                                                                             | S52, S53      | Each filter that is on shows as a removable filter chip, and filters combine.                                                                                                                                          |
 
+By 2026-11-19, Codex also offered `request_user_input` outside Plan mode behind a feature flag, and
+offered models that support it `request_user_input_async`, which posts its questions and returns at
+once (codex-cli 0.170.0).
+
 ### Filters, search and folding
 
 Researched for FRD ruling 38.
@@ -116,7 +120,14 @@ iOS Safari.
   entries and the UI keeps the draft. The operator's rule (every write is stale-checked) is kept;
   exempting plain comments was considered and rejected because it reintroduces racing updates.
 - **Wake-up.** MCP gives no reliable push to command-line agents. Agents long-poll, bounded below
-  host tool timeouts.
+  host tool timeouts. By 2026-11-19, tested live, standard MCP notifications still reached neither
+  host's model (Codex 0.170.0 only logs them), but each host had its own way to wake an idle
+  session. Claude Code 2.1.327 had channels, an `experimental` `claude/channel` capability whose
+  `notifications/claude/channel` start a turn, behind a launch flag and an allowlist during their
+  research preview (S92), and hooks run in the background with `asyncRewake`, which wake the model
+  when they exit with code 2. Codex 0.170.0 had `codex queue`, which starts a turn in an idle
+  session or, with `--resume`, a closed one, and every MCP tool call carries the session's thread id
+  in `_meta` (S93). v1 polls; push methods are deferred (FRD ruling 61).
 - **Session handles are names, not capabilities.** Every call checks the stated session against the
   credential's grants.
 
@@ -240,3 +251,5 @@ verification).
 | S89 | <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action>                                                   | `touch-action` and browser zoom                                                  | primary                        |
 | S90 | <https://mermaid.js.org/config/accessibility.html>                                                                                     | Mermaid's accessible title and description                                       | primary                        |
 | S91 | <https://www.w3.org/WAI/tutorials/images/complex/>                                                                                     | Complex images                                                                   | primary                        |
+| S92 | <https://code.claude.com/docs/en/channels-reference>                                                                                   | Claude Code channels                                                             | primary                        |
+| S93 | <https://github.com/openai/codex> `main` on 2026-11-19, `codex-rs/ext/queue/src/service.rs`                                            | Codex's durable turn queue                                                       | primary                        |

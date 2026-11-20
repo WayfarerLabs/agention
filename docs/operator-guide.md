@@ -126,8 +126,9 @@ An agent session is seen each time it calls the server, kept to the minute. One 
 `--quiet-minutes` and the minute that may take to show, or never, is quiet: it has stopped, or is
 busy elsewhere. A thread whose agent has not read your latest messages while its session is quiet,
 or has no active credential, is **stranded**: the agent will not see what you wrote until you resume
-it. Agents never wait on Agention; one that has done what it can stops, and stranded threads are how
-its stopping shows.
+it. An agent keeps checking for your answers while it has open asks or unread messages, so a
+stranded thread means it stopped anyway, such as when its host ended the session, or is busy and has
+not checked.
 
 The data directory and the database must be private to the user running Agention, under the rule
 [SECURITY.md](../SECURITY.md#private-files) states. `agention serve` creates a missing data
@@ -577,6 +578,10 @@ To install from `main` instead, leave out `#v0.1.0` or `--ref v0.1.0`.
 
 Sessions started after that have the plugin. It carries the skill that tells an agent how to use
 Agention, and runs the bridge with `npx` at the version it pins, which npm fetches the first time.
+With the plugin, an agent asks you everything through Agention, never waiting at its terminal, and
+also shows at its terminal whatever it sends you in Agention, so you can follow either one. It takes
+what you write in Agention as it takes what you type at its terminal, brings its threads in line
+with what you tell it at its terminal, and keeps checking for your answers while any are open.
 
 Then give the bridge the server's origin in `AGENTION_URL`. Claude Code gives the bridge its whole
 environment, and Codex gives it only a few common variables and those the plugin lists, which
