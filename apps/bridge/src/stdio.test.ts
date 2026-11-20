@@ -53,7 +53,7 @@ async function startBridge(trust = true): Promise<{ client: Client; stderr: () =
 it("serves an agent host over standard input and output", async () => {
   const { client, stderr } = await startBridge();
   const { tools } = await client.listTools();
-  expect(tools).toHaveLength(8);
+  expect(tools).toHaveLength(9);
   const result = await client.callTool({ name: "register", arguments: {} });
   const [content] = result.content as { text: string }[];
   expect(JSON.parse(content?.text ?? "")).toMatchObject({

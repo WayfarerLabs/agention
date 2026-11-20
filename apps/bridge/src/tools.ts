@@ -17,6 +17,7 @@ import {
   priority,
   searchFilter,
   sequence,
+  sessionUpdateInput,
   statusFilter,
   threadCreateInput,
   threadNumber,
@@ -363,6 +364,19 @@ export function registerTools(server: McpServer, connection: Connection): void {
         clearTimeout(timer);
       }
     },
+  );
+
+  tool(
+    "session_update",
+    // What each field means, its schema says; this says how they go together.
+    "Report this session's status to the operator, who sees it beside the session. A field you " +
+      "leave out stays as it was. stopped needs an outcome, and an outcome needs stopped. Never " +
+      "report that you wait on the operator: your open asks already tell them; name anything " +
+      "else you wait on, such as CI or a review, in the note. An update that changes nothing " +
+      "and has no note is not recorded. Answers with the session's status.",
+    sessionUpdateInput,
+    (input, signal) =>
+      onSession(signal, (path) => ({ method: "POST", path: `${path}/status`, body: input })),
   );
 }
 

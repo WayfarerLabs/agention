@@ -5,6 +5,7 @@ import {
   markInput,
   messageFields,
   searchFilter,
+  sessionUpdateInput,
   statusFilter,
   threadCreateInput,
   unreadFilter,
@@ -39,6 +40,7 @@ const tools = [
   "thread_read",
   "thread_archive",
   "message_wait",
+  "session_update",
 ];
 
 function newThread(requestId: string, fields: Record<string, unknown> = {}) {
@@ -107,6 +109,7 @@ describe("the tool list", () => {
       }),
     );
     expect(schema("thread_list")?.properties).toMatchObject(filters);
+    expect(schema("session_update")?.properties).toEqual(propertiesOf(sessionUpdateInput));
   });
 
   it("is served even without AGENTION_URL", async () => {
@@ -133,6 +136,7 @@ async function everyToolRefuses(bridge: TestBridge, setting: string): Promise<vo
     ["thread_read", { thread: 1, through: 1 }],
     ["thread_archive", { thread: 1, through: 1 }],
     ["message_wait", { wait_seconds: 0 }],
+    ["session_update", { state: "working" }],
   ];
   for (const [tool, args] of calls) {
     const answer = await bridge.call(tool, args);
@@ -232,7 +236,8 @@ describe("the agent API version", () => {
     await bridge.ok("thread_create", newThread("r1"));
     await bridge.ok("thread_get", { thread: 1 });
     await bridge.ok("thread_read", { thread: 1, through: 1 });
-    expect(stated.length).toBeGreaterThanOrEqual(4);
+    await bridge.ok("session_update", { state: "working" });
+    expect(stated.length).toBeGreaterThanOrEqual(5);
     expect(new Set(stated)).toEqual(new Set([String(agentApi.version)]));
   });
 
@@ -267,6 +272,56 @@ describe("the agent API version", () => {
     expect([proxied.isError, older.isError]).toEqual([true, true]);
     // Each is a problem of its own, which says what to do about it.
     expect(proxied.text).not.toEqual(older.text);
+  });
+});
+
+describe("session_update", () => {
+  it("reports the session's status, which the operator sees, and answers with it", async () => {
+    const bridge = await approvedBridge();
+    expect(
+      await bridge.ok("session_update", {
+        state: "working",
+        title: "Retire invoices",
+        goal: "Drop the table",
+      }),
+    ).toEqual({ state: "working", title: "Retire invoices", goal: "Drop the table" });
+    expect(await bridge.ok("session_update", { percent: 40, note: "Backfill under way." })).toEqual(
+      { state: "working", title: "Retire invoices", goal: "Drop the table", percent: 40 },
+    );
+    expect(
+      await bridge.ok("session_update", { state: "stopped", outcome: "completed" }),
+    ).toMatchObject({ state: "stopped", outcome: "completed" });
+    const sessions = await harness.server.web("GET", "/sessions");
+    expect(sessions.body).toMatchObject({
+      agents: [
+        {
+          sessions: [
+            {
+              status: { state: "stopped", outcome: "completed", percent: 40 },
+              unread_updates: 3,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["nothing", {}, undefined],
+    ["only an outcome", { outcome: "completed" }, "outcome"],
+    ["stopped without an outcome", { state: "stopped" }, "outcome"],
+    ["an outcome beside idle", { state: "idle", outcome: "stalled" }, "outcome"],
+    ["a percent above 100", { percent: 101 }, "percent"],
+    ["a field it does not know", { state: "working", progress: 10 }, "progress"],
+  ])("refuses %s before any request", async (_, input, field) => {
+    const bridge = await approvedBridge();
+    let requests = 0;
+    harness.beforeRequest = () => {
+      requests++;
+    };
+    const error = await bridge.error("session_update", input);
+    expect([error.code, error.field]).toEqual(["invalid_input", field]);
+    expect(requests).toBe(0);
   });
 });
 
