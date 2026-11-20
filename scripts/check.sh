@@ -51,12 +51,12 @@ step() {
 
 # check_package packs a workspace as npm would publish it and checks the
 # result: the package declares no dependencies, since its bundle includes them;
-# it ships the repository's LICENSE and the license notices the build writes
-# beside the bundle; and, installed from the tarball into a directory of its
-# own, its command starts through node_modules/.bin and prints the version in
-# its package.json. It leaves the unpacked and installed package in
-# $package_dir for further checks, and copies the tarball it checked into
-# $packages_dir when one is given.
+# it ships the repository's LICENSE, a README for its npm page, and the
+# license notices the build writes beside the bundle; and, installed from the
+# tarball into a directory of its own, its command starts through
+# node_modules/.bin and prints the version in its package.json. It leaves the
+# unpacked and installed package in $package_dir for further checks, and
+# copies the tarball it checked into $packages_dir when one is given.
 check_package() {
     local workspace="$1" command="$2" version_arg="$3"
     local dir tarball manifest declared bin want got status=0
@@ -82,6 +82,10 @@ check_package() {
     fi
     if ! cmp -s LICENSE "$dir/package/LICENSE"; then
         echo "$workspace does not ship the repository's LICENSE." >&2
+        return 1
+    fi
+    if [[ ! -s "$dir/package/README.md" ]]; then
+        echo "$workspace does not ship a README.md, which npm shows as the package's page." >&2
         return 1
     fi
     # The notices file name is the one packages/build writes.
