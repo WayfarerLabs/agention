@@ -235,7 +235,9 @@ export class Session {
     if (state.status === "approved") {
       return (
         `${why}Registered as ${state.agent}/${state.session}, where every Agention tool now ` +
-        `acts; to come back to this session later, ${again}.`
+        `acts; to come back to this session later, ${again}. Answers reach you only when you ` +
+        "check: check with message_wait as you work, and once your other work is done, keep " +
+        "checking while you have open asks or unread messages."
       );
     }
     if (state.status === "pending") {

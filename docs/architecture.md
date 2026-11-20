@@ -371,9 +371,13 @@ included.
 SDK's stdio transport, so it serves the protocol revisions hosts open with `initialize` and answers
 `server/discover` as a method it does not have. Its entry point checks for Node 24 or later before
 loading anything else. Without options `agention-mcp` serves; `--version` and `--help` print and
-exit. It exits once the host closes its standard input.
-[SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends: its key file,
-its tokens and where its requests may go.
+exit. It exits once the host closes its standard input. Its answer to `initialize` carries
+instructions that state the usage skill's first rule, to ask through Agention and never wait at the
+terminal for an answer, and tell the agent to load the skill, so the agent has the rule before the
+skill loads. Claude Code adds them to the agent's system prompt. Codex describes the bridge's tools
+with them and shows only their first 250 characters until the agent loads the tools, so they stay
+within that. [SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends:
+its key file, its tokens and where its requests may go.
 
 - **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`. When it is missing or not an
   HTTPS origin, when the home directory is not an absolute path of at most 4,096 bytes, or when
@@ -415,19 +419,20 @@ its tokens and where its requests may go.
   a message's detail beside its text, and refuse it without text, as the server does. A session
   never answers an ask, so `message_send` takes no answers; it takes the withdrawals of the
   session's own open asks. `message_wait` waits for nothing by default and answers at once, which is
-  how an agent checks for answers as it works without ever waiting; a longer wait suits a waiter of
-  the agent's own. No tool marks a thread unread, which agents have no use for, though the agent API
-  offers it as the web API does. The SDK advertises each tool's JSON Schema, generated from the
-  shared schemas, but the bridge parses the arguments itself, so input outside a bound is
-  `invalid_input` naming the field, as the server would answer it. A tool also refuses a field it
-  does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
-  silently; the server's request schemas ignore unknown fields, so a newer bridge still works
-  against it. An answer is the API's JSON as text, and a call the server refuses is an error result
-  holding the API's error JSON. A problem the bridge finds itself, such as its configuration, an
-  unreachable server, missing names or a cancelled call, is an error result of one plain sentence
-  saying what to do. `message_wait` gives every error but `invalid_input` no sooner than its
-  `wait_seconds` would have ended, counted from the call's start, so an agent that waits again at
-  once does not call a server it cannot use in a tight loop.
+  how an agent checks for answers as it works; a longer wait is for an agent with no other work and
+  open asks or unread messages, or for a waiter of its own. `register`'s answer, once approved, says
+  how answers reach the agent: when it checks. No tool marks a thread unread, which agents have no
+  use for, though the agent API offers it as the web API does. The SDK advertises each tool's JSON
+  Schema, generated from the shared schemas, but the bridge parses the arguments itself, so input
+  outside a bound is `invalid_input` naming the field, as the server would answer it. A tool also
+  refuses a field it does not know, at any depth, as `invalid_input` naming it, so a misspelled
+  field never drops silently; the server's request schemas ignore unknown fields, so a newer bridge
+  still works against it. An answer is the API's JSON as text, and a call the server refuses is an
+  error result holding the API's error JSON. A problem the bridge finds itself, such as its
+  configuration, an unreachable server, missing names or a cancelled call, is an error result of one
+  plain sentence saying what to do. `message_wait` gives every error but `invalid_input` no sooner
+  than its `wait_seconds` would have ended, counted from the call's start, so an agent that waits
+  again at once does not call a server it cannot use in a tight loop.
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`. A page of messages or threads over the limit is asked for

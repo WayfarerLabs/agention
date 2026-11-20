@@ -1,7 +1,7 @@
 import { InMemoryTransport } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
 import packageJson from "../package.json" with { type: "json" };
-import { createBridge } from "./bridge.ts";
+import { createBridge, instructions } from "./bridge.ts";
 
 // The protocol as each agent host speaks it, message by message: Codex opens
 // with initialize at 2025-06-18, and Claude Code probes server/discover, then
@@ -9,7 +9,11 @@ import { createBridge } from "./bridge.ts";
 
 interface Reply {
   id?: number;
-  result?: { protocolVersion?: string; serverInfo?: { name: string; version: string } };
+  result?: {
+    protocolVersion?: string;
+    serverInfo?: { name: string; version: string };
+    instructions?: string;
+  };
   error?: { code: number };
 }
 
@@ -51,6 +55,7 @@ describe("the bridge", () => {
     expect(reply.result).toMatchObject({
       protocolVersion: version,
       serverInfo: { name: "agention", version: packageJson.version },
+      instructions,
     });
     await close();
   });

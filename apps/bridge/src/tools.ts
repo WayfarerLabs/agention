@@ -142,7 +142,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "granted, which every other tool acts in. If the registration can never be approved, " +
       "because the operator rejected or revoked the session's key or the registration expired " +
       "before approval, register makes a new key and registers it, and replaced says why. " +
-      "message says what to do next, including the names to pass when you come back.",
+      "message says what to do next, including the names to pass when you come back and, " +
+      "once approved, how answers reach you.",
     registerInput,
     (input, signal) => connected().session.register(input, signal),
   );
@@ -302,15 +303,16 @@ export function registerTools(server: McpServer, connection: Connection): void {
     "Check for messages you have not read in this session's threads, waiting up to " +
       "wait_seconds for one, and answer with those threads, oldest activity first, and since. " +
       "With wait_seconds 0, the default, it answers at once, which is how you check for " +
-      "answers as you work: never wait on it yourself, but carry on with other work. A longer " +
-      "wait suits a waiter of your own, such as a subagent, while you carry on. Pass since " +
-      "back to check only for messages newer than this answer covered, so a thread you leave " +
-      "unread does not come back. Answers at once if there is something to report, else when " +
-      "a message lands or wait_seconds pass, and with an error other than invalid_input only " +
-      "once wait_seconds pass. The operator reading or archiving writes no message, so it " +
-      "wakes no wait; thread_get shows how far the operator has read. Summaries carry no " +
-      "Markdown: read a thread with thread_get after its read_through. A result too long to " +
-      `return comes back as a smaller page; ${tooLongText}`,
+      "answers as you work, carrying on with other work. Once that work is done, wait longer " +
+      "while you have open asks or unread messages, or have a waiter of your own, such as a " +
+      "subagent, do the waiting. Pass since back to check only for messages newer than this " +
+      "answer covered, so a thread you leave unread does not come back. Answers at once if " +
+      "there is something to report, else when a message lands or wait_seconds pass, and " +
+      "with an error other than invalid_input only once wait_seconds pass. The operator " +
+      "reading or archiving writes no message, so it wakes no wait; thread_get shows how far " +
+      "the operator has read. Summaries carry no Markdown: read a thread with thread_get " +
+      "after its read_through. A result too long to return comes back as a smaller page; " +
+      tooLongText,
     z.object({
       since: cursor
         .optional()
@@ -319,7 +321,7 @@ export function registerTools(server: McpServer, connection: Connection): void {
         ),
       wait_seconds: waitSeconds.describe(
         "How long to wait for an unread message, 0 to 25 seconds; by default 0, which checks " +
-          "at once. Only a waiter of your own passes more.",
+          "at once.",
       ),
       limit,
     }),
