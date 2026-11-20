@@ -242,6 +242,11 @@ reads them to choose the next version and write `CHANGELOG.md`, so the type matt
 `fix` appear in the changelog, and a `BREAKING CHANGE:` footer marks a breaking change. Keep each
 footer to one paragraph.
 
+Pull requests merge with a merge commit, whose message GitHub fills with the pull request's title.
+release-please reads every Conventional Commits line in a commit's message as a change, so a pull
+request's title is plain words, such as "Rework the skill around the bridge", never a commit type
+such as `fix(plugin):`, which would list its change a second time; the commits carry the types.
+
 Agention is pre-1.0. Releases start at 0.1.0; until 1.0.0, `feat` and breaking changes bump the
 minor version and `fix` bumps the patch version, so no change bumps the major version on its own. A
 maintainer cuts 1.0.0 deliberately, with a `Release-As: 1.0.0` footer on a commit to `main`.
