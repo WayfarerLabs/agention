@@ -380,7 +380,7 @@ Significant decisions are recorded as ADRs in [`docs/adrs/`](docs/adrs/), in the
 lets [adr-tools](https://github.com/npryce/adr-tools) find the directory. An accepted ADR is a
 historical record: change a decision by writing a new ADR that supersedes it, and mark the old one
 as superseded. The one exception is ADR 0001, which records the v1 architecture as a whole: until v1
-is released it is amended in place, and its status lists each amendment.
+is released it is edited in place to state each decision as it stands.
 
 ## Design documents
 
