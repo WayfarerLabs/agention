@@ -5,11 +5,13 @@
 #
 # CI runs this script, so a local pass means the same checks pass in CI.
 # Prerequisites: Node at the version in .node-version, with the npm it
-# bundles, and network access for the install, signature and vulnerability
-# checks. The first gate installs the locked dependencies with `npm ci`.
-# The browser gate needs Chromium's headless shell, installed once with
-# `npx playwright install --only-shell chromium`. --fast skips the builds and
-# the browser gate, which drives them. --packages DIR runs only the install
+# bundles, the repository's release tags, and network access for the
+# install, signature, vulnerability and agent compatibility checks. The first
+# gate installs the locked dependencies with `npm ci`. The browser gate needs
+# Chromium's headless shell, installed once with
+# `npx playwright install --only-shell chromium`. --fast skips the agent
+# compatibility gate, which installs the released bridges, the builds and the
+# browser gate, which drives them. --packages DIR runs only the install
 # and the build gate, which builds the published packages and checks each as
 # npm would publish it, and keeps the tarballs it checked in DIR, which must
 # be empty or missing; the release workflow publishes those. The SDD gate
@@ -200,6 +202,13 @@ if [[ $mode != packages ]]; then
     step "SDD records"
     scripts/check-sdd.test.sh
     scripts/check-sdd.sh ${SDD_BASE:+"$SDD_BASE"}
+fi
+
+if [[ $mode == all ]]; then
+    step "Agent compatibility"
+    # Every released bridge against the agent routes at HEAD, as
+    # CONTRIBUTING.md "The agent API" describes.
+    scripts/check-agent-compatibility.sh
 fi
 
 if [[ $mode != fast ]]; then

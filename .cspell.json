@@ -17,6 +17,7 @@
     "HSTS",
     "licence",
     "lockfiles",
+    "loglevel",
     "mkfifo",
     "mktemp",
     "modelcontextprotocol",
