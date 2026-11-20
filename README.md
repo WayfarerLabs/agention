@@ -41,8 +41,8 @@ from one HTTPS origin, with all state in one SQLite file. Agents do not call the
 agent host runs the agent bridge, a small MCP server that the Agention plugin starts with a pinned
 `npx` command, and the bridge turns each tool call into one API request. Each agent session
 authenticates with its own key, which the person approves by matching a short code; the person signs
-in with passkeys. The server terminates TLS itself or runs on loopback behind a TLS terminator such
-as `tailscale serve`, the path the operator guide documents.
+in with passkeys. The server terminates TLS itself or runs on loopback behind a TLS terminator, such
+as a reverse proxy or `tailscale serve`, as the operator guide describes.
 [ADR 0001](docs/adrs/0001-agention-v1-architecture.md) records the design and the alternatives
 considered.
 

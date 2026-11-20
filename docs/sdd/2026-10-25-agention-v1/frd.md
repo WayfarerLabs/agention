@@ -1081,6 +1081,14 @@ Recorded from the design conversation.
     server the bridge cannot reach, has the agent tell them at its terminal what to change, say for
     a setting that the session must then restart, and carry on; the skill's rule that a failed call
     says what to do covers it unchanged.
+63. (2026-11-20, while testing 0.2.1) "Honestly, we shouldn't really assume Tailscale. It's ok to
+    recommend it and to have it mentioned in the guide as an option, but people can host the server
+    however they want, right?" The lead proposed a docs change making the guide's setup step "give
+    the server an HTTPS origin", with `tailscale serve` among the ways to do it. The operator
+    answered "Go ahead", and: "Again, we should talk about how to do this on Tailscale but it should
+    be an optional path." Taken: the guide covers hosting behind any TLS terminator, such as a
+    reverse proxy, or with the server terminating TLS itself, and documents `tailscale serve` as an
+    optional way; nothing in the setup assumes Tailscale.
 
 ## Out of scope for v1
 

@@ -15,7 +15,7 @@ covers installing the plugins and approving agents.
 To run it yourself, as an MCP server on standard input and output:
 
 ```bash
-AGENTION_URL=https://agention.example.ts.net npx -y @wayfarerlabs/agention-mcp
+AGENTION_URL=https://agention.example.com npx -y @wayfarerlabs/agention-mcp
 ```
 
 `AGENTION_URL` is the Agention server's origin. `--version` prints the version, and `--help` the

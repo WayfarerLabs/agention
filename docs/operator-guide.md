@@ -1,15 +1,14 @@
 # Operator guide
 
 This guide is for the person who runs an Agention instance. It takes you from nothing to agents
-asking what they need and you answering, on a machine of your own with Node.js 24 or later and
-[Tailscale](https://tailscale.com) installed. Agention v1 is under development, and the guide grows
-as Agention does.
+asking what they need and you answering, on a machine of your own with Node.js 24 or later. Agention
+v1 is under development, and the guide grows as Agention does.
 
 To set up an instance:
 
 1. [Install Agention](#installing).
-2. [Publish it with `tailscale serve`](#publishing-it-with-tailscale-serve), which gives the server
-   its origin.
+2. [Give it an HTTPS origin](#giving-it-an-https-origin), the address you and your agents reach it
+   at.
 3. [Run the server](#running-the-server) in a terminal to try it, then
    [as a service](#running-it-as-a-service).
 4. [Register your first passkey](#signing-in) and sign in.
@@ -44,11 +43,47 @@ for a Node.js installed by the system's package manager, `npm install -g` fails 
 permission; rather than use `sudo`, run `npm config set prefix ~/.local` to install into `~/.local`,
 with the commands in `~/.local/bin`, which must be on your `PATH`.
 
-## Publishing it with `tailscale serve`
+## Giving it an HTTPS origin
 
-The server listens on loopback with plain HTTP, and `tailscale serve` publishes it over HTTPS at the
-machine's name in your tailnet, with a certificate Tailscale provisions. Publish the server's
-default listener, `127.0.0.1:8080`:
+People and agents reach the server at its origin, the address in the browser's location bar, such as
+`https://agention.example.com` or `https://agention.example.com:8443`: `https`, a domain name, and a
+port only when it is not 443. It cannot be an IP address, since browsers refuse passkeys for one.
+With only an IP address, give it a name, such as a DNS record pointing at it, which may be a private
+address. Passkeys belong to the origin's host and agent tokens name the origin, so changing the host
+later needs new passkeys, and changing the origin at all needs every agent's `AGENTION_URL` changed
+to match.
+
+Host the server wherever suits you, in either of two ways:
+
+- **Behind a TLS terminator**, the default. The server listens on loopback with plain HTTP, and a
+  terminator you run publishes it at the origin over HTTPS, with a certificate for the origin's
+  name. The terminator must pass the request's `Host` through unchanged, since the server answers
+  only requests whose `Host` is the origin's host, with its port when that is not 443, and reads no
+  forwarded headers. It can be a reverse proxy such as Caddy or nginx, or, on a
+  [Tailscale](https://tailscale.com) network,
+  [`tailscale serve`](#publishing-it-with-tailscale-serve), which needs no certificate of your own.
+- **Terminating TLS itself.** Give `agention serve` the certificate and its key with `--tls-cert`
+  and `--tls-key`, and listen on any address with `--listen`. The server accepts TLS 1.3 only.
+
+Either way, the certificate must be one your browsers and your agents' machines trust: one from a
+public authority, or from a private one each of them trusts, which for agents `NODE_EXTRA_CA_CERTS`
+sets, as [Agents](#agents) describes.
+
+Plain HTTP on an address other than loopback would carry agent tokens and browser cookies in the
+clear, so the server refuses to start that way unless `--allow-plain-http` is given. Use it only
+when the network path is already encrypted.
+
+Each device you sign in from, your phone included, and each machine where your agents run must reach
+the origin. Anything else that reaches the origin reaches the sign-in page and the agents' API as
+well: passkeys and approved keys keep it from acting, but it can still delay new agent
+registrations, as [SECURITY.md](../SECURITY.md#security-model) says. A private network, such as a
+VPN or a tailnet, keeps the server to your own devices.
+
+### Publishing it with `tailscale serve`
+
+On a Tailscale network, `tailscale serve` publishes the server over HTTPS at the machine's name in
+your tailnet, with a certificate Tailscale provisions. Publish the server's default listener,
+`127.0.0.1:8080`:
 
 ```bash
 tailscale serve --bg http://127.0.0.1:8080
@@ -57,25 +92,23 @@ tailscale serve status
 
 Each prints the address Tailscale serves the server at: `https://` and the machine's `ts.net` name,
 such as `https://agention.example.ts.net`. That address, without a trailing slash, is the server's
-[origin](#running-the-server). Until the server runs, the address answers with an error. `--bg`
-keeps it serving in the background, across restarts of Tailscale and of the machine, until you turn
-it off by running the same command with `off` at its end. The first time, `tailscale serve` may send
-you to a page to enable HTTPS certificates for your tailnet. On Linux, run these commands with
-`sudo`, unless `sudo tailscale set --operator=$USER` made you Tailscale's operator. On a Mac, the
-Tailscale app does not put `tailscale` on your `PATH`: its Standalone variant installs the command
-from **Settings**, under CLI integration, and its App Store variant runs it as
+origin. Until the server runs, the address answers with an error. `--bg` keeps it serving in the
+background, across restarts of Tailscale and of the machine, until you turn it off by running the
+same command with `off` at its end. The first time, `tailscale serve` may send you to a page to
+enable HTTPS certificates for your tailnet. On Linux, run these commands with `sudo`, unless
+`sudo tailscale set --operator=$USER` made you Tailscale's operator. On a Mac, the Tailscale app
+does not put `tailscale` on your `PATH`: its Standalone variant installs the command from
+**Settings**, under CLI integration, and its App Store variant runs it as
 `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, as
 [Tailscale's CLI documentation](https://tailscale.com/docs/reference/tailscale-cli) describes.
 
 This keeps Agention within your tailnet: only its devices can reach it, as your tailnet's access
-rules allow. So each device you sign in from, your phone included, must be on your tailnet, as must
-each machine where your agents run. Tailscale Funnel would publish it to the whole internet;
-Agention does not need it.
+rules allow. Tailscale Funnel would publish it to the whole internet; Agention does not need it.
 
 ## Running the server
 
 ```bash
-agention serve --data ~/.local/share/agention --origin https://agention.example.ts.net --name Work
+agention serve --data ~/.local/share/agention --origin https://agention.example.com --name Work
 ```
 
 | Option               | Meaning                                                                      |
@@ -102,25 +135,8 @@ own `--name` given on its first start. Servers can also share a host under diffe
 signing each other out.
 
 `--listen` takes an IP address, not a name, with an IPv6 address in brackets: `[::1]:8080`.
-
-The origin is the address in the browser's location bar, such as `https://agention.example.ts.net`
-or `https://agention.example.com:8443`: `https`, a domain name, and a port only when it is not 443.
-It cannot be an IP address, since browsers refuse passkeys for one. The server answers only requests
-whose `Host` is the origin's host. Passkeys belong to the origin's host and agent tokens name the
-origin, so changing the host later needs new passkeys, and changing the origin at all needs every
-agent's `AGENTION_URL` changed to match.
-
-There are two ways to listen:
-
-- **Behind a TLS terminator**, the default. The server listens on loopback with plain HTTP, and a
-  terminator such as `tailscale serve` or a reverse proxy publishes it at the origin over HTTPS,
-  passing the origin's host through as `Host`. The server reads no forwarded headers.
-- **Terminating TLS itself.** Give `--tls-cert` and `--tls-key`, and listen on any address. The
-  server accepts TLS 1.3 only.
-
-Plain HTTP on an address other than loopback would carry agent tokens and browser cookies in the
-clear, so the server refuses to start that way unless `--allow-plain-http` is given. Use it only
-when the network path is already encrypted.
+[Giving it an HTTPS origin](#giving-it-an-https-origin) says what the origin is, and when to use
+`--listen`, `--tls-cert`, `--tls-key` and `--allow-plain-http`.
 
 An agent session is seen each time it calls the server, kept to the minute. One not seen within
 `--quiet-minutes` and the minute that may take to show, or never, is quiet: it has stopped, or is
@@ -142,7 +158,7 @@ after `--name`, since the first run that serves sets the name for good. Once it 
 the origin it serves and the address it listens on:
 
 ```text
-agention: serving https://agention.example.ts.net on http://127.0.0.1:8080
+agention: serving https://agention.example.com on http://127.0.0.1:8080
 ```
 
 The server logs to standard error. To keep its log in a file only you can read, run it with a umask
@@ -150,7 +166,7 @@ that creates the file private, and follow the file from another terminal with
 `tail -f ~/agention.log`:
 
 ```bash
-(umask 077; agention serve --data ~/.local/share/agention --origin https://agention.example.ts.net --name Work 2>>~/agention.log)
+(umask 077; agention serve --data ~/.local/share/agention --origin https://agention.example.com --name Work 2>>~/agention.log)
 ```
 
 `SIGINT`, which Ctrl-C sends, or `SIGTERM` stops it: it ends the requests agents have waiting,
@@ -186,7 +202,7 @@ directory:
 Description=Agention server
 
 [Service]
-ExecStart=/usr/local/bin/node /usr/local/bin/agention serve --data %h/.local/share/agention --origin https://agention.example.ts.net
+ExecStart=/usr/local/bin/node /usr/local/bin/agention serve --data %h/.local/share/agention --origin https://agention.example.com
 Restart=on-failure
 RestartSec=5
 
@@ -235,7 +251,7 @@ place of `/Users/you`, since launchd expands neither `~` nor variables:
     <string>--data</string>
     <string>/Users/you/.local/share/agention</string>
     <string>--origin</string>
-    <string>https://agention.example.ts.net</string>
+    <string>https://agention.example.com</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
@@ -272,7 +288,7 @@ Once the server is running, register your first passkey. On the server's machine
 runs the server, run `agention passkey-link` with the server's `--data` and `--origin`:
 
 ```bash
-agention passkey-link --data ~/.local/share/agention --origin https://agention.example.ts.net
+agention passkey-link --data ~/.local/share/agention --origin https://agention.example.com
 ```
 
 It prints a link to open within 15 minutes in the browser you want to sign in with. The page it
@@ -589,12 +605,12 @@ include the bridge's settings above, so a variable set in your shell profile, su
 `~/.zshrc`, reaches the bridge in either host started from that shell:
 
 ```bash
-export AGENTION_URL=https://agention.example.ts.net
+export AGENTION_URL=https://agention.example.com
 ```
 
 Claude Code also passes the `env` of its
 [settings](https://code.claude.com/docs/en/settings-reference#env) to the processes it starts, the
-bridge among them, so `"env": { "AGENTION_URL": "https://agention.example.ts.net" }` in
+bridge among them, so `"env": { "AGENTION_URL": "https://agention.example.com" }` in
 `~/.claude/settings.json` reaches the bridge in Claude Code without a shell profile.
 
 An agent's first call to Agention registers its session, which then waits for your approval. When

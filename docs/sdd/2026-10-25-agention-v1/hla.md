@@ -339,8 +339,8 @@ roll-up and place compose from its sessions'.
 ## Operation
 
 ```text
-agention serve --data DIR --origin https://agention.<tailnet>.ts.net \
-  --listen 127.0.0.1:8080                                         # behind a TLS terminator
+agention serve --data DIR --origin https://agention.example.com \
+  --listen 127.0.0.1:8080                                    # behind a TLS terminator
 agention serve ... --listen 0.0.0.0:8443 --tls-cert C --tls-key K  # Agention terminates TLS
 ```
 
@@ -354,8 +354,9 @@ agention serve ... --listen 0.0.0.0:8443 --tls-cert C --tls-key K  # Agention te
   no class can starve another; authenticated agent calls are budgeted per key (R31).
 - `agention backup` writes a consistent copy of the database from a running instance using SQLite's
   online backup; restore is stop, replace, start (R34).
-- The primary guide: run on loopback, publish with `tailscale serve`, set `--origin` to the `ts.net`
-  URL, then recommended ACL and tagging follow-ups (R32).
+- The guide's setup gives the server an HTTPS origin in whichever way suits the operator: behind a
+  TLS terminator they run, such as a reverse proxy or `tailscale serve`, or terminating TLS itself
+  (R32, ruling 63).
 
 ## Distribution
 

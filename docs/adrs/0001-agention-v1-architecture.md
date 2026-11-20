@@ -161,8 +161,8 @@ credential works on the other's mount.
 The listen address, the TLS mode (terminate TLS, or serve plain HTTP behind a terminator) and the
 public HTTPS origin are independent settings. Plain HTTP on a non-loopback address is refused unless
 explicitly enabled. No forwarded or network-identity headers are trusted, and no authentication
-decision or rate limit depends on source address. The documented deployment runs Agention on
-loopback behind `tailscale serve`, but nothing depends on Tailscale.
+decision or rate limit depends on source address. The operator guide documents running Agention on
+loopback behind `tailscale serve` as one way to publish it; nothing depends on Tailscale.
 
 ### Distribution: generated agent plugins
 
