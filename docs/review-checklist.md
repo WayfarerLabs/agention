@@ -18,10 +18,10 @@ model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes 
 enforcement must not be missing where the trust model requires it (A2 to A9), and must not be built
 where the trust model says it does not belong (A6).
 
-Some checks state rules for features not built yet: session state that any call from a session may
-carry, with its session log; the operator's session groups and tags; diagrams drawn from message
-text; and `agention backup`, which `docs/operator-guide.md` "Commands" lists as planned. Their rules
-bind the change that builds them, and that change documents them in the permanent docs.
+Some checks state rules for features not built yet: the operator's session groups and tags; diagrams
+drawn from message text; and `agention backup`, which `docs/operator-guide.md` "Commands" lists as
+planned. Their rules bind the change that builds them, and that change documents them in the
+permanent docs.
 
 ## A1. Standalone and runtime-neutral
 
@@ -84,10 +84,11 @@ ask, an answer, a withdrawal or a replacement valid, and what derives from them,
 semantics in `docs/architecture.md` "Database" and "Store" and ADR 0001 "Threads are append-only
 logs of messages, with asks": check the code against them rather than against a copy here. Sessions
 are always requesters and the operator is always the audience, so these checks also keep an agent
-from speaking as the operator, and the operator starts no threads. Look for role checks keyed on
-anything but the roles stored on the thread, an ask or answer mutated in place, a withdrawal undone,
-a derived state that counts a replaced message, and a derived next action, a per-kind lifecycle, or
-items that open and close creeping back in (ADR 0001 "Not doing" and "Alternatives considered").
+from speaking as the operator, and a thread the operator starts on a session keeps the session its
+requester, so it carries no asks or topic from them. Look for role checks keyed on anything but the
+roles stored on the thread, an ask or answer mutated in place, a withdrawal undone, a derived state
+that counts a replaced message, and a derived next action, a per-kind lifecycle, or items that open
+and close creeping back in (ADR 0001 "Not doing" and "Alternatives considered").
 
 ## A6. Nothing built beyond the trust model
 
@@ -108,13 +109,14 @@ returns the original result, and with different content is rejected (ADR 0001 "R
 marks, and optimistic concurrency"). Marks move only the caller's own cursors, never change the
 thread or conflict with a write, and never answer an ask; how they move, and what counts as unread
 and as archived, is in `docs/architecture.md` "Store". A session's presence is stamped in a
-transaction of its own before the call's work, so a call refused later still counts. Session state a
-call carries is likewise applied once the call is authorized, whatever the call's outcome, with
-every return path committing it, and session updates are last-writer-wins and exempt from the stale
-rule, since only the session writes its own state. The UI keeps the draft on a stale write
-(`docs/operator-guide.md` "Using the web UI"). Look for marks or derived counts that depart from
-those definitions, check-then-write races outside one immediate transaction, writes that skip the
-sequence check, and request-id handling that replays a different payload.
+transaction of its own before the call's work, so a call refused later still counts. A session's
+status changes only through its status tool: an update merges into the current status and appends
+the result to the session log, appending nothing when it changes nothing and carries no note, so it
+needs no request id; updates are last-writer-wins and exempt from the stale rule, since only the
+session writes its own status. The UI keeps the draft on a stale write (`docs/operator-guide.md`
+"Using the web UI"). Look for marks or derived counts that depart from those definitions,
+check-then-write races outside one immediate transaction, writes that skip the sequence check, and
+request-id handling that replays a different payload.
 
 ## A8. Append-only, attributed history
 
@@ -174,12 +176,13 @@ API's agent and web mounts, and, through the agent mount, the bridge's tools (`d
 "Store" and "HTTP API"). Request and response shapes come from one shared schema package,
 `packages/api`. Once a bridge is released, agent routes only grow: each release's agent routes
 accept what earlier released bridges send and answer what they read, because agents run whatever
-bridge version their plugin pins. The typed error set (at least invalid input, not found, stale,
-request-id conflict, rate limited, unauthenticated; `packages/api/src/errors.ts`) is the same on
-both mounts and in the bridge's tool errors. Tool names use lowercase letters, digits, and
-underscores; tool annotations are true of the tools; `message_wait` stays well below the 60-second
-Codex tool timeout, worst case included; tool schemas are the payload reference
-(`docs/architecture.md` "Agent bridge").
+bridge version their plugin pins; the agent compatibility gate holds this, and every agent contract
+change bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set (at
+least invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
+`packages/api/src/errors.ts`) is the same on both mounts and in the bridge's tool errors. Tool names
+use lowercase letters, digits, and underscores; tool annotations are true of the tools;
+`message_wait` stays well below the 60-second Codex tool timeout, worst case included; tool schemas
+are the payload reference (`docs/architecture.md` "Agent bridge").
 
 ## A13. SQLite persistence and backup
 

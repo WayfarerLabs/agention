@@ -140,11 +140,18 @@ signing each other out.
 
 An agent session is seen each time it calls the server, kept to the minute. One not seen within
 `--quiet-minutes` and the minute that may take to show, or never, is quiet: it has stopped, or is
-busy elsewhere. A thread whose agent has not read your latest messages while its session is quiet,
-or has no active credential, is **stranded**: the agent will not see what you wrote until you resume
-it. An agent keeps checking for your answers while it has open asks or unread messages, so a
-stranded thread means it stopped anyway, such as when its host ended the session, or is busy and has
-not checked.
+busy elsewhere. An agent also reports what its session is doing: **working** while it does something
+now; **idle** while it has nothing left to do but wait, for your answers, CI or a review, and it
+keeps checking Agention; and **stopped** once it stops checking, with why: **completed** when the
+work is done, **withdrawn** when you called it off, or **stalled** when it cannot go on. A stopped
+session will not see what you write until something starts it again, and stays stopped until it
+reports working or idle. Whether a session waits on you is no state it reports: its open asks say
+so. A session whose agent never reported, such as one whose plugin predates session states, has no
+state. A thread whose agent has not read your latest messages while its session is quiet, has
+stopped or has no active credential is **stranded**: the agent will not see what you wrote until you
+resume it. An agent keeps checking for your answers while it has open asks or unread messages, so a
+thread stranded by a quiet session means the agent stopped without saying so, such as when its host
+ended the session, or is busy and has not checked.
 
 The data directory and the database must be private to the user running Agention, under the rule
 [SECURITY.md](../SECURITY.md#private-files) states. `agention serve` creates a missing data
@@ -677,6 +684,16 @@ One version covers the server, the bridge and the plugins, so upgrade the server
 plugins after it. [Back up](#backing-up) before upgrading the server: it migrates its database
 forward when it starts, and refuses a database a newer release wrote, so going back to an earlier
 release means installing that release and restoring a copy made before the upgrade.
+
+The bridge and the server state on every call the version of the agent API they speak, which a
+release changes when it changes what agents send or read. A server serves the bridges of earlier
+releases, so agents keep working while their plugins catch up with an upgraded server. A bridge
+refuses a server older than itself, and a server refuses a bridge older than the oldest it still
+serves; either way, the agent tells you at its terminal what to update: the server to the plugin's
+release or later, or the plugin to the server's release. A new session that meets an older server
+leaves a registration waiting for approval whose code its agent never gives you; it expires
+unapproved. A session runs the bridge its plugin pinned when it started, so after updating a plugin,
+restart its sessions, resuming each to keep its conversation.
 
 To upgrade the server, stop it, install the release, and start it again. On Linux:
 

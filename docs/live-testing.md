@@ -24,14 +24,23 @@ with each other or with what the product does, the disagreement is the finding.
   (`docs/architecture.md` "Authentication"; the in-process tests in
   `apps/server/src/http/agent-api.test.ts`). Each credential on the other mount, a `Host` other than
   the origin's host, an oversized body (413), and a body without a declared length (411)
-  (`docs/architecture.md` "HTTP API").
+  (`docs/architecture.md` "HTTP API"). The agent API version on every agent answer, those refusals
+  included: a request without the `Agention-Agent-API` header served as version 1, one stating a
+  version above the server's, however many digits it has, refused as `unsupported_version` before
+  authentication, and a header that is not a positive integer written without leading zeros refused
+  as `invalid_input`.
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
   names a release. `register` through every registration state (pending, approved, rejected,
-  expired, revoked), and each of the thread tools: `thread_create`, `message_send`, `thread_get`,
-  `thread_list`, `thread_read`, `thread_archive` and `message_wait` (`docs/architecture.md` "Agent
-  bridge").
+  expired, revoked), each of the thread tools: `thread_create`, `message_send`, `thread_get`,
+  `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update` through a
+  session's life: working once registered, idle, stopped with each outcome, working again on
+  resuming, a goal changed without a percent, and a note alone (`docs/architecture.md` "Agent
+  bridge" and "Store"). The bridge at the head against a server of an earlier release, which it
+  refuses with what the operator upgrades, and a bridge an earlier release published against the
+  server at the head, which it still serves, where the charter names those releases; the agent
+  compatibility gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
@@ -48,8 +57,9 @@ with each other or with what the product does, the disagreement is the finding.
 Compare what a surface reports with:
 
 - the database, opened read-only beside the running server: what each thread's messages derive (live
-  messages, open asks, status, topic) against the log, registration rows and states, browser
-  sessions, used challenges (`docs/architecture.md` "Database");
+  messages, open asks, status, topic) against the log, each session's latest entry in its log
+  against the status `session_update` answered and the sessions page shows, registration rows and
+  states, browser sessions, used challenges (`docs/architecture.md` "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
   `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443 (`SECURITY.md`
@@ -71,10 +81,12 @@ On top of the method's failure classes, look for:
 - **False success**: `register` reporting approval while calls fail, a tool reporting a write the
   thread's log lacks, a passkey ceremony that "succeeds" without a session.
 - **Divergence**: the code the bridge relays against the code the registrations page shows, signals,
-  roll-ups and a row's unread and total counts in a view against the thread's messages, a filter
-  value's count against the list that value produces, a group's roll-up against the threads it
-  holds, an archived thread that another party's later message failed to bring back to the list, and
-  one the caller's own message brought back.
+  roll-ups and a row's unread and total counts in a view against the thread's messages, a stopped
+  session whose threads holding an unread message of the operator's are not stranded, or stay
+  stranded once it reports working, a session's unread updates against its log and the operator's
+  mark, a filter value's count against the list that value produces, a group's roll-up against the
+  threads it holds, an archived thread that another party's later message failed to bring back to
+  the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them

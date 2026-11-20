@@ -67,8 +67,9 @@ index of those docs.
 - Build and packaging: `npm run -w apps/server build` (the web UI, then the server's bundle) and
   `npm run -w apps/bridge build` (`CONTRIBUTING.md` "Building"); the "Build" gate packs, installs
   and runs each package, and `scripts/check.sh --packages DIR` keeps the tarballs it checked
-- Security and dependency checks: `npm audit signatures` in the "Dependency integrity" gate and
-  `npm audit --audit-level=high` in the "Vulnerabilities" gate of `scripts/check.sh`
+- Security and dependency checks: `npm audit signatures` in the "Dependency integrity" gate, and for
+  each released bridge in the "Agent compatibility" gate, and `npm audit --audit-level=high` in the
+  "Vulnerabilities" gate of `scripts/check.sh`
 - Generated outputs, their generator configuration, and drift check: `out/claude-plugin/`,
   `out/codex-plugin/`, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`,
   generated from `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` by
@@ -105,16 +106,19 @@ index of those docs.
 - Maintained test harnesses: the Vitest suites beside the sources in every workspace; the server's
   in-process HTTP harness, `apps/server/src/http/test-harness.ts`, with
   `apps/server/src/auth/test-authenticator.ts`, a software passkey authenticator; the bridge's
-  harness, `apps/bridge/src/test-harness.ts`, which runs the server in process over TLS
-  (`docs/architecture.md` "Agent bridge"); the browser tests in `apps/web/e2e/`, which drive the
-  built server in Chromium with virtual authenticators (`docs/architecture.md` "Web UI"); and
-  `scripts/check-sdd.test.sh`
+  harness, `apps/bridge/src/test-harness.ts`, which runs the server in process over TLS and bridges
+  in process or as processes, released bundles among them (`docs/architecture.md` "Agent bridge");
+  the browser tests in `apps/web/e2e/`, which drive the built server in Chromium with virtual
+  authenticators (`docs/architecture.md` "Web UI"); and `scripts/check-sdd.test.sh`
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`); setup is the locked install and Chromium's headless shell (`CONTRIBUTING.md`
-  "Prerequisites")
+  "Prerequisites"), and the release tags for the agent compatibility gate (`CONTRIBUTING.md`
+  "Checks")
 - Integration test selection or markers: none; the bridge's in-process integration tests run in its
   Vitest suite, and the browser tests run with `npm run -w apps/web test:browser` against the
-  server's last build, which `scripts/check.sh --fast` skips with the builds
+  server's last build, which `scripts/check.sh --fast` skips with the builds; the agent
+  compatibility suite runs only in its gate, which `--fast` also skips (`CONTRIBUTING.md` "The agent
+  API")
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
   acceptance by the operator; Codex used only for basic plugin-integration prompts (an operator

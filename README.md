@@ -27,7 +27,7 @@ server to agents asking and you answering. The repository contains:
   passkeys;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
   starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
-  and checks for new messages;
+  checks for new messages, and reports its state, such as working or stopped;
 - the API contract, which the server, the bridge and the web UI share;
 - the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
   run the bridge at the version they pin.

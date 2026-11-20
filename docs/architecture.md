@@ -50,6 +50,10 @@ inferred types the server, the bridge and the web UI share:
   groups' roll-ups; the counts of what each filter value keeps; and bulk read and archive;
 - registration submit and state, the registrations list, approval and the agents list, a page of
   agents each with its sessions;
+- a session's status update and the status it answers with; the operator's sessions page, a
+  session's log and the operator's read mark on it; and the operator's start of a thread on a
+  session;
+- the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the claims of an agent's token, and the error shape.
 
@@ -62,9 +66,10 @@ it, at most 20,000; every message's schema refuses detail without text, naming `
 descriptions of both fields say what each carries, since the bridge's tools show them to agents.
 Query parameters are read into the same schemas as body fields; a filter of several values repeats
 its parameter, once for each, and a parameter repeated where one value is taken is refused. Request
-schemas ignore fields they do not know, so a newer bridge works against an older server.
-`invalidInputBody` turns a schema failure into the error shape, naming the field at fault as a
-dotted path.
+schemas ignore fields they do not know, so a server still reads what an older bridge sends; a newer
+bridge never relies on that, since it refuses a server older than itself (see
+[HTTP API](#http-api)). `invalidInputBody` turns a schema failure into the error shape, naming the
+field at fault as a dotted path.
 
 The registration code, which the bridge and the server both derive from a session key, has its own
 entry point, `@wayfarerlabs/agention-api/registration-code`, because it uses `node:crypto` and must
@@ -109,6 +114,16 @@ fills it as a thread is created, and it relies on titles never changing. Checks 
 what the store keeps true: one operator, whose id is 1; a registration's session set exactly when it
 is approved or revoked; and a message's detail only beside its text. `transaction()` runs one
 synchronous function under `BEGIN IMMEDIATE`, so no write interleaves with another in the process.
+
+A session's status lives only in its log, `session_updates`, append-only by the same triggers as
+messages: each entry, numbered from 1 within its session, holds the session's whole status after it
+(its state, the outcome it stopped with, its title, goal and percent), its own note and the
+credential behind it, so the current status is the entry with the highest number, read through the
+primary key, and nothing about it is stored on the session. A check holds an outcome exactly beside
+the stopped state. `session_marks` holds each actor's read cursor on a session's log, as
+`thread_marks` holds one on a thread. A test freezes the text of every migration a release has
+shipped, by its SHA-256, so a schema change is always a new migration, and another opens a database
+the first migration alone wrote under every later one, its rows intact.
 
 ## Store
 
@@ -161,8 +176,43 @@ advisory. A pending registration has no session, so its calls mark nothing. A se
 it has not been seen within `agention serve --quiet-minutes`, 15 by default, and the minute a stamp
 may lag, so a session that keeps calling never is, or when it was never seen. A thread is stranded
 when it holds a live message of the operator's that the session has not read while the session is
-quiet or has no active credential: the agent is not there to read it. Both are derived in queries
-against the request's clock, and only the thread's audience, the operator, sees them.
+quiet, has no active credential or has stopped: the agent is not there to read it. Both are derived
+in queries against the request's clock, and only the thread's audience, the operator, sees them,
+with the state and outcome the session last reported, which say why it is stranded; a grouped list's
+presence for a session or an agent carries neither.
+
+A session reports its status itself, on the agent mount's status route, and no other call changes
+it. Each update merges into the current status: a state replaces the state, `stopped` with the
+outcome the update must give, and `working` and `idle` with none, so a stopped session stays stopped
+until it reports one of them; a session that first reports without a state is `working`, since it is
+running. A title, goal or percent sets its field, and a goal other than the current one clears the
+percent unless the update gives one; a field left out is unchanged, and nothing clears a field. The
+note belongs to its entry alone. An update whose merged status equals the current one and that
+carries no note appends nothing, so an update carries no request id: repeating one changes nothing,
+unless it carries a note, which is logged again. Updates are exempt from the stale rule and the
+latest wins, since only the session writes its status. The operator reads a session's log newest
+first, with their read mark on it, which marking read raises up to the latest entry and never
+lowers; the entries above it are the session's unread updates.
+
+The operator's sessions page lists the agents in name order, as the agents list does, each with at
+most 500 of its sessions: those working or idle first, then those that never reported, then stopped
+ones, each latest seen first. Each session carries its presence, by the formula threads use; its
+approved registrations, with their ids and codes; its status with the latest entry's note; its
+unread updates; how many of its threads the operator has not archived, with how many of those are
+stranded, counted for every session of the page in one statement grouped over the threads as the
+operator sees them; and how many asks are open in all its threads, archived or not, with how many of
+those are blocking, which is what waits on the operator, counted in one statement grouped over the
+open asks.
+
+The operator starts a thread on a session with a title and a first message of text, with its detail.
+The session stays the thread's requester and the operator its audience, so the operator's request
+has no field for asks or a topic, nor for references, which the web UI does not offer; a request
+carrying any of them starts a thread without them. The session reads the thread as the operator's
+words and replies in it. The thread starts whatever the session's state or credential, stranded from
+the start when the session is not there to read it; the operator's read mark reaches their message,
+and the session's long polls wake. A retry with the same request id is answered as the first was,
+and one with other content is a request-id conflict, as for a session's own thread, which a session
+still starts only in itself.
 
 Marking read, marking unread and archiving move only the caller's own marks on a thread; they write
 no message and wake no one. Marking read raises the read mark and never lowers it. Marking unread
@@ -189,11 +239,11 @@ name, and the operator's list up to 50 topics, each written with its session as
 `priority` (an open ask at that level or higher), `impact` (an open ask blocking, or assuming),
 `overdue` (an open ask past its answer-by) and `effort` (an open ask that states that effort or
 less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live message of the
-operator's that the session has not read) or `stranded` (such a message while the session is quiet
-or has no active credential); and `agent` and `session`, up to 50 of each, a session written
-`agent/session`. The filters on asks together keep the threads holding one open ask that meets them
-all, so any of them keeps only open threads. One definition of each filter's condition serves the
-list, its total, its counts and its roll-ups.
+operator's that the session has not read) or `stranded` (such a message while the session is quiet,
+has no active credential or has stopped); and `agent` and `session`, up to 50 of each, a session
+written `agent/session`. The filters on asks together keep the threads holding one open ask that
+meets them all, so any of them keeps only open threads. One definition of each filter's condition
+serves the list, its total, its counts and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -249,9 +299,9 @@ kind counted in one statement grouped by it with that filter's condition off. `r
 with no filter on.
 
 Counts and roll-ups list at most 500 agents, sessions and topics each, the first in name order or in
-the list's, and say when they leave any out; the agents list pages agents, each with at most 500 of
-its sessions, and says when it leaves any out. A thread's summary lists at most 50 of its open asks,
-the most pressing, beside their count and the earliest.
+the list's, and say when they leave any out; the agents list and the sessions page page agents, each
+with at most 500 of its sessions, and say when they leave any out. A thread's summary lists at most
+50 of its open asks, the most pressing, beside their count and the earliest.
 
 ## HTTP API
 
@@ -277,6 +327,21 @@ styles, images and connections and no framing, HSTS, `nosniff`, `DENY` framing, 
 The long poll answers at once while a thread in the session has unread messages newer than its
 `since`, and otherwise ends when such a message commits, when its credential is revoked, when the
 client disconnects, when the server shuts down, or when its wait runs out.
+
+The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 2 in this release,
+serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
+to the agent contract, a new route or a new field on one, bumps it. Every answer on the agent mount,
+the refusals of the checks before it included, states the server's version in the
+`Agention-Agent-API` header, set by the first middleware for the mount's paths. A request states its
+own there, and a missing one means 1, which every bridge released before the header sends. The
+mount's first middleware refuses a request stating a version above the server's or below its oldest
+as `unsupported_version`, status 400, before authentication or any other work, worded for the agent
+as the bridge's own problems are: a newer bridge is told to have the operator upgrade the server or
+pin the plugin to a release that matches the server, an older one to have them update the plugin.
+Anyone who reaches the server can read the refusal, so it names the versions the server serves,
+never its release. A version is read whole, however many digits it has, and a header that is not a
+positive integer written without leading zeros is `invalid_input`, naming it. The web mount is not
+versioned: the server serves its own web UI, always in step.
 
 Unknown API routes answer `not_found`. Every other path serves the web UI: a file of the Vite build,
 or the UI's index page for any other path, whose router shows the route. The server prepares the
@@ -403,6 +468,17 @@ its key file, its tokens and where its requests may go.
   home directory must exist: the bridge creates only the directories below it.
 - **Tokens.** `jose` mints a token for each request, signed with the session's key. Each body is
   sent as a string, so it declares its length.
+- **Agent API version.** Every request states the version the bridge speaks in the
+  `Agention-Agent-API` header. An answer in Agention's JSON that states an older version, or none,
+  as every server before the header does, is refused before anything uses it, as a problem only the
+  operator can fix: they upgrade the server to the bridge's release or pin the plugin to the
+  server's. Such a server ignores what it does not know of a request, so a field the bridge sent
+  could otherwise go missing without a word. Every session calls `register` first, so a bridge meets
+  an older server there: for a key the server knows, on a call that changes nothing; for a new key,
+  the server records a pending registration before the bridge refuses its answer, so the agent never
+  relays its code, and the registration expires unapproved. A newer server's answers are used: it
+  serves the bridge's version, or refuses it in words of its own. An answer that is not Agention's
+  JSON, such as a proxy's, keeps its own problem.
 - **`register`** submits the key to `POST /api/agent/registrations`, which for a key the server
   knows creates nothing and reports its state. It answers with that state, keeping its `expires_at`
   only while the registration is pending, so an agent never reads it as the credential's; `replaced`
@@ -414,28 +490,29 @@ its key file, its tokens and where its requests may go.
   to. A thread tool that does not know them for the key on disk first makes the request `register`
   makes, and answers `unauthenticated` with what the operator still has to do unless the key is
   approved. Thread requests go to `/api/agent/s/<agent>/<session>/` under the granted names.
-- **Tools.** `register` and seven thread tools: `thread_create`, `message_send`, `thread_get`,
-  `thread_list`, `thread_read`, `thread_archive` and `message_wait`, each annotated neither
-  read-only nor destructive and as acting on a closed world. `thread_create` and `message_send` take
-  a message's detail beside its text, and refuse it without text, as the server does. A session
-  never answers an ask, so `message_send` takes no answers; it takes the withdrawals of the
-  session's own open asks. `message_wait` waits for nothing by default and answers at once, which is
-  how an agent checks for answers as it works; a longer wait is for an agent with no other work and
-  open asks or unread messages, or for a waiter of its own. `register`'s answer, once approved, says
-  how answers reach the agent: when it checks. No tool marks a thread unread, which agents have no
-  use for, though the agent API offers it as the web API does. The SDK advertises each tool's JSON
-  Schema, generated from the shared schemas, but the bridge parses the arguments itself, so input
-  outside a bound is `invalid_input` naming the field, as the server would answer it. A tool also
-  refuses a field it does not know, at any depth, as `invalid_input` naming it, so a misspelled
-  field never drops silently; the server's request schemas ignore unknown fields, so a newer bridge
-  still works against it. An answer is the API's JSON as text, and a call the server refuses is an
-  error result holding the API's error JSON. A problem the bridge finds itself, such as its
-  configuration, an unreachable server, missing names or a cancelled call, is an error result in
-  plain text, worded for the agent: what to do, or, for what only the operator can fix, to tell them
-  at the terminal what to change and whether the session must restart. `apps/bridge/src/errors.ts`
-  words those. `message_wait` gives every error but `invalid_input` no sooner than its
-  `wait_seconds` would have ended, counted from the call's start, so an agent that waits again at
-  once does not call a server it cannot use in a tight loop.
+- **Tools.** `register`, seven thread tools, `thread_create`, `message_send`, `thread_get`,
+  `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update`, which
+  reports the session's status, each annotated neither read-only nor destructive and as acting on a
+  closed world. `thread_create` and `message_send` take a message's detail beside its text, and
+  refuse it without text, as the server does. A session never answers an ask, so `message_send`
+  takes no answers; it takes the withdrawals of the session's own open asks. `message_wait` waits
+  for nothing by default and answers at once, which is how an agent checks for answers as it works;
+  a longer wait is for an agent with no other work and open asks or unread messages, or for a waiter
+  of its own. `register`'s answer, once approved, says how answers reach the agent: when it checks.
+  No tool marks a thread unread, which agents have no use for, though the agent API offers it as the
+  web API does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but
+  the bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the
+  field, as the server would answer it. A tool also refuses a field it does not know, at any depth,
+  as `invalid_input` naming it, so a misspelled field never drops silently, while the server's
+  request schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying
+  on that against an older server. An answer is the API's JSON as text, and a call the server
+  refuses is an error result holding the API's error JSON. A problem the bridge finds itself, such
+  as its configuration, an unreachable server, missing names or a cancelled call, is an error result
+  in plain text, worded for the agent: what to do, or, for what only the operator can fix, to tell
+  them at the terminal what to change and whether the session must restart.
+  `apps/bridge/src/errors.ts` words those. `message_wait` gives every error but `invalid_input` no
+  sooner than its `wait_seconds` would have ended, counted from the call's start, so an agent that
+  waits again at once does not call a server it cannot use in a tight loop.
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`. A page of messages or threads over the limit is asked for
@@ -458,7 +535,9 @@ its key file, its tokens and where its requests may go.
 
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
-protocol, and as a process over stdio.
+protocol, and as a process over stdio. The agent compatibility gate runs each released bridge's
+published bundle the same way against the server at HEAD
+([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API").
 
 ## Web UI
 
@@ -527,3 +606,6 @@ both generated manifests, and in the bridge's package spec in both generated MCP
 the generated outputs stay current without regeneration. A `v*` tag runs
 `.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
 [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
+
+The agent API has a version of its own, which a release bumps only when it changes the agent
+contract, as [HTTP API](#http-api) describes.
