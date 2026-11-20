@@ -388,8 +388,9 @@ stopped session's part in stranded, come with Delivery 3's envelope.
   a stamp may lag, so a session calling is never quiet, or when it was never seen.
 - A thread is stranded when it holds a live message by the operator after the session's read cursor
   while its session is quiet or has no active credential: the operator wrote, and the agent is not
-  there to read it, so the operator knows to resume it. An agent that has done what it can stops as
-  it otherwise would, and this is how its stopping shows.
+  there to read it, so the operator knows to resume it. An agent keeps running while it has open
+  asks or unread messages (ruling 61), so this shows an agent that stopped anyway, or is busy and
+  has not checked.
 - Both are computed in queries against the request's clock, never stored, like every signal.
 
 ### Bounds
@@ -865,15 +866,15 @@ replaces a key outside `register`.
     code points (two-byte scripts) down to about 9,500 (emoji), as can several large fields at once.
     The web UI shows everything in full.
 - `message_wait` with `wait_seconds` 0 answers at once with what is unread, which is how an agent
-  checks for answers as it works; its description says that an agent never waits on it, and that a
-  longer wait suits a waiter of the agent's own, such as a subagent, while the agent carries on
-  (ruling 48). Its 25-second ceiling leaves headroom under Codex's 60-second default tool timeout:
-  only its first request waits, a smaller page that a result over the cap asks for after it answers
-  at once, and the whole call, its credential lookup included, has its wait and one answer's 30
-  seconds to finish. A failed wait, for any reason but invalid input or cancellation (the server
-  unreachable, `unauthenticated`), answers no sooner than its `wait_seconds` would have ended, so a
-  waiter of the agent's own, waiting through an outage, calls once per wait rather than as fast as
-  it can.
+  checks for answers as it works (ruling 48); its description says that a longer wait is for an
+  agent with no other work and open asks or unread messages, or for a waiter of the agent's own,
+  such as a subagent (ruling 61). Its 25-second ceiling leaves headroom under Codex's 60-second
+  default tool timeout: only its first request waits, a smaller page that a result over the cap asks
+  for after it answers at once, and the whole call, its credential lookup included, has its wait and
+  one answer's 30 seconds to finish. A failed wait, for any reason but invalid input or cancellation
+  (the server unreachable, `unauthenticated`), answers no sooner than its `wait_seconds` would have
+  ended, so a waiter of the agent's own, waiting through an outage, calls once per wait rather than
+  as fast as it can.
 - Tool descriptions state what each priority level means, which fields are Markdown, what a
   message's text and detail each carry (ruling 53), and that an ask is revised by replacing its
   message and withdrawn, with a reason, by a later message or by the replacement revising its
@@ -899,26 +900,51 @@ both hosts.
   the first release publishes the bridge, live runs install a plugin rendered against a packed
   tarball (`npx -y --package=<file> agention-mcp`; npm 11 runs a bare tarball path as a command, not
   a package). The package arguments are the only difference from the committed plugin.
+- The skill opens, in its description, which hosts list before the skill loads, and in its body
+  (R35), with the rule (ruling 60) that every question, decision or approval the agent would put to
+  its user, whatever calls for it, goes to the operator as an ask, and that the agent never waits at
+  the terminal for an answer, neither through a question tool that waits (`AskUserQuestion` in
+  Claude Code, `request_user_input` in Codex) nor by ending its turn to wait, until the operator
+  says otherwise. The description says to load the skill whenever the agent uses Agention (ruling
+  61). Since the operator may follow the terminal alone for a while, whatever the agent sends the
+  operator in Agention it also shows at the terminal, and carries on: in its output, or with a
+  question tool that does not wait, such as Codex's `request_user_input_async`, which posts its
+  questions and returns at once. When something needs the operator at the terminal, such as leaving
+  plan mode, the agent asks for it through Agention.
+- The bridge's answer to `initialize` carries instructions with the same rule (ruling 60), so the
+  agent has it before the skill loads, and tells the agent to load the skill first. Claude Code adds
+  them to the agent's system prompt, and Codex describes the bridge's tools with them, showing only
+  their first 250 characters until the agent loads the tools (codex-cli 0.170.0), so they stay
+  within 250. `register`'s answer, once approved, says how answers reach the agent, which the skill
+  follows (ruling 61): with polling, v1's only method, only when it checks.
 - The skill's hard rules include calling `register` first in every conversation, with stable agent
   and session names when the environment supplies none; a fresh random request id for every write,
-  since several credentials can act as one session, reused only to retry that same write after an
-  unknown outcome; and never blocking on the terminal. Once registered, a question goes to the
-  operator as an ask, never through the host's own question tool (`AskUserQuestion` in Claude Code,
-  `request_user_input` in Codex) or a question that ends the agent's turn, and the agent carries on
-  with work that does not need the answer. It never waits on Agention (ruling 48): it checks for
-  answers as it works (`message_wait` with no wait), checks for itself what it can see (a pull
-  request's state, a deploy's), and once it has done what it can, stops as it otherwise would, its
-  asks staying open for its next run; a subagent of its own may wait, so long as the agent carries
-  on. It withdraws an ask it no longer needs answered, saying why, such as a pull request merged or
-  its fallback taken once answer-by passed, and relies on an answer it can check only once it has
+  since several credentials can act as one session (the tools' descriptions say a retry reuses it);
+  and never blocking, so the agent carries on with work that does not need the answer (ruling 48):
+  it checks for answers as it works (`message_wait` with no wait) and checks for itself what it can
+  see (a pull request's state, a deploy's). Once its other work is done, it keeps running while it
+  has open asks or unread messages, and stops when none remain or the operator tells it to (ruling
+  61). It checks in the way that costs least: a waiter of its own in the background where the host
+  offers one, such as a subagent, which keeps the conversation small; otherwise the longest wait,
+  passing `since` back, saying nothing between checks. A message without an ask is normal. It
+  withdraws an ask it no longer needs answered, saying why, such as a pull request merged or its
+  fallback taken once answer-by passed, and relies on an answer it can check only once it has
   checked it.
+- The skill has the agent take a message whose author is a person, which is the operator's, as the
+  operator's own words at its terminal (ruling 60): answers, instructions and corrections carry the
+  same authority, within the same limits, and a replaced message gives way to its replacement. The
+  server sets a message's author from authentication, so only the operator's passkey sign-in writes
+  one; messages from agent sessions are not the operator's. The operator moves between the terminal
+  and Agention as suits them, and the agent brings its threads in line with what it is told at the
+  terminal, replacing an ask that changes and withdrawing one that is settled.
 - The skill has every message stand on its own (ruling 53), so the operator can decide on it or
-  understand it from Agention alone, never going to the agent's terminal: the text says in a few
-  sentences what the matter is and what is needed, and the detail carries everything else, such as
-  what the agent found, the options and their tradeoffs, evidence, and excerpts of diffs, logs or
-  errors, with links as references. Neither points at what only the agent's conversation shows ("as
-  discussed", "the plan above"), and neither carries secrets: keys, tokens and passwords come out of
-  any excerpt, since no message is ever deleted. Its example shows a detail.
+  understand it from Agention alone, without going to the agent's terminal or another source: the
+  text says in a few sentences what the matter is and what is needed, and the detail carries
+  everything else, such as what the agent found, the options and their tradeoffs, evidence, and
+  excerpts of diffs, logs or errors, with links as references. Neither points at what only the
+  agent's conversation shows ("as discussed", "the plan above"), and neither carries secrets: keys,
+  tokens and passwords come out of any excerpt, since no message is ever deleted. Its example shows
+  a detail.
 - The skill's normal loop: `register`, and in a new conversation `thread_list` with status open for
   the asks it left open; one thread per matter, with a short topic naming the area of work, shared
   by the session's threads in that area, and an ask whenever an answer is wanted (a question,

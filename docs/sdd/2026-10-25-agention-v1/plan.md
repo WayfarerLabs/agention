@@ -159,13 +159,20 @@ model.
       roll-ups) that compose upward on the client, its threads arriving group by group (R28, rulings
       38, 40 and 41). Session groups add their level in Delivery 3.
 - [ ] Plugin and usage skill (R35): generated Claude Code and Codex plugins carrying the skill and
-      declaring the bridge, with the Codex environment list; the skill's normal loop starting with
-      `register`, one example and hard rules, including asking whenever an answer is needed and
-      never blocking on the terminal, topics, asks that belong together in one message, revising an
-      ask, its priority included, by replacing its message, withdrawing one with a reason, checking
-      for itself what it can see and an answer it can check, and never waiting on Agention: asking
-      and carrying on, checking for answers as it works, and stopping as it otherwise would (R11,
-      R35; rulings 46 and 48).
+      declaring the bridge, with the Codex environment list; the skill opening, in its description
+      and its body, with asking through Agention and never waiting at the terminal for an answer,
+      which the bridge's `initialize` instructions also tell every host along with loading the
+      skill, and with the agent also showing at the terminal whatever it sends the operator in
+      Agention; then following the bridge, starting with `register`, whose answer says how answers
+      reach the agent; the normal loop, one example and hard rules, including asking whenever an
+      answer is needed and never blocking on the terminal, the operator's messages taken as their
+      words at the terminal and what they say at the terminal brought into the threads, topics, asks
+      that belong together in one message, revising an ask, its priority included, by replacing its
+      message, withdrawing one with a reason, checking for itself what it can see and an answer it
+      can check, messages without asks as normal, and never waiting on Agention while other work
+      remains: asking and carrying on, checking for answers as it works, and, once that work is
+      done, keeping running while it has open asks or unread messages, checking in the way that
+      costs least (R11, R35; rulings 46, 48, 60 and 61).
 - [x] Host verification: the generated plugins, rendered against a packed bridge tarball, install on
       Claude Code and Codex and run the bridge with the declared environment, and Codex runs the
       annotated tools without a prompt (Codex: basic plugin-integration prompts only). (agention
