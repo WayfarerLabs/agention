@@ -1,6 +1,7 @@
 import {
   registrationSubmitInput,
   sessionThreadsQuery,
+  sessionUpdateInput,
   threadCreateInput,
   waitQuery,
 } from "@wayfarerlabs/agention-api";
@@ -14,6 +15,7 @@ import {
   markSeen,
   type Store,
   submitRegistration,
+  updateSession,
   waitForThreads,
 } from "../store/index.ts";
 import { parseBody, parseQuery, sessionTarget } from "./input.ts";
@@ -99,6 +101,11 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   };
   api.use("/s/*", authenticate);
 
+  api.post("/s/:agent/:session/status", async (c) => {
+    const target = sessionTarget(c);
+    const input = await parseBody(c, sessionUpdateInput);
+    return c.json(updateSession(store, c.var.identity, target, input));
+  });
   api.post("/s/:agent/:session/threads", async (c) => {
     const target = sessionTarget(c);
     const input = await parseBody(c, threadCreateInput);

@@ -70,7 +70,8 @@ const parts = {
   status: { keeps: "th.status = :status", on: (query) => query.status !== undefined },
   unread: { keeps: "th.unread > 0", on: (query) => query.unread },
   // A live message by the viewer beyond the other party's read mark, and for
-  // stranded, while the session is quiet or has no active credential.
+  // stranded, while the session is quiet, has no active credential or has
+  // stopped.
   agent_read: {
     keeps: "IIF(:agent_read = 'stranded', th.stranded, th.unread_by_other)",
     on: (query) => query.agent_read !== undefined,

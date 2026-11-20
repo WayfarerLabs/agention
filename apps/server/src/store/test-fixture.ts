@@ -5,9 +5,13 @@ import {
   messageSendInput,
   type PublicKey,
   publicKey,
+  type SessionUpdateInput,
+  sessionUpdateInput,
   type ThreadCreateInput,
   threadCreateInput,
   threadGetQuery,
+  type ThreadStartInput,
+  threadStartInput,
 } from "@wayfarerlabs/agention-api";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
@@ -18,12 +22,14 @@ import { type Identity, identityForBrowserSession, identityForRegistration } fro
 import { insertOperator } from "./directory.ts";
 import { markSeen } from "./presence.ts";
 import { approveRegistration, submitRegistration } from "./registrations.ts";
+import { updateSession } from "./sessions.ts";
 import { createStore, type Store } from "./store.ts";
 import {
   createThread,
   getThread,
   sendMessage,
   type SessionTarget,
+  startThread,
   type ThreadTarget,
 } from "./threads.ts";
 
@@ -172,6 +178,28 @@ export class Fixture {
       ...fields,
     });
     return createThread(this.store, agent.identity, agent.target, input);
+  }
+
+  // startThread starts a thread on the agent's session as the operator, from
+  // fields the schema parses, by default with a title and text alone.
+  startThread(agent: Agent, fields: Partial<Record<keyof ThreadStartInput, unknown>> = {}) {
+    const input = threadStartInput.parse({
+      request_id: requestId(),
+      title: "Over to you",
+      text: "Please look.",
+      ...fields,
+    });
+    return startThread(this.store, this.operator, agent.target, input);
+  }
+
+  // report updates the agent's session status from fields the schema parses.
+  report(agent: Agent, fields: Partial<Record<keyof SessionUpdateInput, unknown>>) {
+    return updateSession(
+      this.store,
+      agent.identity,
+      agent.target,
+      sessionUpdateInput.parse(fields),
+    );
   }
 
   // thread reads a thread, with up to 100 messages, as the identity sees it.

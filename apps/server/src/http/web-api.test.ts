@@ -1,17 +1,33 @@
-import type { ErrorBody, SessionState, ThreadList } from "@wayfarerlabs/agention-api";
+import type {
+  ErrorBody,
+  SessionState,
+  SessionsPage,
+  ThreadGetResult,
+  ThreadList,
+  WaitResult,
+  WriteResult,
+} from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openBrowserSession } from "../auth/browser-sessions.ts";
 import { findOperator } from "../store/index.ts";
 import { hour } from "../store/test-fixture.ts";
-import { codeOf, Harness, newThread, origin, sessionCookie } from "./test-harness.ts";
+import {
+  type AgentKey,
+  codeOf,
+  Harness,
+  newThread,
+  origin,
+  sessionCookie,
+} from "./test-harness.ts";
 
 const day = 24 * hour;
 
 let harness: Harness;
+let agent: AgentKey;
 
 beforeEach(async () => {
   harness = new Harness();
-  const agent = await harness.approvedAgent("builder", "main");
+  agent = await harness.approvedAgent("builder", "main");
   await harness.agent(agent, "POST", "/s/builder/main/threads", newThread("r-1"));
 });
 
@@ -275,5 +291,117 @@ describe("the operator's views", () => {
     expect(codeOf(await harness.web("POST", "/registrations/999/reject"))).toBe("not_found");
     const malformed = await harness.web("POST", "/registrations/first/reject");
     expect(codeOf(malformed)).toBe("invalid_input");
+  });
+});
+
+describe("the sessions view", () => {
+  const report = (body: unknown) => harness.agent(agent, "POST", "/s/builder/main/status", body);
+
+  it("lists each agent's sessions with their status and unread updates", async () => {
+    await report({ state: "working", title: "Retire invoices", goal: "Drop the table" });
+    await report({ percent: 40, note: "Backfill under way." });
+    const page = (await harness.web("GET", "/sessions")).body as SessionsPage;
+    expect(page.agents).toMatchObject([
+      {
+        agent: "builder",
+        sessions: [
+          {
+            session: "main",
+            presence: { quiet: false },
+            registrations: [{ id: harness.registrationId(agent) }],
+            status: {
+              state: "working",
+              title: "Retire invoices",
+              goal: "Drop the table",
+              percent: 40,
+              note: "Backfill under way.",
+            },
+            unread_updates: 2,
+            threads: { total: 1, stranded: 0 },
+          },
+        ],
+        truncated: false,
+      },
+    ]);
+    expect(codeOf(await harness.web("GET", "/sessions?limit=0"))).toBe("invalid_input");
+  });
+
+  it("pages a session's log newest first and marks it read", async () => {
+    await report({ state: "working" });
+    await report({ percent: 20 });
+    await report({ percent: 60 });
+    const log = await harness.web("GET", "/s/builder/main/updates?limit=2");
+    expect(log.body).toMatchObject({
+      updates: [
+        { seq: 3, percent: 60 },
+        { seq: 2, percent: 20 },
+      ],
+      read_through: 0,
+    });
+    const older = await harness.web("GET", "/s/builder/main/updates?before=2");
+    expect(older.body).toMatchObject({ updates: [{ seq: 1, state: "working" }] });
+    const read = await harness.web("POST", "/s/builder/main/updates/read", { through: 3 });
+    expect(read.body).toEqual({ read_through: 3 });
+    const beyond = await harness.web("POST", "/s/builder/main/updates/read", { through: 4 });
+    expect([codeOf(beyond), (beyond.body as ErrorBody).error.field]).toEqual([
+      "invalid_input",
+      "through",
+    ]);
+    const unsigned = await harness.web(
+      "POST",
+      "/s/builder/main/updates/read",
+      { through: 3 },
+      {
+        csrf: null,
+      },
+    );
+    expect(codeOf(unsigned)).toBe("unauthenticated");
+  });
+
+  it("starts the operator's thread on a session, which the session's next wait reports", async () => {
+    const start = { request_id: "o-1", title: "Rebase onto main", text: "Main moved." };
+    const started = await harness.web("POST", "/s/builder/main/threads", start);
+    expect(started.body).toEqual({ number: 2, seq: 1 });
+    expect((await harness.web("POST", "/s/builder/main/threads", start)).body).toEqual(
+      started.body,
+    );
+    const conflict = await harness.web("POST", "/s/builder/main/threads", {
+      ...start,
+      text: "Main moved again.",
+    });
+    expect(codeOf(conflict)).toBe("request_id_conflict");
+    const waited = await harness.agent(agent, "GET", "/s/builder/main/wait?wait=0");
+    expect((waited.body as WaitResult).threads).toMatchObject([
+      { number: 2, title: "Rebase onto main", unread: 1 },
+    ]);
+    const refused = await harness.web("POST", "/s/builder/main/threads", {
+      ...start,
+      request_id: "o-2",
+      text: undefined,
+    });
+    expect([codeOf(refused), (refused.body as ErrorBody).error.field]).toEqual([
+      "invalid_input",
+      "text",
+    ]);
+  });
+
+  it("starts the operator's thread with no asks, topic or references, whatever its body carries", async () => {
+    const started = await harness.web("POST", "/s/builder/main/threads", {
+      request_id: "o-parts",
+      title: "Look at this",
+      text: "Please look.",
+      asks: [{ question: "Ship it?" }],
+      topic: "release",
+      references: [{ label: "The pull request", url: "https://example.com/pull/1" }],
+    });
+    expect(codeOf(started)).toBe("ok");
+    const { number } = started.body as WriteResult;
+    const read = (await harness.web("GET", `/s/builder/main/threads/${number}`))
+      .body as ThreadGetResult;
+    expect(read.thread).not.toHaveProperty("topic");
+    expect(read.thread.open_asks.count).toBe(0);
+    expect(read.messages[0]).toMatchObject({ seq: 1, text: "Please look." });
+    expect(read.messages[0]).not.toHaveProperty("asks");
+    expect(read.messages[0]).not.toHaveProperty("references");
   });
 });

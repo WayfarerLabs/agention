@@ -39,7 +39,8 @@
     "unstub",
     "usernameless",
     "wayfarerlabs",
-    "webauthn"
+    "webauthn",
+    "zeroblob"
   ],
   "ignoreRegExpList": ["`[^`\\r\\n]+`"],
   "ignorePaths": [

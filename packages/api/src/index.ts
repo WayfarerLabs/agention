@@ -5,6 +5,7 @@ export * from "./origin.ts";
 export * from "./passkeys.ts";
 export * from "./references.ts";
 export * from "./registrations.ts";
+export * from "./sessions.ts";
 export * from "./text.ts";
 export * from "./thread-lists.ts";
 export * from "./threads.ts";

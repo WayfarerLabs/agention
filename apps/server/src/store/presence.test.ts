@@ -101,6 +101,24 @@ describe("quiet", () => {
   });
 });
 
+describe("a session's state", () => {
+  it("shows on its threads' presence, never on a group's", () => {
+    fixture.createThread(agent);
+    fixture.seen(agent);
+    fixture.report(agent, { state: "stopped", outcome: "stalled" });
+    expect(thread().presence).toMatchObject({ state: "stopped", outcome: "stalled" });
+    const grouped = listThreads(
+      fixture.store,
+      fixture.operator,
+      threadsQuery.parse({ group: "agent" }),
+    );
+    expect(grouped.groups?.sessions[0]?.presence).toEqual({
+      last_seen_at: new Date(fixture.now).toISOString(),
+      quiet: false,
+    });
+  });
+});
+
 describe("stranded", () => {
   beforeEach(() => {
     fixture.createThread(agent, { title: "written to" });
@@ -128,6 +146,16 @@ describe("stranded", () => {
     // The agent coming back ends it, before it reads a thing.
     fixture.seen(agent);
     expect(thread(1).stranded).toBe(false);
+  });
+
+  it("holds such a message while the session has stopped, until it resumes", () => {
+    fixture.report(agent, { state: "stopped", outcome: "completed" });
+    expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([true, false, false]);
+    expect(stranded()).toEqual(["written to"]);
+    const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+    fixture.report(agent, { state: "working" });
+    expect(stranded()).toEqual([]);
   });
 
   it("holds such a message while the session has no active credential, seen or not", () => {

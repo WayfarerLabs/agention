@@ -536,3 +536,33 @@ describe("agent session routes", () => {
     );
   });
 });
+
+describe("session status", () => {
+  const status = (body: unknown) => harness.agent(approved, "POST", "/s/builder/main/status", body);
+
+  it("answers with the session's status after each update", async () => {
+    expect((await status({ state: "working", title: "Retire invoices" })).body).toEqual({
+      state: "working",
+      title: "Retire invoices",
+    });
+    expect((await status({ goal: "Drop the table", percent: 40 })).body).toEqual({
+      state: "working",
+      title: "Retire invoices",
+      goal: "Drop the table",
+      percent: 40,
+    });
+    expect((await status({ state: "stopped", outcome: "completed", note: "Done." })).body).toEqual({
+      state: "stopped",
+      outcome: "completed",
+      title: "Retire invoices",
+      goal: "Drop the table",
+      percent: 40,
+    });
+  });
+
+  it("refuses input outside the schema as invalid_input, naming the field", async () => {
+    const response = await status({ state: "stopped" });
+    expect(codeOf(response)).toBe("invalid_input");
+    expect((response.body as ErrorBody).error.field).toBe("outcome");
+  });
+});

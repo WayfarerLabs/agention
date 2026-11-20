@@ -3,13 +3,15 @@ import {
   messageSendInput,
   threadCreateInput,
   threadGetQuery,
+  threadStartInput,
   threadsQuery,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
+import { revokeRegistration } from "./registrations.ts";
 import { type Agent, Fixture, hour, requestId, threadTarget } from "./test-fixture.ts";
 import { listThreads } from "./thread-lists.ts";
-import { createThread, getThread, sendMessage } from "./threads.ts";
+import { createThread, getThread, sendMessage, startThread } from "./threads.ts";
 
 let fixture: Fixture;
 let agent: Agent;
@@ -152,6 +154,93 @@ describe("createThread", () => {
     expect(
       failure(() => createThread(fixture.store, fixture.operator, agent.target, input)).code,
     ).toBe("not_allowed");
+  });
+});
+
+describe("startThread", () => {
+  it("makes the session the requester and the operator the audience, writing the first message", () => {
+    fixture.createThread(agent);
+    expect(
+      fixture.startThread(agent, {
+        title: "Rebase onto main",
+        text: "Main moved; please rebase.",
+        detail: "Three commits landed.",
+      }),
+    ).toEqual({ number: 2, seq: 1 });
+    const operatorView = read(fixture.operator, 2);
+    expect(operatorView.thread).toMatchObject({ title: "Rebase onto main", unread: 0 });
+    expect(operatorView.marks).toEqual({ read_through: 1, archived_through: 0 });
+    expect(operatorView.messages).toMatchObject([
+      {
+        seq: 1,
+        author: { kind: "person", name: "operator" },
+        text: "Main moved; please rebase.",
+        detail: "Three commits landed.",
+      },
+    ]);
+    expect(read(agent.identity, 2)).toMatchObject({
+      thread: { unread: 1, read_through: 0 },
+      cursors: { requester: 0, audience: 1 },
+    });
+    const registration = fixture.db
+      .prepare(
+        "SELECT registration_id FROM messages m JOIN threads t ON t.id = m.thread_id WHERE t.number = 2",
+      )
+      .get() as { registration_id: number | null };
+    expect(registration.registration_id).toBeNull();
+  });
+
+  it("leaves the session the requester's parts and the operator the audience's", () => {
+    fixture.startThread(agent);
+    fixture.write(agent.identity, target(), { text: "Rebased.", asks: [{ question: "Push it?" }] });
+    expect(failure(() => fixture.write(fixture.operator, target(), { topic: "release" }))).toEqual({
+      code: "not_allowed",
+      field: "topic",
+    });
+    fixture.write(fixture.operator, target(), { answers: [{ ask: 1, text: "Yes." }] });
+    expect(read().thread.status).toBe("answered");
+  });
+
+  it("wakes the session's long polls", async () => {
+    const woken = fixture.store.notifier.wait(agent.sessionId, 5000);
+    fixture.startThread(agent);
+    expect(await woken).toBe("notified");
+  });
+
+  it("answers a retry as it did, and a reused request id with other content as a conflict", () => {
+    const id = requestId();
+    const first = fixture.startThread(agent, { request_id: id });
+    expect(fixture.startThread(agent, { request_id: id })).toEqual(first);
+    expect(failure(() => fixture.startThread(agent, { request_id: id, text: "Other." }))).toEqual({
+      code: "request_id_conflict",
+      field: "request_id",
+    });
+    expect(fixture.startThread(agent).number).toBe(2);
+  });
+
+  it("starts a thread on a session with no credential, stranded from the start", () => {
+    fixture.seen(agent);
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    expect(fixture.startThread(agent)).toEqual({ number: 1, seq: 1 });
+    expect(read().thread).toMatchObject({ stranded: true, credential_active: false });
+  });
+
+  it("is the operator's alone, on a session they name", () => {
+    const input = threadStartInput.parse({ request_id: requestId(), title: "t", text: "m" });
+    expect(failure(() => startThread(fixture.store, agent.identity, agent.target, input))).toEqual({
+      code: "not_allowed",
+      field: undefined,
+    });
+    const other = fixture.registerAgent("reviewer", "main");
+    expect(failure(() => startThread(fixture.store, agent.identity, other.target, input))).toEqual({
+      code: "not_found",
+      field: undefined,
+    });
+    const nowhere = { agent: "builder", session: "nowhere" };
+    expect(failure(() => startThread(fixture.store, fixture.operator, nowhere, input))).toEqual({
+      code: "not_found",
+      field: undefined,
+    });
   });
 });
 

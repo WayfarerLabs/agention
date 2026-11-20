@@ -327,4 +327,47 @@ export const migrations: readonly string[] = [
     PRIMARY KEY (actor_id, thread_id)
   ) STRICT, WITHOUT ROWID;
   `,
+  `
+  -- The append-only log of the status each session reports. An entry holds
+  -- the session's whole status after it, so the current status is the entry
+  -- with the highest seq, and nothing about it is stored on sessions. seq
+  -- counts the session's entries from 1, apart from sessions.last_pos, which
+  -- counts its messages. registration_id records the credential behind the
+  -- entry. Only a stopped session has an outcome, and a stopped one always
+  -- does.
+  CREATE TABLE session_updates (
+    session_id INTEGER NOT NULL REFERENCES sessions (id),
+    seq INTEGER NOT NULL CHECK (seq >= 1),
+    registration_id INTEGER NOT NULL REFERENCES registrations (id),
+    -- The session's status after this entry.
+    state TEXT NOT NULL CHECK (state IN ('working', 'idle', 'stopped')),
+    outcome TEXT CHECK (outcome IN ('completed', 'withdrawn', 'stalled')),
+    title TEXT,
+    goal TEXT,
+    percent INTEGER CHECK (percent BETWEEN 0 AND 100),
+    -- This entry's own note, which no later entry carries.
+    note TEXT,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (session_id, seq),
+    CHECK ((state = 'stopped') = (outcome IS NOT NULL))
+  ) STRICT, WITHOUT ROWID;
+
+  CREATE TRIGGER session_updates_no_update BEFORE UPDATE ON session_updates
+  BEGIN
+    SELECT RAISE(ABORT, 'session updates are append-only');
+  END;
+  CREATE TRIGGER session_updates_no_delete BEFORE DELETE ON session_updates
+  BEGIN
+    SELECT RAISE(ABORT, 'session updates are append-only');
+  END;
+
+  -- Each actor's read cursor on each session's log, as thread_marks holds
+  -- one on a thread; it is only ever raised.
+  CREATE TABLE session_marks (
+    actor_id INTEGER NOT NULL REFERENCES actors (id),
+    session_id INTEGER NOT NULL REFERENCES sessions (id),
+    read_seq INTEGER NOT NULL DEFAULT 0 CHECK (read_seq >= 0),
+    PRIMARY KEY (actor_id, session_id)
+  ) STRICT, WITHOUT ROWID;
+  `,
 ];

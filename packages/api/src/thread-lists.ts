@@ -10,14 +10,13 @@ import {
   threadNumber,
 } from "./bounds.ts";
 import { name, sessionPathPattern, topicPathPattern } from "./names.ts";
+import { type Presence, presence } from "./sessions.ts";
 import { singleLineText } from "./text.ts";
 import {
   cursors,
   effort,
   impact,
   marks,
-  type Presence,
-  presence,
   type Priority,
   priority,
   type ThreadStatus,
@@ -72,7 +71,8 @@ export const agentReadFilter = z
   .enum(["unread", "stranded"])
   .describe(
     "Only threads holding a message of yours that the session has not read: unread for any " +
-      "such thread, stranded for one while the session is quiet or has no active credential.",
+      "such thread, stranded for one while the session is quiet, has no active credential or " +
+      "has stopped.",
   );
 
 // A session's threads, as its own agent lists them.

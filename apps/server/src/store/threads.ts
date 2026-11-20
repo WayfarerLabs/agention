@@ -8,6 +8,7 @@ import {
   type ThreadCreateInput,
   type ThreadGetQuery,
   type ThreadGetResult,
+  type ThreadStartInput,
   type Withdrawal,
   type WriteResult,
 } from "@wayfarerlabs/agention-api";
@@ -447,32 +448,38 @@ function checkAnswer(answer: Answer, asked: StoredAsk, field: string): void {
   }
 }
 
-// createThread starts a thread in the session the identity is acting as, with
-// its first message: the session is the requester and the operator the
-// audience.
-export function createThread(
+// The parties of a thread, by their actors.
+interface Roles {
+  requester: number;
+  audience: number;
+}
+
+// addThread starts a thread in a session with its first message, for either
+// party that starts threads. Inside the transaction, once the request is
+// authorized and is no replay of an earlier one, roles decides who the
+// requester and the audience are, and throws notAllowed for an identity that
+// may not start this thread. The thread takes the session's next number, its
+// first message raises the writer's read mark through it, and the session's
+// long polls wake once it commits.
+function addThread(
   store: Store,
   identity: Identity,
   target: SessionTarget,
-  input: ThreadCreateInput,
+  operation: string,
+  input: Parts & { request_id: string; title: string },
+  roles: (db: Database, sessionId: number) => Roles,
 ): WriteResult {
   const { db } = store;
   const { request_id: requestId, title, ...parts } = input;
   const outcome = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, target, now);
-    const digest = writeDigest("thread_create", { session: sessionId }, { title, ...parts });
+    const digest = writeDigest(operation, { session: sessionId }, { title, ...parts });
     const prior = replayed(db, identity.actor, requestId, digest);
     if (prior !== undefined) {
       return { sessionId, appended: false, result: prior };
     }
-    if (identity.actor !== sessionActorId(db, sessionId)) {
-      throw notAllowed(undefined, "only a session starts threads, and only in itself");
-    }
-    const operator = findOperator(db);
-    if (operator === undefined) {
-      throw new Error("an agent holds a credential, but no operator exists");
-    }
+    const { requester, audience } = roles(db, sessionId);
     checkReferences(db, sessionId, parts.references);
     const { number } = db
       .prepare("SELECT COALESCE(MAX(number), 0) + 1 AS number FROM threads WHERE session_id = ?")
@@ -483,7 +490,7 @@ export function createThread(
            created_at, last_seq)
          VALUES (?, ?, ?, ?, ?, ?, 1) RETURNING id`,
       )
-      .get(sessionId, number, identity.actor, operator.actorId, title, now) as { id: number };
+      .get(sessionId, number, requester, audience, title, now) as { id: number };
     appendMessage(db, { id, session_id: sessionId }, 1, identity, {
       requestId,
       digest,
@@ -496,6 +503,46 @@ export function createThread(
     store.notifier.notify(outcome.sessionId);
   }
   return outcome.result;
+}
+
+// createThread starts a thread in the session the identity is acting as, with
+// its first message: the session is the requester and the operator the
+// audience.
+export function createThread(
+  store: Store,
+  identity: Identity,
+  target: SessionTarget,
+  input: ThreadCreateInput,
+): WriteResult {
+  return addThread(store, identity, target, "thread_create", input, (db, sessionId) => {
+    if (identity.actor !== sessionActorId(db, sessionId)) {
+      throw notAllowed(undefined, "only a session starts threads, and only in itself");
+    }
+    const operator = findOperator(db);
+    if (operator === undefined) {
+      throw new Error("an agent holds a credential, but no operator exists");
+    }
+    return { requester: identity.actor, audience: operator.actorId };
+  });
+}
+
+// startThread starts a thread on a session for the operator, with their first
+// message: the session stays the requester and the operator the audience, so
+// the operator writes what the session reads as their words and replies to,
+// and the requester's parts, asks and a topic, never come from them. The
+// thread starts whether or not the session is there to read it.
+export function startThread(
+  store: Store,
+  identity: Identity,
+  target: SessionTarget,
+  input: ThreadStartInput,
+): WriteResult {
+  return addThread(store, identity, target, "thread_start", input, (db, sessionId) => {
+    if (identity.actor !== findOperator(db)?.actorId) {
+      throw notAllowed(undefined, "only the operator starts threads on a session");
+    }
+    return { requester: sessionActorId(db, sessionId), audience: identity.actor };
+  });
 }
 
 // sendMessage appends a message to a thread.

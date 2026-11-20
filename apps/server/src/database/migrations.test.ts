@@ -8,6 +8,8 @@ import { migrations } from "./migrations.ts";
 const shipped = [
   // Migration 1, frozen at 0.1.0.
   "f9b61056f8a1369831725f57006632e262c2192c83611bfc1179f7e6cccc75c4",
+  // Migration 2, the session log, frozen at 0.3.0.
+  "600b158072dc5e03dc9a0464667439694d13f59a86f3959db67f56c561796804",
 ];
 
 it("keeps every shipped migration as it shipped", () => {
