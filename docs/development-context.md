@@ -28,10 +28,10 @@ index of those docs.
   generated agent plugins"), and in its network path, since nothing depends on Tailscale (ADR 0001
   "Transport independence")
 - Load-bearing dependencies and optional integrations: ADR 0001 "Repository and supply chain", and
-  `docs/architecture.md` "API contract" and "Web UI"; optional: Tailscale, the documented path
-  (`docs/operator-guide.md` "Publishing it with `tailscale serve`", ADR 0001 "Transport
-  independence"), and Agentworks, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only default the
-  session's names (`docs/operator-guide.md` "Agents")
+  `docs/architecture.md` "API contract" and "Web UI"; optional: Tailscale, one documented way to
+  publish the server (`docs/operator-guide.md` "Publishing it with `tailscale serve`", ADR 0001
+  "Transport independence"), and Agentworks, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only
+  default the session's names (`docs/operator-guide.md` "Agents")
 - Product shape, which selects the `project-review` conditional checks: long-lived managed entities
   agents, sessions, registrations and threads (ADR 0001 "Agents, sessions and threads";
   `docs/architecture.md` "Store"; `docs/operator-guide.md` "Approving agents"); persisted state and

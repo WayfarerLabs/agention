@@ -26,7 +26,7 @@ bind the change that builds them, and that change documents them in the permanen
 ## A1. Standalone and runtime-neutral
 
 Agention never grants permissions, injects into a chat, controls a harness, or acts on message
-content (ADR 0001 "Not doing"). Tailscale is the documented path, not a dependency (ADR 0001
+content (ADR 0001 "Not doing"). Tailscale is one documented way to host, not a dependency (ADR 0001
 "Transport independence"); Agentworks only supplies the session's default names, and nothing else
 depends on it; the MCP surface and usage skill work on every supported agent host (ADR 0001
 "Distribution: generated agent plugins"); and Agention uses no paid services (ADR 0001 "Repository
