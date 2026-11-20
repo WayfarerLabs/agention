@@ -498,11 +498,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     beside your picks: choosing it opens a field for them and moves you there, and clearing it keeps
     the words for when you choose it again, and sends none. An ask without suggested answers has
     only that field. **Decline to answer**, below the choices, sets them aside and declines the ask
-    when you send, until you undo it. **Change answer**, in the options of a message carrying your
-    answers, opens again the card of every ask that message answered that is still live, with your
-    answers, moves you to the first, unfolding the archived messages when it is among them, and puts
-    that message's text and details in their boxes. An answer to an ask the agent since revised or
-    retracted stays with that message, and the line above the box says so.
+    when you send, until you undo it. While the card holds an answer or a decline you have not sent,
+    **Clear** there removes it as **Remove** in the line above the box does, leaving you on the card
+    as it was before you chose anything. **Change answer**, in the options of a message carrying
+    your answers, opens again the card of every ask that message answered that is still live, with
+    your answers, moves you to the first, unfolding the archived messages when it is among them, and
+    puts that message's text and details in their boxes. An answer to an ask the agent since revised
+    or retracted stays with that message, and the line above the box says so.
   - **Edit** in the options of your other messages changes their text and details, and drops their
     answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
     whole message, so they need empty boxes with nothing staged. A replaced message folds into one
@@ -515,12 +517,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     details and no message, **Send** waits and the box says why. You can answer several asks at
     once, up to ten, and **Send** sends the answers, the text or both as one message. A line above
     the box names each answer or decline by its ask's number (**Ask 3: “Postgres”**), each with
-    **Remove** to drop it, which also clears its card; a change of answers or an edit shows as one
-    line, removed whole. **Send** is available only when there is something complete to send:
-    **Other** without words is not, and its field says so once you leave it. Once ten cards hold
-    answers, the other asks' choices are unavailable until you send or remove one. While a change or
-    an edit is staged, nothing else can be started until you send or remove it, and removing it
-    empties both boxes. An edit needs text.
+    **Remove** to drop it, which also clears its card, as **Clear** on the card does; a change of
+    answers or an edit shows as one line, removed whole there, and the cards of a change offer no
+    **Clear**. **Send** is available only when there is something complete to send: **Other**
+    without words is not, and its field says so once you leave it. Once ten cards hold answers, the
+    other asks' choices are unavailable until you send or remove one. While a change or an edit is
+    staged, nothing else can be started until you send or remove it, and removing it empties both
+    boxes. An edit needs text.
   - Beside **Send**, **Go back after sending** returns you to the list, as **Threads** does, once a
     message is sent, and the list says what was sent; a message that fails to send stays on the page
     with your draft. It is checked until you uncheck it, and this browser keeps your choice.

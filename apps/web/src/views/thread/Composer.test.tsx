@@ -476,6 +476,62 @@ describe("answering on the card", () => {
     expect(body).not.toHaveProperty("text");
   });
 
+  it.each([
+    ["a pick where the ask allows one", {}, () => fireEvent.click(choice(/^SQLite/))],
+    [
+      "picks and Other's words where it allows several",
+      three,
+      () => {
+        fireEvent.click(choice("Fast"));
+        fireEvent.click(choice("Other"));
+        fireEvent.change(within(card()).getByRole("textbox", { name: "Other" }), {
+          target: { value: "Quietly." },
+        });
+      },
+    ],
+    [
+      "a decline",
+      {},
+      () => {
+        fireEvent.click(choice(/^SQLite/));
+        fireEvent.click(within(card()).getByRole("button", { name: "Decline to answer" }));
+      },
+    ],
+  ])(
+    "clears %s from the card as Remove does, moving focus to the card",
+    async (_, shape, answer) => {
+      await opening(shape);
+      const clear = () => within(card()).queryByRole("button", { name: "Clear" });
+      expect(clear()).toBeNull();
+      answer();
+      expect(stagedLine()).not.toBeNull();
+      fireEvent.click(clear() as HTMLElement);
+      expect(stagedLine()).toBeNull();
+      expect(clear()).toBeNull();
+      expect(document.activeElement).toBe(card());
+      // The card is as it was before anything was chosen, own words included.
+      expect(choices().length).toBeGreaterThan(0);
+      expect(choices().some((input) => input.checked)).toBe(false);
+      fireEvent.click(choice("Other"));
+      expect(
+        within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" }).value,
+      ).toBe("");
+    },
+  );
+
+  it("clears one card, leaving the answers staged on the others", async () => {
+    await page.openWith(
+      [message(1, { asks: [ask(), ask({ number: 2, question: "And the cache?" })] })],
+      openAsks([1, 1], [2, 1]),
+    );
+    fireEvent.click(choice(/^SQLite/, 1));
+    fireEvent.click(choice(/^Postgres/, 2));
+    fireEvent.click(within(card(1)).getByRole("button", { name: "Clear" }));
+    expect(stagedAnswers()).toHaveLength(1);
+    expect(stagedAnswers()[0]?.textContent).toContain("2");
+    expect(choice(/^Postgres/, 2).checked).toBe(true);
+  });
+
   it("holds answers on several asks' cards, sending them all with the text as one message", async () => {
     await page.openWith(
       [
@@ -607,9 +663,13 @@ describe("answering on the card", () => {
     await waitFor(() => expect(document.activeElement).toBe(card(1)));
     expect(within(card(2)).getByRole("button", { name: "Undo" })).toBeTruthy();
     expect(choices(3).every((input) => input.disabled)).toBe(true);
-    // The change goes whole: one Remove, and no answer removed apart.
+    // The change goes whole: one Remove, and no answer removed apart, nor
+    // cleared from its card.
     expect(stagedAnswers()).toEqual([]);
     expect(within(stagedLine() as HTMLElement).getAllByRole("button")).toHaveLength(1);
+    for (const number of [1, 2]) {
+      expect(within(card(number)).queryByRole("button", { name: "Clear" })).toBeNull();
+    }
     fireEvent.click(within(card(2)).getByRole("button", { name: "Undo" }));
     fireEvent.click(choice(/^Postgres/, 2));
     page.api.on("POST", `${path}/messages`, written(4));
