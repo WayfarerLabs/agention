@@ -344,7 +344,9 @@ loopback behind `tailscale serve`. Nothing requires Tailscale.
 
 **R33. Bounded inputs and typed errors.** Every text field, list and page has a documented bound.
 Errors are typed (at least invalid input, not found, stale, request-id conflict, rate limited,
-unauthenticated) and consistent across the MCP and web surfaces.
+unauthenticated) and consistent across the MCP and web surfaces. The bridge words the problems it
+finds itself for the agent: what the agent does, or, for what only the operator can fix, to tell
+them (ruling 62).
 
 **R34. Consistent backup.** The operator can take a consistent backup of a running instance and
 restore it, following documented steps. History is retained indefinitely.
@@ -1066,6 +1068,19 @@ Recorded from the design conversation.
     it to; a message without an ask is normal; the skill's description says to load it whenever the
     agent uses Agention; until v1 is released, ADR 0001 states its decisions as they stand, without
     a log of amendments; and no test pins wording.
+62. (2026-11-20, on what an agent learns when the bridge cannot work) The operator asked: "And does
+    the bridge let the agent know if it can't find or connect to the server at startup?" The lead
+    answered that the agent learns on its first call, normally `register`, since the bridge contacts
+    the server only on a call, and that the bridge's messages about its settings read as if the
+    agent could fix them, though only the operator can and a change takes effect only once the
+    session restarts; it proposed wording those messages to have the agent tell the operator, and no
+    probe of the server at startup. The operator answered: "Yeah, let's do the startup errors
+    feature. That's going to be a big point of friction." Then: "I think ultimately this just comes
+    down to good, agent oriented error messages." Taken: every problem the bridge finds itself is
+    worded for the agent, saying what it does; one only the operator can fix, such as a setting or a
+    server the bridge cannot reach, has the agent tell them at its terminal what to change, say for
+    a setting that the session must then restart, and carry on; the skill's rule that a failed call
+    says what to do covers it unchanged.
 
 ## Out of scope for v1
 

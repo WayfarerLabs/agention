@@ -93,8 +93,9 @@ model.
       `thread_list` with its filters, title search and topic (R18), `message_wait` holding a failed
       wait for its time (ruling 47) and answering at once with no wait, withdrawals on
       `message_send` and status on `thread_list` (ruling 48), session resolution from arguments or
-      the Agentworks variables (R36), and key storage per server and session; tests against a real
-      server over TLS.
+      the Agentworks variables (R36), key storage per server and session, and its own problems
+      worded for the agent, a setting or a server only the operator can fix put to the agent as one
+      to tell them about (ruling 62); tests against a real server over TLS.
 - [ ] Web: the banner's tabs naming their pages; the thread list (Group and Sort controls and an
       icon-only Filters button as its head, a sheet holding every filter one row per dimension with
       a count on each value and Reset filters, Agent, Session and Topic as multi-select popups with

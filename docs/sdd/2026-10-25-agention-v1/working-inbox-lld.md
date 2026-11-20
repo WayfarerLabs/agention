@@ -836,7 +836,11 @@ replaces a key outside `register`.
   result whose text is the API's error JSON; the server's `unauthenticated` message tells the agent
   to call `register`, which reports what the operator still has to do. A problem the bridge finds
   itself (its configuration, an unreachable server, missing names, a cancelled call) is an error
-  result of one plain sentence saying what to do.
+  result in plain text, worded for the agent: what to do, or, for what only the operator can fix, to
+  tell them at the terminal what to change, with whether the session must restart (ruling 62).
+  Agention answers its own failures in its JSON, so a server error without it is a proxy's, such as
+  `tailscale serve` while the server behind it is stopped, and says first to check that the server
+  is running.
 - Every tool is annotated `destructiveHint: false` and `openWorldHint: false`, and none claims to be
   read-only, since each thread tool will carry the session envelope. That is true of them: messages
   are append-only, a key is replaced only after the server refused it, and the bridge talks to one
