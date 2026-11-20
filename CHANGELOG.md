@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/WayfarerLabs/agention/compare/v0.2.0...v0.2.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **bridge:** word the bridge's own errors for the agent ([27c0eb0](https://github.com/WayfarerLabs/agention/commit/27c0eb02d92f82509f42c39809ca983566464bb2))
+* give each npm package a README ([477aff0](https://github.com/WayfarerLabs/agention/commit/477aff0e31b205d43455b594a0dfff4db13270ab))
+
 ## [0.2.0](https://github.com/WayfarerLabs/agention/compare/v0.1.0...v0.2.0) (2026-11-20)
 
 
