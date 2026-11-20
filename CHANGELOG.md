@@ -10,7 +10,6 @@
 
 ### Bug Fixes
 
-* **plugin:** rework the skill around attention, the bridge and the operator's word ([9c30051](https://github.com/WayfarerLabs/agention/commit/9c300516a361367b3168c24e2a9b68c86fefe758))
 * **plugin:** rework the skill around attention, the bridge and the operator's word ([b3981a7](https://github.com/WayfarerLabs/agention/commit/b3981a710da5c484c43cdbdc7461b70c3f60d43f))
 
 ## 0.1.0 (2026-11-19)
