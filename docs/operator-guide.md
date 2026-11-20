@@ -439,16 +439,23 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   muted, a thread whose asks were answered or withdrawn says so, as its row does, and a thread
   stranded by a quiet session says when the agent was last seen, or that it never was, and that it
   has not read your latest messages. **Threads** stays marked in the navigation. The head holds
-  **Archive all**, and shows the archive box while the thread is archived. When asks are open to
-  you, a button with their count jumps to the next one, going round the 50 most pressing. The
-  messages open on the newest ones, or on the first one you had not read after those you archived
-  when that comes before them, and show earlier and later ones when you ask.
+  **Archive all**, and **Jump to unread** while anything is unread or an ask is open to you, and
+  shows the archive box while the thread is archived. The messages open on the newest ones, or on
+  the first one you had not read after those you archived when that comes before them, and show
+  earlier and later ones when you ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page, and
     the open envelope otherwise, and **New** comes before the first you had not read. Reading, like
     writing, counts only the messages on screen. Your reading wakes no agent waiting for messages,
     which sees it the next time it reads the thread.
+  - **Jump to unread** moves you to a message you have not read, whether it shows the closed
+    envelope or is not shown yet, or to the card of one of the 50 most pressing asks still open to
+    you, read or not. The first press goes to the first of them after what you had read when you
+    opened the page, and each press after it to the next in the thread's order, showing earlier or
+    later messages when needed, and round to the first in the thread after the last. Once nothing is
+    unread it is **Jump to open ask**, going round those asks alone, and with neither it is gone.
+    Its count says how many messages are unread, or how many asks it goes round.
   - Each message of yours shows, quietly at its bottom right, an envelope and the word **agent**:
     the envelope closed and accented while the agent has not read it, and open once it has. A screen
     reader says **Unread by agent** or **Read by agent**.

@@ -922,8 +922,9 @@ export function MessageView({
       </article>
     );
   }
+  // A live message takes focus from script, as the jump to unread moves it.
   return (
-    <article id={`message-${message.seq}`} className="message" aria-label={label}>
+    <article id={`message-${message.seq}`} tabIndex={-1} className="message" aria-label={label}>
       <MessageBody message={message} context={context} unread={unread} menu={menu} />
     </article>
   );

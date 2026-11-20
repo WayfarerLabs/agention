@@ -1,6 +1,7 @@
 import type {
   CursorsResult,
   MarkInput,
+  Marks,
   MarksResult,
   Message,
   ThreadGetResult,
@@ -28,7 +29,7 @@ import {
   usePageTitle,
 } from "../../components.tsx";
 import { useAction, useResource, useStillOpen } from "../../data.ts";
-import { plural, Since, settledWords, Time } from "../../format.tsx";
+import { plural, Since, settledWords, Spoken, Time } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import { leaveNotice } from "../../notice.ts";
 import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
@@ -58,13 +59,24 @@ interface Span {
   end: number | "latest";
 }
 
+// readThrough is how far the operator has read a thread: through the greater
+// of their read and archive marks, since an archived message is never
+// unread.
+const readThrough = (marks: Marks) => Math.max(marks.read_through, marks.archived_through);
+
+// isUnread says whether a message is unread: a live message of the agent's
+// beyond how far the operator has read, as the thread's unread count counts
+// them.
+const isUnread = (message: Message, marks: Marks) =>
+  message.seq > readThrough(marks) && message.live && !mine(message);
+
 // openingSpan picks the page the view opens on: the newest page, unless the
 // operator's first unread message after those they archived comes before
 // it, when the page starts there.
 function openingSpan(answer: ThreadGetResult): Span {
   const { last_seq: last } = answer.thread;
   const newest = Math.max(1, last - pageSize + 1);
-  const firstUnread = Math.max(answer.marks.read_through, answer.marks.archived_through) + 1;
+  const firstUnread = readThrough(answer.marks) + 1;
   const start = firstUnread <= last ? Math.min(newest, firstUnread) : newest;
   const end = start + pageSize - 1;
   return { start, end: end >= last ? "latest" : end };
@@ -81,7 +93,8 @@ interface LoadedThread extends ThreadGetResult {
 // messages when the span reaches them. reach extends the span through a
 // message the operator has seen elsewhere, among a stale write's missed
 // messages or as their own write, so the log never stops short of what was
-// read; show extends it to hold a message, such as an open ask.
+// read; show extends it to hold a message, such as an open ask, and says
+// whether it had to.
 function useThread(target: ThreadTarget) {
   const path = threadPath(target.agent, target.session, target.number);
   const span = useRef<Span>(undefined);
@@ -112,10 +125,10 @@ function useThread(target: ThreadTarget) {
   });
   const { refresh } = resource;
   const extend = useCallback(
-    (seq: number) => {
+    (seq: number): boolean => {
       const current = span.current;
       if (current === undefined) {
-        return;
+        return false;
       }
       const start = Math.min(current.start, Math.max(1, seq));
       const end =
@@ -124,10 +137,12 @@ function useThread(target: ThreadTarget) {
           : seq >= latest.current
             ? "latest"
             : seq;
-      if (start !== current.start || end !== current.end) {
-        span.current = { start, end };
-        refresh();
+      if (start === current.start && end === current.end) {
+        return false;
       }
+      span.current = { start, end };
+      refresh();
+      return true;
     },
     [refresh],
   );
@@ -238,15 +253,75 @@ function useFreshMessages(data: LoadedThread | undefined): ReadonlySet<number> {
   return useMemo(() => {
     if (data !== undefined) {
       for (const message of data.messages) {
-        // An archived message is never unread.
-        const read = Math.max(data.marks.read_through, data.marks.archived_through);
-        if (message.seq > read && message.live && !mine(message)) {
+        if (isUnread(message, data.marks)) {
           fresh.current.add(message.seq);
         }
       }
     }
     return new Set(fresh.current);
   }, [data]);
+}
+
+// A place the page moves focus to: a message, or the card of an ask on it.
+interface Place {
+  seq: number;
+  ask?: number;
+}
+
+// A stop of the jump to unread: a place, or, where messages the page has not
+// loaded hold unread ones, the first of those messages, which the jump shows
+// through load before it looks again.
+interface Stop extends Place {
+  load?: number;
+}
+
+// threadOrder orders places as the thread does: by message, and on one
+// message, a card after the message and by ask number.
+const threadOrder = (a: Place, b: Place) => a.seq - b.seq || (a.ask ?? 0) - (b.ask ?? 0);
+
+// jumpStops lists the stops of the jump to unread in thread order, and counts
+// the unread messages, those the page marks unread and those it has not
+// loaded, and the open asks it goes to. Its stops are each unread message and
+// each ask the thread's summary lists, the 50 most pressing open to the
+// operator, read or not, the card standing for its message.
+function jumpStops(
+  data: LoadedThread,
+  fresh: ReadonlySet<number>,
+): { stops: Stop[]; unread: number; asks: number } {
+  const { thread, messages, marks } = data;
+  const asks: Stop[] = thread.open_asks.asks.map((ask) => ({ seq: ask.seq, ask: ask.number }));
+  const asking = new Set(asks.map((ask) => ask.seq));
+  // A message archived since the page marked it unread folds away, and is
+  // never unread.
+  const marked = messages.filter(
+    (message) => message.live && fresh.has(message.seq) && message.seq > marks.archived_through,
+  );
+  const unread: Stop[] = marked
+    .filter((message) => !asking.has(message.seq))
+    .map((message) => ({ seq: message.seq }));
+  // The thread counts the unread messages; those the page has not loaded lie
+  // before the first message it has, where the jump shows them all from the
+  // first, since the page shows one run of messages, or after the last, where
+  // it shows the next page.
+  const hidden = Math.max(
+    0,
+    thread.unread - messages.filter((message) => isUnread(message, marks)).length,
+  );
+  const read = readThrough(marks);
+  const first = messages[0]?.seq ?? 1;
+  const after = Math.max(read, messages.at(-1)?.seq ?? 0);
+  const unseen: Stop[] =
+    hidden === 0
+      ? []
+      : [
+          ...(read + 1 < first ? [{ seq: read + 1, load: read + 1 }] : []),
+          ...(after < thread.last_seq ? [{ seq: after + 1, load: after + pageSize }] : []),
+        ];
+  return {
+    stops: [...asks, ...unread, ...unseen].sort(threadOrder),
+    unread: marked.length + hidden,
+    asks: asks.length,
+  };
 }
 
 export function ThreadView({
@@ -343,8 +418,7 @@ function ThreadPage({
   const [writtenHere, setWrittenHere] = useState<ReadonlySet<number>>(new Set());
   const archiveAllHint = useId();
   // The operator is every thread's audience, so its open asks are open to
-  // them: the most pressing, listed, and how many in all.
-  const openToYou = thread.open_asks.asks;
+  // them.
   const openCount = thread.open_asks.count;
   // archiveHint says which ask to answer or decline before archiving through
   // a message: the earliest open to the operator, when it is in that message
@@ -457,31 +531,74 @@ function ThreadPage({
         )
       : messages;
 
-  // Jumping to an ask shows its message, loading its page when needed, then
-  // moves focus to its card. The count of open asks jumps to each in turn.
-  const [jump, setJump] = useState<{ number: number; seq: number }>();
-  const toAsk = (ask: { number: number; seq: number }) => {
-    setJump(ask);
-    show(ask.seq);
-  };
-  const jumped = useRef<number>(undefined);
-  const nextAsk = () => {
-    const at =
-      jumped.current === undefined
-        ? -1
-        : openToYou.findIndex((ask) => ask.number === jumped.current);
-    const ask = openToYou[(at + 1) % openToYou.length];
-    if (ask !== undefined) {
-      jumped.current = ask.number;
-      toAsk(ask);
-    }
-  };
+  // focusOn shows a message, loading its page when needed, then moves focus
+  // to it, or to an ask's card on it. When that load fails, focus stays
+  // where it is, and a later load never moves it.
+  const [focusing, setFocusing] = useState<{ place: Place; failedBefore: unknown }>();
+  const focusOn = useCallback(
+    (place: Place) => {
+      setFocusing({ place, failedBefore: loaded.failure });
+      show(place.seq);
+    },
+    [show, loaded.failure],
+  );
   useEffect(() => {
-    if (jump !== undefined && messages.some((message) => message.seq === jump.seq)) {
-      document.getElementById(`ask-${jump.number}`)?.focus();
-      setJump(undefined);
+    if (focusing === undefined) {
+      return;
     }
-  }, [jump, messages]);
+    const { place, failedBefore } = focusing;
+    if (loaded.failure !== undefined && loaded.failure !== failedBefore) {
+      setFocusing(undefined);
+    } else if (messages.some((message) => message.seq === place.seq)) {
+      document
+        .getElementById(place.ask === undefined ? `message-${place.seq}` : `ask-${place.ask}`)
+        ?.focus();
+      setFocusing(undefined);
+    }
+  }, [focusing, messages, loaded.failure]);
+
+  // The jump to unread goes to its next stop after the last it went to,
+  // starting after what the operator had read when the page opened and
+  // wrapping round. Reaching messages not loaded, it shows them and looks
+  // again once they load; when that load fails, or would load nothing, the
+  // press ends there.
+  const jump = useMemo(() => jumpStops(data, fresh), [data, fresh]);
+  const [openedThrough] = useState(() => readThrough(data.marks));
+  const jumped = useRef<Place>(undefined);
+  const [seeking, setSeeking] = useState<{ failedBefore: unknown }>();
+  useEffect(() => {
+    if (seeking === undefined) {
+      return;
+    }
+    if (loaded.failure !== undefined && loaded.failure !== seeking.failedBefore) {
+      setSeeking(undefined);
+      return;
+    }
+    const from = jumped.current;
+    const next =
+      jump.stops.find((stop) =>
+        from === undefined ? stop.seq > openedThrough : threadOrder(stop, from) > 0,
+      ) ?? jump.stops[0];
+    if (next?.load !== undefined) {
+      if (!show(next.load) && !loaded.loading) {
+        setSeeking(undefined);
+      }
+      return;
+    }
+    setSeeking(undefined);
+    if (next !== undefined) {
+      jumped.current = next;
+      focusOn(next);
+    }
+  }, [seeking, jump, openedThrough, show, focusOn, loaded.failure, loaded.loading]);
+  // Its label says where it goes, and how many there are: unread messages
+  // while there are any, otherwise the open asks it goes round.
+  const jumpTo =
+    jump.unread > 0
+      ? { label: "Jump to unread", count: jump.unread, one: "unread message" }
+      : jump.asks > 0
+        ? { label: "Jump to open ask", count: jump.asks, one: "open ask" }
+        : undefined;
 
   const find = useCallback(
     (seq: number) => messages.find((message) => message.seq === seq),
@@ -574,7 +691,7 @@ function ThreadPage({
     if (staging.some((each) => each.seq <= marks.archived_through)) {
       setUnfolded(true);
     }
-    toAsk({ number: first.ask, seq: first.seq });
+    focusOn({ seq: first.seq, ask: first.ask });
   };
   // unstage drops what is staged; a change or an edit takes the text and
   // detail it loaded with it, and folds the Details box.
@@ -670,10 +787,13 @@ function ThreadPage({
           <Stranded thread={thread} />
         )}
         {tags.length > 0 && <Tags tags={tags} />}
-        {openCount > 0 && (
+        {jumpTo !== undefined && (
           <div className="actions">
-            <button type="button" onClick={nextAsk}>
-              {openCount === 1 ? "1 open ask" : `${openCount} open asks`}
+            <button type="button" onClick={() => setSeeking({ failedBefore: loaded.failure })}>
+              <Spoken
+                shown={`${jumpTo.label} (${jumpTo.count})`}
+                spoken={`${jumpTo.label}, ${plural(jumpTo.count, jumpTo.one)}`}
+              />
             </button>
           </div>
         )}

@@ -807,47 +807,177 @@ describe("the head", () => {
     await page.openWith([message(1)]);
     expect(screen.queryByTitle("Archived")).toBeNull();
   });
+});
 
-  it("counts every open ask, though the summary lists only the most pressing", async () => {
-    await page.openWith([message(1, { asks: [ask()] })], {
-      open_asks: { asks: [{ number: 1, seq: 1 }], count: 60, blocking: true, overdue: false },
-    });
-    const jump = screen.getByRole("button", { name: /open asks/ });
-    expect(jump.textContent).toMatch(/\b60\b/);
-    fireEvent.click(jump);
-    await waitFor(() => expect(document.activeElement).toBe(askCard(1)));
-  });
+describe("the jump to unread", () => {
+  const jumpButton = () => screen.queryByRole("button", { name: /^Jump to/ });
+  // jumpingTo says where the jump's name says it goes.
+  const jumpingTo = () =>
+    (["unread", "open ask"] as const).find(
+      (to) => screen.queryByRole("button", { name: new RegExp(`^Jump to ${to}\\b`) }) !== null,
+    );
 
-  it("jumps from open ask to open ask, in the order given, loading their pages when needed", async () => {
+  // press presses the jump, and waits for focus to reach where it should.
+  async function press(reached: () => HTMLElement) {
+    fireEvent.click(jumpButton() as HTMLElement);
+    await waitFor(() => expect(document.activeElement).toBe(reached()));
+  }
+
+  // markedUnreadElsewhere opens a thread of 120 messages, read, so the page
+  // shows 71 to 120, then marks it unread from message 31 as another tab
+  // does, and refreshes the page.
+  async function markedUnreadElsewhere() {
+    const state = await page.openLog({ last_seq: 120, unread: 0 });
+    expect(shownMessages()).toEqual(range(71, 120));
+    state.thread = { ...state.thread, unread: 90 };
+    fireEvent.focus(window);
+    await waitFor(() => expect(jumpingTo()).toBe("unread"));
+    return state;
+  }
+
+  it("goes to each unread message and each open ask, read or not, in thread order from the first unread, wrapping round and loading pages as needed", async () => {
+    // Read through message 5, so the page opens on 6 to 55. Ask 1, read, is
+    // on an earlier page, and asks 2 and 3 share an unread message on a later
+    // one, listed most pressing first.
     await page.open({
       thread: threadSummary({
-        last_seq: 120,
-        unread: 0,
+        last_seq: 60,
+        unread: 55,
         open_asks: {
           asks: [
-            { number: 2, seq: 5 },
-            { number: 3, seq: 110 },
-            { number: 1, seq: 5 },
+            { number: 2, seq: 58 },
+            { number: 3, seq: 58 },
+            { number: 1, seq: 2 },
           ],
           count: 3,
           blocking: true,
           overdue: false,
         },
       }),
-      messages: range(1, 120).map((seq) =>
-        seq === 5
-          ? message(seq, { asks: [ask(), ask({ number: 2 })] })
-          : seq === 110
-            ? message(seq, { asks: [ask({ number: 3 })] })
+      messages: range(1, 60).map((seq) =>
+        seq === 2
+          ? message(seq, { asks: [ask()] })
+          : seq === 58
+            ? message(seq, { asks: [ask({ number: 2 }), ask({ number: 3 })] })
             : message(seq, { text: `Message ${seq}` }),
       ),
     });
-    expect(shownMessages()).toEqual(range(71, 120).filter((seq) => seq !== 110));
-    const jump = () => fireEvent.click(screen.getByRole("button", { name: "3 open asks" }));
-    for (const number of [2, 3, 1, 2]) {
-      jump();
-      await waitFor(() => expect(document.activeElement).toBe(askCard(number)));
+    expect(shownMessages()).toEqual(range(6, 55));
+    expect(jumpingTo()).toBe("unread");
+    // Each unread message is focused, from the first, and an open ask's card
+    // stands for its message.
+    for (const seq of range(6, 56)) {
+      await press(() => messageArticle(seq));
     }
+    // Past the messages loaded, the next page shows at once.
+    expect(shownMessages().slice(-2)).toEqual([59, 60]);
+    for (const stop of [
+      () => messageArticle(57),
+      () => askCard(2),
+      () => askCard(3),
+      () => messageArticle(59),
+      () => messageArticle(60),
+      // Round again, the ask read before the page opened comes first.
+      () => askCard(1),
+      () => messageArticle(6),
+    ]) {
+      await press(stop);
+    }
+  });
+
+  it("goes back to the unread messages before those loaded, showing them all from the first", async () => {
+    await markedUnreadElsewhere();
+    expect(jumpButton()?.textContent).toMatch(/\b90\b/);
+    // Nothing unread follows what had been read when the page opened, so the
+    // first press goes round to the first unread message.
+    await press(() => messageArticle(31));
+    expect(shownMessages()).toEqual(range(31, 120));
+    await press(() => messageArticle(32));
+  });
+
+  it("ends a press whose messages fail to load, says so, and moves focus nowhere once they do load", async () => {
+    const state = await markedUnreadElsewhere();
+    page.api.on("GET", path, { status: 502, text: "<h1>Bad gateway</h1>" });
+    textBox().focus();
+    fireEvent.click(jumpButton() as HTMLElement);
+    await screen.findByRole("alert");
+    // Pressed again while they fail, it is not left waiting either.
+    fireEvent.click(jumpButton() as HTMLElement);
+    // A later refresh that loads them leaves focus where the operator put it.
+    page.serve(state);
+    fireEvent.focus(window);
+    await waitFor(() => expect(shownMessages()[0]).toBe(31));
+    expect(document.activeElement).toBe(textBox());
+    // Pressed again, it goes on.
+    await press(() => messageArticle(31));
+  });
+
+  it("leaves out the messages archived on the page, which are never unread", async () => {
+    await page.openWith([message(1), message(2), message(3), message(4)], { unread: 4 });
+    await waitFor(() => expect(page.reads()).toEqual([4]));
+    expect(jumpButton()?.textContent).toMatch(/\b4\b/);
+    await waitFor(() => expect(option(2, "Archive through here").disabled).toBe(false));
+    fireEvent.click(option(2, "Archive through here"));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: /archived message/ })),
+    );
+    expect(jumpButton()?.textContent).toMatch(/\b2\b/);
+    for (const seq of [3, 4, 3]) {
+      await press(() => messageArticle(seq));
+    }
+  });
+
+  it("counts the unread messages, those not yet shown included, as the page reads them", async () => {
+    await page.openLog({ last_seq: 120, unread: 100 });
+    expect(jumpButton()?.textContent).toMatch(/\b100\b/);
+    await waitFor(() => expect(page.reads()).toEqual([70]));
+    await waitFor(() => expect(page.api.callsTo("GET", path).length).toBeGreaterThan(2));
+    expect(jumpButton()?.textContent).toMatch(/\b100\b/);
+  });
+
+  it("goes round the open asks the summary lists, the most pressing, once nothing is unread, counting those", async () => {
+    // Of 60 open asks, the summary lists the 50 most pressing: here the
+    // latest, most pressing first.
+    await page.openWith([message(1, { asks: range(1, 60).map((number) => ask({ number })) })], {
+      open_asks: {
+        asks: range(11, 60)
+          .reverse()
+          .map((number) => ({ number, seq: 1 })),
+        count: 60,
+        blocking: true,
+        overdue: false,
+      },
+    });
+    expect(jumpingTo()).toBe("open ask");
+    expect(jumpButton()?.textContent).toMatch(/\b50\b/);
+    expect(jumpButton()?.textContent).not.toMatch(/\b60\b/);
+    for (const number of [...range(11, 60), 11]) {
+      await press(() => askCard(number));
+    }
+  });
+
+  it("goes to unread messages while there are any, then to open asks alone, and shows only while there is either", async () => {
+    const openAsk = {
+      open_asks: { asks: [{ number: 1, seq: 1 }], count: 1, blocking: true, overdue: false },
+    };
+    const state = await page.openWith([message(1, { asks: [ask()] }), message(2)], {
+      ...openAsk,
+      unread: 1,
+    });
+    expect(jumpingTo()).toBe("unread");
+    // Read, the thread opens again with only its open ask to go to.
+    await waitFor(() => expect(state.thread.unread).toBe(0));
+    cleanup();
+    await page.open(state);
+    expect(jumpingTo()).toBe("open ask");
+    // A message arriving on the page is unread.
+    state.thread = { ...state.thread, last_seq: 3, unread: 1 };
+    state.messages = [...state.messages, message(3, { text: "Agent note" })];
+    fireEvent.focus(window);
+    await waitFor(() => expect(jumpingTo()).toBe("unread"));
+    cleanup();
+    await page.openWith([message(1, { asks: [ask({ open: false })] }), message(2)]);
+    expect(jumpButton()).toBeNull();
   });
 });
 
