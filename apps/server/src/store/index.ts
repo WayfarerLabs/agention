@@ -8,7 +8,6 @@ export { markSeen } from "./presence.ts";
 export {
   approveRegistration,
   findRegistrationByKey,
-  listAgents,
   listRegistrations,
   registrationLifetime,
   rejectRegistration,
@@ -16,6 +15,7 @@ export {
   submitRegistration,
 } from "./registrations.ts";
 export { serverName, storedName, storeName } from "./server-name.ts";
+export { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
 export { createStore, type Store } from "./store.ts";
 export { countThreads, listSessionThreads, listThreads } from "./thread-lists.ts";
 export {
@@ -23,6 +23,7 @@ export {
   getThread,
   type SessionTarget,
   sendMessage,
+  startThread,
   type ThreadTarget,
 } from "./threads.ts";
 export { waitForThreads } from "./wait.ts";

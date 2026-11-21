@@ -6,6 +6,8 @@ import type {
   Priority,
   ThreadStatus,
   ThreadSummary,
+  WorkOutcome,
+  WorkState,
 } from "@wayfarerlabs/agention-api";
 
 // Words and times for the views.
@@ -109,6 +111,94 @@ export function lastSeenWords(presence: Presence): string {
   return presence.last_seen_at === undefined
     ? "never seen"
     : `last seen ${sinceTime(presence.last_seen_at)}`;
+}
+
+// What a session reports it is doing, in a word.
+const workStateLabel: Record<WorkState, string> = {
+  working: "Working",
+  idle: "Idle",
+  stopped: "Stopped",
+};
+
+// workStateWords says what a session reports it is doing: "Working", "Idle",
+// or "Stopped · completed", with the outcome a stopped session gives.
+export function workStateWords(status: { state: WorkState; outcome?: WorkOutcome | undefined }) {
+  const label = workStateLabel[status.state];
+  return status.outcome === undefined ? label : `${label} · ${status.outcome}`;
+}
+
+// What the operator knows of a session that says whether it is there to see
+// what they write: the state it last reported, if any, and the outcome a
+// stopped one gave; its presence; and whether it has an active credential.
+export interface Whereabouts {
+  state?: WorkState | undefined;
+  outcome?: WorkOutcome | undefined;
+  presence: Presence;
+  credential_active: boolean;
+}
+
+// Why a session is not likely to see what the operator writes.
+export type Absence =
+  | { kind: "stopped"; outcome: WorkOutcome | undefined }
+  | { kind: "quiet"; last_seen_at: string | undefined }
+  | { kind: "credential" };
+
+// absenceOf says why a session is not likely to see what the operator writes
+// until something starts it again, if it is not: it stopped, with its
+// outcome; or it is quiet, with when it was last seen; or it has no active
+// credential, the first of them that holds.
+export function absenceOf(session: Whereabouts): Absence | undefined {
+  if (session.state === "stopped") {
+    return { kind: "stopped", outcome: session.outcome };
+  }
+  if (session.presence.quiet) {
+    return { kind: "quiet", last_seen_at: session.presence.last_seen_at };
+  }
+  return session.credential_active ? undefined : { kind: "credential" };
+}
+
+// absenceWords says briefly why a session is not likely to see what the
+// operator writes, as a tag says it: "stopped, completed", "last seen 14:02",
+// "never seen" or "no active credential".
+export function absenceWords(absence: Absence): string {
+  switch (absence.kind) {
+    case "stopped":
+      return absence.outcome === undefined ? "stopped" : `stopped, ${absence.outcome}`;
+    case "quiet":
+      return lastSeenWords({ quiet: true, last_seen_at: absence.last_seen_at });
+    case "credential":
+      return "no active credential";
+  }
+}
+
+// AbsenceReason says, as a clause, why a session is not likely to see what
+// the operator writes: "it stopped, completed", "it has not been seen since
+// 14:02", "it has never been seen" or "it has no active credential".
+export function AbsenceReason({ absence }: { absence: Absence }) {
+  switch (absence.kind) {
+    case "stopped":
+      return <>it stopped{absence.outcome === undefined ? "" : `, ${absence.outcome}`}</>;
+    case "quiet":
+      return absence.last_seen_at === undefined ? (
+        <>it has never been seen</>
+      ) : (
+        <>
+          it has not been seen since <Since value={absence.last_seen_at} />
+        </>
+      );
+    case "credential":
+      return <>it has no active credential</>;
+  }
+}
+
+// threadWhereabouts reads what a thread's audience knows of its session.
+export function threadWhereabouts(thread: ThreadSummary): Whereabouts {
+  return {
+    state: thread.presence?.state,
+    outcome: thread.presence?.outcome,
+    presence: thread.presence ?? { quiet: false },
+    credential_active: thread.credential_active,
+  };
 }
 
 // settledWords says, muted, of a thread with no ask open, that its asks were

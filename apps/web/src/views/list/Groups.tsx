@@ -7,12 +7,12 @@ import {
   type ThreadGrouping,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
-import { type ReactNode, useId } from "react";
-import { PathParts, pathWord, type Place } from "../../components.tsx";
-import { useDeviceNames } from "../../device.ts";
+import type { ReactNode } from "react";
+import { Fold, PathParts, pathWord, type Place } from "../../components.tsx";
+import { type Folds, useFolds } from "../../device.ts";
 import { lastSeenWords, plural, priorityLabel, priorityTone, Since } from "../../format.tsx";
-import { Icon, Mark } from "../../icons.tsx";
-import { headings, ThreadRow } from "./ThreadRow.tsx";
+import { Mark } from "../../icons.tsx";
+import { ThreadRow } from "./ThreadRow.tsx";
 
 // The list grouped, folding the rows loaded inline under headers: by
 // session, each session's threads under their topics when they carry two or
@@ -114,16 +114,10 @@ function RollupMarks({ rollup, presence }: { rollup: Rollup; presence: Presence 
   );
 }
 
-// The headers the operator collapsed, and a way to fold or unfold one.
-interface Folds {
-  collapsed(header: string): boolean;
-  toggle(header: string): void;
-}
-
-// Fold is a group under its header: a heading wrapping a disclosure button,
-// named with the group's roll-up, and a session's or an agent's presence,
-// when the list carries them. A collapsed header hides everything under it.
-function Fold({
+// GroupFold is a group under its header, named with the group's roll-up, and
+// a session's or an agent's presence, when the list carries them. A
+// collapsed header hides everything under it.
+function GroupFold({
   header,
   outer,
   label,
@@ -140,30 +134,18 @@ function Fold({
   folds: Folds;
   children: ReactNode;
 }) {
-  const body = useId();
-  const Heading = headings[outer ? 2 : 3];
-  const collapsed = folds.collapsed(header);
   return (
-    <section className={outer ? "group" : "subgroup"}>
-      <Heading className={outer ? "group-head" : "subgroup-head"}>
-        <button
-          type="button"
-          aria-expanded={!collapsed}
-          aria-controls={body}
-          aria-label={
-            rollup === undefined ? label.spoken : spokenRollup(label.spoken, rollup, presence)
-          }
-          onClick={() => folds.toggle(header)}
-        >
-          <Icon name="expand" />
-          <span className="group-label">{label.shown}</span>
-          {rollup !== undefined && <RollupMarks rollup={rollup} presence={presence} />}
-        </button>
-      </Heading>
-      <div id={body} hidden={collapsed}>
-        {children}
-      </div>
-    </section>
+    <Fold
+      level={outer ? 2 : 3}
+      outer={outer}
+      label={label.shown}
+      marks={rollup !== undefined && <RollupMarks rollup={rollup} presence={presence} />}
+      spoken={rollup === undefined ? label.spoken : spokenRollup(label.spoken, rollup, presence)}
+      folded={folds.has(header)}
+      toggle={() => folds.toggle(header)}
+    >
+      {children}
+    </Fold>
   );
 }
 
@@ -222,17 +204,7 @@ export function GroupedRows({
   groups: ThreadGroups | undefined;
   grouping: ThreadGrouping;
 }) {
-  const [collapsed, keepCollapsed] = useDeviceNames(`agention.collapsed-groups.${grouping}`);
-  const folds: Folds = {
-    collapsed: (header) => collapsed.has(header),
-    toggle: (header) => {
-      const next = new Set(collapsed);
-      if (!next.delete(header)) {
-        next.add(header);
-      }
-      keepCollapsed(next);
-    },
-  };
+  const folds = useFolds(`agention.collapsed-groups.${grouping}`);
   const heads = headsOf(groups);
   if (grouping === "session") {
     return gather(threads, pathOf).map(([path, held]) => {
@@ -243,7 +215,7 @@ export function GroupedRows({
       // roll-up or the rows loaded say.
       const branches = Math.max(session?.topics?.length ?? 0, topics.length) >= 2;
       return (
-        <Fold
+        <GroupFold
           key={path}
           header={sessionHeader(path)}
           outer
@@ -259,7 +231,7 @@ export function GroupedRows({
             ? topics.map(([, under]) => {
                 const topic = under[0]?.topic;
                 return (
-                  <Fold
+                  <GroupFold
                     key={topic ?? ""}
                     header={topicHeader(path, topic)}
                     outer={false}
@@ -268,11 +240,11 @@ export function GroupedRows({
                     folds={folds}
                   >
                     {rowsOf(under, 4)}
-                  </Fold>
+                  </GroupFold>
                 );
               })
             : rowsOf(held, 3)}
-        </Fold>
+        </GroupFold>
       );
     });
   }
@@ -282,7 +254,7 @@ export function GroupedRows({
     // the rows loaded say.
     const branches = Math.max(heads.sessionsOf(agent), sessions.length) >= 2;
     return (
-      <Fold
+      <GroupFold
         key={agent}
         header={agentHeader(agent)}
         outer
@@ -293,7 +265,7 @@ export function GroupedRows({
       >
         {branches
           ? sessions.map(([path, under]) => (
-              <Fold
+              <GroupFold
                 key={path}
                 header={sessionHeader(path)}
                 outer={false}
@@ -303,10 +275,10 @@ export function GroupedRows({
                 folds={folds}
               >
                 {rowsOf(under, 4)}
-              </Fold>
+              </GroupFold>
             ))
           : rowsOf(held, 3)}
-      </Fold>
+      </GroupFold>
     );
   });
 }

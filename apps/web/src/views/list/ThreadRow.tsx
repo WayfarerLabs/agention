@@ -2,14 +2,16 @@ import type { AskSummary, OpenAsks, ThreadSummary } from "@wayfarerlabs/agention
 import type { ReactNode } from "react";
 import { PathParts, placeOf, Tags, ThreadTitle } from "../../components.tsx";
 import {
+  absenceOf,
+  absenceWords,
   DueTime,
   effortLabel,
-  lastSeenWords,
   plural,
   priorityLabel,
   priorityTone,
   settledWords,
   Spoken,
+  threadWhereabouts,
   Time,
 } from "../../format.tsx";
 import { Mark } from "../../icons.tsx";
@@ -43,29 +45,24 @@ function askTags(ask: AskSummary, asks: OpenAsks): { label: ReactNode; tone?: st
   ];
 }
 
-// strandedWhy says, for a stranded thread whose session is quiet, when its
-// agent was last seen, credential or not. A session with no active
-// credential that is not yet quiet is explained by its own tag.
-function strandedWhy(thread: ThreadSummary): string | undefined {
-  return thread.presence?.quiet === true ? `agent ${lastSeenWords(thread.presence)}` : undefined;
-}
-
-// StrandedMark marks a stranded thread, named, while its session is quiet,
-// for when the agent was last seen.
-function StrandedMark({ thread }: { thread: ThreadSummary }) {
-  const why = strandedWhy(thread);
-  return why === undefined ? (
-    "Stranded"
-  ) : (
-    <span title={`Stranded: ${why}`}>
-      <Spoken shown="Stranded" spoken={`Stranded: ${why}`} />
-    </span>
-  );
+// strandedTags mark a stranded thread with why its session is not there to
+// read it: it stopped, with its outcome; it is quiet, with when it was last
+// seen; or it has no active credential, which the credential's own tag says
+// of any thread, stranded or not, unless the stranded mark already does.
+function strandedTags(thread: ThreadSummary): { label: ReactNode; tone?: string }[] {
+  const absence = thread.stranded === true ? absenceOf(threadWhereabouts(thread)) : undefined;
+  const stranded = absence === undefined ? "Stranded" : `Stranded · ${absenceWords(absence)}`;
+  return [
+    ...(thread.stranded === true ? [{ label: stranded, tone: "muted" }] : []),
+    ...(thread.credential_active || absence?.kind === "credential"
+      ? []
+      : [{ label: "No active credential" }]),
+  ];
 }
 
 // The headings a row or a group's header can sit at: under the list's, or
 // under one or two levels of groups.
-export const headings = { 2: "h2", 3: "h3", 4: "h4" } as const;
+const headings = { 2: "h2", 3: "h3", 4: "h4" } as const;
 
 // MessageCount says how much of a thread the operator has read: while any
 // of its messages is unread, the closed envelope with the unread messages
@@ -91,19 +88,14 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // operator as its audience answers, the question of the one it leads with:
 // the first in the list's order among those the filters keep; otherwise,
 // muted, that its asks were answered or withdrawn; and whether it is
-// stranded. The link records the list, so the thread page returns to it.
+// stranded, and why. The link records the list, so the thread page returns to it.
 export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: 2 | 3 | 4 }) {
   const here = useLocation();
   const { open_asks: asks } = thread;
   const ask = asks.lead;
   const Heading = headings[level];
   const status = ask === undefined ? settledWords(thread) : undefined;
-  const notes = [
-    ...(thread.stranded === true
-      ? [{ label: <StrandedMark thread={thread} />, tone: "muted" }]
-      : []),
-    ...(thread.credential_active ? [] : [{ label: "No active credential" }]),
-  ];
+  const notes = strandedTags(thread);
   return (
     <li className="thread-row">
       <Link

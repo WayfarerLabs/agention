@@ -6,6 +6,7 @@ import {
   type Message,
   type Registration,
   type SessionState,
+  type SessionSummary,
   statusByErrorCode,
   type ThreadCounts,
   type ThreadGetResult,
@@ -95,7 +96,7 @@ export class FakeApi {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
     this.on("GET", "/threads/counts", { body: noCounts });
-    this.on("GET", "/agents", { body: { agents: [] } });
+    this.on("GET", "/sessions", { body: { agents: [] } });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),
     );
@@ -259,6 +260,21 @@ export function registration(overrides: Partial<Registration> = {}): Registratio
     proposed_session: "main",
     created_at: time,
     expires_at: "2026-10-27T13:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// A session as the sessions view lists it: seen now, with one credential,
+// no status and nothing to show, unless the overrides say otherwise.
+export function sessionSummary(overrides: Partial<SessionSummary> = {}): SessionSummary {
+  return {
+    session: "main",
+    created_at: time,
+    presence: { last_seen_at: time, quiet: false },
+    registrations: [{ id: 1, code: "7KQ2M-X9DPA" }],
+    unread_updates: 0,
+    threads: { total: 0, stranded: 0 },
+    open_asks: { count: 0, blocking_count: 0 },
     ...overrides,
   };
 }

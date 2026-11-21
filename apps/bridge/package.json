@@ -24,7 +24,8 @@
   "scripts": {
     "build": "node build.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:compat": "vitest run --config vitest.compat.config.ts"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.4.0",

@@ -22,9 +22,12 @@ afterEach(() => {
   harness.close();
 });
 
-// Every agent route on a session, with a valid body, for the session given.
+// Every agent route on a session, with a valid body, for the session given:
+// first those only the agent mount has, then the routes on a thread, which
+// both mounts share.
 function agentRoutes(session: string): [string, string, unknown][] {
   return [
+    ["POST", `/s/${session}/status`, { state: "working" }],
     ["POST", `/s/${session}/threads`, newThread("r-2")],
     ["GET", `/s/${session}/threads`, undefined],
     ["GET", `/s/${session}/wait?wait=0`, undefined],
@@ -55,7 +58,7 @@ const webRoutes: [string, string, unknown][] = [
   ["POST", "/registrations/1/approve", undefined],
   ["POST", "/registrations/1/reject", undefined],
   ["POST", "/registrations/1/revoke", undefined],
-  ["GET", "/agents", undefined],
+  ["GET", "/sessions", undefined],
   ["GET", "/passkeys", undefined],
   ["POST", "/passkeys/register/begin", { name: "Phone" }],
   ["POST", "/passkeys/register/finish", { credential: {} }],
@@ -66,7 +69,19 @@ const webRoutes: [string, string, unknown][] = [
   ["POST", "/s/builder/main/threads/1/read", { through: 1 }],
   ["POST", "/s/builder/main/threads/1/unread", { from: 1 }],
   ["POST", "/s/builder/main/threads/1/archive", { through: 1 }],
+  ["POST", "/s/builder/main/threads", { request_id: "o-1", title: "t", text: "m" }],
+  ["GET", "/s/builder/main/updates", undefined],
+  ["POST", "/s/builder/main/updates/read", { through: 0 }],
 ];
+
+// The web routes on a session, with a valid body, for the session given.
+function webSessionRoutes(session: string): [string, string, unknown][] {
+  return [
+    ["POST", `/s/${session}/threads`, { request_id: "o-2", title: "t", text: "m" }],
+    ["GET", `/s/${session}/updates`, undefined],
+    ["POST", `/s/${session}/updates/read`, { through: 0 }],
+  ];
+}
 
 describe("authorization over HTTP", () => {
   it("answers every agent route on another session as not_found", async () => {
@@ -85,9 +100,16 @@ describe("authorization over HTTP", () => {
       const response = await harness.agent(mine, method, path, body);
       expect([path, codeOf(response)]).toEqual([path, "not_found"]);
     }
-    for (const [method, path, body] of agentRoutes("nobody/main").slice(3)) {
+    for (const [method, path, body] of [
+      ...agentRoutes("nobody/main").slice(4),
+      ...webSessionRoutes("nobody/main"),
+    ]) {
       const response = await harness.web(method, path, body);
       expect([path, codeOf(response)]).toEqual([path, "not_found"]);
+    }
+    for (const [method, path, body] of webSessionRoutes("builder/main")) {
+      const response = await harness.web(method, path, body);
+      expect([path, codeOf(response)]).toEqual([path, "ok"]);
     }
   });
 
@@ -103,6 +125,19 @@ describe("authorization over HTTP", () => {
     expect(thread.body).toMatchObject({
       messages: [{}, { author: { kind: "session", agent: "builder", session: "main" } }],
     });
+  });
+});
+
+describe("the operator's own routes", () => {
+  it("are none of the agent mount's", async () => {
+    for (const [method, path, body] of [
+      ["GET", "/sessions", undefined],
+      ["GET", "/s/builder/main/updates", undefined],
+      ["POST", "/s/builder/main/updates/read", { through: 0 }],
+    ] as const) {
+      const response = await harness.agent(mine, method, path, body);
+      expect([path, codeOf(response)]).toEqual([path, "not_found"]);
+    }
   });
 });
 

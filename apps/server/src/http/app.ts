@@ -9,6 +9,7 @@ import { bodyLimit } from "hono/body-limit";
 import { ApiError } from "../errors.ts";
 import type { Store } from "../store/index.ts";
 import { agentApi } from "./agent-api.ts";
+import { stateAgentApiVersion } from "./agent-api-version.ts";
 import { defaultRates, RateBudgets, RateLimitedError, type Rates } from "./rates.ts";
 import { webApi } from "./web-api.ts";
 import { serveWebUi } from "./web-ui.ts";
@@ -74,6 +75,11 @@ export function createApp(options: AppOptions): Hono {
       c.res.headers.set(header, value);
     }
   });
+
+  // Every answer on the agent mount states the agent API version the server
+  // speaks, those of the checks before the mount included, so a bridge can
+  // tell an answer from this server from one an older server gave.
+  app.use("/api/agent/*", stateAgentApiVersion);
 
   // The server answers only for its origin's host, so a page on another name
   // that resolves to this server cannot reach it. No forwarded header is read.

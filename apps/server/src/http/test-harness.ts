@@ -78,11 +78,25 @@ export class Harness {
       shutdown: this.shutdown.signal,
       log: (message) => this.logged.push(message),
     });
+    const session = this.#openBrowserSession();
+    this.cookie = session.token;
+    this.csrf = session.csrfToken;
+  }
+
+  // signIn opens a new browser session for the operator as the clock now
+  // stands, such as once the clock has moved past the last one's expiry.
+  signIn(): void {
+    const session = this.#openBrowserSession();
+    this.cookie = session.token;
+    this.csrf = session.csrfToken;
+  }
+
+  #openBrowserSession() {
     const operator = findOperator(this.fixture.db);
     if (operator === undefined) {
       throw new Error("the fixture has no operator");
     }
-    const session = this.fixture.db.transaction(() =>
+    return this.fixture.db.transaction(() =>
       openBrowserSession(
         this.fixture.db,
         operator.personId,
@@ -90,8 +104,6 @@ export class Harness {
         this.fixture.now,
       ),
     );
-    this.cookie = session.token;
-    this.csrf = session.csrfToken;
   }
 
   close(): void {

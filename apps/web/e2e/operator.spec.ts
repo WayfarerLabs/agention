@@ -4,7 +4,8 @@
 // Details box, a stale write, text written to take the page down, reading and
 // marking unread from a message, archiving, the list's filters, their counts,
 // its order, the order's direction and grouping, an ask the agent withdraws,
-// signing in again, a second passkey that takes over from the first, and a
+// the sessions view with a session's status and log, at a phone's width too,
+// a thread the operator starts there and stranded's reason, signing in again, a second passkey that takes over from the first, and a
 // second server on another port of the host signed in beside the first. CDP
 // virtual authenticators stand in for the operator's devices; one page
 // carries through the steps, in order.
@@ -12,6 +13,7 @@ import type { BrowserContext, CDPSession, Page } from "@playwright/test";
 import type {
   PublicKey,
   RegistrationState,
+  SessionStatus,
   ThreadGetResult,
   WriteResult,
 } from "@wayfarerlabs/agention-api";
@@ -122,14 +124,18 @@ test("the operator approves an agent's registration by its code", async () => {
   const code = registrationCode(agent.publicKey as PublicKey);
   expect(submitted.body.code).toBe(code);
 
-  await page.getByRole("link", { name: "Registrations" }).click();
+  await page.getByRole("link", { name: "Sessions" }).click();
   const card = page.getByRole("article", { name: `Registration ${code}` });
   await expect(card.getByText(code, { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "Approve" }).click();
-  // The registration leaves the waiting list, approved.
+  // The registration leaves the waiting list, approved, among the past
+  // requests folded under the session that now stands under its agent.
   await expect(
     page.getByRole("region", { name: "Waiting for approval" }).getByRole("article"),
   ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^main( |$)/ })).toBeVisible();
+  await page.getByRole("button", { name: "Credentials and past requests" }).click();
   await expect(card.locator(".state")).toHaveText("approved");
 
   const state = await agent.send<RegistrationState>("POST", "/registrations", {
@@ -496,6 +502,71 @@ async function filtersShowing(status: string): Promise<void> {
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
 }
+
+test("the sessions view shows a session's status and log, and starts a thread the agent reads", async () => {
+  for (const update of [
+    { state: "working", title: "Retire invoices", goal: "Drop the table" },
+    { percent: 20 },
+    { percent: 60 },
+    { state: "idle", note: "Waiting on CI" },
+  ]) {
+    const reported = await agent.send<SessionStatus>("POST", "/s/builder/main/status", update);
+    expect(reported.status).toBe(200);
+  }
+
+  await page.getByRole("link", { name: "Sessions" }).click();
+  const fold = page.getByRole("button", { name: /^main Retire invoices 60%/ });
+  const row = page.getByRole("listitem").filter({ has: fold });
+  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  await expect(row.getByText("Idle", { exact: true })).toBeVisible();
+  await expect(row.getByTitle("4 unread updates")).toBeVisible();
+  await expect(row.getByText("Waiting on CI")).toBeVisible();
+
+  // Unfolded, the log shows newest first, the two updates of progress alone
+  // in one line, and reads it.
+  await fold.click();
+  await expect(fold).toHaveAttribute("aria-expanded", "true");
+  const log = row.getByRole("list", { name: "Updates" });
+  await expect(log.getByRole("listitem")).toHaveCount(3);
+  await expect(log.getByRole("listitem").nth(1)).toContainText(/20%.*60%/);
+  await expect(row.getByTitle("4 unread updates")).toHaveCount(0);
+
+  // At a phone's width, the view and its sheet scroll only up and down.
+  const wide = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const scrollsSideways = () =>
+    page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(await scrollsSideways()).toBe(false);
+
+  const options = page.getByRole("button", { name: "Options for builder/main" });
+  await options.click();
+  await page.getByRole("button", { name: "New thread" }).click();
+  const sheet = page.getByRole("dialog", { name: "New thread" });
+  await expect(sheet).toBeVisible();
+  expect(await scrollsSideways()).toBe(false);
+  await sheet.getByLabel("Title").fill("Keep the archive");
+  await sheet.getByLabel("Message").fill("Keep the nightly archive a week longer.");
+  await sheet.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Keep the archive$/);
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
+  const number = Number(new URL(page.url()).pathname.split("/").at(-1));
+
+  // The agent reads the thread as the operator's own words.
+  const read = await agent.send<ThreadGetResult>("GET", `${threads}/${number}`);
+  expect(read.body.messages[0]?.author.kind).toBe("person");
+  expect(read.body.thread.title).toBe("Keep the archive");
+
+  // Once the session stops, the thread it has not read is stranded, saying
+  // why.
+  await agent.send("POST", "/s/builder/main/status", { state: "stopped", outcome: "completed" });
+  await showList();
+  await expect(page.getByRole("link", { name: /Keep the archive/ })).toContainText(
+    /Stranded.*completed/,
+  );
+  await agent.send("POST", "/s/builder/main/status", { state: "working" });
+});
 
 test("signing in with the passkey returns to the page that needed it", async () => {
   await page.getByRole("button", { name: "Sign out" }).click();

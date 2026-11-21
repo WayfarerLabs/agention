@@ -661,6 +661,15 @@ button.chip {
   padding: var(--space-4);
 }
 
+/* A sheet whose body and foot are one form shrinks as the sheet does, so
+   its body scrolls under the foot. */
+.sheet-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .sheet-body h2 {
   margin-top: 0;
 }
@@ -953,30 +962,53 @@ button.picker[aria-expanded="true"] .icon {
   overflow-wrap: anywhere;
 }
 
-.tags .danger {
+/* A tag that is no pill of its own, such as one holding a link, which
+   wraps a pill when it shows as one. A tag's tone colors the tag or its
+   pill, never a mark it holds. */
+.tags li.bare {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: var(--text-small);
+}
+
+.tags .pill {
+  display: inline-block;
+  padding: 0.125rem var(--space-2);
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  font-size: var(--text-tag);
+}
+
+.tags > .danger,
+.tags .pill.danger {
   background: var(--color-danger-bg);
   color: var(--color-danger);
   font-weight: 600;
 }
 
-.tags .warning {
+.tags > .warning,
+.tags .pill.warning {
   background: var(--color-warning-bg);
   color: var(--color-warning);
   font-weight: 600;
 }
 
-.tags .attention {
+.tags > .attention,
+.tags .pill.attention {
   background: var(--color-attention-bg);
   color: var(--color-attention);
   font-weight: 600;
 }
 
-.tags .success {
+.tags > .success,
+.tags .pill.success {
   background: var(--color-success-bg);
   color: var(--color-success);
 }
 
-.tags .accent {
+.tags > .accent,
+.tags .pill.accent {
   background: var(--color-accent-bg);
   color: var(--color-accent);
   font-weight: 600;
@@ -1070,6 +1102,12 @@ button.picker[aria-expanded="true"] .icon {
   font-weight: 600;
 }
 
+.flag.attention {
+  background: var(--color-attention-bg);
+  color: var(--color-attention);
+  font-weight: 600;
+}
+
 /* The thread page */
 
 .thread-bar {
@@ -1112,8 +1150,8 @@ button.picker[aria-expanded="true"] .icon {
   background: var(--color-surface-2);
 }
 
-/* A settled thread's status, and when a stranded thread's agent was last
-   seen, muted, under where the thread is. */
+/* A settled thread's status, and why a stranded thread's session has not
+   read it, muted, under where the thread is. */
 .thread-header .thread-status,
 .thread-header .stranded {
   margin: 0 0 var(--space-2);
@@ -1332,6 +1370,10 @@ button.options-button[aria-expanded="true"] {
 
 .options-menu button:not(:disabled):hover {
   background: var(--color-surface-2);
+}
+
+.options-menu button.destructive {
+  color: var(--color-danger);
 }
 
 .options-menu .hint {
@@ -1554,6 +1596,251 @@ ul.staged li {
 
 .stale .messages {
   margin: var(--space-3) 0;
+}
+
+/* The sessions view */
+
+/* An agent's sessions, a folded row each, in one card under its header. */
+.session-rows {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  background: var(--color-surface);
+  list-style: none;
+}
+
+.session-row + .session-row {
+  border-top: 1px solid var(--color-border);
+}
+
+/* A folded row: the session's name, title and percent on a line beside its
+   options, then what stands out about it beneath, wrapping where the width
+   ends. The fold's button stretches over both, so a tap anywhere on them
+   folds or unfolds the row, while the links and the options among them sit
+   above it and take their own taps. Names and titles are cut to fit, but
+   for an unfolded row's title, which wraps whole. */
+.session-summary {
+  position: relative;
+  padding: 0 var(--space-1) var(--space-1) var(--space-3);
+}
+
+.session-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.session-head h4 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+button.session-fold {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-weight: 400;
+  text-align: left;
+}
+
+button.session-fold::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+button.session-fold[aria-expanded="false"] > .icon {
+  transform: rotate(-90deg);
+}
+
+button.session-fold:hover .session-name {
+  text-decoration: underline;
+}
+
+.session-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-title {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.session-fold[aria-expanded="true"] {
+  align-items: baseline;
+}
+
+button.session-fold[aria-expanded="true"] .session-title {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.session-percent {
+  flex: none;
+  color: var(--color-muted);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.session-summary .options {
+  z-index: 1;
+  margin: 0;
+}
+
+/* An open menu lies over the rows below it, their links and options too. */
+.session-summary .options.open {
+  z-index: 2;
+}
+
+.session-facts {
+  align-items: center;
+  margin: 0;
+  padding-left: calc(var(--icon-size) * 1.25 + var(--space-2));
+}
+
+.session-facts a {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+}
+
+.session-facts a .pill {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.session-facts .stranded {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.tags .session-note {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row > :is(.confirm, .notice, .status) {
+  margin: 0 var(--space-3) var(--space-3);
+}
+
+/* A row unfolded: its goal over a thin bar of how far it has come, when it
+   was last seen and its credentials, then its log, set in under its name. */
+.session-detail {
+  padding: 0 var(--space-3) var(--space-3)
+    calc(var(--space-3) + var(--icon-size) * 1.25 + var(--space-2));
+  font-size: var(--text-small);
+}
+
+.session-goal p {
+  margin: 0 0 var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.session-goal progress {
+  display: block;
+  width: 100%;
+  height: 0.25rem;
+  margin: 0 0 var(--space-3);
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  appearance: none;
+}
+
+.session-goal progress::-webkit-progress-bar {
+  background: var(--color-surface-2);
+}
+
+.session-goal progress::-webkit-progress-value {
+  background: var(--color-accent);
+}
+
+.session-goal progress::-moz-progress-bar {
+  background: var(--color-accent);
+}
+
+.session-about {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  color: var(--color-muted);
+  list-style: none;
+}
+
+/* The log, newest first, beside a rule: each line's time, then what it
+   changed; a line unread when shown is bold, its time in the accent. */
+.session-log {
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  border-left: 2px solid var(--color-border);
+  list-style: none;
+}
+
+.session-log li {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.session-log time {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.session-log li.unread {
+  font-weight: 600;
+}
+
+.session-log li.unread time {
+  color: var(--color-accent);
+}
+
+.log-what {
+  overflow-wrap: anywhere;
+}
+
+.log-what .mark {
+  margin-right: var(--space-1);
+}
+
+/* Older, while the entries it asked for load: unavailable to the eye, and to
+   assistive technology, yet still holding focus. */
+button.older {
+  padding: 0;
+}
+
+button.older[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* Registrations and passkeys */

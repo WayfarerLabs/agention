@@ -1,6 +1,20 @@
 import { maxListed } from "@wayfarerlabs/agention-api";
-import { Fragment, type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  Fragment,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { describeFailure } from "./api.ts";
+import { Icon } from "./icons.tsx";
 import { serverName } from "./server-name.ts";
 
 // Pieces the views share.
@@ -105,10 +119,15 @@ export function ThreadTitle({ thread }: { thread: { number: number; title: strin
   );
 }
 
-// LeftOut says, in one line beside a choice, that the list it offers left
-// some values out, past the most a list that comes whole holds.
-export function LeftOut() {
-  return <p className="muted">Only the first {maxListed} are listed.</p>;
+// LeftOut says, in one line beside a list, that it left some of its items
+// out, past the most a list that comes whole holds, naming what it lists, as
+// in "agents".
+export function LeftOut({ items }: { items: string }) {
+  return (
+    <p className="muted">
+      Only the first {maxListed} {items} are listed.
+    </p>
+  );
 }
 
 // Failure shows why something did not work, announced as it appears.
@@ -164,6 +183,45 @@ export function Status({ children }: { children: ReactNode }) {
   );
 }
 
+// Confirmation asks once more before an action that cannot be undone: the
+// question, a button that confirms and Cancel. Focus moves to the confirming
+// button as it appears; where it goes once answered is the caller's to say.
+export function Confirmation({
+  question,
+  confirmLabel,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  question: string;
+  confirmLabel: string;
+  disabled?: boolean | undefined;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const confirm = useRef<HTMLButtonElement>(null);
+  useEffect(() => confirm.current?.focus(), []);
+  return (
+    <div className="confirm" role="group" aria-label={question}>
+      <p>{question}</p>
+      <div className="actions">
+        <button
+          ref={confirm}
+          type="button"
+          className="danger"
+          disabled={disabled}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </button>
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ConfirmButton asks once more before an action that cannot be undone. Focus
 // moves to the confirming button when it asks, and back when it stops asking.
 export function ConfirmButton({
@@ -184,12 +242,10 @@ export function ConfirmButton({
 }) {
   const [asking, setAsking] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
-  const confirm = useRef<HTMLButtonElement>(null);
   const asked = useRef(false);
   useEffect(() => {
     if (asking) {
       asked.current = true;
-      confirm.current?.focus();
     } else if (asked.current) {
       opener.current?.focus();
     }
@@ -209,26 +265,16 @@ export function ConfirmButton({
     );
   }
   return (
-    <div className="confirm" role="group" aria-label={question}>
-      <p>{question}</p>
-      <div className="actions">
-        <button
-          ref={confirm}
-          type="button"
-          className="danger"
-          disabled={disabled}
-          onClick={() => {
-            setAsking(false);
-            onConfirm();
-          }}
-        >
-          {confirmLabel}
-        </button>
-        <button type="button" className="secondary" onClick={() => setAsking(false)}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <Confirmation
+      question={question}
+      confirmLabel={confirmLabel}
+      disabled={disabled}
+      onConfirm={() => {
+        setAsking(false);
+        onConfirm();
+      }}
+      onCancel={() => setAsking(false)}
+    />
   );
 }
 
@@ -262,6 +308,179 @@ export function MoreButton({
     <button type="button" className="secondary more" disabled={loading} onClick={more}>
       Show more
     </button>
+  );
+}
+
+// Fold is what a header folds: a heading wrapping a disclosure button, its
+// chevron turned while folded, and beneath it what it holds, shown only while
+// unfolded, so nothing folded away loads or reads. An outer header heads a
+// group, as a tinted bar that stays at the top while its group scrolls under
+// it; an inner one is a light subheader. Its button shows its label and any
+// marks beside it, and is named spoken where the marks say more than the
+// label.
+export function Fold({
+  level,
+  outer,
+  label,
+  marks,
+  spoken,
+  folded,
+  toggle,
+  children,
+}: {
+  level: 2 | 3 | 4;
+  outer: boolean;
+  label: ReactNode;
+  marks?: ReactNode;
+  spoken?: string | undefined;
+  folded: boolean;
+  toggle: () => void;
+  children: ReactNode;
+}) {
+  const body = useId();
+  const Heading = `h${level}` as const;
+  return (
+    <section className={outer ? "group" : "subgroup"}>
+      <Heading className={outer ? "group-head" : "subgroup-head"}>
+        <button
+          type="button"
+          aria-expanded={!folded}
+          aria-controls={body}
+          aria-label={spoken}
+          onClick={toggle}
+        >
+          <Icon name="expand" />
+          <span className="group-label">{label}</span>
+          {marks}
+        </button>
+      </Heading>
+      <div id={body} hidden={folded}>
+        {!folded && children}
+      </div>
+    </section>
+  );
+}
+
+// An options menu's way to close as an item is chosen.
+const MenuChoice = createContext<() => void>(() => {});
+
+// OptionsMenu is a button of three dots and the short menu of items it
+// discloses below it, over what follows. Escape, choosing an item, a tap
+// elsewhere, or focus moving on to another control closes it. Focus returns
+// to the button, without scrolling to it, unless it went to that control or
+// the tap landed on one. Choosing an item returns focus before the item acts,
+// so an item that opens something, such as a sheet or a question, takes focus
+// on to it. notes follow the items, such as why one waits. button, when
+// given, is the caller's hold on the button, for focus to come back to later.
+export function OptionsMenu({
+  label,
+  open,
+  setOpen,
+  button,
+  notes,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  button?: RefObject<HTMLButtonElement | null>;
+  notes?: ReactNode;
+  children: ReactNode;
+}) {
+  const id = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const own = useRef<HTMLButtonElement>(null);
+  const opener = button ?? own;
+  const setOpenRef = useRef(setOpen);
+  setOpenRef.current = setOpen;
+  const shut = useCallback(() => setOpenRef.current(false), []);
+  useTapOutside(open, root, opener, shut);
+  const close = useCallback(() => {
+    shut();
+    opener.current?.focus({ preventScroll: true });
+  }, [shut, opener]);
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (open && event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  };
+  // Focus moving on to a control outside, as Tab past the last item does,
+  // closes the menu so it never lies over that control. Focus a tap leaves on
+  // a region that takes it only from script, such as the page's main region,
+  // is the click's to settle.
+  const onBlur = (event: FocusEvent) => {
+    const next = event.relatedTarget;
+    if (
+      open &&
+      next instanceof HTMLElement &&
+      next.tabIndex >= 0 &&
+      root.current?.contains(next) !== true
+    ) {
+      shut();
+    }
+  };
+  return (
+    <div
+      className={open ? "options open" : "options"}
+      ref={root}
+      onKeyDown={onKeyDown}
+      onBlur={onBlur}
+    >
+      <button
+        ref={opener}
+        type="button"
+        className="options-button"
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name="options" />
+      </button>
+      {open && (
+        <div id={id} className="options-menu">
+          <MenuChoice.Provider value={close}>
+            <ul>{children}</ul>
+          </MenuChoice.Provider>
+          {notes}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// MenuItem is an item of an options menu: choosing it closes the menu, focus
+// returning to its button, and then does what the item does.
+export function MenuItem({
+  onChoose,
+  disabled,
+  describedBy,
+  className,
+  children,
+}: {
+  onChoose: () => void;
+  disabled?: boolean | undefined;
+  describedBy?: string | undefined;
+  className?: string | undefined;
+  children: ReactNode;
+}) {
+  const close = useContext(MenuChoice);
+  return (
+    <li>
+      <button
+        type="button"
+        className={className}
+        disabled={disabled}
+        aria-describedby={describedBy}
+        onClick={() => {
+          close();
+          onChoose();
+        }}
+      >
+        {children}
+      </button>
+    </li>
   );
 }
 

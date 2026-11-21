@@ -99,28 +99,30 @@ pass means CI will pass the same checks.
 
 ```bash
 scripts/check.sh                  # everything CI runs
-scripts/check.sh --fast           # skips the builds and the browser gate
+scripts/check.sh --fast           # skips the agent compatibility gate, the builds and the browser gate
 scripts/check.sh --packages DIR   # only the install and the build, keeping the checked tarballs in DIR
 ```
 
-| Gate                 | What it guards                                                                                                                                                                                                                                                                                                                                              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dependency integrity | A clean install matching the lockfile's checksums, and npm registry signatures                                                                                                                                                                                                                                                                              |
-| Format and lint      | Formatting, Markdown structure and spelling (`scripts/lint-files.sh`)                                                                                                                                                                                                                                                                                       |
-| Types                | `tsc --noEmit` in every workspace                                                                                                                                                                                                                                                                                                                           |
-| Tests                | The Vitest suite of every workspace                                                                                                                                                                                                                                                                                                                         |
-| Vulnerabilities      | Known advisories of high severity or above in npm dependencies                                                                                                                                                                                                                                                                                              |
-| Plugin drift         | Committed plugin outputs match their sources                                                                                                                                                                                                                                                                                                                |
-| SDD records          | A completed plan checkbox in `docs/sdd/` never changes once merged, and a locked SDD changes only its `locked.md` (`scripts/check-sdd.sh`)                                                                                                                                                                                                                  |
-| Build                | Both bundles, the server's with the web UI; each package, installed from its tarball, runs and prints its version, and the server serves its web UI and begins a passkey sign-in                                                                                                                                                                            |
-| Browser              | The web UI, served by the built server over TLS, in Chromium with virtual passkey authenticators: the server's name, passkey link and sign-in, a second passkey, approval, answers, a message's detail, a stale write, Markdown, hostile text, unread marks, archiving, and the list's filters, their counts, its order, the order's direction and grouping |
+| Gate                 | What it guards                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependency integrity | A clean install matching the lockfile's checksums, and npm registry signatures                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Format and lint      | Formatting, Markdown structure and spelling (`scripts/lint-files.sh`)                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Types                | `tsc --noEmit` in every workspace                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Tests                | The Vitest suite of every workspace                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Vulnerabilities      | Known advisories of high severity or above in npm dependencies                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Plugin drift         | Committed plugin outputs match their sources                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| SDD records          | A completed plan checkbox in `docs/sdd/` never changes once merged, and a locked SDD changes only its `locked.md` (`scripts/check-sdd.sh`)                                                                                                                                                                                                                                                                                                                                            |
+| Agent compatibility  | Every released bridge, installed from npm with its signatures and provenance checked, drives every tool it has against the agent routes at HEAD (`scripts/check-agent-compatibility.sh`)                                                                                                                                                                                                                                                                                              |
+| Build                | Both bundles, the server's with the web UI; each package, installed from its tarball, runs and prints its version, and the server serves its web UI and begins a passkey sign-in                                                                                                                                                                                                                                                                                                      |
+| Browser              | The web UI, served by the built server over TLS, in Chromium with virtual passkey authenticators: the server's name, passkey link and sign-in, a second passkey, approval, answers, a message's detail, a stale write, Markdown, hostile text, unread marks, archiving, the list's filters, their counts, its order, the order's direction and grouping, and the sessions view, at a phone's width too, with a session's status and log, a thread started there and stranded's reason |
 
 Read [`scripts/check.sh`](scripts/check.sh) for the exact commands; it is the single definition of
 the gates.
 
-The install, signature and vulnerability checks need network access. A local Node version that
-differs from `.node-version` produces a warning, not a failure, since CI always uses the pinned
-version.
+The install, signature, vulnerability and agent compatibility checks need network access. The agent
+compatibility gate also needs the repository's release tags, which a clone may lack; fetch them with
+`git fetch --tags`. A local Node version that differs from `.node-version` produces a warning, not a
+failure, since CI always uses the pinned version.
 
 ### Formatting and spelling
 
@@ -180,6 +182,28 @@ generator also refuses an `--out` that already exists.
 local plugin marketplace and install `agention` from it. When you are done, uninstall the plugin and
 remove the marketplace from the host, then delete the directory.
 
+### The agent API
+
+Agents run whatever bridge their plugin pins, so the agent routes only grow: each release's agent
+routes accept what every released bridge sends and answer what it reads. The bridge and the server
+state the agent API version they speak on every request and answer, `agentApi` in
+`packages/api/src/agent-api.ts`. Every change to the agent contract, a new route or a new field on
+one, bumps its `version` by one; its `oldest`, the oldest version the server still serves, moves
+only by a maintainer's decision.
+
+The agent compatibility gate holds the rule. For each `v*` tag reachable from HEAD and not on HEAD
+itself, `scripts/check-agent-compatibility.sh` installs that release's bridge from npm by its exact
+version into a scratch directory, with the seven-day wait off (see [Dependencies](#dependencies)),
+and checks its registry signatures and provenance with `npm audit signatures`. The bridge's suite,
+`apps/bridge/src/released-bridges.compat.ts`, then starts each installed bundle as an agent host
+would, over standard input and output, against the server at HEAD, and drives register, approval and
+every tool the release has, with the fields it sends: asks and answers, a withdrawal, a replacement,
+a stale write, a later message's ask, topic, detail and references, the list's filters and waits.
+Any refusal of valid input fails it, and so does any answer the release cannot read. A tag whose
+version npm does not have yet, as for a minute after a release, fails it too, named with npm's own
+error, and so does a clone without tags. A new tool or field joins the suite.
+`scripts/check.sh --fast` skips the gate, which needs the network.
+
 ## Dependencies
 
 - Pin every dependency exactly. npm packages are pinned by exact versions in the workspaces'
@@ -210,6 +234,10 @@ remove the marketplace from the host, then delete the directory.
   Node.js follows its 24 line, the oldest the published packages support (their `engines`), so the
   checks run on the oldest Node a user may have. `@types/node` follows the same line, so Dependabot
   ignores its major updates.
+- The agent compatibility gate ([The agent API](#the-agent-api)) installs Agention's own released
+  bridges with the wait turned off, since it checks a release as soon as it is published; that one
+  install is the only exception. The bridge is a bundle that declares no dependencies, so nothing
+  else resolves.
 - A security fix may skip the wait. When a published advisory affects a pinned or locked version and
   no fixed release in the release line in use is seven days old, take the first fixed release and
   only the new releases it requires, pinned exactly, and add each npm package among them to

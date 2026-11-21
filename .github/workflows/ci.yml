@@ -26,7 +26,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # The SDD gate compares the branch with the merge-base of its base.
+          # The SDD gate compares the branch with the merge-base of its base,
+          # and the agent compatibility gate reads the release tags.
           fetch-depth: 0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

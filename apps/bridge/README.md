@@ -3,7 +3,8 @@
 The agent bridge for [Agention](https://github.com/WayfarerLabs/agention), a self-hosted attention
 inbox for autonomous agents and the person working with them. The bridge is the MCP server that an
 agent host such as Claude Code or Codex starts for each agent session. Through it the session
-registers its key, starts threads, writes and reads their messages, and checks for answers.
+registers its key, starts threads, writes and reads their messages, checks for answers, and reports
+its state.
 
 ## Use
 

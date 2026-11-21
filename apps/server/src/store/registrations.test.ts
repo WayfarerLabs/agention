@@ -1,7 +1,5 @@
 import {
-  agentsQuery,
   type ApproveInput,
-  maxListed,
   type PublicKey,
   publicKey,
   registrationsQuery,
@@ -14,7 +12,6 @@ import { identityForRegistration } from "../identity.ts";
 import {
   approveRegistration,
   findRegistrationByKey,
-  listAgents,
   listRegistrations,
   registrationLifetime,
   rejectRegistration,
@@ -163,7 +160,7 @@ describe("approveRegistration", () => {
 
   it("grants an existing session with its whole history to a further credential", () => {
     const first = fixture.registerAgent("builder", "main");
-    fixture.startThread(first, { title: "Earlier work" });
+    fixture.createThread(first, { title: "Earlier work" });
     const { id } = submit();
     approveRegistration(
       fixture.store,
@@ -268,7 +265,7 @@ describe("revokeRegistration", () => {
   it("ends the credential and keeps the session, its threads and its other credentials", () => {
     const first = fixture.registerAgent("builder", "main");
     const second = fixture.registerAgent("builder", "main");
-    fixture.startThread(first, { title: "Kept" });
+    fixture.createThread(first, { title: "Kept" });
     fixture.advance(hour);
     const { registration } = revokeRegistration(
       fixture.store,
@@ -338,55 +335,4 @@ describe("listRegistrations", () => {
     expect(second.next).toBeUndefined();
     expect(list({}).registrations[1]?.code).toBe(registrationCode(pending.publicKey));
   });
-});
-
-describe("listAgents", () => {
-  it("pages agents by name, each with its sessions by name, marking those without a credential", () => {
-    fixture.registerAgent("zeta", "one");
-    const revoked = fixture.registerAgent("alpha", "two");
-    fixture.registerAgent("alpha", "one");
-    fixture.registerAgent("mu", "one");
-    revokeRegistration(fixture.store, fixture.operator, revoked.registrationId);
-    const first = listAgents(fixture.store, fixture.operator, agentsQuery.parse({ limit: "2" }));
-    expect(first.agents).toEqual([
-      {
-        agent: "alpha",
-        sessions: [
-          { session: "one", credential_active: true },
-          { session: "two", credential_active: false },
-        ],
-        truncated: false,
-      },
-      { agent: "mu", sessions: [{ session: "one", credential_active: true }], truncated: false },
-    ]);
-    const second = listAgents(
-      fixture.store,
-      fixture.operator,
-      agentsQuery.parse({ limit: "2", cursor: first.next }),
-    );
-    expect(second).toEqual({
-      agents: [
-        {
-          agent: "zeta",
-          sessions: [{ session: "one", credential_active: true }],
-          truncated: false,
-        },
-      ],
-    });
-  });
-
-  // Registering past the bound through the real paths takes seconds.
-  it(
-    `lists at most ${maxListed} sessions of an agent, saying when it leaves any out`,
-    { timeout: 30_000 },
-    () => {
-      for (let index = 0; index <= maxListed; index++) {
-        fixture.registerAgent("builder", `session-${String(index).padStart(3, "0")}`);
-      }
-      const [builder] = listAgents(fixture.store, fixture.operator, agentsQuery.parse({})).agents;
-      expect(builder?.sessions.length).toBe(maxListed);
-      expect(builder?.sessions[0]?.session).toBe("session-000");
-      expect(builder?.truncated).toBe(true);
-    },
-  );
 });

@@ -17,12 +17,14 @@
     "HSTS",
     "licence",
     "lockfiles",
+    "loglevel",
     "mkfifo",
     "mktemp",
     "modelcontextprotocol",
     "nosniff",
     "NOSYSTEM",
     "npmjs",
+    "nums",
     "Nygard",
     "Pryce",
     "quotepath",
@@ -39,7 +41,8 @@
     "unstub",
     "usernameless",
     "wayfarerlabs",
-    "webauthn"
+    "webauthn",
+    "zeroblob"
   ],
   "ignoreRegExpList": ["`[^`\\r\\n]+`"],
   "ignorePaths": [

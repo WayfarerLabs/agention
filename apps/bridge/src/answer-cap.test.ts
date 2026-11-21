@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { maxListedAsks } from "@wayfarerlabs/agention-api";
 import { maxErrorBytes, maxResultBytes } from "./fit.ts";
-import { type Answer, BridgeHarness, type TestBridge } from "./test-harness.ts";
+import { type Answer, BridgeHarness, serverJson, type TestBridge } from "./test-harness.ts";
 
 let harness: BridgeHarness;
 let bridge: TestBridge;
@@ -164,7 +164,7 @@ describe("a result over the cap", () => {
         text: "Notes.",
         detail: "m".repeat(20_000),
       }));
-      return Response.json({ thread: { number: 1, last_seq: 3 }, messages, cursors: {} });
+      return serverJson({ thread: { number: 1, last_seq: 3 }, messages, cursors: {} });
     };
     const answer = await bridge.call("thread_get", { thread: 1 });
     withinCap(answer);
@@ -187,7 +187,7 @@ describe("a result over the cap", () => {
           lead: { number: 1, seq: 1, question: astral(600) },
         },
       }));
-      return Response.json({ threads });
+      return serverJson({ threads });
     };
     const answer = await bridge.call("thread_list", {});
     withinCap(answer);
@@ -335,7 +335,7 @@ describe("a result over the cap", () => {
       if (request.method !== "GET" || new URL(request.url).pathname !== threadPath) {
         return undefined;
       }
-      return Response.json({
+      return serverJson({
         thread: { number: 1, last_seq: 2, ...thread },
         messages: [{ seq: 2, ...message }],
         cursors: {},

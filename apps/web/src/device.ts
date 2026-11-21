@@ -56,13 +56,33 @@ export function useDeviceChoice(
 
 // useDeviceNames gives the names kept under key, none by default, and a way
 // to change and keep them.
-export function useDeviceNames(
-  key: string,
-): [ReadonlySet<string>, (names: ReadonlySet<string>) => void] {
+function useDeviceNames(key: string): [ReadonlySet<string>, (names: ReadonlySet<string>) => void] {
   const [names, setNames] = useState<ReadonlySet<string>>(() => new Set(readNames(key)));
   const choose = (next: ReadonlySet<string>) => {
     setNames(next);
     keep(key, JSON.stringify([...next]));
   };
   return [names, choose];
+}
+
+// Folds are what this browser folded, or unfolded, of a view's headers, by
+// name, such as the thread list's groups: whether it holds a name, and a way
+// to flip it, which the browser keeps under key.
+export interface Folds {
+  has(name: string): boolean;
+  toggle(name: string): void;
+}
+
+export function useFolds(key: string): Folds {
+  const [names, keep] = useDeviceNames(key);
+  return {
+    has: (name) => names.has(name),
+    toggle: (name) => {
+      const next = new Set(names);
+      if (!next.delete(name)) {
+        next.add(name);
+      }
+      keep(next);
+    },
+  };
 }

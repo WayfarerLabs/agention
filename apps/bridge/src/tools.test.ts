@@ -1,8 +1,11 @@
 import {
+  agentApi,
+  agentApiHeader,
   includeArchivedFilter,
   markInput,
   messageFields,
   searchFilter,
+  sessionUpdateInput,
   statusFilter,
   threadCreateInput,
   unreadFilter,
@@ -37,6 +40,7 @@ const tools = [
   "thread_read",
   "thread_archive",
   "message_wait",
+  "session_update",
 ];
 
 function newThread(requestId: string, fields: Record<string, unknown> = {}) {
@@ -105,6 +109,7 @@ describe("the tool list", () => {
       }),
     );
     expect(schema("thread_list")?.properties).toMatchObject(filters);
+    expect(schema("session_update")?.properties).toEqual(propertiesOf(sessionUpdateInput));
   });
 
   it("is served even without AGENTION_URL", async () => {
@@ -131,6 +136,7 @@ async function everyToolRefuses(bridge: TestBridge, setting: string): Promise<vo
     ["thread_read", { thread: 1, through: 1 }],
     ["thread_archive", { thread: 1, through: 1 }],
     ["message_wait", { wait_seconds: 0 }],
+    ["session_update", { state: "working" }],
   ];
   for (const [tool, args] of calls) {
     const answer = await bridge.call(tool, args);
@@ -201,6 +207,121 @@ describe("a redirect", () => {
     expect([answer.isError, answer.json]).toEqual([true, undefined]);
     expect(answer.text).toContain("AGENTION_URL");
     expect(reached).toBe(0);
+  });
+});
+
+describe("the agent API version", () => {
+  // answerWith answers every request in place of the server: Agention's JSON
+  // with the status given, stating the version given, or none.
+  function answerWith(status: number, body: unknown, version?: string): void {
+    harness.beforeRequest = () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: {
+          "content-type": "application/json",
+          ...(version === undefined ? {} : { [agentApiHeader]: version }),
+        },
+      });
+  }
+
+  const pending = { status: "pending", code: "7KQ2M-X9D4R", expires_at: "2026-11-20T12:00:00Z" };
+
+  it("is stated on every request the bridge makes", async () => {
+    const stated: (string | null)[] = [];
+    const bridge = await approvedBridge();
+    harness.beforeRequest = (request) => {
+      stated.push(request.headers.get(agentApiHeader));
+    };
+    await bridge.ok("register");
+    await bridge.ok("thread_create", newThread("r1"));
+    await bridge.ok("thread_get", { thread: 1 });
+    await bridge.ok("thread_read", { thread: 1, through: 1 });
+    await bridge.ok("session_update", { state: "working" });
+    expect(stated.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(stated)).toEqual(new Set([String(agentApi.version)]));
+  });
+
+  it.each([
+    ["none", undefined],
+    ["an older one", String(agentApi.version - 1)],
+    ["one that is no version", "two"],
+  ])("refuses an answer stating %s, its body unused", async (_, version) => {
+    const bridge = await harness.bridge();
+    answerWith(200, pending, version);
+    const refused = await bridge.call("register");
+    expect([refused.isError, refused.json]).toEqual([true, undefined]);
+    answerWith(404, { error: { code: "not_found", message: "not found" } }, version);
+    const failed = await bridge.call("register");
+    expect([failed.isError, failed.json]).toEqual([true, undefined]);
+  });
+
+  it("takes an answer stating its own version or a newer one, however long", async () => {
+    const bridge = await harness.bridge();
+    for (const version of [agentApi.version, agentApi.version + 1, "99999999999999999999"]) {
+      answerWith(200, pending, String(version));
+      expect(await bridge.ok("register")).toMatchObject({ status: "pending", code: pending.code });
+    }
+  });
+
+  it("leaves an answer without Agention's JSON, such as a proxy's, to the problem it names", async () => {
+    const bridge = await harness.bridge();
+    harness.beforeRequest = () => new Response("Bad Gateway", { status: 502 });
+    const proxied = await bridge.call("register");
+    answerWith(200, pending);
+    const older = await bridge.call("register");
+    expect([proxied.isError, older.isError]).toEqual([true, true]);
+    // Each is a problem of its own, which says what to do about it.
+    expect(proxied.text).not.toEqual(older.text);
+  });
+});
+
+describe("session_update", () => {
+  it("reports the session's status, which the operator sees, and answers with it", async () => {
+    const bridge = await approvedBridge();
+    expect(
+      await bridge.ok("session_update", {
+        state: "working",
+        title: "Retire invoices",
+        goal: "Drop the table",
+      }),
+    ).toEqual({ state: "working", title: "Retire invoices", goal: "Drop the table" });
+    expect(await bridge.ok("session_update", { percent: 40, note: "Backfill under way." })).toEqual(
+      { state: "working", title: "Retire invoices", goal: "Drop the table", percent: 40 },
+    );
+    expect(
+      await bridge.ok("session_update", { state: "stopped", outcome: "completed" }),
+    ).toMatchObject({ state: "stopped", outcome: "completed" });
+    const sessions = await harness.server.web("GET", "/sessions");
+    expect(sessions.body).toMatchObject({
+      agents: [
+        {
+          sessions: [
+            {
+              status: { state: "stopped", outcome: "completed", percent: 40 },
+              unread_updates: 3,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["nothing", {}, undefined],
+    ["only an outcome", { outcome: "completed" }, "outcome"],
+    ["stopped without an outcome", { state: "stopped" }, "outcome"],
+    ["an outcome beside idle", { state: "idle", outcome: "stalled" }, "outcome"],
+    ["a percent above 100", { percent: 101 }, "percent"],
+    ["a field it does not know", { state: "working", progress: 10 }, "progress"],
+  ])("refuses %s before any request", async (_, input, field) => {
+    const bridge = await approvedBridge();
+    let requests = 0;
+    harness.beforeRequest = () => {
+      requests++;
+    };
+    const error = await bridge.error("session_update", input);
+    expect([error.code, error.field]).toEqual(["invalid_input", field]);
+    expect(requests).toBe(0);
   });
 });
 

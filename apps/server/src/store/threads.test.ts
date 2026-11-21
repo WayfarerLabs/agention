@@ -3,13 +3,15 @@ import {
   messageSendInput,
   threadCreateInput,
   threadGetQuery,
+  threadStartInput,
   threadsQuery,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
+import { revokeRegistration } from "./registrations.ts";
 import { type Agent, Fixture, hour, requestId, threadTarget } from "./test-fixture.ts";
 import { listThreads } from "./thread-lists.ts";
-import { createThread, getThread, sendMessage } from "./threads.ts";
+import { createThread, getThread, sendMessage, startThread } from "./threads.ts";
 
 let fixture: Fixture;
 let agent: Agent;
@@ -56,7 +58,7 @@ const choice = {
 
 // asking starts thread 1 whose first message asks, as ask 1.
 function asking(ask: Record<string, unknown> = choice): void {
-  fixture.startThread(agent, { asks: [ask] });
+  fixture.createThread(agent, { asks: [ask] });
 }
 
 // asksOf reads the asks a message carries.
@@ -83,7 +85,7 @@ describe("createThread", () => {
       },
     };
     const { ask, ...fields } = text;
-    fixture.startThread(agent, { ...fields, asks: [ask] });
+    fixture.createThread(agent, { ...fields, asks: [ask] });
     const { thread, messages } = read();
     expect(thread).toMatchObject({ title: text.title, topic: text.topic });
     expect(messages[0]).toMatchObject({
@@ -101,7 +103,7 @@ describe("createThread", () => {
   });
 
   it("answers with the thread's number and its first message, which may carry nothing", () => {
-    expect(fixture.startThread(agent)).toEqual({ number: 1, seq: 1 });
+    expect(fixture.createThread(agent)).toEqual({ number: 1, seq: 1 });
     const { thread, messages, cursors, marks } = read(agent.identity);
     expect(thread).toMatchObject({
       agent: "builder",
@@ -129,19 +131,19 @@ describe("createThread", () => {
 
   it("numbers threads from 1 within each session", () => {
     const other = fixture.registerAgent("builder", "side");
-    expect(fixture.startThread(agent).number).toBe(1);
-    expect(fixture.startThread(agent).number).toBe(2);
-    expect(fixture.startThread(other).number).toBe(1);
+    expect(fixture.createThread(agent).number).toBe(1);
+    expect(fixture.createThread(agent).number).toBe(2);
+    expect(fixture.createThread(other).number).toBe(1);
   });
 
   it("references only threads of its session", () => {
     const other = fixture.registerAgent("reviewer", "main");
-    fixture.startThread(other);
+    fixture.createThread(other);
     expect(
-      failure(() => fixture.startThread(agent, { references: [{ label: "x", thread: 1 }] })),
+      failure(() => fixture.createThread(agent, { references: [{ label: "x", thread: 1 }] })),
     ).toEqual({ code: "invalid_input", field: "references.0.thread" });
-    fixture.startThread(agent);
-    fixture.startThread(agent, { references: [{ label: "Earlier", thread: 1 }] });
+    fixture.createThread(agent);
+    fixture.createThread(agent, { references: [{ label: "Earlier", thread: 1 }] });
     expect(read(fixture.operator, 2).messages[0]?.references).toEqual([
       { label: "Earlier", thread: 1 },
     ]);
@@ -152,6 +154,93 @@ describe("createThread", () => {
     expect(
       failure(() => createThread(fixture.store, fixture.operator, agent.target, input)).code,
     ).toBe("not_allowed");
+  });
+});
+
+describe("startThread", () => {
+  it("makes the session the requester and the operator the audience, writing the first message", () => {
+    fixture.createThread(agent);
+    expect(
+      fixture.startThread(agent, {
+        title: "Rebase onto main",
+        text: "Main moved; please rebase.",
+        detail: "Three commits landed.",
+      }),
+    ).toEqual({ number: 2, seq: 1 });
+    const operatorView = read(fixture.operator, 2);
+    expect(operatorView.thread).toMatchObject({ title: "Rebase onto main", unread: 0 });
+    expect(operatorView.marks).toEqual({ read_through: 1, archived_through: 0 });
+    expect(operatorView.messages).toMatchObject([
+      {
+        seq: 1,
+        author: { kind: "person", name: "operator" },
+        text: "Main moved; please rebase.",
+        detail: "Three commits landed.",
+      },
+    ]);
+    expect(read(agent.identity, 2)).toMatchObject({
+      thread: { unread: 1, read_through: 0 },
+      cursors: { requester: 0, audience: 1 },
+    });
+    const registration = fixture.db
+      .prepare(
+        "SELECT registration_id FROM messages m JOIN threads t ON t.id = m.thread_id WHERE t.number = 2",
+      )
+      .get() as { registration_id: number | null };
+    expect(registration.registration_id).toBeNull();
+  });
+
+  it("leaves the session the requester's parts and the operator the audience's", () => {
+    fixture.startThread(agent);
+    fixture.write(agent.identity, target(), { text: "Rebased.", asks: [{ question: "Push it?" }] });
+    expect(failure(() => fixture.write(fixture.operator, target(), { topic: "release" }))).toEqual({
+      code: "not_allowed",
+      field: "topic",
+    });
+    fixture.write(fixture.operator, target(), { answers: [{ ask: 1, text: "Yes." }] });
+    expect(read().thread.status).toBe("answered");
+  });
+
+  it("wakes the session's long polls", async () => {
+    const woken = fixture.store.notifier.wait(agent.sessionId, 5000);
+    fixture.startThread(agent);
+    expect(await woken).toBe("notified");
+  });
+
+  it("answers a retry as it did, and a reused request id with other content as a conflict", () => {
+    const id = requestId();
+    const first = fixture.startThread(agent, { request_id: id });
+    expect(fixture.startThread(agent, { request_id: id })).toEqual(first);
+    expect(failure(() => fixture.startThread(agent, { request_id: id, text: "Other." }))).toEqual({
+      code: "request_id_conflict",
+      field: "request_id",
+    });
+    expect(fixture.startThread(agent).number).toBe(2);
+  });
+
+  it("starts a thread on a session with no credential, stranded from the start", () => {
+    fixture.seen(agent);
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    expect(fixture.startThread(agent)).toEqual({ number: 1, seq: 1 });
+    expect(read().thread).toMatchObject({ stranded: true, credential_active: false });
+  });
+
+  it("is the operator's alone, on a session they name", () => {
+    const input = threadStartInput.parse({ request_id: requestId(), title: "t", text: "m" });
+    expect(failure(() => startThread(fixture.store, agent.identity, agent.target, input))).toEqual({
+      code: "not_allowed",
+      field: undefined,
+    });
+    const other = fixture.registerAgent("reviewer", "main");
+    expect(failure(() => startThread(fixture.store, agent.identity, other.target, input))).toEqual({
+      code: "not_found",
+      field: undefined,
+    });
+    const nowhere = { agent: "builder", session: "nowhere" };
+    expect(failure(() => startThread(fixture.store, fixture.operator, nowhere, input))).toEqual({
+      code: "not_found",
+      field: undefined,
+    });
   });
 });
 
@@ -228,7 +317,7 @@ describe("roles", () => {
 
 describe("asks", () => {
   it("count from 1 within the thread, a message's own in the order given", () => {
-    fixture.startThread(agent, { asks: [{ question: "a" }, { question: "b" }] });
+    fixture.createThread(agent, { asks: [{ question: "a" }, { question: "b" }] });
     fixture.write(agent.identity, target(), { asks: [{ question: "c" }] });
     expect(asksOf(1).map((ask) => [ask.number, ask.question])).toEqual([
       [1, "a"],
@@ -236,12 +325,12 @@ describe("asks", () => {
     ]);
     expect(asksOf(2).map((ask) => ask.number)).toEqual([3]);
     // Each thread counts its own.
-    fixture.startThread(agent, { asks: [{ question: "d" }] });
+    fixture.createThread(agent, { asks: [{ question: "d" }] });
     expect(read(fixture.operator, 2).messages[0]?.asks?.map((ask) => ask.number)).toEqual([1]);
   });
 
   it("keep their numbers, and a replacement's asks take new ones", () => {
-    fixture.startThread(agent, { asks: [{ question: "a" }, { question: "b" }] });
+    fixture.createThread(agent, { asks: [{ question: "a" }, { question: "b" }] });
     fixture.write(fixture.operator, target(), { answers: [{ ask: 2, declined: true }] });
     fixture.write(agent.identity, target(), {
       asks: [{ question: "a, revised" }, { question: "b, revised" }],
@@ -329,7 +418,7 @@ describe("answers", () => {
   });
 
   it("answer several asks in one message, from one message or several, together or apart", () => {
-    fixture.startThread(agent, { asks: [choice, open, { question: "And the queue?" }] });
+    fixture.createThread(agent, { asks: [choice, open, { question: "And the queue?" }] });
     fixture.write(agent.identity, target(), { asks: [{ question: "Deploy today?" }] });
     fixture.write(fixture.operator, target(), {
       answers: [
@@ -369,7 +458,7 @@ describe("answers", () => {
       "picks",
     ],
   ])("refuse %s, naming the answer", (_, ask, answer, field) => {
-    fixture.startThread(agent, { asks: [{ question: "First?" }, ask] });
+    fixture.createThread(agent, { asks: [{ question: "First?" }, ask] });
     expect(
       failure(() =>
         fixture.write(fixture.operator, target(), {
@@ -411,7 +500,7 @@ describe("answers", () => {
 
 describe("replacing", () => {
   it("ignores the replaced message from then on, and names what replaced it", () => {
-    fixture.startThread(agent, { text: "First draft." });
+    fixture.createThread(agent, { text: "First draft." });
     fixture.write(agent.identity, target(), { text: "Second draft.", replaces: 1 });
     expect(read().messages).toMatchObject([
       { seq: 1, live: false, replaced_by: 2, text: "First draft." },
@@ -422,7 +511,7 @@ describe("replacing", () => {
   });
 
   it("takes a whole message, detail included: what the replacement leaves out is gone", () => {
-    fixture.startThread(agent, { text: "Summary.", detail: "The long form." });
+    fixture.createThread(agent, { text: "Summary.", detail: "The long form." });
     fixture.write(agent.identity, target(), {
       text: "Summary, revised.",
       detail: "The long form, revised.",
@@ -437,7 +526,7 @@ describe("replacing", () => {
   });
 
   it("refuses a message already replaced, and one that does not exist", () => {
-    fixture.startThread(agent, { text: "Draft." });
+    fixture.createThread(agent, { text: "Draft." });
     fixture.write(agent.identity, target(), { text: "Better.", replaces: 1 });
     for (const replaces of [1, 9]) {
       expect(
@@ -455,7 +544,7 @@ describe("replacing", () => {
       { asks: [{ question: "Which, then?" }], withdrawals: [{ ask: 3, reason: "Moot." }] },
     ],
   ])("refuses a replacement carrying %s of a message holding open asks", (_, change) => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), { asks: [{ question: "Or?" }] });
     expect(
       failure(() => fixture.write(agent.identity, target(), { ...change, replaces: 1 })),
@@ -464,7 +553,7 @@ describe("replacing", () => {
   });
 
   it("revises open asks with a replacement carrying as many, once others are withdrawn too", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
     fixture.write(fixture.operator, target(), { answers: [{ ask: 3, declined: true }] });
     // Two asks open: as many asks revise them.
     fixture.write(agent.identity, target(), {
@@ -501,7 +590,7 @@ describe("replacing", () => {
   });
 
   it("changes answers by answering the same asks again, and may answer open asks besides", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
     fixture.write(fixture.operator, target(), {
       answers: [
         { ask: 1, picks: [0] },
@@ -530,7 +619,7 @@ describe("replacing", () => {
     ["an answer to only some of its asks", { answers: [{ ask: 1, declined: true }] }, "answers"],
     ["an answer to another ask instead", { answers: [{ ask: 3, declined: true }] }, "answers"],
   ])("refuses an answering message's replacement carrying %s", (_, change, field) => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(fixture.operator, target(), {
       answers: [
         { ask: 1, declined: true },
@@ -631,7 +720,7 @@ describe("withdrawals", () => {
   });
 
   it("close several asks of several messages in one message, in number order", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), { asks: [{ question: "Or?" }] });
     fixture.write(agent.identity, target(), {
       withdrawals: [
@@ -666,7 +755,7 @@ describe("withdrawals", () => {
   });
 
   it("close asks of the message a replacement replaces, which revises the rest in one write", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), {
       asks: [{ question: "Which, then?" }],
       withdrawals: [{ ask: 2, reason }],
@@ -700,7 +789,7 @@ describe("withdrawals", () => {
   });
 
   it("are never undone: a replacement withdraws again every ask its message withdrew", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
     fixture.write(agent.identity, target(), {
       text: "Settled.",
       withdrawals: [
@@ -751,7 +840,7 @@ describe("withdrawals", () => {
   ])(
     "must be withdrawn again even once the ask's own message is replaced: a message %s",
     (_, writes) => {
-      fixture.startThread(agent, { text: "First." });
+      fixture.createThread(agent, { text: "First." });
       fixture.write(agent.identity, target(), { asks: [{ question: "Ship it?" }] });
       for (const change of writes) {
         fixture.write(agent.identity, target(), change);
@@ -804,7 +893,7 @@ describe("status", () => {
   };
 
   it("rolls up the asks on live messages, the same for either party", () => {
-    fixture.startThread(agent, { text: "Hello." });
+    fixture.createThread(agent, { text: "Hello." });
     expect(status()).toEqual({ status: "none", withdrawal: undefined });
     fixture.write(agent.identity, target(), { asks: [choice, { question: "And?" }] });
     expect(status()).toEqual({ status: "open", withdrawal: undefined });
@@ -816,7 +905,7 @@ describe("status", () => {
   });
 
   it("counts the asks a replacement withdraws of its own message, withdrawn by name", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), {
       text: "Settled elsewhere.",
       withdrawals: [
@@ -832,7 +921,7 @@ describe("status", () => {
   });
 
   it("is open while a replacement revises one ask and withdraws the other", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), {
       asks: [{ question: "Which, then?" }],
       withdrawals: [{ ask: 2, reason: "Moot." }],
@@ -842,7 +931,7 @@ describe("status", () => {
   });
 
   it("names the first withdrawal of the latest withdrawing message", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
     fixture.write(agent.identity, target(), { withdrawals: [{ ask: 1, reason: "One." }] });
     fixture.write(agent.identity, target(), {
       withdrawals: [
@@ -857,7 +946,7 @@ describe("status", () => {
   });
 
   it("is withdrawn while a live message withdraws every live ask, naming the latest", () => {
-    fixture.startThread(agent, { asks: [choice, { question: "And?" }] });
+    fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), { withdrawals: [{ ask: 2, reason: "Two." }] });
     expect(status().status).toBe("open");
     fixture.write(agent.identity, target(), { withdrawals: [{ ask: 1, reason: "One." }] });
@@ -899,7 +988,7 @@ describe("status", () => {
 
 describe("topics", () => {
   it("come from the latest live message that sets one", () => {
-    fixture.startThread(agent, { topic: "auth" });
+    fixture.createThread(agent, { topic: "auth" });
     fixture.write(agent.identity, target(), { text: "More." });
     expect(read().thread.topic).toBe("auth");
     fixture.write(agent.identity, target(), { topic: "billing" });
@@ -907,7 +996,7 @@ describe("topics", () => {
   });
 
   it("are restored to the one before when the message that set it is replaced", () => {
-    fixture.startThread(agent, { topic: "auth" });
+    fixture.createThread(agent, { topic: "auth" });
     fixture.write(agent.identity, target(), { text: "Moving.", topic: "billing" });
     fixture.write(agent.identity, target(), { text: "Moving.", replaces: 2 });
     expect(read().thread.topic).toBe("auth");
@@ -918,7 +1007,7 @@ describe("topics", () => {
 
 describe("getThread", () => {
   it("pages messages after a sequence and reports both cursors and the caller's marks", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     for (let i = 0; i < 4; i++) {
       fixture.write(agent.identity, target(), { text: `m${i}`, asks: [{ question: `q${i}` }] });
     }
@@ -941,7 +1030,7 @@ describe("getThread", () => {
   });
 
   it("answers not_found for a thread number the session does not have", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(failure(() => read(fixture.operator, 2)).code).toBe("not_found");
   });
 });
@@ -949,7 +1038,7 @@ describe("getThread", () => {
 describe("open asks", () => {
   it("roll up their count, highest priority, earliest answer-by and signals over every open ask, the lead's or not", () => {
     const at = (hours: number) => new Date(fixture.now + hours * hour).toISOString();
-    fixture.startThread(agent, {
+    fixture.createThread(agent, {
       asks: [{ question: "a", priority: "low", impact: "blocking", answer_by: at(1) }],
     });
     fixture.write(agent.identity, target(), {
@@ -993,7 +1082,7 @@ describe("open asks", () => {
 
   it("put a blocking ask before others of its priority, then the earliest answer-by, then the lowest number", () => {
     const at = (hours: number) => new Date(fixture.now + hours * hour).toISOString();
-    fixture.startThread(agent, { asks: [{ question: "late", answer_by: at(5) }] });
+    fixture.createThread(agent, { asks: [{ question: "late", answer_by: at(5) }] });
     fixture.write(agent.identity, target(), {
       asks: [{ question: "none" }, { question: "soon", answer_by: at(1) }],
     });
@@ -1005,7 +1094,7 @@ describe("open asks", () => {
   });
 
   it("list at most the 50 most pressing, beside the count of all and the earliest, however many are open", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     const ask = (n: number) => ({
       question: `q${n}`,
       ...(n === 2999 ? { priority: "urgent" } : n <= 10 ? { priority: "low" } : {}),

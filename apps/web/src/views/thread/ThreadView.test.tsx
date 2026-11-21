@@ -611,17 +611,32 @@ describe("the head", () => {
 
   it.each([
     [
-      "last seen",
+      "is quiet, saying when its agent was last seen",
       { presence: { last_seen_at: "2026-10-27T09:00:00.000Z", quiet: true } },
-      /^The agent was last seen on \S.* and has not read your latest messages\.$/,
+      (line: Element | null) => expect(line?.querySelector("time")).not.toBeNull(),
     ],
     [
-      "never seen",
+      "is quiet, its agent never seen",
       { presence: { quiet: true } },
-      /^The agent has never been seen and has not read your latest messages\.$/,
+      (line: Element | null) => expect(line?.querySelector("time")).toBeNull(),
+    ],
+    [
+      "has stopped, saying how",
+      {
+        presence: {
+          last_seen_at: "2026-10-27T09:00:00.000Z",
+          quiet: true,
+          state: "stopped" as const,
+          outcome: "withdrawn" as const,
+        },
+      },
+      (line: Element | null) => {
+        expect(line?.textContent).toContain("withdrawn");
+        expect(line?.querySelector("time")).toBeNull();
+      },
     ],
   ])(
-    "says, muted under where it is, when a quiet session's agent stranding the thread was %s",
+    "says, muted under where it is, why the thread is stranded when its session %s",
     async (_, why, says) => {
       await page.open({
         thread: threadSummary({ unread: 0, stranded: true, ...why }),
@@ -630,7 +645,7 @@ describe("the head", () => {
       const line = threadHeader().querySelector(".stranded");
       expect(line?.previousElementSibling?.classList.contains("where")).toBe(true);
       expect(line?.classList.contains("muted")).toBe(true);
-      expect(line?.textContent).toMatch(says);
+      says(line);
     },
   );
 
@@ -653,9 +668,7 @@ describe("the head", () => {
       }),
       messages: [message(1), operatorMessage(2)],
     });
-    expect(threadHeader().querySelector(".stranded")?.textContent).toMatch(
-      /^The agent was last seen/,
-    );
+    expect(threadHeader().querySelector(".stranded time")).not.toBeNull();
     expect(within(threadHeader()).getByText("No active credential")).toBeTruthy();
   });
 

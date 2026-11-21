@@ -164,6 +164,12 @@ explicitly enabled. No forwarded or network-identity headers are trusted, and no
 decision or rate limit depends on source address. The operator guide documents running Agention on
 loopback behind `tailscale serve` as one way to publish it; nothing depends on Tailscale.
 
+Agent machines run whatever bridge their plugin pins, so bridges of several releases talk to one
+server. Every agent request and answer states the agent API version it speaks, a missing one meaning
+the first; a bridge refuses a server older than itself and the server a bridge outside the versions
+it serves, each saying what the operator upgrades, so a mismatch fails loudly instead of losing
+fields. Agent routes only grow between versions, and a gate runs every released bridge against them.
+
 ### Distribution: generated agent plugins
 
 One canonical plugin definition in `apps/agent-plugin` holds the plugin metadata, the agent usage
@@ -234,8 +240,8 @@ These are deliberate limits, not gaps to fill later without a new decision:
 - **Agention never holds up an agent's work.** An agent asks and carries on, checking for answers as
   it works, and once its other work is done keeps checking, as cheaply as it can, while it has open
   asks or unread messages. Agention shows when a session was last seen, whether it has gone quiet,
-  and which threads hold messages it has not read while it is quiet or has no credential, so the
-  person knows to resume it.
+  the state it last reported, and which threads hold messages it has not read while it is quiet, has
+  no credential or has stopped, so the person knows to resume it.
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
   agent's conversation, or control an agent harness.
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through

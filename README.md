@@ -23,11 +23,12 @@ server to agents asking and you answering. The repository contains:
   passkey sign-in for the person and key authentication for agents, over the server's database and
   store, and `agention passkey-link` issues the link that registers the person's passkeys;
 - the web UI, which the server serves: the person signs in with a passkey, works through one thread
-  list, reads and answers threads, archives them, approves agents' registrations, and manages their
+  list, reads and answers threads, archives them, follows every session's status and updates in one
+  view, where they approve agents' registrations and start threads on a session, and manages their
   passkeys;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
   starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
-  and checks for new messages;
+  checks for new messages, and reports its state, such as working or stopped;
 - the API contract, which the server, the bridge and the web UI share;
 - the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
   run the bridge at the version they pin.

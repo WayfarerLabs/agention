@@ -10,7 +10,7 @@
   to 31 on 2026-10-28, rulings 32 to 39 on 2026-10-30, rulings 40 to 44 on 2026-10-31, rulings 45 to
   47 on 2026-11-01, ruling 48 on 2026-11-05, rulings 49 to 52 on 2026-11-06, ruling 53 on
   2026-11-08, rulings 54 and 55 on 2026-11-09, rulings 56 and 57 on 2026-11-10, ruling 58 on
-  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 66 on
+  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 68 on
   2026-11-20
 - Date: 2026-10-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD (ruling 59); paths below are relative to
@@ -62,7 +62,6 @@ Message, Ask and Archive revised by ruling 41.
 | Effort      | How long answering takes the audience, as the requester estimates it.                                    |
 | Read cursor | The latest message an identity has read in a thread or session log.                                      |
 | Archive     | An identity's own mark that it is done with a thread's messages through a chosen one.                    |
-| Envelope    | Optional session state carried on any call from a session.                                               |
 | Requester   | The party seeking attention in a thread. In v1, always the thread's session.                             |
 | Audience    | The party whose attention is sought. In v1, always the operator.                                         |
 | Session log | Append-only record of a session's state, goal and progress.                                              |
@@ -258,17 +257,20 @@ declined any; and none when it holds none. At minimum:
 
 ### Sessions
 
-**R22. Sessions have state and progress.** A session is working, waiting (on something outside) or
-stopped with an outcome of completed, withdrawn or stalled. A stopped session may resume. A session
+**R22. Sessions have state and progress.** A session reports what it is doing: working, idle
+(nothing to do until something arrives, while it still checks for messages) or stopped with an
+outcome of completed, withdrawn or stalled. Stopped means the session is not likely to see new
+messages until something starts it again (ruling 65). Whatever it is doing, a session is waiting on
+the operator while it has open asks, which the operator's views count from the asks themselves
+rather than from anything the session reports (ruling 68). A stopped session may resume. A session
 may carry a title, an explicitly set goal and a rough percent estimate. A new goal replaces the
 previous goal and its progress. Goals are never inferred.
 
-**R23. Session updates ride normal traffic.** Any call from a session may carry an optional session
-envelope (state, outcome, goal, percent, note). Omitting it means unchanged; a call carrying only
-the envelope serves quiet stretches. The envelope is applied once the call is authenticated and
-authorized, whether or not the rest of the call succeeds. Changes are appended to a session log
-shown in the operator's views with a read cursor. Session updates are exempt from the stale rule
-because only the session writes its own state; the latest update wins.
+**R23. Sessions report through one status call.** A session reports its state, outcome, title, goal,
+percent and a note through one call made for it, and no other call carries them (ruling 65). A field
+left out is unchanged. Changes are appended to a session log shown in the operator's views with a
+read cursor. Session updates are exempt from the stale rule because only the session writes its own
+state; the latest update wins.
 
 **R24. Presence is observed.** Every authenticated agent call records when its session was last
 seen.
@@ -305,8 +307,9 @@ asked; uncommon actions on a message sit in its options menu. The operator also 
 passkeys (R7) and session groups and tags, and approves, rejects and revokes registrations, which
 appear within one view of the sessions: each agent's sessions, each with its status and whether it
 holds a working credential, and registrations waiting for approval beside them (ruling 56). The
-operator starts no threads and makes no asks in v1 (ruling 11), so they are never a requester, and
-R9 keeps every requester-only action out of their hands.
+operator starts a thread on a session with a title and a first message (ruling 64), and the session
+stays its requester; the operator makes no asks in v1 (rulings 11 and 65), so they are never a
+requester, and R9 keeps every requester-only action out of their hands.
 
 **R27. The UI stays current.** Views refresh without manual action while visible, and an expired
 browser sign-in leads back to sign-in rather than a dead error.
@@ -347,7 +350,9 @@ loopback behind `tailscale serve`. Nothing requires Tailscale.
 Errors are typed (at least invalid input, not found, stale, request-id conflict, rate limited,
 unauthenticated) and consistent across the MCP and web surfaces. The bridge words the problems it
 finds itself for the agent: what the agent does, or, for what only the operator can fix, to tell
-them (ruling 62).
+them (ruling 62). A bridge and the server each state the agent API version they speak; a bridge
+refuses a server older than itself, and the server a bridge outside the versions it supports, each
+saying what the operator upgrades (ruling 67).
 
 **R34. Consistent backup.** The operator can take a consistent backup of a running instance and
 restore it, following documented steps. History is retained indefinitely.
@@ -1134,12 +1139,30 @@ Recorded from the design conversation.
     with no toggle; the thread's head jumps in turn to each unread message and each ask still open
     to the operator; an ask card with an answer staged offers Clear, which removes it as the
     composer's Remove does.
+67. (2026-11-20, rolling Agention out across the operator's sessions) "Ok. And then I'm going to
+    start rolling this out across my sessions. I feel like the mixed up api thing is going to hit us
+    pretty soon if we don't get in front of it." "Is there a simple solution that we can put in
+    place to fail loudly instead of getting strange errors for silently missed fields?" The lead
+    proposed one integer agent API version, sent as a header both ways, absent meaning 1, with a
+    bridge refusing a server older than itself and the server refusing a bridge outside the versions
+    it supports, each saying what the operator upgrades, built into the first release that changes
+    the agent contract. The operator answered: "Yes, please build the check into the sessions
+    release." Taken: the sessions release carries the agent API version check; the rest of the
+    versioning research stays with the parked rework.
+68. (2026-11-20, on the sessions view's mockup) "Ok. So for the mock-up, I'm thinking that the
+    details for each session would be folded by default such that many sessions would fit on the
+    screen. The folder status should have all the key info. Unfolding would show the log." "And I
+    also meant to say earlier that you should be careful with working and waiting statuses. They're
+    not mutually exclusive, right? They're probably best represented as separate dimensions ."
+    Taken: each session is a folded row carrying its key facts, which unfolds to its goal and log; a
+    session reports what it is doing as working, idle or stopped, and whether it is waiting on the
+    operator is counted from its open asks, never reported.
 
 ## Out of scope for v1
 
 - Labels beyond one topic per thread (rulings 12 and 33).
 - Nested session groups and smart tags that match patterns in agent and session names (ruling 30).
-- Threads or asks the operator starts (ruling 11), more than one person, and people acting for the
+- Asks the operator makes (rulings 11 and 65), more than one person, and people acting for the
   operator.
 - An external identity issuer integration; only the mapping seam (R4) is in scope.
 - Embedded Tailscale mode, Tailscale ACL lockdown, and reachability from machines shared in from

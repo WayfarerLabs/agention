@@ -61,7 +61,7 @@ describe("last seen", () => {
 
 describe("quiet", () => {
   it("holds for a session never seen, and once it goes unseen past the threshold", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     expect(thread().presence).toEqual({ quiet: true });
     fixture.seen(agent);
     const seenAt = new Date(fixture.now).toISOString();
@@ -77,7 +77,7 @@ describe("quiet", () => {
     const short = new Fixture({ quietAfter: seenStep });
     try {
       const own = short.registerAgent("builder", "main");
-      short.startThread(own);
+      short.createThread(own);
       const quiet = () => short.thread(short.operator, threadTarget(own, 1)).thread.presence?.quiet;
       // Calling every 59 seconds stamps every other call, and is never quiet.
       for (let call = 0; call < 10; call++) {
@@ -94,21 +94,39 @@ describe("quiet", () => {
   });
 
   it("is the audience's to see, never the session's own", () => {
-    fixture.startThread(agent);
+    fixture.createThread(agent);
     const own = fixture.thread(agent.identity, target()).thread;
     expect(own).not.toHaveProperty("presence");
     expect(own).not.toHaveProperty("stranded");
   });
 });
 
+describe("a session's state", () => {
+  it("shows on its threads' presence, never on a group's", () => {
+    fixture.createThread(agent);
+    fixture.seen(agent);
+    fixture.report(agent, { state: "stopped", outcome: "stalled" });
+    expect(thread().presence).toMatchObject({ state: "stopped", outcome: "stalled" });
+    const grouped = listThreads(
+      fixture.store,
+      fixture.operator,
+      threadsQuery.parse({ group: "agent" }),
+    );
+    expect(grouped.groups?.sessions[0]?.presence).toEqual({
+      last_seen_at: new Date(fixture.now).toISOString(),
+      quiet: false,
+    });
+  });
+});
+
 describe("stranded", () => {
   beforeEach(() => {
-    fixture.startThread(agent, { title: "written to" });
+    fixture.createThread(agent, { title: "written to" });
     fixture.write(fixture.operator, target(1), { text: "Over to you." });
-    fixture.startThread(agent, { title: "read" });
+    fixture.createThread(agent, { title: "read" });
     fixture.write(fixture.operator, target(2), { text: "Over to you." });
     markRead(fixture.store, agent.identity, target(2), { through: 2 });
-    fixture.startThread(agent, { title: "not written to" });
+    fixture.createThread(agent, { title: "not written to" });
     fixture.seen(agent);
   });
 
@@ -128,6 +146,16 @@ describe("stranded", () => {
     // The agent coming back ends it, before it reads a thing.
     fixture.seen(agent);
     expect(thread(1).stranded).toBe(false);
+  });
+
+  it("holds such a message while the session has stopped, until it resumes", () => {
+    fixture.report(agent, { state: "stopped", outcome: "completed" });
+    expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([true, false, false]);
+    expect(stranded()).toEqual(["written to"]);
+    const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+    fixture.report(agent, { state: "working" });
+    expect(stranded()).toEqual([]);
   });
 
   it("holds such a message while the session has no active credential, seen or not", () => {

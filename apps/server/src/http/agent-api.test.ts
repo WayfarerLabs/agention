@@ -1,4 +1,6 @@
 import {
+  agentApi,
+  agentApiHeader,
   type ErrorBody,
   formatTimestamp,
   type ThreadGetResult,
@@ -534,5 +536,119 @@ describe("agent session routes", () => {
     expect(codeOf(await harness.agent(approved, "GET", "/s/builder/main/topics"))).toBe(
       "not_found",
     );
+  });
+});
+
+describe("the agent API version", () => {
+  const stated = (response: Response) => response.headers.get(agentApiHeader);
+
+  it("is stated on every answer, refusals and unknown routes included", async () => {
+    const responses = [
+      await list(approved),
+      await harness.agent(newAgentKey(), "POST", "/registrations", {
+        agent: "reviewer",
+        session: "main",
+      }),
+      await harness.agent(approved, "POST", "/registrations", {
+        agent: "builder",
+        session: "main",
+      }),
+      await harness.request("GET", "/api/agent/s/builder/main/threads"),
+      await harness.agent(approved, "GET", "/s/builder/main/threads?limit=0"),
+      await harness.agent(approved, "GET", "/s/builder/main/topics"),
+      await harness.agent(approved, "GET", "/s/builder/main/threads", undefined, {
+        headers: { [agentApiHeader]: String(agentApi.version + 1) },
+      }),
+      await harness.request("GET", "/api/agent/registrations", {
+        headers: { host: "elsewhere.test" },
+      }),
+    ];
+    expect(responses.map((response) => response.status)).toEqual([
+      200, 200, 200, 401, 400, 404, 400, 400,
+    ]);
+    for (const response of responses) {
+      expect(stated(response)).toBe(String(agentApi.version));
+    }
+  });
+
+  it("is never stated on the web mount, which ignores the header", async () => {
+    const response = await harness.web("GET", "/threads", undefined, {
+      headers: { [agentApiHeader]: String(agentApi.version + 1) },
+    });
+    expect(response.status).toBe(200);
+    expect(stated(response)).toBeNull();
+  });
+
+  it("serves a request without the header as version 1, and one stating its own", async () => {
+    for (const version of [undefined, "1", String(agentApi.version)]) {
+      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      expect([version, codeOf(await list(approved, { headers }))]).toEqual([version, "ok"]);
+    }
+  });
+
+  it("refuses a newer version before authenticating, so the call spends and stamps nothing", async () => {
+    const headers = { [agentApiHeader]: String(agentApi.version + 1) };
+    const unsigned = await harness.request("GET", "/api/agent/s/builder/main/threads", { headers });
+    expect([unsigned.status, codeOf(unsigned)]).toEqual([400, "unsupported_version"]);
+    const signed = await list(approved, { headers });
+    expect(codeOf(signed)).toBe("unsupported_version");
+    const registering = await harness.agent(
+      newAgentKey(),
+      "POST",
+      "/registrations",
+      { agent: "builder", session: "main" },
+      { headers },
+    );
+    expect(codeOf(registering)).toBe("unsupported_version");
+    const seen = harness.fixture.db.prepare("SELECT last_seen_at FROM sessions").get();
+    expect(seen).toEqual({ last_seen_at: null });
+    expect(harness.fixture.db.prepare("SELECT count(*) AS n FROM registrations").get()).toEqual({
+      n: 1,
+    });
+  });
+
+  it("refuses a version above the server's however many digits it has", async () => {
+    const headers = { [agentApiHeader]: "99999999999999999999" };
+    const response = await list(approved, { headers });
+    expect([response.status, codeOf(response)]).toEqual([400, "unsupported_version"]);
+  });
+
+  it.each(["0", "02", "two", "1.0", ""])(
+    "refuses %j as a version, naming the header",
+    async (value) => {
+      const response = await list(approved, { headers: { [agentApiHeader]: value } });
+      expect(codeOf(response)).toBe("invalid_input");
+      expect((response.body as ErrorBody).error.field).toBe(agentApiHeader);
+    },
+  );
+});
+
+describe("session status", () => {
+  const status = (body: unknown) => harness.agent(approved, "POST", "/s/builder/main/status", body);
+
+  it("answers with the session's status after each update", async () => {
+    expect((await status({ state: "working", title: "Retire invoices" })).body).toEqual({
+      state: "working",
+      title: "Retire invoices",
+    });
+    expect((await status({ goal: "Drop the table", percent: 40 })).body).toEqual({
+      state: "working",
+      title: "Retire invoices",
+      goal: "Drop the table",
+      percent: 40,
+    });
+    expect((await status({ state: "stopped", outcome: "completed", note: "Done." })).body).toEqual({
+      state: "stopped",
+      outcome: "completed",
+      title: "Retire invoices",
+      goal: "Drop the table",
+      percent: 40,
+    });
+  });
+
+  it("refuses input outside the schema as invalid_input, naming the field", async () => {
+    const response = await status({ state: "stopped" });
+    expect(codeOf(response)).toBe("invalid_input");
+    expect((response.body as ErrorBody).error.field).toBe("outcome");
   });
 });

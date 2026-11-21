@@ -214,7 +214,7 @@ function MultiSelect({
               At most {maxNarrowed} can be chosen.
             </p>
           )}
-          {truncated && <LeftOut />}
+          {truncated && <LeftOut items={`${pathWord(kind).toLowerCase()}s`} />}
           <button type="button" className="secondary" onClick={close}>
             Done
           </button>

@@ -10,8 +10,8 @@
 Delivery 2 makes the inbox usable end to end: an agent registers, starts threads, asks and reads the
 answers; the operator signs in with a passkey, sees the asks open to them, and answers. It also
 moves the repository to TypeScript (ruling 28), in the layout the
-[Repository LLD](repository-lld.md) describes. Sessions' state and presence, groups, tags and
-browsing by group are Delivery 3.
+[Repository LLD](repository-lld.md) describes. Sessions' state is Delivery 3; groups, tags and
+browsing by group are Delivery 4.
 
 This document settles what the HLA left open and does not repeat what the HLA and FRD already say.
 Code, tests and public documentation written from it state behavior in their own words, without
@@ -79,8 +79,8 @@ timeout.
 Migrations are an ordered list of SQL scripts bundled with the server. `PRAGMA user_version` records
 how many have run. Opening applies the missing ones, each in its own transaction that also bumps
 `user_version`, and refuses a database whose `user_version` exceeds the server's list (written by a
-newer release). Migration 1 is this delivery's schema, frozen once 0.1.0 is released; Delivery 3
-adds migrations after it and tests them against a database written by this delivery.
+newer release). Migration 1 is this delivery's schema, frozen once 0.1.0 is released; later
+deliveries add migrations after it and tests them against a database written by this delivery.
 
 ### Schema
 
@@ -376,7 +376,7 @@ signal is a query over the two views and the caller's mark:
 ### Presence
 
 Delivery 2 carries R24's last seen and two of R21's signals (ruling 48); session state, and a
-stopped session's part in stranded, come with Delivery 3's envelope.
+stopped session's part in stranded, come with Delivery 3's status tool.
 
 - `sessions.last_seen_at` is stamped by every authenticated call on the session's routes once its
   credential is approved, and by `register` from an approved key, before the call's own work, and is
@@ -842,8 +842,8 @@ replaces a key outside `register`.
   `tailscale serve` while the server behind it is stopped, and says first to check that the server
   is running.
 - Every tool is annotated `destructiveHint: false` and `openWorldHint: false`, and none claims to be
-  read-only, since each thread tool will carry the session envelope. That is true of them: messages
-  are append-only, a key is replaced only after the server refused it, and the bridge talks to one
+  read-only, since every call stamps its session's last seen. That is true of them: messages are
+  append-only, a key is replaced only after the server refused it, and the bridge talks to one
   configured server. Codex's default approval mode runs tools annotated this way without a prompt,
   so the plugin overrides no approval policy; Claude Code asks the operator to allow the server's
   tools once.

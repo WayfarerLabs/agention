@@ -495,6 +495,194 @@ describe("the operator, registrations and threads", () => {
   });
 });
 
+describe("session updates and their marks", () => {
+  let database: Database;
+
+  // A session with an approved registration, the operator and their actors.
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+    database.prepare("INSERT INTO people (name, created_at) VALUES ('operator', 1)").run();
+    database.prepare("INSERT INTO agents (name, created_at) VALUES ('agent', 1)").run();
+    database.prepare("INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 's', 1)").run();
+    database.prepare("INSERT INTO actors (person_id) VALUES (1)").run();
+    database.prepare("INSERT INTO actors (session_id) VALUES (1)").run();
+    database
+      .prepare(
+        `INSERT INTO registrations (public_key, proposed_agent, proposed_session, status,
+           session_id, created_at, expires_at, decided_at)
+         VALUES ('key', 'agent', 's', 'approved', 1, 1, 2, 1)`,
+      )
+      .run();
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  // update writes the session's entry at seq with the given columns.
+  function update(seq: number, columns: Record<string, string | number | null> = {}): void {
+    const all = { state: "working", ...columns };
+    const names = Object.keys(all);
+    database
+      .prepare(
+        `INSERT INTO session_updates (session_id, seq, registration_id, created_at,
+           ${names.join(", ")})
+         VALUES (1, ?, 1, 1, ${names.map(() => "?").join(", ")})`,
+      )
+      .run(seq, ...Object.values(all));
+  }
+
+  it("are append-only", () => {
+    update(1, { title: "t", note: "n" });
+    const entry = `(session_id, seq, registration_id, state, title, created_at)
+      VALUES (1, 1, 1, 'idle', 'replaced', 1)`;
+    for (const statement of [
+      "UPDATE session_updates SET title = 'changed'",
+      "DELETE FROM session_updates",
+      `INSERT OR REPLACE INTO session_updates ${entry}`,
+      `REPLACE INTO session_updates ${entry}`,
+    ]) {
+      expect(() => database.prepare(statement).run()).toThrow();
+    }
+    expect(database.prepare("SELECT state, title, note FROM session_updates").all()).toEqual([
+      { state: "working", title: "t", note: "n" },
+    ]);
+  });
+
+  it("hold an outcome exactly while stopped", () => {
+    update(1, { state: "stopped", outcome: "completed" });
+    expect(() => update(2, { state: "stopped" })).toThrow();
+    expect(() => update(2, { state: "working", outcome: "completed" })).toThrow();
+    expect(() => update(2, { state: "idle", outcome: "stalled" })).toThrow();
+  });
+
+  it.each([
+    ["a state it does not know", { state: "paused" }],
+    ["an outcome it does not know", { state: "stopped", outcome: "failed" }],
+    ["a percent below 0", { percent: -1 }],
+    ["a percent above 100", { percent: 101 }],
+    ["no state", { state: null }],
+  ])("refuse %s", (_, columns) => {
+    expect(() => update(1, columns)).toThrow();
+  });
+
+  it("number each session's entries from 1, once each", () => {
+    expect(() => update(0)).toThrow();
+    update(1);
+    expect(() => update(1, { state: "idle" })).toThrow();
+    update(2, { percent: 0 });
+    update(3, { percent: 100 });
+  });
+
+  it("refuse an entry for a session or credential that does not exist", () => {
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO session_updates (session_id, seq, registration_id, state, created_at)
+           VALUES (2, 1, 1, 'working', 1)`,
+        )
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO session_updates (session_id, seq, registration_id, state, created_at)
+           VALUES (1, 1, 2, 'working', 1)`,
+        )
+        .run(),
+    ).toThrow();
+  });
+
+  it("keep one read mark per actor and session, never below 0", () => {
+    const mark = (actor: number, readSeq: number) =>
+      database
+        .prepare("INSERT INTO session_marks (actor_id, session_id, read_seq) VALUES (?, 1, ?)")
+        .run(actor, readSeq);
+    mark(1, 0);
+    expect(() => mark(1, 1)).toThrow();
+    expect(() => mark(2, -1)).toThrow();
+  });
+});
+
+describe("a database an earlier release wrote", () => {
+  // Every row of every table, in a stable order, by table.
+  function rowsOf(connection: { prepare: DatabaseSync["prepare"] }): Record<string, string[]> {
+    const tables = connection
+      .prepare(
+        `SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+         ORDER BY name`,
+      )
+      .all() as { name: string }[];
+    return Object.fromEntries(
+      tables.map(({ name }) => [
+        name,
+        connection
+          .prepare(`SELECT * FROM "${name}"`)
+          .all()
+          .map((row) =>
+            JSON.stringify(row, (_, value: unknown) =>
+              value instanceof Uint8Array ? Buffer.from(value).toString("hex") : value,
+            ),
+          )
+          .sort(),
+      ]),
+    );
+  }
+
+  it("opens with migration 1's rows intact and the session log's tables empty", () => {
+    const file = path.join(root, "agention.db");
+    const before = withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      connection.exec(migrations[0] ?? "");
+      connection.exec("PRAGMA user_version = 1");
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO agents (name, created_at) VALUES ('builder', 1), ('reviewer', 2);
+        INSERT INTO sessions (agent_id, name, last_pos, last_seen_at, created_at)
+          VALUES (1, 'main', 3, 60000, 1), (2, 'nightly', 0, NULL, 2);
+        INSERT INTO actors (person_id) VALUES (1);
+        INSERT INTO actors (session_id) VALUES (1), (2);
+        INSERT INTO registrations (public_key, proposed_agent, proposed_session, status,
+            session_id, created_at, expires_at, decided_at, revoked_at)
+          VALUES ('approved-key', 'builder', 'main', 'approved', 1, 1, 2, 1, NULL),
+            ('revoked-key', 'reviewer', 'nightly', 'revoked', 2, 1, 2, 1, 3),
+            ('pending-key', 'builder', 'side', 'pending', NULL, 9, 99, NULL, NULL);
+        INSERT INTO threads (session_id, number, requester_actor_id, audience_actor_id, title,
+            created_at, last_seq)
+          VALUES (1, 1, 2, 1, 'Ship the release?', 1, 3);
+        INSERT INTO messages (thread_id, seq, session_id, session_pos, actor_id, registration_id,
+            created_at, request_id, digest, text, topic)
+          VALUES (1, 1, 1, 1, 2, 1, 1, 'r-1', zeroblob(32), 'Ready to ship.', 'release'),
+            (1, 2, 1, 2, 1, NULL, 2, 'o-1', zeroblob(32), NULL, NULL),
+            (1, 3, 1, 3, 2, 1, 3, 'r-2', zeroblob(32), 'Shipping.', NULL);
+        INSERT INTO asks (thread_id, number, seq, question, suggestions, multiple, impact,
+            priority)
+          VALUES (1, 1, 1, 'Ship it?', '[{"label":"Yes","description":""}]', 0, 'blocking',
+            'high');
+        INSERT INTO answers (thread_id, seq, ask, declined, picks) VALUES (1, 2, 1, 0, '[0]');
+        INSERT INTO thread_marks (actor_id, thread_id, read_seq, archived_seq)
+          VALUES (1, 1, 2, 0), (2, 1, 3, 3);
+      `);
+      return rowsOf(connection);
+    });
+    chmodSync(file, 0o600);
+
+    const database = Database.open(file);
+    try {
+      expect(database.prepare("PRAGMA user_version").get()).toEqual({
+        user_version: migrations.length,
+      });
+      const after = rowsOf(database);
+      expect(after).toEqual({ ...before, session_marks: [], session_updates: [] });
+      expect(
+        database.prepare("SELECT rowid FROM thread_titles WHERE thread_titles MATCH 'ship*'").all(),
+      ).toEqual([{ rowid: 1 }]);
+    } finally {
+      database.close();
+    }
+  });
+});
+
 describe("the instance", () => {
   let database: Database;
 

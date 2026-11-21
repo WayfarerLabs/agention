@@ -17,6 +17,8 @@ import {
   type ThreadStatus,
   type ThreadSummary,
   type Withdrawal,
+  type WorkOutcome,
+  type WorkState,
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { authorOf } from "./directory.ts";
@@ -76,6 +78,12 @@ export function viewerAndCutoff(store: Store, viewer: number, now: number): View
   return { viewer, quiet_before: now - store.quietAfter - seenStep };
 }
 
+// quietOf says whether the sessions read as sessions are quiet: never seen,
+// or last seen before the quiet cut-off a ViewerAndCutoff binds.
+export function quietOf(sessions: string): string {
+  return `(${sessions}.last_seen_at IS NULL OR ${sessions}.last_seen_at < :quiet_before)`;
+}
+
 // threadsSeen starts a query over the threads that scope admits, as the
 // viewer sees them now: a WITH clause defining `seen`, with the names, the
 // viewer's marks, the other party, the unread count (live messages by the
@@ -88,10 +96,11 @@ export function viewerAndCutoff(store: Store, viewer: number, now: number): View
 // withdraws: open while any is open; otherwise withdrawn when every one is
 // withdrawn, answered when there are any, and none when there are none)
 // with, while withdrawn, the latest live withdrawal, the first of its
-// message's, its session's presence, whether the other party has not read a
-// live message of the viewer's, and whether the thread is stranded: so,
-// while the session is quiet or has no active credential. scope reads the
-// threads as t, their sessions as s and their agents as g. Callers bind a
+// message's, its session's presence and the state and outcome it last
+// reported, whether the other party has not read a live message of the
+// viewer's, and whether the thread is stranded: so, while the session is
+// quiet, has no active credential or has stopped. scope reads the threads as
+// t, their sessions as s and their agents as g. Callers bind a
 // ViewerAndCutoff and whatever lead's conditions name, and select from seen.
 export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
   return `
@@ -109,12 +118,17 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           SELECT 1 FROM registrations r WHERE r.session_id = t.session_id AND r.status = 'approved'
         ) AS credential_active,
         s.last_seen_at,
-        s.last_seen_at IS NULL OR s.last_seen_at < :quiet_before AS quiet
+        ${quietOf("s")} AS quiet,
+        reported.state AS session_state, reported.outcome AS session_outcome
       FROM threads t
       JOIN sessions s ON s.id = t.session_id
       JOIN agents g ON g.id = s.agent_id
       JOIN messages latest ON latest.thread_id = t.id AND latest.seq = t.last_seq
       LEFT JOIN thread_marks mark ON mark.actor_id = :viewer AND mark.thread_id = t.id
+      LEFT JOIN session_updates reported ON reported.session_id = t.session_id
+        AND reported.seq = (
+          SELECT max(u.seq) FROM session_updates u WHERE u.session_id = t.session_id
+        )
       WHERE ${scope}
     ),
     placed AS (
@@ -212,7 +226,9 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           JOIN live_messages lw ON lw.thread_id = w.thread_id AND lw.seq = w.seq
           WHERE w.thread_id = joined.id ORDER BY w.seq DESC, w.ask LIMIT 1
         ), NULL) AS latest_withdrawal,
-        joined.unread_by_other AND (joined.quiet OR NOT joined.credential_active) AS stranded
+        joined.unread_by_other AND (
+          joined.quiet OR NOT joined.credential_active OR joined.session_state IS 'stopped'
+        ) AS stranded
       FROM joined
     )`;
 }
@@ -235,6 +251,8 @@ export interface ThreadRow {
   credential_active: number;
   last_seen_at: number | null;
   quiet: number;
+  session_state: WorkState | null;
+  session_outcome: WorkOutcome | null;
   unread_by_other: number;
   status: ThreadStatus;
   unread: number;
@@ -283,7 +301,8 @@ function askSummaryOf(json: string, now: number): AskSummary {
 
 // toThreadSummary describes a row of seen. An ask is overdue once its
 // answer-by time is before now. The thread's audience also sees its
-// session's presence and whether it is stranded.
+// session's presence, with the state and outcome it last reported, and
+// whether the thread is stranded.
 export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
@@ -326,6 +345,8 @@ export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
               ? {}
               : { last_seen_at: formatTimestamp(row.last_seen_at) }),
             quiet: row.quiet === 1,
+            ...(row.session_state === null ? {} : { state: row.session_state }),
+            ...(row.session_outcome === null ? {} : { outcome: row.session_outcome }),
           },
           stranded: row.stranded === 1,
         }

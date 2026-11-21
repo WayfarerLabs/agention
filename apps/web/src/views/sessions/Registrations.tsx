@@ -5,109 +5,41 @@ import {
   type RegistrationResult,
   type RegistrationsPage,
 } from "@wayfarerlabs/agention-api";
-import { useId, useState } from "react";
+import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import {
   type AgentList,
   type Agents,
   ApiFailure,
   describeFailure,
-  listAgents,
   query,
   request,
-} from "../api.ts";
+} from "../../api.ts";
 import {
   ConfirmButton,
+  Confirmation,
   Failure,
   LeftOut,
   Loadable,
-  MoreButton,
-  PageHeading,
   Status,
-  usePageTitle,
-} from "../components.tsx";
-import { type Resource, useAction, usePages, useResource } from "../data.ts";
-import { absoluteTime, Time } from "../format.tsx";
+} from "../../components.tsx";
+import { type Resource, useAction } from "../../data.ts";
+import { absoluteTime, Time } from "../../format.tsx";
 
-function loadRegistrations(status: "pending" | undefined) {
+// The registrations the sessions view shows: one waiting for approval, which
+// the operator approves after matching the code the agent relayed, onto an
+// agent and a session chosen among those the view lists, or rejects; and one
+// already decided, whose credential the operator can revoke.
+
+// loadRegistrations reads a page of registrations, only those waiting for
+// approval when status says so.
+export function loadRegistrations(status: "pending" | undefined) {
   return (cursor: string | undefined) =>
     request<RegistrationsPage>("GET", `/registrations${query({ status, cursor })}`).then(
       (page) => ({ rows: page.registrations, next: page.next }),
     );
 }
 
-// The registrations page: agents' requests for a credential, which the
-// operator approves after matching the code the agent relayed, and the
-// credentials already decided, which the operator can revoke.
-export function Registrations() {
-  usePageTitle("Registrations");
-  const pending = usePages<Registration>(loadRegistrations("pending"));
-  const all = usePages<Registration>(loadRegistrations(undefined));
-  const agents = useResource<AgentList>(listAgents);
-  const refresh = () => {
-    pending.refresh();
-    all.refresh();
-    agents.refresh();
-  };
-  return (
-    <>
-      <PageHeading visuallyHidden>Registrations</PageHeading>
-      <section aria-labelledby="pending-heading">
-        <h2 id="pending-heading">Waiting for approval</h2>
-        <Loadable data={pending.data} failure={pending.failure} retry={pending.refresh}>
-          {({ rows, next }) => (
-            <>
-              {rows.length === 0 ? (
-                <p className="empty">
-                  No registration is waiting. When an agent registers, it shows a code to relay to
-                  you, and its registration appears here.
-                </p>
-              ) : (
-                <ul className="registrations">
-                  {rows.map((registration) => (
-                    <li key={registration.id}>
-                      <PendingRegistration
-                        registration={registration}
-                        agents={agents}
-                        onDecided={refresh}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <MoreButton next={next} loading={pending.loading} more={pending.more} />
-            </>
-          )}
-        </Loadable>
-      </section>
-      <section aria-labelledby="decided-heading">
-        <h2 id="decided-heading">Credentials and past requests</h2>
-        <Loadable data={all.data} failure={all.failure} retry={all.refresh}>
-          {({ rows, next }) => {
-            const decided = rows.filter((registration) => registration.status !== "pending");
-            return (
-              <>
-                {decided.length === 0 ? (
-                  <p className="empty">No registration has been decided yet.</p>
-                ) : (
-                  <ul className="registrations">
-                    {decided.map((registration) => (
-                      <li key={registration.id}>
-                        <DecidedRegistration registration={registration} onDecided={refresh} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <MoreButton next={next} loading={all.loading} more={all.more} />
-              </>
-            );
-          }}
-        </Loadable>
-      </section>
-    </>
-  );
-}
-
-function PendingRegistration({
+export function PendingRegistration({
   registration,
   agents,
   onDecided,
@@ -316,7 +248,7 @@ function ApproveForm({
             </select>
           </div>
         )}
-        {truncated && <LeftOut />}
+        {truncated && <LeftOut items="agents" />}
         <div className="choice">
           <label className="check">
             <input
@@ -372,9 +304,9 @@ function ApproveForm({
   );
 }
 
-// SessionFields chooses the session to grant among one agent's sessions,
-// saying when the list left some of them out; the form reads the choice from
-// its fields when it is sent. When the agent
+// SessionFields chooses the session to grant among one agent's sessions, by
+// name, saying when the list left some of them out; the form reads the choice
+// from its fields when it is sent. When the agent
 // already has the proposed session, the choice starts undecided: approving
 // onto an existing session gives the credential its whole history, so that is
 // never chosen for the operator.
@@ -393,7 +325,10 @@ function SessionFields({
   proposed: string;
   error: string | undefined;
 }) {
-  const names = sessions.map((entry) => entry.session);
+  const byName = [...sessions].sort((a, b) =>
+    a.session < b.session ? -1 : a.session > b.session ? 1 : 0,
+  );
+  const names = byName.map((entry) => entry.session);
   const exists = names.includes(proposed);
   const [choice, setChoice] = useState<Choice | undefined>(
     names.length === 0 || !exists ? "new" : undefined,
@@ -423,16 +358,16 @@ function SessionFields({
             disabled={choice !== "existing"}
             onChange={(event) => setExisting(event.target.value)}
           >
-            {sessions.map((entry) => (
+            {byName.map((entry) => (
               <option key={entry.session} value={entry.session}>
                 {entry.session}
-                {entry.credential_active ? "" : " (no active credential)"}
+                {entry.registrations.length > 0 ? "" : " (no active credential)"}
               </option>
             ))}
           </select>
         </div>
       )}
-      {truncated && <LeftOut />}
+      {truncated && <LeftOut items={`sessions of ${agentName}`} />}
       <div className="choice">
         <label className="check">
           <input
@@ -480,15 +415,15 @@ const statusTone: Partial<Record<Registration["status"], string>> = {
   rejected: "danger",
 };
 
-function DecidedRegistration({
+export function DecidedRegistration({
   registration,
   onDecided,
 }: {
   registration: Registration;
   onDecided: () => void;
 }) {
-  const revoke = useAction();
-  const [status, setStatus] = useState("");
+  const opener = useRef<HTMLButtonElement>(null);
+  const [revoking, setRevoking] = useState(false);
   const granted = registration.granted;
   const grantedName = granted === undefined ? undefined : `${granted.agent}/${granted.session}`;
   // Each time is its own event's: approval and rejection at decided_at,
@@ -528,29 +463,91 @@ function DecidedRegistration({
       {granted !== undefined && !granted.credential_active && (
         <p className="muted">{grantedName} has no active credential.</p>
       )}
-      {registration.status === "approved" && (
-        <>
-          <Failure failure={revoke.failure} />
-          {status !== "" && <Status>{status}</Status>}
-          <ConfirmButton
-            label="Revoke"
-            confirmLabel="Revoke credential"
-            question={`Revoke this credential? ${grantedName ?? "The session"} keeps its threads, but this key stops working at once.`}
-            disabled={revoke.pending}
-            onConfirm={async () => {
-              const result = await revoke.run((csrf) =>
-                request<RegistrationResult>("POST", `/registrations/${registration.id}/revoke`, {
-                  csrf,
-                }),
-              );
-              if (result !== undefined) {
-                setStatus("Revoked.");
-              }
-              onDecided();
-            }}
-          />
-        </>
+      {registration.status === "approved" && !revoking && (
+        <button ref={opener} type="button" className="secondary" onClick={() => setRevoking(true)}>
+          Revoke
+        </button>
       )}
+      <Revocation
+        asking={
+          revoking
+            ? {
+                id: registration.id,
+                code: registration.code,
+                session: grantedName ?? "Its session",
+              }
+            : undefined
+        }
+        stop={() => setRevoking(false)}
+        opener={opener}
+        onRevoked={onDecided}
+      />
     </article>
+  );
+}
+
+// A credential as revoking it names it: its registration's id and code, and
+// the session it acts as, as "builder/main".
+export interface Credential {
+  id: number;
+  code: string;
+  session: string;
+}
+
+// Revocation revokes a credential once the operator confirms it, wherever
+// they asked from, a session's options or its past request: it asks once
+// more, naming the credential and its session, says once it is revoked or
+// why it was not, and reloads the view. asking is the credential it asks
+// about, while it asks. Once the question is answered, focus returns to
+// opener, the control the operator asked from, as it stands then.
+export function Revocation({
+  asking,
+  stop,
+  opener,
+  onRevoked,
+}: {
+  asking: Credential | undefined;
+  stop: () => void;
+  opener: RefObject<HTMLElement | null>;
+  onRevoked: () => void;
+}) {
+  const revoke = useAction();
+  const [said, say] = useState("");
+  // Whether focus returns to the opener once the question goes.
+  const answered = useRef(false);
+  useEffect(() => {
+    if (asking === undefined && answered.current) {
+      answered.current = false;
+      opener.current?.focus({ preventScroll: true });
+    }
+  }, [asking, opener]);
+  const done = () => {
+    answered.current = true;
+    stop();
+  };
+  return (
+    <>
+      {asking !== undefined && (
+        <Confirmation
+          question={`Revoke the credential ${asking.code}? ${asking.session} keeps its threads, but this key stops working at once.`}
+          confirmLabel="Revoke credential"
+          disabled={revoke.pending}
+          onCancel={done}
+          onConfirm={async () => {
+            say("");
+            const result = await revoke.run((csrf) =>
+              request<RegistrationResult>("POST", `/registrations/${asking.id}/revoke`, { csrf }),
+            );
+            done();
+            if (result !== undefined) {
+              say(`Revoked ${asking.code}.`);
+            }
+            onRevoked();
+          }}
+        />
+      )}
+      <Failure failure={revoke.failure} />
+      {said !== "" && <Status>{said}</Status>}
+    </>
   );
 }

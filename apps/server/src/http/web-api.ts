@@ -1,14 +1,17 @@
 import {
-  agentsQuery,
   approveInput,
   bulkMarkInput,
   newPasskeyInput,
   passkeyLinkBeginInput,
   passkeyNameInput,
   registrationsQuery,
+  sessionLogMarkInput,
+  sessionLogQuery,
+  sessionsQuery,
   type SessionState,
   signInFinishInput,
   threadFilters,
+  threadStartInput,
   threadsQuery,
 } from "@wayfarerlabs/agention-api";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
@@ -35,14 +38,17 @@ import {
   bulkRead,
   countThreads,
   findOperator,
-  listAgents,
   listRegistrations,
+  listSessions,
   listThreads,
+  readSessionLog,
   rejectRegistration,
   revokeRegistration,
+  sessionLog,
+  startThread,
   type Store,
 } from "../store/index.ts";
-import { parseBody, parseQuery, passkeyOf, registrationOf } from "./input.ts";
+import { parseBody, parseQuery, passkeyOf, registrationOf, sessionTarget } from "./input.ts";
 import type { RateBudgets } from "./rates.ts";
 import { type IdentityEnv, threadRoutes } from "./thread-routes.ts";
 
@@ -211,6 +217,19 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
 
   api.use("/s/*", requireSession);
   api.route("/s/:agent/:session", threadRoutes(store));
+  api.post("/s/:agent/:session/threads", async (c) => {
+    const target = sessionTarget(c);
+    const input = await parseBody(c, threadStartInput);
+    return c.json(startThread(store, c.var.identity, target, input));
+  });
+  api.get("/s/:agent/:session/updates", (c) =>
+    c.json(sessionLog(store, c.var.identity, sessionTarget(c), parseQuery(c, sessionLogQuery))),
+  );
+  api.post("/s/:agent/:session/updates/read", async (c) => {
+    const target = sessionTarget(c);
+    const input = await parseBody(c, sessionLogMarkInput);
+    return c.json(readSessionLog(store, c.var.identity, target, input));
+  });
 
   api.get("/threads", requireSession, (c) =>
     c.json(listThreads(store, c.var.identity, parseQuery(c, threadsQuery))),
@@ -238,8 +257,8 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   api.post("/registrations/:id/revoke", requireSession, (c) =>
     c.json(revokeRegistration(store, c.var.identity, registrationOf(c))),
   );
-  api.get("/agents", requireSession, (c) =>
-    c.json(listAgents(store, c.var.identity, parseQuery(c, agentsQuery))),
+  api.get("/sessions", requireSession, (c) =>
+    c.json(listSessions(store, c.var.identity, parseQuery(c, sessionsQuery))),
   );
   return api;
 }

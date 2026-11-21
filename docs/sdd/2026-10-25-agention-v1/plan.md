@@ -3,7 +3,8 @@
 - Status: Design approved by the operator 2026-10-25; implementation in progress; regrouped into
   three deliveries on 2026-10-27 with the operator's agreement; moved to TypeScript with the agent
   bridge the same day (FRD rulings 26 to 28); items became threads of messages with asks on
-  2026-10-30 (rulings 32 to 34)
+  2026-10-30 (rulings 32 to 34); Delivery 3 split into sessions and the rest of v1 on 2026-11-20
+  (ruling 64)
 - Governing requirements: [FRD](frd.md)
 - Architecture: [HLA](hla.md)
 - Repository: `WayfarerLabs/agention`, whose `main` holds both the code and this SDD (FRD ruling 59)
@@ -11,7 +12,7 @@
 ## Delivery
 
 Each delivery is implemented on its own branch, `build/agention-v1-<delivery>` (Delivery 1 used
-`build/agention-v1`). v1 ships in three deliveries, each cut at a point where the operator can use
+`build/agention-v1`). v1 ships in four deliveries, each cut at a point where the operator can use
 what has merged. Each delivery is one pull request into `main` that carries its code together with
 its LLD and SDD changes. A check-off rides the pull request that proves its work, or the next one
 when the proof comes after a merge, as a release's does; the last ones ride the closeout. Delivery
@@ -158,7 +159,7 @@ model.
       filters, groups placed by their first thread under the sort, and collapse state kept per
       device and view; the one list, grouped, carries session roll-ups (and by session, topic
       roll-ups) that compose upward on the client, its threads arriving group by group (R28, rulings
-      38, 40 and 41). Session groups add their level in Delivery 3.
+      38, 40 and 41). Session groups add their level in Delivery 4.
 - [ ] Plugin and usage skill (R35): generated Claude Code and Codex plugins carrying the skill and
       declaring the bridge, with the Codex environment list; the skill opening, in its description
       and its body, with asking through Agention and never waiting at the terminal for an answer,
@@ -232,7 +233,7 @@ model.
       launchd agent), `tailscale serve` on loopback, the first passkey, installing the plugins on
       Claude Code and Codex with `AGENTION_URL`, pinned to a release tag or tracking `main` (ruling
       52), approving agents, upgrading the server and the plugins, and backing up by stopping the
-      server and copying the data directory until `agention backup` (Delivery 3, R34); the launchd
+      server and copying the data directory until `agention backup` (Delivery 4, R34); the launchd
       service marked as not yet tested (ruling 52); the README says what is published.
 - [ ] Release setup (operator action, rulings 50 to 52): a fresh public `WayfarerLabs/agention`, the
       current repository renamed and kept private as an archive, and this delivery opened in the new
@@ -253,24 +254,56 @@ model.
       TypeScript toolchain, its gates and the bridge, with this SDD moved to `docs/sdd/` and checked
       by `scripts/check-sdd.sh` in CI (ruling 59). (agention#1)
 
-## Delivery 3: complete v1
+## Delivery 3: sessions
 
-- [ ] Completion LLD, covering only what the Working inbox LLD left open.
-- [ ] Sessions: state, outcome, goal and percent through the envelope, the session log, and a
-      stopped session's part in stranded (R21-R23), beside Delivery 2's last seen, quiet and
-      stranded. Agention reports a goal and never manages one (ruling 48). The envelope commits even
-      when the write it rides fails, so domain errors are returned after the transaction commits
-      rather than thrown through it.
-- [ ] Unread session state changes in the list beside threads, consecutive progress-only updates
-      collapsed (R25); session groups, tags on agents and sessions, and filtering the thread list by
-      group or tag (R25, R26, R28; ruling 30).
-- [ ] The session-group level in the list viewed by session (group, session, topic), with its
-      roll-up (R28, rulings 38 and 40).
+Sessions report their state, and the operator sees every session in one view and starts threads
+there (rulings 64 and 65). Governed by the [Sessions LLD](sessions-lld.md).
+
+- [x] Sessions LLD, covering only what the Working inbox LLD left open for sessions. (agention#20)
+- [x] `session_update` (R22, R23, ruling 65): a session reports its state, an outcome when stopped,
+      a goal, a percent and a note through one call, and no other call carries them; a field left
+      out is unchanged, an update that changes nothing appends nothing, and the latest wins. Stopped
+      means the session is not likely to see new messages until something starts it again, so a
+      stopped session's threads with messages it has not read are stranded (R21). Agention reports a
+      goal and never manages one (ruling 48). (agention#20)
+- [x] The session log: every change appended, read by the operator with a read cursor of their own,
+      consecutive progress-only updates collapsed where shown (R23, R25). (agention#20)
 - [ ] One view of the sessions, replacing the registrations page (R26, ruling 56): registrations
-      waiting for approval on top, then each agent's sessions as compact rows under foldable agent
-      headers, each with its status, when it was last seen and whether it holds a working
-      credential, and Revoke in its menu, past requests folded at the bottom; designed with session
-      groups and tags and shown to the operator before it is built, then checked on a phone.
+      waiting for approval on top, then each agent's sessions as folded rows under foldable agent
+      headers, each with what it is doing, its open asks as waiting on the operator, its percent,
+      whether it is quiet or holds no working credential, its unread updates, threads and latest
+      note, unfolding to its goal and log, and Revoke in its menu (ruling 68), past requests folded
+      at the bottom; shown to the operator as a mockup before it is built, then checked on a phone.
+- [x] Threads the operator starts on a session from that view, with a title and a first message and
+      no asks; the session stays the requester, and the agent reads the thread as the operator's
+      words at its terminal (R26, rulings 64 and 65). (agention#20)
+- [x] The tool schema, generated plugins and the usage skill extended with `session_update`: the
+      agent reports working as it starts, idle while nothing is left but waiting, and stopped, with
+      its outcome, when it stops checking Agention. (agention#20)
+- [x] The new tables arrive through a forward migration, tested against a database written by
+      Delivery 2. (agention#20)
+- [x] A check that agent routes only grow: each release's agent request and response schemas accept
+      what the previous release's bridge sends and reads (R33, ruling 26), in place before this
+      delivery's release, the first since 0.1.0 to change an agent route. (agention#20)
+- [x] The agent API version (R33, ruling 67): every agent request and answer states its version, a
+      missing one meaning 1; a bridge refuses a server older than itself and the server a bridge
+      outside the versions it supports, each in words the agent relays to the operator; this release
+      speaks version 2, and every later change to an agent route bumps it. (agention#20)
+- [x] `docs/live-testing.md` extended to the status tool, the sessions view and operator-started
+      threads, and the rules `docs/review-checklist.md` states for them checked against what was
+      built. (agention#20)
+- [ ] Live run and real-phone check of the sessions view and operator-started threads, with the
+      plugins installed from the repository and the bridge from npm.
+- [ ] The release carrying it, through release-please.
+
+## Delivery 4: complete v1
+
+- [ ] Completion LLD, covering only what the Working inbox and Sessions LLDs left open.
+- [ ] Unread session updates in the thread list beside threads, consecutive progress-only updates
+      collapsed (R25, ruling 65); session groups, tags on agents and sessions, and filtering the
+      thread list by group or tag (R25, R26, R28; ruling 30).
+- [ ] The session-group level in the list viewed by session (group, session, topic), with its
+      roll-up (R28, rulings 38 and 40), and groups and tags in the sessions view.
 - [ ] Search extended from thread titles to the text and detail of messages through a second
       full-text index on the operator's list (R25, ruling 38), the agent mount's search staying on
       titles (R18).
@@ -283,21 +316,16 @@ model.
       re-render with the theme, and fall back to their source, which also serves as their long
       description. The Completion LLD settles the page's CSP for the frame (`frame-src` for its
       route, and the route's own `frame-ancestors`) as well as `img-src blob:`.
-- [ ] Tool schemas, generated plugins and the usage skill extended with the session envelope and the
-      quiet-stretch check-in.
 - [ ] The new tables arrive through forward migrations, tested against a database written by
-      Delivery 2.
+      Delivery 3.
 - [ ] The issuer seam kept free of v1 dependencies (R4), and backup (R34).
 - [ ] Live run and real-phone check repeated over the FRD definition of done, with the plugins
       installed from the repository and the bridge from npm.
 - [ ] Material decisions promoted to ADRs and permanent docs (R39), checking that ADR 0001's
       alternatives and "not doing" guardrails still match the shipped design.
-- [ ] `docs/live-testing.md` extended to Delivery 3's surfaces (the session envelope, groups, tags,
-      backup, and Mermaid diagrams drawn in isolation, with a `mermaid` block among the Markdown
-      hand-check inputs), and the live test running the bridge from npm; and the rules
-      `docs/review-checklist.md` states for them checked against what was built.
-- [ ] A check that agent routes only grow: each release's agent request and response schemas accept
-      what the previous release's bridge sends and reads (R33, ruling 26), in place before any
-      release after 0.1.0 that changes an agent route.
+- [ ] `docs/live-testing.md` extended to Delivery 4's surfaces (groups, tags, backup, and Mermaid
+      diagrams drawn in isolation, with a `mermaid` block among the Markdown hand-check inputs), and
+      the live test running the bridge from npm; and the rules `docs/review-checklist.md` states for
+      them checked against what was built.
 - [ ] The release that completes v1, through release-please.
 - [ ] `locked.md` in this directory, with the final merge.

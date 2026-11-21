@@ -2,6 +2,7 @@ import { z } from "zod";
 import { askNumber, pageLimit, queryNumber, requestId, sequence, threadNumber } from "./bounds.ts";
 import { name } from "./names.ts";
 import { reference, referenceList } from "./references.ts";
+import { threadPresence } from "./sessions.ts";
 import { multilineText, singleLineText } from "./text.ts";
 import { timestamp } from "./time.ts";
 
@@ -272,6 +273,20 @@ export const threadCreateInput = z
   .superRefine(detailNeedsText);
 export type ThreadCreateInput = z.infer<typeof threadCreateInput>;
 
+// The operator's start of a thread on a session: a title and a first message
+// of text, with its detail. The session stays the thread's requester and the
+// operator its audience, so the requester's parts, asks and a topic, have no
+// field here, and neither do references, which the web UI's sheet does not
+// offer. Like every schema here it drops what it does not know, so a start
+// carrying any of them starts a thread without them.
+export const threadStartInput = z.object({
+  request_id: requestId,
+  title: threadTitle,
+  text: messageText,
+  detail: messageDetail.optional(),
+});
+export type ThreadStartInput = z.infer<typeof threadStartInput>;
+
 // The fields of a message as both mounts take them: the parts any message may
 // carry, the audience's answers and the requester's withdrawals, and what it
 // replaces. message_send's tool takes them without the answers, and
@@ -465,12 +480,6 @@ export type OpenAsks = z.infer<typeof openAsks>;
 export const threadStatus = z.enum(["open", "answered", "withdrawn", "none"]);
 export type ThreadStatus = z.infer<typeof threadStatus>;
 
-// A session's presence: when it was last seen, kept to the minute and absent
-// until it first is, and whether it is quiet, not seen within the server's
-// quiet threshold, or never.
-export const presence = z.object({ last_seen_at: z.string().optional(), quiet: z.boolean() });
-export type Presence = z.infer<typeof presence>;
-
 // A thread as the viewer sees it now. updated_at is the time of its latest
 // message; read_through is how far the viewer has read it, and unread counts
 // the live messages by another party beyond both that and the viewer's
@@ -480,9 +489,9 @@ export type Presence = z.infer<typeof presence>;
 // up its asks, and while it is withdrawn, withdrawal is the latest live
 // withdrawal, the first of its message's; credential_active says whether its
 // session still has an approved credential. Its audience also sees its
-// session's presence, and whether it is stranded: it holds a live message by
-// the audience that the session has not read while the session is quiet or
-// has no active credential.
+// session's presence, with its state, and whether it is stranded: it holds a
+// live message by the audience that the session has not read while the
+// session is quiet, has no active credential or has stopped.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -500,7 +509,7 @@ export const threadSummary = z.object({
   status: threadStatus,
   withdrawal: withdrawal.extend({ seq: sequence }).optional(),
   credential_active: z.boolean(),
-  presence: presence.optional(),
+  presence: threadPresence.optional(),
   stranded: z.boolean().optional(),
 });
 export type ThreadSummary = z.infer<typeof threadSummary>;

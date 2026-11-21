@@ -1,9 +1,9 @@
 import {
-  type AgentsPage,
   type ErrorCode,
   errorBody,
   type Message,
   maxListed,
+  type SessionsPage,
 } from "@wayfarerlabs/agention-api";
 
 // The web UI's client for the server's web API, mounted at /api/web. Requests
@@ -138,33 +138,40 @@ export function query(values: QueryValues): string {
   return text === "" ? "" : `?${text}`;
 }
 
-// threadPath is the API path of a thread, or of one of its routes.
-export function threadPath(agent: string, session: string, thread: number, rest = ""): string {
-  return `/s/${agent}/${session}/threads/${thread}${rest}`;
+// sessionPath is the API path of one of a session's routes.
+export function sessionPath(agent: string, session: string, rest: string): string {
+  return `/s/${agent}/${session}${rest}`;
 }
 
-// Every agent with its sessions, each by name, each agent saying whether it
-// left any of its sessions out.
-export type Agents = AgentsPage["agents"];
+// threadPath is the API path of a thread, or of one of its routes.
+export function threadPath(agent: string, session: string, thread: number, rest = ""): string {
+  return sessionPath(agent, session, `/threads/${thread}${rest}`);
+}
 
-// The agents as listAgents reads them, and whether it left any out.
+// Every agent with its sessions, each agent saying whether it left any of its
+// sessions out.
+export type Agents = SessionsPage["agents"];
+
+// The agents as listSessions reads them, and whether it left any out.
 export interface AgentList {
   agents: Agents;
   truncated: boolean;
 }
 
-// How many agents a page of agents holds.
+// How many agents a page of the sessions view holds.
 const agentPage = 100;
 
-// listAgents reads the agents with their sessions, at most maxListed of them
-// a page at a time, saying whether it stopped with agents left to read.
-export async function listAgents(): Promise<AgentList> {
+// listSessions reads the agents with their sessions, as the sessions view
+// shows them, at most maxListed agents a page at a time, saying whether it
+// stopped with agents left to read. The view comes whole, as the approval
+// form's choices need it.
+export async function listSessions(): Promise<AgentList> {
   const agents: Agents = [];
   let cursor: string | undefined;
   for (let page = 0; page < maxListed / agentPage; page++) {
-    const answer = await request<AgentsPage>(
+    const answer = await request<SessionsPage>(
       "GET",
-      `/agents${query({ cursor, limit: agentPage })}`,
+      `/sessions${query({ cursor, limit: agentPage })}`,
     );
     agents.push(...answer.agents);
     cursor = answer.next;
