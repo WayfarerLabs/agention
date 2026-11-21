@@ -57,9 +57,11 @@ with each other or with what the product does, the disagreement is the finding.
   a session's tags set from their options, the chips that show them, and the Groups and tags sheet's
   rename, its refusal of a name another group or tag has, and its removal, asked first; a thread the
   operator starts there, with the warning for a session not there to see it, and the agent's reply
-  in it; and registration approval, rejection, and revocation from past requests and a session's
-  options (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents").
-  Real-phone passkeys are the operator's acceptance, not the tester's.
+  in it; registration approval, rejection, and revocation from past requests and a session's
+  options; and diagrams, drawn in light and dark, with their Source toggle, their fallback, and the
+  viewer's gestures, buttons and keys, on a phone's width too (`docs/operator-guide.md` "Signing
+  in", "Using the web UI" and "Approving agents"). Real-phone passkeys, and diagrams and their
+  viewer in iOS Safari, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -112,12 +114,17 @@ On top of the method's failure classes, look for:
   (`SECURITY.md` "The agent bridge"); the operator's groups and tags, or a thread's group, reachable
   from the agent mount or the bridge, or an agent's search finding what a message says rather than
   its title; message text rendered live. The Markdown inputs: a message whose text or details hold a
-  code block, a table, a task list, strikethrough, an `https` link, an `http` link, a raw `<b>` tag
-  and an image, in a thread whose title holds Markdown syntax. The first five render as formatting
-  with a working link, the `http` link is plain text, the tag shows literally, the image shows as a
-  link and the browser never requests it, the title shows its syntax literally, and the agent reads
-  the message back unchanged (`SECURITY.md` "Security model"; `docs/operator-guide.md` "Using the
-  web UI").
+  code block, a table, a task list, strikethrough, an `https` link, an `http` link, a raw `<b>` tag,
+  an image and a `mermaid` block, in a thread whose title holds Markdown syntax. The first five
+  render as formatting with a working link, the `http` link is plain text, the tag shows literally,
+  the image shows as a link and the browser never requests it, the `mermaid` block shows as a
+  diagram image drawn in the sandboxed frame, the title shows its syntax literally, and the agent
+  reads the message back unchanged (`SECURITY.md` "Security model"; `docs/operator-guide.md` "Using
+  the web UI"). Diagrams are drawn in isolation: a hostile `mermaid` source, with script, event
+  handlers, links, `click` directives and directives that try to lower the security level, runs
+  nothing in the page, requests nothing beyond the server, and leaves the frame where it was; a
+  diagram image's `blob:` URL, once the image shows, no longer opens on its own; and
+  `/diagram-frame` opened on its own does nothing.
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong
