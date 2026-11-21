@@ -4,8 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ErrorBody } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { contentSecurityPolicy, maxBodyBytes } from "./app.ts";
-import { type AgentKey, codeOf, Harness, newThread } from "./test-harness.ts";
+import { Hono } from "hono";
+import { contentSecurityPolicy, maxBodyBytes, securityHeaders } from "./app.ts";
+import { type AgentKey, codeOf, Harness, newThread, origin } from "./test-harness.ts";
 import { nameSlots } from "./web-ui.ts";
 
 let harness: Harness;
@@ -29,7 +30,7 @@ describe("every response", () => {
     ];
     for (const response of responses) {
       expect(Object.fromEntries(response.headers)).toMatchObject({
-        "content-security-policy": contentSecurityPolicy,
+        "content-security-policy": contentSecurityPolicy(origin),
         "strict-transport-security": "max-age=31536000",
         "x-content-type-options": "nosniff",
         "x-frame-options": "DENY",
@@ -226,7 +227,7 @@ describe("the web UI", () => {
     for (const target of ["/", "/index.html", "/INDEX.HTML", "/s/builder/main/threads/1"]) {
       const response = await harness.request("GET", target);
       expect([target, response.status, response.body]).toEqual([target, 200, named]);
-      expect(response.headers.get("content-security-policy")).toBe(contentSecurityPolicy);
+      expect(response.headers.get("content-security-policy")).toBe(contentSecurityPolicy(origin));
     }
   });
 
@@ -279,6 +280,143 @@ describe("the web UI", () => {
         expect(response.body).not.toContain("console.log");
       }
     }
+  });
+});
+
+// directives reads a content security policy into its directives, each
+// with its values.
+function directives(policy: string | null): Map<string, string[]> {
+  return new Map(
+    (policy ?? "").split(";").map((directive) => {
+      const [name = "", ...values] = directive.trim().split(/\s+/);
+      return [name, values];
+    }),
+  );
+}
+
+describe("the diagram frame", () => {
+  let dir: string;
+  const script = "assets/diagram-frame-AB12CD34.js";
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "agention-web-"));
+    mkdirSync(path.join(dir, "assets"));
+    writeFileSync(path.join(dir, "index.html"), "<!doctype html><title>Agention</title>");
+    writeFileSync(path.join(dir, script), "drawDiagrams();");
+    writeFileSync(path.join(dir, "diagram-frame.json"), JSON.stringify({ script }));
+    harness = new Harness({ webRoot: dir });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("is a page that loads only its script, sandboxed by its own policy", async () => {
+    const response = await harness.request("GET", "/diagram-frame");
+    expect(response.status).toBe(200);
+    const sources = [...String(response.body).matchAll(/<script src="([^"]*)"><\/script>/g)].map(
+      ([, src]) => src,
+    );
+    expect(sources).toEqual([`/${script}`]);
+    const policy = directives(response.headers.get("content-security-policy"));
+    expect(Object.fromEntries(policy)).toMatchObject({
+      sandbox: ["allow-scripts"],
+      "default-src": ["'none'"],
+      "script-src": [`${origin}/${script}`],
+      "base-uri": ["'none'"],
+      "form-action": ["'none'"],
+      "frame-ancestors": [origin],
+    });
+    expect(policy.has("connect-src")).toBe(false);
+    expect(Object.fromEntries(response.headers)).toMatchObject({
+      "x-frame-options": "SAMEORIGIN",
+      "cache-control": "no-store",
+      "strict-transport-security": "max-age=31536000",
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+    });
+  });
+
+  it("serves its script to be kept for good, with every other header", async () => {
+    const response = await harness.request("GET", `/${script}`);
+    expect([response.status, response.body]).toEqual([200, "drawDiagrams();"]);
+    expect(Object.fromEntries(response.headers)).toMatchObject({
+      "content-type": "text/javascript; charset=utf-8",
+      "cache-control": "public, max-age=31536000, immutable",
+      "content-security-policy": contentSecurityPolicy(origin),
+      "x-frame-options": "DENY",
+      "x-content-type-options": "nosniff",
+    });
+  });
+
+  it("keeps a route's own security headers only for the frame's routes, and only those they name", async () => {
+    const probe = new Hono();
+    probe.use(
+      securityHeaders(
+        origin,
+        () =>
+          new Map([
+            ["/diagram-frame", ["content-security-policy", "x-frame-options"]],
+            [`/${script}`, ["cache-control"]],
+          ]),
+      ),
+    );
+    const own = {
+      "Content-Security-Policy": "default-src *",
+      "X-Frame-Options": "SAMEORIGIN",
+      "Cache-Control": "public",
+    };
+    probe.get("*", (c) => {
+      for (const [header, value] of Object.entries(own)) {
+        c.header(header, value);
+      }
+      return c.text("");
+    });
+    const headersOf = async (target: string) => {
+      const response = await probe.request(target);
+      return ["content-security-policy", "x-frame-options", "cache-control"].map((header) =>
+        response.headers.get(header),
+      );
+    };
+    expect(await headersOf("/diagram-frame")).toEqual(["default-src *", "SAMEORIGIN", "no-store"]);
+    expect(await headersOf(`/${script}`)).toEqual([
+      contentSecurityPolicy(origin),
+      "DENY",
+      "public",
+    ]);
+    expect(await headersOf("/sessions")).toEqual([
+      contentSecurityPolicy(origin),
+      "DENY",
+      "no-store",
+    ]);
+  });
+
+  it("is the one frame the web UI may embed, and its images may be blob: URLs", async () => {
+    const policy = directives(contentSecurityPolicy(origin));
+    expect(policy.get("frame-src")).toEqual([`${origin}/diagram-frame`]);
+    expect(policy.get("img-src")).toEqual(["'self'", "blob:"]);
+    expect(policy.get("frame-ancestors")).toEqual(["'none'"]);
+  });
+
+  it("is not served by a build without it, whose path serves as any other", async () => {
+    rmSync(path.join(dir, "diagram-frame.json"));
+    harness.close();
+    harness = new Harness({ webRoot: dir });
+    const response = await harness.request("GET", "/diagram-frame");
+    expect(response.body).toBe("<!doctype html><title>Agention</title>");
+    expect(response.headers.get("content-security-policy")).toBe(contentSecurityPolicy(origin));
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+  });
+
+  it.each([
+    ["a script outside the build's assets", { script: "../secret.js" }],
+    ["a script the build does not hold", { script: "assets/diagram-frame-MISSING.js" }],
+    ["no script", {}],
+  ])("stops the server from starting when its manifest names %s", (_, manifest) => {
+    writeFileSync(path.join(dir, "diagram-frame.json"), JSON.stringify(manifest));
+    harness.close();
+    expect(() => new Harness({ webRoot: dir })).toThrow(/diagram-frame\.json/);
+    harness = new Harness();
   });
 });
 
