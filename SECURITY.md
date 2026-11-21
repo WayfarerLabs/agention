@@ -10,8 +10,8 @@ Agention is an honor system by nature. An agent can fail to report, or report fa
 cannot detect or prevent that. It does not try to. Instead it enforces the properties an honor
 system cannot provide on its own, so that what was reported, by whom, stays on the record.
 
-v1 is being built to enforce these invariants, each with tests at its boundary. The server's HTTP
-API enforces the server's part of them on every request, and the web UI renders content inert.
+Agention enforces these invariants, each with tests at its boundary. The server's HTTP API enforces
+the server's part of them on every request, and the web UI renders content inert.
 
 - **Identity and provenance.** Every message records who wrote it. The actor always comes from
   authentication, never from request content.
