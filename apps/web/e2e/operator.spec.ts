@@ -5,8 +5,10 @@
 // marking unread from a message, archiving, the list's filters, their counts,
 // its order, the order's direction and grouping, an ask the agent withdraws,
 // the sessions view with a session's status and log, at a phone's width too,
-// a thread the operator starts there and stranded's reason, signing in again, a second passkey that takes over from the first, and a
-// second server on another port of the host signed in beside the first. CDP
+// a thread the operator starts there and stranded's reason, a session's
+// options menu over the next agent's header, signing in again, a second
+// passkey that takes over from the first, and a second server on another
+// port of the host signed in beside the first. CDP
 // virtual authenticators stand in for the operator's devices; one page
 // carries through the steps, in order.
 import type { BrowserContext, CDPSession, Page } from "@playwright/test";
@@ -566,6 +568,52 @@ test("the sessions view shows a session's status and log, and starts a thread th
     /Stranded.*completed/,
   );
   await agent.send("POST", "/s/builder/main/status", { state: "working" });
+});
+
+test("a session's options menu lies over the next agent's header, at a phone's width too", async ({
+  agention,
+}) => {
+  // A second agent, whose header follows builder's one session and,
+  // with builder folded, its header.
+  const deployer = new Agent(agention);
+  await deployer.send("POST", "/registrations", { agent: "deployer", session: "main" });
+  await page.getByRole("link", { name: "Sessions" }).click();
+  const code = registrationCode(deployer.publicKey as PublicKey);
+  await page
+    .getByRole("article", { name: `Registration ${code}` })
+    .getByRole("button", { name: "Approve" })
+    .click();
+  await expect(page.getByRole("button", { name: /^Agent deployer/ })).toBeVisible();
+
+  const wide = page.viewportSize();
+  for (const size of [wide, { width: 390, height: 844 }]) {
+    if (size !== null) {
+      await page.setViewportSize(size);
+    }
+    const options = page.getByRole("button", { name: "Options for builder/main" });
+    await options.click();
+    // The click lands on the menu's item, not on the header beneath it.
+    await page.getByRole("button", { name: /^Group: / }).click();
+    const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(options).toBeFocused();
+  }
+  // So does the agent's own menu, in its header, with the agent folded.
+  const builder = page.getByRole("button", { name: /^Agent builder/ });
+  await builder.click();
+  await expect(builder).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Options for builder" }).click();
+  await page.getByRole("button", { name: /^Tags: / }).click();
+  const tags = page.getByRole("dialog", { name: "Tags for builder" });
+  await expect(tags).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tags).toBeHidden();
+  await builder.click();
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
 });
 
 test("signing in with the passkey returns to the page that needed it", async () => {

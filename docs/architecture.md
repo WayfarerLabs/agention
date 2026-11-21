@@ -602,17 +602,17 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path              | Contents                                                                                                                                                                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`  | The routes, over the History API                                                                                                                                                                                             |
-| `src/session.tsx` | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                          |
-| `src/data.ts`     | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                            |
-| `src/api.ts`      | The web API's client                                                                                                                                                                                                         |
-| `src/passkeys.ts` | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                          |
-| `src/markdown/`   | The inert Markdown renderer                                                                                                                                                                                                  |
-| `src/views/`      | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations and new-thread sheet |
-| `src/styles.css`  | The design tokens and styles                                                                                                                                                                                                 |
-| `e2e/`            | The browser tests                                                                                                                                                                                                            |
+| Path              | Contents                                                                                                                                                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`  | The routes, over the History API                                                                                                                                                                                                               |
+| `src/session.tsx` | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                            |
+| `src/data.ts`     | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                              |
+| `src/api.ts`      | The web API's client                                                                                                                                                                                                                           |
+| `src/passkeys.ts` | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                            |
+| `src/markdown/`   | The inert Markdown renderer                                                                                                                                                                                                                    |
+| `src/views/`      | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet |
+| `src/styles.css`  | The design tokens and styles                                                                                                                                                                                                                   |
+| `e2e/`            | The browser tests                                                                                                                                                                                                                              |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -636,9 +636,12 @@ entries that changed only the percent, with no note, as one line. While the page
 unfolded log marks the operator's read through its newest entry whenever that is beyond their mark,
 with the read marking the thread page uses for its messages. The agents a browser folds, and whether
 it shows the past requests, are kept in its local storage, as the thread list's groups are, and a
-session's row starts folded on every visit. Wherever a thread shows as stranded, the UI says why
-from the session's presence in the thread's summary: the stop the session reported, with its
-outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
+session's row starts folded on every visit. Each session's row shows its group and tags, and each
+agent's header its tags, from the sessions view's page; the sheets that set them, and the Groups and
+tags sheet, load the operator's groups and tags while they are open, and reload the view once a
+change lands. Wherever a thread shows as stranded, the UI says why from the session's presence in
+the thread's summary: the stop the session reported, with its outcome; otherwise quiet, with when it
+was last seen; otherwise no active credential.
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
