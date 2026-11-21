@@ -1,4 +1,5 @@
 import { testCertificate } from "@wayfarerlabs/agention/src/http/test-certificate.ts";
+import { createServer as createPlainServer } from "node:http";
 import { createServer } from "node:https";
 import { once } from "node:events";
 import { createServer as createTcpServer, type Socket } from "node:net";
@@ -92,6 +93,26 @@ describe("AGENTION_CONNECT", () => {
       expect(reached).toBe(0);
     },
   );
+
+  it("that answers without TLS is reported as leading to a plain-HTTP port", async () => {
+    let requests = 0;
+    const plain = createPlainServer((_request, response) => {
+      requests++;
+      response.end();
+    });
+    const port = await listening(plain);
+    try {
+      const bridge = await harness.bridge({ AGENTION_CONNECT: `127.0.0.1:${port}` });
+      const answer = await bridge.call("register");
+      expect([answer.isError, answer.json]).toEqual([true, undefined]);
+      expect(answer.text).toContain("AGENTION_CONNECT");
+      // The hint names the origin's HTTPS address for the tunnel to lead to.
+      expect(answer.text).toContain(`${host}:443`);
+      expect(requests).toBe(0);
+    } finally {
+      await new Promise((resolve) => plain.close(resolve));
+    }
+  });
 
   it("that nothing listens at is reported naming the setting and the address", async () => {
     const bridge = await harness.bridge({ AGENTION_CONNECT: "127.0.0.1:9" });
