@@ -226,8 +226,20 @@ export class AgentApi {
       );
     }
     if (this.#connectAddress !== undefined) {
+      const problem = `The Agention server at ${this.origin} cannot be reached${through} (${detail})`;
+      // A TLS handshake answered in plain text fails with OpenSSL's "wrong
+      // version number": the address leads to a plain-text listener, such as
+      // the server's own port behind a proxy that holds its certificate.
+      if (/wrong version number/.test(String(failure.message))) {
+        const { hostname, port } = new URL(this.origin);
+        return operatorProblem(
+          `${problem}: the address answers without TLS`,
+          `make the tunnel or other forward lead to ${hostname}:${port || 443}, ` +
+            "the server's HTTPS origin, not to the port the server itself listens on",
+        );
+      }
       return operatorProblem(
-        `The Agention server at ${this.origin} cannot be reached${through} (${detail})`,
+        problem,
         "check that the tunnel or other forward at that address is up and reaches the server, " +
           `and that AGENTION_CONNECT names it, ${restartAfter("AGENTION_CONNECT")}`,
       );

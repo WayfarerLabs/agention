@@ -766,7 +766,9 @@ On the server's machine, as the user that runs the server:
    ```
 
 3. Save this as `~/.config/systemd/user/agention-tunnel@.service`, with your origin's host in place
-   of `agention.example.com`, and its port, if it names one, in place of `443`:
+   of `agention.example.com`, and its port, if it names one, in place of `443`. The tunnel must lead
+   to the origin, where the server's certificate is served, never to the server's own port, which
+   answers without TLS when a proxy such as `tailscale serve` holds the certificate:
 
    ```ini
    [Unit]
