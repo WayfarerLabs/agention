@@ -311,12 +311,19 @@ there (rulings 64 and 65). Governed by the [Sessions LLD](sessions-lld.md).
 
 ## Delivery 4: complete v1
 
-- [ ] Completion LLD, covering only what the Working inbox and Sessions LLDs left open.
-- [ ] Unread session updates in the thread list beside threads, consecutive progress-only updates
-      collapsed (R25, ruling 65); session groups, tags on agents and sessions, and filtering the
-      thread list by group or tag (R25, R26, R28; ruling 30).
-- [ ] The session-group level in the list viewed by session (group, session, topic), with its
-      roll-up (R28, rulings 38 and 40), and groups and tags in the sessions view.
+The operator groups and tags sessions, the Sessions view links session status to its threads, search
+reaches what messages say, diagrams draw in isolation, and a running server backs up with one
+command. Governed by the [Completion LLD](completion-lld.md).
+
+- [ ] [Completion LLD](completion-lld.md), covering only what the Working inbox and Sessions LLDs
+      left open.
+- [ ] Session groups, tags on agents and sessions, and filtering the thread list by group or tag
+      (R25, R26, R28; ruling 30).
+- [ ] The list viewed by group (group, session, topic, thread) with each group's roll-up, and the
+      sessions view folded by group (R28, rulings 38, 40 and 75), with groups and tags in it.
+- [ ] Session updates kept in the sessions view: its tab's badge for unread updates, and each
+      session's, agent's and group's threads' roll-up with a link to them in the thread list (R25,
+      ruling 74).
 - [ ] Search extended from thread titles to the text and detail of messages through a second
       full-text index on the operator's list (R25, ruling 38), the agent mount's search staying on
       titles (R18).
