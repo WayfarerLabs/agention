@@ -73,35 +73,75 @@ export const requestTimeout = 30_000;
 // request sends one request to the web API and returns its JSON answer, or
 // throws an ApiFailure. The answer's type is the API contract's; the server
 // that serves this page is the one that answers it.
-export async function request<T>(
+export function request<T>(
   method: "GET" | "POST",
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const headers: Record<string, string> = { accept: "application/json" };
+  const headers: Record<string, string> = {};
   if (options.body !== undefined) {
     headers["content-type"] = "application/json";
   }
-  if (options.csrf !== undefined) {
-    headers["x-csrf-token"] = options.csrf;
+  return exchange<T>(
+    path,
+    {
+      method,
+      headers,
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+    },
+    options.csrf,
+    requestTimeout,
+  );
+}
+
+// upload sends bytes, such as a recording, as the body of a change, declared
+// as type, and returns the JSON answer as request does. It waits up to
+// timeout, and aborting signal, as a Cancel does, ends it as a network
+// failure.
+export function upload<T>(
+  path: string,
+  body: Blob,
+  options: { type: string; csrf: string | undefined; timeout: number; signal: AbortSignal },
+): Promise<T> {
+  return exchange<T>(
+    path,
+    { method: "POST", headers: { "content-type": options.type }, body, signal: options.signal },
+    options.csrf,
+    options.timeout,
+  );
+}
+
+async function exchange<T>(
+  path: string,
+  init: { method: string; headers: Record<string, string>; body?: BodyInit; signal?: AbortSignal },
+  csrf: string | undefined,
+  limit: number,
+): Promise<T> {
+  const headers: Record<string, string> = { accept: "application/json", ...init.headers };
+  if (csrf !== undefined) {
+    headers["x-csrf-token"] = csrf;
   }
   // The bound covers reading the answer too: aborting stops its body.
   const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(), requestTimeout);
+  const timer = setTimeout(() => timeout.abort(), limit);
+  const signal =
+    init.signal === undefined ? timeout.signal : AbortSignal.any([timeout.signal, init.signal]);
   const noAnswer = () =>
     timeout.signal.aborted
       ? new ApiFailure("network", "Agention did not answer in time. Check the connection.")
-      : new ApiFailure("network", "Agention could not be reached. Check the connection.");
+      : init.signal?.aborted === true
+        ? new ApiFailure("network", "Cancelled.")
+        : new ApiFailure("network", "Agention could not be reached. Check the connection.");
   try {
     let response: Response;
     try {
       response = await fetch(`/api/web${path}`, {
-        method,
+        method: init.method,
         headers,
         credentials: "same-origin",
         cache: "no-store",
-        signal: timeout.signal,
-        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+        signal,
+        ...(init.body === undefined ? {} : { body: init.body }),
       });
     } catch {
       throw noAnswer();
@@ -112,7 +152,7 @@ export async function request<T>(
     try {
       return (await response.json()) as T;
     } catch {
-      throw timeout.signal.aborted
+      throw signal.aborted
         ? noAnswer()
         : new ApiFailure("unexpected", "The server's answer could not be read.");
     }

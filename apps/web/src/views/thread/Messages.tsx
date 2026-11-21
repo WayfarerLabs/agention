@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { describeFailure } from "../../api.ts";
-import { MenuItem, OptionsMenu } from "../../components.tsx";
+import { MenuItem, OptionsMenu, Status } from "../../components.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import {
   absoluteTime,
@@ -25,6 +25,14 @@ import {
 } from "../../format.tsx";
 import { ExternalLink, liveUrl, Markdown } from "../../markdown/Markdown.tsx";
 import { ThreadLink } from "../../router.tsx";
+import {
+  speak,
+  speechSupported,
+  stopSpeaking,
+  useSpeaking,
+  useSpeechFailed,
+  wordsOf,
+} from "../../voice/speech.ts";
 import {
   type AnswerDraft,
   holdsAnswer,
@@ -701,22 +709,51 @@ function optionsOf(message: Message, actions: MessageActions): Option[] {
   ];
 }
 
+// useReadAloud gives a message's Read aloud option where the browser can
+// speak, which reads Stop while that message is being read, and whether the
+// device could not read it.
+function useReadAloud(
+  message: Message,
+  target: ThreadTarget,
+): { options: Option[]; failed: boolean } {
+  const speaking = useSpeaking();
+  const failed = useSpeechFailed();
+  if (!speechSupported()) {
+    return { options: [], failed: false };
+  }
+  const key = `${target.agent}/${target.session}/${target.number}#${message.seq}`;
+  const options: Option[] = [
+    speaking === key
+      ? { label: "Stop", disabled: false, replaces: false, choose: stopSpeaking }
+      : {
+          label: "Read aloud",
+          disabled: false,
+          replaces: false,
+          choose: () => speak(key, wordsOf(message)),
+        },
+  ];
+  return { options, failed: failed === key };
+}
+
 // MessageOptions is a message's options menu, on a message that offers any,
 // each option saying why it waits while it must.
 function MessageOptions({
   message,
-  actions,
+  options,
+  drafting,
   menu,
 }: {
   message: Message;
-  actions: MessageActions;
+  options: Option[];
+  // Whether the composer holds a draft, which options that replace the
+  // message wait on.
+  drafting: boolean;
   menu: OpenMenu;
 }) {
   const id = useId();
   const { seq } = message;
   const { set } = menu;
-  const options = optionsOf(message, actions);
-  const waiting = actions.drafting && options.some((option) => option.replaces);
+  const waiting = drafting && options.some((option) => option.replaces);
   return (
     <OptionsMenu
       label={`Options for message ${seq}`}
@@ -809,6 +846,11 @@ function MessageBody({
 }) {
   const { actions, agentRead } = context;
   const failure = actions?.markFailure?.seq === message.seq ? actions.markFailure : undefined;
+  const readAloud = useReadAloud(message, context.target);
+  const options = [
+    ...(actions !== undefined && message.live ? optionsOf(message, actions) : []),
+    ...readAloud.options,
+  ];
   return (
     <>
       <div className="message-head">
@@ -823,12 +865,14 @@ function MessageBody({
             </>
           )}
         </p>
-        {actions !== undefined &&
-          menu !== undefined &&
-          message.live &&
-          optionsOf(message, actions).length > 0 && (
-            <MessageOptions message={message} actions={actions} menu={menu} />
-          )}
+        {menu !== undefined && options.length > 0 && (
+          <MessageOptions
+            message={message}
+            options={options}
+            drafting={actions?.drafting === true}
+            menu={menu}
+          />
+        )}
       </div>
       {failure !== undefined && (
         <div className="notice danger" role="alert">
@@ -837,6 +881,7 @@ function MessageBody({
           </p>
         </div>
       )}
+      {readAloud.failed && <Status>This device could not read this message aloud.</Status>}
       {message.seq === 1 && <p className="event">Started this thread.</p>}
       <Events message={message} find={context.find} />
       {message.text !== undefined && <Markdown text={message.text} />}
@@ -883,7 +928,7 @@ export function MessageView({
               </>
             )}
           </summary>
-          <MessageBody message={message} context={{ ...context, actions: undefined }} />
+          <MessageBody message={message} context={{ ...context, actions: undefined }} menu={menu} />
         </details>
       </article>
     );
@@ -915,6 +960,8 @@ export function MessageList({
 }) {
   const [open, setOpen] = useState<number>();
   const menu: OpenMenu = { open, set: setOpen };
+  // Leaving the thread stops reading aloud.
+  useEffect(() => stopSpeaking, []);
   return (
     <ol className="messages">
       {messages.map((message) => (

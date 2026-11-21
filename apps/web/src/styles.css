@@ -1271,8 +1271,9 @@ a > .flag {
 /* Send and its option stay at the foot of the screen while the composer's
    form is on it, so a phone's keyboard, which the page's viewport shrinks
    for, does not hide them; they never leave the form, so they never lie
-   over the messages above it. A failed send's notice shows above Send, and
-   what was sent after it, so what answers Send shows beside it. */
+   over the messages above it. A failed send's or dictation's notice shows
+   above Send, and what was sent or heard after it, so what answers Send or
+   Dictate shows beside it. */
 .composer .actions {
   position: sticky;
   bottom: 0;
@@ -1284,7 +1285,8 @@ a > .flag {
   background: var(--color-surface);
 }
 
-.composer .actions > .notice {
+.composer .actions > .notice,
+.composer .actions > .field-error {
   flex-basis: 100%;
   margin: 0;
 }
