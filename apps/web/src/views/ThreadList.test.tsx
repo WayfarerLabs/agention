@@ -305,8 +305,8 @@ describe("the thread list", () => {
     const drawn = (icon: IconName) => render(<Icon name={icon} />).container.innerHTML;
     expect(unread.querySelector("svg")?.outerHTML).toBe(drawn("unread"));
     expect(read.querySelector("svg")?.outerHTML).toBe(drawn("read"));
-    expect(heading("Unread").classList.contains("unread")).toBe(true);
-    expect(heading("Read").classList.contains("unread")).toBe(false);
+    expect(heading("Unread").closest("li")?.classList.contains("unread")).toBe(true);
+    expect(heading("Read").closest("li")?.classList.contains("unread")).toBe(false);
     expect(mark("Archived", "1 message read")).toBeTruthy();
     expect(mark("Archived", "Archived").querySelector("svg")).not.toBeNull();
     expect(within(row("Read")).queryByTitle("Archived")).toBeNull();

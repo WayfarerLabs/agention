@@ -862,8 +862,7 @@ button.picker[aria-expanded="true"] .icon {
   text-decoration: none;
 }
 
-/* A row's title, bold while the thread holds unread messages, beside its
-   read and archive marks. */
+/* A row's title, beside its read and archive marks. */
 .row-title {
   display: flex;
   align-items: flex-start;
@@ -880,8 +879,36 @@ button.picker[aria-expanded="true"] .icon {
   overflow-wrap: anywhere;
 }
 
-.row-title .unread {
-  font-weight: 700;
+/* A thread or message the operator has not read takes an open ask's shape in
+   the accent: a bar at its start as wide as an ask's, a tint, and a dot before
+   its title or author, so unread stands apart from read at a glance. The
+   start padding gives back what the bar adds, so the content does not move. */
+.thread-row.unread,
+.message.unread {
+  border-color: var(--color-accent);
+  border-left: 4px solid var(--color-accent);
+  background: var(--color-accent-bg);
+}
+
+.thread-row.unread .thread-link,
+.message.unread {
+  padding-left: calc(var(--space-4) - 3px);
+}
+
+.thread-row.unread .row-title :is(h2, h3, h4) {
+  font-weight: 800;
+}
+
+.thread-row.unread .row-title :is(h2, h3, h4)::before,
+.message.unread .message-head .author::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-accent);
+  vertical-align: 0.1em;
 }
 
 /* A thread's number leads its title, muted, in a row and on its page. */
@@ -1198,13 +1225,6 @@ button.picker[aria-expanded="true"] .icon {
 
 .messages > li {
   margin-bottom: var(--space-3);
-}
-
-.new-mark {
-  margin: 0 0 var(--space-1);
-  color: var(--color-accent);
-  font-size: var(--text-small);
-  font-weight: 700;
 }
 
 .message {
@@ -1796,7 +1816,8 @@ button.session-fold[aria-expanded="true"] .session-title {
 }
 
 /* The log, newest first, beside a rule: each line's time, then what it
-   changed; a line unread when shown is bold, its time in the accent. */
+   changed; a line unread when shown is bold and tinted, its time in the
+   accent. */
 .session-log {
   margin: 0;
   padding: 0 0 0 var(--space-3);
@@ -1817,7 +1838,11 @@ button.session-fold[aria-expanded="true"] .session-title {
 }
 
 .session-log li.unread {
-  font-weight: 600;
+  margin-left: calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-small);
+  background: var(--color-accent-bg);
+  font-weight: 700;
 }
 
 .session-log li.unread time {

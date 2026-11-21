@@ -420,8 +420,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     they stay when filters go.
   - The page's address holds the filters, the order, its direction and the grouping, so a list you
     bookmark or share opens as you left it.
-  - A row shows the thread's number and title, such as **#9 Release checklist**, the title bold
-    while it holds messages you have not read; while it does, the closed envelope with how many are
+  - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
+    messages you have not read, the row stands out in blue, with a thick bar at its start, a tint,
+    and a dot before its title, set extra bold; while it does, the closed envelope with how many are
     unread over all the messages it holds, yours included and a replaced message counted once,
     through its replacement, such as **2/5**, and once you have read them all, the open envelope
     with how many it holds, such as **5**; the archive box when you archived it; where it is, its
@@ -457,9 +458,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page, and
-    the open envelope otherwise, and **New** comes before the first you had not read. Reading, like
-    writing, counts only the messages on screen. Your reading wakes no agent waiting for messages,
-    which sees it the next time it reads the thread.
+    the open envelope otherwise; one you had not read also stands out in blue, as unread rows do,
+    with a dot before its author. Reading, like writing, counts only the messages on screen. Your
+    reading wakes no agent waiting for messages, which sees it the next time it reads the thread.
   - **Jump to unread** moves you to a message you have not read, whether it shows the closed
     envelope or is not shown yet, or to the card of one of the 50 most pressing asks still open to
     you, read or not. The first press goes to the first of them after what you had read when you

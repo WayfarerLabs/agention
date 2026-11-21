@@ -10,7 +10,7 @@
   to 31 on 2026-10-28, rulings 32 to 39 on 2026-10-30, rulings 40 to 44 on 2026-10-31, rulings 45 to
   47 on 2026-11-01, ruling 48 on 2026-11-05, rulings 49 to 52 on 2026-11-06, ruling 53 on
   2026-11-08, rulings 54 and 55 on 2026-11-09, rulings 56 and 57 on 2026-11-10, ruling 58 on
-  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 69 on
+  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 70 on
   2026-11-20
 - Date: 2026-10-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD (ruling 59); paths below are relative to
@@ -1175,6 +1175,15 @@ Recorded from the design conversation.
     forward, and that work threads would be stored on the personal server. The operator answered
     "Sounds great!", choosing "Yes, add the setting" and "The 0.2.2 patch". Taken: the bridge gains
     `AGENTION_CONNECT` in the next release, and the operator guide documents the tunnel.
+70. (2026-11-20, using 0.2.1) "One thing I've noticed is that there's isn't enough of a visual
+    difference between read and unread messages." "I really like the way asks work, purple when
+    open, blue when closed. I think we should do something like that more broadly for message read
+    status. And the unread bold should be bolder if possible." The lead proposed giving unread
+    threads and messages the open ask's shape in the accent blue (a thick bar at the start, a tint
+    and a dot), unread titles at weight 800 instead of 700, and dropping the thread page's "New"
+    divider since the card says it. The operator answered at the terminal: "Actually, can you knock
+    out the unread contrast improvements real quick? Let's get those in 0.3.0." Taken: as proposed,
+    with the sessions log's unread entries tinted to match, in the 0.3.0 release.
 
 ## Out of scope for v1
 

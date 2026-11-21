@@ -75,6 +75,13 @@ function answerRead(pathname: string): Promise<void> {
 const messageArticle = (seq: number) =>
   screen.getByRole("article", { name: new RegExp(`^Message ${seq} by`) });
 
+// unreadCards lists the messages whose cards are marked unread, as they were
+// when they appeared.
+const unreadCards = () =>
+  Array.from(document.querySelectorAll("article.message.unread")).map((article) =>
+    Number(/^Message (\d+)/.exec(article.getAttribute("aria-label") ?? "")?.[1]),
+  );
+
 // threadHeader is the thread page's head, where a failed action on the
 // thread shows.
 const threadHeader = () => document.querySelector<HTMLElement>(".thread-header") as HTMLElement;
@@ -356,7 +363,7 @@ describe("the thread page", () => {
   it("opens a long log on the page holding the first unread message, and shows more", async () => {
     await page.openLog({ last_seq: 120, unread: 100 });
     expect(shownMessages()).toEqual(range(21, 70));
-    expect(screen.getByText("New").closest("li")?.textContent).toContain("Message 21");
+    expect(unreadCards()[0]).toBe(21);
     fireEvent.click(screen.getByRole("button", { name: "Show later messages" }));
     await screen.findByText("Message 120");
     expect(shownMessages()).toEqual(range(21, 120));
@@ -436,17 +443,6 @@ describe("reading", () => {
       .map((article) =>
         Number(/^Message (\d+)/.exec(article.getAttribute("aria-label") ?? "")?.[1]),
       );
-  // newMarked says which message the "New" divider comes before.
-  const newMarked = () =>
-    Number(
-      /^Message (\d+)/.exec(
-        screen
-          .getByText("New")
-          .closest("li")
-          ?.querySelector("article")
-          ?.getAttribute("aria-label") ?? "",
-      )?.[1],
-    );
 
   it("reads what it shows on opening, and keeps the messages that were unread marked", async () => {
     const state = await page.openWith([message(1), message(2), message(3)], { unread: 2 });
@@ -455,8 +451,7 @@ describe("reading", () => {
     await waitFor(() => expect(page.api.callsTo("GET", path).length).toBeGreaterThan(2));
     expect(state.thread.unread).toBe(0);
     expect(marked()).toEqual([2, 3]);
-    expect(screen.getAllByText("New")).toHaveLength(1);
-    expect(newMarked()).toBe(2);
+    expect(unreadCards()).toEqual([2, 3]);
   });
 
   it("marks no replaced message unread", async () => {
@@ -465,7 +460,7 @@ describe("reading", () => {
       { unread: 2 },
     );
     expect(marked()).toEqual([3]);
-    expect(newMarked()).toBe(3);
+    expect(unreadCards()).toEqual([3]);
   });
 
   it("marks each of the operator's messages the agent has not read, until it reads them", async () => {
@@ -1357,7 +1352,7 @@ describe("archived messages", () => {
     await page.open(state);
     // The first unread message after those archived leads the page.
     expect(shownMessages()).toEqual(range(101, 120));
-    expect(screen.queryByText("New")?.closest("li")?.textContent).toContain("Message 101");
+    expect(unreadCards()[0]).toBe(101);
     expect(fold().getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("button", { name: "Show earlier messages" })).toBeNull();
     fireEvent.click(fold());
@@ -1378,7 +1373,7 @@ describe("archived messages", () => {
     expect(page.reads()).toEqual([]);
     fireEvent.click(fold());
     await waitFor(() => expect(page.reads()).toEqual([3]));
-    // An archived message is never unread, so none is marked new.
-    expect(screen.queryByText("New")).toBeNull();
+    // An archived message is never unread, so none is marked unread.
+    expect(unreadCards()).toEqual([]);
   });
 });
