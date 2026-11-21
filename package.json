@@ -15,7 +15,7 @@
   ],
   "devDependencies": {
     "@types/node": "24.19.2",
-    "cspell": "10.5.0",
+    "cspell": "10.5.1",
     "esbuild": "0.28.2",
     "markdownlint-cli2": "0.24.1",
     "prettier": "3.10.1",
