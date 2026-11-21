@@ -9,16 +9,7 @@ import type {
   ThreadsView,
   UnreadInput,
 } from "@wayfarerlabs/agention-api";
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { describeFailure, query, request, threadPath } from "../../api.ts";
 import {
   Loadable,
@@ -28,7 +19,14 @@ import {
   ThreadTitle,
   usePageTitle,
 } from "../../components.tsx";
-import { useAction, useResource, useStillOpen } from "../../data.ts";
+import {
+  type Reading,
+  useAction,
+  useFresh,
+  useReading,
+  useResource,
+  useStillOpen,
+} from "../../data.ts";
 import {
   AbsenceReason,
   absenceOf,
@@ -175,101 +173,6 @@ function useThread(target: ThreadTarget) {
   return { ...resource, earlier, later, reach, show: extend, reached };
 }
 
-// useVisible says whether the page is visible, and follows it.
-function useVisible(): boolean {
-  return useSyncExternalStore(subscribeVisibility, () => document.visibilityState === "visible");
-}
-
-function subscribeVisibility(onChange: () => void): () => void {
-  document.addEventListener("visibilitychange", onChange);
-  return () => document.removeEventListener("visibilitychange", onChange);
-}
-
-interface Reading {
-  pending: boolean;
-  // Why the latest mark failed, until the thread shows the messages read.
-  failure: unknown;
-  // stop ends reading for good, so nothing the page sends after the operator
-  // marks the thread unread from a message can undo that, even when marking
-  // fails, since its answer may be lost after it landed.
-  stop(): void;
-}
-
-// useReading reads what the page shows, as opening an email does: while the
-// page is visible, it marks read through the last message on screen whenever
-// that is beyond the operator's cursor, which happens on opening, when a
-// refresh shows new messages and when later messages are shown. It never
-// reads a message twice, so what another tab marks unread while this page
-// shows it stays unread until a new message arrives and this page reads
-// through it. A failed mark stays shown, and each refresh tries again until
-// the thread shows the messages read.
-function useReading(
-  target: ThreadTarget,
-  data: LoadedThread | undefined,
-  shown: number,
-  refresh: () => void,
-): Reading {
-  const visible = useVisible();
-  const { pending, failure, run, clear } = useAction();
-  // The furthest message the page has marked read, is marking or found read
-  // already.
-  const marked = useRef(0);
-  const stopped = useRef(false);
-  useEffect(() => {
-    if (data === undefined || !visible || stopped.current) {
-      return;
-    }
-    if (shown <= data.marks.read_through) {
-      // Read already, perhaps by a mark whose answer was lost.
-      marked.current = Math.max(marked.current, shown);
-      clear();
-      return;
-    }
-    if (shown <= marked.current) {
-      return;
-    }
-    const before = marked.current;
-    marked.current = shown;
-    void run((csrf) =>
-      request<CursorsResult>(
-        "POST",
-        threadPath(target.agent, target.session, target.number, "/read"),
-        { csrf, body: { through: shown } },
-      ),
-    ).then((done) => {
-      if (done === undefined) {
-        // The next refresh tries again, unless the page has read further.
-        if (marked.current === shown) {
-          marked.current = before;
-        }
-      } else {
-        refresh();
-      }
-    });
-  }, [data, visible, shown, run, clear, refresh, target]);
-  const stop = useCallback(() => {
-    stopped.current = true;
-  }, []);
-  return { pending, failure, stop };
-}
-
-// useFreshMessages remembers which messages were unread when the page showed
-// them, so they stay marked new and unread until the operator leaves the
-// page, though showing them reads them at once.
-function useFreshMessages(data: LoadedThread | undefined): ReadonlySet<number> {
-  const fresh = useRef(new Set<number>());
-  return useMemo(() => {
-    if (data !== undefined) {
-      for (const message of data.messages) {
-        if (isUnread(message, data.marks)) {
-          fresh.current.add(message.seq);
-        }
-      }
-    }
-    return new Set(fresh.current);
-  }, [data]);
-}
-
 // A place the page moves focus to: a message, or the card of an ask on it.
 interface Place {
   seq: number;
@@ -355,8 +258,30 @@ export function ThreadView({
   // screen, so the page never reads archived messages while they are folded.
   const shown = Math.max(loaded.data?.messages.at(-1)?.seq ?? 0, loaded.reached);
   const onScreen = unfolded || shown > (loaded.data?.marks.archived_through ?? 0) ? shown : 0;
-  const reading = useReading(target, loaded.data, onScreen, loaded.refresh);
-  const fresh = useFreshMessages(loaded.data);
+  const { data } = loaded;
+  const reading = useReading(
+    useMemo(
+      () => (data === undefined ? undefined : { through: onScreen, read: data.marks.read_through }),
+      [data, onScreen],
+    ),
+    (through, csrf) =>
+      request<CursorsResult>("POST", threadPath(agent, session, number, "/read"), {
+        csrf,
+        body: { through },
+      }),
+    loaded.refresh,
+  );
+  // The agent's messages that were unread when the page showed them stay
+  // marked new and unread until the operator leaves the page.
+  const fresh = useFresh(
+    useMemo(
+      () =>
+        data?.messages
+          .filter((message) => isUnread(message, data.marks))
+          .map((message) => message.seq),
+      [data],
+    ),
+  );
   usePageTitle(loaded.data?.thread.title ?? `Thread ${number}`);
   return (
     <Loadable data={loaded.data} failure={loaded.failure} retry={loaded.refresh}>

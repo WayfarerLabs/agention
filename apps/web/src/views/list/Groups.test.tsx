@@ -228,9 +228,7 @@ describe("grouped by session", () => {
     expect(builder.getAttribute("aria-expanded")).toBe("false");
     const body = document.getElementById(builder.getAttribute("aria-controls") ?? "");
     expect(body?.hidden).toBe(true);
-    expect(
-      within(body as HTMLElement).getByRole("heading", { name: titled("Auth one"), hidden: true }),
-    );
+    expect(screen.queryByRole("heading", { name: titled("Auth one"), hidden: true })).toBeNull();
     expect(document.activeElement).toBe(builder);
     // Opened again on this device, it stays collapsed.
     cleanup();

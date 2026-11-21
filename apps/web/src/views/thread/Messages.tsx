@@ -1,19 +1,16 @@
 import { type Message, maxAnswers, type Reference } from "@wayfarerlabs/agention-api";
 import {
   type Dispatch,
-  type FocusEvent,
   Fragment,
-  type KeyboardEvent,
   type ReactNode,
   type SetStateAction,
-  useCallback,
   useEffect,
   useId,
   useRef,
   useState,
 } from "react";
 import { describeFailure } from "../../api.ts";
-import { useTapOutside } from "../../components.tsx";
+import { MenuItem, OptionsMenu } from "../../components.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import {
   absoluteTime,
@@ -641,9 +638,9 @@ function Events({
   );
 }
 
-// The options menu of one message: which message's menu is open, of the
-// messages shown, so only one is open at a time.
-export interface OptionsMenu {
+// Which message's options menu is open, of the messages shown, so only one
+// is open at a time.
+export interface OpenMenu {
   open: number | undefined;
   set(update: (open: number | undefined) => number | undefined): void;
 }
@@ -704,11 +701,8 @@ function optionsOf(message: Message, actions: MessageActions): Option[] {
   ];
 }
 
-// MessageOptions is a message's ⋯ button and the menu it discloses: a list
-// of buttons below it, on a message that offers any. Escape, choosing an
-// option, a tap elsewhere, or focus moving on to another control closes it.
-// Focus returns to the button, without scrolling to it, unless it went to
-// that control or the tap landed on one.
+// MessageOptions is a message's options menu, on a message that offers any,
+// each option saying why it waits while it must.
 function MessageOptions({
   message,
   actions,
@@ -716,85 +710,20 @@ function MessageOptions({
 }: {
   message: Message;
   actions: MessageActions;
-  menu: OptionsMenu;
+  menu: OpenMenu;
 }) {
   const id = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-  const open = menu.open === message.seq;
-  const { set } = menu;
   const { seq } = message;
-  const shut = useCallback(
-    () => set((current) => (current === seq ? undefined : current)),
-    [set, seq],
-  );
-  const refocus = () => button.current?.focus({ preventScroll: true });
-  useTapOutside(open, root, button, shut);
-  const close = () => {
-    shut();
-    refocus();
-  };
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (open && event.key === "Escape") {
-      event.preventDefault();
-      close();
-    }
-  };
-  // Focus moving on to a control outside, as Tab past the last option does,
-  // closes the menu so it never lies over that control. Focus a tap leaves
-  // on a region that takes it only from script, such as the page's main
-  // region, is the click's to settle.
-  const onBlur = (event: FocusEvent) => {
-    const next = event.relatedTarget;
-    if (
-      open &&
-      next instanceof HTMLElement &&
-      next.tabIndex >= 0 &&
-      root.current?.contains(next) !== true
-    ) {
-      shut();
-    }
-  };
+  const { set } = menu;
   const options = optionsOf(message, actions);
   const waiting = actions.drafting && options.some((option) => option.replaces);
   return (
-    <div className="options" ref={root} onKeyDown={onKeyDown} onBlur={onBlur}>
-      <button
-        ref={button}
-        type="button"
-        className="options-button"
-        aria-label={`Options for message ${seq}`}
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => set((current) => (current === seq ? undefined : seq))}
-      >
-        <Icon name="options" />
-      </button>
-      {open && (
-        <div id={id} className="options-menu">
-          <ul>
-            {options.map((option, index) => (
-              <li key={option.label}>
-                <button
-                  type="button"
-                  disabled={option.disabled}
-                  aria-describedby={
-                    option.hint !== undefined
-                      ? `${id}-hint-${index}`
-                      : option.replaces && waiting
-                        ? `${id}-hint`
-                        : undefined
-                  }
-                  onClick={() => {
-                    close();
-                    option.choose();
-                  }}
-                >
-                  {option.label}
-                </button>
-              </li>
-            ))}
-          </ul>
+    <OptionsMenu
+      label={`Options for message ${seq}`}
+      open={menu.open === seq}
+      setOpen={(open) => set((current) => (open ? seq : current === seq ? undefined : current))}
+      notes={
+        <>
           {options.map(
             (option, index) =>
               option.hint !== undefined && (
@@ -808,9 +737,26 @@ function MessageOptions({
               {replacementHint}
             </p>
           )}
-        </div>
-      )}
-    </div>
+        </>
+      }
+    >
+      {options.map((option, index) => (
+        <MenuItem
+          key={option.label}
+          disabled={option.disabled}
+          describedBy={
+            option.hint !== undefined
+              ? `${id}-hint-${index}`
+              : option.replaces && waiting
+                ? `${id}-hint`
+                : undefined
+          }
+          onChoose={option.choose}
+        >
+          {option.label}
+        </MenuItem>
+      ))}
+    </OptionsMenu>
   );
 }
 
@@ -859,7 +805,7 @@ function MessageBody({
   message: Message;
   context: MessageContext;
   unread?: boolean | undefined;
-  menu?: OptionsMenu | undefined;
+  menu?: OpenMenu | undefined;
 }) {
   const { actions, agentRead } = context;
   const failure = actions?.markFailure?.seq === message.seq ? actions.markFailure : undefined;
@@ -916,7 +862,7 @@ export function MessageView({
   context: MessageContext;
   // Whether the message was unread when the page showed it.
   unread?: boolean | undefined;
-  menu?: OptionsMenu | undefined;
+  menu?: OpenMenu | undefined;
 }) {
   const label = `Message ${message.seq} by ${authorName(message.author)}`;
   if (!message.live) {
@@ -964,7 +910,7 @@ export function MessageList({
   context: MessageContext;
 }) {
   const [open, setOpen] = useState<number>();
-  const menu: OptionsMenu = { open, set: setOpen };
+  const menu: OpenMenu = { open, set: setOpen };
   return (
     <ol className="messages">
       {messages.map((message, index) => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ApiFailure } from "./api.ts";
 import { useSession } from "./session.tsx";
 
@@ -225,6 +225,106 @@ export function useStillOpen(): () => boolean {
     };
   }, []);
   return useCallback(() => open.current, []);
+}
+
+// useVisible says whether the page is visible, and follows it.
+export function useVisible(): boolean {
+  return useSyncExternalStore(subscribeVisibility, () => document.visibilityState === "visible");
+}
+
+function subscribeVisibility(onChange: () => void): () => void {
+  document.addEventListener("visibilitychange", onChange);
+  return () => document.removeEventListener("visibilitychange", onChange);
+}
+
+// What a view that reads something shows of it, such as a thread's messages
+// or a session's log: the latest entry it shows, by sequence, and how far the
+// reader has read.
+export interface Shown {
+  through: number;
+  read: number;
+}
+
+export interface Reading {
+  pending: boolean;
+  // Why the latest mark failed, until the view shows the entries read.
+  failure: unknown;
+  // stop ends reading for good, so nothing the view sends after the reader
+  // marks something unread can undo that, even when marking fails, since its
+  // answer may be lost after it landed.
+  stop(): void;
+}
+
+// useReading reads what a view shows, as opening an email does: while the
+// page is visible, it marks read through the latest entry shown whenever that
+// is beyond the reader's mark, which happens on opening, when a refresh shows
+// new entries and when later ones are shown. shown is undefined until the
+// view has loaded, and a new value of it, as each answer of the view's
+// resource gives, is when it looks again. It never reads an entry twice, so
+// what another tab marks unread while this view shows it stays unread until a
+// new entry arrives and this view reads through it. A failed mark stays shown,
+// and the next answer tries again until the view shows the entries read. mark
+// sends the mark through an entry, and onRead follows one that landed.
+export function useReading(
+  shown: Shown | undefined,
+  mark: (through: number, csrf: string | undefined) => Promise<unknown>,
+  onRead: () => void,
+): Reading {
+  const visible = useVisible();
+  const { pending, failure, run, clear } = useAction();
+  const markRef = useRef(mark);
+  markRef.current = mark;
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
+  // The furthest entry the view has marked read, is marking or found read
+  // already.
+  const marked = useRef(0);
+  const stopped = useRef(false);
+  useEffect(() => {
+    if (shown === undefined || !visible || stopped.current) {
+      return;
+    }
+    const { through, read } = shown;
+    if (through <= read) {
+      // Read already, perhaps by a mark whose answer was lost.
+      marked.current = Math.max(marked.current, through);
+      clear();
+      return;
+    }
+    if (through <= marked.current) {
+      return;
+    }
+    const before = marked.current;
+    marked.current = through;
+    void run((csrf) => markRef.current(through, csrf)).then((done) => {
+      if (done === undefined) {
+        // The next answer tries again, unless the view has read further.
+        if (marked.current === through) {
+          marked.current = before;
+        }
+      } else {
+        onReadRef.current();
+      }
+    });
+  }, [shown, visible, run, clear]);
+  const stop = useCallback(() => {
+    stopped.current = true;
+  }, []);
+  return { pending, failure, stop };
+}
+
+// useFresh remembers which entries, by sequence, were unread when a view
+// showed them, so they stay marked unread while the view is open, though
+// showing them reads them at once. unread is what is unread among the
+// entries shown, as each answer gives it.
+export function useFresh(unread: readonly number[] | undefined): ReadonlySet<number> {
+  const fresh = useRef(new Set<number>());
+  return useMemo(() => {
+    for (const seq of unread ?? []) {
+      fresh.current.add(seq);
+    }
+    return new Set(fresh.current);
+  }, [unread]);
 }
 
 // newRequestId makes the id that lets the server recognize a retried write.

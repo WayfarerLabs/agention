@@ -62,7 +62,7 @@ function strandedTags(thread: ThreadSummary): { label: ReactNode; tone?: string 
 
 // The headings a row or a group's header can sit at: under the list's, or
 // under one or two levels of groups.
-export const headings = { 2: "h2", 3: "h3", 4: "h4" } as const;
+const headings = { 2: "h2", 3: "h3", 4: "h4" } as const;
 
 // MessageCount says how much of a thread the operator has read: while any
 // of its messages is unread, the closed envelope with the unread messages

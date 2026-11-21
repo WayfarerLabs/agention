@@ -316,7 +316,7 @@ function ApproveForm({
             </select>
           </div>
         )}
-        {truncated && <LeftOut />}
+        {truncated && <LeftOut items="agents" />}
         <div className="choice">
           <label className="check">
             <input
@@ -432,7 +432,7 @@ function SessionFields({
           </select>
         </div>
       )}
-      {truncated && <LeftOut />}
+      {truncated && <LeftOut items={`sessions of ${agentName}`} />}
       <div className="choice">
         <label className="check">
           <input
