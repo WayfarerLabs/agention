@@ -54,8 +54,7 @@ provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers building from source, the checks CI runs, the contribution
-process and releasing. The [operator guide](docs/operator-guide.md) lists the commands, available
-and planned.
+process and releasing. The [operator guide](docs/operator-guide.md) lists the commands.
 
 ## Repository layout
 

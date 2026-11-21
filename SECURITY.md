@@ -16,7 +16,9 @@ API enforces the server's part of them on every request, and the web UI renders 
 - **Identity and provenance.** Every message records who wrote it. The actor always comes from
   authentication, never from request content.
 - **Isolation.** An agent session sees and changes only what its credential authorizes. A target the
-  caller may not access produces the same response as one that does not exist.
+  caller may not access produces the same response as one that does not exist. Session groups and
+  tags, and the presence signals (quiet and stranded), are the operator's alone and reach no agent,
+  and groups and tags grant nothing.
 - **Append-only, attributed history.** Nothing is edited or erased: a replacement is a new message,
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.
