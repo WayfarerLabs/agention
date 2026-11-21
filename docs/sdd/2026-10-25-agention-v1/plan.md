@@ -321,19 +321,20 @@ The operator groups and tags sessions, the Sessions view links session status to
 reaches what messages say, diagrams draw in isolation, and a running server backs up with one
 command. Governed by the [Completion LLD](completion-lld.md).
 
-- [ ] [Completion LLD](completion-lld.md), covering only what the Working inbox and Sessions LLDs
-      left open.
-- [ ] Session groups, tags on agents and sessions, and filtering the thread list by group or tag
-      (R25, R26, R28; ruling 30).
-- [ ] The list viewed by group (group, session, topic, thread) with each group's roll-up, and the
+- [x] [Completion LLD](completion-lld.md), covering only what the Working inbox and Sessions LLDs
+      left open. (agention#26)
+- [x] Session groups, tags on agents and sessions, and filtering the thread list by group or tag
+      (R25, R26, R28; ruling 30). (agention#26)
+- [x] The list viewed by group (group, session, topic, thread) with each group's roll-up, and the
       sessions view folded by group (R28, rulings 38, 40 and 75), with groups and tags in it.
-- [ ] Session updates kept in the sessions view: its tab's badge for unread updates, and each
+      (agention#26)
+- [x] Session updates kept in the sessions view: its tab's badge for unread updates, and each
       session's, agent's and group's threads' roll-up with a link to them in the thread list (R25,
-      ruling 74).
-- [ ] Search extended from thread titles to the text and detail of messages through a second
+      ruling 74). (agention#26)
+- [x] Search extended from thread titles to the text and detail of messages through a second
       full-text index on the operator's list (R25, ruling 38), the agent mount's search staying on
-      titles (R18).
-- [ ] Mermaid diagrams (R14, ruling 39), as the prior-art research found: Mermaid runs in a
+      titles (R18). (agention#26)
+- [x] Mermaid diagrams (R14, ruling 39), as the prior-art research found: Mermaid runs in a
       sandboxed iframe (an opaque origin with scripts only, its own CSP and no network, Mermaid
       never in the main bundle and loaded on the first diagram), which returns SVG that the page
       shows as an inert `blob:` image at its natural size capped at the column width; a tap opens a
@@ -341,17 +342,17 @@ command. Governed by the [Completion LLD](completion-lld.md).
       zoom out, fit and actual-size buttons; diagrams render one at a time within size caps,
       re-render with the theme, and fall back to their source, which also serves as their long
       description. The Completion LLD settles the page's CSP for the frame (`frame-src` for its
-      route, and the route's own `frame-ancestors`) as well as `img-src blob:`.
-- [ ] The new tables arrive through forward migrations, tested against a database written by
-      Delivery 3.
-- [ ] The issuer seam kept free of v1 dependencies (R4), and backup (R34).
+      route, and the route's own `frame-ancestors`) as well as `img-src blob:`. (agention#26)
+- [x] The new tables arrive through forward migrations, tested against a database written by
+      Delivery 3. (agention#26)
+- [x] The issuer seam kept free of v1 dependencies (R4), and backup (R34). (agention#26)
 - [ ] Live run and real-phone check repeated over the FRD definition of done, with the plugins
       installed from the repository and the bridge from npm.
-- [ ] Material decisions promoted to ADRs and permanent docs (R39), checking that ADR 0001's
-      alternatives and "not doing" guardrails still match the shipped design.
-- [ ] `docs/live-testing.md` extended to Delivery 4's surfaces (groups, tags, backup, and Mermaid
+- [x] Material decisions promoted to ADRs and permanent docs (R39), checking that ADR 0001's
+      alternatives and "not doing" guardrails still match the shipped design. (agention#26)
+- [x] `docs/live-testing.md` extended to Delivery 4's surfaces (groups, tags, backup, and Mermaid
       diagrams drawn in isolation, with a `mermaid` block among the Markdown hand-check inputs), and
       the live test running the bridge from npm; and the rules `docs/review-checklist.md` states for
-      them checked against what was built.
+      them checked against what was built. (agention#26)
 - [ ] The release that completes v1, through release-please.
 - [ ] `locked.md` in this directory, with the final merge.
