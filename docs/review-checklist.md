@@ -18,9 +18,9 @@ model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes 
 enforcement must not be missing where the trust model requires it (A2 to A9), and must not be built
 where the trust model says it does not belong (A6).
 
-Some checks state rules for features not built yet: diagrams drawn from message text; and
-`agention backup`, which `docs/operator-guide.md` "Commands" lists as planned. Their rules bind the
-change that builds them, and that change documents them in the permanent docs.
+Some checks state rules for features not built yet: `agention backup`, which
+`docs/operator-guide.md` "Commands" lists as planned. Their rules bind the change that builds them,
+and that change documents them in the permanent docs.
 
 ## A1. Standalone and runtime-neutral
 
@@ -137,12 +137,13 @@ least one of an identifier, an HTTPS URL, and a thread of the same session
 (`packages/api/src/references.ts`), and `isLinkableUrl` is the one rule for what shows as a link
 (`docs/architecture.md` "API contract"). No image loads: an image shows as a link. A diagram drawn
 from message text is drawn in isolation, so drawing it can neither run anything in the app's page
-nor fetch anything, and shows as an image, with the content security policy kept strict. Look for
-content-driven fetches or previews, raw HTML or images other than such a diagram reaching the DOM, a
-diagram drawn outside its isolation, classes or styles taken from text, live non-HTTPS links, links
-to URLs that `isLinkableUrl` refuses, search text read as query syntax, and message content treated
-as the operator's direction anywhere, the usage skill included, unless the operator wrote it (its
-author is the person).
+nor fetch anything, and shows as an image, with the content security policy kept strict: it gains
+only the diagram frame's route as a frame source and `blob:` images, and the frame's own policy
+sandboxes it. Look for content-driven fetches or previews, raw HTML or images other than such a
+diagram reaching the DOM, a diagram drawn outside its isolation, classes or styles taken from text,
+live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as query syntax,
+and message content treated as the operator's direction anywhere, the usage skill included, unless
+the operator wrote it (its author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 

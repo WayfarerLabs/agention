@@ -622,17 +622,18 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path              | Contents                                                                                                                                                                                                                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`  | The routes, over the History API                                                                                                                                                                                                               |
-| `src/session.tsx` | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                            |
-| `src/data.ts`     | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                              |
-| `src/api.ts`      | The web API's client                                                                                                                                                                                                                           |
-| `src/passkeys.ts` | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                            |
-| `src/markdown/`   | The inert Markdown renderer                                                                                                                                                                                                                    |
-| `src/views/`      | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet |
-| `src/styles.css`  | The design tokens and styles                                                                                                                                                                                                                   |
-| `e2e/`            | The browser tests                                                                                                                                                                                                                              |
+| Path                 | Contents                                                                                                                                                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                               |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                            |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                              |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                           |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                            |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                             |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                   |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                              |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -663,6 +664,26 @@ change lands. Wherever a thread shows as stranded, the UI says why from the sess
 the thread's summary: the stop the session reported, with its outcome; otherwise quiet, with when it
 was last seen; otherwise no active credential.
 
+A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
+bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
+scripts only and laid out, though out of sight, so Mermaid can measure text, and draws its diagrams
+there one at a time, in order. It posts the frame each diagram's text with an id and the Mermaid
+theme that matches the color scheme, and accepts an answer only from that frame's window, for the
+diagram it is drawing, read through the shapes in `src/diagram-frame/protocol.ts`. The frame runs
+Mermaid at its strict security level and answers with the SVG, as standalone XML with the dimensions
+of its view box, and the title and description the diagram declares, or with an error. The page
+shows the SVG as an `<img>` of a `blob:` URL, which it revokes as soon as the image has loaded, or
+failed to, so no URL remains that would open the SVG on its own, outside the page's policy; it keeps
+the SVG, to draw again and for the viewer, which makes its own URL from it the same way
+(`src/markdown/SvgImage.tsx`). A diagram over 10,000 characters is never sent, and shows its source
+with a note that it is too long to draw; one that errs, is not answered within 10 seconds of being
+posted to a loaded frame, or whose frame does not load within 60 seconds, its script's download
+included, shows its source with a note that it could not be drawn; a frame that did not answer or
+load is removed, and the next diagram gets a new one. Diagrams are drawn again when the color scheme
+changes. The viewer is a modal dialog holding the image, zoomed and panned by `@panzoom/panzoom`;
+only its stage sets `touch-action: none`. The Markdown renderer's output itself holds no frame, SVG
+or image: the frame belongs to the page.
+
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
 its boxes against the API's bounds of a message's text and detail, counted with the API's
@@ -676,7 +697,8 @@ The browser tests start the built server, serving its built web UI over TLS at
 need a domain name and a secure context, so Chromium resolves `agention.test` to the loopback
 address with `--host-resolver-rules` and trusts the certificate made for that name at run time by
 its public key with `--ignore-certificate-errors-spki-list`. That makes the page a real secure
-context rather than one that bypasses a certificate error.
+context rather than one that bypasses a certificate error. The diagram tests start a server of their
+own, and drive the frame under the server's real policies.
 
 ## Generated plugins
 

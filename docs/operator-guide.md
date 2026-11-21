@@ -613,6 +613,22 @@ links are live, opening in a new tab. A link whose text is not its own address s
 host after it. Titles, questions, suggested answers, the own words of an answer and other fields
 show exactly as written, as plain text.
 
+A fenced code block whose language is `mermaid` shows as a diagram, drawn by
+[Mermaid](https://mermaid.js.org/) in isolation from the page, as an image at its natural size, no
+wider than the column. Its alternative text is the title the diagram declares with `accTitle`, or
+"Diagram" without one, and a description it declares with `accDescr` describes it to a screen
+reader. **Source** under the diagram shows the text it was drawn from. A diagram over 10,000
+characters shows its source instead, with a note that it is too long to draw; one Mermaid cannot
+draw, and one not drawn within 10 seconds, show their source with a note that it could not be drawn.
+The first diagram on a page also waits for the drawing script to download, for up to a minute on a
+slow connection. Diagrams follow the light or dark color scheme, and are drawn again when it
+changes.
+
+Tap a diagram to open it full screen. Pinch or use the mouse wheel to zoom, drag to move it, and
+double-tap to zoom in on a point or back out to fit; the buttons and the keys `+` and `-` zoom, `0`
+fits it to the screen and `1` shows it at its actual size. Escape or **Close** returns to the
+message. Outside the viewer, the browser's own zoom works on the page as usual.
+
 ### Groups and tags
 
 Session groups and tags organize your views, nothing else: agents never see them, and they grant
