@@ -10,7 +10,8 @@ import type { Hono } from "hono";
 import { SignJWT } from "jose";
 import { generateKeyPairSync, type KeyObject } from "node:crypto";
 import { openBrowserSession } from "../auth/browser-sessions.ts";
-import { findOperator } from "../store/index.ts";
+import { findOperator, type VoiceEnvironment } from "../store/index.ts";
+import type { TranscriptionProvider } from "../transcription/provider.ts";
 import { Fixture } from "../store/test-fixture.ts";
 import { createApp } from "./app.ts";
 import type { Rates } from "./rates.ts";
@@ -68,8 +69,20 @@ export class Harness {
   cookie: string;
   csrf: string;
 
-  constructor(options: { rates?: Rates; webRoot?: string; name?: string } = {}) {
+  constructor(
+    options: {
+      rates?: Rates;
+      webRoot?: string;
+      name?: string;
+      voiceEnvironment?: VoiceEnvironment;
+      transcription?: TranscriptionProvider;
+    } = {},
+  ) {
     this.app = createApp({
+      ...(options.voiceEnvironment === undefined
+        ? {}
+        : { voiceEnvironment: options.voiceEnvironment }),
+      ...(options.transcription === undefined ? {} : { transcription: options.transcription }),
       store: this.fixture.store,
       origin,
       name: options.name ?? "Agention",

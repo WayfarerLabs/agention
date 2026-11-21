@@ -421,4 +421,17 @@ export const migrations: readonly string[] = [
   INSERT INTO message_texts (text, detail, thread_id, seq)
     SELECT text, detail, thread_id, seq FROM messages WHERE text IS NOT NULL;
   `,
+  `
+  -- What Settings last saved for voice: at most one row. base_url and model
+  -- are the values in effect when it was saved, including any the server's
+  -- environment supplied, so the row always records the address its key was
+  -- entered for. Turning voice off deletes the row.
+  CREATE TABLE voice_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    base_url TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt TEXT,
+    api_key TEXT
+  ) STRICT;
+  `,
 ];

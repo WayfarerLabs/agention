@@ -17,6 +17,7 @@ import {
   threadFilters,
   threadStartInput,
   threadsQuery,
+  voiceSettingsInput,
 } from "@wayfarerlabs/agention-api";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -39,6 +40,7 @@ import { unauthenticated } from "../errors.ts";
 import {
   approveRegistration,
   bulkArchive,
+  clearVoiceSettings,
   bulkRead,
   countThreads,
   countUnreadUpdates,
@@ -49,19 +51,23 @@ import {
   listSessions,
   listThreads,
   readSessionLog,
+  readSettings,
   rejectRegistration,
   removeGroup,
   removeTag,
   renameGroup,
   renameTag,
   revokeRegistration,
+  saveVoiceSettings,
   sessionLog,
   setAgentTags,
   setSessionGroup,
   setSessionTags,
   startThread,
   type Store,
+  type VoiceEnvironment,
 } from "../store/index.ts";
+import type { TranscriptionProvider } from "../transcription/provider.ts";
 import {
   agentOf,
   groupOf,
@@ -74,6 +80,7 @@ import {
 } from "./input.ts";
 import type { RateBudgets } from "./rates.ts";
 import { type IdentityEnv, threadRoutes } from "./thread-routes.ts";
+import { transcribe } from "./transcription-route.ts";
 
 // The cookies a server sets: its browser session and a passkey ceremony's
 // sealed challenge. A browser keeps one set of cookies for a host whatever its
@@ -101,6 +108,10 @@ export interface WebApiOptions {
   // The server's name, the relying party's name a new passkey carries.
   name: string;
   budgets: RateBudgets;
+  // The voice settings the server's environment supplies.
+  voiceEnvironment: VoiceEnvironment;
+  transcription: TranscriptionProvider;
+  log: (message: string) => void;
 }
 
 const isMutation = (c: Context) => !["GET", "HEAD", "OPTIONS"].includes(c.req.method);
@@ -115,7 +126,7 @@ function signedIn(operatorName: string, csrfToken: string): SessionState {
 // and carry the session's CSRF token, and any request with an Authorization
 // header is refused, so an agent's token never works here.
 export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
-  const { store, origin, name, budgets } = options;
+  const { store, origin, name, budgets, voiceEnvironment } = options;
   const rp = relyingParty(origin, name);
   const { session: sessionCookie, challenge: challengeCookie } = cookieNames(origin);
   const api = new Hono<IdentityEnv>();
@@ -237,6 +248,23 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     }
     return c.json(removed);
   });
+
+  // The operator's settings. Every voice change needs a recent sign-in, as
+  // changing passkeys does.
+  api.get("/settings", requireSession, (c) => c.json(readSettings(store, voiceEnvironment)));
+  api.post("/settings/voice", requireSession, async (c) => {
+    const input = await parseBody(c, voiceSettingsInput);
+    return c.json(saveVoiceSettings(store, c.var.identity, voiceEnvironment, input));
+  });
+  api.post("/settings/voice/clear", requireSession, (c) =>
+    c.json(clearVoiceSettings(store, c.var.identity, voiceEnvironment)),
+  );
+  // Transcribing spends no rate budget: the budgets guard against failed
+  // authentication and agents' submissions, and a signed-in operator
+  // dictating is neither.
+  api.post("/transcriptions", requireSession, (c) =>
+    transcribe(c, store, voiceEnvironment, options.transcription, options.log),
+  );
 
   api.use("/s/*", requireSession);
   api.route("/s/:agent/:session", threadRoutes(store));

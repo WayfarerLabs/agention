@@ -52,6 +52,14 @@ const groupAndTagRoutes: [string, string, unknown][] = [
   ["POST", "/agents/builder/tags", { tags: [] }],
 ];
 
+// The operator's settings and transcription routes, with a valid body.
+const settingsRoutes: [string, string, unknown][] = [
+  ["GET", "/settings", undefined],
+  ["POST", "/settings/voice", { base_url: "http://127.0.0.1:8000/v1", model: "whisper" }],
+  ["POST", "/settings/voice/clear", undefined],
+  ["POST", "/transcriptions", undefined],
+];
+
 // Every web route, with a valid body.
 const webRoutes: [string, string, unknown][] = [
   ["GET", "/session", undefined],
@@ -87,6 +95,7 @@ const webRoutes: [string, string, unknown][] = [
   ["GET", "/s/builder/main/updates", undefined],
   ["POST", "/s/builder/main/updates/read", { through: 0 }],
   ...groupAndTagRoutes,
+  ...settingsRoutes,
 ];
 
 // The web routes on a session, with a valid body, for the session given.
@@ -153,6 +162,7 @@ describe("the operator's own routes", () => {
       ["GET", "/s/builder/main/updates", undefined],
       ["POST", "/s/builder/main/updates/read", { through: 0 }],
       ...groupAndTagRoutes,
+      ...settingsRoutes,
     ] as const) {
       const response = await harness.agent(mine, method, path, body);
       expect([path, codeOf(response)]).toEqual([path, "not_found"]);

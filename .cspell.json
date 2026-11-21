@@ -18,6 +18,7 @@
     "errcode",
     "fastdom",
     "gast",
+    "Groq",
     "gsub",
     "HMAC",
     "HSTS",

@@ -43,4 +43,12 @@ export {
   startThread,
   type ThreadTarget,
 } from "./threads.ts";
+export {
+  clearVoiceSettings,
+  readSettings,
+  saveVoiceSettings,
+  type TranscriptionConfig,
+  transcriptionConfig,
+  type VoiceEnvironment,
+} from "./voice-settings.ts";
 export { waitForThreads } from "./wait.ts";

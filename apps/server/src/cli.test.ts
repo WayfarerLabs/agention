@@ -41,10 +41,14 @@ function capture() {
   };
 }
 
-async function runCaptured(args: string[], stop = new AbortController().signal) {
+async function runCaptured(
+  args: string[],
+  stop = new AbortController().signal,
+  env: Record<string, string> = {},
+) {
   const stdout = capture();
   const stderr = capture();
-  const code = await run(args, { stdout, stderr, stop });
+  const code = await run(args, { stdout, stderr, stop, env });
   return { code, stdout: stdout.text, stderr: stderr.text };
 }
 
@@ -147,10 +151,15 @@ describe("agention serve and passkey-link", () => {
   // serving runs agention serve on a free loopback port until stop aborts,
   // with any further flags given.
   async function serving(stop: AbortSignal, ...flags: string[]) {
+    return servingWith({}, stop, ...flags);
+  }
+
+  // servingWith runs agention serve as serving does, in the environment given.
+  async function servingWith(env: Record<string, string>, stop: AbortSignal, ...flags: string[]) {
     const stderr = capture();
     const running = run(
       ["serve", "--data", data, "--origin", `${origin}/`, "--listen", "127.0.0.1:0", ...flags],
-      { stdout: capture(), stderr, stop },
+      { stdout: capture(), stderr, stop, env },
     );
     let port: number | undefined;
     for (let i = 0; i < 200 && port === undefined; i++) {
@@ -225,6 +234,47 @@ describe("agention serve and passkey-link", () => {
     expect(result.code).toBe(2);
     expect(result.stderr).not.toBe("");
     expect(existsSync(data)).toBe(false);
+  });
+
+  // Values that break the voice variables' bounds or the base URL rule, each
+  // holding a word that must never be printed.
+  const url = "AGENTION_TRANSCRIPTION_URL";
+  const model = "AGENTION_TRANSCRIPTION_MODEL";
+  const key = "AGENTION_TRANSCRIPTION_KEY";
+  it.each([
+    ["a base URL over plain http to a name", url, { [url]: "http://secret.example/v1" }],
+    ["a link-local base URL", url, { [url]: "https://169.254.169.254/secret" }],
+    ["a metadata address", url, { [url]: "http://100.100.100.200/secret" }],
+    ["a base URL with a query", url, { [url]: "https://api.example/v1?secret=1" }],
+    ["an empty base URL", url, { [url]: "" }],
+    ["a model outside ASCII", model, { [model]: "secret-model-\u00e9" }],
+    ["a model past 200 characters", model, { [model]: `secret${"m".repeat(200)}` }],
+    ["a key holding a space", key, { [url]: "https://api.openai.com/v1", [key]: "sk secret" }],
+    ["a key without a base URL", key, { [key]: "sk-secret" }],
+  ])(
+    "refuses %s in the environment before touching the data directory, naming only the variable",
+    async (_, variable, env) => {
+      const result = await runCaptured(
+        serve().map((arg) => (arg === "DATA" ? data : arg)),
+        undefined,
+        env,
+      );
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain(variable);
+      expect(result.stderr).not.toContain("secret");
+      expect(existsSync(data)).toBe(false);
+    },
+  );
+
+  it("serves with every voice variable set", async () => {
+    const stop = new AbortController();
+    const { running, port } = await servingWith(
+      { [url]: "https://api.openai.com/v1/", [model]: "gpt-transcribe", [key]: "sk-test" },
+      stop.signal,
+    );
+    expect(port).not.toBe(0);
+    stop.abort();
+    expect(await running).toBe(0);
   });
 
   it("names --allow-plain-http when refusing plain HTTP off loopback", async () => {
@@ -325,7 +375,7 @@ describe("agention serve and passkey-link", () => {
       const stderr = capture();
       const running = run(
         ["serve", "--data", data, "--origin", origin, "--listen", "127.0.0.1:0", "--name", name],
-        { stdout: capture(), stderr, stop: stop.signal },
+        { stdout: capture(), stderr, stop: stop.signal, env: {} },
       );
       return { name, stderr, running };
     });
