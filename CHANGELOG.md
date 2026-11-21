@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/WayfarerLabs/agention/compare/v0.3.0...v0.3.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **bridge:** say when a tunnel leads to a plain-HTTP port instead of the server's origin ([02d912a](https://github.com/WayfarerLabs/agention/commit/02d912a7a0c3f2c1619670f8832ca0ba7ad625c7))
+
 ## [0.3.0](https://github.com/WayfarerLabs/agention/compare/v0.2.1...v0.3.0) (2026-11-21)
 
 
