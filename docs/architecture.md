@@ -481,6 +481,24 @@ Browser sessions and links are 256 random bits, stored only as their SHA-256. Ex
 links and used challenges are deleted whenever their table is next written, and so are registrations
 that expired while pending, so no timer runs.
 
+## An external issuer
+
+An issuer of agent credentials other than Agention's own registrations, such as an organization's
+identity provider, would change Agention in these places:
+
+- **The credential.** `Credential` in `apps/server/src/identity.ts` is a closed union of a
+  registration and a browser session; an issuer's credential would be a third kind, and every check
+  that branches on the kind, such as `checkCredential`, would take it.
+- **The status call.** A session's status update accepts only a registration's credential
+  (`updateSession` in `apps/server/src/store/sessions.ts`).
+- **The session log.** Each entry in `session_updates` names the registration that wrote it, in a
+  column that is never null.
+- **The signals.** Whether a session holds a working credential (`credential_active`, in the thread
+  list and the registrations' queries) and its last-seen stamp (`markSeen`, which the agent mount
+  calls for a registration) are both keyed on registrations.
+
+Everything else keys on agents and sessions themselves, not on the credential that let them in.
+
 ## Rate budgets
 
 Token buckets in `apps/server/src/http/rates.ts` keep one kind of traffic from starving another, and
