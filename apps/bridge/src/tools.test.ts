@@ -162,6 +162,11 @@ describe("a setting the bridge cannot work with", () => {
     await everyToolRefuses(await harness.bridge({ AGENTION_URL: url }), "AGENTION_URL");
   });
 
+  it("such as AGENTION_CONNECT without a port makes every tool say to set it", async () => {
+    const bridge = await harness.bridge({ AGENTION_CONNECT: "127.0.0.1" });
+    await everyToolRefuses(bridge, "AGENTION_CONNECT");
+  });
+
   it("such as NODE_TLS_REJECT_UNAUTHORIZED=0 makes every tool say to unset it", async () => {
     const bridge = await harness.bridge({ NODE_TLS_REJECT_UNAUTHORIZED: "0" });
     await everyToolRefuses(bridge, "NODE_TLS_REJECT_UNAUTHORIZED");
@@ -173,6 +178,13 @@ describe("a setting the bridge cannot work with", () => {
     ["longer than any file system takes", `/${"a".repeat(5_000)}`],
   ])("such as a home directory that is %s makes every tool say to set HOME", async (_, home) => {
     await everyToolRefuses(await harness.bridge({}, home), "HOME");
+  });
+});
+
+describe("an empty AGENTION_CONNECT", () => {
+  it("connects at the origin's host, as when it is unset", async () => {
+    const bridge = await harness.bridge({ AGENTION_CONNECT: "" });
+    expect(await bridge.ok("register")).toMatchObject({ status: "pending" });
   });
 });
 

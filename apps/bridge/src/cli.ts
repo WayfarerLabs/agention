@@ -7,8 +7,9 @@ const usage = `Usage: agention-mcp [--version | --help]
 
 Without options, runs the Agention agent bridge: an MCP server on standard
 input and output, for an agent host such as Claude Code or Codex to start. It
-reaches the Agention server at the origin in AGENTION_URL, and serves the
-session that register names, else the one AGENTWORKS_AGENT and
+reaches the Agention server at the origin in AGENTION_URL, opening its
+connections at the host and port in AGENTION_CONNECT when that is set, and
+serves the session that register names, else the one AGENTWORKS_AGENT and
 AGENTWORKS_SESSION name.
 
 Options:

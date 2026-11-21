@@ -751,6 +751,13 @@ dependencies, run by `npx` from the plugin's MCP entry. It is a stdio server on
   anything else, so tokens and message text never travel over plain HTTP and `aud` always matches.
   Without it, every tool answers with an error saying to set it. A server with a certificate from a
   private authority works through Node's own `NODE_EXTRA_CA_CERTS`.
+- `AGENTION_CONNECT`, optional, names a host and port, such as `127.0.0.1:8443`, where the bridge
+  opens its connections in place of the origin's host, for a server reached through a tunnel (ruling
+  69). Everything else still follows the origin: the TLS server name and the certificate check, the
+  `Host` header and the tokens' `aud`. Nothing loosens the certificate check, so whatever listens at
+  that address without the server's certificate never sees a request. A value that is not a host and
+  a port is a setting problem; a connection that fails there is an operator problem naming the
+  setting and the address, since the tunnel is the operator's.
 - The bridge takes its session from the first `register` call's `agent` and `session` arguments,
   else from `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` (R36); whichever is used first fixes it. A
   later `register` naming a different session is an error: one bridge process serves one session. A

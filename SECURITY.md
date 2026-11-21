@@ -107,8 +107,10 @@ sends only what its tools are given.
 - **Where requests go.** Only to the HTTPS origin in `AGENTION_URL`, which must name a domain. A
   redirect is refused, never followed, and the bridge refuses to work at all while
   `NODE_TLS_REJECT_UNAUTHORIZED=0` turns off certificate checks, so tokens and message text never
-  cross unverified TLS. The server receives the session's proposed names, the public key, and what
-  the bridge's tools are given.
+  cross unverified TLS. `AGENTION_CONNECT` can open the bridge's connections at another address,
+  such as a tunnel's, but the certificate is still checked against the origin's host name, so
+  whatever listens there without the server's certificate receives nothing. The server receives the
+  session's proposed names, the public key, and what the bridge's tools are given.
 - **Isolation between sessions.** Sessions whose keys share a home directory are not isolated from
   one another: a `register` call naming another session uses that session's key. Credentials stored
   under one operating-system user are not protected from each other, so agents that must not act as

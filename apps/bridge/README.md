@@ -19,8 +19,12 @@ To run it yourself, as an MCP server on standard input and output:
 AGENTION_URL=https://agention.example.com npx -y @wayfarerlabs/agention-mcp
 ```
 
-`AGENTION_URL` is the Agention server's origin. `--version` prints the version, and `--help` the
-usage. The bridge needs Node.js 24 or later. It keeps each session's key under
+`AGENTION_URL` is the Agention server's origin. `AGENTION_CONNECT`, optional, is a host and port,
+such as `127.0.0.1:8443`, where the bridge opens its connections in place of the origin's host, for
+a server it reaches through a tunnel; the certificate it checks, its requests and its tokens still
+name the origin. The bridge connects directly and takes no HTTP proxy settings, such as
+`HTTPS_PROXY`; `AGENTION_CONNECT` is the way through a tunnel. `--version` prints the version, and
+`--help` the usage. The bridge needs Node.js 24 or later. It keeps each session's key under
 `~/.config/agention/`, and you approve a new key with the code the agent relays to you.
 
 ## More

@@ -6,6 +6,12 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { SignJWT } from "jose";
 import packageJson from "../package.json" with { type: "json" };
+import type { OutgoingHttpHeaders } from "node:http";
+import { Agent, request as httpsRequest, type RequestOptions } from "node:https";
+import type { Duplex } from "node:stream";
+import { text as readText } from "node:stream/consumers";
+import type { TLSSocket } from "node:tls";
+import { type ConnectAddress, formatAddress } from "./connect-address.ts";
 import { ApiFailure, BridgeError, operatorProblem, settingProblem } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 
@@ -17,6 +23,9 @@ export const tokenLifetimeSeconds = 120;
 // How long the server has to answer, beyond any time the request asks it to
 // wait.
 export const answerTimeout = 30_000;
+
+// How long a connection has to open, its TLS handshake included.
+export const connectTimeout = 10_000;
 
 // agentToken mints the token for one request: a compact JWS signed with the
 // session's key, naming the key and bound to the server's origin for two
@@ -45,20 +54,31 @@ export interface ApiRequest {
 export interface AgentApiOptions {
   // The server's canonical origin.
   origin: string;
+  // Where the bridge opens its connections when that is not the origin's own
+  // host and port, as AGENTION_CONNECT sets it, such as a tunnel's port.
+  connectAddress?: ConnectAddress | undefined;
   clock: () => number;
 }
 
 // AgentApi makes requests on the server's agent API, each signed by a token
 // minted for it and stating the agent API version the bridge speaks. Requests
 // go only to the origin: a redirect is answered as an error, never followed,
-// and nothing the bridge writes includes a token. A body is always sent as a
-// string, so it declares its length.
+// and nothing the bridge writes includes a token. A body is always sent whole,
+// as a string, so Node declares its length.
 export class AgentApi {
   readonly origin: string;
+  readonly #connectAddress: ConnectAddress | undefined;
+  readonly #agent: OriginAgent;
   readonly #clock: () => number;
 
   constructor(options: AgentApiOptions) {
     this.origin = options.origin;
+    this.#connectAddress = options.connectAddress;
+    const { hostname, port } = new URL(options.origin);
+    this.#agent = new OriginAgent(
+      hostname,
+      options.connectAddress ?? { host: hostname, port: Number(port || 443) },
+    );
     this.#clock = options.clock;
   }
 
@@ -76,26 +96,28 @@ export class AgentApi {
     const token = await agentToken(key, this.origin, this.#clock());
     const timeout = AbortSignal.timeout(answerTimeout + (request.wait ?? 0));
     const signals = request.signal === undefined ? [timeout] : [timeout, request.signal];
-    let response: Response;
+    const sent = request.body === undefined ? undefined : JSON.stringify(request.body);
+    let status: number;
+    let version: string | undefined;
     let text: string;
     try {
-      response = await fetch(url, {
-        method: request.method,
-        headers: {
-          accept: "application/json",
-          authorization: `Bearer ${token}`,
-          [agentApiHeader]: String(agentApi.version),
-          ...(request.body === undefined ? {} : { "content-type": "application/json" }),
+      ({ status, text, version } = await this.#send(
+        url,
+        {
+          method: request.method,
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${token}`,
+            [agentApiHeader]: String(agentApi.version),
+            ...(sent === undefined ? {} : { "content-type": "application/json" }),
+          },
+          signal: AbortSignal.any(signals),
         },
-        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
-        redirect: "manual",
-        signal: AbortSignal.any(signals),
-      });
-      text = await response.text();
+        sent,
+      ));
     } catch (error) {
       throw this.#unreachable(error, request.signal, timeout);
     }
-    const { status } = response;
     if (status >= 300 && status < 400) {
       throw settingProblem(
         `The server at ${this.origin} redirected the bridge's request, and the bridge sends its ` +
@@ -110,11 +132,11 @@ export class AgentApi {
       body = undefined;
     }
     if (status >= 200 && status < 300 && body !== undefined) {
-      this.#requireVersion(response);
+      this.#requireVersion(version);
       return body;
     }
     if (isErrorBody(body)) {
-      this.#requireVersion(response);
+      this.#requireVersion(version);
       throw new ApiFailure(body);
     }
     // Agention answers its own failures in its JSON, so a server error
@@ -140,8 +162,8 @@ export class AgentApi {
   // a request, so a field the bridge sent could go missing without a word. A
   // newer server's answers are used: it serves this bridge's version, or
   // refuses it in words of its own.
-  #requireVersion(response: Response): void {
-    const stated = agentApiVersion.safeParse(response.headers.get(agentApiHeader) ?? undefined);
+  #requireVersion(version: string | undefined): void {
+    const stated = agentApiVersion.safeParse(version);
     if (stated.success && stated.data >= agentApi.version) {
       return;
     }
@@ -151,6 +173,28 @@ export class AgentApi {
       `upgrade the server to ${packageJson.version} or later, or pin the Agention plugin to ` +
         "the server's release and restart this session, resuming it to keep this conversation",
     );
+  }
+
+  // send makes one request through the origin's agent, which never follows a
+  // redirect, and resolves with the answer's status, the agent API version it
+  // states, if any, and its body.
+  #send(
+    url: URL,
+    options: { method: string; headers: OutgoingHttpHeaders; signal: AbortSignal },
+    body: string | undefined,
+  ): Promise<{ status: number; version: string | undefined; text: string }> {
+    return new Promise((resolve, reject) => {
+      const outgoing = httpsRequest(url, { ...options, agent: this.#agent }, (response) => {
+        const stated = response.headers[agentApiHeader.toLowerCase()];
+        const version = typeof stated === "string" ? stated : undefined;
+        readText(response).then(
+          (text) => resolve({ status: response.statusCode ?? 0, version, text }),
+          reject,
+        );
+      });
+      outgoing.on("error", reject);
+      outgoing.end(body);
+    });
   }
 
   #unreachable(error: unknown, cancel: AbortSignal | undefined, timeout: AbortSignal): BridgeError {
@@ -167,12 +211,25 @@ export class AgentApi {
           "and tell the operator at your terminal if it keeps happening.",
       );
     }
-    const cause = (error as { cause?: { code?: unknown; message?: unknown } }).cause;
-    const detail = String(cause?.code ?? cause?.message ?? (error as Error).message);
+    const failure = error as { code?: unknown; message?: unknown };
+    const detail = String(failure.code ?? failure.message);
+    // Where the bridge connects, when AGENTION_CONNECT sets it.
+    const through =
+      this.#connectAddress === undefined
+        ? ""
+        : ` through ${formatAddress(this.#connectAddress)}, the address in AGENTION_CONNECT`;
     if (untrustedCertificate.has(detail)) {
       return settingProblem(
-        `Node does not trust the certificate of the Agention server at ${this.origin} (${detail})`,
+        `Node does not trust the certificate of the Agention server at ${this.origin}` +
+          `${through} (${detail})`,
         "set NODE_EXTRA_CA_CERTS to a file with the certificate of the authority that issued it",
+      );
+    }
+    if (this.#connectAddress !== undefined) {
+      return operatorProblem(
+        `The Agention server at ${this.origin} cannot be reached${through} (${detail})`,
+        "check that the tunnel or other forward at that address is up and reaches the server, " +
+          `and that AGENTION_CONNECT names it, ${restartAfter("AGENTION_CONNECT")}`,
       );
     }
     return operatorProblem(
@@ -182,9 +239,52 @@ export class AgentApi {
   }
 }
 
-// A changed AGENTION_URL, like every setting, takes effect once the session
-// restarts.
-const restartAfterURL = "restarting the session after changing AGENTION_URL";
+// A changed setting takes effect once the session restarts.
+const restartAfter = (setting: string) => `restarting the session after changing ${setting}`;
+const restartAfterURL = restartAfter("AGENTION_URL");
+
+// OriginAgent is the HTTPS agent for requests to the origin. It opens each
+// connection at the connect address, which is the origin's own host and port
+// unless AGENTION_CONNECT names another, and checks the server's certificate
+// against the origin's host name there too, so a listener at that address
+// without the server's certificate never receives a request.
+class OriginAgent extends Agent {
+  readonly #servername: string;
+  readonly #address: ConnectAddress;
+
+  constructor(servername: string, address: ConnectAddress) {
+    // Node's global agent's settings: connections are kept alive, the one
+    // used last is used next, and one idle for 5 seconds closes.
+    super({ keepAlive: true, scheduling: "lifo", timeout: 5000 });
+    this.#servername = servername;
+    this.#address = address;
+  }
+
+  override createConnection(
+    options: RequestOptions,
+    callback?: (error: Error | null, stream: Duplex) => void,
+  ): Duplex | null | undefined {
+    const socket = super.createConnection(
+      {
+        ...options,
+        host: this.#address.host,
+        port: this.#address.port,
+        servername: this.#servername,
+      },
+      callback,
+    ) as TLSSocket;
+    // A connection that does not open in time fails, as one refused does,
+    // rather than holding the request until the server's time to answer
+    // runs out.
+    const timer = setTimeout(
+      () => socket.destroy(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" })),
+      connectTimeout,
+    );
+    const stop = () => clearTimeout(timer);
+    socket.once("secureConnect", stop).once("close", stop);
+    return socket;
+  }
+}
 
 // The TLS errors of a certificate whose authority Node does not trust.
 const untrustedCertificate = new Set([

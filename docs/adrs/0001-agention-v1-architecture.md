@@ -162,7 +162,10 @@ The listen address, the TLS mode (terminate TLS, or serve plain HTTP behind a te
 public HTTPS origin are independent settings. Plain HTTP on a non-loopback address is refused unless
 explicitly enabled. No forwarded or network-identity headers are trusted, and no authentication
 decision or rate limit depends on source address. The operator guide documents running Agention on
-loopback behind `tailscale serve` as one way to publish it; nothing depends on Tailscale.
+loopback behind `tailscale serve` as one way to publish it; nothing depends on Tailscale. A bridge
+can open its connections at another address, such as an SSH reverse tunnel's port on its own
+machine, while TLS, the `Host` header and its tokens still name the origin, so a machine that can't
+connect to the server can still be reached from the server's machine.
 
 Agent machines run whatever bridge their plugin pins, so bridges of several releases talk to one
 server. Every agent request and answer states the agent API version it speaks, a missing one meaning
@@ -314,6 +317,14 @@ These are deliberate limits, not gaps to fill later without a new decision:
   calls, which a few hundred lines of JSON-RPC could serve. Hosts already open with different
   protocol revisions, and the protocol keeps adding revisions and rules, so the SDK keeps the bridge
   current with the hosts for the cost of a larger bundle.
+- **A server on each agent machine that can't reach the server, gathered by a hub.** The hub would
+  reach each machine's server inward, as a tunnel does, but the hub and those servers would need
+  authentication of their own between them. A tunnel from the one server's machine keeps one server
+  and one set of credentials, and TLS still runs from the bridge to the origin.
+- **The `undici` package for the bridge's requests.** Its `fetch`, with an agent of its own, can
+  open connections where the bridge says, which Node's global `fetch` can't be told to do without
+  it. It would nearly double the bridge's bundle and add a dependency for what `node:https` does
+  with one agent class.
 - **A lockfile per component.** Separate lockfiles would multiply the installs, audits and update
   proposals without isolating anything: the published packages are bundles that declare no
   dependencies, so every dependency is resolved at build time, from the one lockfile that npm

@@ -5,15 +5,18 @@ import { homedir } from "node:os";
 import path from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
+import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
 import { type Connection, registerTools } from "./tools.ts";
 
-// The variables the bridge reads: the server's origin, the names of the
-// session an agent host runs, which register's arguments override, and Node's
-// switch for skipping certificate checks, which the bridge refuses.
+// The variables the bridge reads: the server's origin and where to open
+// connections to it, the names of the session an agent host runs, which
+// register's arguments override, and Node's switch for skipping certificate
+// checks, which the bridge refuses.
 export interface BridgeEnvironment extends SessionEnvironment {
   AGENTION_URL?: string | undefined;
+  AGENTION_CONNECT?: string | undefined;
   NODE_TLS_REJECT_UNAUTHORIZED?: string | undefined;
 }
 
@@ -89,7 +92,24 @@ function connect(options: BridgeOptions): Connection {
       ),
     };
   }
-  const api = new AgentApi({ origin, clock: options.clock ?? Date.now });
+  // An empty AGENTION_CONNECT counts as unset, as an empty AGENTION_URL
+  // does, so one passed along empty connects at the origin's host.
+  const connectSetting = environment.AGENTION_CONNECT;
+  let connectAddress: ConnectAddress | undefined;
+  if (connectSetting !== undefined && connectSetting !== "") {
+    try {
+      connectAddress = parseConnectAddress(connectSetting);
+    } catch (error) {
+      return {
+        problem: settingProblem(
+          `AGENTION_CONNECT ${(error as Error).message}`,
+          "set AGENTION_CONNECT to the host and port the bridge connects to in place of the " +
+            "origin's, such as a tunnel's 127.0.0.1:8443, or unset it",
+        ),
+      };
+    }
+  }
+  const api = new AgentApi({ origin, connectAddress, clock: options.clock ?? Date.now });
   return { api, session: new Session({ api, home, environment }) };
 }
 
