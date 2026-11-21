@@ -31,7 +31,9 @@ const signedOut = { signed_in: false, operator_exists: true } as const;
 describe("routes", () => {
   it.each([
     ["/", { name: "threads" }],
-    ["/registrations", { name: "registrations" }],
+    ["/sessions", { name: "sessions" }],
+    // The page agents' registrations name, which shows the sessions view.
+    ["/registrations", { name: "sessions" }],
     ["/passkeys", { name: "passkeys" }],
     ["/sign-in", { name: "sign-in" }],
     ["/link", { name: "link" }],
@@ -355,13 +357,13 @@ describe("the shell", () => {
       "page",
     );
     expect(
-      within(views).getByRole("link", { name: "Registrations" }).getAttribute("aria-current"),
+      within(views).getByRole("link", { name: "Sessions" }).getAttribute("aria-current"),
     ).toBeNull();
     // The title is set in an effect, which can run after the heading shows.
     await waitFor(() => expect(document.title).toBe("Threads · Agention"));
   });
 
-  it.each(["/", "/registrations", "/passkeys"])(
+  it.each(["/", "/sessions", "/registrations", "/passkeys"])(
     "names %s on screen by its current tab, keeping its heading for assistive technology",
     async (path) => {
       api.on("GET", "/registrations", { body: { registrations: [] } });
@@ -389,7 +391,7 @@ describe("the shell", () => {
         .map((link) => [link.textContent, link.getAttribute("aria-current")]),
     ).toEqual([
       ["Threads", "true"],
-      ["Registrations", null],
+      ["Sessions", null],
       ["Passkeys", null],
     ]);
     expect(heading.classList.contains("visually-hidden")).toBe(false);
@@ -412,8 +414,8 @@ describe("the shell", () => {
     renderAt("/");
     await screen.findByRole("heading", { name: "Threads" });
     expect(document.activeElement).toBe(document.body);
-    fireEvent.click(screen.getByRole("link", { name: "Registrations" }));
-    const heading = await screen.findByRole("heading", { level: 1, name: "Registrations" });
+    fireEvent.click(screen.getByRole("link", { name: "Sessions" }));
+    const heading = await screen.findByRole("heading", { level: 1, name: "Sessions" });
     expect(document.activeElement).toBe(heading);
   });
 

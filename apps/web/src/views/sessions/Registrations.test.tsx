@@ -1,12 +1,22 @@
-import { type AgentsPage, maxListed, type Registration } from "@wayfarerlabs/agention-api";
+import { maxListed, type Registration, type SessionsPage } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { absoluteTime } from "../format.tsx";
-import { csrf, FakeApi, failure, registration, renderAt } from "../test-support.tsx";
+import { absoluteTime } from "../../format.tsx";
+import {
+  csrf,
+  FakeApi,
+  failure,
+  registration,
+  renderAt,
+  sessionSummary,
+} from "../../test-support.tsx";
 
 let api: FakeApi;
 
 beforeEach(() => {
+  window.localStorage.clear();
+  // The credentials and past requests unfolded, as these tests read them.
+  window.localStorage.setItem("agention.sessions.unfolded-sections", '["past-requests"]');
   api = new FakeApi();
 });
 
@@ -18,22 +28,27 @@ afterEach(() => {
 // Every session with its agent, as a test states them.
 type Sessions = { agent: string; session: string; credential_active: boolean }[];
 
-// agentsOf gives sessions as the agents list does, under their agents, those
-// named in truncated saying they left some out.
-function agentsOf(sessions: Sessions, truncated: string[] = []): AgentsPage {
+// agentsOf gives sessions as the sessions view lists them, under their
+// agents, those named in truncated saying they left some out.
+function agentsOf(sessions: Sessions, truncated: string[] = []): SessionsPage {
   return {
     agents: [...new Set(sessions.map((each) => each.agent))].map((agent) => ({
       agent,
       sessions: sessions
         .filter((each) => each.agent === agent)
-        .map(({ session, credential_active }) => ({ session, credential_active })),
+        .map(({ session, credential_active }) =>
+          sessionSummary({
+            session,
+            registrations: credential_active ? [{ id: 9, code: "WE26Z-8SH11" }] : [],
+          }),
+        ),
       truncated: truncated.includes(agent),
     })),
   };
 }
 
-// serve answers the registrations and agents lists from a state the test can
-// change.
+// serve answers the registrations and the sessions view from a state the
+// test can change.
 function serve(state: { registrations: Registration[]; sessions: Sessions; truncated?: string[] }) {
   api
     .on("GET", "/registrations", (call) => {
@@ -46,7 +61,7 @@ function serve(state: { registrations: Registration[]; sessions: Sessions; trunc
         },
       };
     })
-    .on("GET", "/agents", () => ({ body: agentsOf(state.sessions, state.truncated) }));
+    .on("GET", "/sessions", () => ({ body: agentsOf(state.sessions, state.truncated) }));
   return state;
 }
 
@@ -86,7 +101,7 @@ async function refusesFor(field: HTMLElement, submit: () => void): Promise<void>
   await waitFor(() => expect(descriptions(field)).toHaveLength(before.length + 1));
 }
 
-describe("the registrations page", () => {
+describe("the sessions view's registrations", () => {
   it("shows a pending registration's code as the agent relays it, and when it expires", async () => {
     await open({ registrations: [registration()], sessions: [] });
     const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
@@ -188,7 +203,7 @@ describe("the registrations page", () => {
       sessions: [{ agent: "builder", session: "main", credential_active: true }],
     });
     // Every page says more follow.
-    api.on("GET", "/agents", (call) => ({
+    api.on("GET", "/sessions", (call) => ({
       body: {
         ...agentsOf([{ agent: "builder", session: "main", credential_active: true }]),
         next: `${Number(call.url.searchParams.get("cursor") ?? "0") + 1}`,
@@ -200,7 +215,7 @@ describe("the registrations page", () => {
     expect(agent.querySelector("p.muted")).not.toBeNull();
     // It asks for no more agents than the notice says it lists.
     const asked = api
-      .callsTo("GET", "/agents")
+      .callsTo("GET", "/sessions")
       .map((call) => Number(call.url.searchParams.get("limit")));
     expect(asked.length).toBeGreaterThan(1);
     expect(asked.reduce((sum, limit) => sum + limit, 0)).toBe(maxListed);

@@ -9,7 +9,7 @@ import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
 import { LinkPage } from "./views/LinkPage.tsx";
 import { Passkeys } from "./views/Passkeys.tsx";
-import { Registrations } from "./views/Registrations.tsx";
+import { Sessions } from "./views/Sessions.tsx";
 import { SignIn } from "./views/SignIn.tsx";
 import { ThreadList } from "./views/ThreadList.tsx";
 import { ThreadView } from "./views/thread/ThreadView.tsx";
@@ -87,8 +87,8 @@ function View({ route }: { route: Route }) {
       return <ThreadList />;
     case "thread":
       return <ThreadView agent={route.agent} session={route.session} thread={route.thread} />;
-    case "registrations":
-      return <Registrations />;
+    case "sessions":
+      return <Sessions />;
     case "passkeys":
       return <Passkeys />;
     default:
@@ -114,7 +114,7 @@ function NotFound() {
 // section only, since the tab links elsewhere.
 const sections: { to: string; label: string; route: Route["name"]; within?: Route["name"] }[] = [
   { to: "/", label: "Threads", route: "threads", within: "thread" },
-  { to: "/registrations", label: "Registrations", route: "registrations" },
+  { to: "/sessions", label: "Sessions", route: "sessions" },
   { to: "/passkeys", label: "Passkeys", route: "passkeys" },
 ];
 

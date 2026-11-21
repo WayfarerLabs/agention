@@ -4,8 +4,8 @@ import { FakeApi, renderAt } from "./test-support.tsx";
 
 // A view that fails to render, standing in for any failure the views do not
 // foresee.
-vi.mock("./views/Registrations.tsx", () => ({
-  Registrations: () => {
+vi.mock("./views/Sessions.tsx", () => ({
+  Sessions: () => {
     throw new Error("the view failed");
   },
 }));
@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 it("keeps the navigation when a view fails to render, and starts afresh elsewhere", async () => {
-  renderAt("/registrations");
+  renderAt("/sessions");
   await screen.findByRole("heading", { name: "Something went wrong" });
   expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy();
   fireEvent.click(screen.getByRole("link", { name: "Threads" }));

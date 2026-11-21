@@ -183,6 +183,45 @@ export function Status({ children }: { children: ReactNode }) {
   );
 }
 
+// Confirmation asks once more before an action that cannot be undone: the
+// question, a button that confirms and Cancel. Focus moves to the confirming
+// button as it appears; where it goes once answered is the caller's to say.
+export function Confirmation({
+  question,
+  confirmLabel,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  question: string;
+  confirmLabel: string;
+  disabled?: boolean | undefined;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const confirm = useRef<HTMLButtonElement>(null);
+  useEffect(() => confirm.current?.focus(), []);
+  return (
+    <div className="confirm" role="group" aria-label={question}>
+      <p>{question}</p>
+      <div className="actions">
+        <button
+          ref={confirm}
+          type="button"
+          className="danger"
+          disabled={disabled}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </button>
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ConfirmButton asks once more before an action that cannot be undone. Focus
 // moves to the confirming button when it asks, and back when it stops asking.
 export function ConfirmButton({
@@ -203,12 +242,10 @@ export function ConfirmButton({
 }) {
   const [asking, setAsking] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
-  const confirm = useRef<HTMLButtonElement>(null);
   const asked = useRef(false);
   useEffect(() => {
     if (asking) {
       asked.current = true;
-      confirm.current?.focus();
     } else if (asked.current) {
       opener.current?.focus();
     }
@@ -228,26 +265,16 @@ export function ConfirmButton({
     );
   }
   return (
-    <div className="confirm" role="group" aria-label={question}>
-      <p>{question}</p>
-      <div className="actions">
-        <button
-          ref={confirm}
-          type="button"
-          className="danger"
-          disabled={disabled}
-          onClick={() => {
-            setAsking(false);
-            onConfirm();
-          }}
-        >
-          {confirmLabel}
-        </button>
-        <button type="button" className="secondary" onClick={() => setAsking(false)}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <Confirmation
+      question={question}
+      confirmLabel={confirmLabel}
+      disabled={disabled}
+      onConfirm={() => {
+        setAsking(false);
+        onConfirm();
+      }}
+      onCancel={() => setAsking(false)}
+    />
   );
 }
 

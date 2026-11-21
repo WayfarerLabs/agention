@@ -113,6 +113,20 @@ export function lastSeenWords(presence: Presence): string {
     : `last seen ${sinceTime(presence.last_seen_at)}`;
 }
 
+// What a session reports it is doing, in a word.
+const workStateLabel: Record<WorkState, string> = {
+  working: "Working",
+  idle: "Idle",
+  stopped: "Stopped",
+};
+
+// workStateWords says what a session reports it is doing: "Working", "Idle",
+// or "Stopped · completed", with the outcome a stopped session gives.
+export function workStateWords(status: { state: WorkState; outcome?: WorkOutcome | undefined }) {
+  const label = workStateLabel[status.state];
+  return status.outcome === undefined ? label : `${label} · ${status.outcome}`;
+}
+
 // What the operator knows of a session that says whether it is there to see
 // what they write: the state it last reported, if any, and the outcome a
 // stopped one gave; its presence; and whether it has an active credential.

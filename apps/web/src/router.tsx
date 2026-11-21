@@ -15,7 +15,7 @@ import { type PathKind, placeOf } from "./components.tsx";
 export type Route =
   | { name: "threads" }
   | { name: "thread"; agent: string; session: string; thread: number }
-  | { name: "registrations" }
+  | { name: "sessions" }
   | { name: "passkeys" }
   | { name: "sign-in" }
   | { name: "link" }
@@ -27,8 +27,11 @@ export function matchRoute(pathname: string): Route {
   switch (pathname) {
     case "/":
       return { name: "threads" };
+    // The sessions view, which agents' registrations still name by the path
+    // of the page it took the place of.
+    case "/sessions":
     case "/registrations":
-      return { name: "registrations" };
+      return { name: "sessions" };
     case "/passkeys":
       return { name: "passkeys" };
     case "/sign-in":
