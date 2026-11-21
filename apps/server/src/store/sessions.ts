@@ -336,10 +336,30 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
           .all(sessionIds) as { session_id: number; count: number; blocking_count: number }[]
       ).map((row) => [row.session_id, { count: row.count, blocking_count: row.blocking_count }]),
     );
+    const groups = new Map(
+      (
+        db
+          .prepare(
+            `SELECT m.session_id, g.id, g.name
+             FROM session_group_members m JOIN session_groups g ON g.id = m.group_id
+             WHERE m.session_id IN (SELECT value FROM json_each(?))`,
+          )
+          .all(sessionIds) as { session_id: number; id: number; name: string }[]
+      ).map((row) => [row.session_id, { id: row.id, name: row.name }]),
+    );
+    const sessionTags = tagsOf(db, "session_tags", "session_id", sessionIds);
+    const agentTags = tagsOf(
+      db,
+      "agent_tags",
+      "agent_id",
+      JSON.stringify(page.rows.map((agent) => agent.id)),
+    );
     const byAgent = groupBy(sessions, (session) => session.agent_id);
     const toSummary = (row: SessionRow): SessionSummary => ({
       session: row.name,
       created_at: formatTimestamp(row.created_at),
+      ...(groups.has(row.id) ? { group: groups.get(row.id) } : {}),
+      tags: sessionTags.get(row.id) ?? [],
       presence: {
         ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
         quiet: row.quiet === 1,
@@ -366,6 +386,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
         const listed = byAgent.get(agent.id) ?? [];
         return {
           agent: agent.name,
+          tags: agentTags.get(agent.id) ?? [],
           sessions: listed.slice(0, maxListed).map(toSummary),
           truncated: listed.length > maxListed,
         };
@@ -373,6 +394,28 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       ...(page.more && last !== undefined ? { next: encodeCursor("sessions", [last.name]) } : {}),
     };
   });
+}
+
+// tagsOf reads the tags of the agents or the sessions whose ids a JSON array
+// gives, each one's in name order.
+function tagsOf(
+  db: Database,
+  table: "agent_tags" | "session_tags",
+  column: "agent_id" | "session_id",
+  ids: string,
+): Map<number, string[]> {
+  const rows = db
+    .prepare(
+      `SELECT ${column} AS owner, name FROM ${table}
+       WHERE ${column} IN (SELECT value FROM json_each(?)) ORDER BY name`,
+    )
+    .all(ids) as { owner: number; name: string }[];
+  return new Map(
+    [...groupBy(rows, (row) => row.owner)].map(([owner, held]) => [
+      owner,
+      held.map((row) => row.name),
+    ]),
+  );
 }
 
 // groupBy gathers items by a key, keeping their order within each.

@@ -1,5 +1,7 @@
 import type {
   ErrorBody,
+  GroupRef,
+  GroupsAndTags,
   SessionState,
   SessionsPage,
   ThreadGetResult,
@@ -126,6 +128,9 @@ describe("changes from the browser", () => {
   ])("are refused with %s", async (_, options) => {
     const changes: [string, unknown][] = [
       ["/s/builder/main/threads/1/read", { through: 1 }],
+      ["/groups", { name: "Work" }],
+      ["/s/builder/main/tags", { tags: ["infra"] }],
+      ["/agents/builder/tags", { tags: ["infra"] }],
       ["/passkeys/register/begin", { name: "Phone" }],
       ["/passkeys/register/finish", { credential: {} }],
       ["/passkeys/1/name", { name: "Laptop" }],
@@ -393,5 +398,68 @@ describe("the sessions view", () => {
     expect(read.messages[0]).toMatchObject({ seq: 1, text: "Please look." });
     expect(read.messages[0]).not.toHaveProperty("asks");
     expect(read.messages[0]).not.toHaveProperty("references");
+  });
+});
+
+describe("groups and tags", () => {
+  it("are kept by the operator's routes and shown in the sessions view", async () => {
+    const created = await harness.web("POST", "/groups", { name: " Billing " });
+    const group = created.body as GroupRef;
+    expect(group.name).toBe("Billing");
+    const duplicate = await harness.web("POST", "/groups", { name: "billing" });
+    expect([
+      duplicate.status,
+      codeOf(duplicate),
+      (duplicate.body as ErrorBody).error.field,
+    ]).toEqual([409, "conflict", "name"]);
+    for (const [path, body] of [
+      ["/s/builder/main/group", { group: group.id }],
+      ["/s/builder/main/tags", { tags: ["urgent"] }],
+      ["/agents/builder/tags", { tags: ["infra"] }],
+      [`/groups/${group.id}/name`, { name: "Ledger" }],
+      ["/tags/urgent/name", { name: "soon" }],
+    ] as const) {
+      expect([path, codeOf(await harness.web("POST", path, body))]).toEqual([path, "ok"]);
+    }
+    expect((await harness.web("GET", "/groups-and-tags")).body).toEqual({
+      groups: [{ id: group.id, name: "Ledger", sessions: 1 }],
+      tags: [
+        { name: "infra", agents: 1, sessions: 0 },
+        { name: "soon", agents: 0, sessions: 1 },
+      ],
+      truncated: false,
+    } satisfies GroupsAndTags);
+    const page = (await harness.web("GET", "/sessions")).body as SessionsPage;
+    expect(page.agents[0]).toMatchObject({
+      agent: "builder",
+      tags: ["infra"],
+      sessions: [{ session: "main", group: { id: group.id, name: "Ledger" }, tags: ["soon"] }],
+    });
+    for (const path of [`/groups/${group.id}/remove`, "/tags/soon/remove", "/tags/infra/remove"]) {
+      expect([path, codeOf(await harness.web("POST", path))]).toEqual([path, "ok"]);
+    }
+    expect((await harness.web("GET", "/groups-and-tags")).body).toEqual({
+      groups: [],
+      tags: [],
+      truncated: false,
+    });
+  });
+
+  it("refuse names and ids outside their bounds as invalid input", async () => {
+    for (const [path, body, field] of [
+      ["/groups", { name: "" }, "name"],
+      ["/groups/0/name", { name: "Zero" }, "id"],
+      ["/tags/Not-A-Tag/remove", undefined, "tag"],
+      ["/tags/infra/name", { name: "Ops" }, "name"],
+      ["/s/builder/main/tags", { tags: ["a", "a"] }, "tags"],
+      ["/agents/Builder/tags", { tags: [] }, "agent"],
+    ] as const) {
+      const response = await harness.web("POST", path, body);
+      expect([path, codeOf(response), (response.body as ErrorBody).error.field]).toEqual([
+        path,
+        "invalid_input",
+        field,
+      ]);
+    }
   });
 });

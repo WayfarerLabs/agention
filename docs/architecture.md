@@ -50,8 +50,10 @@ inferred types the server, the bridge and the web UI share:
   groups' roll-ups; the counts of what each filter value keeps; and bulk read and archive;
 - registration submit and state, the registrations list and approval;
 - a session's status update and the status it answers with; the sessions view's page of agents, each
-  with its sessions; a session's log and the operator's read mark on it; and the operator's start of
-  a thread on a session;
+  with its tags and its sessions; a session's log and the operator's read mark on it; and the
+  operator's start of a thread on a session;
+- the operator's session groups and tags: the list of them, creating, renaming and removing a group,
+  renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the claims of an agent's token, and the error shape.
@@ -219,6 +221,21 @@ them; and how many asks are open in all its threads, with how many of those are 
 what waits on the operator, counted in one statement grouped over the open asks. The operator can
 never archive a thread holding an ask open to them, so their thread list shows every thread counted.
 
+The operator sorts sessions into groups and tags agents and sessions, and nothing else does: every
+operation on them authorizes the administration only the operator's identity grants, so to an agent
+none exists. A group's name is plain text on one line, trimmed, 1 to 100 code points, unique
+ignoring the case of ASCII letters; a tag's is a name, as a topic's is. An instance holds at most
+200 groups, and an agent or a session carries at most 20 tags; past either bound a write is
+`invalid_input`. A name another group or tag already has is refused as `conflict`, naming `name`,
+whether a group is created or either is renamed. A group's rename changes its name only, so a filter
+by its id keeps working, and removing it leaves its sessions in no group. Renaming a tag rewrites it
+on every agent and session carrying it, and removing one takes it off all of them, each in one
+transaction. Setting a session's group names it by id, or none; setting an agent's or a session's
+tags gives the whole set. The list of them gives every group in name order, with how many sessions
+each holds, and every tag carried, at most 500, in name order, with how many agents and how many
+sessions carry it, saying when it leaves any out. The sessions view's page carries each agent's
+tags, and each session's group and tags.
+
 The operator starts a thread on a session with a title and a first message of text, with its detail.
 The session stays the thread's requester and the operator its audience, so the operator's request
 has no field for asks or a topic, nor for references, which the web UI does not offer; a request
@@ -325,7 +342,11 @@ its open asks, the most pressing, beside their count and the earliest.
 sub-application mounted on both under `/s/:agent/:session`, so the role and message checks are the
 same for both kinds of caller. Each mount authenticates its own credential and refuses the other's:
 the agent mount refuses any request carrying a cookie, and the web mount any request carrying an
-`Authorization` header.
+`Authorization` header. The operator's own routes are on the web mount alone: the sessions view, a
+session's log, and the session groups and tags, whose reads are `GET /groups-and-tags` and whose
+writes are each a POST naming its action, as the passkey routes' are (`/groups`, `/groups/:id/name`,
+`/groups/:id/remove`, `/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`,
+`/s/:agent/:session/tags` and `/agents/:agent/tags`).
 
 Every route reads its path, query and body through the shared schemas, so input outside a bound
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and

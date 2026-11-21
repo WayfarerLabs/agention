@@ -1,6 +1,7 @@
 export * from "./agent-api.ts";
 export * from "./bounds.ts";
 export * from "./errors.ts";
+export * from "./groups-and-tags.ts";
 export * from "./names.ts";
 export * from "./origin.ts";
 export * from "./passkeys.ts";

@@ -39,6 +39,19 @@ function agentRoutes(session: string): [string, string, unknown][] {
   ];
 }
 
+// The operator's routes for their groups and tags, with a valid body.
+const groupAndTagRoutes: [string, string, unknown][] = [
+  ["GET", "/groups-and-tags", undefined],
+  ["POST", "/groups", { name: "Work" }],
+  ["POST", "/groups/1/name", { name: "Play" }],
+  ["POST", "/groups/1/remove", undefined],
+  ["POST", "/tags/infra/name", { name: "ops" }],
+  ["POST", "/tags/infra/remove", undefined],
+  ["POST", "/s/builder/main/group", { group: null }],
+  ["POST", "/s/builder/main/tags", { tags: [] }],
+  ["POST", "/agents/builder/tags", { tags: [] }],
+];
+
 // Every web route, with a valid body.
 const webRoutes: [string, string, unknown][] = [
   ["GET", "/session", undefined],
@@ -72,6 +85,7 @@ const webRoutes: [string, string, unknown][] = [
   ["POST", "/s/builder/main/threads", { request_id: "o-1", title: "t", text: "m" }],
   ["GET", "/s/builder/main/updates", undefined],
   ["POST", "/s/builder/main/updates/read", { through: 0 }],
+  ...groupAndTagRoutes,
 ];
 
 // The web routes on a session, with a valid body, for the session given.
@@ -80,6 +94,8 @@ function webSessionRoutes(session: string): [string, string, unknown][] {
     ["POST", `/s/${session}/threads`, { request_id: "o-2", title: "t", text: "m" }],
     ["GET", `/s/${session}/updates`, undefined],
     ["POST", `/s/${session}/updates/read`, { through: 0 }],
+    ["POST", `/s/${session}/group`, { group: null }],
+    ["POST", `/s/${session}/tags`, { tags: ["infra"] }],
   ];
 }
 
@@ -134,6 +150,7 @@ describe("the operator's own routes", () => {
       ["GET", "/sessions", undefined],
       ["GET", "/s/builder/main/updates", undefined],
       ["POST", "/s/builder/main/updates/read", { through: 0 }],
+      ...groupAndTagRoutes,
     ] as const) {
       const response = await harness.agent(mine, method, path, body);
       expect([path, codeOf(response)]).toEqual([path, "not_found"]);
