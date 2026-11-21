@@ -7,7 +7,10 @@ import { agentApi, agentApiHeader, type PublicKey, publicKey } from "@wayfarerla
 import { createApp } from "@wayfarerlabs/agention/src/http/app.ts";
 import { type Listening, listen } from "@wayfarerlabs/agention/src/http/listener.ts";
 import { defaultRates } from "@wayfarerlabs/agention/src/http/rates.ts";
-import { testCertificate } from "@wayfarerlabs/agention/src/http/test-certificate.ts";
+import {
+  type TestCertificate,
+  testCertificate,
+} from "@wayfarerlabs/agention/src/http/test-certificate.ts";
 import { Harness } from "@wayfarerlabs/agention/src/http/test-harness.ts";
 import { Hono } from "hono";
 import { createPrivateKey, createPublicKey } from "node:crypto";
@@ -106,9 +109,13 @@ export class BridgeHarness {
   #listening: Listening | undefined;
   #origin = "";
 
-  // The origin names the port the listener is given, so the server's app is
-  // made once it listens, behind a front that hands it each request.
-  async start(): Promise<this> {
+  // start runs the server on 127.0.0.1 with the certificate for localhost, at
+  // https://localhost and the port it listens on, unless options give another
+  // certificate and origin. That origin names the port the listener is given,
+  // so the server's app is made once it listens, behind a front that hands it
+  // each request.
+  async start(options: { origin?: string; certificate?: TestCertificate } = {}): Promise<this> {
+    const tls = options.certificate ?? certificate;
     let app: Hono | undefined;
     const front = new Hono().all("*", async (c) => {
       const answer = await this.beforeRequest?.(c.req.raw);
@@ -123,9 +130,9 @@ export class BridgeHarness {
     this.#listening = await listen(
       front,
       { host: "127.0.0.1", port: 0 },
-      { cert: Buffer.from(certificate.cert), key: Buffer.from(certificate.key) },
+      { cert: Buffer.from(tls.cert), key: Buffer.from(tls.key) },
     );
-    this.#origin = `https://localhost:${this.#listening.address.port}`;
+    this.#origin = options.origin ?? `https://localhost:${this.#listening.address.port}`;
     app = createApp({
       store: this.server.fixture.store,
       origin: this.#origin,
@@ -142,6 +149,11 @@ export class BridgeHarness {
 
   get origin(): string {
     return this.#origin;
+  }
+
+  // The port the server listens on, on 127.0.0.1.
+  get port(): number {
+    return this.#listening?.address.port ?? 0;
   }
 
   // bridge starts a bridge with the environment an agent host would give it,
