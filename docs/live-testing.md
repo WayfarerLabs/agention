@@ -55,21 +55,21 @@ with each other or with what the product does, the disagreement is the finding.
   said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
   by agent; the thread page's numbered asks answered several at once, a message's details,
   replacements, mark unread from a message, archive through a message and archive all; stranded's
-  reasons; the sessions view, its group and agent folds and folded rows with what each session
-  reports, when it was last seen and whether it is quiet, its open asks in the thread list's words
-  and its threads' roll-up, the links from a row, an agent and a group to the thread list filtered
-  to them, and from a row's and an agent's stranded flag to their stranded threads, a row unfolded
-  to its log and marking it read, the Sessions tab's count of sessions with unread updates falling
-  as logs are read, and the folds kept, on a phone's width too; the operator's session groups and
-  tags: a session's group and an agent's and a session's tags set from their options, the chips that
-  show them, and the Groups and tags sheet's rename, its refusal of a name another group or tag has,
-  and its removal, asked first; a thread the operator starts there, with the warning for a session
-  not there to see it, and the agent's reply in it; registration approval, rejection, and revocation
-  from past requests and a session's options; and diagrams, drawn in light and dark, with their
-  Source toggle, their fallback, and the viewer's gestures, buttons and keys, on a phone's width too
-  (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents"). Real-phone
-  passkeys, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
-  tester's.
+  reasons, in the warning's color in both tabs; the sessions view, its group and agent folds and
+  folded rows with what each session reports, when it was last seen and whether it is quiet, its
+  open asks in the thread list's words and its threads' roll-up, the links from a row, an agent and
+  a group to the thread list filtered to them, and from a row's and an agent's stranded flag to
+  their stranded threads, a row unfolded to its log and marking it read, the Sessions tab's count of
+  sessions with unread updates falling as logs are read, and the folds kept, on a phone's width too;
+  the operator's session groups and tags: a session's group and an agent's and a session's tags set
+  from their options, the chips that show them, and the Groups and tags sheet's rename, its refusal
+  of a name another group or tag has, and its removal, asked first; a thread the operator starts
+  there, with the warning for a session not there to see it, and the agent's reply in it;
+  registration approval, rejection, and revocation from past requests and a session's options; and
+  diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
+  gestures, buttons and keys, on a phone's width too (`docs/operator-guide.md` "Signing in", "Using
+  the web UI" and "Approving agents"). Real-phone passkeys, and diagrams and their viewer in iOS
+  Safari, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 

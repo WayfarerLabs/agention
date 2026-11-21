@@ -73,8 +73,8 @@ function located(place: Place): Headed {
 const bare = (text: string): Headed => ({ shown: text, spoken: text });
 
 // The words a roll-up is said in, after what it heads: "Agent reviewer
-// Session main, 12 threads, 3 unread, blocked on you, high priority, last
-// seen 14:02".
+// Session main, 12 threads, 3 unread, blocked on you, high priority, quiet,
+// last seen 14:02".
 function spokenRollup(label: string, rollup: Rollup, presence: Presence | undefined): string {
   return [
     label,
@@ -83,7 +83,7 @@ function spokenRollup(label: string, rollup: Rollup, presence: Presence | undefi
     ...(rollup.blocked ? ["blocked on you"] : []),
     ...(rollup.priority === undefined ? [] : [priorityLabel[rollup.priority].toLowerCase()]),
     ...(rollup.archived ? ["archived"] : []),
-    ...(presence?.quiet === true ? [lastSeenWords(presence)] : []),
+    ...(presence?.quiet === true ? ["quiet", lastSeenWords(presence)] : []),
   ].join(", ");
 }
 
@@ -92,14 +92,15 @@ const priorityShown = { urgent: "Urgent", high: "High", normal: "Normal", low: "
 // RollupMarks shows a roll-up for the eye: how many threads, the closed
 // envelope with how many are unread or the open envelope when none is,
 // whether any is blocked on the operator, the highest priority open, the
-// archive box when all are archived, and, muted while a session or an agent
-// is quiet, when it was last seen. Its header's name says it.
+// archive box when all are archived, and, in the warning's tone while a
+// session or an agent is quiet, when it was last seen. Its header's name says
+// it.
 function RollupMarks({ rollup, presence }: { rollup: Rollup; presence: Presence | undefined }) {
   return (
     <span className="roll-up" aria-hidden="true">
       <span className="roll-up-count">{plural(rollup.threads, "thread")}</span>
       <UnreadCount unread={rollup.unread} />
-      {rollup.blocked && <span className="flag danger">Blocked</span>}
+      {rollup.blocked && <span className="flag danger">Blocked on you</span>}
       {rollup.priority !== undefined && (
         <span className={`flag ${priorityTone[rollup.priority] ?? ""}`}>
           {priorityShown[rollup.priority]}
@@ -107,7 +108,7 @@ function RollupMarks({ rollup, presence }: { rollup: Rollup; presence: Presence 
       )}
       {rollup.archived && <Mark icon="archive" label="Archived" />}
       {presence?.quiet === true && (
-        <span className="quiet">
+        <span className="last-seen warning">
           {presence.last_seen_at === undefined ? (
             "never seen"
           ) : (

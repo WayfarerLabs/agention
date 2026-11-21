@@ -370,12 +370,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     their first thread, and the list loads a page at a time, its threads arriving group by group.
     Each header shows all its group holds, collapsed or not, and before all of it has loaded: how
     many threads, the closed envelope with how many are unread or the open envelope when none is,
-    **Blocked** when an agent's ask blocks its work on your answer, the highest priority of an open
-    ask, the archive box when all are archived, and, muted on a session's or an agent's header while
-    it is quiet, **last seen** and when, or **never seen** (an agent is quiet while every session it
-    shows is). A session group's header adds up its sessions'. Choosing a header collapses
-    everything under it or expands it again. Every header starts expanded, and this browser keeps
-    the ones you collapse, for each way of grouping, a session group's however you rename it.
+    **Blocked on you** when an agent's ask blocks its work on your answer, the highest priority of
+    an open ask, the archive box when all are archived, and, in the warning's color on a session's
+    or an agent's header while it is quiet, **last seen** and when, or **never seen** (an agent is
+    quiet while every session it shows is). A session group's header adds up its sessions'. Choosing
+    a header collapses everything under it or expands it again. Every header starts expanded, and
+    this browser keeps the ones you collapse, for each way of grouping, a session group's however
+    you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
@@ -445,10 +446,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     earliest answer-by among them, whichever ask carries it: **Due** and the time when that falls
     today, or the date and time on another day, with the year only when it is not this year's; and
     once the server finds it passed, as the **Overdue** filter does, **Overdue since** then. Holding
-    the pointer over the time shows it in full. A stranded thread shows a muted **Stranded** tag
-    saying why: its session **stopped**, with how; it is quiet, **last seen** when, or **never
-    seen**; or it has **no active credential**. A session with no active credential also shows its
-    own tag, unless the stranded tag already says so.
+    the pointer over the time shows it in full. A stranded thread shows a **Stranded** tag in the
+    warning's color, as the sessions view flags stranded threads, saying why: its session
+    **stopped**, with how; it is quiet, **last seen** when, or **never seen**; or it has **no active
+    credential**. A session with no active credential also shows its own tag, unless the stranded
+    tag already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each

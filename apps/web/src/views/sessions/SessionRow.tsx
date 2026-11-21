@@ -127,7 +127,7 @@ function LastSeen({ session }: { session: SessionSummary }) {
   const quiet = presence.quiet && status?.state !== "stopped";
   const seen = presence.last_seen_at === undefined ? "Never seen" : "Last seen";
   return (
-    <p className={quiet ? "session-seen warning" : "session-seen"}>
+    <p className={quiet ? "session-seen last-seen warning" : "session-seen"}>
       {quiet ? <Spoken shown={seen} spoken={`Quiet, ${seen.toLowerCase()}`} /> : seen}
       {presence.last_seen_at !== undefined && (
         <>

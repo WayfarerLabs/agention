@@ -127,14 +127,15 @@ describe("grouped by session", () => {
     ).toEqual(["true", "true", "true"]);
     expect(outerHeaders()).toEqual([
       "Agent builder Session main, 3 threads, 1 unread, blocked on you, urgent",
-      "Agent reviewer Session main, 1 thread, 1 unread, never seen",
-      `Agent builder Session side, 1 thread, high priority, archived, ${quietSeen}`,
+      "Agent reviewer Session main, 1 thread, 1 unread, quiet, never seen",
+      `Agent builder Session side, 1 thread, high priority, archived, quiet, ${quietSeen}`,
     ]);
-    // A quiet session's header says so, muted, for the eye too.
-    expect(header("Agent builder Session side").querySelector(".quiet")?.textContent).toBe(
-      quietSeen,
-    );
-    expect(header("Agent builder Session main").querySelector(".quiet")).toBeNull();
+    // A quiet session's header says so for the eye too, in the warning's
+    // tone, as the sessions view does.
+    expect(
+      header("Agent builder Session side").querySelector(".last-seen.warning")?.textContent,
+    ).toBe(quietSeen);
+    expect(header("Agent builder Session main").querySelector(".last-seen")).toBeNull();
     // Each part of where a session's threads are shows behind its badge.
     const [builder] = outer;
     expect(
@@ -289,13 +290,13 @@ describe("grouped by agent", () => {
     // An agent is quiet only while all its sessions are.
     expect(outerHeaders()).toEqual([
       "Agent builder, 4 threads, 1 unread, blocked on you, urgent",
-      "Agent reviewer, 1 thread, 1 unread, never seen",
+      "Agent reviewer, 1 thread, 1 unread, quiet, never seen",
     ]);
     // builder has two sessions, each an inner header over its threads;
     // reviewer has one, whose level is skipped.
     expect(innerHeaders()).toEqual([
       "Session main, 3 threads, 1 unread, blocked on you, urgent",
-      `Session side, 1 thread, high priority, archived, ${quietSeen}`,
+      `Session side, 1 thread, high priority, archived, quiet, ${quietSeen}`,
     ]);
     // An agent's header shows its badge, and a session's within it its own.
     const badges = (selector: string) =>
@@ -317,7 +318,7 @@ describe("grouped by agent", () => {
     renderAt("/?group=agent");
     await screen.findByRole("heading", { name: titled("Side") });
     expect(outerHeaders()[0]).toBe(
-      `Agent builder, 4 threads, 1 unread, blocked on you, urgent, last seen ${sinceTime(later)}`,
+      `Agent builder, 4 threads, 1 unread, blocked on you, urgent, quiet, last seen ${sinceTime(later)}`,
     );
   });
 
@@ -363,8 +364,8 @@ describe("grouped by session group", () => {
     ]);
     expect(innerHeaders()).toEqual([
       "Agent builder Session main, 3 threads, 1 unread, blocked on you, urgent",
-      `Agent builder Session side, 1 thread, high priority, archived, ${quietSeen}`,
-      "Agent reviewer Session main, 1 thread, 1 unread, never seen",
+      `Agent builder Session side, 1 thread, high priority, archived, quiet, ${quietSeen}`,
+      "Agent reviewer Session main, 1 thread, 1 unread, quiet, never seen",
     ]);
     expect(innermostHeaders()).toEqual([
       "Topic auth, 2 threads, 1 unread, blocked on you, urgent",
@@ -418,8 +419,8 @@ describe("grouped by session group", () => {
     await screen.findByRole("heading", { level: 4, name: titled("Auth one") });
     expect(outerHeaders()).toEqual([
       "Agent builder Session main, 3 threads, 1 unread, blocked on you, urgent",
-      `Agent builder Session side, 1 thread, high priority, archived, ${quietSeen}`,
-      "Agent reviewer Session main, 1 thread, 1 unread, never seen",
+      `Agent builder Session side, 1 thread, high priority, archived, quiet, ${quietSeen}`,
+      "Agent reviewer Session main, 1 thread, 1 unread, quiet, never seen",
     ]);
   });
 

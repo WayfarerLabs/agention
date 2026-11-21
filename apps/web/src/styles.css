@@ -1156,9 +1156,16 @@ a > .flag {
   font-weight: 400;
 }
 
-.roll-up-count,
-.roll-up .quiet {
+.roll-up-count {
   color: var(--color-muted);
+}
+
+/* When a quiet session or agent was last seen, in the warning's tone,
+   wherever it shows: a session's row in the sessions view, and a session's
+   or an agent's header in the thread list. */
+.last-seen.warning {
+  color: var(--color-warning);
+  font-weight: 600;
 }
 
 /* A header's links to the threads it rolls up and to the stranded among
@@ -1779,17 +1786,12 @@ button.session-fold[aria-expanded="true"] .session-title {
 }
 
 /* When the session was last seen, set in under its name as its facts are,
-   in the warning's tone while it is quiet. */
+   in the warning's tone, as .last-seen.warning, while it is quiet. */
 .session-seen {
   margin: 0 0 var(--space-1);
   padding-left: calc(var(--icon-size) * 1.25 + var(--space-2));
   color: var(--color-muted);
   font-size: var(--text-small);
-}
-
-.session-seen.warning {
-  color: var(--color-warning);
-  font-weight: 600;
 }
 
 .session-facts {

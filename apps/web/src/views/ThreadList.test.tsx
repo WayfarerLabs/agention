@@ -263,6 +263,15 @@ describe("the thread list", () => {
     expect(stranded("Revoked long ago")).toContain(sinceTime(lastSeen));
     expect(row("Revoked long ago").getByText("No active credential")).toBeTruthy();
     expect(stranded("Fine")).toBeUndefined();
+    // Stranded shows in the warning's tone, as the sessions view flags it.
+    for (const name of ["Quiet", "Never seen", "Stalled", "Just revoked"]) {
+      expect(
+        row(name)
+          .getByText(/^Stranded/)
+          .closest(".warning"),
+        name,
+      ).not.toBeNull();
+    }
   });
 
   it("counts every other open ask, not only those the summary lists", async () => {

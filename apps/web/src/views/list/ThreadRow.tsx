@@ -53,7 +53,7 @@ function strandedTags(thread: ThreadSummary): { label: ReactNode; tone?: string 
   const absence = thread.stranded === true ? absenceOf(threadWhereabouts(thread)) : undefined;
   const stranded = absence === undefined ? "Stranded" : `Stranded · ${absenceWords(absence)}`;
   return [
-    ...(thread.stranded === true ? [{ label: stranded, tone: "muted" }] : []),
+    ...(thread.stranded === true ? [{ label: stranded, tone: "warning" }] : []),
     ...(thread.credential_active || absence?.kind === "credential"
       ? []
       : [{ label: "No active credential" }]),
