@@ -120,9 +120,25 @@ messages: each entry, numbered from 1 within its session, holds the session's wh
 credential behind it, so the current status is the entry with the highest number, read through the
 primary key, and nothing about it is stored on the session. A check holds an outcome exactly beside
 the stopped state. `session_marks` holds each actor's read cursor on a session's log, as
-`thread_marks` holds one on a thread. A test freezes the text of every migration a release has
-shipped, by its SHA-256, so a schema change is always a new migration, and another opens a database
-the first migration alone wrote under every later one, its rows intact.
+`thread_marks` holds one on a thread.
+
+The operator's session groups are rows of their own, `session_groups`, each with a name unique
+ignoring the case of ASCII letters, since a group can be empty and renamed. A group keeps its id
+when renamed, and ids never repeat, so a filter or fold naming a removed group never reaches a later
+one. `session_group_members` is keyed on the session, so a session sits in at most one group, and
+removing a group takes its memberships with it by a cascade. A tag is only a name on an agent
+(`agent_tags`) or a session (`session_tags`), as a topic is a name on a thread: it exists while
+something carries it. Agents and sessions are never deleted, so no membership or tag outlives what
+it is on. A second full-text index, `message_texts`, holds the text and detail of every message that
+has text, matched as titles are. It keeps no copy of them, only each message's thread and sequence,
+since a message has no integer key of its own for an external-content index to rest on; a trigger
+fills it as a message is written, since messages are append-only, and a search joins its rows to
+`live_messages`, so a replaced message no longer matches.
+
+A test freezes the text of every migration a release has shipped, by its SHA-256, so a schema change
+is always a new migration. Others open a database the first migration alone wrote, and one the first
+two wrote, under every later one: the tables they had keep their rows, the new ones start empty, and
+a message written before the full-text index of messages existed is found by it.
 
 ## Store
 

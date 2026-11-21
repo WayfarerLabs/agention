@@ -370,4 +370,55 @@ export const migrations: readonly string[] = [
     PRIMARY KEY (actor_id, session_id)
   ) STRICT, WITHOUT ROWID;
   `,
+  `
+  -- The operator's session groups. A group keeps its id when renamed, and ids
+  -- never repeat, so a filter, fold or action naming a removed group never
+  -- reaches a group made after it.
+  CREATE TABLE session_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    created_at INTEGER NOT NULL
+  ) STRICT;
+
+  -- A session's group. Keyed on the session, so a session sits in at most one.
+  CREATE TABLE session_group_members (
+    session_id INTEGER PRIMARY KEY REFERENCES sessions (id),
+    group_id INTEGER NOT NULL REFERENCES session_groups (id) ON DELETE CASCADE
+  ) STRICT;
+  CREATE INDEX session_group_members_groups ON session_group_members (group_id);
+
+  -- Tags are names on agents and sessions; a tag exists while something carries it.
+  CREATE TABLE agent_tags (
+    agent_id INTEGER NOT NULL REFERENCES agents (id),
+    name TEXT NOT NULL,
+    PRIMARY KEY (agent_id, name)
+  ) STRICT, WITHOUT ROWID;
+  CREATE INDEX agent_tags_names ON agent_tags (name);
+
+  CREATE TABLE session_tags (
+    session_id INTEGER NOT NULL REFERENCES sessions (id),
+    name TEXT NOT NULL,
+    PRIMARY KEY (session_id, name)
+  ) STRICT, WITHOUT ROWID;
+  CREATE INDEX session_tags_names ON session_tags (name);
+
+  -- The search index of what messages say, matched as the titles' index is. It
+  -- keeps no copy of the text, only each message's thread and sequence, since a
+  -- message has no integer key of its own for an external-content index to rest
+  -- on. Messages are append-only, so a message goes in as it is written; the
+  -- migration indexes those before it.
+  CREATE VIRTUAL TABLE message_texts USING fts5 (
+    text, detail,
+    thread_id UNINDEXED, seq UNINDEXED,
+    content = '', contentless_unindexed = 1,
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
+  CREATE TRIGGER messages_index_text AFTER INSERT ON messages WHEN new.text IS NOT NULL
+  BEGIN
+    INSERT INTO message_texts (text, detail, thread_id, seq)
+    VALUES (new.text, new.detail, new.thread_id, new.seq);
+  END;
+  INSERT INTO message_texts (text, detail, thread_id, seq)
+    SELECT text, detail, thread_id, seq FROM messages WHERE text IS NOT NULL;
+  `,
 ];
