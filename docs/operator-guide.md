@@ -1,8 +1,7 @@
 # Operator guide
 
 This guide is for the person who runs an Agention instance. It takes you from nothing to agents
-asking what they need and you answering, on a machine of your own with Node.js 24 or later. Agention
-v1 is under development, and the guide grows as Agention does.
+asking what they need and you answering, on a machine of your own with Node.js 24 or later.
 
 To set up an instance:
 
@@ -17,16 +16,15 @@ To set up an instance:
 
 ## Commands
 
-| Command                 | Status    | What it does                                                          |
-| ----------------------- | --------- | --------------------------------------------------------------------- |
-| `agention version`      | Available | Prints the version and exits                                          |
-| `agention --help`       | Available | Prints the command list and exits                                     |
-| `agention serve`        | Available | Runs the server, with listener, TLS and origin settings               |
-| `agention passkey-link` | Available | Prints a one-time link to register or replace the operator's passkeys |
-| `agention backup`       | Planned   | Writes a consistent copy of the database from a running instance      |
+| Command                 | What it does                                                           |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `agention version`      | Prints the version and exits                                           |
+| `agention --help`       | Prints the command list and exits                                      |
+| `agention serve`        | Runs the server, with listener, TLS and origin settings                |
+| `agention passkey-link` | Prints a one-time link to register or replace the operator's passkeys  |
+| `agention backup`       | Writes a consistent copy of the database, while the server runs or not |
 
-Every command takes `--help`. Planned commands do not exist yet, and their names and options may
-change before they ship.
+Every command takes `--help`.
 
 ## Installing
 
@@ -362,26 +360,31 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     **Due** those whose ask has an answer-by, for **Effort** those whose ask says how long it takes,
     and for **Latest message** and **Created** every thread. The threads it does not rank still
     follow them, as before. Choosing another order starts it in its own direction.
-  - **Group** shows the list **Flat**, the default, or folded under headers: by **Session**, each
-    session's threads under its header, and under their topics' when they carry two or more, those
-    without one under **No topic**; or by **Agent**, each agent's threads under its header, and
-    under their sessions' when it has two or more. Sessions, topics and agents come in the order of
+  - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
+    session group's sessions under its header when the list holds two or more groups, those in none
+    under **No group**, and each session as **Session** folds it; by **Session**, each session's
+    threads under its header, and under their topics' when they carry two or more, those without one
+    under **No topic**; or by **Agent**, each agent's threads under its header, and under their
+    sessions' when it has two or more. Groups, sessions, topics and agents come in the order of
     their first thread, and the list loads a page at a time, its threads arriving group by group.
     Each header shows all its group holds, collapsed or not, and before all of it has loaded: how
     many threads, the closed envelope with how many are unread or the open envelope when none is,
     **Blocked** when an agent's ask blocks its work on your answer, the highest priority of an open
     ask, the archive box when all are archived, and, muted on a session's or an agent's header while
     it is quiet, **last seen** and when, or **never seen** (an agent is quiet while every session it
-    shows is). Choosing a header collapses everything under it or expands it again. Every header
-    starts expanded, and this browser keeps the ones you collapse, for each way of grouping.
+    shows is). A session group's header adds up its sessions'. Choosing a header collapses
+    everything under it or expands it again. Every header starts expanded, and this browser keeps
+    the ones you collapse, for each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
     off, and each value not chosen shows in parentheses how many threads it keeps with every other
     filter as it is, which for a filter taking one value is how many the list would hold if you
     chose it:
-    - **Search titles** keeps the threads whose title holds every word you type, each as the start
-      of a word, ignoring case and accents; it applies once you pause typing.
+    - **Search** keeps the threads whose title holds every word you type, or one of whose messages
+      does in its text and details, each as the start of a word, ignoring case and accents. A
+      message you or an agent replaced no longer matches; its replacement does. It applies once you
+      pause typing. An agent's own search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
@@ -406,6 +409,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       them: while sessions are chosen only their topics are offered, or else while agents are chosen
       only their agents' topics, with any you already chose. Each lists at most 500, and says so
       when there are more. Escape, **Done** or a tap outside closes the list.
+    - **Group** and **Tag** open such lists too: **Group** of your session groups holding a thread,
+      and **No group** for the sessions in none; **Tag** of the tags on a session holding a thread
+      or on its agent. A thread is kept when its session is in a group you chose, or when its
+      session or its agent carries a tag you chose.
     - **Archived**: **Show** adds the threads you archived.
 
     The list behind the sheet follows each change. **Reset filters** turns every filter off, saying
@@ -414,10 +421,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
   - Each filter that is on shows beneath the head as a compact chip, such as **Unread** or **Status:
     Withdrawn**; an agent, session or topic shows behind its badge, such as **builder**, a topic as
-    `session/topic`, or **2 agents** when you chose several. A long label is cut short, at its front
-    for an agent, session or topic, so its end stays; holding the pointer over a chip says it whole.
-    Choosing a chip removes its filter. The grouping, the order and its direction are no filters, so
-    they stay when filters go.
+    `session/topic`, or **2 agents** when you chose several. A group or a tag shows by its name now,
+    such as **Group: Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed
+    keeps nothing, and its chip says **Removed group**; so does a tag nothing carries any more,
+    whose chip begins **Unused tag**. A long label is cut short, at its front for an agent, session
+    or topic, so its end stays; holding the pointer over a chip says it whole. Choosing a chip
+    removes its filter. The grouping, the order and its direction are no filters, so they stay when
+    filters go.
   - The page's address holds the filters, the order, its direction and the grouping, so a list you
     bookmark or share opens as you left it.
   - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -550,13 +560,26 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
   what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
+  - **Groups and tags** opens the sheet listing your session groups and tags, as
+    [Groups and tags](#groups-and-tags) describes.
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes.
   - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
-    with how many sessions it has and what they add up to: their open asks, unread updates and
-    stranded threads. Under it, each session is a folded row, so that many fit on a screen. Its
-    first line holds the session's name, the title its agent gave this line of work, cut to fit, and
-    its percent toward the goal; the second, wrapping on a phone:
+    with how many sessions it has and what they add up to: their threads' roll-up and unread updates
+    as each session's row shows them, their open asks with how many are blocking, their stranded
+    threads, and the agent's tags. Beside it, its threads open the thread list on the agent's
+    threads; how many of them are stranded, flagged while any are, opens it on those, as the
+    **Stranded** filter does; and the **⋯** button opens **Tags**. Once you have put any session in
+    a group, the agents fold under their groups, groups in name order and **No group** last, each
+    group's head showing what its sessions add up to, with **Blocked** when an ask in them blocks an
+    agent's work on your answer, and a link opening the thread list on the group's threads. An agent
+    with sessions in two groups shows under each with that group's sessions, and its threads' links
+    open its threads, and its stranded threads, in that group. This browser keeps the groups you
+    fold, a group however you rename it. Under each agent, each session is a folded row, so that
+    many fit on a screen. Its first line holds the session's name, the title its agent gave this
+    line of work, cut to fit, and its percent toward the goal; the second, **Last seen** and when,
+    or **Never seen**, in the warning's color while the session is quiet and has not stopped; the
+    third, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
       has nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
       **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No
@@ -564,28 +587,35 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Waiting on you** with its open asks and how many are blocking, while it has any, whatever it
       is doing: a session working on one thing can wait on your answer about another. It opens the
       thread list on the session's open threads;
-    - **Quiet**, with when it was last seen, unless it stopped, and **No credential**, when it has
-      no active credential;
-    - its unread updates, the closed envelope with how many;
-    - its threads, which opens the thread list on the session, with how many are stranded;
+    - **No credential**, when it has no active credential;
+    - its group, in a chip with a dashed border, and its tags, each led by **#**;
+    - its threads' roll-up, as the thread list's headers show theirs: how many threads you have not
+      archived, which opens the thread list on the session; how many are stranded, flagged as on an
+      agent's header, which opens it on those alone; the closed envelope with how many are unread,
+      or the open envelope when none is. **Waiting on you** already says when an ask blocks its work
+      on your answer, so the row has no **Blocked**, nor does an agent's header, whose open asks say
+      it;
+    - its unread updates, such as **2 new updates**;
     - and its latest note, cut to fit.
 
     Choosing a row lets its title wrap whole and unfolds it to its goal over a bar of how far it has
-    come, when it was last seen, its credentials and its log: what each update changed, newest
-    first, with its note. Consecutive updates that changed only the percent show as one line, such
-    as **Progress 20% → 60%**, and **Older** shows the updates before. Unfolding reads the updates
-    it shows, which stay marked unread until you fold the row again. Rows start folded each time you
-    open the view, and a row under an agent you folded reads nothing, since it is not shown. This
-    browser keeps the agents you fold.
+    come, its credentials and its log: what each update changed, newest first, with its note.
+    Consecutive updates that changed only the percent show as one line, such as **Progress 20% →
+    60%**, and **Older** shows the updates before. Unfolding reads the updates it shows, which stay
+    marked unread until you fold the row again. Rows start folded each time you open the view, and a
+    row under an agent or a group you folded reads nothing, since it is not shown. This browser
+    keeps the agents you fold, under each group apart. The **Sessions** tab shows how many sessions
+    have updates you have not read, which goes down as you read them.
 
-    A row's **⋯** button opens its options: **New thread**, and **Revoke** for each of the session's
-    credentials, which asks once more. **New thread** opens a sheet for a title, the message and its
-    details, as a thread's composer takes them, and **Send** starts the thread and opens it. The
-    session's agent reads it as your words at its terminal and replies in it; the thread asks you
-    nothing, since only agents ask. When the session has stopped, is quiet or has no active
-    credential, the sheet says it is not likely to see the thread, and why: a stopped session not
-    until it is started again, a quiet one not soon, and one without a credential not until you
-    approve a registration for it. The thread is stranded until the session reads it.
+    A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
+    the session has now; and **Revoke** for each of the session's credentials, which asks once more.
+    **New thread** opens a sheet for a title, the message and its details, as a thread's composer
+    takes them, and **Send** starts the thread and opens it. The session's agent reads it as your
+    words at its terminal and replies in it; the thread asks you nothing, since only agents ask.
+    When the session has stopped, is quiet or has no active credential, the sheet says it is not
+    likely to see the thread, and why: a stopped session not until it is started again, a quiet one
+    not soon, and one without a credential not until you approve a registration for it. The thread
+    is stranded until the session reads it.
 
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
@@ -595,6 +625,48 @@ inert: raw HTML shows as text, an image shows as a link and never loads, and onl
 links are live, opening in a new tab. A link whose text is not its own address shows the address's
 host after it. Titles, questions, suggested answers, the own words of an answer and other fields
 show exactly as written, as plain text.
+
+A fenced code block whose language is `mermaid` shows as a diagram, drawn by
+[Mermaid](https://mermaid.js.org/) in isolation from the page, as an image at its natural size, no
+wider than the column. Its alternative text is the title the diagram declares with `accTitle`, or
+"Diagram" without one, and a description it declares with `accDescr` describes it to a screen
+reader. **Source** under the diagram shows the text it was drawn from. A diagram over 10,000
+characters shows its source instead, with a note that it is too long to draw; one Mermaid cannot
+draw, and one not drawn within 10 seconds, show their source with a note that it could not be drawn.
+The first diagram on a page also waits for the drawing script to download, for up to a minute on a
+slow connection. Diagrams follow the light or dark color scheme, and are drawn again when it
+changes.
+
+Tap a diagram to open it full screen. Pinch or use the mouse wheel to zoom, drag to move it, and
+double-tap to zoom in on a point or back out to fit; the buttons and the keys `+` and `-` zoom, `0`
+fits it to the screen and `1` shows it at its actual size. Escape or **Close** returns to the
+message. Outside the viewer, the browser's own zoom works on the page as usual.
+
+### Groups and tags
+
+Session groups and tags organize your views, nothing else: agents never see them, and they grant
+nothing. A session sits in at most one group, such as **Billing migration** or **Personal:
+website**, and you can tag agents and sessions across groups, such as **infra**; a tag on an agent
+counts for each of its sessions. The thread list filters by both and, grouped by **Group**, folds
+the sessions under their groups, and the sessions view folds the agents under their groups, as
+[Using the web UI](#using-the-web-ui) says.
+
+- **Group**, in a session's options, opens a sheet listing your groups, **No group** and **New
+  group** with a field for its name, up to 100 characters on one line; **Save** puts the session in
+  the one chosen, creating a new group first. A group's name is unique, whatever the case of its
+  letters, and you can have up to 200 groups.
+- **Tags**, in a session's options or beside an agent's header, opens a sheet checking the tags it
+  carries among every tag, with a search box that narrows them as you type. Typing a name no tag has
+  offers **Add tag**. A tag is a name like a topic's: up to 63 lowercase letters, digits, `-` and
+  `_`, starting with a letter or digit. An agent or a session carries up to 20 tags, and **Save**
+  sets them.
+- **Groups and tags**, at the top of the sessions view, lists each group with how many sessions it
+  holds, and each tag with how many agents and sessions carry it, with **Rename** and **Remove**.
+  Renaming keeps a group's sessions, and the thread list's filters and folds on it keep working; a
+  name another group or tag has is refused. Renaming a tag renames it everywhere it is carried.
+  **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
+  sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
+  carries is gone, as a topic no thread carries is.
 
 ## Agents
 
@@ -922,40 +994,59 @@ which `npx` fetches as the first of them starts.
 
 ## Backing up
 
-Until `agention backup` exists, back up by stopping the server, copying the whole data directory,
-and starting the server again. `cp -a` keeps the permissions, so the copy is private too, and the
-time in its name gives each copy a new directory of its own. On Linux:
+The database, `agention.db` in the data directory, is the whole of an instance's state: its own key,
+your passkeys' records, every thread and every session's log. `agention backup` writes a consistent
+copy of it to a new file, while the server runs or not, and then checks the copy and prints its
+path, size and schema version. It never changes what the database holds, though with the server
+stopped SQLite may leave an empty `agention.db-wal` and an `agention.db-shm` beside it, which the
+server uses as its own when it starts. The copy holds what the database holds, so it is created
+readable only by you, and the command refuses a directory for it that other users could read or
+change, as the data directory's is refused, a file that already exists, and a path SQLite keeps for
+the database's own files, such as `agention.db-wal`. A backup that fails leaves no file behind and
+exits with status 1.
+
+Keep the backups in a directory of their own, with mode 0700; the time in each file's name gives
+each backup a new file. On Linux and on macOS:
 
 ```bash
-systemctl --user stop agention
-cp -a ~/.local/share/agention ~/agention-backup-"$(date +%Y%m%d-%H%M%S)"
-systemctl --user start agention
+mkdir -m 700 -p ~/agention-backups
+agention backup --data ~/.local/share/agention \
+    ~/agention-backups/agention-"$(date +%Y%m%d-%H%M%S)".db
 ```
 
-On macOS, wait until launchd no longer finds the server before copying:
-
-```bash
-launchctl bootout gui/$UID/com.wayfarerlabs.agention
-while launchctl print gui/$UID/com.wayfarerlabs.agention >/dev/null 2>&1; do sleep 1; done
-cp -a ~/.local/share/agention ~/agention-backup-"$(date +%Y%m%d-%H%M%S)"
-launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.wayfarerlabs.agention.plist
-```
-
-Run by hand, stop the server with Ctrl-C and wait for your prompt before copying.
+The command opens the database read-only and never migrates it, so a copy taken with a newer
+release, before you start it on the database, is a copy of the database as the older server left it.
 
 A copy on the same disk is a rollback, not a backup, so keep one on another disk or machine too. The
 copy holds the instance's own key and your passkeys' records, so encrypt any copy you move off the
 machine.
 
-To restore a copy, stop the server, put the copy in place of the data directory, and start the
-server again. On Linux:
+To restore a copy, stop the server, move the database and the files SQLite keeps beside it out of
+the data directory, put the copy in as `agention.db`, and start the server. Move the `-wal` and
+`-shm` files aside with the database: a `-wal` file left beside the copy, as a server that was
+stopped abruptly leaves one, would be applied to the copy when the server starts. On Linux:
 
 ```bash
 systemctl --user stop agention
-mv ~/.local/share/agention ~/.local/share/agention-replaced-"$(date +%Y%m%d-%H%M%S)"
-cp -a ~/agention-backup-20261106-120000 ~/.local/share/agention
+replaced=~/.local/share/agention-replaced-"$(date +%Y%m%d-%H%M%S)"
+mkdir -m 700 "$replaced"
+mv ~/.local/share/agention/agention.db* "$replaced"/
+cp ~/agention-backups/agention-20261106-120000.db ~/.local/share/agention/agention.db
 systemctl --user start agention
 ```
 
-On macOS, stop and start the server as for a backup. The server opens a copy made by its own release
-or an earlier one. Remove the replaced directory once you no longer need it.
+On macOS, wait until launchd no longer finds the server before moving the files:
+
+```bash
+launchctl bootout gui/$UID/com.wayfarerlabs.agention
+while launchctl print gui/$UID/com.wayfarerlabs.agention >/dev/null 2>&1; do sleep 1; done
+replaced=~/.local/share/agention-replaced-"$(date +%Y%m%d-%H%M%S)"
+mkdir -m 700 "$replaced"
+mv ~/.local/share/agention/agention.db* "$replaced"/
+cp ~/agention-backups/agention-20261106-120000.db ~/.local/share/agention/agention.db
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.wayfarerlabs.agention.plist
+```
+
+Run by hand, stop the server with Ctrl-C and wait for your prompt first. `cp` gives the restored
+database the copy's mode, 0600. The server opens a copy made by its own release or an earlier one.
+Remove the replaced files once you no longer need them.

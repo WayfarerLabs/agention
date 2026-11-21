@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import { issuePasskeyLink, passkeyLinkLifetime } from "./auth/passkey-links.ts";
+import { BackupError, backupDatabase } from "./database/backup.ts";
 import { Database, DatabaseOpenError } from "./database/database.ts";
 import { createApp } from "./http/app.ts";
 import { ListenerConfigError, listen, planListener } from "./http/listener.ts";
@@ -17,6 +18,7 @@ const usage = `Usage: agention <command> [options]
 Commands:
   serve         Run the server
   passkey-link  Print a one-use link that registers the operator's passkeys
+  backup        Write a consistent copy of the server's database
   version       Print the Agention version
 
 Run agention <command> --help for a command's options.
@@ -57,6 +59,25 @@ Options:
   -h, --help            Print this help
 `;
 
+const backupUsage = `Usage: agention backup --data DIR FILE
+
+Writes a consistent copy of the database in the data directory to FILE,
+whether the server is running or not, and checks it. It never changes what
+the database holds; SQLite may leave an empty -wal and a -shm file beside a
+database no server has open. FILE must not exist, nor be a file SQLite keeps
+beside the database, and its directory must belong to this user
+with mode 0700, since the copy holds the instance's key and the passkeys'
+records. The copy is created with mode 0600.
+
+To restore a copy, stop the server, move agention.db and its -wal and -shm
+files out of the data directory, copy the backup in as agention.db with
+mode 0600, and start the server.
+
+Options:
+  --data DIR  The server's data directory
+  -h, --help  Print this help
+`;
+
 // Usage errors exit with a different code than failures, so scripts can tell a
 // mistyped command from one that ran and failed.
 const exitOK = 0;
@@ -89,6 +110,7 @@ type Command = (args: string[], io: Io) => Promise<number>;
 const commands = new Map<string, [string, Command]>([
   ["serve", [serveUsage, serve]],
   ["passkey-link", [passkeyLinkUsage, passkeyLink]],
+  ["backup", [backupUsage, backup]],
   ["version", [usage, version]],
 ]);
 
@@ -125,16 +147,35 @@ export async function run(args: readonly string[], io: Io): Promise<number> {
       io.stderr.write(`agention ${command}: ${error.message} (${error.reason})\n`);
       return exitFailure;
     }
+    if (error instanceof BackupError) {
+      io.stderr.write(`agention ${command}: ${error.message}\n`);
+      return exitFailure;
+    }
     throw error;
   }
 }
 
 function parse<T extends NonNullable<ParseArgsConfig["options"]>>(args: string[], options: T) {
+  return parseWithPositionals(args, options, 0).values;
+}
+
+// parseWithPositionals reads options and exactly the number of positional
+// arguments given.
+function parseWithPositionals<T extends NonNullable<ParseArgsConfig["options"]>>(
+  args: string[],
+  options: T,
+  count: number,
+) {
+  let parsed;
   try {
-    return parseArgs({ args, options, strict: true, allowPositionals: false }).values;
+    parsed = parseArgs({ args, options, strict: true, allowPositionals: count > 0 });
   } catch (error) {
     throw new UsageError((error as Error).message);
   }
+  if (parsed.positionals.length > count) {
+    throw new UsageError(`unexpected argument ${JSON.stringify(parsed.positionals[count])}`);
+  }
+  return parsed;
 }
 
 function required(value: string | undefined, flag: string): string {
@@ -341,4 +382,22 @@ async function passkeyLink(args: string[], io: Io): Promise<number> {
   } finally {
     db.close();
   }
+}
+
+async function backup(args: string[], io: Io): Promise<number> {
+  const { values: flags, positionals } = parseWithPositionals(
+    args,
+    { data: { type: "string" } },
+    1,
+  );
+  const data = required(flags.data, "--data");
+  const [file] = positionals;
+  if (file === undefined || file === "") {
+    throw new UsageError("name the FILE to write the backup to");
+  }
+  const result = await backupDatabase(databaseFile(data), file);
+  io.stdout.write(
+    `${result.file}: ${result.bytes} bytes, schema version ${result.schemaVersion}\n`,
+  );
+  return exitOK;
 }

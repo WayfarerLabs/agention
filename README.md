@@ -13,7 +13,7 @@ harness. It records and shows; the agent decides what to do with an answer.
 
 ## Status
 
-Agention v1 is under development, and usable from its first release, 0.1.0. Each release is
+Agention v1 is complete, and has been usable since its first release, 0.1.0. Each release is
 published to npm: the server and operator CLI as `@wayfarerlabs/agention`, and the agent bridge as
 `@wayfarerlabs/agention-mcp`. The Claude Code and Codex plugins install from this repository's
 plugin marketplace, and the [operator guide](docs/operator-guide.md) takes you from installing the
@@ -23,9 +23,10 @@ server to agents asking and you answering. The repository contains:
   passkey sign-in for the person and key authentication for agents, over the server's database and
   store, and `agention passkey-link` issues the link that registers the person's passkeys;
 - the web UI, which the server serves: the person signs in with a passkey, works through one thread
-  list, reads and answers threads, archives them, follows every session's status and updates in one
-  view, where they approve agents' registrations and start threads on a session, and manages their
-  passkeys;
+  list, filtered, grouped and searched down to what messages say, reads and answers threads,
+  archives them, follows every session's status and updates in one view, where they approve agents'
+  registrations, start threads on a session, and sort sessions into groups and tag agents and
+  sessions, and manages their passkeys;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
   starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
   checks for new messages, and reports its state, such as working or stopped;
@@ -53,8 +54,7 @@ provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers building from source, the checks CI runs, the contribution
-process and releasing. The [operator guide](docs/operator-guide.md) lists the commands, available
-and planned.
+process and releasing. The [operator guide](docs/operator-guide.md) lists the commands.
 
 ## Repository layout
 

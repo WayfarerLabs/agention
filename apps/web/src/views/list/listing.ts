@@ -1,4 +1,10 @@
-import type { ThreadSummary } from "@wayfarerlabs/agention-api";
+import {
+  type GroupsAndTags,
+  noGroup,
+  type SessionGroupsFilter,
+  type ThreadList,
+  type ThreadSummary,
+} from "@wayfarerlabs/agention-api";
 
 // The sessions and topics the list names, and the threads it loads.
 
@@ -16,9 +22,12 @@ export function topicShown(path: string): string {
   return `${session}/${topic}`;
 }
 
+// A thread as the operator's list shows it, with its session's group.
+export type ListedThread = ThreadList["threads"][number];
+
 // distinct keeps each thread once: one that moved between two pages as they
 // loaded comes back on both.
-export function distinct(threads: ThreadSummary[]): ThreadSummary[] {
+export function distinct<T extends ThreadSummary>(threads: T[]): T[] {
   const seen = new Set<string>();
   return threads.filter((thread) => {
     const key = `${thread.agent}/${thread.session}/${thread.number}`;
@@ -26,4 +35,30 @@ export function distinct(threads: ThreadSummary[]): ThreadSummary[] {
     seen.add(key);
     return first;
   });
+}
+
+// removedGroup is what groupNamed gives for a group no longer there: a value
+// no group's name can be, so a group named "removed" is not taken for one.
+export const removedGroup = Symbol("removed group");
+
+// What the group filter's value names, as the operator's groups and tags
+// say, while they are known: no group; a group, by its name now; or
+// removedGroup for a group no longer there.
+export function groupNamed(
+  value: SessionGroupsFilter[number],
+  known: GroupsAndTags | undefined,
+): string | typeof removedGroup | undefined {
+  if (value === noGroup) {
+    return "No group";
+  }
+  if (known === undefined) {
+    return undefined;
+  }
+  return known.groups.find((group) => group.id === value)?.name ?? removedGroup;
+}
+
+// tagCarried says whether something carries a tag, as the operator's groups
+// and tags say; while they are not known, or leave tags out, it is taken to.
+export function tagCarried(tag: string, known: GroupsAndTags | undefined): boolean {
+  return known === undefined || known.truncated || known.tags.some((each) => each.name === tag);
 }

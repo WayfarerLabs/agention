@@ -5,10 +5,15 @@
 // marking unread from a message, archiving, the list's filters, their counts,
 // its order, the order's direction and grouping, an ask the agent withdraws,
 // the sessions view with a session's status and log, at a phone's width too,
-// a thread the operator starts there and stranded's reason, signing in again, a second passkey that takes over from the first, and a
-// second server on another port of the host signed in beside the first. CDP
-// virtual authenticators stand in for the operator's devices; one page
-// carries through the steps, in order.
+// a thread the operator starts there and stranded's reason, a session's
+// options menu over the next agent's header, the sessions view folded by
+// group with a group's link to its threads and the links to stranded
+// threads, at a phone's width too, the last session's options menu over the
+// folds below it, grouped or not, the Sessions tab's count of sessions with
+// unread updates, signing in again, a second passkey that takes over from
+// the first, and a second server on another port of the host signed in
+// beside the first. CDP virtual authenticators stand in for the operator's
+// devices; one page carries through the steps, in order.
 import type { BrowserContext, CDPSession, Page } from "@playwright/test";
 import type {
   PublicKey,
@@ -514,12 +519,20 @@ test("the sessions view shows a session's status and log, and starts a thread th
     expect(reported.status).toBe(200);
   }
 
-  await page.getByRole("link", { name: "Sessions" }).click();
+  // Going to the sessions view, its tab counts the one session with updates
+  // unread.
+  const tab = page.getByRole("navigation", { name: "Views" }).getByRole("link", {
+    name: /^Sessions/,
+  });
+  await tab.click();
+  await expect(tab).toHaveAccessibleName(/^Sessions\s+1 session with new updates$/);
   const fold = page.getByRole("button", { name: /^main Retire invoices 60%/ });
   const row = page.getByRole("listitem").filter({ has: fold });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(row.getByText("Idle", { exact: true })).toBeVisible();
-  await expect(row.getByTitle("4 unread updates")).toBeVisible();
+  // It was seen just now, on the line under its head, so it is not quiet.
+  await expect(row.locator(".session-seen:not(.warning) time")).toBeVisible();
+  await expect(row.getByText("4 new updates")).toBeVisible();
   await expect(row.getByText("Waiting on CI")).toBeVisible();
 
   // Unfolded, the log shows newest first, the two updates of progress alone
@@ -529,7 +542,8 @@ test("the sessions view shows a session's status and log, and starts a thread th
   const log = row.getByRole("list", { name: "Updates" });
   await expect(log.getByRole("listitem")).toHaveCount(3);
   await expect(log.getByRole("listitem").nth(1)).toContainText(/20%.*60%/);
-  await expect(row.getByTitle("4 unread updates")).toHaveCount(0);
+  await expect(row.getByText("4 new updates")).toHaveCount(0);
+  await expect(tab).toHaveAccessibleName("Sessions");
 
   // At a phone's width, the view and its sheet scroll only up and down.
   const wide = page.viewportSize();
@@ -566,6 +580,185 @@ test("the sessions view shows a session's status and log, and starts a thread th
     /Stranded.*completed/,
   );
   await agent.send("POST", "/s/builder/main/status", { state: "working" });
+});
+
+test("a session's options menu lies over the next agent's header, at a phone's width too", async ({
+  agention,
+}) => {
+  // A second agent, whose header follows builder's one session and,
+  // with builder folded, its header.
+  const deployer = new Agent(agention);
+  await deployer.send("POST", "/registrations", { agent: "deployer", session: "main" });
+  await page.getByRole("link", { name: "Sessions" }).click();
+  const code = registrationCode(deployer.publicKey as PublicKey);
+  await page
+    .getByRole("article", { name: `Registration ${code}` })
+    .getByRole("button", { name: "Approve" })
+    .click();
+  await expect(page.getByRole("button", { name: /^Agent deployer/ })).toBeVisible();
+
+  const wide = page.viewportSize();
+  for (const size of [wide, { width: 390, height: 844 }]) {
+    if (size !== null) {
+      await page.setViewportSize(size);
+    }
+    const options = page.getByRole("button", { name: "Options for builder/main" });
+    await options.click();
+    // The click lands on the menu's item, not on the header beneath it.
+    await page.getByRole("button", { name: /^Group: / }).click();
+    const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(options).toBeFocused();
+  }
+  // So does the agent's own menu, in its header, with the agent folded.
+  const builder = page.getByRole("button", { name: /^Agent builder/ });
+  await builder.click();
+  await expect(builder).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Options for builder" }).click();
+  await page.getByRole("button", { name: /^Tags: / }).click();
+  const tags = page.getByRole("dialog", { name: "Tags for builder" });
+  await expect(tags).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tags).toBeHidden();
+  await builder.click();
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
+});
+
+test("the sessions view folds by group, each group's head linking to its threads, and links stranded threads, at a phone's width too", async () => {
+  // builder/main stops, stranding the threads holding a message of the
+  // operator's it has not read, such as Keep the archive.
+  await agent.send("POST", "/s/builder/main/status", { state: "stopped", outcome: "completed" });
+  // builder/main goes into a new group, Work; deployer/main stays in none.
+  await page.getByRole("button", { name: "Options for builder/main" }).click();
+  await page.getByRole("button", { name: /^Group: / }).click();
+  const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
+  await sheet.getByLabel("New group's name").fill("Work");
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  const work = page.getByRole("button", { name: /^Group Work, \d+ threads?/ });
+  const none = page.getByRole("button", { name: /^No group, \d+ threads?/ });
+  await expect(work).toBeVisible();
+  await expect(none).toBeVisible();
+  const builder = page.getByRole("button", { name: /^Agent builder/ });
+  await expect(builder).toHaveCount(1);
+
+  const wide = page.viewportSize();
+  const scrollsSideways = () =>
+    page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  for (const size of [wide, { width: 390, height: 844 }]) {
+    if (size !== null) {
+      await page.setViewportSize(size);
+    }
+    expect(await scrollsSideways()).toBe(false);
+    // The group's head folds what it holds, and unfolds it again.
+    await work.click();
+    await expect(work).toHaveAttribute("aria-expanded", "false");
+    await expect(builder).toBeHidden();
+    await work.click();
+    await expect(builder).toBeVisible();
+    // Its link lands on the thread list filtered to the group alone.
+    await page.getByRole("link", { name: /^\d+ threads? of Work$/ }).click();
+    await expect(page).toHaveURL(/\/\?session_group=\d+$/);
+    await expect(page.getByRole("button", { name: /^Remove filter: Group:? Work/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
+    expect(await scrollsSideways()).toBe(false);
+    await page.getByRole("link", { name: /^Sessions/ }).click();
+    await expect(work).toBeVisible();
+    // The session's stranded threads, and its agent's in Work, land on the
+    // thread list filtered to exactly those: as many as the link says, each
+    // stranded.
+    for (const owner of ["builder/main", "builder"]) {
+      const stranded = page.getByRole("link", {
+        name: new RegExp(`^\\d+ stranded threads? of ${owner}$`),
+      });
+      const count = Number((await stranded.textContent())?.match(/^\d+/)?.[0]);
+      expect(count).toBeGreaterThan(0);
+      await stranded.click();
+      await expect(page).toHaveURL(/\/\?agent_read=stranded&/);
+      await expect(page.getByRole("button", { name: "Remove filter: Stranded" })).toBeVisible();
+      const rows = page.locator(".thread-row");
+      await expect(rows).toHaveCount(count);
+      for (const row of await rows.all()) {
+        await expect(row).toContainText("Stranded");
+      }
+      await expect(rows.filter({ hasText: "Keep the archive" })).toHaveCount(1);
+      expect(await scrollsSideways()).toBe(false);
+      await page.getByRole("link", { name: /^Sessions/ }).click();
+      await expect(work).toBeVisible();
+    }
+  }
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
+  await agent.send("POST", "/s/builder/main/status", { state: "working" });
+});
+
+// menuLiesOnTop opens a session's options menu, brings each of its items
+// into view and checks that the item is what lies at its own center, so
+// nothing on the page, such as the head of a fold below, covers it, then
+// closes the menu.
+async function menuLiesOnTop(path: string): Promise<void> {
+  const options = page.getByRole("button", { name: `Options for ${path}` });
+  await options.click();
+  const items = page.locator(".options.open .options-menu button");
+  expect(await items.count()).toBeGreaterThan(0);
+  for (const item of await items.all()) {
+    const onTop = await item.evaluate((element) => {
+      element.scrollIntoView({ block: "nearest" });
+      const box = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit !== null && element.contains(hit);
+    });
+    expect([path, await item.textContent(), onTop]).toEqual([path, await item.textContent(), true]);
+  }
+  await page.keyboard.press("Escape");
+  await expect(items).toHaveCount(0);
+}
+
+test("the last session's options menu lies over the folds below it, grouped or not, at a phone's width too", async () => {
+  // deployer/main is the last session of the last agent, and grouped, of the
+  // last agent in the last group, No group; Credentials and past requests
+  // folds beneath it.
+  const pastRequests = page.getByRole("button", { name: /^Credentials and past requests/ });
+  const wide = page.viewportSize();
+  const check = async () => {
+    for (const size of [wide, { width: 390, height: 844 }]) {
+      if (size !== null) {
+        await page.setViewportSize(size);
+      }
+      for (const expanded of ["false", "true"]) {
+        if ((await pastRequests.getAttribute("aria-expanded")) !== expanded) {
+          await pastRequests.click();
+        }
+        await expect(pastRequests).toHaveAttribute("aria-expanded", expanded);
+        await menuLiesOnTop("deployer/main");
+      }
+    }
+    if ((await pastRequests.getAttribute("aria-expanded")) === "true") {
+      await pastRequests.click();
+    }
+  };
+  await expect(page.getByRole("button", { name: /^No group/ })).toBeVisible();
+  await check();
+  // With builder/main back in no group, the view folds by agent alone.
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
+  await page.getByRole("button", { name: "Options for builder/main" }).click();
+  await page.getByRole("button", { name: /^Group: / }).click();
+  const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
+  await sheet.getByRole("radio", { name: "No group" }).check();
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole("button", { name: /^No group/ })).toHaveCount(0);
+  await check();
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
 });
 
 test("signing in with the passkey returns to the page that needed it", async () => {

@@ -629,6 +629,15 @@ describe("a database an earlier release wrote", () => {
     );
   }
 
+  // earlier keeps the tables of rows that a database had before it was opened
+  // at HEAD.
+  function earlier(
+    rows: Record<string, string[]>,
+    before: Record<string, string[]>,
+  ): Record<string, string[]> {
+    return Object.fromEntries(Object.keys(before).map((name) => [name, rows[name] ?? []]));
+  }
+
   it("opens with migration 1's rows intact and the session log's tables empty", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
@@ -673,10 +682,73 @@ describe("a database an earlier release wrote", () => {
         user_version: migrations.length,
       });
       const after = rowsOf(database);
-      expect(after).toEqual({ ...before, session_marks: [], session_updates: [] });
+      expect(earlier(after, before)).toEqual(before);
+      expect([after.session_marks, after.session_updates]).toEqual([[], []]);
       expect(
         database.prepare("SELECT rowid FROM thread_titles WHERE thread_titles MATCH 'ship*'").all(),
       ).toEqual([{ rowid: 1 }]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("opens with the session log's rows intact, no groups or tags, and messages searchable", () => {
+    const file = path.join(root, "agention.db");
+    const before = withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      connection.exec(migrations[0] ?? "");
+      connection.exec(migrations[1] ?? "");
+      connection.exec("PRAGMA user_version = 2");
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO agents (name, created_at) VALUES ('builder', 1);
+        INSERT INTO sessions (agent_id, name, last_pos, last_seen_at, created_at)
+          VALUES (1, 'main', 3, 60000, 1);
+        INSERT INTO actors (person_id) VALUES (1);
+        INSERT INTO actors (session_id) VALUES (1);
+        INSERT INTO registrations (public_key, proposed_agent, proposed_session, status,
+            session_id, created_at, expires_at, decided_at, revoked_at)
+          VALUES ('approved-key', 'builder', 'main', 'approved', 1, 1, 2, 1, NULL);
+        INSERT INTO threads (session_id, number, requester_actor_id, audience_actor_id, title,
+            created_at, last_seq)
+          VALUES (1, 1, 2, 1, 'Release notes', 1, 3);
+        INSERT INTO messages (thread_id, seq, session_id, session_pos, actor_id, registration_id,
+            created_at, request_id, digest, text, detail, replaces_seq)
+          VALUES (1, 1, 1, 1, 2, 1, 1, 'r-1', zeroblob(32), 'Drafted the changelog.',
+              'Covers the migration to Postgres.', NULL),
+            (1, 2, 1, 2, 2, 1, 2, 'r-2', zeroblob(32), 'Old wording about Kubernetes.', NULL,
+              NULL),
+            (1, 3, 1, 3, 2, 1, 3, 'r-3', zeroblob(32), 'New wording.', NULL, 2);
+        INSERT INTO session_updates (session_id, seq, registration_id, state, title, note,
+            created_at)
+          VALUES (1, 1, 1, 'working', 'Release', 'Started.', 1),
+            (1, 2, 1, 'idle', 'Release', NULL, 2);
+        INSERT INTO session_marks (actor_id, session_id, read_seq) VALUES (1, 1, 1);
+        INSERT INTO thread_marks (actor_id, thread_id, read_seq, archived_seq)
+          VALUES (1, 1, 3, 0);
+      `);
+      return rowsOf(connection);
+    });
+    chmodSync(file, 0o600);
+
+    const database = Database.open(file);
+    try {
+      const after = rowsOf(database);
+      expect(earlier(after, before)).toEqual(before);
+      expect([
+        after.session_groups,
+        after.session_group_members,
+        after.agent_tags,
+        after.session_tags,
+      ]).toEqual([[], [], [], []]);
+      // What the messages said before is found as it is written, each message
+      // by its thread and sequence.
+      const found = (text: string) =>
+        database
+          .prepare("SELECT thread_id, seq FROM message_texts WHERE message_texts MATCH ?")
+          .all(text);
+      expect(found("postgres*")).toEqual([{ thread_id: 1, seq: 1 }]);
+      expect(found("kubernetes*")).toEqual([{ thread_id: 1, seq: 2 }]);
     } finally {
       database.close();
     }

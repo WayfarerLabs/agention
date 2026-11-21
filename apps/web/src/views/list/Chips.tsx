@@ -1,4 +1,10 @@
-import type { impactFilter, priorityFilter, ThreadsView } from "@wayfarerlabs/agention-api";
+import type {
+  GroupsAndTags,
+  impactFilter,
+  priorityFilter,
+  SessionGroupsFilter,
+  ThreadsView,
+} from "@wayfarerlabs/agention-api";
 import { PathBadge, type PathKind, pathWord } from "../../components.tsx";
 import {
   effortLabel,
@@ -8,7 +14,7 @@ import {
   statusLabel,
   type TerseLabel,
 } from "../../format.tsx";
-import { sessionOf, topicShown } from "./listing.ts";
+import { groupNamed, removedGroup, sessionOf, tagCarried, topicShown } from "./listing.ts";
 
 // The filters that are on, each a chip beneath the list's head that removes
 // it.
@@ -46,13 +52,53 @@ function several(kind: PathKind, values: string[], shown: (value: string) => str
     : plain(plural(values.length, kind));
 }
 
+// groupsLabel labels the groups chosen, by their names as the operator's
+// groups and tags say: the one group by its name, or how many, saying how
+// many of them were removed, since a removed group keeps nothing. A label
+// that says so leads with it, so cutting the label short never cuts it.
+function groupsLabel(groups: SessionGroupsFilter, known: GroupsAndTags | undefined): TerseLabel {
+  const names = groups.map((group) => groupNamed(group, known));
+  const [one] = names;
+  if (names.length === 1) {
+    return one === removedGroup
+      ? { shown: "Removed group", spoken: "Removed group, keeping nothing" }
+      : one === undefined
+        ? plain(plural(1, "group"))
+        : { shown: `Group: ${one}`, spoken: `Group ${one}` };
+  }
+  const removed = names.filter((name) => name === removedGroup).length;
+  const several = plural(names.length, "group");
+  return removed === 0
+    ? plain(several)
+    : { shown: `${several}, ${removed} removed`, spoken: `${several}, ${removed} removed` };
+}
+
+// tagsLabel labels the tags chosen: the one tag by its name, or how many,
+// saying how many nothing carries any more, since such a tag keeps nothing.
+// A label that says so leads with it, as a removed group's does.
+function tagsLabel(tags: string[], known: GroupsAndTags | undefined): TerseLabel {
+  const unused = tags.filter((tag) => !tagCarried(tag, known)).length;
+  const [one] = tags;
+  if (tags.length === 1 && one !== undefined) {
+    return unused === 0
+      ? { shown: `Tag: ${one}`, spoken: `Tag ${one}` }
+      : { shown: `Unused tag: ${one}`, spoken: `Unused tag ${one}, on nothing, keeping nothing` };
+  }
+  const several = plural(tags.length, "tag");
+  return unused === 0
+    ? plain(several)
+    : { shown: `${several}, ${unused} unused`, spoken: `${several}, ${unused} on nothing` };
+}
+
 // chip gives a filter's chip while it is on: on is true, or the value it is
 // on at, which each builds the chip from.
 function chip<T>(on: T | false | undefined, each: (value: T) => Chip): Chip[] {
   return on === undefined || on === false ? [] : [each(on)];
 }
 
-export function chipsOf(view: ThreadsView): Chip[] {
+// chipsOf gives the chips of the filters on in a list, naming groups and
+// tags as the operator's groups and tags, when known, say they are.
+export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
   const { search, priority, impact, effort } = view;
   return [
     ...chip(search !== undefined, () => ({
@@ -112,6 +158,16 @@ export function chipsOf(view: ThreadsView): Chip[] {
       kind: "topic" as const,
       label: several("topic", topics, topicShown),
       remove: { topic: undefined },
+    })),
+    ...chip(view.session_group, (groups) => ({
+      key: "session_group",
+      label: groupsLabel(groups, known),
+      remove: { session_group: undefined },
+    })),
+    ...chip(view.tag, (tags) => ({
+      key: "tag",
+      label: tagsLabel(tags, known),
+      remove: { tag: undefined },
     })),
     ...chip(view.include_archived, () => ({
       key: "include_archived",

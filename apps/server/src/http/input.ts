@@ -1,9 +1,11 @@
 import {
+  groupId,
   invalidInputBody,
   name,
   passkeyId,
   queryNumber,
   registrationId,
+  tagName,
   threadNumber,
 } from "@wayfarerlabs/agention-api";
 import type { Context } from "hono";
@@ -87,4 +89,16 @@ export function registrationOf(c: Context): number {
 
 export function passkeyOf(c: Context): number {
   return parse(queryNumber(passkeyId), c.req.param("id"), "id");
+}
+
+export function groupOf(c: Context): number {
+  return parse(queryNumber(groupId), c.req.param("id"), "id");
+}
+
+export function tagOf(c: Context): string {
+  return parse(tagName, c.req.param("tag"), "tag");
+}
+
+export function agentOf(c: Context): string {
+  return parse(name, c.req.param("agent"), "agent");
 }

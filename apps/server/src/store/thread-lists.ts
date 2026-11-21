@@ -7,9 +7,11 @@ import {
   defaultSort,
   effortFilter,
   formatTimestamp,
+  type GroupRef,
   impactFilter,
   keepsAsks,
   maxListed,
+  noGroup,
   priority,
   priorityFilter,
   type Rollup,
@@ -22,6 +24,7 @@ import {
   type ThreadList,
   type ThreadPage,
   type ThreadSort,
+  type ThreadSummary,
   type ThreadsQuery,
   threadStatus,
 } from "@wayfarerlabs/agention-api";
@@ -49,6 +52,12 @@ import { authorizeSession, type SessionTarget } from "./threads.ts";
 // each part serves the list, its total, the counts of its filters' values and
 // its groups.
 
+// The tags each session carries, its own and its agent's, each once.
+const carriedTags = `(
+  SELECT session_id, name FROM session_tags
+  UNION SELECT s.id, a.name FROM agent_tags a JOIN sessions s ON s.agent_id = a.agent_id
+)`;
+
 // A part of a list: which threads it keeps, over seen as th, and whether a
 // list's filters turn it on.
 interface Part {
@@ -56,17 +65,26 @@ interface Part {
   on: (query: ThreadFilters) => boolean;
 }
 
-// The parts of a list. A list keeps the threads not archived for the viewer
-// unless it includes archived ones, and each filter that is on adds its own
-// part. While any filter on asks is on, it keeps the threads leading with an
-// open ask, which only an ask meeting every one of them can be, and so only
-// open threads.
-const parts = {
+// Search keeps the threads whose title holds every word of the search, or,
+// searching what messages say too, those one of whose live messages does in
+// its text and detail together. A replaced message's words stay in the
+// index, which keeps no copy of them, so its rows join the live messages.
+const searching = (query: ThreadFilters) => query.search !== undefined;
+const titleSearch = "th.id IN (SELECT rowid FROM thread_titles WHERE thread_titles MATCH :search)";
+const messageSearch = `th.id IN (
+  SELECT message_texts.thread_id FROM message_texts
+  JOIN live_messages l ON l.thread_id = message_texts.thread_id AND l.seq = message_texts.seq
+  WHERE message_texts MATCH :search
+)`;
+
+// The parts of the operator's list. A list keeps the threads not archived for
+// the viewer unless it includes archived ones, and each filter that is on
+// adds its own part. While any filter on asks is on, it keeps the threads
+// leading with an open ask, which only an ask meeting every one of them can
+// be, and so only open threads.
+const listParts = {
   not_archived: { keeps: "NOT th.archived", on: (query) => !query.include_archived },
-  search: {
-    keeps: "th.id IN (SELECT rowid FROM thread_titles WHERE thread_titles MATCH :search)",
-    on: (query) => query.search !== undefined,
-  },
+  search: { keeps: `${titleSearch} OR ${messageSearch}`, on: searching },
   status: { keeps: "th.status = :status", on: (query) => query.status !== undefined },
   unread: { keeps: "th.unread > 0", on: (query) => query.unread },
   // A live message by the viewer beyond the other party's read mark, and for
@@ -89,8 +107,25 @@ const parts = {
       IN (SELECT value FROM json_each(:topic))`,
     on: (query) => query.topic !== undefined,
   },
+  // A session in no group counts as in the group 0, which no group's id is.
+  session_group: {
+    keeps: "COALESCE(th.group_id, 0) IN (SELECT value FROM json_each(:session_group))",
+    on: (query) => query.session_group !== undefined,
+  },
+  tag: {
+    keeps: `th.session_id IN (
+      SELECT session_id FROM ${carriedTags} WHERE name IN (SELECT value FROM json_each(:tag))
+    )`,
+    on: (query) => query.tag !== undefined,
+  },
   asks: { keeps: "th.lead_number IS NOT NULL", on: keepsAsks },
 } satisfies Record<string, Part>;
+
+type Parts = Record<keyof typeof listParts, Part>;
+
+// The parts of a session's list, which its agent reads: its search stays on
+// titles.
+const sessionParts: Parts = { ...listParts, search: { keeps: titleSearch, on: searching } };
 
 // What each filter on asks keeps of open asks, over open_asks as o, at the
 // value the query binds for it.
@@ -105,8 +140,9 @@ const askKeeps: Record<AskFilter, string> = {
 const unfiltered = threadFilters.parse({});
 
 // where is the condition a query's list keeps threads by: that of every part
-// its filters turn on.
-function where(query: ThreadFilters): string {
+// its filters turn on, of the operator's list unless the parts given are
+// another's.
+function where(query: ThreadFilters, parts: Parts = listParts): string {
   const on: Part[] = Object.values(parts).filter((part) => part.on(query));
   return on.length === 0 ? "1" : on.map((part) => `(${part.keeps})`).join(" AND ");
 }
@@ -172,6 +208,10 @@ function parametersOf(query: ThreadFilters, viewing: ViewerAndCutoff, now: numbe
     agent: JSON.stringify(query.agent ?? []),
     session: JSON.stringify(query.session ?? []),
     topic: JSON.stringify(query.topic ?? []),
+    session_group: JSON.stringify(
+      (query.session_group ?? []).map((group) => (group === noGroup ? 0 : group)),
+    ),
+    tag: JSON.stringify(query.tag ?? []),
   };
 }
 
@@ -276,62 +316,91 @@ function ranked(sort: ThreadSort, reverse: boolean, bySession: boolean): string 
   )`;
 }
 
-// What a grouped list groups its threads by, over ranked as th: the outer
-// group, and the inner group within it.
-const groupedBy: Record<ThreadGrouping, { outer: string; inner: string }> = {
-  session: { outer: "th.session_id", inner: "th.session_id, th.topic" },
-  agent: { outer: "th.agent_name", inner: "th.agent_name, th.session_id" },
+// The levels each grouping groups its threads by, over ranked as th,
+// outermost first, each by what partitions its groups: by session group, the
+// session's group, no group being one of its own, then the session, then its
+// topic; by session, the session, then its topic; by agent, the agent, then
+// its session. A session sits in at most one group and belongs to one agent,
+// so it settles the levels above it.
+// Each level is numbered from the outermost, 0, which names its keys.
+type Level = 0 | 1 | 2;
+const levelsOf: Record<ThreadGrouping, readonly { level: Level; partition: string }[]> = {
+  session_group: [
+    { level: 0, partition: "th.group_id" },
+    { level: 1, partition: "th.session_id" },
+    { level: 2, partition: "th.session_id, th.topic" },
+  ],
+  session: [
+    { level: 0, partition: "th.session_id" },
+    { level: 1, partition: "th.session_id, th.topic" },
+  ],
+  agent: [
+    { level: 0, partition: "th.agent_name" },
+    { level: 1, partition: "th.agent_name, th.session_id" },
+  ],
 };
 
-// A grouped list orders its threads by their outer group, then their inner
-// group, then their own keys. A group's place is its first thread's keys. As
-// a moved thread does in the flat list, a change that moves a group ahead of a
-// page's cursor skips that group's remaining threads for the rest of that
-// pass, and one that moves it behind repeats them; the next load from the
-// first page shows the list whole.
-const outerKeys = keys.map((key) => `outer_${key}` as const);
-const innerKeys = keys.map((key) => `inner_${key}` as const);
-
-type OrderKey = (typeof keys | typeof outerKeys | typeof innerKeys)[number];
+// A grouped list orders its threads by the group they are in at each level,
+// outermost first, then by their own keys. A group's place is its first
+// thread's keys. As a moved thread does in the flat list, a change that moves
+// a group ahead of a page's cursor skips that group's remaining threads for
+// the rest of that pass, and one that moves it behind repeats them; the next
+// load from the first page shows the list whole.
+type ThreadKey = (typeof keys)[number];
+type OrderKey = ThreadKey | `level${Level}_${ThreadKey}`;
+const levelKeys = (level: Level) => keys.map((key) => `level${level}_${key}` as const);
 
 // The keys a list orders its threads by, grouped or not.
 const keysOf = (grouping: ThreadGrouping | undefined): readonly OrderKey[] =>
-  grouping === undefined ? keys : [...outerKeys, ...innerKeys, ...keys];
+  grouping === undefined
+    ? keys
+    : [...levelsOf[grouping].flatMap(({ level }) => levelKeys(level)), ...keys];
 
 // placing selects the threads a query keeps, over ranked as th, with the
 // places of their groups when grouped.
-function placing(query: ThreadFilters, grouping: ThreadGrouping | undefined): string {
+function placing(query: ThreadFilters, parts: Parts, grouping: ThreadGrouping | undefined): string {
   if (grouping === undefined) {
-    return `SELECT th.* FROM ranked th WHERE ${where(query)}`;
+    return `SELECT th.* FROM ranked th WHERE ${where(query, parts)}`;
   }
-  const { outer, inner } = groupedBy[grouping];
-  const firsts = (window: string, named: string[]) =>
-    keys.map((key, index) => `first_value(th.${key}) OVER ${window} AS ${named[index]}`);
-  return `SELECT th.*, ${[...firsts("outer_group", outerKeys), ...firsts("inner_group", innerKeys)].join(", ")}
-    FROM ranked th WHERE ${where(query)}
-    WINDOW outer_group AS (PARTITION BY ${outer} ORDER BY ${listOrder}),
-      inner_group AS (PARTITION BY ${inner} ORDER BY ${listOrder})`;
+  const levels = levelsOf[grouping];
+  const firsts = levels.flatMap(({ level }) =>
+    keys.map((key) => `first_value(th.${key}) OVER level${level} AS level${level}_${key}`),
+  );
+  const windows = levels.map(
+    ({ level, partition }) => `level${level} AS (PARTITION BY ${partition} ORDER BY ${listOrder})`,
+  );
+  return `SELECT th.*, ${firsts.join(", ")}
+    FROM ranked th WHERE ${where(query, parts)}
+    WINDOW ${windows.join(", ")}`;
 }
 
 type RankedRow = ThreadRow & Record<OrderKey, number>;
 
-interface PageQuery {
+interface PageQuery<T> {
   // Which threads, over threads as t, and whether they span sessions.
   scope: string;
   bySession: boolean;
   parameters: Parameters;
   query: ThreadFilters;
+  // The parts the list keeps its threads by.
+  parts: Parts;
   sort: ThreadSort;
   reverse: boolean;
   grouping?: ThreadGrouping | undefined;
   cursor: string | undefined;
   limit: number;
+  // What the list shows of each thread.
+  describe: (row: ThreadRow, now: number) => T;
 }
 
 // pageThreads reads a page of the threads a query keeps, in order. A cursor
 // is a position in that order, tagged with the order, its direction and the
 // grouping, so one from another is refused.
-function pageThreads(db: Database, now: number, page: PageQuery): ThreadPage {
+function pageThreads<T>(
+  db: Database,
+  now: number,
+  page: PageQuery<T>,
+): { threads: T[]; next?: string } {
   const direction = page.reverse ? "reversed" : "own";
   const tag = `threads.${page.sort}.${direction}.${page.grouping ?? "flat"}`;
   const order = keysOf(page.grouping);
@@ -342,7 +411,7 @@ function pageThreads(db: Database, now: number, page: PageQuery): ThreadPage {
   const rows = listStatement(
     db,
     `${threadsSeen(page.scope, leadOf(page.query, page.sort))}, ${ranked(page.sort, page.reverse, page.bySession)},
-     kept AS (${placing(page.query, page.grouping)})
+     kept AS (${placing(page.query, page.parts, page.grouping)})
      SELECT * FROM kept
      WHERE :after = 0 OR (${order.join(", ")}) > (${order.map((key) => `:${key}`).join(", ")})
      ORDER BY ${order.join(", ")}
@@ -356,7 +425,7 @@ function pageThreads(db: Database, now: number, page: PageQuery): ThreadPage {
   const { rows: shown, more } = pageOf(rows, page.limit);
   const last = shown.at(-1);
   return {
-    threads: shown.map((row) => toThreadSummary(row, now)),
+    threads: shown.map((row) => page.describe(row, now)),
     ...(more && last !== undefined
       ? {
           next: encodeCursor(
@@ -395,10 +464,12 @@ export function listSessionThreads(
         session_id: sessionId,
       },
       query: filters,
+      parts: sessionParts,
       sort: defaultSort,
       reverse: false,
       cursor: query.cursor,
       limit: query.limit,
+      describe: toThreadSummary,
     });
   });
 }
@@ -448,11 +519,13 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
       bySession: true,
       parameters: { ...reach.scope, ...parametersOf(query, reach.viewing, now) },
       query,
+      parts: listParts,
       sort: query.sort,
       reverse: query.reverse,
       grouping: query.group,
       cursor: query.cursor,
       limit: query.limit,
+      describe: withGroup,
     });
     const total = totalOf(reach, query);
     return {
@@ -461,6 +534,15 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
       ...(query.group === undefined ? {} : { groups: rollUpGroups(reach, query, query.group) }),
     };
   });
+}
+
+// withGroup describes a thread as the operator's list shows it, with its
+// session's group when it is in one.
+function withGroup(row: ThreadRow, now: number): ThreadSummary & { group?: GroupRef } {
+  return {
+    ...toThreadSummary(row, now),
+    ...(row.group_id === null ? {} : { group: { id: row.group_id, name: row.group_name ?? "" } }),
+  };
 }
 
 // listedOf keeps the first maxListed rows of those read with one extra,
@@ -472,10 +554,12 @@ function listedOf<T>(rows: T[]): { rows: T[]; truncated: boolean } {
 // countThreads counts, for each value of each filter but search, the threads
 // it keeps with every other filter as it is. Each value of a filter taking
 // one is counted by the list's own total with that value chosen, so one rule
-// says what the list keeps. Agents, sessions and topics are each counted in
-// one statement, grouped by them, with that filter's own condition off: every
-// agent, session and topic holding a thread. Each lists at most maxListed, in
-// name order, and says when it leaves any out.
+// says what the list keeps. Agents, sessions, topics, groups and tags are each
+// counted in one statement, grouped by them, with that filter's own condition
+// off: every agent, session, topic and group holding a thread, no group
+// among them, and every tag a session holding a thread or its agent carries.
+// Each lists at most maxListed, in name order, and says when it leaves any
+// out; there are never more groups than that.
 export function countThreads(store: Store, identity: Identity, query: ThreadFilters): ThreadCounts {
   const { db } = store;
   return db.transaction(() => {
@@ -530,6 +614,27 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
          ORDER BY th.session_name, th.topic, th.agent_name LIMIT :listed`,
       ).all(parameters) as { agent: string; session: string; topic: string; total: number }[],
     );
+    // Each group holding a thread, no group among them, with the threads it
+    // keeps.
+    const groups = listStatement(
+      db,
+      `${threadsSeen(reached, leadOf(query, defaultSort))}
+       SELECT th.group_id AS id, th.group_name AS name,
+         count(*) FILTER (WHERE ${where({ ...query, session_group: undefined })}) AS total
+       FROM seen th GROUP BY th.group_id ORDER BY th.group_name, th.group_id`,
+    ).all(parameters) as { id: number | null; name: string | null; total: number }[];
+    // Each tag a session holding a thread carries, or its agent does, with
+    // the threads it keeps.
+    const tags = listedOf(
+      listStatement(
+        db,
+        `${threadsSeen(reached, leadOf(query, defaultSort))}
+         SELECT carried.name AS tag,
+           count(*) FILTER (WHERE ${where({ ...query, tag: undefined })}) AS total
+         FROM seen th JOIN ${carriedTags} carried ON carried.session_id = th.session_id
+         GROUP BY carried.name ORDER BY carried.name LIMIT :listed`,
+      ).all(parameters) as { tag: string; total: number }[],
+    );
 
     // Choosing a status other than open turns the filters on open asks off,
     // and choosing a value of one of them chooses open.
@@ -569,6 +674,13 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
       agent: { agents: agents.rows, truncated: agents.truncated },
       session: { sessions: sessions.rows, truncated: sessions.truncated },
       topic: { topics: topics.rows, truncated: topics.truncated },
+      session_group: {
+        groups: groups.flatMap(({ id, name, total }) =>
+          id === null ? [] : [{ id, name: name ?? "", total }],
+        ),
+        none: groups.find((group) => group.id === null)?.total ?? 0,
+      },
+      tag: { tags: tags.rows, truncated: tags.truncated },
       reset: totalOf(reach, unfiltered),
     };
   });
@@ -577,6 +689,8 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
 interface GroupRow {
   agent: string;
   session: string;
+  group_id: number | null;
+  group_name: string | null;
   topic: string | null;
   threads: number;
   unread: number;
@@ -590,20 +704,23 @@ interface GroupRow {
 }
 
 // rollUpGroups rolls up each session holding a thread the list keeps and,
-// grouped by session, each of its topics: how many threads, how many with
-// unread messages, whether any holds a blocking ask open to the viewer, the
-// highest priority of an open ask, and whether all are archived for the
-// viewer; each session also carries its presence. Groups come in the grouped
-// list's order, each placed by its first thread: by session, the sessions,
-// and the topics within each; by agent, the agents, and the sessions within
-// each. It lists the first maxListed sessions, and as many topics in all, and
-// says when it leaves any out.
+// grouped by session group or by session, each of its topics: how many
+// threads, how many with unread messages, whether any holds a blocking ask
+// open to the viewer, the highest priority of an open ask, and whether all
+// are archived for the viewer; each session also carries its presence and its
+// group. Groups come in the grouped list's order, each placed by its first
+// thread: by session group, the groups, the sessions within each, and the
+// topics within each session; by session, the sessions, and the topics
+// within each; by agent, the agents, and the sessions within each. It lists
+// the first maxListed sessions, and as many topics in all, and says when it
+// leaves any out.
 function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGrouping): ThreadGroups {
-  const byTopic = grouping === "session";
+  const byTopic = grouping !== "agent";
   const rows = listStatement(
     reach.db,
     `${threadsSeen(reached, leadOf(query, query.sort))}, ${ranked(query.sort, query.reverse, true)}
      SELECT th.agent_name AS agent, th.session_name AS session,
+       th.group_id, th.group_name,
        ${byTopic ? "th.topic" : "NULL"} AS topic,
        count(*) AS threads,
        count(*) FILTER (WHERE th.unread > 0) AS unread,
@@ -621,20 +738,30 @@ function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGroupin
     ...reach.scope,
     ...parametersOf(query, reach.viewing, reach.now),
   }) as unknown as GroupRow[];
-  const sessions = new Map<string, { agent: string; place: number; topics: GroupRow[] }>();
-  const agentPlaces = new Map<string, number>();
+  // What holds each session: by session group, its group, no group being one
+  // of its own; by agent, its agent; by session, nothing above it.
+  const holders: Record<ThreadGrouping, (row: GroupRow) => string> = {
+    session_group: (row) => `group:${row.group_id ?? ""}`,
+    session: () => "",
+    agent: (row) => `agent:${row.agent}`,
+  };
+  const holder = holders[grouping];
+  const sessions = new Map<string, { holder: string; place: number; topics: GroupRow[] }>();
+  const holderPlaces = new Map<string, number>();
   for (const row of rows) {
     const key = `${row.agent}/${row.session}`;
-    const session = sessions.get(key) ?? { agent: row.agent, place: row.place, topics: [] };
+    const session = sessions.get(key) ?? { holder: holder(row), place: row.place, topics: [] };
     session.place = Math.min(session.place, row.place);
     session.topics.push(row);
     sessions.set(key, session);
-    agentPlaces.set(row.agent, Math.min(agentPlaces.get(row.agent) ?? row.place, row.place));
+    holderPlaces.set(
+      session.holder,
+      Math.min(holderPlaces.get(session.holder) ?? row.place, row.place),
+    );
   }
-  const outerPlace = (session: { agent: string; place: number }) =>
-    grouping === "agent" ? (agentPlaces.get(session.agent) ?? 0) : session.place;
+  const holderPlace = (session: { holder: string }) => holderPlaces.get(session.holder) ?? 0;
   const ordered = [...sessions.values()].sort(
-    (a, b) => outerPlace(a) - outerPlace(b) || a.place - b.place,
+    (a, b) => holderPlace(a) - holderPlace(b) || a.place - b.place,
   );
   let topicsLeft = maxListed;
   let truncated = ordered.length > maxListed;
@@ -644,6 +771,9 @@ function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGroupin
     const session = {
       agent: first?.agent ?? "",
       session: first?.session ?? "",
+      ...(first === undefined || first.group_id === null
+        ? {}
+        : { group: { id: first.group_id, name: first.group_name ?? "" } }),
       rollup: composeRollup(byPlace.map(rollupOf)),
       presence: {
         ...(first === undefined || first.last_seen_at === null

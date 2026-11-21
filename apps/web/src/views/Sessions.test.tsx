@@ -1,4 +1,5 @@
 import type {
+  GroupsAndTags,
   Registration,
   SessionLog,
   SessionsPage,
@@ -40,6 +41,7 @@ type Agents = SessionsPage["agents"];
 
 const agent = (name: string, sessions: SessionSummary[], truncated = false) => ({
   agent: name,
+  tags: [],
   sessions,
   truncated,
 });
@@ -68,7 +70,7 @@ function serveRegistrations(registrations: Registration[]) {
 async function open(agents: Agents, path = "/sessions") {
   const state = serve(agents);
   renderAt(path);
-  await screen.findByRole("button", { name: new RegExp(`^Agent ${agents[0]?.agent ?? ""}`) });
+  await screen.findAllByRole("button", { name: new RegExp(`^Agent ${agents[0]?.agent ?? ""}`) });
   return state;
 }
 
@@ -182,16 +184,41 @@ describe("the sessions view", () => {
         sessionSummary({
           open_asks: { count: 2, blocking_count: 1 },
           unread_updates: 3,
-          threads: { total: 4, stranded: 1 },
+          threads: { total: 4, unread: 2, stranded: 1 },
         }),
-        sessionSummary({ session: "side", open_asks: { count: 1, blocking_count: 0 } }),
+        sessionSummary({
+          session: "side",
+          open_asks: { count: 1, blocking_count: 0 },
+          threads: { total: 1, unread: 1, stranded: 0 },
+        }),
       ]),
       agent("reviewer", [sessionSummary()]),
     ]);
     const builder = header("builder");
-    // The roll-up adds up the sessions' counts.
-    expect(builder.getAttribute("aria-label")).toMatch(/\b2 sessions\b.*\b3 open asks\b/);
-    expect(builder.getAttribute("aria-label")).toMatch(/\b3 unread updates\b.*\b1 stranded/);
+    // The roll-up adds up the sessions' counts, blocked said once, by the
+    // open asks.
+    const label = builder.getAttribute("aria-label") ?? "";
+    for (const count of [
+      /\b2 sessions\b/,
+      /\b5 threads\b/,
+      /\b3 unread\b/,
+      /\b3 new updates\b/,
+      /\b3 open asks\b/,
+      /\b1 blocking\b/,
+      /\b1 stranded/,
+    ]) {
+      expect(label).toMatch(count);
+    }
+    expect(builder.querySelector(".flag.attention")?.textContent).toMatch(/\b3\b.*\b1\b/);
+    expect(builder.querySelector(".flag.danger")).toBeNull();
+    // Its threads are a link to them on the thread list, and its stranded
+    // threads a link to those.
+    const threads = screen.getByRole("link", { name: "5 threads of builder" });
+    expect(threads.getAttribute("href")).toBe("/?agent=builder");
+    const stranded = screen.getByRole("link", { name: "1 stranded thread of builder" });
+    expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&agent=builder");
+    expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    expect(screen.queryByRole("link", { name: /stranded threads? of reviewer$/ })).toBeNull();
     expect(builder.getAttribute("aria-expanded")).toBe("true");
     expect(fold("side", folded(builder))).toBeTruthy();
     builder.focus();
@@ -219,7 +246,7 @@ describe("the sessions view", () => {
           },
           open_asks: { count: 3, blocking_count: 2 },
           unread_updates: 2,
-          threads: { total: 4, stranded: 1 },
+          threads: { total: 4, unread: 1, stranded: 1 },
         }),
         sessionSummary({ session: "review", status: { state: "idle" } }),
         sessionSummary({
@@ -229,6 +256,7 @@ describe("the sessions view", () => {
           status: { state: "stopped", outcome: "completed" },
         }),
         sessionSummary({ session: "nightly", presence: { last_seen_at: time, quiet: true } }),
+        sessionSummary({ session: "spare", presence: { quiet: true } }),
       ]),
     ]);
     const main = row("main");
@@ -241,26 +269,53 @@ describe("the sessions view", () => {
     const asks = within(main).getByRole("link", { name: /^Waiting on you/ });
     expect(asks.textContent).toMatch(/\b3\b.*\b2\b/);
     expect(asks.getAttribute("href")).toBe("/?status=open&session=builder/main");
-    const threads = within(main).getByRole("link", { name: /\b4 threads\b/ });
+    // Its threads' roll-up: how many, linking to them, and the envelope with
+    // how many are unread, blocked left to what waits on the operator; and
+    // its unread updates apart.
+    const threads = within(main).getByRole("link", { name: "4 threads of builder/main" });
     expect(threads.getAttribute("href")).toBe("/?session=builder/main");
-    expect(main.querySelector(".stranded")?.textContent).toMatch(/\b1\b/);
-    expect(within(main).getByTitle(/^2 unread/)).toBeTruthy();
+    // Its stranded threads link to those, flagged as an agent's header flags
+    // them.
+    const stranded = within(main).getByRole("link", { name: "1 stranded thread of builder/main" });
+    expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&session=builder/main");
+    expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    expect(within(row("review")).queryByRole("link", { name: /stranded/ })).toBeNull();
+    expect(within(main).getByTitle("1 unread")).toBeTruthy();
+    expect(within(main).queryByText("Blocked")).toBeNull();
+    expect(within(main).getByText("2 new updates")).toBeTruthy();
     expect(within(main).getByText("Backfill 62% done")).toBeTruthy();
 
     expect(within(row("review")).getByText("Idle")).toBeTruthy();
     expect(within(row("review")).queryByRole("link", { name: /^Waiting on you/ })).toBeNull();
     expect(within(row("review")).queryByTitle(/unread/)).toBeNull();
-    // A stopped session says how it stopped, which says it will not read
-    // what is written, so it is not also quiet.
+    expect(within(row("review")).getByTitle("Read")).toBeTruthy();
+    expect(within(row("review")).queryByText(/new update/)).toBeNull();
     expect(within(row("docs")).getByText("Stopped · completed")).toBeTruthy();
     expect(within(row("docs")).getByText("No credential")).toBeTruthy();
-    expect(within(row("docs")).queryByText(/^Quiet/)).toBeNull();
     expect(within(row("nightly")).getByText("No status")).toBeTruthy();
-    expect(
-      within(row("nightly"))
-        .getByText(/^Quiet/)
-        .querySelector("time"),
-    ).not.toBeNull();
+    // Every row says when its session was last seen, on a line of its own
+    // between its head and its facts, in the warning's tone while it is
+    // quiet, but for a stopped session, whose state says it will not read
+    // what is written; one never seen has no time to give.
+    const seen = (session: string) => row(session).querySelector(".session-seen");
+    for (const [session, quiet] of [
+      ["main", false],
+      ["review", false],
+      ["docs", false],
+      ["nightly", true],
+      ["spare", true],
+    ] as const) {
+      const line = seen(session);
+      expect(line?.previousElementSibling?.classList.contains("session-head")).toBe(true);
+      expect(line?.nextElementSibling?.classList.contains("session-facts")).toBe(true);
+      expect([session, line?.classList.contains("warning")]).toEqual([session, quiet]);
+      expect([session, line?.querySelector("time") !== null]).toEqual([
+        session,
+        session !== "spare",
+      ]);
+      // The facts hold nothing of when it was seen.
+      expect(row(session).querySelector(".session-facts time")).toBeNull();
+    }
   });
 
   it("goes to the session's open threads from what waits on the operator", async () => {
@@ -274,6 +329,233 @@ describe("the sessions view", () => {
     );
     const listed = api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
     expect([listed?.get("status"), listed?.getAll("session")]).toEqual(["open", ["builder/main"]]);
+  });
+});
+
+describe("folded by group", () => {
+  const billing = { id: 4, name: "Billing" };
+  const archive = { id: 7, name: "archive" };
+  const sessionIn = (
+    group: { id: number; name: string } | undefined,
+    session: string,
+    threads: number,
+    more: Partial<SessionSummary> = {},
+  ) =>
+    sessionSummary({
+      session,
+      ...(group === undefined ? {} : { group }),
+      threads: { total: threads, unread: 0, stranded: 0 },
+      ...more,
+    });
+  // builder has sessions in Billing, in archive and in no group; reviewer
+  // one in Billing, with a blocking ask. The page lists each agent once.
+  const grouped: Agents = [
+    agent("builder", [
+      sessionIn(billing, "main", 2, {
+        unread_updates: 1,
+        threads: { total: 2, unread: 0, stranded: 1 },
+      }),
+      sessionIn(undefined, "side", 3),
+      sessionIn(archive, "old", 1),
+    ]),
+    agent("reviewer", [
+      sessionIn(billing, "main", 1, {
+        threads: { total: 1, unread: 1, stranded: 0 },
+        open_asks: { count: 1, blocking_count: 1 },
+      }),
+    ]),
+  ];
+  const groupHeader = (name: string) =>
+    screen.getByRole("button", { name: new RegExp(`^${name}(,|$)`) });
+  const groupHeads = () =>
+    Array.from(document.querySelectorAll("h3.group-head button")).map(
+      (each) => each.getAttribute("aria-label")?.split(",")[0],
+    );
+
+  it("folds the agents under their groups, an agent under each group with that group's sessions", async () => {
+    await open(grouped);
+    // Groups in name order, whatever the case of their letters, no group last.
+    expect(groupHeads()).toEqual(["Group archive", "Group Billing", "No group"]);
+    const inBilling = folded(groupHeader("Group Billing"));
+    const inNone = folded(groupHeader("No group"));
+    const agentsIn = (within_: HTMLElement) =>
+      within(within_)
+        .getAllByRole("button", { name: /^Agent / })
+        .map((each) => each.getAttribute("aria-label")?.split(",")[0]);
+    expect(agentsIn(inBilling)).toEqual(["Agent builder", "Agent reviewer"]);
+    expect(agentsIn(inNone)).toEqual(["Agent builder"]);
+    expect(within(inBilling).getAllByRole("button", { name: /^main( |$)/ })).toHaveLength(2);
+    expect(within(inBilling).queryByRole("button", { name: /^(side|old)( |$)/ })).toBeNull();
+    expect(fold("side", inNone)).toBeTruthy();
+    // The headings nest: a group's, its agents' a level below, their
+    // sessions' below those.
+    expect(within(inBilling).getAllByRole("heading", { level: 4 })).toHaveLength(2);
+    expect(within(inBilling).getAllByRole("heading", { level: 5 })).toHaveLength(2);
+  });
+
+  it("rolls up each group from the sessions it holds, Blocked on its head alone", async () => {
+    await open(grouped);
+    const billingHead = groupHeader("Group Billing");
+    const label = billingHead.getAttribute("aria-label") ?? "";
+    expect(label).toMatch(/\b3 threads\b/);
+    expect(label).toMatch(/\b1 unread\b/);
+    expect(label).toMatch(/\b1 new update\b/);
+    expect(label).toMatch(/blocked/);
+    expect(billingHead.querySelector(".flag.danger")).not.toBeNull();
+    const noneHead = groupHeader("No group");
+    expect(noneHead.getAttribute("aria-label")).toMatch(/\b3 threads\b/);
+    expect(noneHead.querySelector(".flag.danger")).toBeNull();
+    // An agent's header under a group rolls up only that group's sessions,
+    // and leaves blocked to its open asks.
+    const inBilling = folded(billingHead);
+    const reviewer = within(inBilling).getByRole("button", { name: /^Agent reviewer/ });
+    expect(reviewer.querySelector(".flag.danger")).toBeNull();
+    expect(reviewer.querySelector(".flag.attention")).not.toBeNull();
+    expect(within(inBilling).getByRole("link", { name: "2 threads of builder" })).toBeTruthy();
+  });
+
+  it("shows no roll-up on a group's head or an agent's header that left sessions out", async () => {
+    await open([{ ...(grouped[0] as Agents[number]), truncated: true }, ...grouped.slice(1)]);
+    const billingHead = groupHeader("Group Billing");
+    expect(billingHead.querySelector(".roll-up")).toBeNull();
+    expect(groupHeader("No group").querySelector(".roll-up")).toBeNull();
+    const inBilling = folded(billingHead);
+    expect(within(inBilling).getByRole("link", { name: "Threads of builder" })).toBeTruthy();
+    expect(within(inBilling).getByRole("link", { name: "1 thread of reviewer" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Threads of Billing" })).toBeTruthy();
+    // Its stranded threads link as its threads do, with no count, which
+    // would be short, though its session's row has its own.
+    const stranded = within(inBilling).getByRole("link", { name: "Stranded threads of builder" });
+    expect(stranded.getAttribute("href")).toBe(
+      "/?agent_read=stranded&agent=builder&session_group=4",
+    );
+    expect(stranded.textContent).not.toMatch(/\d/);
+    expect(
+      within(inBilling)
+        .getByRole("button", { name: /^Agent builder/ })
+        .getAttribute("aria-label"),
+    ).not.toMatch(/\d+ stranded/);
+    expect(
+      within(inBilling).getByRole("link", { name: "1 stranded thread of builder/main" }),
+    ).toBeTruthy();
+  });
+
+  it("shows no roll-up on any group's head when the view left agents out", async () => {
+    // Every page says more follow, so the view stops at its bound, the
+    // agents beyond it left out.
+    api.on("GET", "/sessions", (call) => ({
+      body: { agents: call.url.searchParams.has("cursor") ? [] : grouped, next: "more" },
+    }));
+    renderAt("/sessions");
+    const billingHead = await screen.findByRole("button", { name: /^Group Billing/ });
+    expect(billingHead.querySelector(".roll-up")).toBeNull();
+    expect(groupHeader("No group").querySelector(".roll-up")).toBeNull();
+    expect(screen.getByRole("link", { name: "Threads of Billing" })).toBeTruthy();
+    // An agent that listed all its sessions still rolls them up.
+    expect(
+      within(folded(billingHead)).getByRole("link", { name: "1 thread of reviewer" }),
+    ).toBeTruthy();
+  });
+
+  it("links each group's head, and each agent's header within it, to their threads", async () => {
+    await open(grouped);
+    const link = (name: string, within_: HTMLElement = document.body) =>
+      within(within_).getByRole("link", { name }).getAttribute("href");
+    expect(link("3 threads of Billing")).toBe("/?session_group=4");
+    expect(link("3 threads of no group")).toBe("/?session_group=none");
+    expect(link("2 threads of builder", folded(groupHeader("Group Billing")))).toBe(
+      "/?agent=builder&session_group=4",
+    );
+    expect(link("3 threads of builder", folded(groupHeader("No group")))).toBe(
+      "/?agent=builder&session_group=none",
+    );
+    // An agent's stranded threads link to those in the group, its session's
+    // to the session's; a group's head shows none.
+    expect(link("1 stranded thread of builder", folded(groupHeader("Group Billing")))).toBe(
+      "/?agent_read=stranded&agent=builder&session_group=4",
+    );
+    expect(link("1 stranded thread of builder/main", folded(groupHeader("Group Billing")))).toBe(
+      "/?agent_read=stranded&session=builder/main",
+    );
+    expect(screen.getAllByRole("link", { name: /stranded/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("link", { name: "3 threads of Billing" }));
+    await screen.findByRole("heading", { level: 1, name: "Threads" });
+    expect(window.location.pathname + window.location.search).toBe("/?session_group=4");
+    const listed = api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
+    expect(listed?.getAll("session_group")).toEqual(["4"]);
+  });
+
+  it("keeps a group's fold by its id, and an agent's within each group apart", async () => {
+    await open(grouped);
+    fireEvent.click(groupHeader("Group Billing"));
+    expect(folded(groupHeader("Group Billing")).hidden).toBe(true);
+    // builder folded under no group stays unfolded under Billing.
+    const inNone = folded(groupHeader("No group"));
+    fireEvent.click(within(inNone).getByRole("button", { name: /^Agent builder/ }));
+    cleanup();
+    const ledger = { ...billing, name: "Ledger" };
+    serve(
+      grouped.map((entry) => ({
+        ...entry,
+        sessions: entry.sessions.map((session) =>
+          session.group?.id === billing.id ? { ...session, group: ledger } : session,
+        ),
+      })),
+    );
+    renderAt("/sessions");
+    await screen.findByRole("button", { name: /^Group Ledger/ });
+    expect(groupHeader("Group Ledger").getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(groupHeader("Group Ledger"));
+    expect(
+      within(folded(groupHeader("Group Ledger")))
+        .getByRole("button", { name: /^Agent builder/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      within(folded(groupHeader("No group")))
+        .getByRole("button", { name: /^Agent builder/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  it("folds by group when any session is in one, whichever agent holds it", async () => {
+    await open([
+      agent("author", [sessionIn(undefined, "main", 1)]),
+      agent("builder", [sessionIn(billing, "main", 1)]),
+    ]);
+    expect(groupHeads()).toEqual(["Group Billing", "No group"]);
+  });
+});
+
+describe("the Sessions tab", () => {
+  const tab = () =>
+    within(screen.getByRole("navigation", { name: "Views" })).getByRole("link", {
+      name: /^Sessions/,
+    });
+
+  it("counts the sessions with unread updates, and reading a log lowers it", async () => {
+    const unread = { sessions: 2 };
+    api.on("GET", "/sessions/unread-updates", () => ({ body: { ...unread } }));
+    serveLog([entry(1, { title: "Retire invoices" })], 0);
+    await open([
+      agent("builder", [
+        sessionSummary({
+          status: { state: "working", title: "Retire invoices" },
+          unread_updates: 1,
+        }),
+      ]),
+    ]);
+    await waitFor(() => expect(tab().querySelector(".badge")?.textContent).toMatch(/^2/));
+    expect(tab().textContent).toContain("2 sessions with new updates");
+    unread.sessions = 1;
+    fireEvent.click(fold("main"));
+    await waitFor(() =>
+      expect(api.callsTo("POST", "/s/builder/main/updates/read")).toHaveLength(1),
+    );
+    await waitFor(() => expect(tab().querySelector(".badge")?.textContent).toMatch(/^1/));
+    unread.sessions = 0;
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(tab().querySelector(".badge")).toBeNull());
   });
 });
 
@@ -300,7 +582,7 @@ describe("a session unfolded", () => {
     unread_updates: 2,
   });
 
-  it("shows its goal, how far it has come, when it was seen, its credentials and its log", async () => {
+  it("shows its goal, how far it has come, its credentials and its log", async () => {
     serveLog(life, 5);
     await open([agent("builder", [reported])]);
     fireEvent.click(fold("main"));
@@ -311,7 +593,8 @@ describe("a session unfolded", () => {
     expect(detail?.querySelector(".session-goal")?.textContent).not.toContain("Retire invoices");
     expect(detail?.textContent).toContain("Drop the table");
     expect(detail?.querySelector("progress")?.getAttribute("value")).toBe("62");
-    expect(detail?.querySelector("time")).not.toBeNull();
+    // When it was last seen stays on the row's line alone.
+    expect(detail?.querySelector(".session-about time")).toBeNull();
     expect(detail?.textContent).toContain("7KQ2M-X9DPA");
     const log = await screen.findByRole("list", { name: "Updates" });
     // One more than it shows, to read what the oldest shown changed.
@@ -469,7 +752,13 @@ describe("a session's options", () => {
       within(menu as HTMLElement)
         .getAllByRole("button")
         .map((each) => each.textContent),
-    ).toEqual(["New thread", "Revoke 7KQ2M-X9DPA", "Revoke WE26Z-8SH11"]);
+    ).toEqual([
+      "New thread",
+      "Group: none",
+      "Tags: none",
+      "Revoke 7KQ2M-X9DPA",
+      "Revoke WE26Z-8SH11",
+    ]);
     fireEvent.keyDown(within(menu as HTMLElement).getByRole("button", { name: "New thread" }), {
       key: "Escape",
     });
@@ -622,5 +911,152 @@ describe("the new-thread sheet", () => {
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(1);
     expect(screen.getByRole("dialog", { name: "New thread" })).toBeTruthy();
+  });
+});
+
+describe("groups and tags", () => {
+  const billing = { id: 4, name: "Billing" };
+  const known: GroupsAndTags = {
+    groups: [
+      { ...billing, sessions: 1 },
+      { id: 5, name: "Personal", sessions: 0 },
+    ],
+    tags: [
+      { name: "infra", agents: 1, sessions: 1 },
+      { name: "urgent", agents: 0, sessions: 1 },
+    ],
+    truncated: false,
+  };
+  const dialog = (name: string) => screen.getByRole("dialog", { name });
+  const posted = (path: string) => api.callsTo("POST", path).map((call) => call.body);
+
+  beforeEach(() => {
+    api.on("GET", "/groups-and-tags", { body: known });
+  });
+
+  it("show on each session's row and each agent's header", async () => {
+    await open([
+      {
+        ...agent("builder", [sessionSummary({ group: billing, tags: ["infra", "urgent"] })]),
+        tags: ["infra"],
+      },
+    ]);
+    const facts = row("main").querySelector(".session-facts") as HTMLElement;
+    expect(facts.querySelector(".group-chip")?.textContent).toBe("Group Billing");
+    expect(Array.from(facts.querySelectorAll(".tag-chip")).map((each) => each.textContent)).toEqual(
+      ["Tag infra", "Tag urgent"],
+    );
+    expect(header("builder").getAttribute("aria-label")).toMatch(/, tags infra$/);
+    expect(header("builder").querySelector(".tag-chip")?.textContent).toBe("Tag infra");
+  });
+
+  it("set a session's group from its options, an existing one or a new one", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/s/builder/main/group", { body: {} });
+    api.on("POST", "/groups", { body: { id: 6, name: "Release" } });
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Group: none" }));
+    const sheet = dialog("Group for builder/main");
+    await within(sheet).findByRole("radio", { name: "Billing" });
+    expect(within(sheet).getByRole<HTMLInputElement>("radio", { name: "No group" }).checked).toBe(
+      true,
+    );
+    fireEvent.click(within(sheet).getByRole("radio", { name: "Billing" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/s/builder/main/group")).toEqual([{ group: 4 }]));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(options("builder/main"));
+
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Group: none" }));
+    const again = dialog("Group for builder/main");
+    fireEvent.change(await within(again).findByRole("textbox", { name: "New group's name" }), {
+      target: { value: "Release" },
+    });
+    expect(within(again).getByRole<HTMLInputElement>("radio", { name: "New group" }).checked).toBe(
+      true,
+    );
+    fireEvent.click(within(again).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/groups")).toEqual([{ name: "Release" }]));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/group")).toEqual([{ group: 4 }, { group: 6 }]),
+    );
+  });
+
+  it("set a session's tags, offering to add a tag no tag has", async () => {
+    await open([agent("builder", [sessionSummary({ tags: ["urgent"] })])]);
+    api.on("POST", "/s/builder/main/tags", { body: {} });
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Tags: urgent" }));
+    const sheet = dialog("Tags for builder/main");
+    const boxes = async () =>
+      (await within(sheet).findAllByRole<HTMLInputElement>("checkbox")).map(
+        (box) => `${box.checked ? "☑" : "☐"} ${box.closest("label")?.textContent}`,
+      );
+    expect(await boxes()).toEqual(["☐ infra", "☑ urgent"]);
+    const search = within(sheet).getByRole("searchbox", { name: "Search or add tags" });
+    fireEvent.change(search, { target: { value: "inf" } });
+    expect(await boxes()).toEqual(["☐ infra"]);
+    // A name a tag has offers no adding, and one no tag has does.
+    fireEvent.change(search, { target: { value: "infra" } });
+    expect(within(sheet).queryByRole("button", { name: /^Add tag/ })).toBeNull();
+    fireEvent.change(search, { target: { value: "Ops" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add tag ops" }));
+    expect(await boxes()).toEqual(["☐ infra", "☑ ops", "☑ urgent"]);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/tags")).toEqual([{ tags: ["urgent", "ops"] }]),
+    );
+  });
+
+  it("set an agent's tags from its header's options", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/agents/builder/tags", { body: {} });
+    fireEvent.click(screen.getByRole("button", { name: "Options for builder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tags: none" }));
+    const sheet = dialog("Tags for builder");
+    fireEvent.click(await within(sheet).findByRole("checkbox", { name: "infra" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/agents/builder/tags")).toEqual([{ tags: ["infra"] }]));
+  });
+
+  it("are listed in their sheet to rename, and to remove once it asks", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/groups/4/name", failure("conflict", "another group already has this name"));
+    api.on("POST", "/groups/4/remove", { body: {} });
+    api.on("POST", "/tags/urgent/name", { body: {} });
+    fireEvent.click(screen.getByRole("button", { name: "Groups and tags" }));
+    const sheet = dialog("Groups and tags");
+    const group = await within(sheet).findByRole("article", { name: "Group Billing" });
+    expect(group.textContent).toContain("1 session");
+    expect(within(sheet).getByRole("article", { name: "Tag infra" }).textContent).toContain(
+      "1 agent, 1 session",
+    );
+    // Rename refused for a name another group has says why.
+    fireEvent.click(within(group).getByRole("button", { name: "Rename" }));
+    fireEvent.change(within(group).getByRole("textbox", { name: "New name" }), {
+      target: { value: "Personal" },
+    });
+    fireEvent.click(within(group).getByRole("button", { name: "Save" }));
+    expect((await within(group).findByRole("alert")).textContent).toBe(
+      "Another group already has this name.",
+    );
+    fireEvent.click(within(group).getByRole("button", { name: "Cancel" }));
+    // Remove asks first, saying what it takes the group off.
+    fireEvent.click(within(group).getByRole("button", { name: "Remove" }));
+    const asking = within(group).getByRole("group", {
+      name: "Remove the group Billing? Its 1 session will be in no group.",
+    });
+    expect(posted("/groups/4/remove")).toEqual([]);
+    fireEvent.click(within(asking).getByRole("button", { name: "Remove this group" }));
+    await waitFor(() => expect(posted("/groups/4/remove")).toEqual([undefined]));
+    // A tag is renamed in its own case.
+    const tag = within(sheet).getByRole("article", { name: "Tag urgent" });
+    fireEvent.click(within(tag).getByRole("button", { name: "Rename" }));
+    fireEvent.change(within(tag).getByRole("textbox", { name: "New name" }), {
+      target: { value: "Soon" },
+    });
+    fireEvent.click(within(tag).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/tags/urgent/name")).toEqual([{ name: "soon" }]));
   });
 });

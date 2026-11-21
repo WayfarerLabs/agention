@@ -9,29 +9,36 @@ import { query, request, sessionPath } from "../../api.ts";
 import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
 import { plural, Since, Spoken, workStateWords } from "../../format.tsx";
-import { Icon, Mark } from "../../icons.tsx";
+import { Icon, Mark, UnreadCount } from "../../icons.tsx";
 import { Link, listHref, unfiltered } from "../../router.tsx";
 import { type Change, type LogLine, logLines } from "./log.ts";
+import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
+import { rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
 import { type Credential, Revocation } from "./Registrations.tsx";
 
-// One session in the sessions view: a folded row of two lines, wrapping to
-// three on a phone, that carries its key facts, so that many fit on a screen;
-// unfolded, its title wrapping whole in its head, and beneath, its goal, when
-// it was last seen, its credentials and its log. Tapping anywhere on the row's facts folds or unfolds it, but
-// for the links and the options among them. A row's log loads, refreshes and
-// is read only while the row is unfolded and shown.
+// One session in the sessions view: a folded row of three short lines, its
+// head, when it was last seen and its key facts, the facts wrapping on a
+// phone, so that many fit on a screen; unfolded, its title wrapping whole in
+// its head, and beneath, its goal, its credentials and its log. Tapping
+// anywhere on the row's facts folds or unfolds it, but for the links and the
+// options among them. A row's log loads, refreshes and is read only while
+// the row is unfolded and shown.
 
 // A session's path, by which the view names it.
 export const sessionKey = (agent: string, session: string) => `${agent}/${session}`;
 
 export function SessionRow({
+  level,
   agent,
   session,
   unfolded,
   toggle,
   refresh,
   newThread,
+  organize,
 }: {
+  // The level of the row's heading, one below its agent's.
+  level: 4 | 5;
   agent: string;
   session: SessionSummary;
   unfolded: boolean;
@@ -41,6 +48,9 @@ export function SessionRow({
   // Opens the new-thread sheet on the session, focus returning to the
   // control given when it closes.
   newThread: (opener: HTMLElement | null) => void;
+  // Opens the sheet that sets the session's group or its tags, focus
+  // returning to the control given when it closes.
+  organize: (what: "group" | "tags", opener: HTMLElement | null) => void;
 }) {
   const detail = useId();
   const options = useRef<HTMLButtonElement>(null);
@@ -48,11 +58,12 @@ export function SessionRow({
   const [revoking, setRevoking] = useState<Credential>();
   const path = sessionKey(agent, session.session);
   const { status } = session;
+  const Heading = `h${level}` as const;
   return (
     <li className="session-row">
       <div className="session-summary">
         <div className="session-head">
-          <h4>
+          <Heading>
             <button
               type="button"
               className="session-fold"
@@ -69,9 +80,15 @@ export function SessionRow({
                 <span className="session-percent">{status.percent}%</span>
               )}
             </button>
-          </h4>
+          </Heading>
           <OptionsMenu label={`Options for ${path}`} open={menu} setOpen={setMenu} button={options}>
             <MenuItem onChoose={() => newThread(options.current)}>New thread</MenuItem>
+            <MenuItem onChoose={() => organize("group", options.current)}>
+              Group: {session.group?.name ?? "none"}
+            </MenuItem>
+            <MenuItem onChoose={() => organize("tags", options.current)}>
+              Tags: {session.tags.length === 0 ? "none" : session.tags.join(", ")}
+            </MenuItem>
             {session.registrations.map((registration) => (
               <MenuItem
                 key={registration.id}
@@ -83,6 +100,7 @@ export function SessionRow({
             ))}
           </OptionsMenu>
         </div>
+        <LastSeen session={session} />
         <SessionFacts agent={agent} session={session} />
       </div>
       <Revocation
@@ -100,15 +118,37 @@ export function SessionRow({
   );
 }
 
+// LastSeen is the line under a session's head saying when it was last seen,
+// in the words the thread list's headers use, in the warning's tone while it
+// is quiet and has not stopped, which a stopped session's state says
+// already, and said as quiet then.
+function LastSeen({ session }: { session: SessionSummary }) {
+  const { presence, status } = session;
+  const quiet = presence.quiet && status?.state !== "stopped";
+  const seen = presence.last_seen_at === undefined ? "Never seen" : "Last seen";
+  return (
+    <p className={quiet ? "session-seen warning" : "session-seen"}>
+      {quiet ? <Spoken shown={seen} spoken={`Quiet, ${seen.toLowerCase()}`} /> : seen}
+      {presence.last_seen_at !== undefined && (
+        <>
+          {" "}
+          <Since value={presence.last_seen_at} />
+        </>
+      )}
+    </p>
+  );
+}
+
 // The session's facts on its folded row: what it is doing; what waits on the
-// operator, its open asks, linking to its open threads; whether it is quiet
-// or has no credential; its unread updates; its threads, with how many are
-// stranded, linking to them; and its latest note, cut to fit, which its log
-// holds whole.
+// operator, its open asks, linking to its open threads; whether it has no
+// credential; the operator's group and tags for it; its threads' roll-up,
+// linking to them, and how many are stranded, linking to those, but for
+// blocked, which what waits on the operator says already; its unread
+// updates; and its latest note, cut to fit, which its log holds whole.
 function SessionFacts({ agent, session }: { agent: string; session: SessionSummary }) {
-  const { status, presence, open_asks: asks, threads } = session;
+  const { status, open_asks: asks, threads } = session;
   const path = sessionKey(agent, session.session);
-  const stopped = status?.state === "stopped";
+  const rollup = rollupOfSession(session);
   return (
     <ul className="tags session-facts">
       <li className={status === undefined ? "muted" : stateTone[status.state]}>
@@ -117,41 +157,38 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
       {asks.count > 0 && (
         <li className="bare">
           <Link to={listHref({ ...unfiltered, session: [path], status: "open" })}>
-            <span className="pill attention">
+            <span className="flag attention">
               Waiting on you · {plural(asks.count, "ask")}
               {asks.blocking_count > 0 && `, ${asks.blocking_count} blocking`}
             </span>
           </Link>
         </li>
       )}
-      {presence.quiet && !stopped && (
-        <li className="warning">
-          {presence.last_seen_at === undefined ? (
-            "Quiet, never seen"
-          ) : (
-            <>
-              Quiet since <Since value={presence.last_seen_at} />
-            </>
-          )}
+      {session.registrations.length === 0 && <li className="warning">No credential</li>}
+      {session.group !== undefined && (
+        <li className="bare">
+          <GroupChip group={session.group} />
         </li>
       )}
-      {session.registrations.length === 0 && <li className="warning">No credential</li>}
-      {session.unread_updates > 0 && (
+      {session.tags.map((tag) => (
+        <li key={tag} className="bare">
+          <TagChip tag={tag} />
+        </li>
+      ))}
+      <li className="bare">
+        <ThreadsLink rollup={rollup} narrowing={{ session: [path] }} label={path} />
+      </li>
+      {threads.stranded > 0 && (
         <li className="bare">
-          <Mark
-            icon="unread"
-            label={plural(session.unread_updates, "unread update")}
-            shown={session.unread_updates}
-            accent
-          />
+          <StrandedLink stranded={threads.stranded} narrowing={{ session: [path] }} label={path} />
         </li>
       )}
       <li className="bare">
-        <Link to={listHref({ ...unfiltered, session: [path] })}>
-          {plural(threads.total, "thread")}
-        </Link>
-        {threads.stranded > 0 && <span className="stranded"> · {threads.stranded} stranded</span>}
+        <UnreadCount unread={rollup.unread} />
       </li>
+      {rollup.unread_updates > 0 && (
+        <li className="accent">{plural(rollup.unread_updates, "new update")}</li>
+      )}
       {status?.note !== undefined && <li className="bare session-note">{status.note}</li>}
     </ul>
   );
@@ -161,7 +198,7 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
 const stateTone = { working: "success", idle: "accent", stopped: undefined } as const;
 
 // SessionDetail is what a session unfolds beneath its head: its goal whole,
-// with how far it has come, when it was last seen, its credentials, and its log.
+// with how far it has come, its credentials, and its log.
 function SessionDetail({
   agent,
   session,
@@ -171,7 +208,7 @@ function SessionDetail({
   session: SessionSummary;
   refresh: () => void;
 }) {
-  const { status, presence } = session;
+  const { status } = session;
   const goal = status?.goal;
   const percent = status?.percent;
   const codes = session.registrations.map((registration) => registration.code);
@@ -191,15 +228,6 @@ function SessionDetail({
         </div>
       )}
       <ul className="session-about">
-        <li>
-          {presence.last_seen_at === undefined ? (
-            "Never seen"
-          ) : (
-            <>
-              Last seen <Since value={presence.last_seen_at} at />
-            </>
-          )}
-        </li>
         <li>
           {codes.length === 0 ? (
             "No active credential"

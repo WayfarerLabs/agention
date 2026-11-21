@@ -6,7 +6,7 @@ import {
   PrivateFileError,
   shellQuoted,
 } from "@wayfarerlabs/agention-private-files";
-import { closeSync, fstatSync, readSync } from "node:fs";
+import { closeSync, fstatSync, readSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { DatabaseOpenError } from "./open-error.ts";
 
@@ -54,15 +54,46 @@ function openDatabaseFile(real: string): number {
   );
 }
 
+// existingDatabaseFile checks a database file that must exist without
+// creating anything, and returns its real path, the one SQLite opens, or
+// undefined when there is no database there: no file, or an empty one that
+// a start created and never initialized. It refuses what prepareDatabaseFile
+// refuses.
+export function existingDatabaseFile(file: string, applicationId: number): string | undefined {
+  try {
+    const absolute = path.resolve(file);
+    const fd = openPrivateFile(absolute);
+    if (fd === undefined) {
+      return undefined;
+    }
+    let real: string;
+    try {
+      real = path.join(realpathSync(path.dirname(absolute)), path.basename(absolute));
+      for (const companion of [`${real}-wal`, `${real}-shm`, `${real}-journal`]) {
+        checkPrivateFile(companion);
+      }
+      if (!checkHeader(real, fd, applicationId)) {
+        return undefined;
+      }
+    } finally {
+      closeSync(fd);
+    }
+    return real;
+  } catch (error) {
+    throw error instanceof PrivateFileError ? refusal(error) : error;
+  }
+}
+
 // checkHeader reads the database header directly, since even a read-only
-// SQLite connection may create files beside the database. An empty file is
-// one that this or a previous start created and never initialized.
-function checkHeader(file: string, fd: number, applicationId: number): void {
+// SQLite connection may create files beside the database, and says whether
+// the file holds a database. An empty file is one that this or a previous
+// start created and never initialized.
+function checkHeader(file: string, fd: number, applicationId: number): boolean {
   const header = Buffer.alloc(headerLength);
   let read: number;
   try {
     if (fstatSync(fd).size === 0) {
-      return;
+      return false;
     }
     read = readSync(fd, header, 0, headerLength, 0);
   } catch (error) {
@@ -78,55 +109,43 @@ function checkHeader(file: string, fd: number, applicationId: number): void {
       `${file} is a SQLite database, but not an Agention one`,
     );
   }
+  return true;
 }
 
-// refusal words a refusal under the private-file rule for the operator, with
-// what to change, since Agention changes nothing that exists.
+// refusal words a refusal under the private-file rule for the data
+// directory and its database.
 function refusal(error: PrivateFileError): DatabaseOpenError {
+  return new DatabaseOpenError(error.reason, privateFileRefusal(error, "data directory"));
+}
+
+// privateFileRefusal words a refusal under the private-file rule for the
+// operator, with what to change, since Agention changes nothing that exists.
+// The place names the directory the rule applies to, such as the data
+// directory.
+export function privateFileRefusal(error: PrivateFileError, place: string): string {
   const at = error.path;
   switch (error.reason) {
     case "unsupported_platform":
-      return new DatabaseOpenError(
-        error.reason,
-        "Agention needs a POSIX system to check file ownership",
-      );
+      return "Agention needs a POSIX system to check file ownership";
     case "inaccessible":
-      return new DatabaseOpenError(
-        error.reason,
+      return (
         `${at} cannot be reached (${error.code ?? "unknown error"}); check that this user can ` +
-          "search every directory on its path, and read and write the data directory",
+        `search every directory on its path, and read and write the ${place}`
       );
     case "not_a_directory":
-      return new DatabaseOpenError(
-        error.reason,
-        `${at} is on the data directory's path, so it must be a directory`,
-      );
+      return `${at} is on the ${place}'s path, so it must be a directory`;
     case "foreign_ancestor":
-      return new DatabaseOpenError(
-        error.reason,
-        `${at} must belong to the current user or root; choose a data directory whose ` +
-          "ancestors do",
-      );
+      return `${at} must belong to the current user or root; choose a ${place} whose ancestors do`;
     case "writable_ancestor":
-      return new DatabaseOpenError(
-        error.reason,
+      return (
         `${at} is writable by its group or others; run chmod go-w ${shellQuoted(at)}, or ` +
-          "choose a data directory whose ancestors only their owners can write to",
+        `choose a ${place} whose ancestors only their owners can write to`
       );
     case "directory_not_private":
-      return new DatabaseOpenError(
-        error.reason,
-        `${at} must belong to the current user with mode 0700; its permissions were not changed`,
-      );
+      return `${at} must belong to the current user with mode 0700; its permissions were not changed`;
     case "not_a_file":
-      return new DatabaseOpenError(
-        error.reason,
-        `${at} must be a regular file, not a symlink or a directory`,
-      );
+      return `${at} must be a regular file, not a symlink or a directory`;
     case "file_not_private":
-      return new DatabaseOpenError(
-        error.reason,
-        `${at} must belong to the current user with mode 0600; its permissions were not changed`,
-      );
+      return `${at} must belong to the current user with mode 0600; its permissions were not changed`;
   }
 }

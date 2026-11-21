@@ -1,6 +1,7 @@
 import { maxListed } from "@wayfarerlabs/agention-api";
 import {
   type FocusEvent,
+  type FormEvent,
   Fragment,
   type KeyboardEvent,
   type ReactNode,
@@ -311,53 +312,129 @@ export function MoreButton({
   );
 }
 
+// The heading levels a fold's header can sit at.
+export type FoldLevel = 2 | 3 | 4 | 5;
+
+// How deep a fold sits among those holding it: outer, a tinted bar that stays
+// at the top while its group scrolls under it; inner, a light subheader; or
+// innermost, a quieter subheader still, for a third level of folds.
+export type FoldDepth = "outer" | "inner" | "innermost";
+
+const foldClasses: Record<FoldDepth, [section: string, head: string]> = {
+  outer: ["group", "group-head"],
+  inner: ["subgroup", "subgroup-head"],
+  innermost: ["subgroup innermost", "subgroup-head"],
+};
+
 // Fold is what a header folds: a heading wrapping a disclosure button, its
 // chevron turned while folded, and beneath it what it holds, shown only while
-// unfolded, so nothing folded away loads or reads. An outer header heads a
-// group, as a tinted bar that stays at the top while its group scrolls under
-// it; an inner one is a light subheader. Its button shows its label and any
-// marks beside it, and is named spoken where the marks say more than the
-// label.
+// unfolded, so nothing folded away loads or reads. Its depth sets its
+// header's style. Its button shows its label and any marks beside it, and is
+// named spoken where the marks say more than the label. actions, when given,
+// sit beside the heading rather than in it, such as an options menu.
 export function Fold({
   level,
-  outer,
+  depth,
   label,
   marks,
   spoken,
+  actions,
   folded,
   toggle,
   children,
 }: {
-  level: 2 | 3 | 4;
-  outer: boolean;
+  level: FoldLevel;
+  depth: FoldDepth;
   label: ReactNode;
   marks?: ReactNode;
   spoken?: string | undefined;
+  actions?: ReactNode;
   folded: boolean;
   toggle: () => void;
   children: ReactNode;
 }) {
   const body = useId();
   const Heading = `h${level}` as const;
+  const [section, head] = foldClasses[depth];
+  const heading = (
+    <Heading className={head}>
+      <button
+        type="button"
+        aria-expanded={!folded}
+        aria-controls={body}
+        aria-label={spoken}
+        onClick={toggle}
+      >
+        <Icon name="expand" />
+        <span className="group-label">{label}</span>
+        {marks}
+      </button>
+    </Heading>
+  );
   return (
-    <section className={outer ? "group" : "subgroup"}>
-      <Heading className={outer ? "group-head" : "subgroup-head"}>
-        <button
-          type="button"
-          aria-expanded={!folded}
-          aria-controls={body}
-          aria-label={spoken}
-          onClick={toggle}
-        >
-          <Icon name="expand" />
-          <span className="group-label">{label}</span>
-          {marks}
-        </button>
-      </Heading>
+    <section className={section}>
+      {actions === undefined ? (
+        heading
+      ) : (
+        <div className="fold-head">
+          {heading}
+          {actions}
+        </div>
+      )}
       <div id={body} hidden={folded}>
         {!folded && children}
       </div>
     </section>
+  );
+}
+
+// Sheet is a modal dialog rising from the bottom on a phone and a panel on a
+// wide screen, as the filter sheet is, open from the moment it mounts with
+// focus on its heading, so a phone's keyboard does not rise over it. Its body
+// scrolls under its foot, and the two are one form when it submits; onClose
+// runs once it closes, which closing sheet does.
+export function Sheet({
+  sheet,
+  heading,
+  onClose,
+  onSubmit,
+  foot,
+  children,
+}: {
+  sheet: RefObject<HTMLDialogElement | null>;
+  heading: string;
+  onClose: () => void;
+  onSubmit?: (event: FormEvent) => void;
+  foot: ReactNode;
+  children: ReactNode;
+}) {
+  const id = useId();
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    sheet.current?.showModal();
+    title.current?.focus();
+  }, [sheet]);
+  const body = (
+    <>
+      <div className="sheet-body">
+        <h2 id={`${id}-heading`} ref={title} tabIndex={-1}>
+          {heading}
+        </h2>
+        {children}
+      </div>
+      <div className="sheet-foot">{foot}</div>
+    </>
+  );
+  return (
+    <dialog ref={sheet} className="sheet" aria-labelledby={`${id}-heading`} onClose={onClose}>
+      {onSubmit === undefined ? (
+        body
+      ) : (
+        <form className="sheet-form" noValidate onSubmit={onSubmit}>
+          {body}
+        </form>
+      )}
+    </dialog>
   );
 }
 

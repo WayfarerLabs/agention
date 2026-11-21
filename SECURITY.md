@@ -10,13 +10,15 @@ Agention is an honor system by nature. An agent can fail to report, or report fa
 cannot detect or prevent that. It does not try to. Instead it enforces the properties an honor
 system cannot provide on its own, so that what was reported, by whom, stays on the record.
 
-v1 is being built to enforce these invariants, each with tests at its boundary. The server's HTTP
-API enforces the server's part of them on every request, and the web UI renders content inert.
+Agention enforces these invariants, each with tests at its boundary. The server's HTTP API enforces
+the server's part of them on every request, and the web UI renders content inert.
 
 - **Identity and provenance.** Every message records who wrote it. The actor always comes from
   authentication, never from request content.
 - **Isolation.** An agent session sees and changes only what its credential authorizes. A target the
-  caller may not access produces the same response as one that does not exist.
+  caller may not access produces the same response as one that does not exist. Session groups and
+  tags, and the presence signals (quiet and stranded), are the operator's alone and reach no agent,
+  and groups and tags grant nothing.
 - **Append-only, attributed history.** Nothing is edited or erased: a replacement is a new message,
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.
@@ -43,9 +45,24 @@ API enforces the server's part of them on every request, and the web UI renders 
   links rather than loaded, and only HTTPS links live; no class or style comes from the text. Every
   other field, such as a title, a question or an answer's own words, shows as plain text, as
   written. Search text is matched word by word, each word quoted, so it is never read as query
-  syntax. The content security policy lets the web UI load only its own scripts, styles and images,
-  as a second line. No text can break the web UI: a field that fails to render shows as its text,
-  and text nested too deeply shows as text without being parsed. Text can still slow it: some
+  syntax. A fenced `mermaid` block is drawn as a diagram, by Mermaid in a frame of its own, never in
+  the web UI's page: the frame is sandboxed with scripts only, so its origin is opaque and it can
+  read none of the web UI's cookies, storage or page, navigate the page, open windows or submit
+  forms, and its own content security policy sandboxes it too, even opened on its own, lets it load
+  nothing but its one script and fetch nothing, and lets only the server's own pages frame it. The
+  page sends the frame the diagram's text, accepts answers only from the frame's window, and shows
+  the SVG it answers as an image, which runs no script and loads nothing. The SVG is never shown any
+  other way. Its `blob:` URL, opened on its own by browser navigation, would be a document of the
+  web UI's origin under none of the web UI's content security policy, where what Mermaid's strict
+  level keeps, such as an image in a label or a link, would load; so the page revokes each image's
+  URL as soon as the image has loaded, leaving none to open, and until then only the page's own
+  script knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict
+  security level. Where a browser runs the frame on the page's own thread, a diagram that sends
+  Mermaid into a busy loop can still freeze the page; the size cap and Mermaid's own limits are the
+  defense there. The content security policy lets the web UI load only its own scripts, styles and
+  images, and the `blob:` images it makes from the frame's answers, and frame only the diagram
+  frame, as a second line. No text can break the web UI: a field that fails to render shows as its
+  text, and text nested too deeply shows as text without being parsed. Text can still slow it: some
   Markdown parses in more than linear time, milliseconds for a message's text, which holds at most
   1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A thread page
   renders the text of up to 50 messages at a time and parses a detail once each time it is opened,
@@ -72,8 +89,8 @@ content matters for the same reason: a script running in the web UI could write 
 
 ### Private files
 
-The server's data directory and database, and each agent bridge session's key file, are private to
-the operating-system user that runs them, under one rule:
+The server's data directory and database, each copy `agention backup` writes, and each agent bridge
+session's key file are private to the operating-system user that runs them, under one rule:
 
 - the file is a regular file, never a symlink, that belongs to the user, with no group or other
   permissions;
@@ -89,7 +106,9 @@ own: whoever could replace a session's key could act as that agent once the oper
 registration. A symlink on the way that another user could swap can only lead somewhere that breaks
 the rule, or somewhere no other user can write. The server and the bridge work only in the real
 path, create what is missing with modes 0700 and 0600 whatever the umask, and never change the
-permissions of a path that exists: they refuse, and say what to change.
+permissions of a path that exists: they refuse, and say what to change. A backup's copy holds all
+the database holds, so `agention backup` creates it with mode 0600, never over a file that exists,
+only in a directory that already obeys the rule.
 
 ### The agent bridge
 

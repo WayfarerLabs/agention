@@ -3,17 +3,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node build-frame.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
     "test": "vitest run",
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@panzoom/panzoom": "4.6.2",
     "@wayfarerlabs/agention-api": "*",
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-gfm-strikethrough": "2.0.1",
     "mdast-util-gfm-table": "2.0.1",
     "mdast-util-gfm-task-list-item": "2.0.1",
+    "mermaid": "12.3.0",
     "micromark-extension-gfm-strikethrough": "2.1.0",
     "micromark-extension-gfm-table": "2.1.2",
     "micromark-extension-gfm-task-list-item": "2.1.0",
@@ -28,7 +30,13 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
+    "@wayfarerlabs/agention-build": "*",
+    "fastdom": "1.0.12",
+    "js-yaml": "4.3.2",
     "jsdom": "31.0.1",
-    "vite": "8.3.8"
+    "langium": "4.4.0",
+    "vite": "8.3.8",
+    "vscode-languageserver-textdocument": "1.0.15",
+    "vscode-uri": "3.1.0"
   }
 }

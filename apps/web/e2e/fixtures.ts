@@ -1,7 +1,8 @@
 // The browser tests' servers: the built Agention server, serving its built web
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
-// ask for it, presenting the same certificate, as servers sharing a host may.
+// ask for it, presenting the same certificate, as servers sharing a host may,
+// and so does a server of the diagram tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -31,6 +32,9 @@ export const serverName = `Work <&"> co`;
 
 // The second server's name.
 export const secondServerName = "Personal";
+
+// The name of the server the diagram tests start for themselves.
+export const diagramsServerName = "Diagrams";
 
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
@@ -178,7 +182,12 @@ const serving =
 
 export const test = base.extend<
   object,
-  { certificate: HostCertificate; agention: Agention; secondServer: Agention }
+  {
+    certificate: HostCertificate;
+    agention: Agention;
+    secondServer: Agention;
+    diagramsServer: Agention;
+  }
 >({
   certificate: [
     async ({}, use) => {
@@ -188,6 +197,7 @@ export const test = base.extend<
   ],
   agention: [serving(serverName), { scope: "worker" }],
   secondServer: [serving(secondServerName), { scope: "worker" }],
+  diagramsServer: [serving(diagramsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({

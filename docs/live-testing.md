@@ -14,8 +14,12 @@ with each other or with what the product does, the disagreement is the finding.
 
 - **CLI**, run from the packed server package, never the source tree: installed from a tarball
   `npm pack` wrote for the head under test, such as those `scripts/check.sh --packages DIR` keeps.
-  `agention serve`, including its plain-HTTP guard; `agention passkey-link`; `agention version`; and
-  `agention --help` (`docs/operator-guide.md` "Commands").
+  `agention serve`, including its plain-HTTP guard; `agention passkey-link`; `agention backup`,
+  taken while agents and the operator write and while the server is stopped, the copy's mode and its
+  refusals of an existing file and of a directory others can read, a database it leaves unmigrated,
+  and a restore from the copy by the operator guide's steps, after which the server serves the
+  threads the copy holds and nothing written after it; `agention version`; and `agention --help`
+  (`docs/operator-guide.md` "Commands" and "Backing up").
 - **HTTP API** through the real listener: the agent mount (key-signed tokens) and the web mount
   (passkey session and CSRF). The token cases: no token, a signature by another key than the one it
   names, an unknown key, another audience (refused naming the expected origin), an expiry past or
@@ -46,15 +50,26 @@ with each other or with what the product does, the disagreement is the finding.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
-  filters with their counts, its sorts and their direction, and grouping with roll-ups; the thread
-  page's numbered asks answered several at once, a message's details, replacements, mark unread from
-  a message, archive through a message and archive all; stranded's reasons; the sessions view, its
-  agent folds and folded rows with what each session reports and what waits on the operator, a row
-  unfolded to its log and marking it read, and the folds kept, on a phone's width too; a thread the
-  operator starts there, with the warning for a session not there to see it, and the agent's reply
-  in it; and registration approval, rejection, and revocation from past requests and a session's
-  options (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents").
-  Real-phone passkeys are the operator's acceptance, not the tester's.
+  filters with their counts, the session group and tag filters among them, with a removed group's
+  and an unused tag's chips, its search reaching what live messages say and not what a replaced one
+  said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
+  by agent; the thread page's numbered asks answered several at once, a message's details,
+  replacements, mark unread from a message, archive through a message and archive all; stranded's
+  reasons; the sessions view, its group and agent folds and folded rows with what each session
+  reports, when it was last seen and whether it is quiet, what waits on the operator and its
+  threads' roll-up, the links from a row, an agent and a group to the thread list filtered to them,
+  and from a row's and an agent's stranded flag to their stranded threads, a row unfolded to its log
+  and marking it read, the Sessions tab's count of sessions with unread updates falling as logs are
+  read, and the folds kept, on a phone's width too; the operator's session groups and tags: a
+  session's group and an agent's and a session's tags set from their options, the chips that show
+  them, and the Groups and tags sheet's rename, its refusal of a name another group or tag has, and
+  its removal, asked first; a thread the operator starts there, with the warning for a session not
+  there to see it, and the agent's reply in it; registration approval, rejection, and revocation
+  from past requests and a session's options; and diagrams, drawn in light and dark, with their
+  Source toggle, their fallback, and the viewer's gestures, buttons and keys, on a phone's width too
+  (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents"). Real-phone
+  passkeys, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
+  tester's.
 
 ## Layers to cross-check
 
@@ -88,9 +103,11 @@ On top of the method's failure classes, look for:
   roll-ups and a row's unread and total counts in a view against the thread's messages, a stopped
   session whose threads holding an unread message of the operator's are not stranded, or stay
   stranded once it reports working, a session's unread updates against its log and the operator's
-  mark, a filter value's count against the list that value produces, a group's roll-up against the
-  threads it holds, an archived thread that another party's later message failed to bring back to
-  the list, and one the caller's own message brought back.
+  mark, the Sessions tab's count against the sessions with unread updates, a filter value's count
+  against the list that value produces, a group's roll-up against the threads it holds and the list
+  its link opens, a stranded count in the sessions view against the list its link opens, a tag on an
+  agent against the threads of each of its sessions, an archived thread that another party's later
+  message failed to bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them
@@ -103,13 +120,20 @@ On top of the method's failure classes, look for:
   together, which share the first key written.
 - **Isolation**: one session's threads, positions, or wake-ups reachable with another session's key,
   probed with keys from different homes, since sessions under one home are not isolated by design
-  (`SECURITY.md` "The agent bridge"); message text rendered live. The Markdown inputs: a message
-  whose text or details hold a code block, a table, a task list, strikethrough, an `https` link, an
-  `http` link, a raw `<b>` tag and an image, in a thread whose title holds Markdown syntax. The
-  first five render as formatting with a working link, the `http` link is plain text, the tag shows
-  literally, the image shows as a link and the browser never requests it, the title shows its syntax
-  literally, and the agent reads the message back unchanged (`SECURITY.md` "Security model";
-  `docs/operator-guide.md` "Using the web UI").
+  (`SECURITY.md` "The agent bridge"); the operator's groups and tags, or a thread's group, reachable
+  from the agent mount or the bridge, or an agent's search finding what a message says rather than
+  its title; message text rendered live. The Markdown inputs: a message whose text or details hold a
+  code block, a table, a task list, strikethrough, an `https` link, an `http` link, a raw `<b>` tag,
+  an image and a `mermaid` block, in a thread whose title holds Markdown syntax. The first five
+  render as formatting with a working link, the `http` link is plain text, the tag shows literally,
+  the image shows as a link and the browser never requests it, the `mermaid` block shows as a
+  diagram image drawn in the sandboxed frame, the title shows its syntax literally, and the agent
+  reads the message back unchanged (`SECURITY.md` "Security model"; `docs/operator-guide.md` "Using
+  the web UI"). Diagrams are drawn in isolation: a hostile `mermaid` source, with script, event
+  handlers, links, `click` directives and directives that try to lower the security level, runs
+  nothing in the page, requests nothing beyond the server, and leaves the frame where it was; a
+  diagram image's `blob:` URL, once the image shows, no longer opens on its own; and
+  `/diagram-frame` opened on its own does nothing.
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong

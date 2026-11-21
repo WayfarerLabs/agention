@@ -1,21 +1,20 @@
 # Architecture
 
-This document describes what exists in the repository today. Agention v1 is under development; its
-intended design, and the alternatives considered, are recorded in
-[ADR 0001](adrs/0001-agention-v1-architecture.md).
+This document describes what exists in the repository today. Its design, and the alternatives
+considered, are recorded in [ADR 0001](adrs/0001-agention-v1-architecture.md).
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, and the error codes.        |
-| `packages/build`         | The bundle build the server and the bridge use: one esbuild file each, with the license notices of the npm packages it includes. |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                  |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store.     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.   |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.          |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.               |
-| `scripts/`               | The checks CI runs, file linting, and plugin generation.                                                                         |
+| Component                | State                                                                                                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, and the error codes.                                                              |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes. |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                        |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store; `backup` copies the database.                             |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                         |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                     |
+| `scripts/`               | The checks CI runs, file linting, and plugin generation.                                                                                                                               |
 
 ## Source and packages
 
@@ -25,13 +24,22 @@ build either: its `exports` point at its source.
 
 The server and the bridge each build into one esbuild bundle, which is what their npm packages
 contain. The packages declare no dependencies, so installing either resolves nothing beyond what the
-repository's lockfile built. The server's build first runs the web UI's Vite build and copies it
-into the package's `web/` directory. Beside each bundle the build writes `THIRD-PARTY-NOTICES.txt`,
-the license of every npm package the bundle includes and, for the server, of every package in the
-web build, which Vite reports. An included package whose own build inlined other npm packages names
-them in its files' region comments; the bundle's notices include those too, read from copies the
-bundling package lists under `devDependencies` at the inlined versions, and the build fails if one
-is missing. Each package carries a copy of the repository's `LICENSE` and a `README.md` of its own
+repository's lockfile built. The server's build first runs the web UI's build and copies it into the
+package's `web/` directory. The web UI's build is Vite's, followed by a pass of its own that builds
+the diagram frame's script with esbuild, through `packages/build`, as one classic script named for
+its content's hash, which `web/diagram-frame.json` names for the server. Beside each bundle the
+build writes `THIRD-PARTY-NOTICES.txt`, the license of every npm package the bundle includes and,
+for the server, of every package in the web build, which Vite and the frame's pass report. An
+included package whose own build inlined other npm packages names them in its files' region or path
+comments; the notices include those too, read from copies the bundling package lists under
+`devDependencies` at the inlined versions, and the build fails if one is missing. The build fails
+for a package whose notice would carry no license text; `packages/build` supplies, per package
+version, text a package's own files do not give it, such as license terms that live only in a
+README. A package under the Eclipse Public License, such as `elkjs`, which Mermaid lays out diagrams
+with, always needs that text: the copyright notices in its code, which minification strips, and a
+statement of where its source code is available. The frame's script opens with a comment that
+carries it and names the server package's notices, and the build fails for a package under the EPL
+without it. Each package carries a copy of the repository's `LICENSE` and a `README.md` of its own
 for its npm page. Each bundle embeds its package's `package.json` at build time and reports that
 version.
 
@@ -50,8 +58,11 @@ inferred types the server, the bridge and the web UI share:
   groups' roll-ups; the counts of what each filter value keeps; and bulk read and archive;
 - registration submit and state, the registrations list and approval;
 - a session's status update and the status it answers with; the sessions view's page of agents, each
-  with its sessions; a session's log and the operator's read mark on it; and the operator's start of
-  a thread on a session;
+  with its tags and its sessions; how many sessions have updates the operator has not read; a
+  session's log and the operator's read mark on it; and the operator's start of a thread on a
+  session;
+- the operator's session groups and tags: the list of them, creating, renaming and removing a group,
+  renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the claims of an agent's token, and the error shape.
@@ -120,9 +131,38 @@ messages: each entry, numbered from 1 within its session, holds the session's wh
 credential behind it, so the current status is the entry with the highest number, read through the
 primary key, and nothing about it is stored on the session. A check holds an outcome exactly beside
 the stopped state. `session_marks` holds each actor's read cursor on a session's log, as
-`thread_marks` holds one on a thread. A test freezes the text of every migration a release has
-shipped, by its SHA-256, so a schema change is always a new migration, and another opens a database
-the first migration alone wrote under every later one, its rows intact.
+`thread_marks` holds one on a thread.
+
+The operator's session groups are rows of their own, `session_groups`, each with a name unique
+ignoring the case of ASCII letters, since a group can be empty and renamed. A group keeps its id
+when renamed, and ids never repeat, so a filter or fold naming a removed group never reaches a later
+one. `session_group_members` is keyed on the session, so a session sits in at most one group, and
+removing a group takes its memberships with it by a cascade. A tag is only a name on an agent
+(`agent_tags`) or a session (`session_tags`), as a topic is a name on a thread: it exists while
+something carries it. Agents and sessions are never deleted, so no membership or tag outlives what
+it is on. A second full-text index, `message_texts`, holds the text and detail of every message that
+has text, matched as titles are. It keeps no copy of them, only each message's thread and sequence,
+since a message has no integer key of its own for an external-content index to rest on; a trigger
+fills it as a message is written, since messages are append-only, and a search joins its rows to
+`live_messages`, so a replaced message no longer matches.
+
+A test freezes the text of every migration a release has shipped, by its SHA-256, so a schema change
+is always a new migration. Others open a database the first migration alone wrote, and one the first
+two wrote, under every later one: the tables they had keep their rows, the new ones start empty, and
+a message written before the full-text index of messages existed is found by it.
+
+`agention backup` (`apps/server/src/database/backup.ts`) copies the database without the `Database`
+class, so it never migrates it: it checks the database file as opening does, refusing a missing one,
+and opens it read-only; like any read-only connection to a database in WAL mode, that may leave
+SQLite's empty `-wal` file and its `-shm` beside a database no server has open, which the next
+server to open it uses as its own. It creates the copy itself, with the private-file rule applied to
+the copy's directory, exclusively and with mode 0600, refusing a file that exists, one beside which
+SQLite would find a journal or log of its own, and, before creating anything, one at the database's
+own journal, log or shared-memory path. `node:sqlite`'s `backup()` copies every page in one step,
+its rate the largest it accepts, so a server writing meanwhile cannot restart it, and the copy is
+the database as it stood at one moment. The copy is then opened read-only and `immutable`, which
+leaves nothing beside it, and passes `PRAGMA quick_check`; a backup that fails removes what it
+created.
 
 ## Store
 
@@ -197,11 +237,28 @@ The sessions view's page lists the agents in name order for the operator, each w
 its sessions: those working or idle first, then those that never reported, then stopped ones, each
 latest seen first. Each session carries its presence, by the formula threads use; its approved
 registrations, with their ids and codes; its status with the latest entry's note; its unread
-updates; how many of its threads the operator has not archived, with how many of those are stranded,
-counted for every session of the page in one statement grouped over the threads as the operator sees
-them; and how many asks are open in all its threads, with how many of those are blocking, which is
-what waits on the operator, counted in one statement grouped over the open asks. The operator can
-never archive a thread holding an ask open to them, so their thread list shows every thread counted.
+updates; how many of its threads the operator has not archived, with how many of those hold messages
+the operator has not read and how many are stranded, counted for every session of the page in one
+statement grouped over the threads as the operator sees them; and how many asks are open in all its
+threads, with how many of those are blocking, which is what waits on the operator, counted in one
+statement grouped over the open asks. The operator can never archive a thread holding an ask open to
+them, so their thread list shows every thread counted. A separate read counts the sessions whose log
+holds entries the operator has not read, which the web UI's navigation shows.
+
+The operator sorts sessions into groups and tags agents and sessions, and nothing else does: every
+operation on them authorizes the administration only the operator's identity grants, so to an agent
+none exists. A group's name is plain text on one line, trimmed, 1 to 100 code points, unique
+ignoring the case of ASCII letters; a tag's is a name, as a topic's is. An instance holds at most
+200 groups, and an agent or a session carries at most 20 tags; past either bound a write is
+`invalid_input`. A name another group or tag already has is refused as `conflict`, naming `name`,
+whether a group is created or either is renamed. A group's rename changes its name only, so a filter
+by its id keeps working, and removing it leaves its sessions in no group. Renaming a tag rewrites it
+on every agent and session carrying it, and removing one takes it off all of them, each in one
+transaction. Setting a session's group names it by id, or none; setting an agent's or a session's
+tags gives the whole set. The list of them gives every group in name order, with how many sessions
+each holds, and every tag carried, at most 500, in name order, with how many agents and how many
+sessions carry it, saying when it leaves any out. The sessions view's page carries each agent's
+tags, and each session's group and tags.
 
 The operator starts a thread on a session with a title and a first message of text, with its detail.
 The session stays the thread's requester and the operator its audience, so the operator's request
@@ -231,18 +288,22 @@ A list holds the threads not archived for the caller, its own new threads includ
 `include_archived` the archived ones too. Every other narrowing is a filter. Filters combine with
 AND, and the values of one that takes several combine with OR: `search` keeps the threads whose
 title holds every word of its text as the start of a word, each word quoted so the text is never
-read as query syntax; `status` those of one status; `unread` those with unread messages; and `topic`
-those on a topic, a name as an agent's and a session's are: a session's list takes one bare topic
-name, and the operator's list up to 50 topics, each written with its session as
-`agent/session/topic`. The operator's list also takes filters on the properties of open asks:
-`priority` (an open ask at that level or higher), `impact` (an open ask blocking, or assuming),
-`overdue` (an open ask past its answer-by) and `effort` (an open ask that states that effort or
-less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live message of the
-operator's that the session has not read) or `stranded` (such a message while the session is quiet,
-has no active credential or has stopped); and `agent` and `session`, up to 50 of each, a session
-written `agent/session`. The filters on asks together keep the threads holding one open ask that
-meets them all, so any of them keeps only open threads. One definition of each filter's condition
-serves the list, its total, its counts and its roll-ups.
+read as query syntax, and in the operator's list also those one of whose live messages holds every
+word in its text and detail together, through `message_texts` joined to `live_messages` on the
+thread and sequence, so live keeps its one definition; `status` those of one status; `unread` those
+with unread messages; and `topic` those on a topic, a name as an agent's and a session's are: a
+session's list takes one bare topic name, and the operator's list up to 50 topics, each written with
+its session as `agent/session/topic`. The operator's list also takes filters on the properties of
+open asks: `priority` (an open ask at that level or higher), `impact` (an open ask blocking, or
+assuming), `overdue` (an open ask past its answer-by) and `effort` (an open ask that states that
+effort or less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live
+message of the operator's that the session has not read) or `stranded` (such a message while the
+session is quiet, has no active credential or has stopped); `agent` and `session`, up to 50 of each,
+a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id, `none`
+naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A
+group that was removed, or a tag nothing carries, keeps nothing. The filters on asks together keep
+the threads holding one open ask that meets them all, so any of them keeps only open threads. One
+definition of each filter's condition serves the list, its total, its counts and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -266,27 +327,32 @@ and leaves the others after them as they were; it never changes a thread's lead.
 thread's number, and across sessions first on the session, so the positions a session's own list
 gives out say nothing about other sessions. Lists page by keyset cursors, each bound to its order,
 its direction and its grouping, so a cursor another gave out is refused; a cursor is at most 1,024
-characters, room for a grouped list's position, three sets of keys. All of these keys change as
+characters, room for a grouped list's position, four sets of keys. All of these keys change as
 threads do, so a thread that changes between two pages can be skipped or repeated, and the next
 refresh shows it. Beside a page, the operator's list says how many threads it holds. Bulk read and
 archive take each thread through the message the list showed; bulk archive skips the threads holding
 an ask open to the operator and names them.
 
-With `group`, `session` or `agent`, the operator's list orders its threads by their group, then by
-the sort, so a group's threads arrive together: grouped by session, each session, and each topic
-within it, is placed by its first thread under the sort, reversed or not; grouped by agent, each
-agent, and each session within it, likewise. A group's place is its first thread's keys, which a
-cursor carries beside the thread's own. As a moved thread does in the flat list, a change that moves
-a group ahead of a page's cursor skips that group's remaining threads for the rest of that pass, and
-one that moves it behind repeats them; the next load from the first page shows the list whole, and
-the web UI reloads from the first page on every refresh. A group can therefore come in two runs.
-Every page of a grouped list carries the roll-up of each session holding a thread the list keeps
-and, grouped by session, of each of its topics: how many threads, how many unread, whether any holds
-a blocking ask open to the caller, the highest priority of an open ask, and whether all are archived
-for the caller, and each session's presence: when it was last seen and whether it is quiet.
-`composeRollup` rolls up groups into the one holding them, and `composePresence` sessions' presence
-into their agent's, quiet when all are and last seen when the latest was, as the web UI does for an
-agent's sessions.
+Each thread in the operator's list carries its session's group, which no agent's list shows. With
+`group`, the operator's list orders its threads by their group, then by the sort, so a group's
+threads arrive together: grouped by session group (`group=session_group`), each session's group, no
+group being one of its own, each session within it, and each topic within that, is placed by its
+first thread under the sort, reversed or not; grouped by session, each session, and each topic
+within it, likewise; grouped by agent, each agent, and each session within it, likewise. A group's
+place is its first thread's keys, which a cursor carries beside the thread's own. As a moved thread
+does in the flat list, a change that moves a group ahead of a page's cursor skips that group's
+remaining threads for the rest of that pass, and one that moves it behind repeats them; the next
+load from the first page shows the list whole, and the web UI reloads from the first page on every
+refresh. A group can therefore come in two runs. A change that moves a group's first thread moves
+the whole group, so while every thread the list keeps is in one session group, it can skip or repeat
+the rest of the pass. Every page of a grouped list carries the roll-up of each session holding a
+thread the list keeps, with its group, and, grouped by session group or by session, of each of its
+topics: how many threads, how many unread, whether any holds a blocking ask open to the caller, the
+highest priority of an open ask, and whether all are archived for the caller, and each session's
+presence: when it was last seen and whether it is quiet. `composeRollup` rolls up groups into the
+one holding them, as the web UI does for a session group's sessions and an agent's, and
+`composePresence` sessions' presence into their agent's, quiet when all are and last seen when the
+latest was.
 
 The operator's counts take the list's filters and say, for each value of each filter but search, how
 many threads it keeps with every other filter as it is. Each value of a filter taking one is counted
@@ -294,12 +360,14 @@ by running the list's own total with that value chosen, so one rule says what th
 status, and every status but `open`, with the filters on asks off, as choosing it turns them off,
 and each value of a filter on asks with `open` chosen, as choosing it chooses `open`. Each agent,
 session and topic holding a thread has its own count, whatever that filter's own choices are, each
-kind counted in one statement grouped by it with that filter's condition off. `reset` is the total
+kind counted in one statement grouped by it with that filter's condition off; so does each group
+holding a thread, beside the count of threads in no group, and each tag that a session holding a
+thread, or its agent, carries, a thread counting once for a tag both carry. `reset` is the total
 with no filter on.
 
-Counts and roll-ups list at most 500 agents, sessions and topics each, the first in name order or in
-the list's, and say when they leave any out; the sessions view's page pages agents, each with at
-most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
+Counts and roll-ups list at most 500 agents, sessions, topics and tags each, the first in name order
+or in the list's, and say when they leave any out; the sessions view's page pages agents, each with
+at most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
 its open asks, the most pressing, beside their count and the earliest.
 
 ## HTTP API
@@ -309,7 +377,12 @@ its open asks, the most pressing, beside their count and the earliest.
 sub-application mounted on both under `/s/:agent/:session`, so the role and message checks are the
 same for both kinds of caller. Each mount authenticates its own credential and refuses the other's:
 the agent mount refuses any request carrying a cookie, and the web mount any request carrying an
-`Authorization` header.
+`Authorization` header. The operator's own routes are on the web mount alone: the sessions view and
+its count of sessions with unread updates (`GET /sessions/unread-updates`), a session's log, and the
+session groups and tags, whose reads are `GET /groups-and-tags` and whose writes are each a POST
+naming its action, as the passkey routes' are (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
+`/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
+`/agents/:agent/tags`).
 
 Every route reads its path, query and body through the shared schemas, so input outside a bound
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and
@@ -320,8 +393,9 @@ which holds a message with every field at its bound, with status 413. A body tha
 is refused, never repaired. Every request's `Host` must be the origin's host, so a page on another
 name that resolves to the server cannot reach it, and no forwarded header is read. Every response
 carries the security headers: a content security policy that allows only the server's own scripts,
-styles, images and connections and no framing, HSTS, `nosniff`, `DENY` framing, no referrer, and
-`no-store`.
+styles, images and connections, `blob:` images and the diagram frame as its only frame, and no
+framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and `no-store`; the diagram
+frame's page and script set their own policy, framing and caching, as described below.
 
 The long poll answers at once while a thread in the session has unread messages newer than its
 `since`, and otherwise ends when such a message commits, when its credential is revoked, when the
@@ -348,6 +422,16 @@ index page once, as it starts, writing its name, HTML-escaped, into the page's t
 `application-name` and `apple-mobile-web-app-title` metadata, and never serves the page's file as it
 is; a build whose page lacks one of those stops the server from starting. A server built without the
 UI serves a placeholder page instead.
+
+`/diagram-frame` (`apps/server/src/http/diagram-frame.ts`) serves the page the web UI frames to draw
+diagrams, which loads one script, the one `diagram-frame.json` in the build names; a manifest that
+names no script of the build stops the server from starting. The page's response carries its own
+content security policy, `sandbox allow-scripts`, nothing allowed but that script, named by its full
+URL, and inline styles, and `frame-ancestors` naming the server's origin, with
+`X-Frame-Options: SAMEORIGIN`. The script's name carries its content's hash, so its response is
+cached for good. The security headers middleware sets every header after the route, and leaves a
+header a route set itself only for the frame's two routes, and only those they name: the page's
+policy and framing, and the script's caching.
 
 ## Authentication
 
@@ -399,6 +483,24 @@ UI serves a placeholder page instead.
 Browser sessions and links are 256 random bits, stored only as their SHA-256. Expired sessions,
 links and used challenges are deleted whenever their table is next written, and so are registrations
 that expired while pending, so no timer runs.
+
+## An external issuer
+
+An issuer of agent credentials other than Agention's own registrations, such as an organization's
+identity provider, would change Agention in these places:
+
+- **The credential.** `Credential` in `apps/server/src/identity.ts` is a closed union of a
+  registration and a browser session; an issuer's credential would be a third kind, and every check
+  that branches on the kind, such as `checkCredential`, would take it.
+- **The status call.** A session's status update accepts only a registration's credential
+  (`updateSession` in `apps/server/src/store/sessions.ts`).
+- **The session log.** Each entry in `session_updates` names the registration that wrote it, in a
+  column that is never null.
+- **The signals.** Whether a session holds a working credential (`credential_active`, in the thread
+  list and the registrations' queries) and its last-seen stamp (`markSeen`, which the agent mount
+  calls for a registration) are both keyed on registrations.
+
+Everything else keys on agents and sessions themselves, not on the credential that let them in.
 
 ## Rate budgets
 
@@ -554,21 +656,27 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path              | Contents                                                                                                                                                                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`  | The routes, over the History API                                                                                                                                                                                             |
-| `src/session.tsx` | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                          |
-| `src/data.ts`     | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                            |
-| `src/api.ts`      | The web API's client                                                                                                                                                                                                         |
-| `src/passkeys.ts` | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                          |
-| `src/markdown/`   | The inert Markdown renderer                                                                                                                                                                                                  |
-| `src/views/`      | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations and new-thread sheet |
-| `src/styles.css`  | The design tokens and styles                                                                                                                                                                                                 |
-| `e2e/`            | The browser tests                                                                                                                                                                                                            |
+| Path                 | Contents                                                                                                                                                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                               |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                            |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                              |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                           |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                            |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                             |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                   |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                              |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
-filters on open asks and the status they keep.
+filters on open asks and the status they keep. A session group is named in the address by its id, so
+the list loads the operator's groups and tags while the sheet is open or a group or tag filter is
+on, to name the groups chosen and to say which group was removed and which tag nothing carries.
+Grouped by session group, the list folds the sessions under their groups only while the roll-ups or
+the rows loaded hold two or more, no group among them, and composes a group's roll-up from its
+sessions', as it does an agent's; this browser keeps a group's fold by the group's id.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
@@ -583,9 +691,46 @@ entries that changed only the percent, with no note, as one line. While the page
 unfolded log marks the operator's read through its newest entry whenever that is beyond their mark,
 with the read marking the thread page uses for its messages. The agents a browser folds, and whether
 it shows the past requests, are kept in its local storage, as the thread list's groups are, and a
-session's row starts folded on every visit. Wherever a thread shows as stranded, the UI says why
-from the session's presence in the thread's summary: the stop the session reported, with its
-outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
+session's row starts folded on every visit. Once any session carries a group, the view folds the
+agents under their groups, splitting each agent's sessions by the group each carries, groups in name
+order ignoring the case of ASCII letters, as the server compares them, and no group last; this
+browser keeps a group's fold by its id, and an agent's under a group by the group's id and the
+agent's name. Each heading sits a level below the one it folds under. Each session's row shows its
+threads' roll-up from its summary, and an agent's header and a group's head compose theirs from the
+sessions they show, none when the view or the agent left sessions out, each with a link opening the
+thread list on those threads, the agent's within its group while the view folds by group; a row's
+and an agent's count of stranded threads, while there are any, link likewise to the stranded among
+them, by the list's stranded filter, an agent that left sessions out flagging them with no count.
+Blocked on the operator shows once: a row's and an agent's open asks say it, and a group's head,
+which has none, shows Blocked. Each session's row says when the session was last seen, from its
+presence, as quiet while it is and has not stopped. Each session's row shows its group and tags, and
+each agent's header its tags, from the sessions view's page; the sheets that set them, and the
+Groups and tags sheet, load the operator's groups and tags while they are open, and reload the view
+once a change lands. While the operator is signed in, the navigation reads how many sessions have
+unread updates, refreshing it as views refresh, and the sessions view refreshes it at once whenever
+it reloads, as reading a log does. Wherever a thread shows as stranded, the UI says why from the
+session's presence in the thread's summary: the stop the session reported, with its outcome;
+otherwise quiet, with when it was last seen; otherwise no active credential.
+
+A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
+bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
+scripts only and laid out, though out of sight, so Mermaid can measure text, and draws its diagrams
+there one at a time, in order. It posts the frame each diagram's text with an id and the Mermaid
+theme that matches the color scheme, and accepts an answer only from that frame's window, for the
+diagram it is drawing, read through the shapes in `src/diagram-frame/protocol.ts`. The frame runs
+Mermaid at its strict security level and answers with the SVG, as standalone XML with the dimensions
+of its view box, and the title and description the diagram declares, or with an error. The page
+shows the SVG as an `<img>` of a `blob:` URL, which it revokes as soon as the image has loaded, or
+failed to, so no URL remains that would open the SVG on its own, outside the page's policy; it keeps
+the SVG, to draw again and for the viewer, which makes its own URL from it the same way
+(`src/markdown/SvgImage.tsx`). A diagram over 10,000 characters is never sent, and shows its source
+with a note that it is too long to draw; one that errs, is not answered within 10 seconds of being
+posted to a loaded frame, or whose frame does not load within 60 seconds, its script's download
+included, shows its source with a note that it could not be drawn; a frame that did not answer or
+load is removed, and the next diagram gets a new one. Diagrams are drawn again when the color scheme
+changes. The viewer is a modal dialog holding the image, zoomed and panned by `@panzoom/panzoom`;
+only its stage sets `touch-action: none`. The Markdown renderer's output itself holds no frame, SVG
+or image: the frame belongs to the page.
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
@@ -600,15 +745,17 @@ The browser tests start the built server, serving its built web UI over TLS at
 need a domain name and a secure context, so Chromium resolves `agention.test` to the loopback
 address with `--host-resolver-rules` and trusts the certificate made for that name at run time by
 its public key with `--ignore-certificate-errors-spki-list`. That makes the page a real secure
-context rather than one that bypasses a certificate error.
+context rather than one that bypasses a certificate error. The diagram tests start a server of their
+own, and drive the frame under the server's real policies.
 
 ## Generated plugins
 
 `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` are the only plugin sources.
 `scripts/generate-plugins.sh` renders them into `out/claude-plugin/`, `out/codex-plugin/`,
 `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. The outputs are committed,
-and CI fails if they drift from their sources. Installing the plugins from the repository has not
-been verified on either host yet.
+and CI fails if they drift from their sources. Installing the plugins from the repository's
+marketplace is in daily use on Claude Code; on Codex, the live tests' basic plugin-integration
+prompts exercise it.
 
 Each plugin carries the usage skill and declares one MCP server, the bridge, in `.mcp.json` at the
 plugin root. The definition names the bridge's package, and the generator pins it to the plugin's

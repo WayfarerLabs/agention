@@ -50,6 +50,12 @@ process is the serialized writer. A single process and a single file are easy to
 reason about, and the expected load (one person, tens of agent sessions) is far inside what SQLite
 handles.
 
+The database is the instance's whole state, and its history is kept for good. `agention backup`
+copies it while the server runs, through SQLite's online backup in a single step, so a server
+writing meanwhile cannot restart the copy; it opens the database read-only and never migrates it.
+Migrations only move forward: every schema change is a new migration, and a release refuses a
+database a newer one wrote, so going back to an earlier release means restoring a backup.
+
 ### An agent bridge in front of a plain HTTP API
 
 Agents never call the API directly. The Agention plugin declares the agent bridge, a small stdio MCP
@@ -83,7 +89,10 @@ Each thread has a requester, the party asking for attention, and an audience, th
 attention is asked. Thread permissions attach to those roles, stored on the thread, and never to
 whether a party is a person or an agent or how it authenticated: the requester asks and sets the
 topic, the audience answers, and either writes messages and replaces its own. In v1 sessions are
-always requesters and the operator, the person running Agention, is always the audience.
+always requesters and the operator, the person running Agention, is always the audience. The
+operator can start a thread on a session, with a title and a first message; the session stays its
+requester, so the operator's request has no place for asks or a topic, and the agent reads the
+thread as the operator's words and replies in it.
 
 ### Threads are append-only logs of messages, with asks
 
@@ -122,7 +131,15 @@ A message's text and its detail are Markdown (CommonMark with GitHub's tables, t
 strikethrough), whoever writes them; every other text field is plain text. Rendering keeps content
 inert: raw HTML is shown as text, images are shown as links rather than loaded, so no content makes
 the browser fetch anything, and only HTTPS links are live. Text is stored and returned exactly as
-written.
+written. The renderer is Agention's own, over a Markdown parser given only those three extensions,
+so a bare URL never becomes a link and no footnote makes links of its own.
+
+A fenced `mermaid` block is drawn as the diagram it describes, but Mermaid never runs in the web
+UI's page. It runs in a frame served from a route of its own and sandboxed with scripts only, so its
+origin is opaque; the route's content security policy sandboxes it even when it is opened on its own
+and lets it fetch nothing. The frame answers with SVG, which the page shows as an image, so it runs
+no script and loads nothing; the page's own policy gains only that frame and `blob:` images. A
+diagram that is too large, fails or takes too long shows its source instead.
 
 ### Read and archive marks, and optimistic concurrency
 
@@ -137,19 +154,56 @@ another landed first, the write fails as stale and returns the missed messages. 
 carries a client request identifier, so retries are safe and a reused identifier with different
 content is rejected. Marking never conflicts with a write.
 
+### Sessions report what they are doing; presence is observed
+
+A session reports its status through one call, and no other call changes it. What it is doing is
+working; idle, with nothing left but waiting while it still checks Agention; or stopped, with an
+outcome. Stopped means the session is not likely to see new messages until something starts it
+again. The latest update wins, exempt from the stale rule, since only the session writes its status.
+Each change is appended to the session's log, so the current status is read from the log and nothing
+about it is stored elsewhere; the operator reads the log with a read cursor of their own. Whether a
+session is waiting on the operator is never reported: it is counted from the session's open asks, so
+the two cannot disagree.
+
+Presence is observed rather than reported. Every authenticated agent call stamps when its session
+was last seen, and a session not seen within a configured time is quiet. A thread holding a message
+of the operator's that its session has not read is stranded while the session is quiet, stopped or
+without an active credential, so the operator knows the agent is not there to read it.
+
 ### One thread list
 
 One thread list serves the operator: the threads they have not archived, narrowed by filters that
-combine, title search among them. A filter takes several values, combined with OR, and counts what
-each value keeps, and the list is viewed flat or grouped by session or by agent.
+combine with AND, search among them. A filter takes several values, combined with OR, and counts
+what each value keeps. Grouping, sorting and filtering are separate controls. The list is viewed
+flat, by session group (group, session, topic), by session (session, topic) or by agent (agent,
+session); every parent folds, rolls up what it holds, and is placed by its first thread under the
+sort. Focusing on some groups is the group filter, the one mechanism for it. The operator's search
+matches thread titles and the text and detail of live messages; an agent's search of its own threads
+matches titles.
+
+The operator sorts sessions into groups, one level deep and each session in at most one, and tags
+agents and sessions, an agent's tags counting for each of its sessions. Groups and tags organize the
+operator's views and nothing else: they grant nothing, and no agent sees them, so they appear on no
+agent route.
+
+Threads stay on the thread list and session status on the sessions view. The sessions view shows
+each session's status and log, never its threads, but rolls up each session's, each agent's and,
+once any session is in a group, each group's threads as the list's parents do, each with a link to
+the thread list filtered to them; a session's unread updates show apart, so unread always means
+threads. The view's tab counts the sessions with unread updates. A topic is different: the
+requester's own, one per thread, within its session.
 
 ### People and agents authenticate separately
 
-People authenticate with passkeys. Each agent session has its own Ed25519 key pair, which the bridge
-generates and keeps on the agent's machine. Registration submits the public key, and the operator
-approves it by matching a short code that the bridge and the server each derive from that key, so
-the registration the operator approves carries the key the agent holds. Each request then carries a
-short-lived token signed with the key and bound to the server's origin.
+People authenticate with passkeys. The operator may hold several, each a way into the one account
+from a device of theirs, never a way to share it. The first passkey, and recovery, come from a
+one-time link that only a command on the server's machine issues; once the operator exists a link
+replaces every passkey, and holding a passkey never yields one. Each agent session has its own
+Ed25519 key pair, which the bridge generates and keeps on the agent's machine. Registration submits
+the public key, and the operator approves it by matching a short code that the bridge and the server
+each derive from that key, so the registration the operator approves carries the key the agent
+holds. Each request then carries a short-lived token signed with the key and bound to the server's
+origin.
 
 The server stores only public keys: it issues, refreshes and stores no agent token, so there is
 nothing to rotate, and two host processes in one session sign independently. A future identity
@@ -178,10 +232,9 @@ fields. Agent routes only grow between versions, and a gate runs every released 
 One canonical plugin definition in `apps/agent-plugin` holds the plugin metadata, the agent usage
 skill and the bridge's MCP declaration. A generator renders a self-contained plugin for each host
 (Claude Code and Codex) and each host's repository catalog. The outputs are generated and committed,
-and CI fails if they drift from their sources; installing them from the repository on each host will
-be verified once the plugin has real content. This keeps metadata in one place and leaves room for
-host-specific features, such as the environment Codex passes to the bridge, which a single
-hand-maintained plugin directory would not.
+CI fails if they drift from their sources, and each host installs its plugin from the repository's
+catalog. This keeps metadata in one place and leaves room for host-specific features, such as the
+environment Codex passes to the bridge, which a single hand-maintained plugin directory would not.
 
 One version covers the server, the bridge and the plugins, and each release's plugins pin the bridge
 at that version.
@@ -189,7 +242,9 @@ at that version.
 ### Repository and supply chain
 
 - One language: strict TypeScript on the pinned Node, in npm workspaces with one lockfile. Node runs
-  the sources directly by stripping their types, so the code uses only erasable syntax.
+  the sources directly by stripping their types, so the code uses only erasable syntax. The
+  repository builds and publishes on Node 26, the current LTS line, while the published packages
+  also run on Node 24, which is widely deployed and which CI checks too.
 - The server and the bridge are published to npm as esbuild bundles that declare no dependencies, so
   `npx` and `npm install` resolve nothing beyond what the lockfile built. Each package ships
   Agention's license and, beside its bundle, the license notices of the npm packages it includes.
@@ -205,6 +260,10 @@ at that version.
   on `jose` to sign its tokens. The SDK's own build includes a JSON Schema validator and its
   helpers; their license notices ship with the bridge too, and the bridge lists them at the inlined
   versions so the vulnerability check covers them.
+- The web UI is React, built with Vite, with no framework beyond React: its router and data hooks
+  are its own. It parses Markdown with `mdast-util-from-markdown` and the GFM table, task-list and
+  strikethrough extensions, draws diagrams with Mermaid, only inside the diagram frame and kept out
+  of the page's bundle, and zooms them with `@panzoom/panzoom`.
 - Bash scripts as the task runner, with `scripts/check.sh` as the single definition of the CI gates
   that contributors also run locally. The repository's build concerns (the server, the bridge, the
   web UI and plugin generation) share one toolchain and do not justify a build system.
@@ -232,9 +291,10 @@ These are deliberate limits, not gaps to fill later without a new decision:
 
 - **No derived "next action" or lifecycle.** Agention does not compute whose turn it is. Agents
   learn things worth reporting when it is not their turn, and a single turn indicator would blur
-  what is asked with what is only said. An open ask states what is asked; "blocked on you" is the
-  one turn-like signal. A thread's status only rolls up its asks and is no lifecycle: each party
-  archives the thread when it needs nothing more from them.
+  what is asked with what is only said. An open ask states what is asked; "blocked on you", and a
+  session "waiting on you", both read from open asks, are the only turn-like signals. A thread's
+  status only rolls up its asks and is no lifecycle: each party archives the thread when it needs
+  nothing more from them.
 - **No server action on deadlines.** An answer-by time and the requester's stated fallback are shown
   to the audience, but the server never acts on them. What a missed deadline means is entirely the
   requester's choice.
@@ -242,14 +302,23 @@ These are deliberate limits, not gaps to fill later without a new decision:
   explicitly reports.
 - **Agention never holds up an agent's work.** An agent asks and carries on, checking for answers as
   it works, and once its other work is done keeps checking, as cheaply as it can, while it has open
-  asks or unread messages. Agention shows when a session was last seen, whether it has gone quiet,
-  the state it last reported, and which threads hold messages it has not read while it is quiet, has
-  no credential or has stopped, so the person knows to resume it.
+  asks or unread messages. A session's reported state, its presence and its stranded threads show
+  the person when an agent is not there to read, so they know to resume it.
+- **No push.** Agention reaches the person only through its own web UI, with no notifications, email
+  or other channel, and reaches an agent only when the agent checks, through `message_wait`.
+  Standard MCP notifications reach neither host's model; waking an idle agent takes each host's own
+  mechanism, which exists on both hosts, and is left for a later release so that polling, which
+  every host supports, works well first.
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
   agent's conversation, or control an agent harness.
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through
   the bridge, over the plain HTTP API, with keys the operator approved. Serving MCP or running OAuth
   on the server would need the machinery the bridge avoids.
+- **One person, who never asks.** There is one operator, the audience of every thread, and no way to
+  share their account or to let people or integrations act for them. The operator answers and writes
+  but makes no asks, so they are never a requester.
+- **One topic, one level of groups, tags by hand.** A thread has at most one topic and no other
+  labels; session groups do not nest; tags are assigned, never matched to names by pattern.
 - **No agent secret on the server.** The server keeps agents' public keys and nothing an attacker
   could replay, so a copy of the database cannot impersonate an agent.
 
@@ -259,6 +328,9 @@ These are deliberate limits, not gaps to fill later without a new decision:
   would each be conventional on their own, but together they make a self-hosted tool much harder to
   run, back up and secure, for load that one process handles easily. The same boundaries exist as
   modules inside the one server.
+- **Copying the database's files for a backup.** A copy taken while the server writes can catch the
+  database and its write-ahead log at different moments, and stopping the server first takes it
+  down. SQLite's online backup copies one consistent moment while the server runs.
 - **Go for the server.** A single Go binary offers a static executable, a strong standard library,
   and no runtime to install. Once agents connect through a bridge that Agention publishes for `npx`,
   the bridge is naturally a Node program, and keeping the server, the bridge and the web UI in one
@@ -287,6 +359,15 @@ These are deliberate limits, not gaps to fill later without a new decision:
 - **Plain text or HTML for message text.** Plain text loses the structure agents already write, and
   HTML would make rendering a sanitization problem. Markdown without raw HTML keeps the structure
   with a small, inert rendering surface.
+- **`remark-gfm` for Markdown.** It cannot turn off autolink literals, which make bare URLs into
+  links, or footnotes, which generate relative links and ids of their own, so Agention parses with
+  only the three GFM extensions it needs.
+- **Mermaid in the page.** Mermaid's own `sandbox` security level isolates only its output, while
+  the library itself, which has had advisories for script and CSS injection and for endless loops,
+  would run in the page, where a script can write as the operator, and its SVG needs inline styles
+  the page's policy refuses. GitHub and GitLab draw diagrams in isolated frames for the same
+  reasons. Putting the frame's SVG into the page's document, rather than showing it as an image,
+  would let whatever it holds act there.
 - **One longer text that the web UI folds by length.** Only the writer knows which part is the
   summary, and a cut by length can land mid-table or fold the summary away, so the writer separates
   the text from its detail. The detail's bound, 20,000 characters, is what fits beside its text
@@ -301,6 +382,16 @@ These are deliberate limits, not gaps to fill later without a new decision:
   respond, with a log of messages, field changes, closes and reopens. An item asks one thing at a
   time, and closing it makes the two parties agree when the matter is done. Threads let any message
   ask, and let each party archive on its own.
+- **Stale checks only on messages that ask or answer.** Exempting other messages would keep a busy
+  agent from repeatedly failing a person's write, but with one person and occasional agent writes
+  that is unlikely, and it would bring back racing writes: any message can be overtaken by what it
+  missed. The web UI keeps the draft through a stale write instead.
+- **Session status on every call.** Every tool could carry the session's state, keeping it current
+  without a call of its own. One status call was chosen instead, which keeps every tool's input to
+  one purpose and every change of status explicit.
+- **Waiting as a reported state.** A session working on one thing while an ask about another waits
+  is both working and waiting, so one reported state would have to choose. Counting waiting from
+  open asks keeps the two apart and always true.
 - **Nx or Make instead of Bash scripts.** Nx brings a large dependency tree and its own
   configuration for a few build concerns that share one toolchain. Make adds a second language and
   portability quirks for little gain over a few scripts. Bash scripts keep the gates readable in one
