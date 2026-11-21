@@ -6,7 +6,8 @@ Date: 2026-10-25
 
 Accepted. [docs/architecture.md](../architecture.md) describes what exists. Until v1 is released
 this ADR is edited in place to state each decision as it stands; later decisions get ADRs of their
-own.
+own. Its "no paid services" is superseded by [ADR 0002](0002-voice-through-the-server.md): none by
+default, with voice's transcription provider one the operator may opt into.
 
 ## Context
 
@@ -24,8 +25,9 @@ Agents usually run unattended, under hosts such as Claude Code and Codex, on mac
 browser and often no person in front of them. Connecting one to Agention must not need a browser on
 that machine, and the person must still decide which agents get in.
 
-Agention must also stay small enough for one person to self-host, with no paid services, and must be
-safe to expose on a private network without trusting that network.
+Agention must also stay small enough for one person to self-host, with no paid services (superseded
+by [ADR 0002](0002-voice-through-the-server.md): none by default), and must be safe to expose on a
+private network without trusting that network.
 
 ## Decision
 
@@ -283,7 +285,8 @@ at that version.
   from `main`, which changes only through reviewed pull requests with the required check. A tag's
   own workflow cannot be trusted to check where its commit came from, since whoever pushes the tag
   supplies it.
-- The MIT license and no paid services.
+- The MIT license and no paid services (superseded by [ADR 0002](0002-voice-through-the-server.md):
+  none by default).
 
 ### Not doing
 

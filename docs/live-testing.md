@@ -18,8 +18,10 @@ with each other or with what the product does, the disagreement is the finding.
   taken while agents and the operator write and while the server is stopped, the copy's mode and its
   refusals of an existing file and of a directory others can read, a database it leaves unmigrated,
   and a restore from the copy by the operator guide's steps, after which the server serves the
-  threads the copy holds and nothing written after it; `agention version`; and `agention --help`
-  (`docs/operator-guide.md` "Commands" and "Backing up").
+  threads the copy holds and nothing written after it; `agention version`; `agention --help`
+  (`docs/operator-guide.md` "Commands" and "Backing up"); and the voice environment variables, each
+  value that breaks its rules, and a key without a base URL, refusing the start by naming the
+  variable and never printing the value (`docs/operator-guide.md` "Voice from the environment").
 - **HTTP API** through the real listener: the agent mount (key-signed tokens) and the web mount
   (passkey session and CSRF). The token cases: no token, a signature by another key than the one it
   names, an unknown key, another audience (refused naming the expected origin), an expiry past or
@@ -32,7 +34,11 @@ with each other or with what the product does, the disagreement is the finding.
   included: a request without the `Agention-Agent-API` header served as version 1, one stating a
   version above the server's, however many digits it has, refused as `unsupported_version` before
   authentication, and a header that is not a positive integer written without leading zeros refused
-  as `invalid_input`.
+  as `invalid_input`. The settings and transcription routes on the web mount only, each unknown on
+  the agent mount; every voice change refused without a recent sign-in; a base URL the rule refuses
+  in any spelling of a refused address; a changed base URL clearing the key; no answer or log
+  carrying a key or a provider's body; and each provider failure, against a local stub provider
+  (`docs/architecture.md` "Voice").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -66,12 +72,17 @@ with each other or with what the product does, the disagreement is the finding.
   from their options, the chips that show them, and the Groups and tags sheet's rename, its refusal
   of a name another group or tag has, and its removal, asked first; a thread the operator starts
   there, with the warning for a session not there to see it, and the agent's reply in it;
-  registration approval, rejection, and revocation from past requests and a session's options; and
+  registration approval, rejection, and revocation from past requests and a session's options;
   diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
-  gestures, buttons and keys, on a phone's width too (`docs/operator-guide.md` "Signing in", "Using
-  the web UI" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while
-  writing, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
-  tester's.
+  gestures, buttons and keys, on a phone's width too; Settings, with `/passkeys` leading there, and
+  voice set up, with the write-only key, what the environment supplies shown read-only, Turn off and
+  Try it; dictation through Chromium's fake microphone and a stub provider, its text at the caret
+  with nothing sent, the microphone and what it says beside Send on a short screen, its failures
+  keeping the recording for a retry, and a recording stopped when the page is hidden; and Read aloud
+  and Stop, in WebKit too where it installs (`docs/operator-guide.md` "Signing in", "Using the web
+  UI", "Voice" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while
+  writing, dictation with a real provider, and diagrams and their viewer in iOS Safari, are the
+  operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -92,8 +103,10 @@ Compare what a surface reports with:
   reach the agent through the bridge;
 - host state: the plugin's files and MCP entry as each host loaded them, and the environment each
   host really passes the bridge (`docs/architecture.md` "Generated plugins");
-- logs: host MCP logs, bridge stderr, and `agention serve` output hold no token, key bytes, or link
-  token.
+- logs: host MCP logs, bridge stderr, and `agention serve` output hold no token, key bytes, link
+  token, transcription key, recording or transcript;
+- the provider's side: what the stub provider received (the recording, the model, the prompt, the
+  key) against the settings in effect, and nothing sent to it after its base URL changed.
 
 ## Agention's hunts
 
@@ -170,6 +183,8 @@ On top of the method's safety rails:
   (`--allowedTools`); never use a permission-bypass mode or save an allow rule.
 - Run Codex in its default approval and sandbox mode, with no override flag, and never change its
   trust settings: that mode is what host verification proves.
+- Transcribe only against a local stub provider, with a made-up key; a real provider and a real key
+  are the operator's own check.
 - Never publish a package; an npm release cannot be undone.
 - Cleanup verification covers the layers above, plus the local marketplace, plugin caches, the npx
   cache entry for the run's tarball, host session records the run created, browser profiles,

@@ -65,6 +65,8 @@ inferred types the server, the bridge and the web UI share:
   renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
+- the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
+  the hosted presets, the types a recording is sent as, and a transcription's answer;
 - the claims of an agent's token, and the error shape.
 
 The schemas are the bounds: text lengths count Unicode code points, required text needs a character
@@ -146,10 +148,16 @@ since a message has no integer key of its own for an external-content index to r
 fills it as a message is written, since messages are append-only, and a search joins its rows to
 `live_messages`, so a replaced message no longer matches.
 
+`voice_settings` holds at most one row, what the operator's Settings last saved for voice: the base
+URL and model in effect when it was saved, the environment's included, so the row always records the
+address its key was entered for, an optional prompt, and an optional key. Turning voice off deletes
+the row. Which provider it means is worked out from its base URL, never stored apart from it.
+
 A test freezes the text of every migration a release has shipped, by its SHA-256, so a schema change
-is always a new migration. Others open a database the first migration alone wrote, and one the first
-two wrote, under every later one: the tables they had keep their rows, the new ones start empty, and
-a message written before the full-text index of messages existed is found by it.
+is always a new migration. Others open a database the first migration alone wrote, and those the
+first two and the first three wrote, under every later one: the tables they had keep their rows, the
+new ones start empty, and a message written before the full-text index of messages existed is found
+by it.
 
 `agention backup` (`apps/server/src/database/backup.ts`) copies the database without the `Database`
 class, so it never migrates it: it checks the database file as opening does, refusing a missing one,
@@ -382,7 +390,11 @@ its count of sessions with unread updates (`GET /sessions/unread-updates`), a se
 session groups and tags, whose reads are `GET /groups-and-tags` and whose writes are each a POST
 naming its action, as the passkey routes' are (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
 `/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
-`/agents/:agent/tags`).
+`/agents/:agent/tags`), and the settings: `GET /settings`, `POST /settings/voice`,
+`POST /settings/voice/clear`, and `POST /transcriptions`, whose body is a recording sent as
+`audio/webm`, `audio/mp4` or `audio/ogg`, at least 1,000 bytes, under the same body cap as every
+other ([Voice](#voice)). `provider_failed` comes only from the web mount, and transcriptions spend
+no rate budget.
 
 Every route reads its path, query and body through the shared schemas, so input outside a bound
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and
@@ -502,6 +514,46 @@ identity provider, would change Agention in these places:
 
 Everything else keys on agents and sessions themselves, not on the credential that let them in.
 
+## Voice
+
+`apps/server/src/store/voice-settings.ts` reads and writes the voice settings, and
+`apps/server/src/transcription/` reaches the provider. The environment may supply the base URL, the
+model and the key (`AGENTION_TRANSCRIPTION_URL`, `_MODEL` and `_KEY`), which `agention serve` reads
+once at start, each under the bounds and base URL rule a save is held to, refusing to start, naming
+the variable but never its value, on one that breaks them or on a key without a base URL. What is in
+effect is the environment's base URL and model, else the row's, and voice is on while both exist.
+The key in effect is the environment's, else the row's only while the base URL in effect is the
+row's. A save, which needs a recent sign-in, refuses a field the environment supplies, writes the
+base URL and model then in effect, and keeps the stored key only when none is given and the base URL
+written is the stored one, so a changed address, from the request or the environment, never receives
+a saved key; a hosted preset's base URL needs a key in effect. No answer carries a key:
+`GET /settings` says only whether a saved one is set, saved for another address, or missing, and
+which fields the environment supplies. The row is checked against the rules a save is held to on
+every read, each transcription's included; one they refuse, as a later release's stricter rule can,
+is reported as invalid and never used, and a clear or a save replaces it.
+
+The base URL rule has two halves. `normalizeBaseUrl`, in `packages/api`, reads a URL into its stored
+form, which the web UI and the server both use. `checkBaseUrl`
+(`apps/server/src/transcription/base-url.ts`) judges the host that form holds with `net.BlockList`:
+link-local addresses, the cloud metadata addresses outside them, the unspecified address and
+multicast are never reached, and plain http only `localhost` and the operator's own network. An
+address in the NAT64 well-known prefix is refused as the IPv4 address it embeds would be, and is
+never the operator's own network, since a translator carries it across networks. A host name other
+than `localhost` is not resolved; over https, the provider's certificate binds it.
+
+`TranscriptionProvider` is the one interface a transcription goes through, and `openAiCompatible`
+its one implementation: `POST {base URL}/audio/transcriptions`, `multipart/form-data` with the
+recording under a file name for its type, the model, `response_format=json` and the prompt, and a
+bearer key when one is set. It follows no redirect, never retries, and reads at most 1 MiB of the
+answer, whose `text` must be a string. It gives up after 60 seconds, and the browser abandoning its
+request aborts it, through the request's signal, which `@hono/node-server` aborts when the client
+disconnects. A failure, `fetch`'s own included, becomes a `ProviderFailure` of one kind:
+unreachable, redirected (a 3xx answer, which is never followed), timed out, cancelled, the key
+refused (401 or 403), rate limited (429), the request refused (400 or 404), another status, or an
+answer that is not a transcript. `POST /transcriptions` answers it as `provider_failed`, status 502,
+with a message naming the kind and never the provider's body, and logs only the kind and status. An
+upload the browser abandons before it arrives whole is logged as cancelled too.
+
 ## Rate budgets
 
 Token buckets in `apps/server/src/http/rates.ts` keep one kind of traffic from starving another, and
@@ -516,21 +568,21 @@ answers `rate_limited`, with a `Retry-After` header. The
 
 ## Serving
 
-`agention serve` canonicalizes `--origin` and checks `--name`, then reads the server's name from the
-database's `instance` row and refuses a `--name` that names another. Without a stored name it takes
-`--name`, `Agention` without one, and stores it there once it is listening, so a start that fails
-before serving leaves the name unset. Of first starts racing on a new database, the first to store
-its name keeps it; a racer with the same name serves too, and one with another closes its listener
-and exits refused. After that the name never changes. The name feeds the index page, the relying
-party and new passkeys' user names. The server listens on `--listen`, an IP address and port. With
-`--tls-cert` and `--tls-key` it terminates TLS 1.3 itself; without them it serves plain HTTP, which
-it refuses on a non-loopback address unless `--allow-plain-http` is given. A client gets 10 seconds
-to send its request headers and 30 to send its whole request, and an idle keep-alive connection
-closes after 120 seconds; a long poll's response may take longer. On `SIGINT` or `SIGTERM` the
-server ends its long polls, answers every request still open with `Connection: close`, closes idle
-connections, and exits once the open requests finish. Three seconds after it starts stopping it
-closes every connection still open, whatever its state, a TLS handshake that never finished
-included.
+`agention serve` canonicalizes `--origin`, checks `--name` and reads the voice settings the
+environment supplies ([Voice](#voice)), then reads the server's name from the database's `instance`
+row and refuses a `--name` that names another. Without a stored name it takes `--name`, `Agention`
+without one, and stores it there once it is listening, so a start that fails before serving leaves
+the name unset. Of first starts racing on a new database, the first to store its name keeps it; a
+racer with the same name serves too, and one with another closes its listener and exits refused.
+After that the name never changes. The name feeds the index page, the relying party and new
+passkeys' user names. The server listens on `--listen`, an IP address and port. With `--tls-cert`
+and `--tls-key` it terminates TLS 1.3 itself; without them it serves plain HTTP, which it refuses on
+a non-loopback address unless `--allow-plain-http` is given. A client gets 10 seconds to send its
+request headers and 30 to send its whole request, and an idle keep-alive connection closes after 120
+seconds; a long poll's response may take longer. On `SIGINT` or `SIGTERM` the server ends its long
+polls, answers every request still open with `Connection: close`, closes idle connections, and exits
+once the open requests finish. Three seconds after it starts stopping it closes every connection
+still open, whatever its state, a TLS handshake that never finished included.
 
 ## Agent bridge
 
@@ -656,18 +708,19 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                       |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                               |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                            |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                              |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                           |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                            |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                             |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                   |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                              |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                         |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                      |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                        |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                     |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                      |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                         |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                          |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                       |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings view's passkeys and voice |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                             |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                        |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -744,6 +797,41 @@ so the keyboard does not hide Send. The composer measures the row as it changes 
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
 
+The Settings view answers `/settings`, and `/passkeys`, where passkeys had a page of their own. It
+loads the settings and the passkeys, and while the passkey list says the sign-in is not recent it
+offers to sign in again above every section. Its voice form starts afresh from what the server holds
+whenever that changes, and normalizes a base URL with the API's own reader; which hosts it may reach
+is the server's to judge, when it is saved. After a save or a clear, focus waits for the settings
+the server then holds before moving to the control that shows them, and moves only from the control
+pressed. Signing in again moves focus to the first section's heading.
+
+Dictation (`src/voice/Dictation.tsx`) shows in the composer, and in Settings' Try it, while the
+settings the page read when it opened say voice is on and the browser has a `MediaRecorder` for
+`audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`, tried in that order. It records at
+32 kbit/s with a one-second timeslice, so it can count the data, and stops at five minutes by the
+clock or 1.9 MiB of data, which keeps a recording within the API's body cap; a page hidden while it
+records stops it, so the microphone never runs unwatched, and transcribes what it recorded. A
+recording under the API's 1,000 bytes is not sent, and reads as nothing heard. The upload declares
+the type the recorder was asked for and waits up to two minutes. A recording, or one awaiting a
+transcription or a retry, holds the composer's draft open, so its stale-write check counts from when
+the recording started. The text goes in at the caret of the box that last had focus, unless the
+draft was sent meanwhile; a failure keeps the recording for Retry until it is discarded.
+`useDictation` gives its caller the controls, what went wrong and what it says otherwise apart, and
+the composer puts all three in its Send row, a failure before Send and anything else after it. The
+row stays short on a phone whatever its fonts: the microphone is its icon alone, the recording's
+time and a failure drop the words the rest says, and Go back after sending moves below the row while
+dictation has controls in it. Each control that replaces another moves focus to the next state's own
+control, unless the operator has put focus somewhere else meanwhile, as into the message box while
+the microphone opens, and starting a recording is announced once.
+
+Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
+Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a
+time, since browsers cut a long utterance off partway. It walks the message's text and detail block
+by block, as the Markdown renderer parses them, saying each block's text through `plainText` and
+naming code blocks and diagrams instead of reading them, then its asks and answers. An utterance
+that fails other than by being cut off says once, under the message, that the device could not read
+it, until anything is read or stopped.
+
 A tab opened before the server is upgraded keeps running the UI it loaded, so it may need a reload
 to work with the new server.
 
@@ -753,7 +841,8 @@ need a domain name and a secure context, so Chromium resolves `agention.test` to
 address with `--host-resolver-rules` and trusts the certificate made for that name at run time by
 its public key with `--ignore-certificate-errors-spki-list`. That makes the page a real secure
 context rather than one that bypasses a certificate error. The diagram tests start a server of their
-own, and drive the frame under the server's real policies.
+own, and drive the frame under the server's real policies. The voice tests start one too, with a
+local stub of a transcription provider, and record through Chromium's fake microphone.
 
 ## Generated plugins
 

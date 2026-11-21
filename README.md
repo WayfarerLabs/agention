@@ -26,7 +26,8 @@ server to agents asking and you answering. The repository contains:
   list, filtered, grouped and searched down to what messages say, reads and answers threads,
   archives them, follows every session's status and updates in one view, where they approve agents'
   registrations, start threads on a session, and sort sessions into groups and tag agents and
-  sessions, and manages their passkeys;
+  sessions, and in Settings manages their passkeys and voice, which dictates replies through a
+  transcription provider they choose and reads messages aloud on their device;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
   starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
   checks for new messages, and reports its state, such as working or stopped;
@@ -46,7 +47,9 @@ authenticates with its own key, which the person approves by matching a short co
 in with passkeys. The server terminates TLS itself or runs on loopback behind a TLS terminator, such
 as a reverse proxy or `tailscale serve`, as the operator guide describes.
 [ADR 0001](docs/adrs/0001-agention-v1-architecture.md) records the design and the alternatives
-considered.
+considered. Voice is optional and off until the person chooses a transcription provider: the server
+relays their recordings to it with a key it holds, and keeps none of them, as
+[ADR 0002](docs/adrs/0002-voice-through-the-server.md) records.
 
 Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
 provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY.md) describes.

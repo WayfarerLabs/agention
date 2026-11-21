@@ -35,11 +35,12 @@ the server's part of them on every request, and the web UI renders content inert
   so servers sharing a host under different ports receive each other's, and each can replace the
   others', signing the browser out of one, for example. Each reads only its own, named for its
   origin's port, and refuses a change from any other origin, but servers on one host should belong
-  to the same operator. Adding a passkey and removing one need a sign-in within the last 10 minutes,
-  and removing one ends the browser sessions it signed in. Passkey links come only from
-  `agention passkey-link` on the server's machine, so holding a passkey never yields one, and access
-  can always be recovered there: a link replaces every passkey, works once within 15 minutes, and
-  issuing one revokes every unused link. Neither credential works on the other's surface.
+  to the same operator. Adding a passkey, removing one and every change to voice need a sign-in
+  within the last 10 minutes, and removing a passkey ends the browser sessions it signed in. Passkey
+  links come only from `agention passkey-link` on the server's machine, so holding a passkey never
+  yields one, and access can always be recovered there: a link replaces every passkey, works once
+  within 15 minutes, and issuing one revokes every unused link. Neither credential works on the
+  other's surface.
 - **Inert content.** A message's text, its detail and its references are displayed, never executed,
   fetched or followed by the server. Markdown renders with raw HTML shown as text, images shown as
   links rather than loaded, and only HTTPS links live; no class or style comes from the text. Every
@@ -86,6 +87,47 @@ meaning the user that runs it (so an agent running as that user can act as the o
 directory, `agention passkey-link` on its machine, and whatever terminates TLS for its origin, such
 as `tailscale serve` or a reverse proxy. Guard them as you would the agents' terminals. Inert
 content matters for the same reason: a script running in the web UI could write as the operator.
+
+### Voice
+
+Voice is optional and off until the operator chooses a transcription provider in Settings, or the
+server's environment supplies one. Reading a message aloud is the browser's own speech, on the
+device, and involves no server.
+
+- **Where audio goes.** The browser sends a recording to the server, which sends it to the provider
+  in effect and returns only the text. The server keeps neither the recording nor the text, and logs
+  only the kind of a provider's failure and its status, never the request, the key, the audio or
+  what the provider answered. Only the operator's signed-in browser can transcribe: the route is on
+  the web mount alone, and so are the settings', so no agent reaches any of it. Whoever runs the
+  provider's address receives the recordings, under its own terms, which Settings link to for the
+  hosted presets.
+- **The key.** The provider's key is a secret like the server's own: written in Settings and never
+  read back, sent to no browser or agent, and never logged. Settings show only whether one is set. A
+  key saved in Settings goes only to the base URL it was entered for: changing the base URL clears
+  it, and a base URL the environment changes leaves it unused until the operator enters it again. A
+  backup holds a key saved in Settings, which is one reason backups are private files. A key from
+  `AGENTION_TRANSCRIPTION_KEY` needs `AGENTION_TRANSCRIPTION_URL` too, so it only goes to an address
+  from the environment; it is never written to the database, and belongs in an environment file only
+  the server's user can read.
+- **The base URL.** Changing it needs a recent sign-in, so a browser left signed in cannot redirect
+  the recordings or the key. It is absolute, with no user, password, query or fragment; `https`
+  reaches any host, and plain `http` only `localhost` and IP addresses on the operator's own network
+  (loopback, the private ranges, the tailnet range `100.64.0.0/10` and unique local IPv6 addresses),
+  where the key and the recordings cross that network unencrypted, as Settings warn. An IP address
+  is judged in whatever spelling it was given, an IPv4-mapped IPv6 address as the IPv4 address it
+  maps; an address in the NAT64 well-known prefix `64:ff9b::/96` is refused wherever the IPv4
+  address it embeds would be, but is never the operator's own network, since a translator carries it
+  across networks they may not control. Over either scheme these are never reached: link-local
+  addresses, where most cloud metadata services live; the named metadata addresses outside them,
+  `100.100.100.200`, `fd00:ec2::254` and `fd20:ce::254`; the unspecified address; and multicast. A
+  host name other than `localhost`, which `https` allows, is not resolved and judged by address:
+  there the provider's certificate, which the server verifies, is what keeps the request from
+  anything else, since a metadata service or an internal host answering for that name cannot present
+  one. The rule is checked when a base URL is saved or read from the environment, and the saved one
+  again for each request, and requests to the provider follow no redirect.
+- **The text.** A transcript goes into the operator's draft as text, which they read, change and
+  send themselves; nothing is sent without them, so a provider can put words in a draft but never in
+  a thread.
 
 ### Private files
 
