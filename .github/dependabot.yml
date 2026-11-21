@@ -21,7 +21,8 @@ updates:
       npm-patch-and-minor:
         update-types: [patch, minor]
     ignore:
-      # Node.js stays on its 24 line, and @types/node follows it.
+      # @types/node follows the oldest Node.js line the packages support, 24,
+      # so the types refuse an API newer than it.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
       # The agent bridge pins these to the versions that @modelcontextprotocol/server

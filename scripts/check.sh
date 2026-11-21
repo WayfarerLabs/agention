@@ -170,7 +170,8 @@ check_server_serves() {
     echo "apps/server: serves its web UI and begins a passkey sign-in"
 }
 
-# CI always runs the pinned version; locally a mismatch is worth knowing about.
+# CI checks on the pinned version, and its oldest-Node job on the oldest
+# supported one; anywhere else a mismatch is worth knowing about.
 node_pin="$(read_pin .node-version)"
 if [[ "$(node --version)" != "v$node_pin" ]]; then
     echo "Warning: Node is $(node --version) but .node-version pins $node_pin." >&2

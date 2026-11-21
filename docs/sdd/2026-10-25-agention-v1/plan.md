@@ -263,6 +263,9 @@ model.
       when it appeared take an open ask's shape in the accent, a thick bar, a tint and a dot, with
       unread titles extra bold; the thread page's "New" divider goes; the sessions log's unread
       entries are tinted to match. (agention#22)
+- [x] Node 26 for the repository (ruling 71): `.node-version` on Node 26's LTS line builds, checks
+      and publishes; the packages' `engines` stay at Node 24 and later, and CI runs the fast checks
+      on Node 24 as well, with `@types/node` held to the 24 line. (agention#23)
 
 ## Delivery 3: sessions
 

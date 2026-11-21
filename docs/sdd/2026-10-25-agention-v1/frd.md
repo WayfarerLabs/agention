@@ -10,7 +10,7 @@
   to 31 on 2026-10-28, rulings 32 to 39 on 2026-10-30, rulings 40 to 44 on 2026-10-31, rulings 45 to
   47 on 2026-11-01, ruling 48 on 2026-11-05, rulings 49 to 52 on 2026-11-06, ruling 53 on
   2026-11-08, rulings 54 and 55 on 2026-11-09, rulings 56 and 57 on 2026-11-10, ruling 58 on
-  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 70 on
+  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 71 on
   2026-11-20
 - Date: 2026-10-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD (ruling 59); paths below are relative to
@@ -1184,6 +1184,12 @@ Recorded from the design conversation.
     divider since the card says it. The operator answered at the terminal: "Actually, can you knock
     out the unread contrast improvements real quick? Let's get those in 0.3.0." Taken: as proposed,
     with the sessions log's unread entries tinted to match, in the 0.3.0 release.
+71. (2026-11-20, releasing 0.3.0) "Btw, shouldn't we be basing this on node 26? Is that a big
+    change?" Before the lead answered, the operator added: "I mean, I suppose it's good to support
+    v24 if we can. That's pretty widely deployed. But we should use v26 ourselves." Taken: the
+    repository builds, checks and publishes on Node 26's LTS line through `.node-version`; the
+    packages keep supporting Node 24 and later (their `engines`, the bundle's target and the
+    bridge's startup check), which CI checks on Node 24 too, with `@types/node` held to the 24 line.
 
 ## Out of scope for v1
 
