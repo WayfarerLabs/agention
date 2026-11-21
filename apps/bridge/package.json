@@ -1,6 +1,6 @@
 {
   "name": "@wayfarerlabs/agention-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "The Agention agent bridge: the MCP server agent hosts run to reach an Agention server.",
   "license": "MIT",
   "repository": {
