@@ -1088,21 +1088,22 @@ Grouping, sorting and filtering are separate controls.
   assistive technology: a closed envelope for unread, an open envelope for read, and an archive box
   for archived. A thread is unread or archived as [Read and archive marks](#read-and-archive-marks)
   defines it; a group is unread when any of its threads is, and archived when all are.
-- **Rows** show the thread's number, muted ("#9"), leading the title, which is bold while unread;
-  the location in body text, never as a label; while any message is unread, the closed envelope with
-  the unread count over the thread's live messages ("2/5"), and otherwise the open envelope with its
-  live messages ("5") (ruling 58); the archive box on a thread archived for the operator; and for a
-  thread with asks open to the operator the question of its lead ask, with its priority, blocked,
-  assuming and effort marks ("Quick", "≤15m", "≤1h", ">1h") and how many more are open, and, when
-  any of its open asks has an answer-by, the earliest of them, whichever ask carries it and whatever
-  the filters keep (ruling 57), in the browser's locale: "Due 3:00 PM" when it falls today, "Due Nov
-  12, 9:00 AM" on another day, with the year when it is not this year's, and once the summary says
-  it is overdue, "Overdue since 3:00 PM" as a warning, with the full date and time in its tooltip;
-  otherwise its status, muted, when answered or withdrawn ("Answered", or "Withdrawn: Merged at
-  14:02" with the latest withdrawal's reason on one line). A stranded thread shows a muted
-  "Stranded" mark, named, while its session is quiet, for when the agent was last seen ("Stranded:
-  agent last seen 14:02"); a session without an active credential is explained by its No active
-  credential tag.
+- **Rows** show the thread's number, muted ("#9"), leading the title; a row whose thread holds an
+  unread message takes an open ask's shape in the accent (a thick bar at its start, a tint, and a
+  dot before the title, set extra bold) (ruling 70); the location in body text, never as a label;
+  while any message is unread, the closed envelope with the unread count over the thread's live
+  messages ("2/5"), and otherwise the open envelope with its live messages ("5") (ruling 58); the
+  archive box on a thread archived for the operator; and for a thread with asks open to the operator
+  the question of its lead ask, with its priority, blocked, assuming and effort marks ("Quick",
+  "≤15m", "≤1h", ">1h") and how many more are open, and, when any of its open asks has an answer-by,
+  the earliest of them, whichever ask carries it and whatever the filters keep (ruling 57), in the
+  browser's locale: "Due 3:00 PM" when it falls today, "Due Nov 12, 9:00 AM" on another day, with
+  the year when it is not this year's, and once the summary says it is overdue, "Overdue since 3:00
+  PM" as a warning, with the full date and time in its tooltip; otherwise its status, muted, when
+  answered or withdrawn ("Answered", or "Withdrawn: Merged at 14:02" with the latest withdrawal's
+  reason on one line). A stranded thread shows a muted "Stranded" mark, named, while its session is
+  quiet, for when the agent was last seen ("Stranded: agent last seen 14:02"); a session without an
+  active credential is explained by its No active credential tag.
 - **Groups.** Grouped by session, the list folds inline under session headers (agent and session),
   and under each, when its threads carry two or more topics, topic headers, those without one under
   "No topic". Grouped by agent, it folds under agent headers, and under each, when it has two or
@@ -1168,12 +1169,12 @@ its head, and answering happens on the message that asked (rulings 31 to 34).
   that is beyond the operator's cursor: on opening, when a refresh shows new messages, and when
   later messages are shown on request. Each of the agent's messages shows the closed envelope,
   accented, if it was unread when it first appeared, and the open envelope otherwise, until the
-  operator leaves the page; the first of a run of unread ones also gets a "New" divider. Each of the
-  operator's live messages shows the agent's reading at the card's foot, on the right, small and
-  muted: the envelope, closed and accented while the message is beyond the agent's read cursor and
-  open once it is not, then the word "agent", named "Unread by agent" or "Read by agent" (ruling
-  47). The card's head carries only the operator's own reading. A failed mark shows its failure and
-  is tried again on the next refresh.
+  operator leaves the page; a card unread when it appeared also takes the rows' unread shape, a dot
+  before its author (ruling 70). Each of the operator's live messages shows the agent's reading at
+  the card's foot, on the right, small and muted: the envelope, closed and accented while the
+  message is beyond the agent's read cursor and open once it is not, then the word "agent", named
+  "Unread by agent" or "Read by agent" (ruling 47). The card's head carries only the operator's own
+  reading. A failed mark shows its failure and is tried again on the next refresh.
 - **Messages.** Each shows its author, time, text, references and any topic it set. A message's
   detail is one folded **Details** line directly under its text, which opens in place and stays open
   across refreshes while the page is open; folded, it is never parsed (see Markdown). A replaced

@@ -259,6 +259,10 @@ model.
       the operator guide documents the tunnel, with a dedicated SSH account whose key options and
       `sshd_config` block limit it to that one forward, those limits exercised against a user-level
       `sshd` (R31, ruling 69). (agention#19)
+- [x] Unread that stands out (ruling 70): a thread row holding unread messages and a message unread
+      when it appeared take an open ask's shape in the accent, a thick bar, a tint and a dot, with
+      unread titles extra bold; the thread page's "New" divider goes; the sessions log's unread
+      entries are tinted to match. (agention#22)
 
 ## Delivery 3: sessions
 
