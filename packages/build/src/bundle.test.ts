@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { bundle, noticesFile, readViteLicenses } from "./bundle.ts";
+import { bundle, bundleScript, noticesFile, readViteLicenses } from "./bundle.ts";
+import { suppliedNotices } from "./supplied-notices.ts";
 
 function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "agention-build-"));
@@ -13,6 +15,24 @@ function tempDir(): string {
 function put(name: string, content: string): void {
   mkdirSync(dirname(name), { recursive: true });
   writeFileSync(name, content);
+}
+
+// eplPackage is the package.json of a package under the EPL, for fakePackage.
+function eplPackage(name: string, version: string): string {
+  return JSON.stringify({ name, version, license: "EPL-2.0", type: "module", main: "index.js" });
+}
+
+// noticedPackage returns a package that the build supplies notice text for,
+// and the lines of that text.
+function noticedPackage(): { name: string; version: string; lines: string[] } {
+  const [key, supplied] = Object.entries(suppliedNotices)[0] ?? ["", { quoted: [] }];
+  const blocks = [...supplied.quoted, ...(supplied.ours ?? [])];
+  const at = key.lastIndexOf("@");
+  return {
+    name: key.slice(0, at),
+    version: key.slice(at + 1),
+    lines: blocks.flatMap((block) => block.split("\n")),
+  };
 }
 
 // fakePackage writes a minimal ESM package that exports its own name.
@@ -84,6 +104,52 @@ describe("bundle", () => {
     }
   });
 
+  it("writes the licenses of the packages an included package's esbuild build inlined", async () => {
+    const root = tempDir();
+    const modules = join(root, "node_modules");
+    fakePackage(join(modules, "chart"), "chart", {
+      LICENSE: "chart license text\n",
+      "index.js":
+        "// ../../node_modules/.pnpm/yaml-lib@1.2.3/node_modules/yaml-lib/dist/index.mjs\n" +
+        "// src/chart.ts\n" +
+        'export const name = "chart";\n',
+    });
+    fakePackage(join(modules, "yaml-lib"), "yaml-lib", { LICENSE: "yaml-lib license text\n" });
+    put(join(root, "src/main.ts"), 'import { name } from "chart";\nconsole.log(name);\n');
+
+    await bundle(join(root, "src/main.ts"), join(root, "dist/out.js"));
+
+    expect(readFileSync(join(root, "dist", noticesFile), "utf8")).toContain(
+      "yaml-lib license text",
+    );
+  });
+
+  it("finds an inlined package in the bundling workspace when another version is above it", async () => {
+    const root = tempDir();
+    const modules = join(root, "node_modules");
+    fakePackage(join(modules, "sdk"), "sdk", {
+      "index.js":
+        "//#region ../../node_modules/.pnpm/validator@1.2.3/node_modules/validator/index.js\n" +
+        'export const name = "sdk";\n',
+      LICENSE: "sdk license text\n",
+    });
+    fakePackage(join(modules, "validator"), "validator", { LICENSE: "the wrong version\n" });
+    put(
+      join(modules, "validator/package.json"),
+      JSON.stringify({ name: "validator", version: "9.9.9", main: "index.js" }),
+    );
+    fakePackage(join(root, "app/node_modules/validator"), "validator", {
+      LICENSE: "the inlined version\n",
+    });
+    put(join(root, "app/src/main.ts"), 'import { name } from "sdk";\nconsole.log(name);\n');
+
+    await bundle(join(root, "app/src/main.ts"), join(root, "app/dist/out.js"));
+    const notices = readFileSync(join(root, "app/dist", noticesFile), "utf8");
+
+    expect(notices).toContain("the inlined version");
+    expect(notices).not.toContain("the wrong version");
+  });
+
   it("fails when a package inlined in an included package's build is not installed at its version", async () => {
     const root = tempDir();
     const modules = join(root, "node_modules");
@@ -125,12 +191,90 @@ describe("bundle", () => {
   it("reads only regular files as license files", async () => {
     const root = tempDir();
     const modules = join(root, "node_modules");
-    fakePackage(join(modules, "dirs"), "dirs", { "LICENSE/README": "not a license file\n" });
+    fakePackage(join(modules, "dirs"), "dirs", {
+      "LICENSE/README": "not a license file\n",
+      COPYING: "dirs license text\n",
+    });
     put(join(root, "src/main.ts"), 'import { name } from "dirs";\nconsole.log(name);\n');
 
     await bundle(join(root, "src/main.ts"), join(root, "dist/out.js"));
+    const notices = readFileSync(join(root, "dist", noticesFile), "utf8");
 
-    expect(readFileSync(join(root, "dist", noticesFile), "utf8")).toContain("dirs 1.2.3");
+    expect(notices).toContain("dirs license text");
+    expect(notices).not.toContain("not a license file");
+  });
+
+  it("refuses a package with no license text and none supplied", async () => {
+    const root = tempDir();
+    fakePackage(join(root, "node_modules/unlicensed"), "unlicensed", {});
+    put(join(root, "src/main.ts"), 'import { name } from "unlicensed";\nconsole.log(name);\n');
+
+    await expect(bundle(join(root, "src/main.ts"), join(root, "dist/out.js"))).rejects.toThrow(
+      "unlicensed",
+    );
+    expect(existsSync(join(root, "dist", noticesFile))).toBe(false);
+  });
+
+  it("refuses a package the Vite build reports with no license text and none supplied", async () => {
+    const root = tempDir();
+    put(join(root, "src/main.ts"), 'console.log("server");\n');
+    put(join(root, "web/license.json"), JSON.stringify([{ name: "bare", version: "0.1.0" }]));
+
+    await expect(
+      bundle(join(root, "src/main.ts"), join(root, "dist/out.js"), {
+        alsoShips: {
+          name: "the web UI",
+          packages: readViteLicenses(join(root, "web/license.json")),
+        },
+      }),
+    ).rejects.toThrow("bare");
+    expect(existsSync(join(root, "dist", noticesFile))).toBe(false);
+  });
+
+  it("refuses a package under the EPL with no supplied notice", async () => {
+    const root = tempDir();
+    fakePackage(join(root, "node_modules/copyleft"), "copyleft", {
+      "package.json": eplPackage("copyleft", "1.0.0"),
+    });
+    put(join(root, "src/main.ts"), 'import { name } from "copyleft";\nconsole.log(name);\n');
+
+    await expect(bundle(join(root, "src/main.ts"), join(root, "dist/out.js"))).rejects.toThrow(
+      "copyleft",
+    );
+    expect(existsSync(join(root, "dist", noticesFile))).toBe(false);
+  });
+
+  it("refuses a package with no license field whose license file is the EPL", async () => {
+    const root = tempDir();
+    fakePackage(join(root, "node_modules/copyleft"), "copyleft", {
+      "package.json": JSON.stringify({ name: "copyleft", version: "1.0.0", main: "index.js" }),
+      "LICENSE.md": "# Eclipse Public License - v 2.0\n",
+    });
+    put(join(root, "src/main.ts"), 'import { name } from "copyleft";\nconsole.log(name);\n');
+
+    await expect(bundle(join(root, "src/main.ts"), join(root, "dist/out.js"))).rejects.toThrow(
+      "copyleft",
+    );
+    expect(existsSync(join(root, "dist", noticesFile))).toBe(false);
+  });
+
+  it("writes the notice text the build supplies for a package", async () => {
+    const root = tempDir();
+    put(join(root, "src/main.ts"), 'console.log("server");\n');
+    const { name, version, lines } = noticedPackage();
+
+    await bundle(join(root, "src/main.ts"), join(root, "dist/out.js"), {
+      alsoShips: {
+        name: "the web UI",
+        packages: [{ name, version, license: "EPL-2.0", texts: [] }],
+      },
+    });
+
+    const notices = readFileSync(join(root, "dist", noticesFile), "utf8");
+
+    for (const line of lines) {
+      expect(notices).toContain(line);
+    }
   });
 
   it("adds the notices of the other files a package ships, as a Vite build reports them", async () => {
@@ -140,7 +284,7 @@ describe("bundle", () => {
       join(root, "web/license.json"),
       JSON.stringify([
         { name: "ui-lib", version: "4.5.6", identifier: "MIT", text: "ui-lib license text\n" },
-        { name: "bare", version: "0.1.0" },
+        { name: "bare", version: "0.1.0", text: "bare license text\n" },
       ]),
     );
 
@@ -149,8 +293,82 @@ describe("bundle", () => {
     });
     const notices = readFileSync(join(root, "dist", noticesFile), "utf8");
 
-    for (const text of ["the web UI", "ui-lib 4.5.6", "MIT", "ui-lib license text", "bare 0.1.0"]) {
+    for (const text of [
+      "the web UI",
+      "ui-lib 4.5.6",
+      "MIT",
+      "ui-lib license text",
+      "bare 0.1.0",
+      "bare license text",
+    ]) {
       expect(notices).toContain(text);
     }
+  });
+});
+
+describe("bundleScript", () => {
+  it("builds one classic script, its dynamic imports inlined, named for its content", async () => {
+    const root = tempDir();
+    fakePackage(join(root, "node_modules/lazy-lib"), "lazy-lib", {
+      LICENSE: "lazy-lib license text\n",
+    });
+    put(
+      join(root, "src/main.ts"),
+      'void import("lazy-lib").then(({ name }) => {\n  (globalThis as { loaded?: string }).loaded = name;\n});\n',
+    );
+
+    const { file, packages } = await bundleScript(
+      join(root, "src/main.ts"),
+      join(root, "dist"),
+      "frame",
+      "the notices",
+    );
+
+    expect(file).toMatch(/^assets\/frame-[A-Z0-9]+\.js$/);
+    // A classic script: it runs as one, with nothing to load.
+    const context: { loaded?: string } = {};
+    runInNewContext(readFileSync(join(root, "dist", file), "utf8"), context);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(context.loaded).toBe("lazy-lib");
+    expect(packages.map(({ name, version, texts }) => ({ name, version, texts }))).toEqual([
+      { name: "lazy-lib", version: "1.2.3", texts: ["lazy-lib license text"] },
+    ]);
+  });
+
+  it("opens the script with a comment that keeps the supplied notices of the EPL packages it includes", async () => {
+    const root = tempDir();
+    const { name, version, lines } = noticedPackage();
+    fakePackage(join(root, "node_modules", name), name, {
+      "package.json": eplPackage(name, version),
+    });
+    put(join(root, "src/main.ts"), `import { name } from "${name}";\nconsole.log(name);\n`);
+
+    const { file } = await bundleScript(
+      join(root, "src/main.ts"),
+      join(root, "dist"),
+      "frame",
+      "x",
+    );
+    const script = readFileSync(join(root, "dist", file), "utf8");
+
+    const comment = script.slice(0, script.indexOf("*/"));
+
+    expect(script.startsWith("/*!")).toBe(true);
+    for (const line of lines) {
+      expect(comment).toContain(line);
+    }
+  });
+
+  it("refuses a script that includes a package under the EPL with no supplied notice", async () => {
+    const root = tempDir();
+    fakePackage(join(root, "node_modules/copyleft"), "copyleft", {
+      "package.json": eplPackage("copyleft", "1.0.0"),
+    });
+    put(join(root, "src/main.ts"), 'import { name } from "copyleft";\nconsole.log(name);\n');
+
+    await expect(
+      bundleScript(join(root, "src/main.ts"), join(root, "dist"), "frame", "x"),
+    ).rejects.toThrow("copyleft");
+    expect(existsSync(join(root, "dist", "assets"))).toBe(false);
   });
 });

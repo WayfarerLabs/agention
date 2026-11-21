@@ -6,16 +6,16 @@ intended design, and the alternatives considered, are recorded in
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, and the error codes.        |
-| `packages/build`         | The bundle build the server and the bridge use: one esbuild file each, with the license notices of the npm packages it includes. |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                  |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store.     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.   |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.          |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.               |
-| `scripts/`               | The checks CI runs, file linting, and plugin generation.                                                                         |
+| Component                | State                                                                                                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, and the error codes.                                                              |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes. |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                        |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store.                                                           |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                         |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                     |
+| `scripts/`               | The checks CI runs, file linting, and plugin generation.                                                                                                                               |
 
 ## Source and packages
 
@@ -25,13 +25,22 @@ build either: its `exports` point at its source.
 
 The server and the bridge each build into one esbuild bundle, which is what their npm packages
 contain. The packages declare no dependencies, so installing either resolves nothing beyond what the
-repository's lockfile built. The server's build first runs the web UI's Vite build and copies it
-into the package's `web/` directory. Beside each bundle the build writes `THIRD-PARTY-NOTICES.txt`,
-the license of every npm package the bundle includes and, for the server, of every package in the
-web build, which Vite reports. An included package whose own build inlined other npm packages names
-them in its files' region comments; the bundle's notices include those too, read from copies the
-bundling package lists under `devDependencies` at the inlined versions, and the build fails if one
-is missing. Each package carries a copy of the repository's `LICENSE` and a `README.md` of its own
+repository's lockfile built. The server's build first runs the web UI's build and copies it into the
+package's `web/` directory. The web UI's build is Vite's, followed by a pass of its own that builds
+the diagram frame's script with esbuild, through `packages/build`, as one classic script named for
+its content's hash, which `web/diagram-frame.json` names for the server. Beside each bundle the
+build writes `THIRD-PARTY-NOTICES.txt`, the license of every npm package the bundle includes and,
+for the server, of every package in the web build, which Vite and the frame's pass report. An
+included package whose own build inlined other npm packages names them in its files' region or path
+comments; the notices include those too, read from copies the bundling package lists under
+`devDependencies` at the inlined versions, and the build fails if one is missing. The build fails
+for a package whose notice would carry no license text; `packages/build` supplies, per package
+version, text a package's own files do not give it, such as license terms that live only in a
+README. A package under the Eclipse Public License, such as `elkjs`, which Mermaid lays out diagrams
+with, always needs that text: the copyright notices in its code, which minification strips, and a
+statement of where its source code is available. The frame's script opens with a comment that
+carries it and names the server package's notices, and the build fails for a package under the EPL
+without it. Each package carries a copy of the repository's `LICENSE` and a `README.md` of its own
 for its npm page. Each bundle embeds its package's `package.json` at build time and reports that
 version.
 
