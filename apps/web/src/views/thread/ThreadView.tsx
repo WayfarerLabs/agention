@@ -29,7 +29,15 @@ import {
   usePageTitle,
 } from "../../components.tsx";
 import { useAction, useResource, useStillOpen } from "../../data.ts";
-import { plural, Since, settledWords, Spoken, Time } from "../../format.tsx";
+import {
+  AbsenceReason,
+  absenceOf,
+  plural,
+  settledWords,
+  Spoken,
+  threadWhereabouts,
+  Time,
+} from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import { leaveNotice } from "../../notice.ts";
 import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
@@ -783,9 +791,7 @@ function ThreadPage({
         {settledWords(thread) !== undefined && (
           <p className="muted thread-status">{settledWords(thread)}</p>
         )}
-        {thread.stranded === true && thread.presence?.quiet === true && (
-          <Stranded thread={thread} />
-        )}
+        {thread.stranded === true && <Stranded thread={thread} />}
         {tags.length > 0 && <Tags tags={tags} />}
         {jumpTo !== undefined && (
           <div className="actions">
@@ -866,22 +872,18 @@ function ThreadPage({
   );
 }
 
-// Stranded says, on a thread stranded by a quiet session, credential or not,
-// when the agent was last seen, and that it has not read the operator's
-// latest messages. A session with no active credential that is not yet quiet
-// is explained by its own tag.
+// Stranded says, on a stranded thread, why its session has not read the
+// operator's latest messages: it stopped, with its outcome, or it is quiet,
+// with when it was last seen. A session with no active credential is
+// explained by the notice under the head.
 function Stranded({ thread }: { thread: ThreadSummary }) {
-  const lastSeen = thread.presence?.last_seen_at;
+  const absence = absenceOf(threadWhereabouts(thread));
+  if (absence === undefined || absence.kind === "credential") {
+    return null;
+  }
   return (
     <p className="muted stranded">
-      {lastSeen === undefined ? (
-        "The agent has never been seen"
-      ) : (
-        <>
-          The agent was last seen <Since value={lastSeen} at />
-        </>
-      )}{" "}
-      and has not read your latest messages.
+      Its session has not read your latest messages: <AbsenceReason absence={absence} />.
     </p>
   );
 }

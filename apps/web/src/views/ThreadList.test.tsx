@@ -223,8 +223,9 @@ describe("the thread list", () => {
     expect(status("Pick a database")).toBeNull();
   });
 
-  it("marks every stranded thread, naming when a quiet session's agent was last seen", async () => {
-    const quiet = { last_seen_at: "2026-10-27T09:00:00.000Z", quiet: true };
+  it("marks every stranded thread with why: its session stopped, is quiet or has no credential", async () => {
+    const lastSeen = "2026-10-27T09:00:00.000Z";
+    const quiet = { last_seen_at: lastSeen, quiet: true };
     serve([
       threadSummary({ number: 1, title: "Quiet", stranded: true, presence: quiet }),
       threadSummary({ number: 2, title: "Never seen", stranded: true, presence: { quiet: true } }),
@@ -237,26 +238,31 @@ describe("the thread list", () => {
         credential_active: false,
         presence: quiet,
       }),
+      threadSummary({
+        number: 6,
+        title: "Stalled",
+        stranded: true,
+        presence: { ...quiet, state: "stopped", outcome: "stalled" },
+      }),
     ]);
     renderAt("/");
     await screen.findByText("Quiet");
     const row = (name: string) => within(screen.getByRole("link", { name: new RegExp(name) }));
-    const why = (name: string) =>
-      row(name).queryByText("Stranded")?.closest("[title]")?.getAttribute("title");
-    expect(why("Quiet")).toMatch(/^Stranded: agent last seen \S/);
-    expect(why("Never seen")).toBe("Stranded: agent never seen");
-    // A session with no active credential is marked, its tag saying why, and
-    // named for when it was last seen once it is quiet.
-    expect(row("Just revoked").getByText("Stranded")).toBeTruthy();
-    expect(why("Just revoked")).toBeUndefined();
-    expect(row("Just revoked").getByText("No active credential")).toBeTruthy();
-    expect(why("Revoked long ago")).toMatch(/^Stranded: agent last seen \S/);
+    const stranded = (name: string) => row(name).queryByText(/^Stranded/)?.textContent;
+    // A quiet session's names when it was last seen, or that it never was.
+    expect(stranded("Quiet")).toContain(sinceTime(lastSeen));
+    expect(stranded("Never seen")).not.toBe("Stranded");
+    // A stopped session's names its outcome, whether or not it is quiet too.
+    expect(stranded("Stalled")).toContain("stalled");
+    expect(stranded("Stalled")).not.toContain(sinceTime(lastSeen));
+    // A session with no active credential is marked once for it, and named
+    // for when it was last seen once it is quiet, its credential's tag
+    // saying the rest.
+    expect(stranded("Just revoked")).not.toBe("Stranded");
+    expect(row("Just revoked").getAllByText(/credential/)).toHaveLength(1);
+    expect(stranded("Revoked long ago")).toContain(sinceTime(lastSeen));
     expect(row("Revoked long ago").getByText("No active credential")).toBeTruthy();
-    expect(row("Fine").queryByText("Stranded")).toBeNull();
-    // Said in those words too.
-    expect(screen.getByRole("link", { name: /Never seen/ }).textContent).toContain(
-      "Stranded: agent never seen",
-    );
+    expect(stranded("Fine")).toBeUndefined();
   });
 
   it("counts every other open ask, not only those the summary lists", async () => {

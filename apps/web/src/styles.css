@@ -1112,8 +1112,8 @@ button.picker[aria-expanded="true"] .icon {
   background: var(--color-surface-2);
 }
 
-/* A settled thread's status, and when a stranded thread's agent was last
-   seen, muted, under where the thread is. */
+/* A settled thread's status, and why a stranded thread's session has not
+   read it, muted, under where the thread is. */
 .thread-header .thread-status,
 .thread-header .stranded {
   margin: 0 0 var(--space-2);
