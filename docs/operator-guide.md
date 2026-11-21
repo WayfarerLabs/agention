@@ -566,11 +566,21 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes.
   - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
-    with how many sessions it has and what they add up to: their open asks, unread updates and
-    stranded threads, and the agent's tags. The **⋯** button beside it opens **Tags**. Under it,
-    each session is a folded row, so that many fit on a screen. Its first line holds the session's
-    name, the title its agent gave this line of work, cut to fit, and its percent toward the goal;
-    the second, wrapping on a phone:
+    with how many sessions it has and what they add up to: their threads' roll-up and unread updates
+    as each session's row shows them, their open asks with how many are blocking, their stranded
+    threads, and the agent's tags. Beside it, its threads open the thread list on the agent's
+    threads; how many of them are stranded, flagged while any are, opens it on those, as the
+    **Stranded** filter does; and the **⋯** button opens **Tags**. Once you have put any session in
+    a group, the agents fold under their groups, groups in name order and **No group** last, each
+    group's head showing what its sessions add up to, with **Blocked** when an ask in them blocks an
+    agent's work on your answer, and a link opening the thread list on the group's threads. An agent
+    with sessions in two groups shows under each with that group's sessions, and its threads' links
+    open its threads, and its stranded threads, in that group. This browser keeps the groups you
+    fold, a group however you rename it. Under each agent, each session is a folded row, so that
+    many fit on a screen. Its first line holds the session's name, the title its agent gave this
+    line of work, cut to fit, and its percent toward the goal; the second, **Last seen** and when,
+    or **Never seen**, in the warning's color while the session is quiet and has not stopped; the
+    third, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
       has nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
       **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No
@@ -578,20 +588,25 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Waiting on you** with its open asks and how many are blocking, while it has any, whatever it
       is doing: a session working on one thing can wait on your answer about another. It opens the
       thread list on the session's open threads;
-    - **Quiet**, with when it was last seen, unless it stopped, and **No credential**, when it has
-      no active credential;
+    - **No credential**, when it has no active credential;
     - its group, in a chip with a dashed border, and its tags, each led by **#**;
-    - its unread updates, the closed envelope with how many;
-    - its threads, which opens the thread list on the session, with how many are stranded;
+    - its threads' roll-up, as the thread list's headers show theirs: how many threads you have not
+      archived, which opens the thread list on the session; how many are stranded, flagged as on an
+      agent's header, which opens it on those alone; the closed envelope with how many are unread,
+      or the open envelope when none is. **Waiting on you** already says when an ask blocks its work
+      on your answer, so the row has no **Blocked**, nor does an agent's header, whose open asks say
+      it;
+    - its unread updates, such as **2 new updates**;
     - and its latest note, cut to fit.
 
     Choosing a row lets its title wrap whole and unfolds it to its goal over a bar of how far it has
-    come, when it was last seen, its credentials and its log: what each update changed, newest
-    first, with its note. Consecutive updates that changed only the percent show as one line, such
-    as **Progress 20% → 60%**, and **Older** shows the updates before. Unfolding reads the updates
-    it shows, which stay marked unread until you fold the row again. Rows start folded each time you
-    open the view, and a row under an agent you folded reads nothing, since it is not shown. This
-    browser keeps the agents you fold.
+    come, its credentials and its log: what each update changed, newest first, with its note.
+    Consecutive updates that changed only the percent show as one line, such as **Progress 20% →
+    60%**, and **Older** shows the updates before. Unfolding reads the updates it shows, which stay
+    marked unread until you fold the row again. Rows start folded each time you open the view, and a
+    row under an agent or a group you folded reads nothing, since it is not shown. This browser
+    keeps the agents you fold, under each group apart. The **Sessions** tab shows how many sessions
+    have updates you have not read, which goes down as you read them.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.
@@ -634,7 +649,8 @@ Session groups and tags organize your views, nothing else: agents never see them
 nothing. A session sits in at most one group, such as **Billing migration** or **Personal:
 website**, and you can tag agents and sessions across groups, such as **infra**; a tag on an agent
 counts for each of its sessions. The thread list filters by both and, grouped by **Group**, folds
-the sessions under their groups, as [Using the web UI](#using-the-web-ui) says.
+the sessions under their groups, and the sessions view folds the agents under their groups, as
+[Using the web UI](#using-the-web-ui) says.
 
 - **Group**, in a session's options, opens a sheet listing your groups, **No group** and **New
   group** with a field for its name, up to 100 characters on one line; **Save** puts the session in

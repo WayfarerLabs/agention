@@ -55,17 +55,21 @@ with each other or with what the product does, the disagreement is the finding.
   said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
   by agent; the thread page's numbered asks answered several at once, a message's details,
   replacements, mark unread from a message, archive through a message and archive all; stranded's
-  reasons; the sessions view, its agent folds and folded rows with what each session reports and
-  what waits on the operator, a row unfolded to its log and marking it read, and the folds kept, on
-  a phone's width too; the operator's session groups and tags: a session's group and an agent's and
-  a session's tags set from their options, the chips that show them, and the Groups and tags sheet's
-  rename, its refusal of a name another group or tag has, and its removal, asked first; a thread the
-  operator starts there, with the warning for a session not there to see it, and the agent's reply
-  in it; registration approval, rejection, and revocation from past requests and a session's
-  options; and diagrams, drawn in light and dark, with their Source toggle, their fallback, and the
-  viewer's gestures, buttons and keys, on a phone's width too (`docs/operator-guide.md` "Signing
-  in", "Using the web UI" and "Approving agents"). Real-phone passkeys, and diagrams and their
-  viewer in iOS Safari, are the operator's acceptance, not the tester's.
+  reasons; the sessions view, its group and agent folds and folded rows with what each session
+  reports, when it was last seen and whether it is quiet, what waits on the operator and its
+  threads' roll-up, the links from a row, an agent and a group to the thread list filtered to them,
+  and from a row's and an agent's stranded flag to their stranded threads, a row unfolded to its log
+  and marking it read, the Sessions tab's count of sessions with unread updates falling as logs are
+  read, and the folds kept, on a phone's width too; the operator's session groups and tags: a
+  session's group and an agent's and a session's tags set from their options, the chips that show
+  them, and the Groups and tags sheet's rename, its refusal of a name another group or tag has, and
+  its removal, asked first; a thread the operator starts there, with the warning for a session not
+  there to see it, and the agent's reply in it; registration approval, rejection, and revocation
+  from past requests and a session's options; and diagrams, drawn in light and dark, with their
+  Source toggle, their fallback, and the viewer's gestures, buttons and keys, on a phone's width too
+  (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents"). Real-phone
+  passkeys, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
+  tester's.
 
 ## Layers to cross-check
 
@@ -99,10 +103,11 @@ On top of the method's failure classes, look for:
   roll-ups and a row's unread and total counts in a view against the thread's messages, a stopped
   session whose threads holding an unread message of the operator's are not stranded, or stay
   stranded once it reports working, a session's unread updates against its log and the operator's
-  mark, a filter value's count against the list that value produces, a group's roll-up against the
-  threads it holds, a tag on an agent against the threads of each of its sessions, an archived
-  thread that another party's later message failed to bring back to the list, and one the caller's
-  own message brought back.
+  mark, the Sessions tab's count against the sessions with unread updates, a filter value's count
+  against the list that value produces, a group's roll-up against the threads it holds and the list
+  its link opens, a stranded count in the sessions view against the list its link opens, a tag on an
+  agent against the threads of each of its sessions, an archived thread that another party's later
+  message failed to bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them

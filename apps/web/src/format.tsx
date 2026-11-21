@@ -63,16 +63,12 @@ export function sinceTime(iso: string, now = Date.now()): string {
 }
 
 // Since shows when something last happened, briefly, with the exact time in
-// the element's machine-readable value and its tooltip; with at, it leads
-// with "at" before a time of day or "on" before a date.
-export function Since({ value, at = false }: { value: string; at?: boolean }) {
+// the element's machine-readable value and its tooltip.
+export function Since({ value }: { value: string }) {
   return (
-    <>
-      {at && (today(value) ? "at " : "on ")}
-      <time dateTime={value} title={absolute.format(Date.parse(value))}>
-        {sinceTime(value)}
-      </time>
-    </>
+    <time dateTime={value} title={absolute.format(Date.parse(value))}>
+      {sinceTime(value)}
+    </time>
   );
 }
 
