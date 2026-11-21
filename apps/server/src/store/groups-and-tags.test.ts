@@ -1,4 +1,11 @@
-import { groupNameInput, maxGroups, sessionsQuery, tagsInput } from "@wayfarerlabs/agention-api";
+import {
+  groupNameInput,
+  maxGroups,
+  sessionsQuery,
+  sessionThreadsQuery,
+  tagsInput,
+  threadsQuery,
+} from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import type { Identity } from "../identity.ts";
@@ -14,6 +21,7 @@ import {
   setSessionTags,
 } from "./groups-and-tags.ts";
 import { listSessions } from "./sessions.ts";
+import { listSessionThreads, listThreads } from "./thread-lists.ts";
 import { type Agent, Fixture } from "./test-fixture.ts";
 
 let fixture: Fixture;
@@ -134,6 +142,22 @@ describe("groups", () => {
       code: "not_found",
       field: "id",
     });
+  });
+
+  it("never give a removed group's id to a group made after it", () => {
+    const work = create("Work");
+    group(builder, work.id);
+    fixture.createThread(builder);
+    const kept = (id: number) =>
+      listThreads(store(), operator(), threadsQuery.parse({ session_group: String(id) })).total;
+    expect(kept(work.id)).toBe(1);
+    removeGroup(store(), operator(), work.id);
+    expect(kept(work.id)).toBe(0);
+    const play = create("Play");
+    group(builder, play.id);
+    expect(play.id).not.toBe(work.id);
+    expect(kept(work.id)).toBe(0);
+    expect(kept(play.id)).toBe(1);
   });
 
   it("hold a session in at most one, and let it leave", () => {
@@ -277,5 +301,21 @@ describe("an agent", () => {
       tags: [{ name: "infra", agents: 1, sessions: 0 }],
       truncated: false,
     });
+  });
+
+  it("lists its threads without the operator's group, which the operator's list shows", () => {
+    const work = create("Work");
+    group(builder, work.id);
+    fixture.createThread(builder);
+    const own = listSessionThreads(
+      store(),
+      builder.identity,
+      builder.target,
+      sessionThreadsQuery.parse({}),
+    );
+    expect(own.threads).toHaveLength(1);
+    expect(own.threads[0]).not.toHaveProperty("group");
+    const operators = listThreads(store(), operator(), threadsQuery.parse({}));
+    expect(operators.threads[0]?.group).toEqual({ id: work.id, name: "Work" });
   });
 });

@@ -272,10 +272,12 @@ name, and the operator's list up to 50 topics, each written with its session as
 `overdue` (an open ask past its answer-by) and `effort` (an open ask that states that effort or
 less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live message of the
 operator's that the session has not read) or `stranded` (such a message while the session is quiet,
-has no active credential or has stopped); and `agent` and `session`, up to 50 of each, a session
-written `agent/session`. The filters on asks together keep the threads holding one open ask that
-meets them all, so any of them keeps only open threads. One definition of each filter's condition
-serves the list, its total, its counts and its roll-ups.
+has no active credential or has stopped); `agent` and `session`, up to 50 of each, a session written
+`agent/session`; and the operator's `session_group`, up to 50 groups by id, `none` naming no group,
+and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A group that was
+removed, or a tag nothing carries, keeps nothing. The filters on asks together keep the threads
+holding one open ask that meets them all, so any of them keeps only open threads. One definition of
+each filter's condition serves the list, its total, its counts and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -299,27 +301,32 @@ and leaves the others after them as they were; it never changes a thread's lead.
 thread's number, and across sessions first on the session, so the positions a session's own list
 gives out say nothing about other sessions. Lists page by keyset cursors, each bound to its order,
 its direction and its grouping, so a cursor another gave out is refused; a cursor is at most 1,024
-characters, room for a grouped list's position, three sets of keys. All of these keys change as
+characters, room for a grouped list's position, four sets of keys. All of these keys change as
 threads do, so a thread that changes between two pages can be skipped or repeated, and the next
 refresh shows it. Beside a page, the operator's list says how many threads it holds. Bulk read and
 archive take each thread through the message the list showed; bulk archive skips the threads holding
 an ask open to the operator and names them.
 
-With `group`, `session` or `agent`, the operator's list orders its threads by their group, then by
-the sort, so a group's threads arrive together: grouped by session, each session, and each topic
-within it, is placed by its first thread under the sort, reversed or not; grouped by agent, each
-agent, and each session within it, likewise. A group's place is its first thread's keys, which a
-cursor carries beside the thread's own. As a moved thread does in the flat list, a change that moves
-a group ahead of a page's cursor skips that group's remaining threads for the rest of that pass, and
-one that moves it behind repeats them; the next load from the first page shows the list whole, and
-the web UI reloads from the first page on every refresh. A group can therefore come in two runs.
-Every page of a grouped list carries the roll-up of each session holding a thread the list keeps
-and, grouped by session, of each of its topics: how many threads, how many unread, whether any holds
-a blocking ask open to the caller, the highest priority of an open ask, and whether all are archived
-for the caller, and each session's presence: when it was last seen and whether it is quiet.
-`composeRollup` rolls up groups into the one holding them, and `composePresence` sessions' presence
-into their agent's, quiet when all are and last seen when the latest was, as the web UI does for an
-agent's sessions.
+Each thread in the operator's list carries its session's group, which no agent's list shows. With
+`group`, the operator's list orders its threads by their group, then by the sort, so a group's
+threads arrive together: grouped by session group (`group=session_group`), each session's group, no
+group being one of its own, each session within it, and each topic within that, is placed by its
+first thread under the sort, reversed or not; grouped by session, each session, and each topic
+within it, likewise; grouped by agent, each agent, and each session within it, likewise. A group's
+place is its first thread's keys, which a cursor carries beside the thread's own. As a moved thread
+does in the flat list, a change that moves a group ahead of a page's cursor skips that group's
+remaining threads for the rest of that pass, and one that moves it behind repeats them; the next
+load from the first page shows the list whole, and the web UI reloads from the first page on every
+refresh. A group can therefore come in two runs. A change that moves a group's first thread moves
+the whole group, so while every thread the list keeps is in one session group, it can skip or repeat
+the rest of the pass. Every page of a grouped list carries the roll-up of each session holding a
+thread the list keeps, with its group, and, grouped by session group or by session, of each of its
+topics: how many threads, how many unread, whether any holds a blocking ask open to the caller, the
+highest priority of an open ask, and whether all are archived for the caller, and each session's
+presence: when it was last seen and whether it is quiet. `composeRollup` rolls up groups into the
+one holding them, as the web UI does for a session group's sessions and an agent's, and
+`composePresence` sessions' presence into their agent's, quiet when all are and last seen when the
+latest was.
 
 The operator's counts take the list's filters and say, for each value of each filter but search, how
 many threads it keeps with every other filter as it is. Each value of a filter taking one is counted
@@ -327,12 +334,14 @@ by running the list's own total with that value chosen, so one rule says what th
 status, and every status but `open`, with the filters on asks off, as choosing it turns them off,
 and each value of a filter on asks with `open` chosen, as choosing it chooses `open`. Each agent,
 session and topic holding a thread has its own count, whatever that filter's own choices are, each
-kind counted in one statement grouped by it with that filter's condition off. `reset` is the total
+kind counted in one statement grouped by it with that filter's condition off; so does each group
+holding a thread, beside the count of threads in no group, and each tag that a session holding a
+thread, or its agent, carries, a thread counting once for a tag both carry. `reset` is the total
 with no filter on.
 
-Counts and roll-ups list at most 500 agents, sessions and topics each, the first in name order or in
-the list's, and say when they leave any out; the sessions view's page pages agents, each with at
-most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
+Counts and roll-ups list at most 500 agents, sessions, topics and tags each, the first in name order
+or in the list's, and say when they leave any out; the sessions view's page pages agents, each with
+at most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
 its open asks, the most pressing, beside their count and the earliest.
 
 ## HTTP API

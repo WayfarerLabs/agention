@@ -4,6 +4,7 @@ import type {
   GroupsAndTags,
   SessionState,
   SessionsPage,
+  ThreadCounts,
   ThreadGetResult,
   ThreadList,
   WaitResult,
@@ -443,6 +444,29 @@ describe("groups and tags", () => {
       tags: [],
       truncated: false,
     });
+  });
+
+  it("filter the thread list and its counts", async () => {
+    const { id } = (await harness.web("POST", "/groups", { name: "Work" })).body as GroupRef;
+    await harness.web("POST", "/s/builder/main/group", { group: id });
+    await harness.web("POST", "/agents/builder/tags", { tags: ["infra"] });
+    const total = async (query: string) =>
+      ((await harness.web("GET", `/threads?${query}`)).body as ThreadList).total;
+    expect(await total(`session_group=${id}`)).toBe(1);
+    expect(await total("session_group=none")).toBe(0);
+    expect(await total(`session_group=none&session_group=${id}&tag=infra`)).toBe(1);
+    expect(await total("tag=ops")).toBe(0);
+    const counts = (await harness.web("GET", "/threads/counts?tag=ops")).body as ThreadCounts;
+    expect([counts.session_group, counts.tag]).toEqual([
+      { groups: [{ id, name: "Work", total: 0 }], none: 0 },
+      { tags: [{ tag: "infra", total: 1 }], truncated: false },
+    ]);
+    for (const query of ["session_group=0", "session_group=none&session_group=none", "tag=Ops"]) {
+      expect([query, codeOf(await harness.web("GET", `/threads?${query}`))]).toEqual([
+        query,
+        "invalid_input",
+      ]);
+    }
   });
 
   it("refuse names and ids outside their bounds as invalid input", async () => {

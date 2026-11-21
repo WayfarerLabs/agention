@@ -64,6 +64,8 @@ export const noCounts: ThreadCounts = {
   agent: { agents: [], truncated: false },
   session: { sessions: [], truncated: false },
   topic: { topics: [], truncated: false },
+  session_group: { groups: [], none: 0 },
+  tag: { tags: [], truncated: false },
   reset: 0,
 };
 

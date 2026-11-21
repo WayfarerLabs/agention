@@ -9,6 +9,7 @@ import {
   sequence,
   threadNumber,
 } from "./bounds.ts";
+import { groupId, groupRef, maxGroups, tagName } from "./groups-and-tags.ts";
 import { name, sessionPathPattern, topicPathPattern } from "./names.ts";
 import { type Presence, presence } from "./sessions.ts";
 import { singleLineText } from "./text.ts";
@@ -143,12 +144,32 @@ export const topicsFilter = distinctValues(z.array(topicPath).min(1).max(maxNarr
   "Only threads on these topics, each written agent/session/topic.",
 );
 
+// No group, as a value of the group filter of its own.
+export const noGroup = "none";
+
+// The operator's session groups, each by its id, since a group can be renamed,
+// and no group as none.
+export const sessionGroupsFilter = z
+  .array(z.union([z.literal(noGroup), queryNumber(groupId)]))
+  .min(1)
+  .max(maxNarrowed)
+  .refine((list) => new Set(list).size === list.length, "names a value twice")
+  .describe("Only threads of sessions in these groups, each by its id, or none for no group.");
+export type SessionGroupsFilter = z.infer<typeof sessionGroupsFilter>;
+
+// The operator's tags: a thread is kept when its session or its agent
+// carries one.
+export const tagsFilter = distinctValues(z.array(tagName).min(1).max(maxNarrowed)).describe(
+  "Only threads whose session or agent carries one of these tags.",
+);
+
 // The operator's filters, across sessions: search, status, unread and
 // archived, as a session's list takes them; the properties of open asks,
 // which one open ask must meet together; read by the session, unread or
-// stranded; and agents, sessions and topics, several of each, a topic named
-// with its session. They come in the order the operator is offered them,
-// which a list's address in the web UI keeps.
+// stranded; agents, sessions and topics, several of each, a topic named
+// with its session; and the operator's session groups and tags, several of
+// each. They come in the order the operator is offered them, which a list's
+// address in the web UI keeps.
 const listFilters = {
   search: searchFilter.optional(),
   status: statusFilter.optional(),
@@ -161,12 +182,16 @@ const listFilters = {
   agent: queryList(agentsFilter).optional(),
   session: queryList(sessionsFilter).optional(),
   topic: queryList(topicsFilter).optional(),
+  session_group: queryList(sessionGroupsFilter).optional(),
+  tag: queryList(tagsFilter).optional(),
   include_archived: queryBoolean(includeArchivedFilter),
 };
 
-// How the operator's list may be grouped: by session, and within each by
-// topic; or by agent, and within each by session.
-export const threadGrouping = z.enum(["session", "agent"]);
+// How the operator's list may be grouped, in the order the operator is
+// offered them: by session group, no group being one of its own, within each
+// by session, and within each session by topic; by session, and within each
+// by topic; or by agent, and within each by session.
+export const threadGrouping = z.enum(["session_group", "session", "agent"]);
 export type ThreadGrouping = z.infer<typeof threadGrouping>;
 
 // The list's filters, which every query of the operator's list takes, and
@@ -258,8 +283,12 @@ function valueCounts<T extends string>(values: readonly T[]) {
 // each one holding a thread, each with its own count whatever that filter's
 // own choices are; threads without a topic are no value of topic. Each lists
 // in name order: agents by name, sessions by their name then their agent's,
-// topics by their session's name, their own, then their agent's. reset is
-// what the list holds with no filter on.
+// topics by their session's name, their own, then their agent's.
+// session_group lists each group holding a thread, in name order, each with
+// its own count whatever the group filter's choices are, and none counts the
+// threads of sessions in no group likewise; tag lists each tag carried by a
+// session holding a thread, or by its agent, in name order, likewise. reset
+// is what the list holds with no filter on.
 export const threadCounts = z.object({
   status: valueCounts(threadStatus.options),
   priority: valueCounts(priorityFilter.options),
@@ -279,6 +308,14 @@ export const threadCounts = z.object({
   }),
   topic: z.object({
     topics: listed(z.object({ agent: name, session: name, topic: name, total: sequence })),
+    truncated: z.boolean(),
+  }),
+  session_group: z.object({
+    groups: z.array(groupRef.extend({ total: sequence })).max(maxGroups),
+    none: sequence,
+  }),
+  tag: z.object({
+    tags: listed(z.object({ tag: tagName, total: sequence })),
     truncated: z.boolean(),
   }),
   reset: sequence,
@@ -331,16 +368,18 @@ export function composePresence(parts: readonly Presence[]): Presence {
 }
 
 // The roll-ups of a grouped list: each session holding a thread the list
-// keeps, with its roll-up, its presence and, grouped by session, its topics'
-// roll-ups, the threads without a topic under none, in the order of the
-// groups. An agent's roll-up and presence compose from its sessions'. It
-// lists at most maxListed sessions, and as many topics in all, the first in
-// order, and says when it leaves any out.
+// keeps, with its group when it is in one, its roll-up, its presence and,
+// grouped by session group or by session, its topics' roll-ups, the threads
+// without a topic under none, in the order of the groups. An agent's roll-up and presence compose
+// from its sessions', and a group's roll-up from its sessions'. It lists at
+// most maxListed sessions, and as many topics in all, the first in order,
+// and says when it leaves any out.
 export const threadGroups = z.object({
   sessions: listed(
     z.object({
       agent: name,
       session: name,
+      group: groupRef.optional(),
       rollup,
       presence,
       topics: listed(z.object({ topic: name.optional(), rollup })).optional(),
@@ -350,12 +389,16 @@ export const threadGroups = z.object({
 });
 export type ThreadGroups = z.infer<typeof threadGroups>;
 
-// The operator's thread list: a page; how many threads the list holds; and,
-// grouped, the roll-ups of its groups. A grouped list orders its threads by
-// their group, then by the sort, so a group's threads arrive together, each
-// group placed by its first thread under the sort: by session, each session,
-// and each topic within it; by agent, each agent, and each session within it.
+// The operator's thread list: a page, each thread with its session's group
+// when it is in one; how many threads the list holds; and, grouped, the
+// roll-ups of its groups. A grouped list orders its threads by their group,
+// then by the sort, so a group's threads arrive together, each group placed
+// by its first thread under the sort: by session group, each session's
+// group, no group being one of its own, each session within it, and each
+// topic within that; by session, each session, and each topic within it; by
+// agent, each agent, and each session within it.
 export const threadList = threadPage.extend({
+  threads: z.array(threadSummary.extend({ group: groupRef.optional() })),
   total: sequence,
   groups: threadGroups.optional(),
 });

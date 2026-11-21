@@ -5,11 +5,15 @@ import {
   sessionThreadsQuery,
   maxListed,
   threadFilters,
+  type ThreadGrouping,
+  threadGrouping,
+  type ThreadList,
   threadsQuery,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
+import { createGroup, setAgentTags, setSessionGroup, setSessionTags } from "./groups-and-tags.ts";
 import { archiveThread, markRead } from "./marks.ts";
 import { encodeCursor } from "./opaque-cursors.ts";
 import { revokeRegistration } from "./registrations.ts";
@@ -49,6 +53,9 @@ function agentList(query: Record<string, string> = {}) {
 }
 
 const titles = (page: { threads: { title: string }[] }) => page.threads.map((t) => t.title);
+
+// A thread as the operator's list shows it.
+type ListedThread = ThreadList["threads"][number];
 
 // start begins a thread titled title in the agent's session, a millisecond
 // after the last, so newest-first order is the order of creation reversed.
@@ -881,6 +888,17 @@ describe("counts and groups", () => {
     // Stranded, by a session with no active credential.
     fixture.write(fixture.operator, threadTarget(side, 1), { text: "Over to you." });
     revokeRegistration(fixture.store, fixture.operator, side.registrationId);
+    // builder/side and reviewer/main in one group, its id 1, and builder/main
+    // in none; builder's tag counting for both its sessions, and the
+    // sessions' own.
+    const { id } = createGroup(fixture.store, fixture.operator, { name: "Work" });
+    createGroup(fixture.store, fixture.operator, { name: "Empty" });
+    for (const session of [side, reviewer]) {
+      setSessionGroup(fixture.store, fixture.operator, session.target, { group: id });
+    }
+    setAgentTags(fixture.store, fixture.operator, "builder", { tags: ["infra"] });
+    setSessionTags(fixture.store, fixture.operator, side.target, { tags: ["infra", "ops"] });
+    setSessionTags(fixture.store, fixture.operator, reviewer.target, { tags: ["ops"] });
     fixture.advance(2 * hour);
   });
 
@@ -911,6 +929,19 @@ describe("counts and groups", () => {
     { search: "side", include_archived: "true" },
   ];
 
+  // Queries on the session groups and tags, which the counts check beside
+  // the others; the folds check groups through the queries above.
+  const organizing: Query[] = [
+    { session_group: "1" },
+    { session_group: "none", status: "open" },
+    { session_group: ["none", "1"], agent: "builder" },
+    // A group no longer there keeps nothing.
+    { session_group: "9" },
+    { tag: "infra" },
+    { tag: ["ops", "gone"], unread: "true" },
+    { tag: "ops", session_group: "1", include_archived: "true" },
+  ];
+
   const asksOff = {
     priority: undefined,
     impact: undefined,
@@ -918,7 +949,7 @@ describe("counts and groups", () => {
     effort: undefined,
   };
 
-  it.each(queries)(
+  it.each([...queries, ...organizing])(
     "count for %j what each value keeps with every other filter as it is",
     (query) => {
       const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse(query));
@@ -1002,16 +1033,58 @@ describe("counts and groups", () => {
         }),
         truncated: false,
       });
+      // Each group holding a thread, in name order, and no group, counts
+      // what it keeps on its own; so does each tag carried by a session
+      // holding a thread or by its agent.
+      expect(counts.session_group).toEqual({
+        groups: [{ id: 1, name: "Work", total: total({ session_group: "1" }) }],
+        none: total({ session_group: "none" }),
+      });
+      expect(counts.tag).toEqual({
+        tags: ["infra", "ops"].map((tag) => ({ tag, total: total({ tag }) })),
+        truncated: false,
+      });
       expect(counts.reset).toBe(list().total);
     },
   );
 
-  // fold groups the list's threads, in the list's order, by session and then
-  // topic, or by agent and then session, rolling each group up from its
-  // threads: each group in the order of its first thread, and grouped by
-  // session, each topic within it.
-  function fold(threads: ThreadSummary[], grouping: "session" | "agent") {
-    const rollupOf = (held: ThreadSummary[]): Rollup => {
+  it("keep a thread when its session or its agent carries a chosen tag", () => {
+    const sessionsOf = (query: Query) =>
+      [
+        ...new Set(
+          list({ ...query, include_archived: "true", limit: "100" }).threads.map(
+            (thread) => `${thread.agent}/${thread.session}`,
+          ),
+        ),
+      ].sort();
+    expect(sessionsOf({ tag: "infra" })).toEqual(["builder/main", "builder/side"]);
+    expect(sessionsOf({ tag: "ops" })).toEqual(["builder/side", "reviewer/main"]);
+    expect(sessionsOf({ tag: ["infra", "ops"] })).toEqual([
+      "builder/main",
+      "builder/side",
+      "reviewer/main",
+    ]);
+    expect(sessionsOf({ session_group: "none" })).toEqual(["builder/main"]);
+    // Each thread carries its session's group.
+    const groupOf = list({ include_archived: "true", limit: "100" }).threads.map((thread) => [
+      thread.session === "main" && thread.agent === "builder",
+      thread.group,
+    ]);
+    expect(new Set(groupOf.map(([main, group]) => JSON.stringify([main, group])))).toEqual(
+      new Set([
+        JSON.stringify([true, undefined]),
+        JSON.stringify([false, { id: 1, name: "Work" }]),
+      ]),
+    );
+  });
+
+  // fold groups the list's threads, in the list's order, by the session's
+  // group, then session and then topic, by session and then topic, or by
+  // agent and then session, rolling each group up from its threads: each
+  // group in the order of its first thread, and grouped by session group or
+  // by session, each topic within it.
+  function fold(threads: ListedThread[], grouping: ThreadGrouping) {
+    const rollupOf = (held: ListedThread[]): Rollup => {
       const ranks = ["urgent", "high", "normal", "low"] as const;
       const highest = ranks.find((rank) => held.some((each) => each.open_asks.priority === rank));
       return {
@@ -1022,45 +1095,48 @@ describe("counts and groups", () => {
         archived: held.every((each) => each.archived),
       };
     };
-    const gather = <K>(held: ThreadSummary[], key: (thread: ThreadSummary) => K) => {
-      const groups = new Map<K, ThreadSummary[]>();
+    const gather = <K>(held: ListedThread[], key: (thread: ListedThread) => K) => {
+      const groups = new Map<K, ListedThread[]>();
       for (const thread of held) {
         groups.set(key(thread), [...(groups.get(key(thread)) ?? []), thread]);
       }
       return [...groups.values()];
     };
-    const path = (thread: ThreadSummary) => `${thread.agent}/${thread.session}`;
-    const [outer, inner] =
-      grouping === "session"
-        ? [path, (thread: ThreadSummary) => thread.topic]
-        : [(thread: ThreadSummary) => thread.agent, path];
-    const nested = gather(threads, outer).map((group) => gather(group, inner));
-    const sessions = (grouping === "session" ? nested : nested.flat().map((each) => [each])).map(
-      (groups) => {
-        const [first] = groups.flat();
-        return {
-          agent: first?.agent,
-          session: first?.session,
-          rollup: rollupOf(groups.flat()),
-          presence: first?.presence,
-          ...(grouping === "session"
-            ? {
-                topics: gather(groups.flat(), (thread) => thread.topic).map((held) => ({
-                  ...(held[0]?.topic === undefined ? {} : { topic: held[0].topic }),
-                  rollup: rollupOf(held),
-                })),
-              }
-            : {}),
-        };
-      },
-    );
+    const path = (thread: ListedThread) => `${thread.agent}/${thread.session}`;
+    const byTopic = grouping !== "agent";
+    const [outer, inner] = byTopic
+      ? [path, (thread: ListedThread) => thread.topic]
+      : [(thread: ListedThread) => thread.agent, path];
+    // Grouped by session group, the groups come first, each placed by its
+    // first thread.
+    const placed =
+      grouping === "session_group" ? gather(threads, (thread) => thread.group?.id).flat() : threads;
+    const nested = gather(placed, outer).map((group) => gather(group, inner));
+    const sessions = (byTopic ? nested : nested.flat().map((each) => [each])).map((groups) => {
+      const [first] = groups.flat();
+      return {
+        agent: first?.agent,
+        session: first?.session,
+        ...(first?.group === undefined ? {} : { group: first.group }),
+        rollup: rollupOf(groups.flat()),
+        presence: first?.presence,
+        ...(byTopic
+          ? {
+              topics: gather(groups.flat(), (thread) => thread.topic).map((held) => ({
+                ...(held[0]?.topic === undefined ? {} : { topic: held[0].topic }),
+                rollup: rollupOf(held),
+              })),
+            }
+          : {}),
+      };
+    });
     return { threads: nested.flat(2), sessions };
   }
 
   // pages reads a list a page of two at a time, letting time pass between
   // pages, and collects its threads and the roll-ups each page carries.
   function pages(query: Query) {
-    const threads: ThreadSummary[] = [];
+    const threads: ListedThread[] = [];
     const groups: unknown[] = [];
     let cursor: string | undefined;
     do {
@@ -1077,7 +1153,7 @@ describe("counts and groups", () => {
   it.each(
     queries.flatMap((query, index) =>
       ["priority", "due", "effort", "latest", "created"].flatMap((sort) =>
-        ["session", "agent"].map((group) => ({
+        threadGrouping.options.map((group) => ({
           ...query,
           sort,
           reverse: String(index % 2 === 1),
@@ -1087,7 +1163,7 @@ describe("counts and groups", () => {
     ),
   )("group %j as a fold over the list, a group's threads together across pages", (query) => {
     const { group, ...flat } = query;
-    const folded = fold(list({ ...flat, limit: "100" }).threads, group as "session" | "agent");
+    const folded = fold(list({ ...flat, limit: "100" }).threads, group);
     const grouped = pages(query);
     const key = (thread: ThreadSummary) => `${thread.agent}/${thread.session}/${thread.number}`;
     expect(grouped.threads.map(key)).toEqual(folded.threads.map(key));
@@ -1137,6 +1213,8 @@ describe("counts and groups", () => {
       [{}, { group: "session" }],
       [{ group: "session" }, {}],
       [{ group: "session" }, { group: "agent" }],
+      [{ group: "session_group" }, { group: "session" }],
+      [{ group: "session" }, { group: "session_group" }],
       [{ group: "agent", sort: "due" }, { group: "agent" }],
       [{ group: "session", reverse: "true" }, { group: "session" }],
       [{ group: "session" }, { group: "session", reverse: "true" }],
@@ -1175,17 +1253,65 @@ describe("grouped pages as the list changes", () => {
   const grouped = { sort: "latest", group: "session" };
   const firstPage = () => list({ ...grouped, limit: "3" });
   const rest = (cursor: string | undefined) => titles(list({ ...grouped, cursor }));
+  // What a cursor holds: the list it names and the keys of its position.
+  const opened = (cursor: string | undefined) =>
+    JSON.parse(Buffer.from(cursor ?? "", "base64url").toString("utf8")) as [string, ...number[]];
+
+  // inGroups puts each session in a group of its own, so each group is placed
+  // by its session's newest thread.
+  const inGroups = () => {
+    for (const session of [agent, side, reviewer]) {
+      const { id } = createGroup(fixture.store, fixture.operator, {
+        name: `${session.target.agent}/${session.target.session}`,
+      });
+      setSessionGroup(fixture.store, fixture.operator, session.target, { group: id });
+    }
+  };
+
+  // The same changes, under any grouping: reviewer/main's newest thread
+  // now leads the list, ahead of the cursor, and archiving m2 places
+  // builder/main by m1, behind it.
+  const change = () => {
+    fixture.advance(1);
+    fixture.write(reviewer.identity, threadTarget(reviewer, 1), { text: "More." });
+    archiveThread(fixture.store, fixture.operator, threadTarget(agent, 2), { through: 1 });
+  };
 
   it("continue the cursor's group as changes move other groups around it, and are whole again from the first", () => {
     const page = firstPage();
     expect(titles(page)).toEqual(["m2", "m1", "s2"]);
-    // reviewer/main's newest thread now leads the list, ahead of the cursor,
-    // and archiving m2 places builder/main by m1, behind it.
-    fixture.advance(1);
-    fixture.write(reviewer.identity, threadTarget(reviewer, 1), { text: "More." });
-    archiveThread(fixture.store, fixture.operator, threadTarget(agent, 2), { through: 1 });
+    change();
     expect(rest(page.next)[0]).toBe("s1");
     expect(titles(list(grouped))).toEqual(["r1", "r2", "s2", "s1", "m1"]);
+  });
+
+  it("place a session's group by its first thread, as a session is placed", () => {
+    inGroups();
+    const byGroup = { ...grouped, group: "session_group" };
+    const page = list({ ...byGroup, limit: "3" });
+    expect(titles(page)).toEqual(["m2", "m1", "s2"]);
+    change();
+    expect(titles(list({ ...byGroup, cursor: page.next }))[0]).toBe("s1");
+    expect(titles(list(byGroup))).toEqual(["r1", "r2", "s2", "s1", "m1"]);
+  });
+
+  it("place no group as a group of its own, and leave the session grouping as it is", () => {
+    const before = firstPage();
+    setSessionGroup(fixture.store, fixture.operator, side.target, {
+      group: createGroup(fixture.store, fixture.operator, { name: "Side" }).id,
+    });
+    // The session grouping holds the session's and topic's places alone, so a
+    // session going into a group leaves its positions as they were.
+    const [name, ...position] = opened(firstPage().next);
+    expect([name, position.length]).toEqual(["threads.latest.own.session", 24]);
+    expect(rest(before.next)).toEqual(["s1", "r2", "r1"]);
+    // Grouped by session group, the group's place joins them; with
+    // builder/side in a group and the rest in none, no group is placed by
+    // m2 and Side by s2.
+    const byGroup = { ...grouped, group: "session_group" };
+    const [nameByGroup, ...positionByGroup] = opened(list({ ...byGroup, limit: "3" }).next);
+    expect([nameByGroup, positionByGroup.length]).toEqual(["threads.latest.own.session_group", 32]);
+    expect(titles(list(byGroup))).toEqual(["m2", "m1", "r2", "r1", "s2", "s1"]);
   });
 });
 

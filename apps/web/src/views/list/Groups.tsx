@@ -206,7 +206,7 @@ export function GroupedRows({
 }) {
   const folds = useFolds(`agention.collapsed-groups.${grouping}`);
   const heads = headsOf(groups);
-  if (grouping === "session") {
+  if (grouping !== "agent") {
     return gather(threads, pathOf).map(([path, held]) => {
       const [first] = held;
       const session = heads.session(path);
