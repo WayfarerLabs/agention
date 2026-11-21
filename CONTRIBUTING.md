@@ -72,11 +72,12 @@ The base configuration is strict, including `noUncheckedIndexedAccess` and
 ## Building
 
 The server and the bridge each build into a single-file esbuild bundle, which is what their npm
-packages contain, through `packages/build`. The server's build first builds the web UI with Vite and
-copies it into `apps/server/web/`, which the server package ships and serves. Beside each bundle the
-build writes `THIRD-PARTY-NOTICES.txt`, the license of every npm package the bundle includes and,
-for the server, of every package in the web UI's build. Each bundle also includes its package's
-`package.json`, so it reports the version it was built at:
+packages contain, through `packages/build`. The server's build first builds the web UI, with Vite
+and then, through `packages/build`, the diagram frame's script, and copies it into
+`apps/server/web/`, which the server package ships and serves. Beside each bundle the build writes
+`THIRD-PARTY-NOTICES.txt`, the license of every npm package the bundle includes and, for the server,
+of every package in the web UI's build. Each bundle also includes its package's `package.json`, so
+it reports the version it was built at:
 
 ```bash
 npm run -w apps/server build      # apps/web/dist/, apps/server/web/, apps/server/dist/agention.js
@@ -221,11 +222,22 @@ error, and so does a clone without tags. A new tool or field joins the suite.
   bundle includes. The build gate checks all three are in the tarball and that the `LICENSE` copy
   matches.
 - A package a bundle includes may have inlined other npm packages in its own build, as the MCP SDK
-  builds in its JSON Schema validator. List each under the bundling package's `devDependencies` at
-  the inlined version, so its license notice ships and the vulnerability check covers it; the build
-  names any that is missing. Those pins move only with the package that carries them inlined, so
-  `.github/dependabot.yml` ignores them, and upgrading that package means updating them in the same
-  change.
+  builds in its JSON Schema validator. The build's notice check names each one whose license notice
+  it cannot find; pin each it names under the bundling package's `devDependencies` at the inlined
+  version, so its license notice ships and the vulnerability check covers it, and pin no others.
+  Those pins move only with the package that carries them inlined, so `.github/dependabot.yml`
+  ignores them, and upgrading that package means updating them in the same change.
+- Every package a bundle includes ships with its license text, and the build fails for one whose
+  notice would carry none. When a package's own files do not give the build what its notice needs,
+  `suppliedNotices` in `packages/build/src/supplied-notices.ts` holds that text for its version,
+  quoted from the package: license terms that live only in its README, or in a license file the Vite
+  build does not read, such as `MIT-License.txt`. A package under the Eclipse Public License always
+  needs an entry, since it must keep the copyright notices in its code, which minification strips,
+  and come with a statement of where its source code is available; the build fails for one whose
+  license field or license file names the EPL and that has none, and the diagram frame's script
+  carries that text too. Adding or upgrading such a package means writing its entry for the new
+  version; a test fails while an entry names a version that is not installed or quotes text its
+  package's files do not contain.
 - When adding or upgrading, choose the newest stable release that is at least seven days old, check
   its advisories and provenance, and change the manifest and lockfile together. The wait gives a
   broken or compromised release time to be caught. `.npmrc` sets npm's `min-release-age` to 7, so an
