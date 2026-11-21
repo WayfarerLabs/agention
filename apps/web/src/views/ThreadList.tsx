@@ -1,5 +1,5 @@
 import {
-  searchFilter,
+  messageSearchFilter,
   type ThreadCounts,
   threadFilters,
   type ThreadGrouping,
@@ -262,7 +262,7 @@ interface SearchBox extends SearchText {
 // no problem.
 function searchProblem(text: string): string | undefined {
   const search = text.trim();
-  const read = searchFilter.safeParse(search);
+  const read = messageSearchFilter.safeParse(search);
   return search === "" || read.success
     ? undefined
     : `The search ${read.error.issues[0]?.message ?? "cannot be used"}.`;

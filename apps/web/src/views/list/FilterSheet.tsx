@@ -316,7 +316,7 @@ export function FilterSheet({
         <h2 id={`${id}-title`} ref={heading} tabIndex={-1}>
           Filters
         </h2>
-        <label htmlFor={`${id}-search`}>Search titles</label>
+        <label htmlFor={`${id}-search`}>Search</label>
         <input
           id={`${id}-search`}
           type="search"
