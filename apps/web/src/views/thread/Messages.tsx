@@ -890,16 +890,20 @@ export function MessageView({
   }
   // A live message takes focus from script, as the jump to unread moves it.
   return (
-    <article id={`message-${message.seq}`} tabIndex={-1} className="message" aria-label={label}>
+    <article
+      id={`message-${message.seq}`}
+      tabIndex={-1}
+      className={unread ? "message unread" : "message"}
+      aria-label={label}
+    >
       <MessageBody message={message} context={context} unread={unread} menu={menu} />
     </article>
   );
 }
 
 // MessageList lists messages in order, marking whether each was read: those
-// unread when the page first showed them are marked unread, and a run of them
-// starts with a "New" marker. Each live message has its options menu, one
-// open at a time.
+// unread when the page first showed them are marked unread. Each live message
+// has its options menu, one open at a time.
 export function MessageList({
   messages,
   fresh,
@@ -913,18 +917,16 @@ export function MessageList({
   const menu: OpenMenu = { open, set: setOpen };
   return (
     <ol className="messages">
-      {messages.map((message, index) => {
-        const isNew = fresh.has(message.seq);
-        const previous = messages[index - 1];
-        return (
-          <li key={message.seq}>
-            {isNew && (previous === undefined || !fresh.has(previous.seq)) && (
-              <p className="new-mark">New</p>
-            )}
-            <MessageView message={message} context={context} unread={isNew} menu={menu} />
-          </li>
-        );
-      })}
+      {messages.map((message) => (
+        <li key={message.seq}>
+          <MessageView
+            message={message}
+            context={context}
+            unread={fresh.has(message.seq)}
+            menu={menu}
+          />
+        </li>
+      ))}
     </ol>
   );
 }

@@ -81,14 +81,15 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
   );
 }
 
-// ThreadRow is one thread in the list: a link holding its heading, its number
-// leading its title, bold while unread, beside its message count and archive
-// mark; where the thread is, its agent, session and topic each behind its
-// badge, and when it last changed; for a thread with asks open, which the
-// operator as its audience answers, the question of the one it leads with:
-// the first in the list's order among those the filters keep; otherwise,
-// muted, that its asks were answered or withdrawn; and whether it is
-// stranded, and why. The link records the list, so the thread page returns to it.
+// ThreadRow is one thread in the list, marked unread while any message is: a
+// link holding its heading, its number leading its title, beside its message
+// count and archive mark; where the thread is, its agent, session and topic
+// each behind its badge, and when it last changed; for a thread with asks
+// open, which the operator as its audience answers, the question of the one
+// it leads with: the first in the list's order among those the filters keep;
+// otherwise, muted, that its asks were answered or withdrawn; and whether it
+// is stranded, and why. The link records the list, so the thread page returns
+// to it.
 export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: 2 | 3 | 4 }) {
   const here = useLocation();
   const { open_asks: asks } = thread;
@@ -97,14 +98,14 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: 2 |
   const status = ask === undefined ? settledWords(thread) : undefined;
   const notes = strandedTags(thread);
   return (
-    <li className="thread-row">
+    <li className={thread.unread > 0 ? "thread-row unread" : "thread-row"}>
       <Link
         to={threadHref(thread.agent, thread.session, thread.number)}
         state={() => ({ from: here.pathname + here.search })}
         className="thread-link"
       >
         <div className="row-title">
-          <Heading className={thread.unread > 0 ? "unread" : undefined}>
+          <Heading>
             <ThreadTitle thread={thread} />
           </Heading>
           <span className="marks">
