@@ -1,4 +1,5 @@
 import {
+  type GroupsAndTags,
   messageSearchFilter,
   type ThreadCounts,
   threadFilters,
@@ -6,7 +7,6 @@ import {
   threadGrouping,
   type ThreadList as ThreadListAnswer,
   type ThreadSort,
-  type ThreadSummary,
   type ThreadsView,
   threadSort,
 } from "@wayfarerlabs/agention-api";
@@ -29,7 +29,7 @@ import { BulkActions } from "./list/BulkActions.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet, type SearchText } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
-import { distinct } from "./list/listing.ts";
+import { distinct, type ListedThread } from "./list/listing.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
 
 // The thread list, built filters first: with no filter on it holds every
@@ -103,7 +103,13 @@ export function ThreadList() {
   const counts = useFollowing(filters, sheetOpen, () =>
     request<ThreadCounts>("GET", `/threads/counts${filters}`),
   );
-  const chips = chipsOf(view);
+  // The operator's groups and tags, which name the groups chosen and say
+  // which are gone, loaded while the sheet is open or either filter is on.
+  const naming = view.session_group !== undefined || view.tag !== undefined;
+  const known = useFollowing(`${filters}|${sheetOpen}`, sheetOpen || naming, () =>
+    request<GroupsAndTags>("GET", "/groups-and-tags"),
+  );
+  const chips = chipsOf(view, known);
   const on = chips.length;
   return (
     <>
@@ -175,6 +181,7 @@ export function ThreadList() {
         search={search}
         total={total}
         counts={counts}
+        known={known}
         choose={choose}
         reset={reset}
         onClose={() => setSheetOpen(false)}
@@ -327,7 +334,7 @@ function ListBody({
       say(text);
     }
   }, []);
-  const list = usePages<ThreadSummary, Omit<ThreadListAnswer, "threads" | "next">>((cursor) =>
+  const list = usePages<ListedThread, Omit<ThreadListAnswer, "threads" | "next">>((cursor) =>
     request<ThreadListAnswer>("GET", `/threads${query({ ...queryOf(view), cursor })}`).then(
       ({ threads, ...rest }) => ({ ...rest, rows: threads }),
     ),

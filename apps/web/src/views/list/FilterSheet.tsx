@@ -1,28 +1,39 @@
 import {
   agentReadFilter,
   asksOff,
+  type GroupsAndTags,
   effortFilter,
   impactFilter,
   maxNarrowed,
+  noGroup,
   priorityFilter,
+  type SessionGroupsFilter,
   statusKept,
   type ThreadCounts,
   type ThreadsView,
   threadStatus,
 } from "@wayfarerlabs/agention-api";
-import { type KeyboardEvent, type RefObject, useCallback, useId, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { LeftOut, PathBadge, type PathKind, pathWord, useTapOutside } from "../../components.tsx";
 import { effortLabel, plain, plural, Spoken, statusLabel, type TerseLabel } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { impactShown, priorityAtLeast } from "./Chips.tsx";
-import { sessionOf, topicShown } from "./listing.ts";
+import { groupNamed, removedGroup, sessionOf, topicShown } from "./listing.ts";
 
 // The filter sheet holds every filter, in a modal dialog: a sheet from the
 // bottom on a phone, a panel on a wide screen. The list behind it follows
 // each change. Every value not chosen shows how many threads it keeps with
 // every other filter as it is, from the counts loaded while the sheet is
-// open; every option of Agent, Session and Topic shows its count, chosen or
-// not, since choosing one changes no other's.
+// open; every option of Agent, Session, Topic, Group and Tag shows its
+// count, chosen or not, since choosing one changes no other's.
 
 // The words a value is said in beside its count.
 const threads = (count: number) => plural(count, "thread");
@@ -83,24 +94,46 @@ function Segmented({
   );
 }
 
-// An option of a multi-select: its value, which names it whole, as said and
-// as its tooltip; its name, and what it belongs to, shown muted beside it;
-// and its count.
+// An option of a multi-select: its value; what names it whole, as said and as
+// its tooltip, by default its value; its name, and what it belongs to, shown
+// muted beside it; and its count.
 interface Choice {
   value: string;
+  spoken?: string;
   name: string;
   of?: string | undefined;
   count: number;
 }
 
-// MultiSelect chooses up to maxNarrowed of the values of a filter on where
-// threads are: its part's badge and word, a button naming what is chosen,
-// which discloses a popup beneath it, within the sheet's flow so nothing
-// clips it: a search box that narrows the options by what they show, a checkbox for
-// each, saying when the counts left some out, and Done. Once as many as the
-// list takes are chosen, the boxes not checked are unavailable, and a line
-// says why. Escape, Done or a tap outside closes it, returning focus to its
-// button, as a message's options do.
+// The filters taking several values, each a multi-select.
+type Several = PathKind | "group" | "tag";
+
+// What a multi-select's filter is called, and the word for its values.
+const severalWords: Record<"group" | "tag", { label: string; items: string }> = {
+  group: { label: "Group", items: "groups" },
+  tag: { label: "Tag", items: "tags" },
+};
+
+// FilterLabel names a filter taking several values: a part of where threads
+// are behind its badge, or the operator's groups or tags in a word.
+function FilterLabel({ kind }: { kind: Several }): ReactNode {
+  return kind === "group" || kind === "tag" ? (
+    severalWords[kind].label
+  ) : (
+    <>
+      <PathBadge kind={kind} /> {pathWord(kind)}
+    </>
+  );
+}
+
+// MultiSelect chooses up to maxNarrowed of the values of a filter taking
+// several: its name, a button naming what is chosen, which discloses a popup
+// beneath it, within the sheet's flow so nothing clips it: a search box that
+// narrows the options by what they show, a checkbox for each, saying when the
+// counts left some out, and Done. Once as many as the list takes are chosen,
+// the boxes not checked are unavailable, and a line says why. Escape, Done or
+// a tap outside closes it, returning focus to its button, as a message's
+// options do.
 function MultiSelect({
   kind,
   searchLabel,
@@ -112,7 +145,7 @@ function MultiSelect({
   open,
   setOpen,
 }: {
-  kind: PathKind;
+  kind: Several;
   searchLabel: string;
   // The name a value is shown by.
   nameOf: (value: string) => string;
@@ -157,7 +190,7 @@ function MultiSelect({
   return (
     <div className="multi-select" ref={root} onKeyDown={onKeyDown}>
       <span id={`${id}-label`} className="field-label">
-        <PathBadge kind={kind} /> {pathWord(kind)}
+        <FilterLabel kind={kind} />
       </span>
       <button
         ref={button}
@@ -196,10 +229,10 @@ function MultiSelect({
                       aria-describedby={
                         full && !chosen.includes(choice.value) ? `${id}-full` : undefined
                       }
-                      aria-label={`${choice.value}, ${threads(choice.count)}`}
+                      aria-label={`${choice.spoken ?? choice.value}, ${threads(choice.count)}`}
                       onChange={() => toggle(choice.value)}
                     />
-                    <span className="pick" title={choice.value}>
+                    <span className="pick" title={choice.spoken ?? choice.value}>
                       {choice.name}
                       {choice.of !== undefined && <span className="pick-of"> {choice.of}</span>}
                       <span className="pick-count"> ({choice.count})</span>
@@ -214,7 +247,15 @@ function MultiSelect({
               At most {maxNarrowed} can be chosen.
             </p>
           )}
-          {truncated && <LeftOut items={`${pathWord(kind).toLowerCase()}s`} />}
+          {truncated && (
+            <LeftOut
+              items={
+                kind === "group" || kind === "tag"
+                  ? severalWords[kind].items
+                  : `${pathWord(kind).toLowerCase()}s`
+              }
+            />
+          )}
           <button type="button" className="secondary" onClick={close}>
             Done
           </button>
@@ -244,6 +285,7 @@ export function FilterSheet({
   search,
   total,
   counts,
+  known,
   choose,
   reset,
   onClose,
@@ -255,13 +297,15 @@ export function FilterSheet({
   search: SearchText;
   total: number | undefined;
   counts: ThreadCounts | undefined;
+  // The operator's groups and tags, which name the groups chosen.
+  known: GroupsAndTags | undefined;
   choose: (change: Partial<ThreadsView>) => void;
   reset: () => void;
   onClose: () => void;
 }) {
   const id = useId();
-  const [popup, setPopup] = useState<PathKind>();
-  const popupOf = (which: PathKind) => ({
+  const [popup, setPopup] = useState<Several>();
+  const popupOf = (which: Several) => ({
     open: popup === which,
     setOpen: (open: boolean) =>
       setPopup((current) => (open ? which : current === which ? undefined : current)),
@@ -274,7 +318,7 @@ export function FilterSheet({
   const { agent: chosenAgents = [], session: chosenSessions = [], topic: chosenTopics = [] } = view;
   // narrowing is what choosing values of a filter taking several sets it to:
   // with none chosen, it is off.
-  const narrowing = (chosen: string[]) => (chosen.length === 0 ? undefined : chosen);
+  const narrowing = <T,>(chosen: T[]) => (chosen.length === 0 ? undefined : chosen);
   // chooseAsk chooses a property of open asks, which keeps only open threads:
   // a value chosen under another status chooses Open.
   const chooseAsk = (change: Partial<ThreadsView>) =>
@@ -301,6 +345,31 @@ export function FilterSheet({
       count: each.total,
     }))
     .filter((each) => onOffer(view, "topic", each.value));
+  // Groups by their ids, no group among them, and tags by their names.
+  const chosenGroups = (view.session_group ?? []).map(String);
+  const groups = counts?.session_group.groups.map((each) => ({
+    value: String(each.id),
+    spoken: each.name,
+    name: each.name,
+    count: each.total,
+  }));
+  const groupChoices =
+    counts === undefined || groups === undefined
+      ? undefined
+      : [
+          ...groups,
+          {
+            value: noGroup,
+            spoken: "No group",
+            name: "No group",
+            count: counts.session_group.none,
+          },
+        ];
+  const tags = counts?.tag.tags.map((each) => ({
+    value: each.tag,
+    name: each.tag,
+    count: each.total,
+  }));
   return (
     <dialog
       ref={sheet}
@@ -451,6 +520,29 @@ export function FilterSheet({
             choose={(chosen) => choose({ topic: narrowing(chosen) })}
             {...popupOf("topic")}
           />
+          <MultiSelect
+            kind="group"
+            searchLabel="Search groups"
+            nameOf={(value) => {
+              const named = groupNamed(groupValue(value), known);
+              return named === undefined ? "1 chosen" : named === removedGroup ? "Removed" : named;
+            }}
+            choices={groupChoices}
+            truncated={false}
+            chosen={chosenGroups}
+            choose={(chosen) => choose({ session_group: narrowing(chosen.map(groupValue)) })}
+            {...popupOf("group")}
+          />
+          <MultiSelect
+            kind="tag"
+            searchLabel="Search tags"
+            nameOf={(tag) => tag}
+            choices={tags}
+            truncated={counts?.tag.truncated === true}
+            chosen={view.tag ?? []}
+            choose={(chosen) => choose({ tag: narrowing(chosen) })}
+            {...popupOf("tag")}
+          />
         </div>
         <Segmented
           legend="Archived"
@@ -472,6 +564,12 @@ export function FilterSheet({
       </div>
     </dialog>
   );
+}
+
+// groupValue reads a group the sheet offers, by its id or as no group, into
+// the group filter's value.
+function groupValue(value: string): SessionGroupsFilter[number] {
+  return value === noGroup ? noGroup : Number(value);
 }
 
 // onOffer says whether the sheet offers a session or a topic, by its path:

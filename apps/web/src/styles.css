@@ -1084,9 +1084,43 @@ button.picker[aria-expanded="true"] .icon {
   font-weight: 600;
 }
 
+/* A third level of folds, under an inner one: a quieter subheader still,
+   in the small text and the muted color. */
+.innermost > .subgroup-head button {
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
 .group-head button[aria-expanded="false"] > .icon,
 .subgroup-head button[aria-expanded="false"] > .icon {
   transform: rotate(-90deg);
+}
+
+/* A header with actions beside its heading, such as an options menu: the
+   heading takes the row, and an outer one's row stays at the top in its
+   place. */
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+}
+
+.fold-head > :is(.group-head, .subgroup-head) {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.group > .fold-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--color-bg);
+}
+
+.fold-head > .group-head {
+  position: static;
 }
 
 .group-label {

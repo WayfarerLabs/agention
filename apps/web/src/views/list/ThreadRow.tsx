@@ -1,6 +1,6 @@
 import type { AskSummary, OpenAsks, ThreadSummary } from "@wayfarerlabs/agention-api";
 import type { ReactNode } from "react";
-import { PathParts, placeOf, Tags, ThreadTitle } from "../../components.tsx";
+import { type FoldLevel, PathParts, placeOf, Tags, ThreadTitle } from "../../components.tsx";
 import {
   absenceOf,
   absenceWords,
@@ -61,8 +61,8 @@ function strandedTags(thread: ThreadSummary): { label: ReactNode; tone?: string 
 }
 
 // The headings a row or a group's header can sit at: under the list's, or
-// under one or two levels of groups.
-const headings = { 2: "h2", 3: "h3", 4: "h4" } as const;
+// under one, two or three levels of groups.
+const headings = { 2: "h2", 3: "h3", 4: "h4", 5: "h5" } as const;
 
 // MessageCount says how much of a thread the operator has read: while any
 // of its messages is unread, the closed envelope with the unread messages
@@ -90,7 +90,7 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // otherwise, muted, that its asks were answered or withdrawn; and whether it
 // is stranded, and why. The link records the list, so the thread page returns
 // to it.
-export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: 2 | 3 | 4 }) {
+export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: FoldLevel }) {
   const here = useLocation();
   const { open_asks: asks } = thread;
   const ask = asks.lead;

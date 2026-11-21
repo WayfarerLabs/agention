@@ -362,18 +362,21 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     **Due** those whose ask has an answer-by, for **Effort** those whose ask says how long it takes,
     and for **Latest message** and **Created** every thread. The threads it does not rank still
     follow them, as before. Choosing another order starts it in its own direction.
-  - **Group** shows the list **Flat**, the default, or folded under headers: by **Session**, each
-    session's threads under its header, and under their topics' when they carry two or more, those
-    without one under **No topic**; or by **Agent**, each agent's threads under its header, and
-    under their sessions' when it has two or more. Sessions, topics and agents come in the order of
+  - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
+    session group's sessions under its header when the list holds two or more groups, those in none
+    under **No group**, and each session as **Session** folds it; by **Session**, each session's
+    threads under its header, and under their topics' when they carry two or more, those without one
+    under **No topic**; or by **Agent**, each agent's threads under its header, and under their
+    sessions' when it has two or more. Groups, sessions, topics and agents come in the order of
     their first thread, and the list loads a page at a time, its threads arriving group by group.
     Each header shows all its group holds, collapsed or not, and before all of it has loaded: how
     many threads, the closed envelope with how many are unread or the open envelope when none is,
     **Blocked** when an agent's ask blocks its work on your answer, the highest priority of an open
     ask, the archive box when all are archived, and, muted on a session's or an agent's header while
     it is quiet, **last seen** and when, or **never seen** (an agent is quiet while every session it
-    shows is). Choosing a header collapses everything under it or expands it again. Every header
-    starts expanded, and this browser keeps the ones you collapse, for each way of grouping.
+    shows is). A session group's header adds up its sessions'. Choosing a header collapses
+    everything under it or expands it again. Every header starts expanded, and this browser keeps
+    the ones you collapse, for each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
@@ -408,6 +411,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       them: while sessions are chosen only their topics are offered, or else while agents are chosen
       only their agents' topics, with any you already chose. Each lists at most 500, and says so
       when there are more. Escape, **Done** or a tap outside closes the list.
+    - **Group** and **Tag** open such lists too: **Group** of your session groups holding a thread,
+      and **No group** for the sessions in none; **Tag** of the tags on a session holding a thread
+      or on its agent. A thread is kept when its session is in a group you chose, or when its
+      session or its agent carries a tag you chose.
     - **Archived**: **Show** adds the threads you archived.
 
     The list behind the sheet follows each change. **Reset filters** turns every filter off, saying
@@ -416,10 +423,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
   - Each filter that is on shows beneath the head as a compact chip, such as **Unread** or **Status:
     Withdrawn**; an agent, session or topic shows behind its badge, such as **builder**, a topic as
-    `session/topic`, or **2 agents** when you chose several. A long label is cut short, at its front
-    for an agent, session or topic, so its end stays; holding the pointer over a chip says it whole.
-    Choosing a chip removes its filter. The grouping, the order and its direction are no filters, so
-    they stay when filters go.
+    `session/topic`, or **2 agents** when you chose several. A group or a tag shows by its name now,
+    such as **Group: Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed
+    keeps nothing, and its chip says **Removed group**; so does a tag nothing carries any more,
+    whose chip begins **Unused tag**. A long label is cut short, at its front for an agent, session
+    or topic, so its end stays; holding the pointer over a chip says it whole. Choosing a chip
+    removes its filter. The grouping, the order and its direction are no filters, so they stay when
+    filters go.
   - The page's address holds the filters, the order, its direction and the grouping, so a list you
     bookmark or share opens as you left it.
   - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
