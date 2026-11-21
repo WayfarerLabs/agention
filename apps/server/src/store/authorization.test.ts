@@ -1,7 +1,7 @@
 import {
-  agentsQuery,
   messageSendInput,
   registrationsQuery,
+  sessionsQuery,
   sessionThreadsQuery,
   threadCreateInput,
   threadGetQuery,
@@ -14,12 +14,12 @@ import { type Identity, identityForBrowserSession, identityForRegistration } fro
 import { archiveThread, bulkArchive, bulkRead, markRead, markUnread } from "./marks.ts";
 import {
   approveRegistration,
-  listAgents,
   listRegistrations,
   rejectRegistration,
   revokeRegistration,
   submitRegistration,
 } from "./registrations.ts";
+import { listSessions } from "./sessions.ts";
 import {
   type Agent,
   Fixture,
@@ -113,7 +113,7 @@ function administrationOperations(identity: Identity) {
       }),
     rejectRegistration: () => rejectRegistration(fixture.store, identity, pending()),
     revokeRegistration: () => revokeRegistration(fixture.store, identity, theirs.registrationId),
-    listAgents: () => listAgents(fixture.store, identity, agentsQuery.parse({})),
+    listSessions: () => listSessions(fixture.store, identity, sessionsQuery.parse({})),
   };
 }
 
@@ -171,7 +171,7 @@ describe("administration", () => {
   it.each(Object.keys(administrationOperations({} as Identity)))(
     "is not_found to an agent for %s",
     async (name) => {
-      const operation = administrationOperations(mine.identity)[name as "listAgents"];
+      const operation = administrationOperations(mine.identity)[name as "listSessions"];
       expect(await codeOf(operation)).toBe("not_found");
     },
   );
@@ -179,7 +179,7 @@ describe("administration", () => {
   it.each(Object.keys(administrationOperations({} as Identity)))(
     "is available to the operator for %s",
     async (name) => {
-      const operation = administrationOperations(fixture.operator)[name as "listAgents"];
+      const operation = administrationOperations(fixture.operator)[name as "listSessions"];
       expect(await codeOf(operation)).toBe("ok");
     },
   );

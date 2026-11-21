@@ -1,5 +1,4 @@
 import {
-  agentsQuery,
   approveInput,
   bulkMarkInput,
   newPasskeyInput,
@@ -39,7 +38,6 @@ import {
   bulkRead,
   countThreads,
   findOperator,
-  listAgents,
   listRegistrations,
   listSessions,
   listThreads,
@@ -261,9 +259,6 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   );
   api.get("/sessions", requireSession, (c) =>
     c.json(listSessions(store, c.var.identity, parseQuery(c, sessionsQuery))),
-  );
-  api.get("/agents", requireSession, (c) =>
-    c.json(listAgents(store, c.var.identity, parseQuery(c, agentsQuery))),
   );
   return api;
 }

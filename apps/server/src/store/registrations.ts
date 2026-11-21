@@ -1,9 +1,6 @@
 import {
-  type AgentsPage,
-  type AgentsQuery,
   type ApproveInput,
   formatTimestamp,
-  maxListed,
   type PublicKey,
   type Registration,
   type RegistrationResult,
@@ -302,54 +299,4 @@ export function revokeRegistration(
     store.notifier.notify(row.session_id);
   }
   return { registration: toRegistration(row) };
-}
-
-// listAgents pages through the agents in name order, each with its sessions
-// in name order, at most maxListed of them, for the operator's approval
-// choices.
-export function listAgents(store: Store, identity: Identity, query: AgentsQuery): AgentsPage {
-  const { db } = store;
-  const position =
-    query.cursor === undefined
-      ? undefined
-      : decodeCursor("agents", query.cursor, ["string"], "cursor");
-  return db.transaction(() => {
-    const now = store.clock();
-    authorizeAdministration(db, identity, now);
-    const agents = db
-      .prepare(
-        `SELECT id, name FROM agents WHERE :after = 0 OR name > :agent ORDER BY name LIMIT :limit`,
-      )
-      .all({
-        after: position === undefined ? 0 : 1,
-        agent: position?.[0] ?? "",
-        limit: query.limit + 1,
-      }) as { id: number; name: string }[];
-    const page = pageOf(agents, query.limit);
-    const sessionsOf = db.prepare(
-      `SELECT s.name AS session,
-         EXISTS (
-           SELECT 1 FROM registrations r WHERE r.session_id = s.id AND r.status = 'approved'
-         ) AS credential_active
-       FROM sessions s WHERE s.agent_id = ? ORDER BY s.name LIMIT ?`,
-    );
-    const last = page.rows.at(-1);
-    return {
-      agents: page.rows.map((agent) => {
-        const sessions = sessionsOf.all(agent.id, maxListed + 1) as {
-          session: string;
-          credential_active: number;
-        }[];
-        return {
-          agent: agent.name,
-          sessions: sessions.slice(0, maxListed).map((row) => ({
-            session: row.session,
-            credential_active: row.credential_active === 1,
-          })),
-          truncated: sessions.length > maxListed,
-        };
-      }),
-      ...(page.more && last !== undefined ? { next: encodeCursor("agents", [last.name]) } : {}),
-    };
-  });
 }

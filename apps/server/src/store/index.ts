@@ -8,7 +8,6 @@ export { markSeen } from "./presence.ts";
 export {
   approveRegistration,
   findRegistrationByKey,
-  listAgents,
   listRegistrations,
   registrationLifetime,
   rejectRegistration,

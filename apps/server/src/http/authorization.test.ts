@@ -58,7 +58,6 @@ const webRoutes: [string, string, unknown][] = [
   ["POST", "/registrations/1/approve", undefined],
   ["POST", "/registrations/1/reject", undefined],
   ["POST", "/registrations/1/revoke", undefined],
-  ["GET", "/agents", undefined],
   ["GET", "/sessions", undefined],
   ["GET", "/passkeys", undefined],
   ["POST", "/passkeys/register/begin", { name: "Phone" }],

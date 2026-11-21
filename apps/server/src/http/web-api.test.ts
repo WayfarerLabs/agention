@@ -56,7 +56,7 @@ describe("the browser session", () => {
   });
 
   it("is required by the operator's routes", async () => {
-    for (const path of ["/threads", "/registrations", "/agents"]) {
+    for (const path of ["/threads", "/registrations", "/sessions"]) {
       const response = await harness.web("GET", path, undefined, { cookie: null });
       expect([path, codeOf(response)]).toEqual([path, "unauthenticated"]);
       expect([path, codeOf(await harness.web("GET", path))]).toEqual([path, "ok"]);
@@ -272,19 +272,9 @@ describe("the operator's views", () => {
     );
   });
 
-  it("list registrations and agents for approval", async () => {
+  it("list registrations for approval", async () => {
     const registrations = await harness.web("GET", "/registrations?status=approved");
     expect(registrations.body).toMatchObject({ registrations: [{ status: "approved" }] });
-    const agents = await harness.web("GET", "/agents");
-    expect(agents.body).toEqual({
-      agents: [
-        {
-          agent: "builder",
-          sessions: [{ session: "main", credential_active: true }],
-          truncated: false,
-        },
-      ],
-    });
   });
 
   it("answer an unknown registration as not_found and a malformed id as invalid_input", async () => {

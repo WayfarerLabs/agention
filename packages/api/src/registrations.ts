@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { cursor, maxListed, pageLimit, queryNumber } from "./bounds.ts";
+import { cursor, pageLimit, queryNumber } from "./bounds.ts";
 import { name } from "./names.ts";
 
 // A session key's public half: the raw 32-byte Ed25519 public key in
@@ -89,24 +89,3 @@ export type ApproveInput = z.infer<typeof approveInput>;
 
 export const registrationResult = z.object({ registration });
 export type RegistrationResult = z.infer<typeof registrationResult>;
-
-export const agentsQuery = z.object({
-  cursor: cursor.optional(),
-  limit: queryNumber(pageLimit),
-});
-export type AgentsQuery = z.infer<typeof agentsQuery>;
-
-// A page of agents in name order, each with its sessions in name order, at
-// most maxListed of them, saying when it leaves any out; for the approval
-// choices.
-export const agentsPage = z.object({
-  agents: z.array(
-    z.object({
-      agent: name,
-      sessions: z.array(z.object({ session: name, credential_active: z.boolean() })).max(maxListed),
-      truncated: z.boolean(),
-    }),
-  ),
-  next: cursor.optional(),
-});
-export type AgentsPage = z.infer<typeof agentsPage>;
