@@ -377,8 +377,9 @@ which holds a message with every field at its bound, with status 413. A body tha
 is refused, never repaired. Every request's `Host` must be the origin's host, so a page on another
 name that resolves to the server cannot reach it, and no forwarded header is read. Every response
 carries the security headers: a content security policy that allows only the server's own scripts,
-styles, images and connections and no framing, HSTS, `nosniff`, `DENY` framing, no referrer, and
-`no-store`.
+styles, images and connections, `blob:` images and the diagram frame as its only frame, and no
+framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and `no-store`; the diagram
+frame's page and script set their own policy, framing and caching, as described below.
 
 The long poll answers at once while a thread in the session has unread messages newer than its
 `since`, and otherwise ends when such a message commits, when its credential is revoked, when the
@@ -405,6 +406,16 @@ index page once, as it starts, writing its name, HTML-escaped, into the page's t
 `application-name` and `apple-mobile-web-app-title` metadata, and never serves the page's file as it
 is; a build whose page lacks one of those stops the server from starting. A server built without the
 UI serves a placeholder page instead.
+
+`/diagram-frame` (`apps/server/src/http/diagram-frame.ts`) serves the page the web UI frames to draw
+diagrams, which loads one script, the one `diagram-frame.json` in the build names; a manifest that
+names no script of the build stops the server from starting. The page's response carries its own
+content security policy, `sandbox allow-scripts`, nothing allowed but that script, named by its full
+URL, and inline styles, and `frame-ancestors` naming the server's origin, with
+`X-Frame-Options: SAMEORIGIN`. The script's name carries its content's hash, so its response is
+cached for good. The security headers middleware sets every header after the route, and leaves a
+header a route set itself only for the frame's two routes, and only those they name: the page's
+policy and framing, and the script's caching.
 
 ## Authentication
 
