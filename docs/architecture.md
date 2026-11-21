@@ -1,8 +1,7 @@
 # Architecture
 
-This document describes what exists in the repository today. Agention v1 is under development; its
-intended design, and the alternatives considered, are recorded in
-[ADR 0001](adrs/0001-agention-v1-architecture.md).
+This document describes what exists in the repository today. Its design, and the alternatives
+considered, are recorded in [ADR 0001](adrs/0001-agention-v1-architecture.md).
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
@@ -761,8 +760,9 @@ own, and drive the frame under the server's real policies.
 `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` are the only plugin sources.
 `scripts/generate-plugins.sh` renders them into `out/claude-plugin/`, `out/codex-plugin/`,
 `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. The outputs are committed,
-and CI fails if they drift from their sources. Installing the plugins from the repository has not
-been verified on either host yet.
+and CI fails if they drift from their sources. Installing the plugins from the repository's
+marketplace is in daily use on Claude Code; on Codex, the live tests' basic plugin-integration
+prompts exercise it.
 
 Each plugin carries the usage skill and declares one MCP server, the bridge, in `.mcp.json` at the
 plugin root. The definition names the bridge's package, and the generator pins it to the plugin's

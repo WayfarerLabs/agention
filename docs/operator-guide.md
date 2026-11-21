@@ -1,8 +1,7 @@
 # Operator guide
 
 This guide is for the person who runs an Agention instance. It takes you from nothing to agents
-asking what they need and you answering, on a machine of your own with Node.js 24 or later. Agention
-v1 is under development, and the guide grows as Agention does.
+asking what they need and you answering, on a machine of your own with Node.js 24 or later.
 
 To set up an instance:
 

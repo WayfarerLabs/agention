@@ -13,7 +13,7 @@ harness. It records and shows; the agent decides what to do with an answer.
 
 ## Status
 
-Agention v1 is under development, and usable from its first release, 0.1.0. Each release is
+Agention v1 is complete, and has been usable since its first release, 0.1.0. Each release is
 published to npm: the server and operator CLI as `@wayfarerlabs/agention`, and the agent bridge as
 `@wayfarerlabs/agention-mcp`. The Claude Code and Codex plugins install from this repository's
 plugin marketplace, and the [operator guide](docs/operator-guide.md) takes you from installing the
