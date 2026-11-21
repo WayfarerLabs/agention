@@ -34,7 +34,9 @@ describe("routes", () => {
     ["/sessions", { name: "sessions" }],
     // The page agents' registrations name, which shows the sessions view.
     ["/registrations", { name: "sessions" }],
-    ["/passkeys", { name: "passkeys" }],
+    ["/settings", { name: "settings" }],
+    // The page passkeys had before Settings held them.
+    ["/passkeys", { name: "settings" }],
     ["/sign-in", { name: "sign-in" }],
     ["/link", { name: "link" }],
     [
@@ -182,9 +184,10 @@ describe("signing in", () => {
     expect(window.location.search).toBe("?unread=true");
   });
 
-  it("signs out to the sign-in page", async () => {
+  it("signs out from Settings to the sign-in page", async () => {
     api.on("POST", "/auth/signout", { body: signedOut });
-    renderAt("/");
+    api.on("GET", "/passkeys", { body: { passkeys: [], recent: true } });
+    renderAt("/settings");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await screen.findByRole("heading", { name: "Sign in" });
     expect(window.location.pathname + window.location.search).toBe("/sign-in");
@@ -193,10 +196,11 @@ describe("signing in", () => {
 
   it("says when signing out failed, and stays", async () => {
     api.on("POST", "/auth/signout", failure("internal", "internal error"));
-    renderAt("/");
+    api.on("GET", "/passkeys", { body: { passkeys: [], recent: true } });
+    renderAt("/settings");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await screen.findByRole("alert");
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/settings");
   });
 });
 
@@ -363,7 +367,7 @@ describe("the shell", () => {
     await waitFor(() => expect(document.title).toBe("Threads · Agention"));
   });
 
-  it.each(["/", "/sessions", "/registrations", "/passkeys"])(
+  it.each(["/", "/sessions", "/registrations", "/settings", "/passkeys"])(
     "names %s on screen by its current tab, keeping its heading for assistive technology",
     async (path) => {
       api.on("GET", "/registrations", { body: { registrations: [] } });
@@ -392,7 +396,7 @@ describe("the shell", () => {
     ).toEqual([
       ["Threads", "true"],
       ["Sessions", null],
-      ["Passkeys", null],
+      ["Settings", null],
     ]);
     expect(heading.classList.contains("visually-hidden")).toBe(false);
   });

@@ -5,28 +5,20 @@ import type {
   SessionState,
 } from "@wayfarerlabs/agention-api";
 import { type FormEvent, useId, useState } from "react";
-import { ApiFailure, request } from "../api.ts";
-import {
-  ConfirmButton,
-  Failure,
-  Loadable,
-  PageHeading,
-  Status,
-  Tags,
-  usePageTitle,
-} from "../components.tsx";
-import { useAction, useResource } from "../data.ts";
-import { Time } from "../format.tsx";
-import { addPasskey, passkeysSupported, signIn } from "../passkeys.ts";
-import { useSession } from "../session.tsx";
+import { ApiFailure, request } from "../../api.ts";
+import { ConfirmButton, Failure, Status, Tags } from "../../components.tsx";
+import { useAction } from "../../data.ts";
+import { Time } from "../../format.tsx";
+import { addPasskey, passkeysSupported, signIn } from "../../passkeys.ts";
+import { useSession } from "../../session.tsx";
 
-// The passkeys page: the operator's passkeys, each named, with the one that
+// Settings' passkeys: the operator's passkeys, each named, with the one that
 // signed this browser in marked. They add one on this device, rename any, and
 // remove any but the last. Another device signs in with a passkey they hold
 // and adds its own there. Adding and removing need a recent sign-in, which
-// the page offers.
+// the Settings view offers up front.
 
-const loadPasskeys = () => request<PasskeyList>("GET", "/passkeys");
+export const loadPasskeys = () => request<PasskeyList>("GET", "/passkeys");
 
 // nameProblem says why a passkey name cannot be sent: a blank one.
 export const nameProblem = (name: string) =>
@@ -70,8 +62,8 @@ export function PasskeyNameField({
 
 // needingRecent runs a change that needs a recent sign-in. When the server
 // finds the sign-in too old, though the page last saw it recent, the page
-// reads the list again, so it offers to sign in again.
-async function needingRecent<T>(change: Promise<T>, refresh: () => void): Promise<T> {
+// reads its settings again, so it offers to sign in again.
+export async function needingRecent<T>(change: Promise<T>, refresh: () => void): Promise<T> {
   try {
     return await change;
   } catch (failure) {
@@ -84,34 +76,29 @@ async function needingRecent<T>(change: Promise<T>, refresh: () => void): Promis
 
 const unsupported = "This browser lacks the passkey support Agention needs, so it cannot do this.";
 
-export function Passkeys() {
-  usePageTitle("Passkeys");
-  const list = useResource<PasskeyList>(loadPasskeys);
-  return (
-    <>
-      <PageHeading visuallyHidden>Passkeys</PageHeading>
-      <Loadable data={list.data} failure={list.failure} retry={list.refresh}>
-        {(data) => <PasskeysBody data={data} refresh={list.refresh} />}
-      </Loadable>
-    </>
-  );
-}
-
-function PasskeysBody({ data, refresh }: { data: PasskeyList; refresh: () => void }) {
-  const hint = useId();
+// Passkeys lists the operator's passkeys. recentHint names what says a
+// recent sign-in is needed, while one is.
+export function Passkeys({
+  data,
+  refresh,
+  recentHint,
+}: {
+  data: PasskeyList;
+  refresh: () => void;
+  recentHint: string;
+}) {
   const onlyHint = useId();
-  const recentHint = data.recent ? undefined : hint;
+  const recent = data.recent ? undefined : recentHint;
   const only = data.passkeys.length === 1;
   return (
     <>
-      {!data.recent && <SignInAgain hint={hint} onSignedIn={refresh} />}
       <ul className="passkeys">
         {data.passkeys.map((passkey) => (
           <PasskeyItem
             key={passkey.id}
             passkey={passkey}
             removable={data.recent && !only}
-            describedBy={recentHint ?? (only ? onlyHint : undefined)}
+            describedBy={recent ?? (only ? onlyHint : undefined)}
             refresh={refresh}
           />
         ))}
@@ -121,14 +108,14 @@ function PasskeysBody({ data, refresh }: { data: PasskeyList; refresh: () => voi
           Your only passkey cannot be removed: add another first.
         </p>
       )}
-      <AddHere recent={data.recent} describedBy={recentHint} refresh={refresh} />
+      <AddHere recent={data.recent} describedBy={recent} refresh={refresh} />
     </>
   );
 }
 
-// SignInAgain says why adding and removing are unavailable, and signs in
-// again, which replaces this browser's session with a recent one.
-function SignInAgain({ hint, onSignedIn }: { hint: string; onSignedIn: () => void }) {
+// SignInAgain says why changing passkeys and voice is unavailable, and signs
+// in again, which replaces this browser's session with a recent one.
+export function SignInAgain({ hint, onSignedIn }: { hint: string; onSignedIn: () => void }) {
   const session = useSession();
   const action = useAction();
   const again = async () => {
@@ -140,7 +127,9 @@ function SignInAgain({ hint, onSignedIn }: { hint: string; onSignedIn: () => voi
   };
   return (
     <div className="notice">
-      <p id={hint}>Adding or removing a passkey needs a sign-in within the last 10 minutes.</p>
+      <p id={hint}>
+        Adding or removing a passkey, and changing voice, need a sign-in within the last 10 minutes.
+      </p>
       <Failure failure={action.failure} />
       {passkeysSupported() ? (
         <div className="actions">
@@ -190,7 +179,7 @@ function PasskeyItem({
   return (
     <li>
       <article className="passkey" aria-label={`Passkey ${passkey.name}`}>
-        <h2>{passkey.name}</h2>
+        <h3>{passkey.name}</h3>
         <p className="where">
           Added <Time value={passkey.created_at} />
           {" · "}
@@ -315,7 +304,7 @@ function AddHere({
   };
   return (
     <section aria-labelledby={`${id}-heading`}>
-      <h2 id={`${id}-heading`}>Add a passkey on this device</h2>
+      <h3 id={`${id}-heading`}>Add a passkey on this device</h3>
       <p className="hint">
         For another device, sign in there with a passkey you hold, such as your phone's, through
         that browser's cross-device sign-in, then add the device's own passkey there.

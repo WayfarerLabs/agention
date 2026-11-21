@@ -5,7 +5,7 @@ import { passkeysSupported, registerPasskey } from "../passkeys.ts";
 import { navigate } from "../router.tsx";
 import { serverName } from "../server-name.ts";
 import { useSession } from "../session.tsx";
-import { nameProblem, PasskeyNameField } from "./Passkeys.tsx";
+import { nameProblem, PasskeyNameField } from "./settings/Passkeys.tsx";
 import { Unsupported } from "./SignIn.tsx";
 
 // A passkey link's token, which travels in the URL's fragment, which browsers

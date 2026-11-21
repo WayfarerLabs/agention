@@ -16,7 +16,7 @@ export type Route =
   | { name: "threads" }
   | { name: "thread"; agent: string; session: string; thread: number }
   | { name: "sessions" }
-  | { name: "passkeys" }
+  | { name: "settings" }
   | { name: "sign-in" }
   | { name: "link" }
   | { name: "not-found" };
@@ -32,8 +32,11 @@ export function matchRoute(pathname: string): Route {
     case "/sessions":
     case "/registrations":
       return { name: "sessions" };
+    // The Settings view, which holds the passkeys that had a page of their
+    // own at /passkeys.
+    case "/settings":
     case "/passkeys":
-      return { name: "passkeys" };
+      return { name: "settings" };
     case "/sign-in":
       return { name: "sign-in" };
     case "/link":

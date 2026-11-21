@@ -1,7 +1,14 @@
 import type { PasskeyList, PasskeySummary } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { csrf, FakeApi, failure, installPasskeys, renderAt, signedIn } from "../test-support.tsx";
+import {
+  csrf,
+  FakeApi,
+  failure,
+  installPasskeys,
+  renderAt,
+  signedIn,
+} from "../../test-support.tsx";
 
 let api: FakeApi;
 
@@ -42,19 +49,17 @@ const describer = (element: HTMLElement) =>
 
 async function open(list: PasskeyList) {
   serve(list);
-  renderAt("/passkeys");
+  renderAt("/settings");
   await screen.findByRole("article", { name: `Passkey ${list.passkeys[0]?.name}` });
 }
 
-describe("the passkeys page", () => {
-  it("is in the navigation, and lists each passkey, marking the one signed in with", async () => {
+describe("the passkeys in Settings", () => {
+  it("list each passkey, marking the one signed in with", async () => {
     await open(both);
-    expect(screen.getByRole("link", { name: "Passkeys" }).getAttribute("aria-current")).toBe(
-      "page",
-    );
+    const passkeys = screen.getByRole("region", { name: "Passkeys" });
     expect(
-      screen
-        .getAllByRole("heading", { level: 2 })
+      within(passkeys)
+        .getAllByRole("heading", { level: 3 })
         .slice(0, 2)
         .map((h) => h.textContent),
     ).toEqual(["Laptop", "Phone"]);
