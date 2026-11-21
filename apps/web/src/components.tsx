@@ -1,6 +1,7 @@
 import { maxListed } from "@wayfarerlabs/agention-api";
 import {
   type FocusEvent,
+  type FormEvent,
   Fragment,
   type KeyboardEvent,
   type ReactNode,
@@ -384,6 +385,56 @@ export function Fold({
         {!folded && children}
       </div>
     </section>
+  );
+}
+
+// Sheet is a modal dialog rising from the bottom on a phone and a panel on a
+// wide screen, as the filter sheet is, open from the moment it mounts with
+// focus on its heading, so a phone's keyboard does not rise over it. Its body
+// scrolls under its foot, and the two are one form when it submits; onClose
+// runs once it closes, which closing sheet does.
+export function Sheet({
+  sheet,
+  heading,
+  onClose,
+  onSubmit,
+  foot,
+  children,
+}: {
+  sheet: RefObject<HTMLDialogElement | null>;
+  heading: string;
+  onClose: () => void;
+  onSubmit?: (event: FormEvent) => void;
+  foot: ReactNode;
+  children: ReactNode;
+}) {
+  const id = useId();
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    sheet.current?.showModal();
+    title.current?.focus();
+  }, [sheet]);
+  const body = (
+    <>
+      <div className="sheet-body">
+        <h2 id={`${id}-heading`} ref={title} tabIndex={-1}>
+          {heading}
+        </h2>
+        {children}
+      </div>
+      <div className="sheet-foot">{foot}</div>
+    </>
+  );
+  return (
+    <dialog ref={sheet} className="sheet" aria-labelledby={`${id}-heading`} onClose={onClose}>
+      {onSubmit === undefined ? (
+        body
+      ) : (
+        <form className="sheet-form" noValidate onSubmit={onSubmit}>
+          {body}
+        </form>
+      )}
+    </dialog>
   );
 }
 

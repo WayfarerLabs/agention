@@ -562,13 +562,16 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
   what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
+  - **Groups and tags** opens the sheet listing your session groups and tags, as
+    [Groups and tags](#groups-and-tags) describes.
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes.
   - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
     with how many sessions it has and what they add up to: their open asks, unread updates and
-    stranded threads. Under it, each session is a folded row, so that many fit on a screen. Its
-    first line holds the session's name, the title its agent gave this line of work, cut to fit, and
-    its percent toward the goal; the second, wrapping on a phone:
+    stranded threads, and the agent's tags. The **⋯** button beside it opens **Tags**. Under it,
+    each session is a folded row, so that many fit on a screen. Its first line holds the session's
+    name, the title its agent gave this line of work, cut to fit, and its percent toward the goal;
+    the second, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
       has nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
       **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No
@@ -578,6 +581,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       thread list on the session's open threads;
     - **Quiet**, with when it was last seen, unless it stopped, and **No credential**, when it has
       no active credential;
+    - its group, in a chip with a dashed border, and its tags, each led by **#**;
     - its unread updates, the closed envelope with how many;
     - its threads, which opens the thread list on the session, with how many are stranded;
     - and its latest note, cut to fit.
@@ -590,14 +594,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     open the view, and a row under an agent you folded reads nothing, since it is not shown. This
     browser keeps the agents you fold.
 
-    A row's **⋯** button opens its options: **New thread**, and **Revoke** for each of the session's
-    credentials, which asks once more. **New thread** opens a sheet for a title, the message and its
-    details, as a thread's composer takes them, and **Send** starts the thread and opens it. The
-    session's agent reads it as your words at its terminal and replies in it; the thread asks you
-    nothing, since only agents ask. When the session has stopped, is quiet or has no active
-    credential, the sheet says it is not likely to see the thread, and why: a stopped session not
-    until it is started again, a quiet one not soon, and one without a credential not until you
-    approve a registration for it. The thread is stranded until the session reads it.
+    A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
+    the session has now; and **Revoke** for each of the session's credentials, which asks once more.
+    **New thread** opens a sheet for a title, the message and its details, as a thread's composer
+    takes them, and **Send** starts the thread and opens it. The session's agent reads it as your
+    words at its terminal and replies in it; the thread asks you nothing, since only agents ask.
+    When the session has stopped, is quiet or has no active credential, the sheet says it is not
+    likely to see the thread, and why: a stopped session not until it is started again, a quiet one
+    not soon, and one without a credential not until you approve a registration for it. The thread
+    is stranded until the session reads it.
 
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
@@ -607,6 +612,31 @@ inert: raw HTML shows as text, an image shows as a link and never loads, and onl
 links are live, opening in a new tab. A link whose text is not its own address shows the address's
 host after it. Titles, questions, suggested answers, the own words of an answer and other fields
 show exactly as written, as plain text.
+
+### Groups and tags
+
+Session groups and tags organize your views, nothing else: agents never see them, and they grant
+nothing. A session sits in at most one group, such as **Billing migration** or **Personal:
+website**, and you can tag agents and sessions across groups, such as **infra**; a tag on an agent
+counts for each of its sessions. The thread list filters by both and, grouped by **Group**, folds
+the sessions under their groups, as [Using the web UI](#using-the-web-ui) says.
+
+- **Group**, in a session's options, opens a sheet listing your groups, **No group** and **New
+  group** with a field for its name, up to 100 characters on one line; **Save** puts the session in
+  the one chosen, creating a new group first. A group's name is unique, whatever the case of its
+  letters, and you can have up to 200 groups.
+- **Tags**, in a session's options or beside an agent's header, opens a sheet checking the tags it
+  carries among every tag, with a search box that narrows them as you type. Typing a name no tag has
+  offers **Add tag**. A tag is a name like a topic's: up to 63 lowercase letters, digits, `-` and
+  `_`, starting with a letter or digit. An agent or a session carries up to 20 tags, and **Save**
+  sets them.
+- **Groups and tags**, at the top of the sessions view, lists each group with how many sessions it
+  holds, and each tag with how many agents and sessions carry it, with **Rename** and **Remove**.
+  Renaming keeps a group's sessions, and the thread list's filters and folds on it keep working; a
+  name another group or tag has is refused. Renaming a tag renames it everywhere it is carried.
+  **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
+  sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
+  carries is gone, as a topic no thread carries is.
 
 ## Agents
 

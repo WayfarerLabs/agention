@@ -48,6 +48,10 @@
   --touch-small: 24px;
   --icon-size: 1em;
   --content-width: 46rem;
+  /* The layers that lie over the page as it scrolls: the sticky headers of
+     folds, and above them an open options menu. */
+  --layer-sticky: 3;
+  --layer-menu: 4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1059,7 +1063,7 @@ button.picker[aria-expanded="true"] .icon {
 .group-head {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: var(--layer-sticky);
 }
 
 .group-head button,
@@ -1115,7 +1119,7 @@ button.picker[aria-expanded="true"] .icon {
 .group > .fold-head {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: var(--layer-sticky);
   background: var(--color-bg);
 }
 
@@ -1369,6 +1373,15 @@ button.detail-fold[aria-expanded="false"] > .icon {
   position: relative;
   flex: none;
   margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 0;
+}
+
+/* An open menu lies over everything around it: the rows below it, their
+   links and options, and the sticky headers of the folds that follow. A
+   fold's header holding an open menu lifts with it, since the header's own
+   layer would otherwise hold the menu beneath the next fold's header. */
+.options.open,
+.fold-head:has(> .options.open) {
+  z-index: var(--layer-menu);
 }
 
 button.options-button {
@@ -1755,13 +1768,13 @@ button.session-fold[aria-expanded="true"] .session-title {
 }
 
 .session-summary .options {
-  z-index: 1;
   margin: 0;
 }
 
-/* An open menu lies over the rows below it, their links and options too. */
-.session-summary .options.open {
-  z-index: 2;
+/* A closed menu's button lies over the fold's button stretched beneath it;
+   an open menu lies higher still, as every open menu does. */
+.session-summary .options:not(.open) {
+  z-index: 1;
 }
 
 .session-facts {
@@ -2053,4 +2066,68 @@ button.older[aria-disabled="true"] {
   border: 0;
   border-top: 1px solid var(--color-border);
   margin: var(--space-4) 0;
+}
+
+/* The operator's session groups and tags: a group as a chip with a dashed
+   border, and a tag as one led by a muted hash, wherever a session or an
+   agent shows them. */
+.group-chip,
+.tag-chip {
+  display: inline-block;
+  padding: 0.125rem var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: var(--text-tag);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.group-chip {
+  border-style: dashed;
+}
+
+.tag-chip::before {
+  content: "#";
+  margin-right: 0.125rem;
+  color: var(--color-muted);
+}
+
+/* Actions on a whole view, at its top, such as the sessions view's Groups
+   and tags. */
+.view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+/* The Groups and tags sheet: each group or tag on a line of its own with what
+   it holds, and its Rename and Remove beneath. */
+.organizer {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.organized {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.organized p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.organized .tag-name::before {
+  content: "#";
+  color: var(--color-muted);
+}
+
+.organized .group-name,
+.organized .tag-name {
+  font-weight: 600;
 }

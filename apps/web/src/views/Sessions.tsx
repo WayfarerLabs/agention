@@ -5,7 +5,9 @@ import {
   Fold,
   LeftOut,
   Loadable,
+  MenuItem,
   MoreButton,
+  OptionsMenu,
   PageHeading,
   PathParts,
   usePageTitle,
@@ -14,6 +16,7 @@ import { usePages, useResource } from "../data.ts";
 import { useFolds } from "../device.ts";
 import { plural } from "../format.tsx";
 import { Mark } from "../icons.tsx";
+import { GroupSheet, GroupsAndTagsSheet, TagChip, TagsSheet } from "./sessions/GroupsAndTags.tsx";
 import { NewThreadSheet } from "./sessions/NewThreadSheet.tsx";
 import {
   DecidedRegistration,
@@ -23,14 +26,25 @@ import {
 import { SessionRow, sessionKey } from "./sessions/SessionRow.tsx";
 
 // The sessions view: every session the operator's agents run, in one view.
-// Top to bottom: the registrations waiting for approval; each agent under a
-// header that folds, rolling up its sessions' open asks, unread updates and
-// stranded threads, over a folded row for each of its sessions; and,
-// folded, the credentials and past requests. It refreshes as every view
+// Top to bottom: the Groups and tags button, which opens the sheet listing
+// the operator's groups and tags; the registrations waiting for approval;
+// each agent under a header that folds, rolling up its sessions' open asks,
+// unread updates and stranded threads, with its tags and a menu setting
+// them, over a folded row for each of its sessions; and, folded, the
+// credentials and past requests. It refreshes as every view
 // does. This browser keeps the agents it folds and whether the past requests
 // are shown; a session's row starts folded on every visit. What a fold hides
 // is not loaded, so a session's log loads and is read only while its row is
 // unfolded under an unfolded agent.
+
+// What the operator is organizing, in a sheet open on it: every group and
+// tag, a session's group, or an agent's or a session's tags; and the control
+// focus returns to when the sheet closes.
+type Organizing = { opener: HTMLElement | null } & (
+  | { kind: "all" }
+  | { kind: "group"; agent: string; session: SessionSummary }
+  | { kind: "tags"; agent: string; session?: SessionSummary; tags: string[] }
+);
 
 // Where this browser keeps its folds: the agents folded, and the sections
 // unfolded.
@@ -61,6 +75,11 @@ export function Sessions() {
     session: SessionSummary;
     opener: HTMLElement | null;
   }>();
+  const [organizing, setOrganizing] = useState<Organizing>();
+  const doneOrganizing = () => {
+    setOrganizing(undefined);
+    organizing?.opener?.focus({ preventScroll: true });
+  };
   const writingOn =
     writing === undefined
       ? undefined
@@ -71,6 +90,16 @@ export function Sessions() {
   return (
     <>
       <PageHeading visuallyHidden>Sessions</PageHeading>
+      <div className="view-actions">
+        <button
+          type="button"
+          className="secondary"
+          aria-haspopup="dialog"
+          onClick={(event) => setOrganizing({ kind: "all", opener: event.currentTarget })}
+        >
+          Groups and tags
+        </button>
+      </div>
       <section aria-labelledby="pending-heading">
         <h2 id="pending-heading">Waiting for approval</h2>
         <Loadable data={pending.data} failure={pending.failure} retry={pending.refresh}>
@@ -114,6 +143,7 @@ export function Sessions() {
                   agents={agents}
                   refresh={refresh}
                   newThread={(agent, session, opener) => setWriting({ agent, session, opener })}
+                  organize={setOrganizing}
                 />
                 {truncated && <LeftOut items="agents" />}
               </>
@@ -130,6 +160,35 @@ export function Sessions() {
       >
         <PastRequests changes={changes} refresh={refresh} />
       </Fold>
+      {organizing?.kind === "all" && (
+        <GroupsAndTagsSheet onClose={doneOrganizing} onChanged={refreshSessions} />
+      )}
+      {organizing?.kind === "group" && (
+        <GroupSheet
+          agent={organizing.agent}
+          session={organizing.session.session}
+          group={organizing.session.group}
+          onClose={doneOrganizing}
+          onChanged={refreshSessions}
+        />
+      )}
+      {organizing?.kind === "tags" && (
+        <TagsSheet
+          heading={
+            organizing.session === undefined
+              ? `Tags for ${organizing.agent}`
+              : `Tags for ${organizing.agent}/${organizing.session.session}`
+          }
+          path={
+            organizing.session === undefined
+              ? `/agents/${organizing.agent}/tags`
+              : `/s/${organizing.agent}/${organizing.session.session}/tags`
+          }
+          tags={organizing.tags}
+          onClose={doneOrganizing}
+          onChanged={refreshSessions}
+        />
+      )}
       {writing !== undefined && writingOn !== undefined && (
         <NewThreadSheet
           agent={writing.agent}
@@ -151,10 +210,12 @@ function AgentFolds({
   agents,
   refresh,
   newThread,
+  organize,
 }: {
   agents: Agents;
   refresh: () => void;
   newThread: (agent: string, session: SessionSummary, opener: HTMLElement | null) => void;
+  organize: (organizing: Organizing) => void;
 }) {
   const folds = useFolds(foldedAgents);
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
@@ -183,6 +244,9 @@ function AgentFolds({
               <Mark icon="unread" label={plural(unread, "unread update")} shown={unread} accent />
             )}
             {stranded > 0 && <span className="flag warning">{stranded} stranded</span>}
+            {entry.tags.map((tag) => (
+              <TagChip key={tag} tag={tag} />
+            ))}
           </span>
         }
         spoken={[
@@ -191,7 +255,17 @@ function AgentFolds({
           ...(asks > 0 ? [plural(asks, "open ask")] : []),
           ...(unread > 0 ? [plural(unread, "unread update")] : []),
           ...(stranded > 0 ? [plural(stranded, "stranded thread")] : []),
+          ...(entry.tags.length > 0 ? [`tags ${entry.tags.join(", ")}`] : []),
         ].join(", ")}
+        actions={
+          <AgentMenu
+            agent={entry.agent}
+            tags={entry.tags}
+            onTags={(opener) =>
+              organize({ kind: "tags", agent: entry.agent, tags: entry.tags, opener })
+            }
+          />
+        }
         folded={folds.has(entry.agent)}
         toggle={() => folds.toggle(entry.agent)}
       >
@@ -207,6 +281,13 @@ function AgentFolds({
                 toggle={() => flip(key)}
                 refresh={refresh}
                 newThread={(opener) => newThread(entry.agent, session, opener)}
+                organize={(what, opener) =>
+                  organize(
+                    what === "group"
+                      ? { kind: "group", agent: entry.agent, session, opener }
+                      : { kind: "tags", agent: entry.agent, session, tags: session.tags, opener },
+                  )
+                }
               />
             );
           })}
@@ -215,6 +296,28 @@ function AgentFolds({
       </Fold>
     );
   });
+}
+
+// AgentMenu is an agent's options beside its header: Tags, which opens the
+// sheet setting its tags.
+function AgentMenu({
+  agent,
+  tags,
+  onTags,
+}: {
+  agent: string;
+  tags: string[];
+  onTags: (opener: HTMLElement | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  return (
+    <OptionsMenu label={`Options for ${agent}`} open={open} setOpen={setOpen} button={button}>
+      <MenuItem onChoose={() => onTags(button.current)}>
+        Tags: {tags.length === 0 ? "none" : tags.join(", ")}
+      </MenuItem>
+    </OptionsMenu>
+  );
 }
 
 // rollupOf adds up what an agent's sessions the view lists hold: their open

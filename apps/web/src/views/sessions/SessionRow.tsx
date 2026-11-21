@@ -12,6 +12,7 @@ import { plural, Since, Spoken, workStateWords } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import { Link, listHref, unfiltered } from "../../router.tsx";
 import { type Change, type LogLine, logLines } from "./log.ts";
+import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
 import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of two lines, wrapping to
@@ -31,6 +32,7 @@ export function SessionRow({
   toggle,
   refresh,
   newThread,
+  organize,
 }: {
   agent: string;
   session: SessionSummary;
@@ -41,6 +43,9 @@ export function SessionRow({
   // Opens the new-thread sheet on the session, focus returning to the
   // control given when it closes.
   newThread: (opener: HTMLElement | null) => void;
+  // Opens the sheet that sets the session's group or its tags, focus
+  // returning to the control given when it closes.
+  organize: (what: "group" | "tags", opener: HTMLElement | null) => void;
 }) {
   const detail = useId();
   const options = useRef<HTMLButtonElement>(null);
@@ -72,6 +77,12 @@ export function SessionRow({
           </h4>
           <OptionsMenu label={`Options for ${path}`} open={menu} setOpen={setMenu} button={options}>
             <MenuItem onChoose={() => newThread(options.current)}>New thread</MenuItem>
+            <MenuItem onChoose={() => organize("group", options.current)}>
+              Group: {session.group?.name ?? "none"}
+            </MenuItem>
+            <MenuItem onChoose={() => organize("tags", options.current)}>
+              Tags: {session.tags.length === 0 ? "none" : session.tags.join(", ")}
+            </MenuItem>
             {session.registrations.map((registration) => (
               <MenuItem
                 key={registration.id}
@@ -102,9 +113,9 @@ export function SessionRow({
 
 // The session's facts on its folded row: what it is doing; what waits on the
 // operator, its open asks, linking to its open threads; whether it is quiet
-// or has no credential; its unread updates; its threads, with how many are
-// stranded, linking to them; and its latest note, cut to fit, which its log
-// holds whole.
+// or has no credential; the operator's group and tags for it; its unread
+// updates; its threads, with how many are stranded, linking to them; and its
+// latest note, cut to fit, which its log holds whole.
 function SessionFacts({ agent, session }: { agent: string; session: SessionSummary }) {
   const { status, presence, open_asks: asks, threads } = session;
   const path = sessionKey(agent, session.session);
@@ -136,6 +147,16 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
         </li>
       )}
       {session.registrations.length === 0 && <li className="warning">No credential</li>}
+      {session.group !== undefined && (
+        <li className="bare">
+          <GroupChip group={session.group} />
+        </li>
+      )}
+      {session.tags.map((tag) => (
+        <li key={tag} className="bare">
+          <TagChip tag={tag} />
+        </li>
+      ))}
       {session.unread_updates > 0 && (
         <li className="bare">
           <Mark

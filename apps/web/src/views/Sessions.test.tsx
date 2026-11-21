@@ -470,7 +470,13 @@ describe("a session's options", () => {
       within(menu as HTMLElement)
         .getAllByRole("button")
         .map((each) => each.textContent),
-    ).toEqual(["New thread", "Revoke 7KQ2M-X9DPA", "Revoke WE26Z-8SH11"]);
+    ).toEqual([
+      "New thread",
+      "Group: none",
+      "Tags: none",
+      "Revoke 7KQ2M-X9DPA",
+      "Revoke WE26Z-8SH11",
+    ]);
     fireEvent.keyDown(within(menu as HTMLElement).getByRole("button", { name: "New thread" }), {
       key: "Escape",
     });
@@ -623,5 +629,152 @@ describe("the new-thread sheet", () => {
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(1);
     expect(screen.getByRole("dialog", { name: "New thread" })).toBeTruthy();
+  });
+});
+
+describe("groups and tags", () => {
+  const billing = { id: 4, name: "Billing" };
+  const known = {
+    groups: [
+      { ...billing, sessions: 1 },
+      { id: 5, name: "Personal", sessions: 0 },
+    ],
+    tags: [
+      { name: "infra", agents: 1, sessions: 1 },
+      { name: "urgent", agents: 0, sessions: 1 },
+    ],
+    truncated: false,
+  };
+  const dialog = (name: string) => screen.getByRole("dialog", { name });
+  const posted = (path: string) => api.callsTo("POST", path).map((call) => call.body);
+
+  beforeEach(() => {
+    api.on("GET", "/groups-and-tags", { body: known });
+  });
+
+  it("show on each session's row and each agent's header", async () => {
+    await open([
+      {
+        ...agent("builder", [sessionSummary({ group: billing, tags: ["infra", "urgent"] })]),
+        tags: ["infra"],
+      },
+    ]);
+    const facts = row("main").querySelector(".session-facts") as HTMLElement;
+    expect(facts.querySelector(".group-chip")?.textContent).toBe("Group Billing");
+    expect(Array.from(facts.querySelectorAll(".tag-chip")).map((each) => each.textContent)).toEqual(
+      ["Tag infra", "Tag urgent"],
+    );
+    expect(header("builder").getAttribute("aria-label")).toMatch(/, tags infra$/);
+    expect(header("builder").querySelector(".tag-chip")?.textContent).toBe("Tag infra");
+  });
+
+  it("set a session's group from its options, an existing one or a new one", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/s/builder/main/group", { body: {} });
+    api.on("POST", "/groups", { body: { id: 6, name: "Release" } });
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Group: none" }));
+    const sheet = dialog("Group for builder/main");
+    await within(sheet).findByRole("radio", { name: "Billing" });
+    expect(within(sheet).getByRole<HTMLInputElement>("radio", { name: "No group" }).checked).toBe(
+      true,
+    );
+    fireEvent.click(within(sheet).getByRole("radio", { name: "Billing" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/s/builder/main/group")).toEqual([{ group: 4 }]));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(options("builder/main"));
+
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Group: none" }));
+    const again = dialog("Group for builder/main");
+    fireEvent.change(await within(again).findByRole("textbox", { name: "New group's name" }), {
+      target: { value: "Release" },
+    });
+    expect(within(again).getByRole<HTMLInputElement>("radio", { name: "New group" }).checked).toBe(
+      true,
+    );
+    fireEvent.click(within(again).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/groups")).toEqual([{ name: "Release" }]));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/group")).toEqual([{ group: 4 }, { group: 6 }]),
+    );
+  });
+
+  it("set a session's tags, offering to add a tag no tag has", async () => {
+    await open([agent("builder", [sessionSummary({ tags: ["urgent"] })])]);
+    api.on("POST", "/s/builder/main/tags", { body: {} });
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Tags: urgent" }));
+    const sheet = dialog("Tags for builder/main");
+    const boxes = async () =>
+      (await within(sheet).findAllByRole<HTMLInputElement>("checkbox")).map(
+        (box) => `${box.checked ? "☑" : "☐"} ${box.closest("label")?.textContent}`,
+      );
+    expect(await boxes()).toEqual(["☐ infra", "☑ urgent"]);
+    const search = within(sheet).getByRole("searchbox", { name: "Search or add tags" });
+    fireEvent.change(search, { target: { value: "inf" } });
+    expect(await boxes()).toEqual(["☐ infra"]);
+    // A name a tag has offers no adding, and one no tag has does.
+    fireEvent.change(search, { target: { value: "infra" } });
+    expect(within(sheet).queryByRole("button", { name: /^Add tag/ })).toBeNull();
+    fireEvent.change(search, { target: { value: "Ops" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add tag ops" }));
+    expect(await boxes()).toEqual(["☐ infra", "☑ ops", "☑ urgent"]);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/tags")).toEqual([{ tags: ["urgent", "ops"] }]),
+    );
+  });
+
+  it("set an agent's tags from its header's options", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/agents/builder/tags", { body: {} });
+    fireEvent.click(screen.getByRole("button", { name: "Options for builder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tags: none" }));
+    const sheet = dialog("Tags for builder");
+    fireEvent.click(await within(sheet).findByRole("checkbox", { name: "infra" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/agents/builder/tags")).toEqual([{ tags: ["infra"] }]));
+  });
+
+  it("are listed in their sheet to rename, and to remove once it asks", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/groups/4/name", failure("conflict", "another group already has this name"));
+    api.on("POST", "/groups/4/remove", { body: {} });
+    api.on("POST", "/tags/urgent/name", { body: {} });
+    fireEvent.click(screen.getByRole("button", { name: "Groups and tags" }));
+    const sheet = dialog("Groups and tags");
+    const group = await within(sheet).findByRole("article", { name: "Group Billing" });
+    expect(group.textContent).toContain("1 session");
+    expect(within(sheet).getByRole("article", { name: "Tag infra" }).textContent).toContain(
+      "1 agent, 1 session",
+    );
+    // Rename refused for a name another group has says why.
+    fireEvent.click(within(group).getByRole("button", { name: "Rename" }));
+    fireEvent.change(within(group).getByRole("textbox", { name: "New name" }), {
+      target: { value: "Personal" },
+    });
+    fireEvent.click(within(group).getByRole("button", { name: "Save" }));
+    expect((await within(group).findByRole("alert")).textContent).toBe(
+      "Another group already has this name.",
+    );
+    fireEvent.click(within(group).getByRole("button", { name: "Cancel" }));
+    // Remove asks first, saying what it takes the group off.
+    fireEvent.click(within(group).getByRole("button", { name: "Remove" }));
+    const asking = within(group).getByRole("group", {
+      name: "Remove the group Billing? Its 1 session will be in no group.",
+    });
+    expect(posted("/groups/4/remove")).toEqual([]);
+    fireEvent.click(within(asking).getByRole("button", { name: "Remove this group" }));
+    await waitFor(() => expect(posted("/groups/4/remove")).toEqual([undefined]));
+    // A tag is renamed in its own case.
+    const tag = within(sheet).getByRole("article", { name: "Tag urgent" });
+    fireEvent.click(within(tag).getByRole("button", { name: "Rename" }));
+    fireEvent.change(within(tag).getByRole("textbox", { name: "New name" }), {
+      target: { value: "Soon" },
+    });
+    fireEvent.click(within(tag).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(posted("/tags/urgent/name")).toEqual([{ name: "soon" }]));
   });
 });

@@ -4,9 +4,9 @@ import {
   threadTitle,
   type WriteResult,
 } from "@wayfarerlabs/agention-api";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { request, sessionPath } from "../../api.ts";
-import { Failure, PathParts } from "../../components.tsx";
+import { Failure, PathParts, Sheet } from "../../components.tsx";
 import { newRequestId, useAction, useStillOpen } from "../../data.ts";
 import { type Absence, AbsenceReason, absenceOf } from "../../format.tsx";
 import { navigate, threadHref } from "../../router.tsx";
@@ -51,7 +51,6 @@ export function NewThreadSheet({
 }) {
   const id = useId();
   const sheet = useRef<HTMLDialogElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [detail, setDetail] = useState("");
@@ -60,10 +59,6 @@ export function NewThreadSheet({
   // A retry keeps its request id while what it sends is unchanged, so a
   // start that landed though its answer was lost is not made twice.
   const attempt = useRef<{ content: string; requestId: string }>(undefined);
-  useEffect(() => {
-    sheet.current?.showModal();
-    heading.current?.focus();
-  }, []);
 
   const absence = absenceOf({
     state: session.status?.state,
@@ -114,81 +109,81 @@ export function NewThreadSheet({
   };
 
   return (
-    <dialog ref={sheet} className="sheet" aria-labelledby={`${id}-heading`} onClose={onClose}>
-      <form className="sheet-form" onSubmit={submit} noValidate>
-        <div className="sheet-body">
-          <h2 id={`${id}-heading`} ref={heading} tabIndex={-1}>
-            New thread
-          </h2>
-          <p className="muted">
-            To{" "}
-            <PathParts
-              place={[
-                ["agent", agent],
-                ["session", session.session],
-              ]}
-            />
-            {session.status?.title !== undefined && ` · ${session.status.title}`}
-          </p>
-          {absence !== undefined && (
-            <p className="notice warning">
-              This session is not likely to see the thread {awaited[absence.kind]}:{" "}
-              <AbsenceReason absence={absence} />. The thread shows as stranded until the session
-              reads it.
-            </p>
-          )}
-          <Field
-            id={`${id}-title`}
-            label="Title"
-            error={drafted.title ?? refused("title")}
-            control={(attributes) => (
-              <input
-                {...attributes}
-                value={title}
-                onChange={(event) => edit(setTitle)(event.target.value)}
-              />
-            )}
-          />
-          <Field
-            id={`${id}-text`}
-            label="Message"
-            hint="Markdown. The agent reads it as your words at its terminal."
-            error={drafted.text ?? refused("text")}
-            control={(attributes) => (
-              <textarea
-                {...attributes}
-                rows={4}
-                value={text}
-                onChange={(event) => edit(setText)(event.target.value)}
-              />
-            )}
-          />
-          <Field
-            id={`${id}-detail`}
-            label="Details"
-            hint="Optional. Markdown, shown folded under the message."
-            error={drafted.detail ?? refused("detail")}
-            control={(attributes) => (
-              <textarea
-                {...attributes}
-                rows={4}
-                value={detail}
-                onChange={(event) => edit(setDetail)(event.target.value)}
-              />
-            )}
-          />
-          <Failure failure={atField ? undefined : send.failure} />
-        </div>
-        <div className="sheet-foot">
+    <Sheet
+      sheet={sheet}
+      heading="New thread"
+      onClose={onClose}
+      onSubmit={(event) => void submit(event)}
+      foot={
+        <>
           <button type="button" className="secondary" onClick={() => sheet.current?.close()}>
             Cancel
           </button>
           <button type="submit" disabled={send.pending || !ready}>
             Send
           </button>
-        </div>
-      </form>
-    </dialog>
+        </>
+      }
+    >
+      <p className="muted">
+        To{" "}
+        <PathParts
+          place={[
+            ["agent", agent],
+            ["session", session.session],
+          ]}
+        />
+        {session.status?.title !== undefined && ` · ${session.status.title}`}
+      </p>
+      {absence !== undefined && (
+        <p className="notice warning">
+          This session is not likely to see the thread {awaited[absence.kind]}:{" "}
+          <AbsenceReason absence={absence} />. The thread shows as stranded until the session reads
+          it.
+        </p>
+      )}
+      <Field
+        id={`${id}-title`}
+        label="Title"
+        error={drafted.title ?? refused("title")}
+        control={(attributes) => (
+          <input
+            {...attributes}
+            value={title}
+            onChange={(event) => edit(setTitle)(event.target.value)}
+          />
+        )}
+      />
+      <Field
+        id={`${id}-text`}
+        label="Message"
+        hint="Markdown. The agent reads it as your words at its terminal."
+        error={drafted.text ?? refused("text")}
+        control={(attributes) => (
+          <textarea
+            {...attributes}
+            rows={4}
+            value={text}
+            onChange={(event) => edit(setText)(event.target.value)}
+          />
+        )}
+      />
+      <Field
+        id={`${id}-detail`}
+        label="Details"
+        hint="Optional. Markdown, shown folded under the message."
+        error={drafted.detail ?? refused("detail")}
+        control={(attributes) => (
+          <textarea
+            {...attributes}
+            rows={4}
+            value={detail}
+            onChange={(event) => edit(setDetail)(event.target.value)}
+          />
+        )}
+      />
+      <Failure failure={atField ? undefined : send.failure} />
+    </Sheet>
   );
 }
 

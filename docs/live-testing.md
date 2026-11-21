@@ -46,11 +46,16 @@ with each other or with what the product does, the disagreement is the finding.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
-  filters with their counts, its sorts and their direction, and grouping with roll-ups; the thread
-  page's numbered asks answered several at once, a message's details, replacements, mark unread from
-  a message, archive through a message and archive all; stranded's reasons; the sessions view, its
-  agent folds and folded rows with what each session reports and what waits on the operator, a row
-  unfolded to its log and marking it read, and the folds kept, on a phone's width too; a thread the
+  filters with their counts, the session group and tag filters among them, with a removed group's
+  and an unused tag's chips, its search reaching what live messages say and not what a replaced one
+  said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
+  by agent; the thread page's numbered asks answered several at once, a message's details,
+  replacements, mark unread from a message, archive through a message and archive all; stranded's
+  reasons; the sessions view, its agent folds and folded rows with what each session reports and
+  what waits on the operator, a row unfolded to its log and marking it read, and the folds kept, on
+  a phone's width too; the operator's session groups and tags: a session's group and an agent's and
+  a session's tags set from their options, the chips that show them, and the Groups and tags sheet's
+  rename, its refusal of a name another group or tag has, and its removal, asked first; a thread the
   operator starts there, with the warning for a session not there to see it, and the agent's reply
   in it; and registration approval, rejection, and revocation from past requests and a session's
   options (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents").
@@ -89,8 +94,9 @@ On top of the method's failure classes, look for:
   session whose threads holding an unread message of the operator's are not stranded, or stay
   stranded once it reports working, a session's unread updates against its log and the operator's
   mark, a filter value's count against the list that value produces, a group's roll-up against the
-  threads it holds, an archived thread that another party's later message failed to bring back to
-  the list, and one the caller's own message brought back.
+  threads it holds, a tag on an agent against the threads of each of its sessions, an archived
+  thread that another party's later message failed to bring back to the list, and one the caller's
+  own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them
@@ -103,13 +109,15 @@ On top of the method's failure classes, look for:
   together, which share the first key written.
 - **Isolation**: one session's threads, positions, or wake-ups reachable with another session's key,
   probed with keys from different homes, since sessions under one home are not isolated by design
-  (`SECURITY.md` "The agent bridge"); message text rendered live. The Markdown inputs: a message
-  whose text or details hold a code block, a table, a task list, strikethrough, an `https` link, an
-  `http` link, a raw `<b>` tag and an image, in a thread whose title holds Markdown syntax. The
-  first five render as formatting with a working link, the `http` link is plain text, the tag shows
-  literally, the image shows as a link and the browser never requests it, the title shows its syntax
-  literally, and the agent reads the message back unchanged (`SECURITY.md` "Security model";
-  `docs/operator-guide.md` "Using the web UI").
+  (`SECURITY.md` "The agent bridge"); the operator's groups and tags, or a thread's group, reachable
+  from the agent mount or the bridge, or an agent's search finding what a message says rather than
+  its title; message text rendered live. The Markdown inputs: a message whose text or details hold a
+  code block, a table, a task list, strikethrough, an `https` link, an `http` link, a raw `<b>` tag
+  and an image, in a thread whose title holds Markdown syntax. The first five render as formatting
+  with a working link, the `http` link is plain text, the tag shows literally, the image shows as a
+  link and the browser never requests it, the title shows its syntax literally, and the agent reads
+  the message back unchanged (`SECURITY.md` "Security model"; `docs/operator-guide.md` "Using the
+  web UI").
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong

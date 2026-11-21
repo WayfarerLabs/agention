@@ -23,9 +23,10 @@ server to agents asking and you answering. The repository contains:
   passkey sign-in for the person and key authentication for agents, over the server's database and
   store, and `agention passkey-link` issues the link that registers the person's passkeys;
 - the web UI, which the server serves: the person signs in with a passkey, works through one thread
-  list, reads and answers threads, archives them, follows every session's status and updates in one
-  view, where they approve agents' registrations and start threads on a session, and manages their
-  passkeys;
+  list, filtered, grouped and searched down to what messages say, reads and answers threads,
+  archives them, follows every session's status and updates in one view, where they approve agents'
+  registrations, start threads on a session, and sort sessions into groups and tag agents and
+  sessions, and manages their passkeys;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
   starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
   checks for new messages, and reports its state, such as working or stopped;
