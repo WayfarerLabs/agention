@@ -51,11 +51,39 @@ jobs:
           SDD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
         run: scripts/check.sh
 
+  # The packages support Node 24 and later (their engines), while the job above
+  # runs on the Node in .node-version, so this job checks the oldest supported
+  # line too: the fast checks run the sources' tests on it, and the package
+  # check installs and starts the published bundles on it. Its exact version
+  # moves by hand, with the same seven-day wait as .node-version.
+  oldest-node:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The SDD gate compares the branch with the merge-base of its base.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.3
+          cache: npm
+
+      - name: scripts/check.sh --fast
+        env:
+          SDD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+        run: scripts/check.sh --fast
+
+      - name: scripts/check.sh --packages
+        run: scripts/check.sh --packages "$RUNNER_TEMP/packages"
+
   # The one required status check. Branch protection names this job across
   # Wayfarer repositories, so jobs can be added or renamed without editing it.
   ci-success:
     if: always()
-    needs: [check]
+    needs: [check, oldest-node]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -101,8 +101,9 @@ index of those docs.
 
 - Supported matrix and coverage axes: the environments under **Identity and design**. CI covers
   Linux (`ubuntu-24.04`) at the Node version in `.node-version`, with the web UI in Chromium's
-  headless shell; other browsers, real phones, macOS and the agent hosts are covered only by live
-  testing (`docs/live-testing.md`), with the evidence kinds of `docs/review-checklist.md` A16
+  headless shell, and runs the fast checks and the package check again at the oldest supported Node,
+  24; other browsers, real phones, macOS and the agent hosts are covered only by live testing
+  (`docs/live-testing.md`), with the evidence kinds of `docs/review-checklist.md` A16
 - Maintained test harnesses: the Vitest suites beside the sources in every workspace; the server's
   in-process HTTP harness, `apps/server/src/http/test-harness.ts`, with
   `apps/server/src/auth/test-authenticator.ts`, a software passkey authenticator; the bridge's

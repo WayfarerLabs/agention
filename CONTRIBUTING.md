@@ -122,7 +122,7 @@ the gates.
 The install, signature, vulnerability and agent compatibility checks need network access. The agent
 compatibility gate also needs the repository's release tags, which a clone may lack; fetch them with
 `git fetch --tags`. A local Node version that differs from `.node-version` produces a warning, not a
-failure, since CI always uses the pinned version.
+failure, since CI checks on the pinned version, and on the oldest supported Node as well.
 
 ### Formatting and spelling
 
@@ -231,9 +231,10 @@ error, and so does a clone without tags. A new tool or field joins the suite.
   broken or compromised release time to be caught. `.npmrc` sets npm's `min-release-age` to 7, so an
   install resolves only releases at least seven days old across the whole tree, and Dependabot waits
   as long before proposing one. Apply the same wait by hand to Node.js and the GitHub Actions.
-  Node.js follows its 24 line, the oldest the published packages support (their `engines`), so the
-  checks run on the oldest Node a user may have. `@types/node` follows the same line, so Dependabot
-  ignores its major updates.
+  `.node-version` follows Node.js's current LTS line, 26, which builds, checks and publishes the
+  packages. CI also runs the fast checks on the oldest line the published packages support, 24
+  (their `engines`), at the exact version in `.github/workflows/ci.yml`. `@types/node` follows that
+  oldest line, so the types refuse an API newer than it, and Dependabot ignores its major updates.
 - The agent compatibility gate ([The agent API](#the-agent-api)) installs Agention's own released
   bridges with the wait turned off, since it checks a release as soon as it is published; that one
   install is the only exception. The bridge is a bundle that declares no dependencies, so nothing
