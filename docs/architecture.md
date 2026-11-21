@@ -444,8 +444,10 @@ with them and shows only their first 250 characters until the agent loads the to
 within that. [SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends:
 its key file, its tokens and where its requests may go.
 
-- **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`. When it is missing or not an
-  HTTPS origin, when the home directory is not an absolute path of at most 4,096 bytes, or when
+- **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`, and `AGENTION_CONNECT`, when
+  set and not empty, as a host and port: a host name or address, IPv6 in brackets, and a port from 1
+  to 65535. When `AGENTION_URL` is missing or not an HTTPS origin, when `AGENTION_CONNECT` is not a
+  host and port, when the home directory is not an absolute path of at most 4,096 bytes, or when
   `NODE_TLS_REJECT_UNAUTHORIZED` turns certificate checks off, the bridge still serves, and every
   tool answers with what the operator must change. The session's names come from the first
   `register` call that gives them, else from `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, a name
@@ -478,6 +480,13 @@ its key file, its tokens and where its requests may go.
   relays its code, and the registration expires unapproved. A newer server's answers are used: it
   serves the bridge's version, or refuses it in words of its own. An answer that is not Agention's
   JSON, such as a proxy's, keeps its own problem.
+- **Connections.** Requests go out through `node:https`, on one keep-alive agent per bridge with the
+  settings of Node's global agent. The agent opens every connection at the origin's host and port,
+  or at the address in `AGENTION_CONNECT`, and either way gives TLS the origin's host name as the
+  server name the certificate is checked against, while each request's `Host` header names the
+  origin too. A connection that has not opened within 10 seconds, its TLS handshake included, fails
+  as unreachable. A connection that fails is reported naming `AGENTION_CONNECT` and its address when
+  that is set, since the tunnel or forward there is the operator's.
 - **`register`** submits the key to `POST /api/agent/registrations`, which for a key the server
   knows creates nothing and reports its state. It answers with that state, keeping its `expires_at`
   only while the registration is pending, so an agent never reads it as the credential's; `replaced`
@@ -536,7 +545,9 @@ The bridge's tests run the server from `apps/server` in process, over TLS with a
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
 protocol, and as a process over stdio. The agent compatibility gate runs each released bridge's
 published bundle the same way against the server at HEAD
-([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API").
+([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API"). `AGENTION_CONNECT`'s tests
+run it at an origin whose host resolves nowhere, under `.test`, which bridges reach only at the
+address it listens on.
 
 ## Web UI
 
@@ -604,7 +615,8 @@ plugin root. The definition names the bridge's package, and the generator pins i
 version: `npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the server its whole
 environment. Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those
 the server lists, so the Codex declaration lists the bridge's configuration variables:
-`AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and `NODE_EXTRA_CA_CERTS`.
+`AGENTION_CONNECT`, `AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and
+`NODE_EXTRA_CA_CERTS`.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a
