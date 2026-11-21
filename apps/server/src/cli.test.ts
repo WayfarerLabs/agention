@@ -1,4 +1,13 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { SignJWT } from "jose";
 import { Agent, get } from "node:http";
 import { type AddressInfo, createServer } from "node:net";
@@ -50,15 +59,20 @@ describe("agention", () => {
     });
   });
 
-  it.each(["--help", "-h", "version --help", "version -h", "serve --help", "passkey-link -h"])(
-    "prints help on stdout for %s",
-    async (line) => {
-      const result = await runCaptured(line.split(" "));
-      expect(result.code).toBe(0);
-      expect(result.stdout).not.toBe("");
-      expect(result.stderr).toBe("");
-    },
-  );
+  it.each([
+    "--help",
+    "-h",
+    "version --help",
+    "version -h",
+    "serve --help",
+    "passkey-link -h",
+    "backup --help",
+  ])("prints help on stdout for %s", async (line) => {
+    const result = await runCaptured(line.split(" "));
+    expect(result.code).toBe(0);
+    expect(result.stdout).not.toBe("");
+    expect(result.stderr).toBe("");
+  });
 
   it.each([
     ["no command", []],
@@ -427,6 +441,53 @@ describe("agention serve and passkey-link", () => {
     createDatabase(true);
     expect((await runCaptured(link("--operator-name", "other"))).code).toBe(2);
     expect((await runCaptured(link())).code).toBe(0);
+  });
+});
+
+describe("agention backup", () => {
+  let root: string;
+  let data: string;
+
+  beforeEach(() => {
+    root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-cli-")));
+    data = path.join(root, "data");
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("writes a copy of the database, and prints where", async () => {
+    Database.open(path.join(data, "agention.db")).close();
+    const copy = path.join(root, "copy.db");
+    const result = await runCaptured(["backup", "--data", data, copy]);
+    expect([result.code, result.stderr]).toEqual([0, ""]);
+    expect(result.stdout.startsWith(`${copy}:`)).toBe(true);
+    expect(statSync(copy).mode & 0o777).toBe(0o600);
+  });
+
+  it("fails, writing nothing, when there is no database or the copy exists", async () => {
+    const copy = path.join(root, "copy.db");
+    const missing = await runCaptured(["backup", "--data", data, copy]);
+    expect([missing.code, missing.stdout, existsSync(copy)]).toEqual([1, "", false]);
+    expect(missing.stderr).not.toBe("");
+
+    Database.open(path.join(data, "agention.db")).close();
+    writeFileSync(copy, "", { mode: 0o600 });
+    const existing = await runCaptured(["backup", "--data", data, copy]);
+    expect([existing.code, existing.stdout]).toEqual([1, ""]);
+  });
+
+  it.each([
+    ["no file", ["--data", "DATA"]],
+    ["two files", ["--data", "DATA", "one.db", "two.db"]],
+    ["no data directory", ["copy.db"]],
+  ])("rejects %s with a usage error", async (_, args) => {
+    const result = await runCaptured([
+      "backup",
+      ...args.map((arg) => (arg === "DATA" ? data : arg)),
+    ]);
+    expect([result.code, result.stdout]).toEqual([2, ""]);
   });
 });
 

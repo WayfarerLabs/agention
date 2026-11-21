@@ -17,16 +17,15 @@ To set up an instance:
 
 ## Commands
 
-| Command                 | Status    | What it does                                                          |
-| ----------------------- | --------- | --------------------------------------------------------------------- |
-| `agention version`      | Available | Prints the version and exits                                          |
-| `agention --help`       | Available | Prints the command list and exits                                     |
-| `agention serve`        | Available | Runs the server, with listener, TLS and origin settings               |
-| `agention passkey-link` | Available | Prints a one-time link to register or replace the operator's passkeys |
-| `agention backup`       | Planned   | Writes a consistent copy of the database from a running instance      |
+| Command                 | What it does                                                           |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `agention version`      | Prints the version and exits                                           |
+| `agention --help`       | Prints the command list and exits                                      |
+| `agention serve`        | Runs the server, with listener, TLS and origin settings                |
+| `agention passkey-link` | Prints a one-time link to register or replace the operator's passkeys  |
+| `agention backup`       | Writes a consistent copy of the database, while the server runs or not |
 
-Every command takes `--help`. Planned commands do not exist yet, and their names and options may
-change before they ship.
+Every command takes `--help`.
 
 ## Installing
 
@@ -980,40 +979,59 @@ which `npx` fetches as the first of them starts.
 
 ## Backing up
 
-Until `agention backup` exists, back up by stopping the server, copying the whole data directory,
-and starting the server again. `cp -a` keeps the permissions, so the copy is private too, and the
-time in its name gives each copy a new directory of its own. On Linux:
+The database, `agention.db` in the data directory, is the whole of an instance's state: its own key,
+your passkeys' records, every thread and every session's log. `agention backup` writes a consistent
+copy of it to a new file, while the server runs or not, and then checks the copy and prints its
+path, size and schema version. It never changes what the database holds, though with the server
+stopped SQLite may leave an empty `agention.db-wal` and an `agention.db-shm` beside it, which the
+server uses as its own when it starts. The copy holds what the database holds, so it is created
+readable only by you, and the command refuses a directory for it that other users could read or
+change, as the data directory's is refused, a file that already exists, and a path SQLite keeps for
+the database's own files, such as `agention.db-wal`. A backup that fails leaves no file behind and
+exits with status 1.
+
+Keep the backups in a directory of their own, with mode 0700; the time in each file's name gives
+each backup a new file. On Linux and on macOS:
 
 ```bash
-systemctl --user stop agention
-cp -a ~/.local/share/agention ~/agention-backup-"$(date +%Y%m%d-%H%M%S)"
-systemctl --user start agention
+mkdir -m 700 -p ~/agention-backups
+agention backup --data ~/.local/share/agention \
+    ~/agention-backups/agention-"$(date +%Y%m%d-%H%M%S)".db
 ```
 
-On macOS, wait until launchd no longer finds the server before copying:
-
-```bash
-launchctl bootout gui/$UID/com.wayfarerlabs.agention
-while launchctl print gui/$UID/com.wayfarerlabs.agention >/dev/null 2>&1; do sleep 1; done
-cp -a ~/.local/share/agention ~/agention-backup-"$(date +%Y%m%d-%H%M%S)"
-launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.wayfarerlabs.agention.plist
-```
-
-Run by hand, stop the server with Ctrl-C and wait for your prompt before copying.
+The command opens the database read-only and never migrates it, so a copy taken with a newer
+release, before you start it on the database, is a copy of the database as the older server left it.
 
 A copy on the same disk is a rollback, not a backup, so keep one on another disk or machine too. The
 copy holds the instance's own key and your passkeys' records, so encrypt any copy you move off the
 machine.
 
-To restore a copy, stop the server, put the copy in place of the data directory, and start the
-server again. On Linux:
+To restore a copy, stop the server, move the database and the files SQLite keeps beside it out of
+the data directory, put the copy in as `agention.db`, and start the server. Move the `-wal` and
+`-shm` files aside with the database: a `-wal` file left beside the copy, as a server that was
+stopped abruptly leaves one, would be applied to the copy when the server starts. On Linux:
 
 ```bash
 systemctl --user stop agention
-mv ~/.local/share/agention ~/.local/share/agention-replaced-"$(date +%Y%m%d-%H%M%S)"
-cp -a ~/agention-backup-20261106-120000 ~/.local/share/agention
+replaced=~/.local/share/agention-replaced-"$(date +%Y%m%d-%H%M%S)"
+mkdir -m 700 "$replaced"
+mv ~/.local/share/agention/agention.db* "$replaced"/
+cp ~/agention-backups/agention-20261106-120000.db ~/.local/share/agention/agention.db
 systemctl --user start agention
 ```
 
-On macOS, stop and start the server as for a backup. The server opens a copy made by its own release
-or an earlier one. Remove the replaced directory once you no longer need it.
+On macOS, wait until launchd no longer finds the server before moving the files:
+
+```bash
+launchctl bootout gui/$UID/com.wayfarerlabs.agention
+while launchctl print gui/$UID/com.wayfarerlabs.agention >/dev/null 2>&1; do sleep 1; done
+replaced=~/.local/share/agention-replaced-"$(date +%Y%m%d-%H%M%S)"
+mkdir -m 700 "$replaced"
+mv ~/.local/share/agention/agention.db* "$replaced"/
+cp ~/agention-backups/agention-20261106-120000.db ~/.local/share/agention/agention.db
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.wayfarerlabs.agention.plist
+```
+
+Run by hand, stop the server with Ctrl-C and wait for your prompt first. `cp` gives the restored
+database the copy's mode, 0600. The server opens a copy made by its own release or an earlier one.
+Remove the replaced files once you no longer need them.

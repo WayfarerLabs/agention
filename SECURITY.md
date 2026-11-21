@@ -87,8 +87,8 @@ content matters for the same reason: a script running in the web UI could write 
 
 ### Private files
 
-The server's data directory and database, and each agent bridge session's key file, are private to
-the operating-system user that runs them, under one rule:
+The server's data directory and database, each copy `agention backup` writes, and each agent bridge
+session's key file are private to the operating-system user that runs them, under one rule:
 
 - the file is a regular file, never a symlink, that belongs to the user, with no group or other
   permissions;
@@ -104,7 +104,9 @@ own: whoever could replace a session's key could act as that agent once the oper
 registration. A symlink on the way that another user could swap can only lead somewhere that breaks
 the rule, or somewhere no other user can write. The server and the bridge work only in the real
 path, create what is missing with modes 0700 and 0600 whatever the umask, and never change the
-permissions of a path that exists: they refuse, and say what to change.
+permissions of a path that exists: they refuse, and say what to change. A backup's copy holds all
+the database holds, so `agention backup` creates it with mode 0600, never over a file that exists,
+only in a directory that already obeys the rule.
 
 ### The agent bridge
 
