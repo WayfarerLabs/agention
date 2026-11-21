@@ -123,7 +123,7 @@ export function Sessions() {
       </section>
       <Fold
         level={2}
-        outer
+        depth="outer"
         label="Credentials and past requests"
         folded={!sections.has(pastRequests)}
         toggle={() => sections.toggle(pastRequests)}
@@ -173,7 +173,7 @@ function AgentFolds({
       <Fold
         key={entry.agent}
         level={3}
-        outer
+        depth="outer"
         label={<PathParts place={[["agent", entry.agent]]} />}
         marks={
           <span className="roll-up" aria-hidden="true">

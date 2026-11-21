@@ -616,7 +616,12 @@ package's `web/` directory.
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
-filters on open asks and the status they keep.
+filters on open asks and the status they keep. A session group is named in the address by its id, so
+the list loads the operator's groups and tags while the sheet is open or a group or tag filter is
+on, to name the groups chosen and to say which group was removed and which tag nothing carries.
+Grouped by session group, the list folds the sessions under their groups only while the roll-ups or
+the rows loaded hold two or more, no group among them, and composes a group's roll-up from its
+sessions', as it does an agent's; this browser keeps a group's fold by the group's id.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its

@@ -3,6 +3,7 @@
 import {
   type ErrorBody,
   type ErrorCode,
+  type GroupsAndTags,
   type Message,
   type Registration,
   type SessionState,
@@ -69,6 +70,8 @@ export const noCounts: ThreadCounts = {
   reset: 0,
 };
 
+export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
+
 export const signedIn: SessionState = {
   signed_in: true,
   operator: { name: "operator" },
@@ -92,13 +95,14 @@ export class FakeApi {
   readonly unhandled: string[] = [];
   readonly #routes = new Map<string, Handler>();
 
-  // Signed in, with an empty thread list and no sessions, unless a test
-  // registers other answers.
+  // Signed in, with an empty thread list, no sessions and no groups or tags,
+  // unless a test registers other answers.
   constructor() {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
     this.on("GET", "/threads/counts", { body: noCounts });
     this.on("GET", "/sessions", { body: { agents: [] } });
+    this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),
     );
