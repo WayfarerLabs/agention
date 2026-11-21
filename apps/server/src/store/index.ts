@@ -26,7 +26,13 @@ export {
   submitRegistration,
 } from "./registrations.ts";
 export { serverName, storedName, storeName } from "./server-name.ts";
-export { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
+export {
+  countUnreadUpdates,
+  listSessions,
+  readSessionLog,
+  sessionLog,
+  updateSession,
+} from "./sessions.ts";
 export { createStore, type Store } from "./store.ts";
 export { countThreads, listSessionThreads, listThreads } from "./thread-lists.ts";
 export {

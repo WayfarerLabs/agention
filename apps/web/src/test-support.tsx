@@ -280,7 +280,7 @@ export function sessionSummary(overrides: Partial<SessionSummary> = {}): Session
     presence: { last_seen_at: time, quiet: false },
     registrations: [{ id: 1, code: "7KQ2M-X9DPA" }],
     unread_updates: 0,
-    threads: { total: 0, stranded: 0 },
+    threads: { total: 0, unread: 0, stranded: 0 },
     open_asks: { count: 0, blocking_count: 0 },
     ...overrides,
   };
