@@ -1334,7 +1334,7 @@ describe("going back after sending", () => {
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
-    fireEvent.click(screen.getByRole("link", { name: "Back to threads" }));
+    fireEvent.click(screen.getAllByRole("link", { name: "Back to threads" })[0] as HTMLElement);
     await screen.findByRole("heading", { level: 1, name: "Threads" });
     release();
     await new Promise((resolve) => setTimeout(resolve, 50));

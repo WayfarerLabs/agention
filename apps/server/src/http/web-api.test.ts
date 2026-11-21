@@ -1,7 +1,10 @@
 import type {
   ErrorBody,
+  GroupRef,
+  GroupsAndTags,
   SessionState,
   SessionsPage,
+  ThreadCounts,
   ThreadGetResult,
   ThreadList,
   WaitResult,
@@ -126,6 +129,9 @@ describe("changes from the browser", () => {
   ])("are refused with %s", async (_, options) => {
     const changes: [string, unknown][] = [
       ["/s/builder/main/threads/1/read", { through: 1 }],
+      ["/groups", { name: "Work" }],
+      ["/s/builder/main/tags", { tags: ["infra"] }],
+      ["/agents/builder/tags", { tags: ["infra"] }],
       ["/passkeys/register/begin", { name: "Phone" }],
       ["/passkeys/register/finish", { credential: {} }],
       ["/passkeys/1/name", { name: "Laptop" }],
@@ -307,7 +313,7 @@ describe("the sessions view", () => {
               note: "Backfill under way.",
             },
             unread_updates: 2,
-            threads: { total: 1, stranded: 0 },
+            threads: { total: 1, unread: 1, stranded: 0 },
           },
         ],
         truncated: false,
@@ -330,8 +336,13 @@ describe("the sessions view", () => {
     });
     const older = await harness.web("GET", "/s/builder/main/updates?before=2");
     expect(older.body).toMatchObject({ updates: [{ seq: 1, state: "working" }] });
+    const unread = async () => (await harness.web("GET", "/sessions/unread-updates")).body;
+    expect(await unread()).toEqual({ sessions: 1 });
+    await harness.web("POST", "/s/builder/main/updates/read", { through: 2 });
+    expect(await unread()).toEqual({ sessions: 1 });
     const read = await harness.web("POST", "/s/builder/main/updates/read", { through: 3 });
     expect(read.body).toEqual({ read_through: 3 });
+    expect(await unread()).toEqual({ sessions: 0 });
     const beyond = await harness.web("POST", "/s/builder/main/updates/read", { through: 4 });
     expect([codeOf(beyond), (beyond.body as ErrorBody).error.field]).toEqual([
       "invalid_input",
@@ -393,5 +404,91 @@ describe("the sessions view", () => {
     expect(read.messages[0]).toMatchObject({ seq: 1, text: "Please look." });
     expect(read.messages[0]).not.toHaveProperty("asks");
     expect(read.messages[0]).not.toHaveProperty("references");
+  });
+});
+
+describe("groups and tags", () => {
+  it("are kept by the operator's routes and shown in the sessions view", async () => {
+    const created = await harness.web("POST", "/groups", { name: " Billing " });
+    const group = created.body as GroupRef;
+    expect(group.name).toBe("Billing");
+    const duplicate = await harness.web("POST", "/groups", { name: "billing" });
+    expect([
+      duplicate.status,
+      codeOf(duplicate),
+      (duplicate.body as ErrorBody).error.field,
+    ]).toEqual([409, "conflict", "name"]);
+    for (const [path, body] of [
+      ["/s/builder/main/group", { group: group.id }],
+      ["/s/builder/main/tags", { tags: ["urgent"] }],
+      ["/agents/builder/tags", { tags: ["infra"] }],
+      [`/groups/${group.id}/name`, { name: "Ledger" }],
+      ["/tags/urgent/name", { name: "soon" }],
+    ] as const) {
+      expect([path, codeOf(await harness.web("POST", path, body))]).toEqual([path, "ok"]);
+    }
+    expect((await harness.web("GET", "/groups-and-tags")).body).toEqual({
+      groups: [{ id: group.id, name: "Ledger", sessions: 1 }],
+      tags: [
+        { name: "infra", agents: 1, sessions: 0 },
+        { name: "soon", agents: 0, sessions: 1 },
+      ],
+      truncated: false,
+    } satisfies GroupsAndTags);
+    const page = (await harness.web("GET", "/sessions")).body as SessionsPage;
+    expect(page.agents[0]).toMatchObject({
+      agent: "builder",
+      tags: ["infra"],
+      sessions: [{ session: "main", group: { id: group.id, name: "Ledger" }, tags: ["soon"] }],
+    });
+    for (const path of [`/groups/${group.id}/remove`, "/tags/soon/remove", "/tags/infra/remove"]) {
+      expect([path, codeOf(await harness.web("POST", path))]).toEqual([path, "ok"]);
+    }
+    expect((await harness.web("GET", "/groups-and-tags")).body).toEqual({
+      groups: [],
+      tags: [],
+      truncated: false,
+    });
+  });
+
+  it("filter the thread list and its counts", async () => {
+    const { id } = (await harness.web("POST", "/groups", { name: "Work" })).body as GroupRef;
+    await harness.web("POST", "/s/builder/main/group", { group: id });
+    await harness.web("POST", "/agents/builder/tags", { tags: ["infra"] });
+    const total = async (query: string) =>
+      ((await harness.web("GET", `/threads?${query}`)).body as ThreadList).total;
+    expect(await total(`session_group=${id}`)).toBe(1);
+    expect(await total("session_group=none")).toBe(0);
+    expect(await total(`session_group=none&session_group=${id}&tag=infra`)).toBe(1);
+    expect(await total("tag=ops")).toBe(0);
+    const counts = (await harness.web("GET", "/threads/counts?tag=ops")).body as ThreadCounts;
+    expect([counts.session_group, counts.tag]).toEqual([
+      { groups: [{ id, name: "Work", total: 0 }], none: 0 },
+      { tags: [{ tag: "infra", total: 1 }], truncated: false },
+    ]);
+    for (const query of ["session_group=0", "session_group=none&session_group=none", "tag=Ops"]) {
+      expect([query, codeOf(await harness.web("GET", `/threads?${query}`))]).toEqual([
+        query,
+        "invalid_input",
+      ]);
+    }
+  });
+
+  it("refuse names and ids outside their bounds as invalid input", async () => {
+    for (const [path, body, field] of [
+      ["/groups", { name: "" }, "name"],
+      ["/groups/0/name", { name: "Zero" }, "id"],
+      ["/tags/Not-A-Tag/remove", undefined, "tag"],
+      ["/tags/infra/name", { name: "Ops" }, "name"],
+      ["/s/builder/main/tags", { tags: ["a", "a"] }, "tags"],
+      ["/agents/Builder/tags", { tags: [] }, "agent"],
+    ] as const) {
+      const response = await harness.web("POST", path, body);
+      expect([path, codeOf(response), (response.body as ErrorBody).error.field]).toEqual([
+        path,
+        "invalid_input",
+        field,
+      ]);
+    }
   });
 });

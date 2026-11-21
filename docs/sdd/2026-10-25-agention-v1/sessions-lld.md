@@ -9,8 +9,7 @@
 
 Delivery 3 lets a session say what it is doing and whether it will see what the operator writes, and
 gives the operator one view of every session, where they approve registrations, read each session's
-updates and start a thread with it. Groups, tags and session updates in the thread list are
-Delivery 4.
+updates and start a thread with it. Groups and tags are Delivery 4.
 
 This document settles what the HLA and the [Working inbox LLD](working-inbox-lld.md) left open for
 sessions and does not repeat them. Code, tests and public documentation written from it state
@@ -251,26 +250,25 @@ view. Top to bottom:
 2. **Agents**: one foldable header per agent, as the thread list's group headers fold, each with its
    session count and roll-up: open asks, unread updates and stranded threads. Under it, one folded
    row per session, so that many fit on a screen, ordered with working and idle first, then sessions
-   without a state, then stopped ones, each by last seen. A folded row carries the key facts on two
-   lines, wrapping to three on a phone:
+   without a state, then stopped ones, each by last seen. A folded row carries the key facts on
+   three lines, its chips wrapping on a phone:
    - the session's name and title, cut to fit, and its percent;
+   - on a line of its own, when it was last seen, warning while it is quiet and not stopped;
    - what it is doing, as a chip: **Working**, **Idle**, **Stopped · completed** (or withdrawn or
      stalled), or **No status** when it has never reported;
-   - **Waiting on you** with its open asks and how many are blocking, when it has any, linking to
-     its threads;
-   - **Quiet**, with when it was last seen, unless the session is stopped, which already says it
-     will not see messages; and **No credential** whenever it holds;
+   - its open asks, as **N open asks**, or **Blocked on you · N open asks** while one blocks, when
+     it has any, linking to its threads;
+   - **No credential** whenever it holds;
    - unread updates, as the closed envelope and a count;
-   - its threads, as a link to the thread list filtered to the session, with the stranded count when
-     any is;
+   - its threads, as a link to the thread list filtered to the session, and the stranded count when
+     any is, as a link to those;
    - its latest note, cut to fit;
    - an options menu: **New thread**, and **Revoke** for each approved credential.
 3. **Credentials and past requests**, folded, as now.
 
-Rows are folded by default. Unfolding one shows its goal with the percent as a thin bar, when it was
-last seen, its credentials, and its log: the newest entries first, unread ones marked, consecutive
-progress-only entries collapsed, and **Older** for the rest. Unfolding marks read through the
-entries shown.
+Rows are folded by default. Unfolding one shows its goal with the percent as a thin bar, its
+credentials, and its log: the newest entries first, unread ones marked, consecutive progress-only
+entries collapsed, and **Older** for the rest. Unfolding marks read through the entries shown.
 
 **New thread** opens a sheet with the session named at its head, a title, the message's text and
 detail, and Send. When the session is stopped, quiet or without a credential, the sheet says it is

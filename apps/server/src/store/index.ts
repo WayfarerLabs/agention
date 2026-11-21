@@ -2,6 +2,17 @@
 // database. Each takes the Store, the caller's Identity where there is one, the
 // target the request names, and input its schema has already parsed.
 export { findOperator, insertOperator, type Operator } from "./directory.ts";
+export {
+  createGroup,
+  listGroupsAndTags,
+  removeGroup,
+  removeTag,
+  renameGroup,
+  renameTag,
+  setAgentTags,
+  setSessionGroup,
+  setSessionTags,
+} from "./groups-and-tags.ts";
 export { archiveThread, bulkArchive, bulkRead, markRead, markUnread } from "./marks.ts";
 export { SessionNotifier, type WaitOutcome } from "./notifier.ts";
 export { markSeen } from "./presence.ts";
@@ -15,7 +26,13 @@ export {
   submitRegistration,
 } from "./registrations.ts";
 export { serverName, storedName, storeName } from "./server-name.ts";
-export { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
+export {
+  countUnreadUpdates,
+  listSessions,
+  readSessionLog,
+  sessionLog,
+  updateSession,
+} from "./sessions.ts";
 export { createStore, type Store } from "./store.ts";
 export { countThreads, listSessionThreads, listThreads } from "./thread-lists.ts";
 export {

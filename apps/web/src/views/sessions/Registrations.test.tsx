@@ -34,6 +34,7 @@ function agentsOf(sessions: Sessions, truncated: string[] = []): SessionsPage {
   return {
     agents: [...new Set(sessions.map((each) => each.agent))].map((agent) => ({
       agent,
+      tags: [],
       sessions: sessions
         .filter((each) => each.agent === agent)
         .map(({ session, credential_active }) =>

@@ -263,6 +263,15 @@ describe("the thread list", () => {
     expect(stranded("Revoked long ago")).toContain(sinceTime(lastSeen));
     expect(row("Revoked long ago").getByText("No active credential")).toBeTruthy();
     expect(stranded("Fine")).toBeUndefined();
+    // Stranded shows in the warning's tone, as the sessions view flags it.
+    for (const name of ["Quiet", "Never seen", "Stalled", "Just revoked"]) {
+      expect(
+        row(name)
+          .getByText(/^Stranded/)
+          .closest(".warning"),
+        name,
+      ).not.toBeNull();
+    }
   });
 
   it("counts every other open ask, not only those the summary lists", async () => {
@@ -342,6 +351,7 @@ describe("the thread list", () => {
     expect(heading.nextElementSibling).toBe(head);
     expect(Array.from(groupSelect().options).map((each) => each.value)).toEqual([
       "",
+      "session_group",
       "session",
       "agent",
     ]);
@@ -623,6 +633,8 @@ const counts: ThreadCounts = {
     ],
     truncated: false,
   },
+  session_group: { groups: [{ id: 4, name: "Billing migration", total: 38 }], none: 39 },
+  tag: { tags: [{ tag: "infra", total: 41 }], truncated: false },
   reset: 40,
 };
 
@@ -650,7 +662,7 @@ describe("the filter sheet", () => {
     // Focus lands on the sheet's heading, not the search box, so no keyboard
     // rises over the sheet as it opens.
     expect(document.activeElement).toBe(within(open).getByRole("heading", { level: 2 }));
-    expect(within(open).getByRole("searchbox", { name: "Search titles" })).toBeTruthy();
+    expect(within(open).getByRole("searchbox", { name: "Search" })).toBeTruthy();
     const groups = within(open).getAllByRole("group");
     expect(groups.map((each) => each.querySelector("legend")?.textContent)).toEqual([
       "Status",
@@ -824,7 +836,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/?unread=true&sort=effort&reverse=true&group=session");
     const open = await openSheet();
-    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search titles" });
+    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search" });
     fireEvent.change(box, { target: { value: "release" } });
     fireEvent.change(box, { target: { value: "release notes" } });
     expect(address()).toBe("?unread=true&sort=effort&reverse=true&group=session");
@@ -847,7 +859,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/");
     const open = await openSheet();
-    fireEvent.change(within(open).getByRole("searchbox", { name: "Search titles" }), {
+    fireEvent.change(within(open).getByRole("searchbox", { name: "Search" }), {
       target: { value: "release" },
     });
     fireEvent.click(segment("Read", "Unread"));
@@ -858,7 +870,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/?unread=true");
     const open = await openSheet();
-    fireEvent.change(within(open).getByRole("searchbox", { name: "Search titles" }), {
+    fireEvent.change(within(open).getByRole("searchbox", { name: "Search" }), {
       target: { value: " \t " },
     });
     await pause();
@@ -878,7 +890,7 @@ describe("the filter sheet", () => {
       serve([]);
       renderAt("/?search=notes");
       const open = await openSheet();
-      const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search titles" });
+      const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search" });
       fireEvent.change(box, { target: { value: text } });
       await pause();
       expect(address()).toBe("?search=notes");
@@ -900,7 +912,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/?search=notes");
     const open = await openSheet();
-    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search titles" });
+    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search" });
     fireEvent.change(box, { target: { value: "notes and more" } });
     fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Search/ }));
     await pause();
@@ -1158,6 +1170,105 @@ describe("the agent, session and topic choices", () => {
       expect(lastQuery()?.getAll("topic")).toEqual(["reviewer/main/billing", "builder/main/auth"]),
     );
     expect(picker("Topic").textContent).toBe("2 chosen");
+  });
+});
+
+describe("the group and tag choices", () => {
+  const picker = (name: "Group" | "Tag") =>
+    within(sheet()).getByRole("button", { name: new RegExp(`^${name} `) });
+  const popupOf = (name: "Group" | "Tag") =>
+    document.getElementById(picker(name).getAttribute("aria-controls") ?? "") as HTMLElement;
+  const options = (name: "Group" | "Tag") =>
+    within(popupOf(name))
+      .getAllByRole<HTMLInputElement>("checkbox")
+      .map(
+        (box) =>
+          `${box.checked ? "☑" : "☐"} ${box.closest("label")?.textContent?.replace(/\s+/g, " ")}`,
+      );
+
+  it("offer each group holding a thread and no group, and each tag, with its count", async () => {
+    serve([]);
+    serveCounts();
+    renderAt("/?tag=infra");
+    await openSheet();
+    await waitFor(() => expect(countCalls()).toHaveLength(1));
+    expect(picker("Group").textContent).toBe("Any");
+    expect(picker("Tag").textContent).toBe("infra");
+    fireEvent.click(picker("Group"));
+    expect(options("Group")).toEqual(["☐ Billing migration (38)", "☐ No group (39)"]);
+    expect(
+      within(popupOf("Group")).getByRole("checkbox", { name: "Billing migration, 38 threads" }),
+    ).toBeTruthy();
+    fireEvent.click(picker("Tag"));
+    expect(options("Tag")).toEqual(["☑ infra (41)"]);
+  });
+
+  it("choose groups by their ids, no group among them, and tags by their names", async () => {
+    serve([]);
+    serveCounts();
+    renderAt("/");
+    await openSheet();
+    await waitFor(() => expect(countCalls()).toHaveLength(1));
+    fireEvent.click(picker("Group"));
+    fireEvent.click(within(popupOf("Group")).getByRole("checkbox", { name: /^Billing/ }));
+    await waitFor(() => expect(address()).toBe("?session_group=4"));
+    fireEvent.click(within(popupOf("Group")).getByRole("checkbox", { name: /^No group/ }));
+    await waitFor(() => expect(address()).toBe("?session_group=4&session_group=none"));
+    expect(picker("Group").textContent).toBe("2 chosen");
+    fireEvent.click(picker("Tag"));
+    fireEvent.click(within(popupOf("Tag")).getByRole("checkbox", { name: /^infra/ }));
+    await waitFor(() => expect(address()).toBe("?session_group=4&session_group=none&tag=infra"));
+    await waitFor(() => expect(lastQuery()?.getAll("session_group")).toEqual(["4", "none"]));
+    expect(lastQuery()?.get("tag")).toBe("infra");
+  });
+
+  it("show as chips by their names now, saying when a group was removed or a tag is on nothing", async () => {
+    serve([]);
+    api.on("GET", "/groups-and-tags", {
+      body: {
+        groups: [{ id: 4, name: "Billing", sessions: 2 }],
+        tags: [{ name: "infra", agents: 1, sessions: 0 }],
+        truncated: false,
+      },
+    });
+    renderAt("/?session_group=4&tag=infra");
+    await waitFor(() => expect(chipText(chips()[0] as HTMLElement)).toBe("Group: Billing"));
+    expect(chipText(chips()[1] as HTMLElement)).toBe("Tag: infra");
+    cleanup();
+    // Each says so first, so a long name cut short leaves it standing.
+    renderAt("/?session_group=9&tag=long-gone-spare");
+    await waitFor(() => expect(chipText(chips()[0] as HTMLElement)).toBe("Removed group"));
+    expect(chipText(chips()[1] as HTMLElement)).toBe("Unused tag: long-go…");
+    expect(chips().map((chip) => chip.getAttribute("aria-label"))).toEqual([
+      "Remove filter: Removed group, keeping nothing",
+      "Remove filter: Unused tag long-gone-spare, on nothing, keeping nothing",
+    ]);
+    cleanup();
+    renderAt("/?session_group=4&session_group=9&session_group=none&tag=gone&tag=infra");
+    await waitFor(() =>
+      expect(chips().map((chip) => chipText(chip))).toEqual([
+        "3 groups, 1 removed",
+        "2 tags, 1 unused",
+      ]),
+    );
+    fireEvent.click(chips()[0] as HTMLElement);
+    await waitFor(() => expect(address()).toBe("?tag=gone&tag=infra"));
+  });
+
+  it("show a group named removed by its name, as a group that is there", async () => {
+    serve([]);
+    serveCounts();
+    api.on("GET", "/groups-and-tags", {
+      body: { groups: [{ id: 4, name: "removed", sessions: 2 }], tags: [], truncated: false },
+    });
+    renderAt("/?session_group=4");
+    await waitFor(() => expect(chipText(chips()[0] as HTMLElement)).toBe("Group: removed"));
+    await openSheet();
+    expect(picker("Group").textContent).toBe("removed");
+    cleanup();
+    // Of two groups, only the one no longer there counts as removed.
+    renderAt("/?session_group=4&session_group=9");
+    await waitFor(() => expect(chipText(chips()[0] as HTMLElement)).toBe("2 groups, 1 removed"));
   });
 });
 

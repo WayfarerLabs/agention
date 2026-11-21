@@ -571,7 +571,7 @@ describe("reading", () => {
 });
 
 describe("the head", () => {
-  const back = () => screen.getByRole("link", { name: "Back to threads" });
+  const back = () => within(threadHeader()).getByRole("link", { name: "Back to threads" });
 
   it.each([
     ["opened directly", null, "/"],
@@ -602,6 +602,16 @@ describe("the head", () => {
     expect(shown).not.toBe("");
     expect(back().getAttribute("aria-label")?.toLowerCase()).toContain(shown);
     expect(back().querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    // The same button follows the composer, to the same list.
+    const links = screen.getAllByRole("link", { name: "Back to threads" });
+    expect(links).toHaveLength(2);
+    const [, foot] = links;
+    expect(foot?.getAttribute("href")).toBe(href);
+    const composer = screen.getByRole("region", { name: "Reply" });
+    expect(composer.contains(foot ?? null)).toBe(false);
+    expect(
+      composer.compareDocumentPosition(foot as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it.each([

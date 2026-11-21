@@ -35,6 +35,16 @@ updates:
       - dependency-name: fast-deep-equal
       - dependency-name: fast-uri
       - dependency-name: json-schema-traverse
+      # The web UI pins these, which the build's notice check asked for, to the
+      # versions that mermaid and @mermaid-js/parser carry inlined in their own
+      # builds, so their license notices ship with the diagram frame's script.
+      # They move only with those packages, and the build names any that falls
+      # behind.
+      - dependency-name: fastdom
+      - dependency-name: js-yaml
+      - dependency-name: langium
+      - dependency-name: vscode-languageserver-textdocument
+      - dependency-name: vscode-uri
 
   - package-ecosystem: github-actions
     directory: /

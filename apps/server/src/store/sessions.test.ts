@@ -8,10 +8,16 @@ import {
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
-import { archiveThread } from "./marks.ts";
+import { archiveThread, markRead } from "./marks.ts";
 import { seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
-import { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
+import {
+  countUnreadUpdates,
+  listSessions,
+  readSessionLog,
+  sessionLog,
+  updateSession,
+} from "./sessions.ts";
 import { defaultQuietAfter } from "./store.ts";
 import { type Agent, Fixture, hour, threadTarget } from "./test-fixture.ts";
 
@@ -290,7 +296,7 @@ describe("a stopped session", () => {
       stranded: true,
       presence: { quiet: false, state: "stopped", outcome: "completed" },
     });
-    expect(summary().threads).toEqual({ total: 1, stranded: 1 });
+    expect(summary().threads).toEqual({ total: 1, unread: 0, stranded: 1 });
   });
 
   it("strands nothing once it resumes, or once it has read the message", () => {
@@ -329,19 +335,22 @@ describe("listSessions", () => {
     expect(first.agents).toEqual([
       {
         agent: "builder",
+        tags: [],
         sessions: [
           {
             session: "side",
             created_at: formatTimestamp(fixture.now),
+            tags: [],
             presence: { quiet: true },
             registrations: [],
             unread_updates: 0,
-            threads: { total: 0, stranded: 0 },
+            threads: { total: 0, unread: 0, stranded: 0 },
             open_asks: { count: 0, blocking_count: 0 },
           },
           {
             session: "main",
             created_at: formatTimestamp(fixture.now),
+            tags: [],
             presence: { last_seen_at: formatTimestamp(fixture.now), quiet: false },
             registrations: [agent, second].map((each) => ({
               id: each.registrationId,
@@ -354,7 +363,7 @@ describe("listSessions", () => {
               note: "Done.",
             },
             unread_updates: 1,
-            threads: { total: 0, stranded: 0 },
+            threads: { total: 0, unread: 0, stranded: 0 },
             open_asks: { count: 0, blocking_count: 0 },
           },
         ],
@@ -409,14 +418,18 @@ describe("listSessions", () => {
     archiveThread(fixture.store, fixture.operator, threadTarget(agent, 3), { through: 2 });
     fixture.seen(agent);
     fixture.seen(other);
-    expect(summary().threads).toEqual({ total: 2, stranded: 0 });
+    expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 0 });
     fixture.advance(defaultQuietAfter + seenStep + 1);
-    expect(summary().threads).toEqual({ total: 2, stranded: 2 });
+    expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 2 });
     fixture.thread(agent.identity, threadTarget(agent, 1));
     fixture.write(agent.identity, threadTarget(agent, 1), { text: "Read." });
-    expect(summary().threads).toEqual({ total: 2, stranded: 1 });
+    // The session's answer is unread by the operator.
+    expect(summary().threads).toEqual({ total: 2, unread: 1, stranded: 1 });
     const page = listSessions(fixture.store, fixture.operator, sessionsQuery.parse({}));
-    expect(page.agents[1]?.sessions[0]?.threads).toEqual({ total: 1, stranded: 0 });
+    expect(page.agents[1]?.sessions[0]?.threads).toEqual({ total: 1, unread: 1, stranded: 0 });
+    // Reading it, or archiving a thread, leaves nothing unread there.
+    markRead(fixture.store, fixture.operator, threadTarget(agent, 1), { through: 3 });
+    expect(summary().threads.unread).toBe(0);
   });
 
   it("counts each session's open asks in all its threads, and the blocking among them", () => {
@@ -448,6 +461,24 @@ describe("listSessions", () => {
     expect(
       failure(() => listSessions(fixture.store, agent.identity, sessionsQuery.parse({}))).code,
     ).toBe("not_found");
+    expect(failure(() => countUnreadUpdates(fixture.store, agent.identity)).code).toBe("not_found");
+  });
+
+  it("counts the sessions whose log holds entries the operator has not read", () => {
+    const side = fixture.registerAgent("builder", "side");
+    fixture.registerAgent("reviewer", "main");
+    const unread = () => countUnreadUpdates(fixture.store, fixture.operator).sessions;
+    expect(unread()).toBe(0);
+    report({ state: "working" });
+    report({ percent: 10 });
+    fixture.report(side, { state: "idle" });
+    expect(unread()).toBe(2);
+    readThrough(1);
+    expect(unread()).toBe(2);
+    readThrough(2);
+    expect(unread()).toBe(1);
+    fixture.report(agent, { note: "More." });
+    expect(unread()).toBe(2);
   });
 
   it(

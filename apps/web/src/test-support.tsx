@@ -3,6 +3,7 @@
 import {
   type ErrorBody,
   type ErrorCode,
+  type GroupsAndTags,
   type Message,
   type Registration,
   type SessionState,
@@ -64,8 +65,12 @@ export const noCounts: ThreadCounts = {
   agent: { agents: [], truncated: false },
   session: { sessions: [], truncated: false },
   topic: { topics: [], truncated: false },
+  session_group: { groups: [], none: 0 },
+  tag: { tags: [], truncated: false },
   reset: 0,
 };
+
+export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
 export const signedIn: SessionState = {
   signed_in: true,
@@ -90,13 +95,15 @@ export class FakeApi {
   readonly unhandled: string[] = [];
   readonly #routes = new Map<string, Handler>();
 
-  // Signed in, with an empty thread list and no sessions, unless a test
-  // registers other answers.
+  // Signed in, with an empty thread list, no sessions, none with unread
+  // updates, and no groups or tags, unless a test registers other answers.
   constructor() {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
     this.on("GET", "/threads/counts", { body: noCounts });
     this.on("GET", "/sessions", { body: { agents: [] } });
+    this.on("GET", "/sessions/unread-updates", { body: { sessions: 0 } });
+    this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),
     );
@@ -270,10 +277,11 @@ export function sessionSummary(overrides: Partial<SessionSummary> = {}): Session
   return {
     session: "main",
     created_at: time,
+    tags: [],
     presence: { last_seen_at: time, quiet: false },
     registrations: [{ id: 1, code: "7KQ2M-X9DPA" }],
     unread_updates: 0,
-    threads: { total: 0, stranded: 0 },
+    threads: { total: 0, unread: 0, stranded: 0 },
     open_asks: { count: 0, blocking_count: 0 },
     ...overrides,
   };

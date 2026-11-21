@@ -2,7 +2,7 @@
 
 <!-- cspell:ignore stanard differnent Everytihng satisifes lineaar diffferent hthe -->
 <!-- cspell:ignore levl seperate dismissable doind botton -->
-<!-- cspell:ignore locatoin sesson hsould Pleae keepging consise agnet probaly Arhive autoinc -->
+<!-- cspell:ignore locatoin sesson hsould Pleae keepging consise agnet probaly Arhive autoinc thikn -->
 <!-- cspell:ignore additiona somehing empahsize goint miconstrued Informaiton -->
 <!-- cspell:ignore subscibe certianly especiallyas everytihng Fwiw haveto -->
 
@@ -293,8 +293,9 @@ earliest answer-by, and every other thread by latest message. It can also be ord
 answer-by, by least effort, by latest message, or by when each thread was created, which within a
 session is thread-number order. Any order can be reversed, which reverses the threads it ranks;
 every thread it does not rank, such as one without an open ask, still follows them as before (ruling
-54). Session state changes the operator has not read appear in the list beside threads, and
-consecutive progress-only session updates collapse.
+54). Session state changes stay in the view of the sessions rather than the thread list, which links
+to the threads of each session and agent (ruling 74); in that view, consecutive progress-only
+session updates collapse.
 
 **R26. Operator operations.** As a thread's audience, the operator answers asks, writes and replaces
 messages, marks threads read, marks a thread unread from a chosen message on, and archives a thread
@@ -318,10 +319,11 @@ browser sign-in leads back to sign-in rather than a dead error.
 session groups (for example "work project X", "personal project A"), one level deep, each session in
 at most one group, and can assign tags to agents and sessions, which cut across groups. Groups and
 tags organize the operator's views only: agents never see them and they grant nothing. The operator
-can view the list flat, by session (group, session, topic, thread) or by agent (agent, session,
-thread), collapse any parent, and see on every parent its roll-up of what it holds, aggregated
-generally as a maximum: unread threads, whether any is blocked on the operator, the highest open
-priority, and archived when all are. Grouping, sorting and filtering are separate controls.
+can view the list flat, by group (group, session, topic, thread), by session (session, topic,
+thread) or by agent (agent, session, thread), and the view of the sessions by group (ruling 75),
+collapse any parent, and see on every parent its roll-up of what it holds, aggregated generally as a
+maximum: unread threads, whether any is blocked on the operator, the highest open priority, and
+archived when all are. Grouping, sorting and filtering are separate controls.
 
 **R29. Stale writes keep the draft.** When a write from the web UI fails as stale, the UI shows the
 missed messages and keeps the draft so one action marks them read and resubmits.
@@ -1190,6 +1192,105 @@ Recorded from the design conversation.
     repository builds, checks and publishes on Node 26's LTS line through `.node-version`; the
     packages keep supporting Node 24 and later (their `engines`, the bundle's target and the
     bridge's startup check), which CI checks on Node 24 too, with `@types/node` held to the 24 line.
+72. (2026-11-21, on the plain-HTTP tunnel hint) Asked whether the tunnel hint ships alone as 0.3.1
+    once its pull request merges or rides with the next release, the operator chose "Ride with the
+    next". Taken: no 0.3.1; the hint ships in the release that completes v1.
+73. (2026-11-21, on Mermaid's bundled layout engine) Asked "I'm not familiar with ELK layouts. Are
+    they a big improvement?", then told that ELK helps mainly on large, dense graphs, costs about
+    1.6 MB of the diagram frame's script and is the bundle's only copyleft code (EPL-2.0 OR
+    GPL-3.0-or-later), the operator answered: "Yeah, let's strip it. We can always add it later if
+    needed." (Superseded by ruling 77.) Taken: the diagram frame's bundle leaves `elkjs` out, and a
+    diagram that asks for an ELK layout draws with Mermaid's default layout.
+74. (2026-11-21, on Delivery 4's design) "So one thought here. What if we limit viewing thread
+    details to the threads tab only. The sessions tab would just provide the session status stuff
+    (including activity log) and then thread summaries/counts. And then we just have obvious CTAs
+    there to view threads that just take you to an appropriate filter in the threads tab?" Asked
+    whether session updates then stay on the Sessions tab only, not in the thread list, with an
+    unread badge on the tab and each session row showing its threads' roll-up and a link to them,
+    the operator chose "Yes, split them" and wrote "Love it!". Taken, overtaking ruling 65's later
+    step: unread session updates do not join the thread list; the Sessions tab carries a badge
+    counting sessions with unread updates; each session row shows its threads' roll-up (threads and
+    unread threads, with blocked on the operator in its existing open-asks mark) with unread updates
+    marked apart, and links to the thread list narrowed to it, as an agent's header does to the
+    agent.
+75. (2026-11-21, on Delivery 4's design) Shown groups as fold levels in the thread list beside a
+    Group filter, the operator wrote: "So I think this looks good but I worry about consistency,
+    especially w.r.t. what we've already built. And the group filtering mechanism seems strange with
+    the foldable top-level groups. How do we expect users to focus on a specific group or set of
+    groups? I'd much rather have one really good mechanism vs two mediocre and overlapping ones."
+    Offered a bar of group chips focusing both tabs instead, the operator answered: "So maybe I'm
+    missing something, but I think we keep the group fold on the session tab and then it just
+    becomes a standard filter (and maybe a grouping option?) on the thread tab. No need for a new
+    shared bar paradigm. But lmk if you disagree." Taken, overtaking ruling 38's single hierarchy of
+    session group, session, topic and thread: the Sessions tab folds group, agent, session, each
+    group's head carrying its roll-up and a link to the thread list filtered to the group; the
+    thread list focuses on groups through the Group filter, and Group becomes a grouping of its own
+    (group, session, topic, thread) beside Flat, Session and Agent, the session grouping returning
+    to session, topic, thread.
+76. (2026-11-21, on Delivery 4's design) Asked whether the Sessions tab nests group, agent, session
+    (an agent showing under each group that holds its sessions) or group, session with the agent
+    named on each row, the operator chose "Group, agent, session".
+77. (2026-11-21, on Mermaid's bundled layout engine) Told that ruling 73 rested on a mistake, since
+    Mermaid 12 lays out most diagrams with ELK by default, so stripping it changes nearly every
+    diagram's layout, the operator asked "So what exactly are the license implications of keeping
+    it?" Told that elkjs is file-level copyleft under EPL-2.0, leaves Agention's MIT license
+    untouched, and adds a statement wherever it ships that its source is available under the EPL and
+    how to obtain it, the operator chose "Keep ELK" and wrote "Let's keep it. Thanks!". Taken:
+    ruling 73 is superseded; the diagram frame keeps Mermaid's default ELK layout, and the shipped
+    notices say where elkjs's source is available under the EPL, the frame's script pointing to
+    them.
+78. (2026-11-21, at the lead's terminal, on the phone check of Delivery 3 on 0.3.0) "So the only
+    thing I noticed is that in the session tab, the option menu fo the last session in an agent
+    group opens "under" the "Credentials and past requests" fold. Everything else looks good so far.
+    And I know we have the updated design, so let's consider this complete." Taken: Delivery 3's
+    phone check passed. The menu did not stack under that fold at Delivery 4's head, whose live run
+    had already fixed menu stacking, and a browser test now guards that case.
+79. (2026-11-21, on finishing v1) Asked whether to release v1 as 1.0.0 or as release-please's
+    default 0.4.0, the operator chose "0.4.0"; asked whether the phone check comes before Delivery
+    4's pull request merges or after the release, the operator chose "After the release". Taken: the
+    release that completes v1 is 0.4.0; the operator checks the published release on a phone, and a
+    small follow-up pull request records that check, the release and the lock.
+80. (2026-11-21, on a preliminary check of Delivery 4 on the staging server) "The only issue that I
+    noticed is that stranded should be a proper filter with the normal linking from the session
+    view." Taken: a session row's and an agent header's stranded count link to the thread list
+    filtered to their stranded threads, as their threads links do.
+81. (2026-11-21, the same check) "I don't thikn "Quiet since..." should be a chip. Each session
+    should have a "Last seen" tracker that is its own line (likely between the session name and the
+    chips). And then "stranded" as a session chip should get the same visual treatment as the
+    stranded agent chip. If you haven't already figured out, I'm big on consistency. That's how you
+    build intuitive UIs." Taken: every session row shows when it was last seen on a line of its own
+    between its head and its chips, warning while quiet, and no quiet chip; the row's stranded chip
+    and every other chip share the agent header's look; and consistency across the UI is a standing
+    principle for its design.
+82. (2026-11-21) Asked whether quiet and stranded should take the same tone in the Sessions view and
+    the thread list, the operator chose "Warning in both". Taken: the thread list's quiet "last
+    seen" and Stranded tag take the warning tone the Sessions view uses.
+83. (2026-11-21) "I really want a "back to threads" button at the bottom of the thread view (maybe
+    underneath send?) so that I can do that with no further scrolling if I don't need to respond.
+    The other option would be to switch to a popup model with a close X top right and the thread
+    content scrolling within the popup. But if we do that, I still want to maximize the screen real
+    estate utilization. Thoughts?" Offered a back link under Send or the popup model, the operator
+    chose "Back link under Send". Taken: the thread page ends with the same Threads back link its
+    bar starts with.
+84. (2026-11-21) "And at least on Android Chrome, when typing a message, the keyboard popup mostly
+    obscures the Send button." Taken: the page's layout shrinks with an on-screen keyboard, and the
+    composer's Send row stays at the bottom of what is visible while the composer is in view.
+85. (2026-11-21) "And finally, this might be a bigger change, but does the agent have to clear the
+    "blocked by you" status? Would it make more sense to tie that to asks (probably an optional
+    blocking attribute?) so that it clears automatically? Are there other blocking situations we
+    want to support?" and "And have you fully considered the skill content for this release?" Told
+    that blocked already derives from open blocking asks and clears with them, and that the open
+    blocking ask the operator saw could not yet be acted on, the operator chose "Yes, both" to
+    adding to the skill when to ask and diagrams in detail, and to filing asks that become
+    answerable later as agention#32. Taken: the skill asks once the operator can act, saying a
+    question that must wait in a message first, and mentions diagrams in detail.
+86. (2026-11-21) "So fwiw, right now your session shows idle/waiting on you, even though the threads
+    don't show that. What gives? How is this out of sync?" Told that the Sessions view said "Waiting
+    on you" for any open ask while the thread list says "Blocked on you" only for a blocking one,
+    the operator chose "Yes, in #26" to the Sessions view using the thread list's words. Taken: the
+    Sessions view shows "N open asks", and "Blocked on you" only while one blocks, in the thread
+    list's tones. (The stale idle was the lead's session not reporting working; making a session's
+    state follow what it does is agention#34, after v1.)
 
 ## Out of scope for v1
 

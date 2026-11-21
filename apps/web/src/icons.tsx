@@ -86,3 +86,13 @@ export function Mark({
     </span>
   );
 }
+
+// UnreadCount says whether a group holds threads with messages the operator
+// has not read: the closed envelope with how many, or the open envelope.
+export function UnreadCount({ unread }: { unread: number }) {
+  return unread > 0 ? (
+    <Mark icon="unread" label={`${unread} unread`} shown={unread} accent />
+  ) : (
+    <Mark icon="read" label="Read" />
+  );
+}

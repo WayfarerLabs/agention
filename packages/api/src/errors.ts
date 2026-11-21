@@ -23,6 +23,9 @@ export const statusByErrorCode = {
   stale: 409,
   // A request id was reused with different content.
   request_id_conflict: 409,
+  // A name the request gives already belongs to another of its kind, as a
+  // group's or a tag's can on the web mount; the error names the input.
+  conflict: 409,
   // A rate budget is exhausted.
   rate_limited: 429,
   // Anything else; details go only to the server log.

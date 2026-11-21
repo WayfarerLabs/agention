@@ -96,13 +96,17 @@ changes, and withdraw one it settles.
 ## Rules
 
 - **Never block your work, at your terminal or on Agention.** Ask as soon as you can see the
-  question coming, and carry on with whatever does not depend on the answer. `impact: blocking`
-  means the work the ask is for stops until it is answered, not that you do.
+  question coming and the operator can answer it, and carry on with whatever does not depend on the
+  answer. `impact: blocking` means the work the ask is for stops until it is answered, not that you
+  do, and it shows the operator that something waits on them. A question that must wait for
+  something else first, such as a release or a merge, goes in a message saying what you will need
+  and when, and becomes an ask once the operator can act on it.
 - **Every message stands on its own.** The operator should be able to answer from Agention alone,
   often on a phone, without your terminal or any other source: `text` says what the matter is and
-  what you need, and `detail` carries everything else, as the tools describe. Never point at what
-  only your conversation shows, such as "as discussed" or "the plan above". Messages are never
-  deleted, so take keys, tokens and passwords out of every excerpt.
+  what you need, and `detail` carries everything else, as the tools describe, with a diagram where a
+  picture explains faster than prose. Never point at what only your conversation shows, such as "as
+  discussed" or "the plan above". Messages are never deleted, so take keys, tokens and passwords out
+  of every excerpt.
 - **Agention being unavailable is no reason to block.** A failed call says what to do; do it and
   carry on. While you cannot ask, because registration is pending or the server does not answer,
   work under an assumption you state at your terminal, and ask as soon as you can, trying again at

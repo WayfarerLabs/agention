@@ -9,11 +9,14 @@ import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTaskListItem } from "micromark-extension-gfm-task-list-item";
 import { createElement, Fragment, type ReactNode, useMemo } from "react";
 import { ErrorBoundary } from "../boundary.tsx";
+import { Diagram } from "./Diagram.tsx";
 
 // Agention's Markdown: CommonMark with GitHub's tables, task lists and
 // strikethrough, rendered inert. Nothing in the text can run, load or style
 // anything: raw HTML shows as text, images show as links, only absolute https
-// links are live, and no class or attribute comes from the text. Bare URLs
+// links are live, and no class or attribute comes from the text. A fenced
+// block whose language is mermaid is a diagram, which is drawn in a sandboxed
+// frame and shows as an image the page makes from the frame's answer. Bare URLs
 // stay text, since GFM's autolink literals are not enabled, and so do
 // footnotes, which would generate links and ids.
 //
@@ -259,8 +262,11 @@ function renderNode(node: RootContent, context: Context, key: number): ReactNode
       );
     }
     case "code":
-      // The info string is not used: no class comes from the text.
-      return (
+      // A mermaid block is a diagram, drawn in isolation; any other info
+      // string is not used, so no class comes from the text.
+      return node.lang === "mermaid" ? (
+        <Diagram key={key} source={node.value} />
+      ) : (
         <pre key={key}>
           <code>{node.value}</code>
         </pre>

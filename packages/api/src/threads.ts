@@ -60,6 +60,7 @@ export const messageDetail = multilineText({ min: 1, max: maxMessageDetail }).de
   "Markdown, shown folded under the text, which it needs beside it: everything else the reader " +
     "needs to decide on or understand the message without looking elsewhere, such as what was " +
     "found, the options and their tradeoffs, evidence, and excerpts of diffs, logs or errors. " +
+    "A fenced code block marked mermaid shows as the diagram it describes. " +
     "Never point at what only your own conversation shows. Messages are never deleted, so take " +
     "keys, tokens and passwords out of any excerpt.",
 );

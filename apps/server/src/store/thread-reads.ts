@@ -99,8 +99,9 @@ export function quietOf(sessions: string): string {
 // message's, its session's presence and the state and outcome it last
 // reported, whether the other party has not read a live message of the
 // viewer's, and whether the thread is stranded: so, while the session is
-// quiet, has no active credential or has stopped. scope reads the threads as
-// t, their sessions as s and their agents as g. Callers bind a
+// quiet, has no active credential or has stopped; and the operator's group
+// for its session, which only the operator's list shows. scope reads the
+// threads as t, their sessions as s and their agents as g. Callers bind a
 // ViewerAndCutoff and whatever lead's conditions name, and select from seen.
 export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
   return `
@@ -119,12 +120,15 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         ) AS credential_active,
         s.last_seen_at,
         ${quietOf("s")} AS quiet,
-        reported.state AS session_state, reported.outcome AS session_outcome
+        reported.state AS session_state, reported.outcome AS session_outcome,
+        member.group_id, grouped.name AS group_name
       FROM threads t
       JOIN sessions s ON s.id = t.session_id
       JOIN agents g ON g.id = s.agent_id
       JOIN messages latest ON latest.thread_id = t.id AND latest.seq = t.last_seq
       LEFT JOIN thread_marks mark ON mark.actor_id = :viewer AND mark.thread_id = t.id
+      LEFT JOIN session_group_members member ON member.session_id = t.session_id
+      LEFT JOIN session_groups grouped ON grouped.id = member.group_id
       LEFT JOIN session_updates reported ON reported.session_id = t.session_id
         AND reported.seq = (
           SELECT max(u.seq) FROM session_updates u WHERE u.session_id = t.session_id
@@ -253,6 +257,8 @@ export interface ThreadRow {
   quiet: number;
   session_state: WorkState | null;
   session_outcome: WorkOutcome | null;
+  group_id: number | null;
+  group_name: string | null;
   unread_by_other: number;
   status: ThreadStatus;
   unread: number;

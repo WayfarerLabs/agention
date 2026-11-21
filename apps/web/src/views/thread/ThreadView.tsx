@@ -52,7 +52,8 @@ import {
 
 // The thread page follows email: what is on screen is read, actions on the
 // thread as a whole sit in its head, and answering happens on the message
-// that asked, sent by the composer at the foot.
+// that asked, sent by the composer at the foot, with the way back to the
+// list under it as well as in the head.
 
 // The messages the page shows at first, and adds each time it shows more.
 const pageSize = 50;
@@ -676,12 +677,7 @@ function ThreadPage({
     <article>
       <header className="thread-header">
         <div className="thread-bar">
-          <Link to={listHref(origin)} className="back" aria-label="Back to threads">
-            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-              <path d="M20 12H5M11 5l-7 7 7 7" />
-            </svg>
-            Threads
-          </Link>
+          <BackToThreads origin={origin} />
           <div className="thread-actions">
             {thread.archived && <Mark icon="archive" label="Archived" />}
             <button
@@ -793,7 +789,24 @@ function ThreadPage({
         loading={loading.pending}
         context={{ target, find }}
       />
+      <div className="thread-foot">
+        <BackToThreads origin={origin} />
+      </div>
     </article>
+  );
+}
+
+// BackToThreads is the back button to the thread list as the operator left
+// it, leading the thread's head and again under its composer, so leaving
+// without replying needs no scrolling back up.
+function BackToThreads({ origin }: { origin: ThreadsView }) {
+  return (
+    <Link to={listHref(origin)} className="back" aria-label="Back to threads">
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+        <path d="M20 12H5M11 5l-7 7 7 7" />
+      </svg>
+      Threads
+    </Link>
   );
 }
 
