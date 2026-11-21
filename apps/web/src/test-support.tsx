@@ -270,6 +270,7 @@ export function sessionSummary(overrides: Partial<SessionSummary> = {}): Session
   return {
     session: "main",
     created_at: time,
+    tags: [],
     presence: { last_seen_at: time, quiet: false },
     registrations: [{ id: 1, code: "7KQ2M-X9DPA" }],
     unread_updates: 0,

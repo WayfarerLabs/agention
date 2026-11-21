@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { cursor, maxListed, pageLimit, queryNumber, sequence } from "./bounds.ts";
+import { groupRef, maxTags, tagName } from "./groups-and-tags.ts";
 import { name } from "./names.ts";
 import { registrationCodePattern, registrationId } from "./registrations.ts";
 import { singleLineText } from "./text.ts";
@@ -165,10 +166,14 @@ export type SessionsQuery = z.infer<typeof sessionsQuery>;
 // archived, and how many of those are stranded; and how many asks are open in
 // all its threads, and how many of those are blocking, which is what waits on
 // the operator. The operator can never archive a thread holding an ask open to
-// them, so their thread list shows every thread these asks are in.
+// them, so their thread list shows every thread these asks are in. It also
+// carries the operator's group for it, absent when it is in none, and its
+// tags, in name order.
 export const sessionSummary = z.object({
   session: name,
   created_at: z.string(),
+  group: groupRef.optional(),
+  tags: z.array(tagName).max(maxTags),
   presence,
   registrations: z.array(
     z.object({ id: registrationId, code: z.string().regex(registrationCodePattern) }),
@@ -180,13 +185,15 @@ export const sessionSummary = z.object({
 });
 export type SessionSummary = z.infer<typeof sessionSummary>;
 
-// A page of agents in name order, each with its sessions, at most maxListed
-// of them, saying when it leaves any out: working and idle ones first, then
-// those that never reported, then stopped ones, each latest seen first.
+// A page of agents in name order, each with its tags, in name order, and its
+// sessions, at most maxListed of them, saying when it leaves any out: working
+// and idle ones first, then those that never reported, then stopped ones,
+// each latest seen first.
 export const sessionsPage = z.object({
   agents: z.array(
     z.object({
       agent: name,
+      tags: z.array(tagName).max(maxTags),
       sessions: z.array(sessionSummary).max(maxListed),
       truncated: z.boolean(),
     }),

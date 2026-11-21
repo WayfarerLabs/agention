@@ -18,10 +18,9 @@ model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes 
 enforcement must not be missing where the trust model requires it (A2 to A9), and must not be built
 where the trust model says it does not belong (A6).
 
-Some checks state rules for features not built yet: the operator's session groups and tags; diagrams
-drawn from message text; and `agention backup`, which `docs/operator-guide.md` "Commands" lists as
-planned. Their rules bind the change that builds them, and that change documents them in the
-permanent docs.
+Some checks state rules for features not built yet: diagrams drawn from message text; and
+`agention backup`, which `docs/operator-guide.md` "Commands" lists as planned. Their rules bind the
+change that builds them, and that change documents them in the permanent docs.
 
 ## A1. Standalone and runtime-neutral
 

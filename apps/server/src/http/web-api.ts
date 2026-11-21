@@ -1,15 +1,19 @@
 import {
   approveInput,
   bulkMarkInput,
+  groupNameInput,
   newPasskeyInput,
   passkeyLinkBeginInput,
   passkeyNameInput,
   registrationsQuery,
+  sessionGroupInput,
   sessionLogMarkInput,
   sessionLogQuery,
   sessionsQuery,
   type SessionState,
   signInFinishInput,
+  tagNameInput,
+  tagsInput,
   threadFilters,
   threadStartInput,
   threadsQuery,
@@ -37,18 +41,36 @@ import {
   bulkArchive,
   bulkRead,
   countThreads,
+  createGroup,
   findOperator,
+  listGroupsAndTags,
   listRegistrations,
   listSessions,
   listThreads,
   readSessionLog,
   rejectRegistration,
+  removeGroup,
+  removeTag,
+  renameGroup,
+  renameTag,
   revokeRegistration,
   sessionLog,
+  setAgentTags,
+  setSessionGroup,
+  setSessionTags,
   startThread,
   type Store,
 } from "../store/index.ts";
-import { parseBody, parseQuery, passkeyOf, registrationOf, sessionTarget } from "./input.ts";
+import {
+  agentOf,
+  groupOf,
+  parseBody,
+  parseQuery,
+  passkeyOf,
+  registrationOf,
+  sessionTarget,
+  tagOf,
+} from "./input.ts";
 import type { RateBudgets } from "./rates.ts";
 import { type IdentityEnv, threadRoutes } from "./thread-routes.ts";
 
@@ -260,5 +282,50 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   api.get("/sessions", requireSession, (c) =>
     c.json(listSessions(store, c.var.identity, parseQuery(c, sessionsQuery))),
   );
+
+  // The operator's session groups and tags.
+  api.get("/groups-and-tags", requireSession, (c) =>
+    c.json(listGroupsAndTags(store, c.var.identity)),
+  );
+  api.post("/groups", requireSession, async (c) =>
+    c.json(createGroup(store, c.var.identity, await parseBody(c, groupNameInput))),
+  );
+  api.post("/groups/:id/name", requireSession, async (c) => {
+    const id = groupOf(c);
+    const input = await parseBody(c, groupNameInput);
+    return c.json(renameGroup(store, c.var.identity, id, input));
+  });
+  api.post("/groups/:id/remove", requireSession, (c) => {
+    removeGroup(store, c.var.identity, groupOf(c));
+    return c.json({});
+  });
+  api.post("/tags/:tag/name", requireSession, async (c) => {
+    const tag = tagOf(c);
+    const input = await parseBody(c, tagNameInput);
+    renameTag(store, c.var.identity, tag, input);
+    return c.json({});
+  });
+  api.post("/tags/:tag/remove", requireSession, (c) => {
+    removeTag(store, c.var.identity, tagOf(c));
+    return c.json({});
+  });
+  api.post("/s/:agent/:session/group", async (c) => {
+    const target = sessionTarget(c);
+    const input = await parseBody(c, sessionGroupInput);
+    setSessionGroup(store, c.var.identity, target, input);
+    return c.json({});
+  });
+  api.post("/s/:agent/:session/tags", async (c) => {
+    const target = sessionTarget(c);
+    const input = await parseBody(c, tagsInput);
+    setSessionTags(store, c.var.identity, target, input);
+    return c.json({});
+  });
+  api.post("/agents/:agent/tags", requireSession, async (c) => {
+    const agent = agentOf(c);
+    const input = await parseBody(c, tagsInput);
+    setAgentTags(store, c.var.identity, agent, input);
+    return c.json({});
+  });
   return api;
 }

@@ -329,10 +329,12 @@ describe("listSessions", () => {
     expect(first.agents).toEqual([
       {
         agent: "builder",
+        tags: [],
         sessions: [
           {
             session: "side",
             created_at: formatTimestamp(fixture.now),
+            tags: [],
             presence: { quiet: true },
             registrations: [],
             unread_updates: 0,
@@ -342,6 +344,7 @@ describe("listSessions", () => {
           {
             session: "main",
             created_at: formatTimestamp(fixture.now),
+            tags: [],
             presence: { last_seen_at: formatTimestamp(fixture.now), quiet: false },
             registrations: [agent, second].map((each) => ({
               id: each.registrationId,

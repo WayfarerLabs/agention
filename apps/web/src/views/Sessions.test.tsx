@@ -40,6 +40,7 @@ type Agents = SessionsPage["agents"];
 
 const agent = (name: string, sessions: SessionSummary[], truncated = false) => ({
   agent: name,
+  tags: [],
   sessions,
   truncated,
 });
