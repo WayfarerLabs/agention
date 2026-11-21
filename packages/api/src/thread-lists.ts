@@ -38,9 +38,17 @@ export const includeArchivedFilter = z
   .boolean()
   .default(false)
   .describe("Also list threads you archived that nothing new has brought back.");
-export const searchFilter = singleLineText({ min: 1, max: 200 }).describe(
+// Search text, each word matched as the start of a word, ignoring case and
+// accents. A session's list searches titles; the operator's searches what
+// messages say too, since it reaches every session.
+const searchText = singleLineText({ min: 1, max: 200 });
+export const titleSearchFilter = searchText.describe(
   "Only threads whose title holds every word of this text, each as the start of a word, " +
     "ignoring case and accents.",
+);
+export const messageSearchFilter = searchText.describe(
+  "Only threads whose title, or the text and detail of one of whose live messages, holds " +
+    "every word of this text, each as the start of a word, ignoring case and accents.",
 );
 export const statusFilter = threadStatus.describe(
   "Only threads of this status, which rolls up the asks on their live messages and those a " +
@@ -79,7 +87,7 @@ export const agentReadFilter = z
 // A session's threads, as its own agent lists them.
 export const sessionThreadsQuery = z.object({
   include_archived: queryBoolean(includeArchivedFilter),
-  search: searchFilter.optional(),
+  search: titleSearchFilter.optional(),
   status: statusFilter.optional(),
   unread: queryBoolean(unreadFilter),
   topic: topic.optional(),
@@ -163,15 +171,15 @@ export const tagsFilter = distinctValues(z.array(tagName).min(1).max(maxNarrowed
   "Only threads whose session or agent carries one of these tags.",
 );
 
-// The operator's filters, across sessions: search, status, unread and
-// archived, as a session's list takes them; the properties of open asks,
-// which one open ask must meet together; read by the session, unread or
-// stranded; agents, sessions and topics, several of each, a topic named
-// with its session; and the operator's session groups and tags, several of
-// each. They come in the order the operator is offered them, which a list's
-// address in the web UI keeps.
+// The operator's filters, across sessions: search, which reaches what
+// messages say; status, unread and archived, as a session's list takes them;
+// the properties of open asks, which one open ask must meet together; read
+// by the session, unread or stranded; agents, sessions and topics, several
+// of each, a topic named with its session; and the operator's session groups
+// and tags, several of each. They come in the order the operator is offered
+// them, which a list's address in the web UI keeps.
 const listFilters = {
-  search: searchFilter.optional(),
+  search: messageSearchFilter.optional(),
   status: statusFilter.optional(),
   priority: priorityFilter.optional(),
   impact: impactFilter.optional(),

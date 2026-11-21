@@ -65,17 +65,26 @@ interface Part {
   on: (query: ThreadFilters) => boolean;
 }
 
-// The parts of a list. A list keeps the threads not archived for the viewer
-// unless it includes archived ones, and each filter that is on adds its own
-// part. While any filter on asks is on, it keeps the threads leading with an
-// open ask, which only an ask meeting every one of them can be, and so only
-// open threads.
-const parts = {
+// Search keeps the threads whose title holds every word of the search, or,
+// searching what messages say too, those one of whose live messages does in
+// its text and detail together. A replaced message's words stay in the
+// index, which keeps no copy of them, so its rows join the live messages.
+const searching = (query: ThreadFilters) => query.search !== undefined;
+const titleSearch = "th.id IN (SELECT rowid FROM thread_titles WHERE thread_titles MATCH :search)";
+const messageSearch = `th.id IN (
+  SELECT message_texts.thread_id FROM message_texts
+  JOIN live_messages l ON l.thread_id = message_texts.thread_id AND l.seq = message_texts.seq
+  WHERE message_texts MATCH :search
+)`;
+
+// The parts of the operator's list. A list keeps the threads not archived for
+// the viewer unless it includes archived ones, and each filter that is on
+// adds its own part. While any filter on asks is on, it keeps the threads
+// leading with an open ask, which only an ask meeting every one of them can
+// be, and so only open threads.
+const listParts = {
   not_archived: { keeps: "NOT th.archived", on: (query) => !query.include_archived },
-  search: {
-    keeps: "th.id IN (SELECT rowid FROM thread_titles WHERE thread_titles MATCH :search)",
-    on: (query) => query.search !== undefined,
-  },
+  search: { keeps: `${titleSearch} OR ${messageSearch}`, on: searching },
   status: { keeps: "th.status = :status", on: (query) => query.status !== undefined },
   unread: { keeps: "th.unread > 0", on: (query) => query.unread },
   // A live message by the viewer beyond the other party's read mark, and for
@@ -112,6 +121,12 @@ const parts = {
   asks: { keeps: "th.lead_number IS NOT NULL", on: keepsAsks },
 } satisfies Record<string, Part>;
 
+type Parts = Record<keyof typeof listParts, Part>;
+
+// The parts of a session's list, which its agent reads: its search stays on
+// titles.
+const sessionParts: Parts = { ...listParts, search: { keeps: titleSearch, on: searching } };
+
 // What each filter on asks keeps of open asks, over open_asks as o, at the
 // value the query binds for it.
 const askKeeps: Record<AskFilter, string> = {
@@ -125,8 +140,9 @@ const askKeeps: Record<AskFilter, string> = {
 const unfiltered = threadFilters.parse({});
 
 // where is the condition a query's list keeps threads by: that of every part
-// its filters turn on.
-function where(query: ThreadFilters): string {
+// its filters turn on, of the operator's list unless the parts given are
+// another's.
+function where(query: ThreadFilters, parts: Parts = listParts): string {
   const on: Part[] = Object.values(parts).filter((part) => part.on(query));
   return on.length === 0 ? "1" : on.map((part) => `(${part.keeps})`).join(" AND ");
 }
@@ -342,9 +358,9 @@ const keysOf = (grouping: ThreadGrouping | undefined): readonly OrderKey[] =>
 
 // placing selects the threads a query keeps, over ranked as th, with the
 // places of their groups when grouped.
-function placing(query: ThreadFilters, grouping: ThreadGrouping | undefined): string {
+function placing(query: ThreadFilters, parts: Parts, grouping: ThreadGrouping | undefined): string {
   if (grouping === undefined) {
-    return `SELECT th.* FROM ranked th WHERE ${where(query)}`;
+    return `SELECT th.* FROM ranked th WHERE ${where(query, parts)}`;
   }
   const levels = levelsOf[grouping];
   const firsts = levels.flatMap(({ level }) =>
@@ -354,7 +370,7 @@ function placing(query: ThreadFilters, grouping: ThreadGrouping | undefined): st
     ({ level, partition }) => `level${level} AS (PARTITION BY ${partition} ORDER BY ${listOrder})`,
   );
   return `SELECT th.*, ${firsts.join(", ")}
-    FROM ranked th WHERE ${where(query)}
+    FROM ranked th WHERE ${where(query, parts)}
     WINDOW ${windows.join(", ")}`;
 }
 
@@ -366,6 +382,8 @@ interface PageQuery<T> {
   bySession: boolean;
   parameters: Parameters;
   query: ThreadFilters;
+  // The parts the list keeps its threads by.
+  parts: Parts;
   sort: ThreadSort;
   reverse: boolean;
   grouping?: ThreadGrouping | undefined;
@@ -393,7 +411,7 @@ function pageThreads<T>(
   const rows = listStatement(
     db,
     `${threadsSeen(page.scope, leadOf(page.query, page.sort))}, ${ranked(page.sort, page.reverse, page.bySession)},
-     kept AS (${placing(page.query, page.grouping)})
+     kept AS (${placing(page.query, page.parts, page.grouping)})
      SELECT * FROM kept
      WHERE :after = 0 OR (${order.join(", ")}) > (${order.map((key) => `:${key}`).join(", ")})
      ORDER BY ${order.join(", ")}
@@ -446,6 +464,7 @@ export function listSessionThreads(
         session_id: sessionId,
       },
       query: filters,
+      parts: sessionParts,
       sort: defaultSort,
       reverse: false,
       cursor: query.cursor,
@@ -500,6 +519,7 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
       bySession: true,
       parameters: { ...reach.scope, ...parametersOf(query, reach.viewing, now) },
       query,
+      parts: listParts,
       sort: query.sort,
       reverse: query.reverse,
       grouping: query.group,

@@ -642,6 +642,36 @@ describe("search", () => {
     expect(titles(list({ search: text }))).toEqual(expected);
   });
 
+  it("reaches the text and detail of live messages in the operator's list alone", () => {
+    const releaseNotes = threadTarget(agent, 2);
+    fixture.write(agent.identity, releaseNotes, {
+      text: "Drafted the changelog.",
+      detail: "It covers the Postgres migration.",
+    });
+    fixture.write(fixture.operator, releaseNotes, { text: "Mention Kubernetes too." });
+    fixture.write(agent.identity, threadTarget(agent, 3), { text: "Ordered beans." });
+    expect(titles(list({ search: "changelog" }))).toEqual(["Release notes are up"]);
+    // Text and detail of one message together, case ignored.
+    expect(titles(list({ search: "DRAFTED postgres" }))).toEqual(["Release notes are up"]);
+    // Every word within the one title or the one message.
+    expect(titles(list({ search: "changelog kubernetes" }))).toEqual([]);
+    expect(titles(list({ search: "notes beans" }))).toEqual([]);
+    // A title still matches, beside a message, in the list's own order.
+    expect(titles(list({ search: "notes" }))).toEqual(["Café notes", "Release notes are up"]);
+    // The agent's own list searches titles only.
+    expect(agentList({ search: "changelog" })).toEqual([]);
+    expect(agentList({ search: "notes" })).toEqual(["Café notes", "Release notes are up"]);
+  });
+
+  it("finds a replacement's words and no longer the message it replaced", () => {
+    const target = threadTarget(agent, 3);
+    const { seq } = fixture.write(agent.identity, target, { text: "Ordered beans." });
+    expect(titles(list({ search: "beans" }))).toEqual(["Café notes"]);
+    fixture.write(agent.identity, target, { text: "Ordered tea instead.", replaces: seq });
+    expect(titles(list({ search: "beans" }))).toEqual([]);
+    expect(titles(list({ search: "tea" }))).toEqual(["Café notes"]);
+  });
+
   it("quotes each word as a prefix term, doubling its quotes", () => {
     expect(ftsQuery('  one "two"  AND* ')).toBe('"one"* """two"""* "AND*"*');
   });

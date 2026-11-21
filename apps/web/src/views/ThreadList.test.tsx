@@ -653,7 +653,7 @@ describe("the filter sheet", () => {
     // Focus lands on the sheet's heading, not the search box, so no keyboard
     // rises over the sheet as it opens.
     expect(document.activeElement).toBe(within(open).getByRole("heading", { level: 2 }));
-    expect(within(open).getByRole("searchbox", { name: "Search titles" })).toBeTruthy();
+    expect(within(open).getByRole("searchbox", { name: "Search" })).toBeTruthy();
     const groups = within(open).getAllByRole("group");
     expect(groups.map((each) => each.querySelector("legend")?.textContent)).toEqual([
       "Status",
@@ -827,7 +827,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/?unread=true&sort=effort&reverse=true&group=session");
     const open = await openSheet();
-    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search titles" });
+    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search" });
     fireEvent.change(box, { target: { value: "release" } });
     fireEvent.change(box, { target: { value: "release notes" } });
     expect(address()).toBe("?unread=true&sort=effort&reverse=true&group=session");
@@ -850,7 +850,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/");
     const open = await openSheet();
-    fireEvent.change(within(open).getByRole("searchbox", { name: "Search titles" }), {
+    fireEvent.change(within(open).getByRole("searchbox", { name: "Search" }), {
       target: { value: "release" },
     });
     fireEvent.click(segment("Read", "Unread"));
@@ -861,7 +861,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/?unread=true");
     const open = await openSheet();
-    fireEvent.change(within(open).getByRole("searchbox", { name: "Search titles" }), {
+    fireEvent.change(within(open).getByRole("searchbox", { name: "Search" }), {
       target: { value: " \t " },
     });
     await pause();
@@ -881,7 +881,7 @@ describe("the filter sheet", () => {
       serve([]);
       renderAt("/?search=notes");
       const open = await openSheet();
-      const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search titles" });
+      const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search" });
       fireEvent.change(box, { target: { value: text } });
       await pause();
       expect(address()).toBe("?search=notes");
@@ -903,7 +903,7 @@ describe("the filter sheet", () => {
     serve([]);
     renderAt("/?search=notes");
     const open = await openSheet();
-    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search titles" });
+    const box = within(open).getByRole<HTMLInputElement>("searchbox", { name: "Search" });
     fireEvent.change(box, { target: { value: "notes and more" } });
     fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Search/ }));
     await pause();

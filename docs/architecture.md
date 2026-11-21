@@ -264,20 +264,22 @@ A list holds the threads not archived for the caller, its own new threads includ
 `include_archived` the archived ones too. Every other narrowing is a filter. Filters combine with
 AND, and the values of one that takes several combine with OR: `search` keeps the threads whose
 title holds every word of its text as the start of a word, each word quoted so the text is never
-read as query syntax; `status` those of one status; `unread` those with unread messages; and `topic`
-those on a topic, a name as an agent's and a session's are: a session's list takes one bare topic
-name, and the operator's list up to 50 topics, each written with its session as
-`agent/session/topic`. The operator's list also takes filters on the properties of open asks:
-`priority` (an open ask at that level or higher), `impact` (an open ask blocking, or assuming),
-`overdue` (an open ask past its answer-by) and `effort` (an open ask that states that effort or
-less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live message of the
-operator's that the session has not read) or `stranded` (such a message while the session is quiet,
-has no active credential or has stopped); `agent` and `session`, up to 50 of each, a session written
-`agent/session`; and the operator's `session_group`, up to 50 groups by id, `none` naming no group,
-and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A group that was
-removed, or a tag nothing carries, keeps nothing. The filters on asks together keep the threads
-holding one open ask that meets them all, so any of them keeps only open threads. One definition of
-each filter's condition serves the list, its total, its counts and its roll-ups.
+read as query syntax, and in the operator's list also those one of whose live messages holds every
+word in its text and detail together, through `message_texts` joined to `live_messages` on the
+thread and sequence, so live keeps its one definition; `status` those of one status; `unread` those
+with unread messages; and `topic` those on a topic, a name as an agent's and a session's are: a
+session's list takes one bare topic name, and the operator's list up to 50 topics, each written with
+its session as `agent/session/topic`. The operator's list also takes filters on the properties of
+open asks: `priority` (an open ask at that level or higher), `impact` (an open ask blocking, or
+assuming), `overdue` (an open ask past its answer-by) and `effort` (an open ask that states that
+effort or less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live
+message of the operator's that the session has not read) or `stranded` (such a message while the
+session is quiet, has no active credential or has stopped); `agent` and `session`, up to 50 of each,
+a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id, `none`
+naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A
+group that was removed, or a tag nothing carries, keeps nothing. The filters on asks together keep
+the threads holding one open ask that meets them all, so any of them keeps only open threads. One
+definition of each filter's condition serves the list, its total, its counts and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks

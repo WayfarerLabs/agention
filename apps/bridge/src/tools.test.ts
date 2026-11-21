@@ -4,10 +4,10 @@ import {
   includeArchivedFilter,
   markInput,
   messageFields,
-  searchFilter,
   sessionUpdateInput,
   statusFilter,
   threadCreateInput,
+  titleSearchFilter,
   unreadFilter,
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
@@ -103,7 +103,7 @@ describe("the tool list", () => {
     const filters = propertiesOf(
       z.object({
         include_archived: includeArchivedFilter,
-        search: searchFilter.optional(),
+        search: titleSearchFilter.optional(),
         status: statusFilter.optional(),
         unread: unreadFilter,
       }),

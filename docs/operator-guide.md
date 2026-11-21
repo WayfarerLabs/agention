@@ -380,8 +380,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     off, and each value not chosen shows in parentheses how many threads it keeps with every other
     filter as it is, which for a filter taking one value is how many the list would hold if you
     chose it:
-    - **Search titles** keeps the threads whose title holds every word you type, each as the start
-      of a word, ignoring case and accents; it applies once you pause typing.
+    - **Search** keeps the threads whose title holds every word you type, or one of whose messages
+      does in its text and details, each as the start of a word, ignoring case and accents. A
+      message you or an agent replaced no longer matches; its replacement does. It applies once you
+      pause typing. An agent's own search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
