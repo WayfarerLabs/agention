@@ -4,9 +4,11 @@ import { describeFailure, request } from "./api.ts";
 import { ErrorBoundary } from "./boundary.tsx";
 import { Failure, PageHeading, usePageTitle } from "./components.tsx";
 import { useAction } from "./data.ts";
+import { plural, Spoken } from "./format.tsx";
 import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
 import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
+import { UnreadUpdatesProvider, useUnreadUpdates } from "./unread-updates.tsx";
 import { LinkPage } from "./views/LinkPage.tsx";
 import { Passkeys } from "./views/Passkeys.tsx";
 import { Sessions } from "./views/Sessions.tsx";
@@ -66,7 +68,7 @@ function Shell() {
   }
   const operatorExists = state.signed_in || state.operator_exists;
   const nav = state.signed_in ? <Navigation route={route} /> : undefined;
-  return (
+  const frame = (
     <Frame nav={nav}>
       {route.name === "sign-in" ? (
         <SignIn operatorExists={operatorExists} />
@@ -79,6 +81,7 @@ function Shell() {
       )}
     </Frame>
   );
+  return state.signed_in ? <UnreadUpdatesProvider>{frame}</UnreadUpdatesProvider> : frame;
 }
 
 function View({ route }: { route: Route }) {
@@ -147,6 +150,7 @@ function Navigation({ route }: { route: Route }) {
                 }
               >
                 {section.label}
+                {section.route === "sessions" && <UnreadUpdatesBadge />}
               </Link>
             </li>
           ))}
@@ -161,6 +165,17 @@ function Navigation({ route }: { route: Route }) {
         </p>
       )}
     </>
+  );
+}
+
+// UnreadUpdatesBadge shows on the Sessions tab how many sessions have
+// updates the operator has not read, while any has.
+function UnreadUpdatesBadge() {
+  const sessions = useUnreadUpdates()?.data?.sessions ?? 0;
+  return sessions === 0 ? null : (
+    <span className="badge">
+      <Spoken shown={String(sessions)} spoken={`${plural(sessions, "session")} with new updates`} />
+    </span>
   );
 }
 

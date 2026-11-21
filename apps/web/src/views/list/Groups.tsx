@@ -18,7 +18,7 @@ import {
 } from "../../components.tsx";
 import { type Folds, useFolds } from "../../device.ts";
 import { lastSeenWords, plural, priorityLabel, priorityTone, Since } from "../../format.tsx";
-import { Mark } from "../../icons.tsx";
+import { Mark, UnreadCount } from "../../icons.tsx";
 import type { ListedThread } from "./listing.ts";
 import { ThreadRow } from "./ThreadRow.tsx";
 
@@ -88,16 +88,6 @@ function spokenRollup(label: string, rollup: Rollup, presence: Presence | undefi
 }
 
 const priorityShown = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" } as const;
-
-// UnreadCount says whether a group holds threads with messages the operator
-// has not read: the closed envelope with how many, or the open envelope.
-function UnreadCount({ unread }: { unread: number }) {
-  return unread > 0 ? (
-    <Mark icon="unread" label={`${unread} unread`} shown={unread} accent />
-  ) : (
-    <Mark icon="read" label="Read" />
-  );
-}
 
 // RollupMarks shows a roll-up for the eye: how many threads, the closed
 // envelope with how many are unread or the open envelope when none is,

@@ -692,12 +692,28 @@ entries that changed only the percent, with no note, as one line. While the page
 unfolded log marks the operator's read through its newest entry whenever that is beyond their mark,
 with the read marking the thread page uses for its messages. The agents a browser folds, and whether
 it shows the past requests, are kept in its local storage, as the thread list's groups are, and a
-session's row starts folded on every visit. Each session's row shows its group and tags, and each
-agent's header its tags, from the sessions view's page; the sheets that set them, and the Groups and
-tags sheet, load the operator's groups and tags while they are open, and reload the view once a
-change lands. Wherever a thread shows as stranded, the UI says why from the session's presence in
-the thread's summary: the stop the session reported, with its outcome; otherwise quiet, with when it
-was last seen; otherwise no active credential.
+session's row starts folded on every visit. Once any session carries a group, the view folds the
+agents under their groups, splitting each agent's sessions by the group each carries, groups in name
+order ignoring the case of ASCII letters, as the server compares them, and no group last; this
+browser keeps a group's fold by its id, and an agent's under a group by the group's id and the
+agent's name. Each heading sits a level below the one it folds under. Each session's row shows its
+threads' roll-up from its summary, and an agent's header and a group's head compose theirs from the
+sessions they show, none when the view or the agent left sessions out, each with a link opening the
+thread list on those threads, the agent's within its group while the view folds by group; a row's
+and an agent's count of stranded threads, while there are any, link likewise to the stranded among
+them, by the list's stranded filter, an agent that left sessions out flagging them with no count.
+Blocked on the operator shows once, in the thread list's words and tone: a row's and an agent's open
+asks say it, as Blocked on you before how many are open, in the danger tone while any blocks and the
+attention tone otherwise, and a group's head, which has none, shows Blocked on you. Each session's
+row says when the session was last seen, from its presence, as quiet while it is and has not
+stopped. Each session's row shows its group and tags, and each agent's header its tags, from the
+sessions view's page; the sheets that set them, and the Groups and tags sheet, load the operator's
+groups and tags while they are open, and reload the view once a change lands. While the operator is
+signed in, the navigation reads how many sessions have unread updates, refreshing it as views
+refresh, and the sessions view refreshes it at once whenever it reloads, as reading a log does.
+Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
+summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
+seen; otherwise no active credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
