@@ -183,7 +183,7 @@ describe("the sessions view", () => {
         sessionSummary({
           open_asks: { count: 2, blocking_count: 1 },
           unread_updates: 3,
-          threads: { total: 4, stranded: 1 },
+          threads: { total: 4, unread: 0, stranded: 1 },
         }),
         sessionSummary({ session: "side", open_asks: { count: 1, blocking_count: 0 } }),
       ]),
@@ -220,7 +220,7 @@ describe("the sessions view", () => {
           },
           open_asks: { count: 3, blocking_count: 2 },
           unread_updates: 2,
-          threads: { total: 4, stranded: 1 },
+          threads: { total: 4, unread: 0, stranded: 1 },
         }),
         sessionSummary({ session: "review", status: { state: "idle" } }),
         sessionSummary({

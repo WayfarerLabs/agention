@@ -313,7 +313,7 @@ describe("the sessions view", () => {
               note: "Backfill under way.",
             },
             unread_updates: 2,
-            threads: { total: 1, stranded: 0 },
+            threads: { total: 1, unread: 1, stranded: 0 },
           },
         ],
         truncated: false,
@@ -336,8 +336,13 @@ describe("the sessions view", () => {
     });
     const older = await harness.web("GET", "/s/builder/main/updates?before=2");
     expect(older.body).toMatchObject({ updates: [{ seq: 1, state: "working" }] });
+    const unread = async () => (await harness.web("GET", "/sessions/unread-updates")).body;
+    expect(await unread()).toEqual({ sessions: 1 });
+    await harness.web("POST", "/s/builder/main/updates/read", { through: 2 });
+    expect(await unread()).toEqual({ sessions: 1 });
     const read = await harness.web("POST", "/s/builder/main/updates/read", { through: 3 });
     expect(read.body).toEqual({ read_through: 3 });
+    expect(await unread()).toEqual({ sessions: 0 });
     const beyond = await harness.web("POST", "/s/builder/main/updates/read", { through: 4 });
     expect([codeOf(beyond), (beyond.body as ErrorBody).error.field]).toEqual([
       "invalid_input",

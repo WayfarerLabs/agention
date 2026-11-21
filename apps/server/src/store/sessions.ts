@@ -12,6 +12,7 @@ import {
   type SessionSummary,
   type SessionUpdate,
   type SessionUpdateInput,
+  type UnreadUpdates,
   type WorkOutcome,
   type WorkState,
 } from "@wayfarerlabs/agention-api";
@@ -250,12 +251,12 @@ const sessionOrder = `
 // carries its presence, quiet as threadsSeen reads it; its approved
 // registrations; its status, with the latest entry's note; how many of its
 // log's entries the operator has not read; how many of its threads they have
-// not archived, with how many of those are stranded; and how many asks are
-// open in all its threads, with how many of those are blocking. The operator
-// can never archive a thread holding an ask open to them, as archiveThread
-// refuses, so the thread list shows every thread these asks are in. The
-// thread counts and the ask counts each come from one statement for every
-// session of the page.
+// not archived, with how many of those hold messages they have not read and
+// how many are stranded; and how many asks are open in all its threads, with
+// how many of those are blocking. The operator can never archive a thread
+// holding an ask open to them, as archiveThread refuses, so the thread list
+// shows every thread these asks are in. The thread counts and the ask counts
+// each come from one statement for every session of the page.
 export function listSessions(store: Store, identity: Identity, query: SessionsQuery): SessionsPage {
   const { db } = store;
   const position =
@@ -313,15 +314,20 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
         db
           .prepare(
             `${threadsSeen("t.session_id IN (SELECT value FROM json_each(:session_ids))")}
-             SELECT session_id, count(*) AS total, count(*) FILTER (WHERE stranded) AS stranded
+             SELECT session_id, count(*) AS total, count(*) FILTER (WHERE unread > 0) AS unread,
+               count(*) FILTER (WHERE stranded) AS stranded
              FROM seen WHERE NOT archived GROUP BY session_id`,
           )
           .all({ ...viewing, session_ids: sessionIds }) as {
           session_id: number;
           total: number;
+          unread: number;
           stranded: number;
         }[]
-      ).map((row) => [row.session_id, { total: row.total, stranded: row.stranded }]),
+      ).map((row) => [
+        row.session_id,
+        { total: row.total, unread: row.unread, stranded: row.stranded },
+      ]),
     );
     const asks = new Map(
       (
@@ -377,7 +383,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
             },
           }),
       unread_updates: (row.latest_seq ?? 0) - row.read_seq,
-      threads: threads.get(row.id) ?? { total: 0, stranded: 0 },
+      threads: threads.get(row.id) ?? { total: 0, unread: 0, stranded: 0 },
       open_asks: asks.get(row.id) ?? { count: 0, blocking_count: 0 },
     });
     const last = page.rows.at(-1);
@@ -393,6 +399,23 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       }),
       ...(page.more && last !== undefined ? { next: encodeCursor("sessions", [last.name]) } : {}),
     };
+  });
+}
+
+// countUnreadUpdates counts the sessions whose log holds entries the
+// operator has not read.
+export function countUnreadUpdates(store: Store, identity: Identity): UnreadUpdates {
+  const { db } = store;
+  return db.transaction(() => {
+    authorizeAdministration(db, identity, store.clock());
+    return db
+      .prepare(
+        `SELECT count(*) AS sessions
+         FROM (SELECT session_id, max(seq) AS latest FROM session_updates GROUP BY session_id) u
+         LEFT JOIN session_marks k ON k.actor_id = ? AND k.session_id = u.session_id
+         WHERE u.latest > COALESCE(k.read_seq, 0)`,
+      )
+      .get(identity.actor) as unknown as UnreadUpdates;
   });
 }
 

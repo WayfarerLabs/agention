@@ -41,6 +41,7 @@ import {
   bulkArchive,
   bulkRead,
   countThreads,
+  countUnreadUpdates,
   createGroup,
   findOperator,
   listGroupsAndTags,
@@ -281,6 +282,9 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   );
   api.get("/sessions", requireSession, (c) =>
     c.json(listSessions(store, c.var.identity, parseQuery(c, sessionsQuery))),
+  );
+  api.get("/sessions/unread-updates", requireSession, (c) =>
+    c.json(countUnreadUpdates(store, c.var.identity)),
   );
 
   // The operator's session groups and tags.

@@ -59,8 +59,9 @@ inferred types the server, the bridge and the web UI share:
   groups' roll-ups; the counts of what each filter value keeps; and bulk read and archive;
 - registration submit and state, the registrations list and approval;
 - a session's status update and the status it answers with; the sessions view's page of agents, each
-  with its tags and its sessions; a session's log and the operator's read mark on it; and the
-  operator's start of a thread on a session;
+  with its tags and its sessions; how many sessions have updates the operator has not read; a
+  session's log and the operator's read mark on it; and the operator's start of a thread on a
+  session;
 - the operator's session groups and tags: the list of them, creating, renaming and removing a group,
   renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
 - the agent API's version, the header that carries it and the oldest version the server serves;
@@ -237,11 +238,13 @@ The sessions view's page lists the agents in name order for the operator, each w
 its sessions: those working or idle first, then those that never reported, then stopped ones, each
 latest seen first. Each session carries its presence, by the formula threads use; its approved
 registrations, with their ids and codes; its status with the latest entry's note; its unread
-updates; how many of its threads the operator has not archived, with how many of those are stranded,
-counted for every session of the page in one statement grouped over the threads as the operator sees
-them; and how many asks are open in all its threads, with how many of those are blocking, which is
-what waits on the operator, counted in one statement grouped over the open asks. The operator can
-never archive a thread holding an ask open to them, so their thread list shows every thread counted.
+updates; how many of its threads the operator has not archived, with how many of those hold messages
+the operator has not read and how many are stranded, counted for every session of the page in one
+statement grouped over the threads as the operator sees them; and how many asks are open in all its
+threads, with how many of those are blocking, which is what waits on the operator, counted in one
+statement grouped over the open asks. The operator can never archive a thread holding an ask open to
+them, so their thread list shows every thread counted. A separate read counts the sessions whose log
+holds entries the operator has not read, which the web UI's navigation shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: every
 operation on them authorizes the administration only the operator's identity grants, so to an agent
@@ -375,11 +378,12 @@ its open asks, the most pressing, beside their count and the earliest.
 sub-application mounted on both under `/s/:agent/:session`, so the role and message checks are the
 same for both kinds of caller. Each mount authenticates its own credential and refuses the other's:
 the agent mount refuses any request carrying a cookie, and the web mount any request carrying an
-`Authorization` header. The operator's own routes are on the web mount alone: the sessions view, a
-session's log, and the session groups and tags, whose reads are `GET /groups-and-tags` and whose
-writes are each a POST naming its action, as the passkey routes' are (`/groups`, `/groups/:id/name`,
-`/groups/:id/remove`, `/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`,
-`/s/:agent/:session/tags` and `/agents/:agent/tags`).
+`Authorization` header. The operator's own routes are on the web mount alone: the sessions view and
+its count of sessions with unread updates (`GET /sessions/unread-updates`), a session's log, and the
+session groups and tags, whose reads are `GET /groups-and-tags` and whose writes are each a POST
+naming its action, as the passkey routes' are (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
+`/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
+`/agents/:agent/tags`).
 
 Every route reads its path, query and body through the shared schemas, so input outside a bound
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and
