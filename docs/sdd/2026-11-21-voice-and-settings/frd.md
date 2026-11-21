@@ -1,6 +1,8 @@
 # Voice and settings: Functional Requirements
 
-- Status: Accepted by the operator 2026-11-21 (ruling 1)
+<!-- cspell:ignore Wispr -->
+
+- Status: Accepted by the operator 2026-11-21 (ruling 1); V3 amended by ruling 3; ruling 4
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -97,6 +99,21 @@ settings, voice, where audio goes, and how a provider key is kept; the live test
    be good, though." Taken: the operator's real-device checks are Android Chrome and Windows Edge
    and Chrome; Apple browsers are covered by automated WebKit runs where they can be, and named as a
    gap where they cannot.
+3. (2026-11-21) Told that a key supplied by the server's environment breaks V3's rule that changing
+   the provider's address clears its key, and asked whether to drop it, the operator answered: "I
+   actually really like this. But it should be quite narrow. Providing a key via env var is exactly
+   equivalent to populating that key in the UI. It won't work unless the address is also populated
+   (although we probably provide an env var for that, too). And whatever is populated via UI is
+   therefore not editable in the UI with a helpful message. That works, right?" Taken, amending V3:
+   the address, the model and the key may each come from the server's environment, each exactly as
+   if entered in Settings and under the same rules; a key from the environment needs the address
+   from it too, or the server refuses to start; and whatever the environment supplies shows in
+   Settings as set there and cannot be changed in the UI.
+4. (2026-11-21) "Also, I think I was thinking about Wispr Flow. I could be wrong but it seems pretty
+   popular. OpenAI is absolutely fine to start, though. We should just leave room in the design to
+   add other providers." Taken: the server reaches providers through one interface, implemented
+   first for the OpenAI-compatible API, so a provider with its own API is a new implementation and
+   preset; a dictation app such as Wispr Flow that types into any text field needs no integration.
 
 ## Definition of done
 

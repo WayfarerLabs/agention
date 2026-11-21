@@ -12,8 +12,8 @@ checked when it is built, reviewed and green.
 
 - [ ] [LLD](voice-lld.md): the settings table, the routes and their shapes, the presets, the caps
       and timeouts, the error codes, the test clip, and the web UI's states.
-- [ ] Migration 4 and the settings store, with the write-only key, the bounds and the base URL rule
-      (V3).
+- [ ] Migration 4 and the settings store, with the write-only key, the bounds and the base URL rule,
+      and the environment variables read at start (V3, ruling 3).
 - [ ] The settings routes, a recent sign-in for changing a secret or where it is sent, and a base
       URL change clearing the key (S2, V3, V4).
 - [ ] The transcription client and `POST /transcriptions`: the OpenAI-compatible request, its caps,

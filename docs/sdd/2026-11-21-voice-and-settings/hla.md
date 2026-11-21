@@ -62,7 +62,9 @@ body cap, sends it on, decodes no audio, and keeps nothing.
     saying only whether one is set.
   - `POST /settings/voice` and `POST /settings/voice/clear`: set or turn off voice.
   - `POST /transcriptions`: one recording in, its text out, or `not_found` while voice is off.
-- **Transcription client:** one adapter for the OpenAI-compatible interface.
+- **Transcription client:** one interface, "transcribe this recording", implemented once, for the
+  OpenAI-compatible API (ruling 4). A provider with an API of its own would add an implementation, a
+  preset, and a column naming which kind a configuration uses.
   - It checks the base URL rule before each request and refuses redirects.
   - It times out, and aborts if the browser abandons the request.
   - It maps the provider's failures to `provider_failed` without echoing the provider's body, and

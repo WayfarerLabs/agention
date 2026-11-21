@@ -33,6 +33,24 @@ settings brings its own table.
   Settings say about where audio goes therefore always matches where it goes.
 - A server older than migration 4 refuses the database once it has run, as for every migration.
 
+## The environment
+
+Three variables may each supply one field, exactly as entering it in Settings would (ruling 3):
+`AGENTION_TRANSCRIPTION_URL`, `AGENTION_TRANSCRIPTION_MODEL` and `AGENTION_TRANSCRIPTION_KEY`.
+
+- Each is held to the same bounds and the same base URL rule, checked when `agention serve` starts;
+  a value that breaks them stops the server with a message naming the variable.
+- `AGENTION_TRANSCRIPTION_KEY` without `AGENTION_TRANSCRIPTION_URL` stops the server too, so a key
+  from the environment only ever goes to an address from it.
+- The server reads them once, at start. A field the environment supplies overrides the stored one,
+  shows in Settings as "Set by the server's environment", and is not editable there; `GET /settings`
+  says which fields come from the environment. A stored value under an environment value stays
+  stored and returns to use when the variable is removed and the server restarted.
+- Voice is on once a base URL and a model exist, from either source. Turn off clears only what the
+  UI stored; with the address from the environment, voice stays on.
+- They are the server's first environment variables. The operator guide gives them in a mode-0600
+  environment file for the service unit, not inline, and `agention serve --help` names them.
+
 ## Bounds
 
 Checked at the web boundary by schemas in `packages/api` (`settings.ts`), as every web route's are:
@@ -114,7 +132,7 @@ agent mount, which the existing test asserts. Request and answer shapes live in 
 
 | Route                        | Does                                                                                                                                                                                                                  |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /settings`              | `{ recent, voice }`: whether the sign-in is recent, and `voice` as `{ base_url, model, prompt, key_set }`, or `null` when off                                                                                         |
+| `GET /settings`              | `{ recent, voice }`: whether the sign-in is recent, and `voice` as `{ base_url, model, prompt, key_set, from_environment }`, or `null` when off, where `from_environment` lists the fields the environment supplies   |
 | `POST /settings/voice`       | Sets the base URL, model and prompt, and the key when given. Needs a recent sign-in. A changed base URL without a new key clears the stored key                                                                       |
 | `POST /settings/voice/clear` | Turns voice off, deleting the row and its key. Needs a recent sign-in                                                                                                                                                 |
 | `POST /transcriptions`       | The body is the recording, `Content-Type` `audio/webm`, `audio/mp4` or `audio/ogg` (codecs parameters allowed), within the API's 2 MiB body cap. Refuses one under 1,000 bytes as `invalid_input`. Answers `{ text }` |
