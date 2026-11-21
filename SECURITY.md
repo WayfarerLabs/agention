@@ -51,7 +51,7 @@ API enforces the server's part of them on every request, and the web UI renders 
   renders the text of up to 50 messages at a time and parses a detail once each time it is opened,
   not as the page refreshes, so a deliberately hostile detail can stall one thread's page for that
   long each time it is opened. The lists render no Markdown, so the operator can still reach the
-  registrations page and revoke the session's credential.
+  sessions view and revoke the session's credential.
 - **No network identity.** No authentication decision or rate limit depends on source address,
   forwarded headers or network identity, so Agention does not rely on its network path for security.
   The server answers only for its configured origin's host, and plain HTTP is refused on a

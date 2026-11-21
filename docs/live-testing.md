@@ -48,8 +48,12 @@ with each other or with what the product does, the disagreement is the finding.
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
   filters with their counts, its sorts and their direction, and grouping with roll-ups; the thread
   page's numbered asks answered several at once, a message's details, replacements, mark unread from
-  a message, archive through a message and archive all; and registration approval, rejection, and
-  revocation (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents").
+  a message, archive through a message and archive all; stranded's reasons; the sessions view, its
+  agent folds and folded rows with what each session reports and what waits on the operator, a row
+  unfolded to its log and marking it read, and the folds kept, on a phone's width too; a thread the
+  operator starts there, with the warning for a session not there to see it, and the agent's reply
+  in it; and registration approval, rejection, and revocation from past requests and a session's
+  options (`docs/operator-guide.md` "Signing in", "Using the web UI" and "Approving agents").
   Real-phone passkeys are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
@@ -58,7 +62,7 @@ Compare what a surface reports with:
 
 - the database, opened read-only beside the running server: what each thread's messages derive (live
   messages, open asks, status, topic) against the log, each session's latest entry in its log
-  against the status `session_update` answered and the sessions page shows, registration rows and
+  against the status `session_update` answered and the sessions view shows, registration rows and
   states, browser sessions, used challenges (`docs/architecture.md` "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
@@ -80,7 +84,7 @@ On top of the method's failure classes, look for:
 
 - **False success**: `register` reporting approval while calls fail, a tool reporting a write the
   thread's log lacks, a passkey ceremony that "succeeds" without a session.
-- **Divergence**: the code the bridge relays against the code the registrations page shows, signals,
+- **Divergence**: the code the bridge relays against the code the sessions view shows, signals,
   roll-ups and a row's unread and total counts in a view against the thread's messages, a stopped
   session whose threads holding an unread message of the operator's are not stranded, or stay
   stranded once it reports working, a session's unread updates against its log and the operator's

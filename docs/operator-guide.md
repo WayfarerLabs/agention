@@ -430,10 +430,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     earliest answer-by among them, whichever ask carries it: **Due** and the time when that falls
     today, or the date and time on another day, with the year only when it is not this year's; and
     once the server finds it passed, as the **Overdue** filter does, **Overdue since** then. Holding
-    the pointer over the time shows it in full. A stranded thread shows a muted **Stranded** mark,
-    which, when its session is quiet, says when you hold the pointer over it when the agent was last
-    seen, or that it was never seen, credential or not; a session with no active credential also
-    shows its own tag.
+    the pointer over the time shows it in full. A stranded thread shows a muted **Stranded** tag
+    saying why: its session **stopped**, with how; it is quiet, **last seen** when, or **never
+    seen**; or it has **no active credential**. A session with no active credential also shows its
+    own tag, unless the stranded tag already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
@@ -443,13 +443,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   directly. Its heading leads with the thread's number, as a row's does. Under it, its agent,
   session and topic say where the thread is, and each opens the list narrowed to it alone, with no
   other filter on, showing everything there in the order and grouping you left the list in. Beneath,
-  muted, a thread whose asks were answered or withdrawn says so, as its row does, and a thread
-  stranded by a quiet session says when the agent was last seen, or that it never was, and that it
-  has not read your latest messages. **Threads** stays marked in the navigation. The head holds
-  **Archive all**, and **Jump to unread** while anything is unread or an ask is open to you, and
-  shows the archive box while the thread is archived. The messages open on the newest ones, or on
-  the first one you had not read after those you archived when that comes before them, and show
-  earlier and later ones when you ask.
+  muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
+  thread says why its session has not read your latest messages: it stopped, and how, or its agent
+  was last seen when, or never; a session with no active credential says so in a notice under the
+  head. **Threads** stays marked in the navigation. The head holds **Archive all**, and **Jump to
+  unread** while anything is unread or an ask is open to you, and shows the archive box while the
+  thread is archived. The messages open on the newest ones, or on the first one you had not read
+  after those you archived when that comes before them, and show earlier and later ones when you
+  ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page, and
@@ -543,8 +544,47 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   they replaced the message you were changing or editing, it drops the whole change or edit. Either
   way your text and details stay, and **Mark these read** leaves the rest for you to choose again.
 
-- **Registrations** lists agents' requests for a credential. See
-  [Approving agents](#approving-agents).
+- **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
+  what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
+  - **Waiting for approval** holds the registrations to approve, as
+    [Approving agents](#approving-agents) describes.
+  - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
+    with how many sessions it has and what they add up to: their open asks, unread updates and
+    stranded threads. Under it, each session is a folded row, so that many fit on a screen. Its
+    first line holds the session's name, the title its agent gave this line of work, cut to fit, and
+    its percent toward the goal; the second, wrapping on a phone:
+    - what the session reports it is doing: **Working** while it does something; **Idle** while it
+      has nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
+      **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No
+      status** when it has never reported, such as one whose plugin predates session status;
+    - **Waiting on you** with its open asks and how many are blocking, while it has any, whatever it
+      is doing: a session working on one thing can wait on your answer about another. It opens the
+      thread list on the session's open threads;
+    - **Quiet**, with when it was last seen, unless it stopped, and **No credential**, when it has
+      no active credential;
+    - its unread updates, the closed envelope with how many;
+    - its threads, which opens the thread list on the session, with how many are stranded;
+    - and its latest note, cut to fit.
+
+    Choosing a row lets its title wrap whole and unfolds it to its goal over a bar of how far it has
+    come, when it was last seen, its credentials and its log: what each update changed, newest
+    first, with its note. Consecutive updates that changed only the percent show as one line, such
+    as **Progress 20% → 60%**, and **Older** shows the updates before. Unfolding reads the updates
+    it shows, which stay marked unread until you fold the row again. Rows start folded each time you
+    open the view, and a row under an agent you folded reads nothing, since it is not shown. This
+    browser keeps the agents you fold.
+
+    A row's **⋯** button opens its options: **New thread**, and **Revoke** for each of the session's
+    credentials, which asks once more. **New thread** opens a sheet for a title, the message and its
+    details, as a thread's composer takes them, and **Send** starts the thread and opens it. The
+    session's agent reads it as your words at its terminal and replies in it; the thread asks you
+    nothing, since only agents ask. When the session has stopped, is quiet or has no active
+    credential, the sheet says it is not likely to see the thread, and why: a stopped session not
+    until it is started again, a quiet one not soon, and one without a credential not until you
+    approve a registration for it. The thread is stranded until the session reads it.
+
+  - **Credentials and past requests**, folded until you open it, holds every registration already
+    decided.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image shows as a link and never loads, and only absolute `https`
@@ -640,10 +680,10 @@ new terminal if you changed a shell profile; resuming it, with `claude --continu
 ## Approving agents
 
 When an agent session registers, it shows a code such as `7KQ2M-X9DPA` to relay to you, and its
-registration appears under **Waiting for approval** with the code in large type. Approve it only if
-the code matches the one the agent relayed: a registration made with any other key shows a different
-code. A registration not decided within an hour expires. It shows as expired only until the server
-prunes it, the next time any registration is submitted or changes.
+registration appears under **Waiting for approval**, at the top of **Sessions**, with the code in
+large type. Approve it only if the code matches the one the agent relayed: a registration made with
+any other key shows a different code. A registration not decided within an hour expires. It shows as
+expired only until the server prunes it, the next time any registration is submitted or changes.
 
 Approving grants the credential an agent and a session, each an existing one or a new one, under the
 names the agent proposed or others you type. Approving onto an existing session gives the credential
@@ -652,10 +692,10 @@ an agent lost; when the proposed session already exists, you choose between it a
 there are too many agents, or too many sessions of an agent, to list them all, the form says so
 beside them. **Reject** refuses a registration.
 
-Under **Credentials and past requests**, **Revoke** ends an approved credential at once. The session
-and its threads stay, and you can still read, answer and archive them; the session shows that it has
-no active credential until you approve another registration for it, and its threads holding a
-message of yours it has not read are stranded.
+**Revoke**, in a session's options or under **Credentials and past requests**, ends an approved
+credential at once. The session and its threads stay, and you can still read, answer and archive
+them; the session shows that it has no active credential until you approve another registration for
+it, and its threads holding a message of yours it has not read are stranded.
 
 ## Rate budgets
 

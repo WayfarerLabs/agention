@@ -48,11 +48,10 @@ inferred types the server, the bridge and the web UI share:
 - starting a thread, sending a message, reading a thread, a session's thread list and the long poll;
 - read, unread and archive marks; the operator's thread list with its total and, grouped, its
   groups' roll-ups; the counts of what each filter value keeps; and bulk read and archive;
-- registration submit and state, the registrations list, approval and the agents list, a page of
-  agents each with its sessions;
-- a session's status update and the status it answers with; the operator's sessions page, a
-  session's log and the operator's read mark on it; and the operator's start of a thread on a
-  session;
+- registration submit and state, the registrations list and approval;
+- a session's status update and the status it answers with; the sessions view's page of agents, each
+  with its sessions; a session's log and the operator's read mark on it; and the operator's start of
+  a thread on a session;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the claims of an agent's token, and the error shape.
@@ -194,15 +193,15 @@ latest wins, since only the session writes its status. The operator reads a sess
 first, with their read mark on it, which marking read raises up to the latest entry and never
 lowers; the entries above it are the session's unread updates.
 
-The operator's sessions page lists the agents in name order, as the agents list does, each with at
-most 500 of its sessions: those working or idle first, then those that never reported, then stopped
-ones, each latest seen first. Each session carries its presence, by the formula threads use; its
-approved registrations, with their ids and codes; its status with the latest entry's note; its
-unread updates; how many of its threads the operator has not archived, with how many of those are
-stranded, counted for every session of the page in one statement grouped over the threads as the
-operator sees them; and how many asks are open in all its threads, archived or not, with how many of
-those are blocking, which is what waits on the operator, counted in one statement grouped over the
-open asks.
+The sessions view's page lists the agents in name order for the operator, each with at most 500 of
+its sessions: those working or idle first, then those that never reported, then stopped ones, each
+latest seen first. Each session carries its presence, by the formula threads use; its approved
+registrations, with their ids and codes; its status with the latest entry's note; its unread
+updates; how many of its threads the operator has not archived, with how many of those are stranded,
+counted for every session of the page in one statement grouped over the threads as the operator sees
+them; and how many asks are open in all its threads, with how many of those are blocking, which is
+what waits on the operator, counted in one statement grouped over the open asks. The operator can
+never archive a thread holding an ask open to them, so their thread list shows every thread counted.
 
 The operator starts a thread on a session with a title and a first message of text, with its detail.
 The session stays the thread's requester and the operator its audience, so the operator's request
@@ -299,9 +298,9 @@ kind counted in one statement grouped by it with that filter's condition off. `r
 with no filter on.
 
 Counts and roll-ups list at most 500 agents, sessions and topics each, the first in name order or in
-the list's, and say when they leave any out; the agents list and the sessions page page agents, each
-with at most 500 of its sessions, and say when they leave any out. A thread's summary lists at most
-50 of its open asks, the most pressing, beside their count and the earliest.
+the list's, and say when they leave any out; the sessions view's page pages agents, each with at
+most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
+its open asks, the most pressing, beside their count and the earliest.
 
 ## HTTP API
 
@@ -544,17 +543,17 @@ published bundle the same way against the server at HEAD
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path              | Contents                                                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`  | The routes, over the History API                                                                                                        |
-| `src/session.tsx` | The browser's sign-in, as `GET /session` reports it                                                                                     |
-| `src/data.ts`     | The data hooks: loading, live refresh, answers out of order, an ended sign-in                                                           |
-| `src/api.ts`      | The web API's client                                                                                                                    |
-| `src/passkeys.ts` | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                     |
-| `src/markdown/`   | The inert Markdown renderer                                                                                                             |
-| `src/views/`      | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes |
-| `src/styles.css`  | The design tokens and styles                                                                                                            |
-| `e2e/`            | The browser tests                                                                                                                       |
+| Path              | Contents                                                                                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`  | The routes, over the History API                                                                                                                                                                                             |
+| `src/session.tsx` | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                          |
+| `src/data.ts`     | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                            |
+| `src/api.ts`      | The web API's client                                                                                                                                                                                                         |
+| `src/passkeys.ts` | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                          |
+| `src/markdown/`   | The inert Markdown renderer                                                                                                                                                                                                  |
+| `src/views/`      | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations and new-thread sheet |
+| `src/styles.css`  | The design tokens and styles                                                                                                                                                                                                 |
+| `e2e/`            | The browser tests                                                                                                                                                                                                            |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -563,6 +562,19 @@ filters on open asks and the status they keep.
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
 title.
+
+The sessions view answers `/sessions`, and `/registrations`, the path released bridges send the
+operator to. It loads the agents whole, at most 500 in pages of 100, since the approval form chooses
+among them, and a session's log only while its row is unfolded under an unfolded agent, since what a
+fold hides is not rendered: one entry more than it shows, so what the oldest entry shown changed can
+be read against the one before it. It reads each entry against the one before and shows consecutive
+entries that changed only the percent, with no note, as one line. While the page is visible, an
+unfolded log marks the operator's read through its newest entry whenever that is beyond their mark,
+with the read marking the thread page uses for its messages. The agents a browser folds, and whether
+it shows the past requests, are kept in its local storage, as the thread list's groups are, and a
+session's row starts folded on every visit. Wherever a thread shows as stranded, the UI says why
+from the session's presence in the thread's summary: the stop the session reported, with its
+outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
