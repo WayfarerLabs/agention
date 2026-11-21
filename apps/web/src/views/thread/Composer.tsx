@@ -1,4 +1,12 @@
-import { type Dispatch, type SetStateAction, useEffect, useId, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { describeFailure } from "../../api.ts";
 import { Status } from "../../components.tsx";
 import { useStillOpen } from "../../data.ts";
@@ -95,6 +103,32 @@ function sentStatus(staged: Staged | undefined): string {
   return "Message sent.";
 }
 
+// The root's property holding how tall the Send row is, which the page's
+// scroll padding keeps clear.
+const sendRowHeight = "--send-row-height";
+
+// useScrollClearOf keeps what the page scrolls into view, as the caret while
+// typing or a control focused from the keyboard, clear of the Send row stuck
+// at the foot of the screen, however tall what it holds makes it: it gives
+// the root the row's height while the composer is open.
+function useScrollClearOf(row: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const element = row.current;
+    if (element === null || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => {
+      root.style.setProperty(sendRowHeight, `${element.offsetHeight}px`);
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty(sendRowHeight);
+    };
+  }, [row]);
+}
+
 export function Composer({
   writer,
   sending,
@@ -156,6 +190,8 @@ export function Composer({
   }, [staged, empty, shown]);
   const [changed, setChanged] = useState<string>();
   const [status, setStatus] = useState("");
+  const actions = useRef<HTMLDivElement>(null);
+  useScrollClearOf(actions);
   // Whether a message the server accepts returns to the list: most operators
   // want to, so it does unless they choose otherwise on this device. A write
   // goes back by the choice as it stands when the write lands, and only
@@ -386,12 +422,14 @@ export function Composer({
             Details
           </button>
         )}
-        {otherFailure !== undefined && (
-          <div className="notice danger" role="alert">
-            <p>{describeFailure(otherFailure)}</p>
-          </div>
-        )}
-        <div className="actions">
+        {/* What answers Send shows beside it, as it stays at the foot of the
+            screen: a failure above it, and what was sent after it. */}
+        <div ref={actions} className="actions">
+          {otherFailure !== undefined && (
+            <div className="notice danger" role="alert">
+              <p>{describeFailure(otherFailure)}</p>
+            </div>
+          )}
           <button type="button" disabled={writer.pending || loading || !ready} onClick={send}>
             Send
           </button>
@@ -403,8 +441,8 @@ export function Composer({
             />
             Go back after sending
           </label>
+          {status !== "" && <Status>{status}</Status>}
         </div>
-        {status !== "" && <Status>{status}</Status>}
       </form>
     </section>
   );

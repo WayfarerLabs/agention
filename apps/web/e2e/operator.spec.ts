@@ -1,21 +1,21 @@
 // The web UI in Chromium against the real server: the server's name in the
 // banner and titles, linking the first passkey, approving an agent, answering
-// its asks, a message's detail folded under its text and the composer's
-// Details box, a stale write, text written to take the page down, reading and
-// marking unread from a message, archiving, the list's filters, their counts,
-// its order, the order's direction and grouping, an ask the agent withdraws,
-// the sessions view with a session's status and log, at a phone's width too,
-// a thread the operator starts there and stranded's reason, a session's
-// options menu over the next agent's header, the sessions view folded by
-// group with a group's link to its threads, the links to stranded threads
-// and a tag as tall in a header as in a row, at a phone's width too, the
-// last session's options menu over the folds below it, grouped or not, the
-// Sessions tab's count of sessions with unread updates, signing in again, a
-// second passkey that takes over from the first, and a second server on
-// another port of the host signed in beside the first. CDP virtual
-// authenticators stand in for the operator's devices; one page carries
-// through the steps, in order.
-import type { BrowserContext, CDPSession, Page } from "@playwright/test";
+// its asks, a message's detail folded under its text and the composer's Details
+// box, a stale write, Send kept on a short phone's screen, text written to take
+// the page down, reading and marking unread from a message, archiving, the
+// list's filters, their counts, its order, the order's direction and grouping,
+// an ask the agent withdraws and the way back under the composer, the sessions
+// view with a session's status and log, at a phone's width too, a thread the
+// operator starts there and stranded's reason, a session's options menu over
+// the next agent's header, the sessions view folded by group with a group's
+// link to its threads, the links to stranded threads and a tag as tall in a
+// header as in a row, at a phone's width too, the last session's options menu
+// over the folds below it, grouped or not, the Sessions tab's count of sessions
+// with unread updates, signing in again, a second passkey that takes over from
+// the first, and a second server on another port of the host signed in beside
+// the first. CDP virtual authenticators stand in for the operator's devices;
+// one page carries through the steps, in order.
+import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
 import type {
   PublicKey,
   RegistrationState,
@@ -283,6 +283,67 @@ test("a write the agent overtakes keeps the draft and sends after one action", a
   expect(read.body.cursors.audience).toBe(read.body.thread.last_seq);
 });
 
+test("Send stays on a short phone's screen while the message box is at its foot, within the composer", async () => {
+  const wide = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 500 });
+  const box = page.getByLabel("Message", { exact: true });
+  const send = page.getByRole("button", { name: "Send", exact: true });
+  const row = page.locator(".composer .actions");
+  const boxOf = async (what: Locator) => {
+    const box_ = await what.boundingBox();
+    expect(box_).not.toBeNull();
+    return box_ ?? { x: 0, y: 0, width: 0, height: 0 };
+  };
+  // The box focused at the foot of the screen, as a phone's keyboard leaves
+  // it once the page shrinks for it: Send, below it, stays on screen.
+  await box.focus();
+  await box.evaluate((element) => element.scrollIntoView({ block: "end" }));
+  const shown = await boxOf(send);
+  expect(shown.y).toBeGreaterThanOrEqual(0);
+  expect(shown.y + shown.height).toBeLessThanOrEqual(500);
+  // What is typed stays above the row: the page scrolls the box clear of it.
+  for (const line of ["One", "Two", "Three", "Four", "Five"]) {
+    await page.keyboard.type(line);
+    await page.keyboard.press("Enter");
+  }
+  const typed = await boxOf(box);
+  expect(typed.y + typed.height).toBeLessThanOrEqual((await boxOf(row)).y + 1);
+  // A control focused from the keyboard below the box is not under it either.
+  await page.keyboard.press("Tab");
+  const covered = await page.evaluate(() => {
+    const focused = document.activeElement as HTMLElement;
+    const at = focused.getBoundingClientRect();
+    const hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
+    return [focused.textContent, hit !== null && focused.contains(hit)];
+  });
+  expect(covered[1], `${covered[0]} is covered`).toBe(true);
+  // A send that fails says so beside Send, on screen.
+  await page.route("**/threads/1/messages", (route) =>
+    route.request().method() === "POST" ? route.fulfill({ status: 500 }) : route.fallback(),
+  );
+  await send.click();
+  const failed = page.locator(".composer .actions").getByRole("alert");
+  await expect(failed).toBeVisible();
+  const notice = await boxOf(failed);
+  expect(notice.y).toBeGreaterThanOrEqual(0);
+  expect(notice.y + notice.height).toBeLessThanOrEqual(500);
+  await page.unroute("**/threads/1/messages");
+  await box.fill("");
+  // It never lies over the messages: at the top of the thread it stays in
+  // the composer, below its heading.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const heading = await boxOf(page.getByRole("heading", { name: "Reply" }));
+  expect((await boxOf(send)).y).toBeGreaterThanOrEqual(heading.y + heading.height);
+  // At the composer's end, the way back follows it, out of its row.
+  const back = page.getByRole("link", { name: "Back to threads" }).last();
+  await back.scrollIntoViewIfNeeded();
+  const bar = await boxOf(row);
+  expect((await boxOf(back)).y).toBeGreaterThanOrEqual(bar.y + bar.height);
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
+});
+
 test("text written to take the page down shows as text, and the page stays up", async () => {
   // A text whose one line opens hundreds of block quotes, and a detail nested
   // a thousand emphases deep.
@@ -492,7 +553,8 @@ test("an ask the agent withdraws reads as withdrawn with its reason, on the list
   await expect(page.getByRole("article", { name: /^Message 2 by/ }).locator(".event")).toHaveText([
     `Withdrew ask 1: ${reason}`,
   ]);
-  await page.getByRole("link", { name: "Back to threads" }).click();
+  // The way back under the composer keeps the list's filter, as the head's does.
+  await page.getByRole("link", { name: "Back to threads" }).last().click();
   await page.getByRole("button", { name: "Remove filter: Status: Withdrawn" }).click();
   await expect(page).toHaveURL(/\/$/);
 });

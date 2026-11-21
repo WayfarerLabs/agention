@@ -551,7 +551,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     boxes. An edit needs text.
   - Beside **Send**, **Go back after sending** returns you to the list, as **Threads** does, once a
     message is sent, and the list says what was sent; a message that fails to send stays on the page
-    with your draft. It is checked until you uncheck it, and this browser keeps your choice.
+    with your draft. It is checked until you uncheck it, and this browser keeps your choice. While
+    you write, **Send** and its option stay at the foot of the screen, above a phone's keyboard,
+    with what answers **Send** beside it: why a message failed to send above it, and what was sent
+    after it.
+  - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
+    thread you read without replying, and without scrolling back up.
 
   If the agent writes to the thread while you are writing, sending fails as stale: your draft stays,
   the messages you missed appear above it, and **Mark these read and send again** sends it, as it

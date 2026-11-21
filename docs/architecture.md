@@ -738,7 +738,12 @@ or image: the frame belongs to the page.
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
 its boxes against the API's bounds of a message's text and detail, counted with the API's
-`codePointLength` as the server counts them, and never cuts what is typed into them.
+`codePointLength` as the server counts them, and never cuts what is typed into them. Its Send row,
+which holds what answers Send, sticks to the foot of the screen within the composer, and the page's
+viewport asks a phone to shrink the layout for its keyboard (`interactive-widget=resizes-content`),
+so the keyboard does not hide Send. The composer measures the row as it changes and the page's
+scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
+into view above the row.
 
 A tab opened before the server is upgraded keeps running the UI it loaded, so it may need a reload
 to work with the new server.

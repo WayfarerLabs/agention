@@ -54,7 +54,8 @@ with each other or with what the product does, the disagreement is the finding.
   and an unused tag's chips, its search reaching what live messages say and not what a replaced one
   said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
   by agent; the thread page's numbered asks answered several at once, a message's details,
-  replacements, mark unread from a message, archive through a message and archive all; stranded's
+  replacements, mark unread from a message, archive through a message and archive all; Send and what
+  answers it kept on a short screen while writing, and the way back under the composer; stranded's
   reasons, in the warning's color in both tabs; the sessions view, its group and agent folds and
   folded rows with what each session reports, when it was last seen and whether it is quiet, its
   open asks in the thread list's words and its threads' roll-up, the links from a row, an agent and
@@ -68,8 +69,9 @@ with each other or with what the product does, the disagreement is the finding.
   registration approval, rejection, and revocation from past requests and a session's options; and
   diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
   gestures, buttons and keys, on a phone's width too (`docs/operator-guide.md` "Signing in", "Using
-  the web UI" and "Approving agents"). Real-phone passkeys, and diagrams and their viewer in iOS
-  Safari, are the operator's acceptance, not the tester's.
+  the web UI" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while
+  writing, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
+  tester's.
 
 ## Layers to cross-check
 

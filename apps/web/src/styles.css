@@ -648,7 +648,7 @@ button.chip {
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  max-height: 85vh;
+  max-height: 85dvh;
   margin: auto 0 0;
   padding: 0;
   border: 1px solid var(--color-border);
@@ -1263,9 +1263,41 @@ a > .flag {
   margin: var(--space-4) 0;
 }
 
+/* The back button again, under the composer. */
+.thread-foot {
+  margin: 0 0 var(--space-4);
+}
+
+/* Send and its option stay at the foot of the screen while the composer's
+   form is on it, so a phone's keyboard, which the page's viewport shrinks
+   for, does not hide them; they never leave the form, so they never lie
+   over the messages above it. A failed send's notice shows above Send, and
+   what was sent after it, so what answers Send shows beside it. */
 .composer .actions {
+  position: sticky;
+  bottom: 0;
   align-items: center;
   column-gap: var(--space-4);
+  margin-bottom: 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.composer .actions > .notice {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.composer .actions > .status {
+  margin: 0;
+}
+
+/* What the page scrolls into view, as the caret while typing or a control
+   focused from the keyboard, stops a little above the Send row stuck at the
+   foot of the screen, whose height the composer measures as it changes. */
+:root:has(.composer) {
+  scroll-padding-bottom: calc(var(--send-row-height, 0px) + var(--space-2));
 }
 
 .messages > li {
