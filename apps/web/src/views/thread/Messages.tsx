@@ -271,8 +271,9 @@ function AskCard({
   const [wordsLeft, setWordsLeft] = useState(false);
   // Declining and undoing it replace the control that was used, so focus
   // moves to the one that takes its place; choosing Other moves it to Other's
-  // field, to write in.
+  // field, to write in; clearing the card moves it to the card.
   const targets = {
+    card: useRef<HTMLElement>(null),
     decline: useRef<HTMLButtonElement>(null),
     undo: useRef<HTMLButtonElement>(null),
     words: useRef<HTMLTextAreaElement>(null),
@@ -359,6 +360,15 @@ function AskCard({
     focusNext.current = declined ? "undo" : "decline";
     write({ declined });
   };
+  // A new answer staged on the card, picks, words or a decline, clears from
+  // it as the composer's Remove removes it. A change of answers holds an
+  // answer on every card it opened, so it is removed whole, in the composer.
+  const clearable = staged !== undefined && others?.replaces === undefined;
+  const clear = () => {
+    setWordsLeft(false);
+    focusNext.current = "card";
+    actions?.stage((current) => withoutAnswer(current, ask.number));
+  };
 
   // A withdrawn ask says where and why first, whatever became of its message
   // since; then one whose message was replaced says whether the replacement
@@ -440,6 +450,7 @@ function AskCard({
   );
   return (
     <section
+      ref={targets.card}
       id={`ask-${ask.number}`}
       tabIndex={-1}
       className={`ask${ask.open ? " open" : ""}`}
@@ -525,16 +536,25 @@ function AskCard({
               {words(`${id}-words-label`)}
             </>
           )}
-          {!draft.declined && (
-            <button
-              ref={targets.decline}
-              type="button"
-              className="link"
-              disabled={held}
-              onClick={() => decline(true)}
-            >
-              Decline to answer
-            </button>
+          {(!draft.declined || clearable) && (
+            <div className="ask-actions">
+              {!draft.declined && (
+                <button
+                  ref={targets.decline}
+                  type="button"
+                  className="link"
+                  disabled={held}
+                  onClick={() => decline(true)}
+                >
+                  Decline to answer
+                </button>
+              )}
+              {clearable && (
+                <button type="button" className="link" disabled={held} onClick={clear}>
+                  Clear
+                </button>
+              )}
+            </div>
           )}
           {held && (
             <p id={`${id}-held`} className="hint">
@@ -922,8 +942,9 @@ export function MessageView({
       </article>
     );
   }
+  // A live message takes focus from script, as the jump to unread moves it.
   return (
-    <article id={`message-${message.seq}`} className="message" aria-label={label}>
+    <article id={`message-${message.seq}`} tabIndex={-1} className="message" aria-label={label}>
       <MessageBody message={message} context={context} unread={unread} menu={menu} />
     </article>
   );

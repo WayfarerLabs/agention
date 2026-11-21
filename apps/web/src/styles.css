@@ -1447,7 +1447,10 @@ button.options-button[aria-expanded="true"] {
   margin: 0 0 var(--space-2) calc(1.25rem + var(--space-3));
 }
 
-.declining {
+/* A declined card's line, and the card's own controls under its choices:
+   Decline to answer, and Clear while an answer is staged on it. */
+.declining,
+.ask-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
