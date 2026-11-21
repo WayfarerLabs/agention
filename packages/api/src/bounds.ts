@@ -16,7 +16,7 @@ export const requestId = z
   .regex(/^[A-Za-z0-9._:-]{1,64}$/, "must be 1 to 64 of A-Z, a-z, 0-9, '.', '_', ':' and '-'");
 
 // A position in a list, opaque to clients: they pass back what they were given.
-// It has room for a grouped list's position, three sets of a thread's keys.
+// It has room for a grouped list's position, four sets of a thread's keys.
 export const cursor = z.string().min(1).max(1_024);
 
 // The size of every page and bulk list.

@@ -58,7 +58,11 @@ const directionLabel: Record<ThreadSort, [own: string, reversed: string]> = {
   created: ["Newest first", "Oldest first"],
 };
 
-const groupLabel: Record<ThreadGrouping, string> = { session: "Session", agent: "Agent" };
+const groupLabel: Record<ThreadGrouping, string> = {
+  session_group: "Group",
+  session: "Session",
+  agent: "Agent",
+};
 
 export function ThreadList() {
   const location = useLocation();

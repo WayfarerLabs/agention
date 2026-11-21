@@ -121,7 +121,10 @@ export async function request<T>(
   }
 }
 
-export type QueryValues = Record<string, string | number | boolean | readonly string[] | undefined>;
+export type QueryValues = Record<
+  string,
+  string | number | boolean | readonly (string | number)[] | undefined
+>;
 
 // query builds a query string from the values that are set, a list as one
 // parameter for each of its values.
@@ -129,7 +132,7 @@ export function query(values: QueryValues): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
     if (Array.isArray(value)) {
-      value.forEach((each: string) => params.append(key, each));
+      value.forEach((each: string | number) => params.append(key, String(each)));
     } else if (value !== undefined) {
       params.set(key, String(value));
     }

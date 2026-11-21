@@ -342,6 +342,7 @@ describe("the thread list", () => {
     expect(heading.nextElementSibling).toBe(head);
     expect(Array.from(groupSelect().options).map((each) => each.value)).toEqual([
       "",
+      "session_group",
       "session",
       "agent",
     ]);
@@ -623,6 +624,8 @@ const counts: ThreadCounts = {
     ],
     truncated: false,
   },
+  session_group: { groups: [{ id: 4, name: "Billing migration", total: 38 }], none: 39 },
+  tag: { tags: [{ tag: "infra", total: 41 }], truncated: false },
   reset: 40,
 };
 
