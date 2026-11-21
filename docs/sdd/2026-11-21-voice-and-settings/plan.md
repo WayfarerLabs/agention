@@ -12,23 +12,24 @@ checked when it is built, reviewed and green.
 
 - [ ] [LLD](voice-lld.md): the settings table, the routes and their shapes, the presets, the caps
       and timeouts, the error codes, the test clip, and the web UI's states.
-- [ ] Migration 4 and the settings store, with the write-only key and the environment override (V3).
+- [ ] Migration 4 and the settings store, with the write-only key, the bounds and the base URL rule
+      (V3).
 - [ ] The settings routes, a recent sign-in for changing a secret or where it is sent, and a base
       URL change clearing the key (S2, V3, V4).
 - [ ] The transcription client and `POST /transcriptions`: the OpenAI-compatible request, its caps,
       timeout, rate limit and error mapping, no audio or key kept or logged (V1, V2, V5, V6).
-- [ ] `Permissions-Policy: microphone=(self)` on the app.
 - [ ] The Settings view in the navigation, with Passkeys moved whole and Sign out moved from the
       header, and `/passkeys` still leading to it (S1).
-- [ ] The Voice section: presets with OpenAI first, the write-only key, Test, Clear, and where audio
-      goes with the provider's terms (V2 to V4, ruling 1).
+- [ ] The Voice section: presets with OpenAI first, the write-only key, where audio goes with the
+      provider's terms, Turn off, and Try it through the dictation path (V2 to V4, ruling 1).
 - [ ] Dictation in the composer: record, the limit shown, upload, text at the cursor, failures that
       keep the draft (V5).
 - [ ] Read aloud from a message's options, on the device, with Stop (V7).
 - [ ] Every new route unknown on the agent mount, and the agent API unchanged (V6, E1).
-- [ ] Permanent docs: the operator guide, SECURITY.md, the architecture document, ADR 0001 or a new
-      ADR for the server's part in transcription, `docs/live-testing.md` and
-      `docs/review-checklist.md` (E2).
+- [ ] Permanent docs: the operator guide, SECURITY.md, the architecture document, a new ADR for the
+      server's part in transcription and the first optional paid service, ADR 0001's and
+      `docs/review-checklist.md`'s rule on paid services, `docs/live-testing.md`, `README.md`, and
+      `docs/development-context.md`'s active effort (E2).
 - [ ] Live run with a stub provider and Chromium's fake microphone, WebKit where it runs, and the
       operator's check on Android Chrome and Windows against the staging server with a real provider
       (ruling 2).
