@@ -11,7 +11,7 @@ Agention is TypeScript on Node, in npm workspaces with one lockfile.
 | `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, and the error codes.                                                              |
 | `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes. |
 | `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                        |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store.                                                           |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store; `backup` copies the database.                             |
 | `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                         |
 | `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                |
 | `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                     |
@@ -150,6 +150,19 @@ A test freezes the text of every migration a release has shipped, by its SHA-256
 is always a new migration. Others open a database the first migration alone wrote, and one the first
 two wrote, under every later one: the tables they had keep their rows, the new ones start empty, and
 a message written before the full-text index of messages existed is found by it.
+
+`agention backup` (`apps/server/src/database/backup.ts`) copies the database without the `Database`
+class, so it never migrates it: it checks the database file as opening does, refusing a missing one,
+and opens it read-only; like any read-only connection to a database in WAL mode, that may leave
+SQLite's empty `-wal` file and its `-shm` beside a database no server has open, which the next
+server to open it uses as its own. It creates the copy itself, with the private-file rule applied to
+the copy's directory, exclusively and with mode 0600, refusing a file that exists, one beside which
+SQLite would find a journal or log of its own, and, before creating anything, one at the database's
+own journal, log or shared-memory path. `node:sqlite`'s `backup()` copies every page in one step,
+its rate the largest it accepts, so a server writing meanwhile cannot restart it, and the copy is
+the database as it stood at one moment. The copy is then opened read-only and `immutable`, which
+leaves nothing beside it, and passes `PRAGMA quick_check`; a backup that fails removes what it
+created.
 
 ## Store
 

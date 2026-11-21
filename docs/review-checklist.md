@@ -18,10 +18,6 @@ model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes 
 enforcement must not be missing where the trust model requires it (A2 to A9), and must not be built
 where the trust model says it does not belong (A6).
 
-Some checks state rules for features not built yet: `agention backup`, which
-`docs/operator-guide.md` "Commands" lists as planned. Their rules bind the change that builds them,
-and that change documents them in the permanent docs.
-
 ## A1. Standalone and runtime-neutral
 
 Agention never grants permissions, injects into a chat, controls a harness, or acts on message
@@ -191,11 +187,12 @@ Refines the shared **Recorded state and migrations** check. One SQLite database 
 never span an `await`), pragmas applied on open, and private file permissions verified independent
 of umask (`docs/architecture.md` "Database"; `SECURITY.md` "Private files"). Migrations are keyed on
 `user_version` and append-only: a migration that has shipped is never edited
-(`apps/server/src/database/migrations.ts`). A backup is consistent: the documented backup stops the
-server before copying the data directory, and restore is stop, replace, start
-(`docs/operator-guide.md` "Backing up"); a backup from a running instance uses SQLite's online
-backup, and a raw copy of a running instance's files is no proof of a valid live backup. History is
-retained indefinitely (ADR 0001 "Consequences").
+(`apps/server/src/database/migrations.ts`). A backup is consistent and changes nothing:
+`agention backup` opens the database read-only without migrating it and copies it with SQLite's
+online backup in one step, into a new private file that it checks and removes on failure
+(`docs/architecture.md` "Database"); a raw copy of a running instance's files is no proof of a valid
+live backup. Restore is stop, replace the database and its `-wal` and `-shm` files, start
+(`docs/operator-guide.md` "Backing up"). History is retained indefinitely (ADR 0001 "Consequences").
 
 ## A14. Reproducibility and contract tests
 

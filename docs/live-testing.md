@@ -14,8 +14,12 @@ with each other or with what the product does, the disagreement is the finding.
 
 - **CLI**, run from the packed server package, never the source tree: installed from a tarball
   `npm pack` wrote for the head under test, such as those `scripts/check.sh --packages DIR` keeps.
-  `agention serve`, including its plain-HTTP guard; `agention passkey-link`; `agention version`; and
-  `agention --help` (`docs/operator-guide.md` "Commands").
+  `agention serve`, including its plain-HTTP guard; `agention passkey-link`; `agention backup`,
+  taken while agents and the operator write and while the server is stopped, the copy's mode and its
+  refusals of an existing file and of a directory others can read, a database it leaves unmigrated,
+  and a restore from the copy by the operator guide's steps, after which the server serves the
+  threads the copy holds and nothing written after it; `agention version`; and `agention --help`
+  (`docs/operator-guide.md` "Commands" and "Backing up").
 - **HTTP API** through the real listener: the agent mount (key-signed tokens) and the web mount
   (passkey session and CSRF). The token cases: no token, a signature by another key than the one it
   names, an unknown key, another audience (refused naming the expected origin), an expiry past or
