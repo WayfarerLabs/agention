@@ -1,6 +1,6 @@
 # Voice and settings: Functional Requirements
 
-- Status: Draft for the operator's acceptance
+- Status: Accepted by the operator 2026-11-21 (ruling 1)
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -83,19 +83,24 @@ settings, voice, where audio goes, and how a provider key is kept; the live test
 - Notifications (agention#30) and attachments (agention#28), which are their own efforts.
 - Settings beyond those named here.
 
-## Open questions
-
-- Which provider the settings suggest first, if any (the operator's ask).
-- Whether the operator uses Agention as a Home Screen app on the iPhone, where recording has known
-  problems to test for (the operator's ask).
-
 ## Operator rulings, 2026-11-21 onward
 
-None yet.
+1. (2026-11-21) Asked whether to accept these requirements as drafted, the operator chose "Accept".
+   Asked which provider Settings suggest first, the operator chose "OpenAI". On whether the server
+   takes part in transcription: "I would like to understand if the server is involved in the
+   transcription. I think that would be more secure (keys stay there) but it would have performance
+   impacts and would be an additional endpoint. That said, it's probably worth it. Make sure you
+   address this in the architecture." Taken: OpenAI's preset comes first in Settings; the HLA
+   settles the server's part in transcription and its cost.
+2. (2026-11-21) Asked whether they use Agention as a Home Screen app on an iPhone or in Safari: "I'm
+   personally on Windows (Edge and Chrome) and Android (Chrome). Testing for the Apple world would
+   be good, though." Taken: the operator's real-device checks are Android Chrome and Windows Edge
+   and Chrome; Apple browsers are covered by automated WebKit runs where they can be, and named as a
+   gap where they cannot.
 
 ## Definition of done
 
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
-- The operator dictates and sends a message from a real phone with a configured provider, and reads
-  a message aloud.
+- The operator dictates and sends a message from their Android phone with a configured provider, and
+  reads a message aloud; Apple browsers are covered as ruling 2 says.
 - The repository passes its documented checks in CI, and the effort ships in a release.
