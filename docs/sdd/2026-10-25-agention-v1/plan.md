@@ -253,6 +253,12 @@ model.
 - [x] The development contract, `docs/development-context.md`, in the Agention repository for the
       TypeScript toolchain, its gates and the bridge, with this SDD moved to `docs/sdd/` and checked
       by `scripts/check-sdd.sh` in CI (ruling 59). (agention#1)
+- [x] `AGENTION_CONNECT`, a bridge setting that opens the bridge's connections at another address,
+      such as an SSH reverse tunnel's loopback port on a VM, while TLS, the `Host` header and the
+      tokens still name the origin, tested against a server whose certificate names another host;
+      the operator guide documents the tunnel, with a dedicated SSH account whose key options and
+      `sshd_config` block limit it to that one forward, those limits exercised against a user-level
+      `sshd` (R31, ruling 69). (agention#19)
 
 ## Delivery 3: sessions
 

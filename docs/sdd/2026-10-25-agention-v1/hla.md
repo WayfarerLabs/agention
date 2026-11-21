@@ -148,7 +148,8 @@ register(agent, session):                          # bridge, when the agent call
 ```
 
 - Names default from `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` (R36); the server comes from
-  `AGENTION_URL`.
+  `AGENTION_URL`. `AGENTION_CONNECT` optionally sends the bridge's connections to another address,
+  such as a tunnel's, while TLS and the tokens still name that origin (R31, ruling 69).
 - The code is a short digest of the public key. The bridge computes it itself and the server derives
   the same code from the stored key. The operator approves after matching the code the agent
   relayed, choosing an existing or new agent and session (R5). A registration submitted with any

@@ -10,7 +10,7 @@
   to 31 on 2026-10-28, rulings 32 to 39 on 2026-10-30, rulings 40 to 44 on 2026-10-31, rulings 45 to
   47 on 2026-11-01, ruling 48 on 2026-11-05, rulings 49 to 52 on 2026-11-06, ruling 53 on
   2026-11-08, rulings 54 and 55 on 2026-11-09, rulings 56 and 57 on 2026-11-10, ruling 58 on
-  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 68 on
+  2026-11-11, rulings 59 and 60 on 2026-11-18, ruling 61 on 2026-11-19, and rulings 62 to 69 on
   2026-11-20
 - Date: 2026-10-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD (ruling 59); paths below are relative to
@@ -338,10 +338,11 @@ it, so that an operator running several servers can tell them apart (rulings 54 
 servers can run on one host under different ports, sharing nothing: signing in to one never signs
 the operator out of another (ruling 55).
 
-**R31. Transport is path-agnostic.** Any TCP path that delivers bytes to the one origin works. No
-authentication decision or rate limit is keyed on source address or network identity. Each class of
-unauthenticated endpoint has its own budget, so exhausting registration cannot block passkey
-sign-in.
+**R31. Transport is path-agnostic.** Any TCP path that delivers bytes to the one origin works. A
+bridge can open its connections at another address, such as a tunnel's, while TLS and its tokens
+still name the origin (ruling 69). No authentication decision or rate limit is keyed on source
+address or network identity. Each class of unauthenticated endpoint has its own budget, so
+exhausting registration cannot block passkey sign-in.
 
 **R32. Tailscale is the documented path, not a dependency.** Documentation shows running Agention on
 loopback behind `tailscale serve`. Nothing requires Tailscale.
@@ -1157,6 +1158,23 @@ Recorded from the design conversation.
     Taken: each session is a folded row carrying its key facts, which unfolds to its goal and log; a
     session reports what it is doing as working, idle or stopped, and whether it is waiting on the
     operator is counted from its open asks, never reported.
+69. (2026-11-20, rolling Agention out across the operator's sessions) "Ok. So I have a challenge. I
+    have Agentworks VMs on both my personal and my work Tailnet. My VMs on my work Tailnet are
+    shared back to my personal Tailnet and my laptop and phone generally live on that. Since all
+    traffic is inbound to the Agentworks VMs, everything is great. But the Agention server is now
+    something that needs to be routable from other VMs. This alone is a challenge and will force me
+    to poke holes in my ACLs. Is there an elegant approach here where a VM can run a localhost
+    Agentworks server that can then be reached from another Agentworks server, thus keeping the
+    "everything inbound to the VM" model? Obviously auth gets really tricky here." The lead proposed
+    keeping one server, with the server's machine holding an SSH reverse tunnel into each VM and a
+    bridge setting that opens the bridge's connections at the tunnel's loopback port while TLS and
+    the tokens still name the real origin, and recommended against a server per VM with a hub. The
+    operator asked: "I think this makes sense. Any security concerns?" The lead answered that
+    authentication is unchanged and the certificate check stops a process squatting the port, that
+    the new exposure is the server machine's SSH key into each VM, to be restricted to that one
+    forward, and that work threads would be stored on the personal server. The operator answered
+    "Sounds great!", choosing "Yes, add the setting" and "The 0.2.2 patch". Taken: the bridge gains
+    `AGENTION_CONNECT` in the next release, and the operator guide documents the tunnel.
 
 ## Out of scope for v1
 
@@ -1165,8 +1183,7 @@ Recorded from the design conversation.
 - Asks the operator makes (rulings 11 and 65), more than one person, and people acting for the
   operator.
 - An external identity issuer integration; only the mapping seam (R4) is in scope.
-- Embedded Tailscale mode, Tailscale ACL lockdown, and reachability from machines shared in from
-  another tailnet. These are deployment follow-ups.
+- Embedded Tailscale mode and Tailscale ACL lockdown. These are deployment follow-ups.
 - Push notifications, email, or any delivery channel beyond the web UI.
 - Push methods, by which the bridge wakes an agent when a message lands, chosen at start or detected
   from the host; polling is v1's only method (ruling 61).
