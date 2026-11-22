@@ -44,7 +44,8 @@ const htmlEscapes: Record<string, string> = {
 
 // escapeHtml writes text so HTML reads it back as it is, in an element's
 // content or a quoted attribute.
-const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (each) => htmlEscapes[each] ?? "");
+export const escapeHtml = (text: string) =>
+  text.replace(/[&<>"']/g, (each) => htmlEscapes[each] ?? "");
 
 // namedPage writes the server's name, escaped, into each slot of the index
 // page.

@@ -1,0 +1,247 @@
+import {
+  agentApi,
+  agentApiHeader,
+  errorBody,
+  oversizedBodyStatus,
+  statusByErrorCode,
+  unsizedBodyStatus,
+} from "@wayfarerlabs/agention-api";
+import { maxTokenLifetime } from "../auth/agent-tokens.ts";
+import { agentOperations, registration } from "./agent-operations.ts";
+import type { Declaration, DescribedSchema } from "./operations.ts";
+import { operatorOperations } from "./operator-operations.ts";
+import { operatorApiPrefix, operatorApiVersion, versionsDeclaration } from "./operator-api.ts";
+
+// The API's documentation: one OpenAPI 3.1 document of the operator API and
+// the agent API, built from the same declarations the mounts build their
+// routes from, so it cannot describe a route, field or bound the server does
+// not have. Rules a schema enforces only in code (zod refinements) are absent
+// from the JSON Schema; the document can describe less than the server
+// checks, never more, and each such rule is stated in its field's
+// description. docs/api/openapi.json holds the document as committed, which a
+// test keeps equal to what this builds.
+
+type JsonObject = Record<string, unknown>;
+
+// A documented mount: where it is, how a caller authenticates on it, and its
+// declarations.
+interface Mount {
+  tag: string;
+  description: string;
+  prefix: string;
+  security: "apiKey" | "agentToken";
+  versionHeader: boolean;
+  declarations: readonly Declaration[];
+}
+
+const mounts: readonly Mount[] = [
+  {
+    tag: "operator",
+    description:
+      `Version ${operatorApiVersion} of the operator API, which a client calls as the operator ` +
+      "with an API key the operator created in Settings. Each operation requires one scope, " +
+      "which the key must hold; an operation whose scope the key lacks answers not_found. " +
+      "A version changes only additively, with new operations, new optional request fields " +
+      "and new response fields, so a client ignores response fields it does not know.",
+    prefix: operatorApiPrefix,
+    security: "apiKey",
+    versionHeader: false,
+    declarations: operatorOperations,
+  },
+  {
+    tag: "agent",
+    description:
+      "The agent API, which the Agention bridge calls for an agent's session. Every request " +
+      `and every answer states in ${agentApiHeader} the version its sender speaks.`,
+    prefix: "/api/agent",
+    security: "agentToken",
+    versionHeader: true,
+    declarations: [registration, ...agentOperations],
+  },
+];
+
+// jsonSchema describes a zod schema as JSON Schema, of what a client sends
+// (input) or what the server answers (output). The dialect is OpenAPI 3.1's
+// own, so each schema's $schema is dropped. An answer may gain fields within
+// a version, so it never forbids properties it does not list.
+function jsonSchema(schema: DescribedSchema<unknown>, io: "input" | "output"): JsonObject {
+  const { $schema: _, ...described } = schema.toJSONSchema({ io }) as JsonObject;
+  return io === "output" ? allowingMore(described) : described;
+}
+
+function allowingMore(value: unknown): JsonObject {
+  return JSON.parse(
+    JSON.stringify(value, (key, each: unknown) =>
+      key === "additionalProperties" && each === false ? undefined : each,
+    ),
+  ) as JsonObject;
+}
+
+// parametersOf describes each property of a path or query schema as an
+// OpenAPI parameter, its description lifted from the property's schema.
+function parametersOf(schema: DescribedSchema<unknown>, where: "path" | "query"): JsonObject[] {
+  const described = jsonSchema(schema, "input");
+  const properties = (described.properties ?? {}) as Record<string, JsonObject>;
+  const required = new Set((described.required ?? []) as string[]);
+  return Object.entries(properties).map(([name, property]) => {
+    const { description, ...rest } = property;
+    return {
+      name,
+      in: where,
+      required: where === "path" || required.has(name),
+      ...(description === undefined ? {} : { description }),
+      schema: rest,
+      // A parameter taking several values repeats, once for each.
+      ...(rest.type === "array" ? { style: "form", explode: true } : {}),
+    };
+  });
+}
+
+// pathOf writes a declared path as OpenAPI's path template.
+const pathOf = (mount: Mount, declaration: Declaration) =>
+  mount.prefix + declaration.path.replace(/:([a-z]+)/g, "{$1}");
+
+function operationOf(mount: Mount, declaration: Declaration): JsonObject {
+  const versionHeader = { $ref: "#/components/parameters/agentApiVersion" };
+  const parameters = [
+    ...(mount.versionHeader ? [versionHeader] : []),
+    ...(declaration.params === undefined ? [] : parametersOf(declaration.params, "path")),
+    ...(declaration.query === undefined ? [] : parametersOf(declaration.query, "query")),
+  ];
+  const name = declaration.name.charAt(0).toUpperCase() + declaration.name.slice(1);
+  // A key's scope is listed; an agent's token always holds what its session's
+  // thread operations require, so none is.
+  const scopes =
+    mount.security === "apiKey" && declaration.scope !== undefined ? [declaration.scope] : [];
+  return {
+    operationId: `${mount.tag}${name}`,
+    summary: declaration.summary,
+    tags: [mount.tag],
+    security: [{ [mount.security]: scopes }],
+    ...(parameters.length === 0 ? {} : { parameters }),
+    ...(declaration.body === undefined
+      ? {}
+      : {
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: jsonSchema(declaration.body, "input") } },
+          },
+        }),
+    responses: {
+      "200": {
+        description: "Done",
+        ...(mount.versionHeader
+          ? { headers: { [agentApiHeader]: { $ref: "#/components/headers/agentApiVersion" } } }
+          : {}),
+        content: { "application/json": { schema: jsonSchema(declaration.response, "output") } },
+      },
+      default: { $ref: "#/components/responses/error" },
+    },
+  };
+}
+
+// The statuses the error codes are sent with, for the error response's
+// description.
+const statuses =
+  Object.entries(statusByErrorCode)
+    .map(([code, status]) => `${code} ${status}`)
+    .join(", ") +
+  `; a body over the server's size limit is invalid_input with ${oversizedBodyStatus}, and ` +
+  `one sent without a Content-Length is invalid_input with ${unsizedBodyStatus}`;
+
+// apiDocument builds the OpenAPI document.
+export function apiDocument(): JsonObject {
+  const paths: Record<string, JsonObject> = {
+    "/api/operator": {
+      get: {
+        operationId: versionsDeclaration.name,
+        summary: versionsDeclaration.summary,
+        tags: ["operator"],
+        security: [],
+        responses: {
+          "200": {
+            description: "Done",
+            content: {
+              "application/json": { schema: jsonSchema(versionsDeclaration.response, "output") },
+            },
+          },
+          default: { $ref: "#/components/responses/error" },
+        },
+      },
+    },
+  };
+  for (const mount of mounts) {
+    for (const declaration of mount.declarations) {
+      const path = pathOf(mount, declaration);
+      paths[path] = {
+        ...paths[path],
+        [declaration.method.toLowerCase()]: operationOf(mount, declaration),
+      };
+    }
+  }
+  return {
+    openapi: "3.1.0",
+    info: {
+      title: "Agention API",
+      version: `operator v${operatorApiVersion}, agent v${agentApi.version}`,
+      description:
+        "The operator API, for a client acting as the operator, and the agent API, for the " +
+        "Agention bridge. Every body is JSON, and every refusal is the shared error shape. " +
+        `GET /api/operator lists the operator API versions the server serves; the agent API ` +
+        `serves versions ${agentApi.oldest} to ${agentApi.version}.`,
+    },
+    tags: mounts.map((mount) => ({ name: mount.tag, description: mount.description })),
+    paths,
+    components: {
+      securitySchemes: {
+        apiKey: {
+          type: "http",
+          scheme: "bearer",
+          description:
+            "An API key the operator created in Agention's Settings, as Authorization: " +
+            "Bearer with the secret Settings showed once. A request carrying a cookie is " +
+            "refused. The scope an operation lists is the one it requires; a write " +
+            "scope includes its resource's read, and sessions:approve includes sessions:read.",
+        },
+        agentToken: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description:
+            "A compact JWS the bridge mints for each request, signed with EdDSA by the " +
+            "session's Ed25519 key, whose kid is that key's base64url public key, whose aud " +
+            "is the server's origin and whose exp is at most " +
+            `${maxTokenLifetime / 1000} seconds away. A request carrying a cookie is refused.`,
+        },
+      },
+      parameters: {
+        agentApiVersion: {
+          name: agentApiHeader,
+          in: "header",
+          required: false,
+          description:
+            `The agent API version the bridge speaks, ${agentApi.oldest} when absent; a ` +
+            "version the server does not serve is refused as unsupported_version.",
+          schema: { type: "string", pattern: "^[1-9][0-9]*$" },
+        },
+      },
+      headers: {
+        agentApiVersion: {
+          description: "The agent API version the server speaks.",
+          schema: { type: "string", const: String(agentApi.version) },
+        },
+      },
+      responses: {
+        error: {
+          description: `Refused. The status follows error.code: ${statuses}.`,
+          content: { "application/json": { schema: jsonSchema(errorBody, "output") } },
+        },
+      },
+    },
+  };
+}
+
+// apiDocumentText writes the document as docs/api/openapi.json holds it.
+export function apiDocumentText(): string {
+  return `${JSON.stringify(apiDocument(), null, 2)}\n`;
+}

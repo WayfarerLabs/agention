@@ -79,9 +79,11 @@ export class Harness {
       name?: string;
       voiceEnvironment?: VoiceEnvironment;
       transcription?: TranscriptionProvider;
+      apiDocs?: boolean;
     } = {},
   ) {
     this.app = createApp({
+      ...(options.apiDocs === undefined ? {} : { apiDocs: options.apiDocs }),
       ...(options.voiceEnvironment === undefined
         ? {}
         : { voiceEnvironment: options.voiceEnvironment }),

@@ -43,6 +43,9 @@ Options:
                       shows as its title and its passkeys carry; set by the
                       first start that serves (default Agention), and never
                       changed after
+  --api-docs          Serve the API's documentation, without sign-in, at
+                      /docs/api/ and its OpenAPI document at
+                      /docs/api/openapi.json
   -h, --help          Print this help
 
 Environment, read once at start, each optional; each supplies one field of
@@ -269,6 +272,7 @@ async function serve(args: string[], io: Io): Promise<number> {
     "allow-plain-http": { type: "boolean", default: false },
     "quiet-minutes": { type: "string" },
     name: { type: "string" },
+    "api-docs": { type: "boolean", default: false },
   });
   const data = required(flags.data, "--data");
   const origin = originFlag(flags.origin);
@@ -310,6 +314,7 @@ async function serve(args: string[], io: Io): Promise<number> {
       voiceEnvironment,
       shutdown: shutdown.signal,
       log: (message) => io.stderr.write(`${message}\n`),
+      apiDocs: flags["api-docs"],
     });
     let listening;
     try {
