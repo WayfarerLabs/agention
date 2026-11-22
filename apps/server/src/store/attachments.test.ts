@@ -84,26 +84,43 @@ describe("a message's attachments", () => {
   it("refuse alike another writer's, another session's, an unknown, an expired and an attached upload", () => {
     fixture.createThread(agent);
     const nightly = fixture.registerAgent("builder", "nightly");
+    fixture.createThread(nightly);
+    const expired = upload("ex");
+    fixture.advance(pendingLifetime);
+    // Every upload but the expired one is fresh, so each is refused for what
+    // it is, not for its age: the operator's in this very session, another
+    // session's by the same agent, and one already attached.
     const operators = upload("op", { identity: fixture.operator });
+    const agents = upload("ag");
     const otherSession = upload("ns", { identity: nightly.identity, target: nightly.target });
     const attached = upload("at");
     fixture.write(agent.identity, target(), { attachments: [{ upload: attached }] });
-    const expired = upload("ex");
-    fixture.advance(pendingLifetime);
+    const refused = { code: "invalid_input", field: "attachments.0.upload" };
     for (const ref of [operators, otherSession, "A".repeat(22), expired, attached]) {
       expect(
         failure(() => fixture.write(agent.identity, target(), { attachments: [{ upload: ref }] })),
-      ).toEqual({ code: "invalid_input", field: "attachments.0.upload" });
+      ).toEqual(refused);
     }
-    // The operator's own upload in another thread's session is refused too.
-    fixture.createThread(nightly);
+    expect(
+      failure(() =>
+        fixture.write(fixture.operator, target(), { attachments: [{ upload: agents }] }),
+      ),
+    ).toEqual(refused);
+    // The operator's own upload of this session, named in another session's
+    // thread.
     expect(
       failure(() =>
         fixture.write(fixture.operator, threadTarget(nightly, 1), {
-          attachments: [{ upload: upload("o2", { identity: fixture.operator }) }],
+          attachments: [{ upload: operators }],
         }),
       ),
-    ).toEqual({ code: "invalid_input", field: "attachments.0.upload" });
+    ).toEqual(refused);
+    // Each writer may still attach its own, where it was uploaded.
+    fixture.write(fixture.operator, target(), { attachments: [{ upload: operators }] });
+    fixture.write(agent.identity, target(), { attachments: [{ upload: agents }] });
+    fixture.write(nightly.identity, threadTarget(nightly, 1), {
+      attachments: [{ upload: otherSession }],
+    });
   });
 
   it("keep files of the replaced message only by naming them, and the replaced message keeps its own", () => {

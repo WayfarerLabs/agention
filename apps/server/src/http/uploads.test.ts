@@ -1,5 +1,6 @@
 import {
   agentApiHeader,
+  type ErrorBody,
   maxFileBytes,
   maxPendingFiles,
   type UploadResult,
@@ -9,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { beginUpload } from "../store/index.ts";
 import { maxBodyBytes } from "./app.ts";
 import { codeOf, json, type Mount, mountHeaders, send, upload } from "./file-test-support.ts";
-import { type AgentKey, Harness, host } from "./test-harness.ts";
+import { type AgentKey, Harness, host, newThread } from "./test-harness.ts";
 import { freeSpaceFloor, isUploadRequest } from "./uploads.ts";
 
 let harness: Harness;
@@ -60,6 +61,20 @@ describe("an upload", () => {
       expect([name, sent.status, codeOf(sent)]).toEqual([name, 400, "invalid_input"]);
     }
     expect(count("files")).toBe(0);
+  });
+
+  it("is its writer's alone: the agent cannot name the operator's, though it is of this session", async () => {
+    await harness.agent(agent, "POST", "/s/builder/main/threads", newThread("r-1"));
+    const operators = json(await upload(harness, "web", agent, Buffer.from("x"))) as UploadResult;
+    const named = await harness.agent(agent, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "r-2",
+      seen_through: 1,
+      attachments: [{ upload: operators.upload }],
+    });
+    expect([named.status, (named.body as ErrorBody).error.field]).toEqual([
+      400,
+      "attachments.0.upload",
+    ]);
   });
 
   it("refuses a session it does not act for as not_found", async () => {
