@@ -12,7 +12,7 @@
 - [ ] Migration 5 and the key store: create, list, revoke, expiry, the 20-key bound, hashing, last
       used (K1 to K3, K5).
 - [ ] The key identity and grants, the read-only rule, and `checkCredential` for keys (K4, K5).
-- [ ] The operator mount: bearer only, no cookies, its version header, rates and refusals (A2).
+- [ ] The operator mount: bearer only, no cookies, its version in the path, rates and refusals (A2).
 - [ ] The operator's wait across sessions: the cross-session cursor, the notifier's all-sessions
       channel, revocation ending a key's wait, and the loop shared with the agent wait (A3).
 - [ ] The key management routes on the web mount, with recent sign-in (K3).
