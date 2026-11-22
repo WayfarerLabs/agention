@@ -1,6 +1,7 @@
 # Attachments: Functional Requirements
 
-- Status: Accepted by the operator with changes, 2026-11-22 (ruling 1); A3 amended by ruling 2
+- Status: Accepted by the operator with changes, 2026-11-22 (ruling 1); A3 amended by ruling 2; E1
+  by ruling 3
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -74,9 +75,10 @@ thread.
 
 ### Engineering
 
-**E1. Agent API.** Attaching and fetching are new agent tools, under the next agent API version.
-Bridges released before it keep working for everything else, and a server older than a bridge that
-attaches says so rather than failing silently.
+**E1. Agent API.** Attaching is a tool that uploads a file from the agent's machine and answers with
+a reference, which the tools that write messages name; fetching is a tool of its own (ruling 3).
+Both come under the next agent API version. Bridges released before it keep working for everything
+else, and a server older than a bridge that attaches says so rather than failing silently.
 
 **E2. Collateral.** The operator guide, SECURITY.md, the architecture document and ADRs describe
 attachments: what is kept, where, how files are served, the limits, backup and restore; the live
@@ -119,6 +121,12 @@ tests cover them.
    for now, just like it keeps its content." Taken, amending A3 and A7 and the replacement in ruling
    1: a file is its message's, by name, unique within the message; nothing replaces a file; a
    replaced message keeps its files; files are read by message and name.
+
+3. (2026-11-22) Asked whether agents attach through a field of local paths on the writing tools and
+   fetch with a new tool: "I think this is right, although shouldn't we have a tool call to upload
+   the file (into a temp location) and then it can just be referenced in the message_send?" Taken,
+   amending E1: a tool uploads a local file and answers with a reference, which `thread_create` and
+   `message_send` name, and an upload no message names expires; fetching is a tool of its own.
 
 ## Definition of done
 
