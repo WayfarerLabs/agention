@@ -164,6 +164,107 @@ export class FakeApi {
   }
 }
 
+// FakeUpload is one request XMLHttpRequest sent, as the page uploads files:
+// what it was sent, and controls a test answers it with.
+export class FakeUpload {
+  method = "";
+  url = "";
+  readonly headers: Record<string, string> = {};
+  body: unknown;
+  aborted = false;
+  status = 0;
+  responseText = "";
+  readonly upload: { onprogress: ((event: { loaded: number }) => void) | null } = {
+    onprogress: null,
+  };
+  onprogress: (() => void) | null = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  #responseHeaders: Record<string, string> = {};
+  readonly #sent: FakeUpload[];
+
+  constructor(sent: FakeUpload[]) {
+    this.#sent = sent;
+  }
+
+  open(method: string, url: string): void {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(name: string, value: string): void {
+    this.headers[name.toLowerCase()] = value;
+  }
+
+  getResponseHeader(name: string): string | null {
+    return this.#responseHeaders[name.toLowerCase()] ?? null;
+  }
+
+  send(body: unknown): void {
+    this.body = body;
+    this.#sent.push(this);
+  }
+
+  abort(): void {
+    if (!this.aborted && this.status === 0) {
+      this.aborted = true;
+      this.onabort?.();
+    }
+  }
+
+  // The query of the request's URL.
+  get query(): URLSearchParams {
+    return new URL(this.url, "https://agention.test").searchParams;
+  }
+
+  progress(loaded: number): void {
+    this.upload.onprogress?.({ loaded });
+  }
+
+  // respond answers with reply, as the server would.
+  respond(reply: Reply): void {
+    this.status = reply.status ?? 200;
+    this.responseText = reply.text ?? JSON.stringify(reply.body ?? {});
+    this.#responseHeaders = Object.fromEntries(
+      Object.entries(reply.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value]),
+    );
+    this.onload?.();
+  }
+
+  // fail ends the request with no answer, as a dropped connection does.
+  fail(): void {
+    this.onerror?.();
+  }
+}
+
+// installUploads stands in for XMLHttpRequest, recording each request sent.
+export function installUploads(): FakeUpload[] {
+  const sent: FakeUpload[] = [];
+  vi.stubGlobal(
+    "XMLHttpRequest",
+    class {
+      constructor() {
+        return new FakeUpload(sent);
+      }
+    },
+  );
+  return sent;
+}
+
+// uploadAnswer is the server's answer to an upload, by its reference.
+export function uploadAnswer(
+  upload: string,
+  name: string,
+  size: number,
+  type = "image/png",
+  expiresAt = "2099-01-01T00:00:00.000Z",
+): Reply {
+  return {
+    body: { upload, name, size, type, served_type: type, expires_at: expiresAt },
+  };
+}
+
 // jsdom has no modal dialogs. This stand-in opens one and closes it as
 // browsers do, firing close, so a view's dialog can be driven in a test.
 if (HTMLDialogElement.prototype.showModal === undefined) {

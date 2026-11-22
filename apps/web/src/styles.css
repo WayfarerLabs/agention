@@ -1730,6 +1730,58 @@ audio.file-media {
   margin-top: 0;
 }
 
+/* The composer's files, above its Send row, each with how it stands and
+   Remove. */
+.attached {
+  margin: var(--space-3) 0 0;
+}
+
+.attached ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attached li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.attached-file {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.attached-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.attached-state progress {
+  width: 8rem;
+}
+
+/* Attach beside Send: its paper clip alone, named for assistive
+   technology. */
+.composer button.attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch);
+  padding: var(--space-2);
+}
+
+.composer .actions > .hold {
+  margin: 0;
+}
+
 .suggestions li .own-words {
   margin: var(--space-1) 0 0;
   font-weight: 400;

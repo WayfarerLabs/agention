@@ -4,6 +4,7 @@ import {
   type Message,
   maxListed,
   type SessionsPage,
+  type UploadResult,
 } from "@wayfarerlabs/agention-api";
 
 // The web UI's client for the server's web API, mounted at /api/web. Requests
@@ -179,6 +180,86 @@ async function exchange<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// An upload of a file gives up once this long passes with no progress, either
+// way: longer than the server's own idle cut, so the server's answer arrives
+// first. Nothing bounds an upload's whole length, so a slow uplink finishes.
+export const uploadIdle = 60_000;
+
+// uploadFile sends a file to a session's uploads, declared as type, and
+// returns the upload's answer, or throws an ApiFailure as request does. fetch
+// reports no upload progress, so it goes by XMLHttpRequest, with the File as
+// the body, so the browser sends its length; onProgress hears how many bytes
+// have gone. Aborting signal, as Remove does, ends it as a network failure.
+export function uploadFile(
+  path: string,
+  file: Blob,
+  options: {
+    type: string;
+    csrf: string | undefined;
+    signal: AbortSignal;
+    onProgress: (sent: number) => void;
+  },
+): Promise<UploadResult> {
+  return new Promise<UploadResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    let stalled = false;
+    const settle = () => {
+      clearTimeout(idle);
+      options.signal.removeEventListener("abort", abort);
+    };
+    const rearm = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => {
+        stalled = true;
+        xhr.abort();
+      }, uploadIdle);
+    };
+    const abort = () => xhr.abort();
+    const noAnswer = () =>
+      stalled
+        ? new ApiFailure("network", "The upload stopped making progress. Check the connection.")
+        : options.signal.aborted
+          ? new ApiFailure("network", "Cancelled.")
+          : new ApiFailure("network", "Agention could not be reached. Check the connection.");
+    xhr.open("POST", `/api/web${path}`);
+    xhr.setRequestHeader("accept", "application/json");
+    xhr.setRequestHeader("content-type", options.type);
+    if (options.csrf !== undefined) {
+      xhr.setRequestHeader("x-csrf-token", options.csrf);
+    }
+    xhr.upload.onprogress = (event) => {
+      rearm();
+      options.onProgress(event.loaded);
+    };
+    xhr.onprogress = rearm;
+    xhr.onload = () => {
+      settle();
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(failureFrom(xhr.status, xhr.responseText, xhr.getResponseHeader("retry-after")));
+        return;
+      }
+      try {
+        resolve(JSON.parse(xhr.responseText) as UploadResult);
+      } catch {
+        reject(new ApiFailure("unexpected", "The server's answer could not be read."));
+      }
+    };
+    xhr.onerror = xhr.onabort = () => {
+      settle();
+      reject(noAnswer());
+    };
+    if (options.signal.aborted) {
+      settle();
+      reject(noAnswer());
+      return;
+    }
+    options.signal.addEventListener("abort", abort);
+    rearm();
+    xhr.send(file);
+  });
 }
 
 // fileUrl is the URL of a file a message carries, by the message's sequence,

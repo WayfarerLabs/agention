@@ -1,4 +1,5 @@
 import {
+  type ClipboardEvent,
   type Dispatch,
   type RefObject,
   type SetStateAction,
@@ -8,13 +9,22 @@ import {
   useRef,
   useState,
 } from "react";
-import { describeFailure } from "../../api.ts";
+import { ApiFailure, describeFailure } from "../../api.ts";
 import { Status } from "../../components.tsx";
 import { useStillOpen } from "../../data.ts";
 import { useDeviceChoice } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { useDictation, useVoiceOn } from "../../voice/Dictation.tsx";
+import {
+  attachmentsOf,
+  type DraftFiles,
+  type FilesHold,
+  filesHold,
+  pastedImages,
+  pastedName,
+} from "./files/attach.ts";
+import { AttachList } from "./files/AttachList.tsx";
 import { type MessageContext, MessageView } from "./Messages.tsx";
 import {
   blank,
@@ -33,8 +43,10 @@ import {
 } from "./writer.ts";
 
 // The composer: a Markdown box for the message's text, a Details box for its
-// detail, folded under it until opened, and one Send button, with dictation
-// beside it while voice is on. What the message
+// detail, folded under it until opened, the files it carries, and one Send
+// button, with Attach beside it, and dictation while voice is on. Choosing
+// files or pasting images into either box attaches them, and Send waits for
+// their uploads. What the message
 // does besides its text comes from the thread's messages: answers written on
 // asks' cards, a change of the answers a message of the operator's carries,
 // or an edit of one of their messages. A line above the box names each answer
@@ -106,6 +118,25 @@ function sentStatus(staged: Staged | undefined): string {
   return "Message sent.";
 }
 
+// holdWords says what keeps Send waiting on the draft's files.
+function holdWords(hold: FilesHold): string | undefined {
+  if (hold === undefined) {
+    return undefined;
+  }
+  if (hold.kind === "problem") {
+    return "A file did not upload: retry or remove it.";
+  }
+  return hold.of === 1 ? "Uploading the file." : `Uploading ${hold.at} of ${hold.of} files.`;
+}
+
+// The place of the file a refusal of a write names as not uploaded, among
+// the files the write sent.
+function refusedUpload(failure: unknown): number | undefined {
+  const match =
+    failure instanceof ApiFailure ? /^attachments\.(\d+)\.upload$/.exec(failure.field ?? "") : null;
+  return match === null ? undefined : Number(match[1]);
+}
+
 // The root's property holding how tall the Send row is, which the page's
 // scroll padding keeps clear.
 const sendRowHeight = "--send-row-height";
@@ -149,6 +180,7 @@ export function Composer({
   unstage,
   loading,
   context,
+  files,
 }: {
   // Writes to the thread; the page holds it, so a refusal that names an
   // answer's own words shows at their field on the ask's card.
@@ -181,6 +213,9 @@ export function Composer({
   loading: boolean;
   // How the missed messages of a stale write read, without actions.
   context: MessageContext;
+  // The files the draft carries, which the page holds beside the text, since
+  // an edit loads the files of the message it replaces.
+  files: DraftFiles;
 }) {
   // The message the draft was started from: the last one on screen when the
   // operator started typing, staging or recording, so a message that lands
@@ -188,7 +223,7 @@ export function Composer({
   // of being answered unseen. Emptying the composer ends the draft, unless a
   // recording is still to become its text.
   const [basis, setBasis] = useState<number | undefined>(undefined);
-  const empty = blank(text) && blank(detail);
+  const empty = blank(text) && blank(detail) && files.files.length === 0;
   const [dictating, setDictating] = useState(false);
   useEffect(() => {
     setBasis((current) =>
@@ -220,8 +255,12 @@ export function Composer({
   }, [goBack]);
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
-  const draft = { text, detail };
-  const ready = sendable(draft, staged);
+  const { attachments, ids: fileIds } = attachmentsOf(files.files);
+  const draft = { text, detail, attachments };
+  const hold = filesHold(files.files);
+  const ready = sendable(draft, staged) && hold === undefined;
+  const attach = useRef<HTMLButtonElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
   // The detail as it stands, for a write that lands after the operator
   // typed on.
   const detailNow = useRef(detail);
@@ -243,6 +282,7 @@ export function Composer({
     const sentText = text;
     const sentDetail = detail;
     const sentStaged = staged;
+    const sentFiles = fileIds;
     const outcome =
       writer.missed === undefined
         ? await writer.write(content, basis ?? shown, shown)
@@ -250,21 +290,36 @@ export function Composer({
     if (outcome === undefined) {
       return;
     }
+    if ("refused" in outcome) {
+      // An upload the server no longer holds has expired, to upload again.
+      const place = refusedUpload(outcome.refused);
+      const id = place === undefined ? undefined : sentFiles[place];
+      if (id !== undefined) {
+        files.expire(id);
+      }
+      return;
+    }
     if ("missed" in outcome) {
       // What the missed messages made impossible to send goes; the rest, the
-      // text and the detail stay.
+      // text, the detail and the files stay. A replacement that goes takes
+      // the files it kept with it.
       const stale = staleChange(sentStaged, outcome.missed);
       if (stale !== undefined) {
         setChanged(stale.change);
         stage((current) => (current === sentStaged ? stale.left : current));
+        if (stale.left === undefined) {
+          files.dropKept();
+        }
       }
       return;
     }
     wrote(outcome.written);
     sends.current += 1;
-    // Clear only what was sent: text typed meanwhile is a new draft.
+    // Clear only what was sent: text typed meanwhile is a new draft, and so
+    // are files added meanwhile.
     setText((current) => (current === sentText ? "" : current));
     setDetail((current) => (current === sentDetail ? "" : current));
+    files.sent(sentFiles);
     // The Details box folds with the detail it sent; one typed meanwhile
     // stays in sight.
     if (detailNow.current === sentDetail) {
@@ -315,6 +370,18 @@ export function Composer({
       ? writer.failure
       : undefined;
   const removed = () => box.current?.focus();
+
+  // A paste holding images attaches them, named by when they were pasted,
+  // and inserts nothing; any other paste is the browser's own.
+  const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = pastedImages(event.clipboardData);
+    if (images.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    const at = new Date();
+    files.add(images.map((file) => ({ file, name: pastedName(file.type, at) })));
+  };
 
   // insert puts a transcript at the caret of the box that last had focus,
   // with a space on each side where it meets other text, and moves focus
@@ -459,6 +526,7 @@ export function Composer({
           aria-describedby={`${id}-hint${textError === undefined ? "" : ` ${id}-error`}`}
           onFocus={() => (lastBox.current = "text")}
           onChange={(event) => setText(event.target.value)}
+          onPaste={paste}
         />
         {textError !== undefined && (
           <p id={`${id}-error`} className="field-error">
@@ -481,6 +549,7 @@ export function Composer({
               aria-describedby={`${id}-detail-hint${detailError === undefined ? "" : ` ${id}-detail-error`}`}
               onFocus={() => (lastBox.current = "detail")}
               onChange={(event) => setDetail(event.target.value)}
+              onPaste={paste}
             />
             {detailError !== undefined && (
               <p id={`${id}-detail-error`} className="field-error">
@@ -503,6 +572,7 @@ export function Composer({
             Details
           </button>
         )}
+        <AttachList draft={files} attach={attach} disabled={loading} />
         {/* What answers Send and dictation show beside them, as the row stays
             at the foot of the screen: a failure above them, and what was
             sent or heard after them. */}
@@ -513,11 +583,46 @@ export function Composer({
             </div>
           )}
           {voiceOn && dictation.problem}
-          <button type="button" disabled={writer.pending || loading || !ready} onClick={send}>
+          <button
+            type="button"
+            disabled={writer.pending || loading || !ready}
+            aria-describedby={hold === undefined ? undefined : `${id}-hold`}
+            onClick={send}
+          >
             Send
+          </button>
+          {/* No accept and no capture, so a phone offers its camera among the
+              places to choose from. Choosing leaves focus on Attach, where
+              the picker returns it. */}
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            hidden
+            onChange={(event) => {
+              const chosen = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              files.add(chosen.map((file) => ({ file, name: file.name })));
+            }}
+          />
+          <button
+            ref={attach}
+            type="button"
+            className="secondary attach"
+            aria-label="Attach files"
+            title="Attach files"
+            disabled={loading}
+            onClick={() => picker.current?.click()}
+          >
+            <Icon name="attach" />
           </button>
           {voiceOn && dictation.controls}
           {!dictating && goBackOption}
+          {hold !== undefined && (
+            <p id={`${id}-hold`} className="hint hold">
+              {holdWords(hold)}
+            </p>
+          )}
           {status !== "" && <Status>{status}</Status>}
           {voiceOn && dictation.said}
         </div>

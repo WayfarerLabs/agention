@@ -72,9 +72,9 @@ const choices = (number?: number) => [
   ...within(card(number)).queryAllByRole<HTMLInputElement>("checkbox"),
 ];
 const sendButton = () =>
-  within(screen.getByRole("region", { name: "Reply" }))
-    .getAllByRole<HTMLButtonElement>("button")
-    .at(-1) as HTMLButtonElement;
+  within(screen.getByRole("region", { name: "Reply" })).getByRole<HTMLButtonElement>("button", {
+    name: "Send",
+  });
 // The line above the box naming what Send carries besides the text.
 const stagedLine = () => document.querySelector(".staged");
 // The answers it names one by one, each with its own Remove.

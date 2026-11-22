@@ -88,7 +88,7 @@ export interface MessageActions {
 }
 
 const replacementHint =
-  "Available when the message box and Details are empty and nothing is staged.";
+  "Available when the message box and Details are empty, and nothing is attached or staged.";
 
 // mine says whether the operator wrote a message: they are the one person.
 export const mine = (message: Message) => message.author.kind === "person";
