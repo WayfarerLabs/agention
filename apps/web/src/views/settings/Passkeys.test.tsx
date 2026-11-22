@@ -49,7 +49,7 @@ const describer = (element: HTMLElement) =>
 
 async function open(list: PasskeyList) {
   serve(list);
-  renderAt("/settings");
+  renderAt("/settings/passkeys");
   await screen.findByRole("article", { name: `Passkey ${list.passkeys[0]?.name}` });
 }
 
@@ -212,5 +212,7 @@ describe("the passkeys in Settings", () => {
     for (const control of controls()) {
       expect(control).toHaveProperty("disabled", false);
     }
+    // Focus goes to the section's heading, not to nothing, as the offer goes.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Passkeys" }));
   });
 });
