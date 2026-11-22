@@ -117,16 +117,17 @@ with each other or with what the product does, the disagreement is the finding.
   Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
   microphone and what it says beside Send on a short screen, its failures keeping the recording for
   a retry, and a recording stopped when the page is hidden; and Read aloud and Stop, in WebKit too
-  where it installs; attachments: **Attach**, a pasted image and a paste carrying text, progress,
-  **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message of files alone,
-  an edit keeping and removing files, each kind of file shown in place, **Show image** and **Show
-  text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's **Files**
-  fold, and **Storage**, on a phone's width too (`docs/operator-guide.md` "Signing in", "Using the
-  web UI", "Voice", "Attachments" and "Approving agents"). Real-phone passkeys, Send above a phone's
-  keyboard while writing, dictation with a real provider, diagrams and their viewer in iOS Safari,
-  and a photo from the phone read by an agent, with an image, a PDF, a video and a text file an
-  agent attached opened in Android Chrome and Windows Edge or Chrome, are the operator's acceptance,
-  not the tester's.
+  where it installs; attachments: **Attach**, its menu on a touch device (each item's picker, Escape
+  and a tap elsewhere), a pasted image and a paste carrying text, progress, **Remove**, **Retry**
+  and **Upload again**, **Send** waiting on uploads, a message of files alone, an edit keeping and
+  removing files, each kind of file shown in place, **Show image** and **Show text**, a PDF's tab,
+  **Download**, an `attachment:` link, a missing file, the thread's **Files** fold, and **Storage**,
+  on a phone's width too (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice",
+  "Attachments" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while
+  writing, dictation with a real provider, diagrams and their viewer in iOS Safari, what each item
+  of Attach's menu opens on a real phone, and a photo from the phone read by an agent, with an
+  image, a PDF, a video and a text file an agent attached opened in Android Chrome and Windows Edge
+  or Chrome, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 

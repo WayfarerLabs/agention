@@ -2,7 +2,6 @@ import { maxAttachments, maxFileBytes } from "@wayfarerlabs/agention-api";
 import { type RefObject, useId, useLayoutEffect, useRef } from "react";
 import { describeFailure } from "../../../api.ts";
 import { byteSize } from "../../../format.tsx";
-import { Icon } from "../../../icons.tsx";
 import type { DraftFile, DraftFiles } from "./attach.ts";
 
 // The composer's files, above its Send row: each with its name, size and how
@@ -138,47 +137,5 @@ export function AttachList({
         })}
       </ul>
     </div>
-  );
-}
-
-// AttachButton is Attach, its paper clip alone, and the file picker it
-// opens. The picker takes no accept and no capture, so a phone offers its
-// camera among the places to choose from. Choosing leaves focus on Attach,
-// where the picker returns it.
-export function AttachButton({
-  draft,
-  attach,
-  disabled,
-}: {
-  draft: DraftFiles;
-  attach: RefObject<HTMLButtonElement | null>;
-  disabled: boolean;
-}) {
-  const picker = useRef<HTMLInputElement>(null);
-  return (
-    <>
-      <input
-        ref={picker}
-        type="file"
-        multiple
-        hidden
-        onChange={(event) => {
-          const chosen = Array.from(event.target.files ?? []);
-          event.target.value = "";
-          draft.add(chosen.map((file) => ({ file, name: file.name })));
-        }}
-      />
-      <button
-        ref={attach}
-        type="button"
-        className="secondary attach"
-        aria-label="Attach files"
-        title="Attach files"
-        disabled={disabled}
-        onClick={() => picker.current?.click()}
-      >
-        <Icon name="attach" />
-      </button>
-    </>
   );
 }

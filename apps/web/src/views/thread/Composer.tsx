@@ -24,7 +24,8 @@ import {
   pastedImages,
   pastedName,
 } from "./files/attach.ts";
-import { AttachButton, AttachList } from "./files/AttachList.tsx";
+import { AttachButton } from "./files/AttachButton.tsx";
+import { AttachList } from "./files/AttachList.tsx";
 import { type MessageContext, MessageView } from "./Messages.tsx";
 import {
   blank,
