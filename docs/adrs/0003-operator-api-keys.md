@@ -30,6 +30,9 @@ contract, and documentation.
   Its secret, `agention_` and 256 random bits in base64url, is shown once; the server keeps only its
   SHA-256. Creating or revoking a key needs the recent sign-in that passkey changes need. At most 20
   keys are live at once.
+- **Recovery revokes keys.** Replacing the operator's passkeys with `agention passkey-link` revokes
+  every live key in the same transaction, as it ends every browser session, since whoever held the
+  old passkeys may have created keys. A key that had already expired is left expired, not revoked.
 - **Scopes, `<resource>:<access>`.** `threads:read`, `threads:write`, `sessions:read`,
   `sessions:write` and `sessions:approve`. A write or approve scope includes its resource's read,
   and neither includes the other. Approving, rejecting or revoking an agent's registration needs

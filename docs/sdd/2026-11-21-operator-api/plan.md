@@ -33,4 +33,4 @@
       docs; a read key is refused a write; a revoked key is refused; the web UI and an agent bridge
       unchanged (agention#41; on a loopback bed at the reviewed head, with an agent bridge approved
       and answered through keys).
-- [ ] `locked.md` in this directory, with the final merge.
+- [x] `locked.md` in this directory, with the final merge (agention#41).

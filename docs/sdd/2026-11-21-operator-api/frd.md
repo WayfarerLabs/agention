@@ -2,7 +2,8 @@
 
 <!-- cspell:ignore taht -->
 
-- Status: Accepted by the operator 2026-11-21 with changes (ruling 5); A3 added by ruling 7
+- Status: Accepted by the operator 2026-11-21 with changes (ruling 5); A3 added by ruling 7 and
+  confirmed by ruling 9; K5 extended by ruling 8
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -72,7 +73,8 @@ named `<resource>:<access>` so that later resources add scopes without changing 
 manage keys, passkeys or Settings, or transcribe; those stay behind a passkey.
 
 **K5. Revocation and expiry are immediate.** A revoked or expired key stops working at once. The
-server keeps no copy of a key's secret from which the key could be used.
+server keeps no copy of a key's secret from which the key could be used. Replacing the operator's
+passkeys with `agention passkey-link` also revokes every live key (ruling 8).
 
 ### API
 
@@ -151,6 +153,12 @@ operator, which ADR 0001 ruled out.
 7. (2026-11-21) Asked whether to file a change feed as a follow-up: "I mean, what would it take to
    do this write? SSE?" Offered a long poll as a follow-up, a long poll in this effort, or
    server-sent events, the operator chose "Long poll, in this PR". Taken: A3.
+8. (2026-11-22) Asked "Should replacing passkeys with agention passkey-link revoke every API key?",
+   the operator chose "Yes, revoke all keys", which the ask described as "As built. Recovery ends
+   every credential that acts as you." Taken: K5's last sentence; a key that had already expired
+   stays listed as expired.
+9. (2026-11-22) Asked "Is A3 and the Out of scope edit, as quoted, right?", the operator chose "Yes,
+   as written". Taken: A3 and the Out of scope list as they stand.
 
 ## Definition of done
 
