@@ -347,6 +347,24 @@ describe("a later passkey link", () => {
       keys: [{ name: "status board", status: "revoked" }],
     });
   });
+
+  it("leaves a key that already expired listed as expired", async () => {
+    const first = browser();
+    expect(codeOf(await first.link(link(), new TestAuthenticator()))).toBe("ok");
+    const created = await first.post("/keys", {
+      name: "weekly",
+      scopes: ["threads:read"],
+      expiry: { kind: "days", days: 7 },
+    });
+    expect(codeOf(created)).toBe("ok");
+    server.now += 8 * 24 * 60 * 60 * 1000;
+
+    const replacing = browser();
+    expect(codeOf(await replacing.link(link(), new TestAuthenticator()))).toBe("ok");
+    expect((await replacing.send("GET", "/keys")).body).toMatchObject({
+      keys: [{ name: "weekly", status: "expired" }],
+    });
+  });
 });
 
 describe("an origin with a port", () => {

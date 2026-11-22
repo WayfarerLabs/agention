@@ -439,10 +439,12 @@ export async function finishLink(
     } else {
       db.prepare("DELETE FROM passkeys WHERE person_id = ?").run(operator.personId);
       // Recovery assumes the old passkeys' holder may be someone else, who
-      // could have created keys, so every key is revoked with them.
+      // could have created keys, so every live key is revoked with them; a key
+      // that already expired keeps its own end.
       db.prepare(
-        "UPDATE api_keys SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL",
-      ).run(now, operator.personId);
+        `UPDATE api_keys SET revoked_at = ?
+         WHERE person_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`,
+      ).run(now, operator.personId, now);
     }
     const passkeyId = insertPasskey(db, operator.personId, passkey, name, now, now);
     return {
