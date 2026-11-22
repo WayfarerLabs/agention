@@ -10,7 +10,7 @@ import {
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createApiKey, listApiKeys, revokeApiKey } from "../auth/api-keys.ts";
-import { closeBrowserSession, resumeBrowserSession } from "../auth/browser-sessions.ts";
+import { resumeBrowserSession, signOut } from "../auth/browser-sessions.ts";
 import { listPasskeys, removePasskey, renamePasskey } from "../auth/operator-passkeys.ts";
 import {
   beginAdding,
@@ -179,9 +179,7 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     );
   });
   api.post("/auth/signout", requireSession, (c) => {
-    store.db.transaction(() => {
-      closeBrowserSession(store.db, getCookie(c, sessionCookie), store.clock());
-    });
+    signOut(store, getCookie(c, sessionCookie));
     deleteCookie(c, sessionCookie, cookieAttributes);
     const state: SessionState = { signed_in: false, operator_exists: true };
     return c.json(state);

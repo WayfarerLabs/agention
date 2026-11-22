@@ -2,7 +2,7 @@ import { formatTimestamp, type PasskeyList, type PasskeyRemoved } from "@wayfare
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
 import type { Identity } from "../identity.ts";
-import type { Store } from "../store/index.ts";
+import { everySession, type Store } from "../store/index.ts";
 import { requireRecentSignIn, type SignedInSession, signedInSession } from "./browser-sessions.ts";
 
 // The operator's own list of their passkeys: each named, renamed at will, and
@@ -54,10 +54,11 @@ export function renamePasskey(store: Store, identity: Identity, id: number, name
 }
 
 // removePasskey removes one of the operator's passkeys, never the last, and
-// with it every browser session it signed in, this one included if it did.
+// with it every browser session it signed in, this one included if it did:
+// the waits across sessions wake, so one those sessions hold ends now.
 export function removePasskey(store: Store, identity: Identity, id: number): PasskeyRemoved {
   const { db } = store;
-  return db.transaction(() => {
+  const removed = db.transaction(() => {
     const session = signedInSession(db, identity, store.clock());
     const held = (
       db.prepare("SELECT id FROM passkeys WHERE person_id = ?").all(session.personId) as {
@@ -74,4 +75,6 @@ export function removePasskey(store: Store, identity: Identity, id: number): Pas
     db.prepare("DELETE FROM passkeys WHERE id = ?").run(id);
     return { signed_out: id === session.passkeyId };
   });
+  store.notifier.notify(everySession);
+  return removed;
 }
