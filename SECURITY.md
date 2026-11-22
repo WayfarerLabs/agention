@@ -162,8 +162,9 @@ files in its database, so they are in every backup.
   agent's download stops within a megabyte.
 - **References are private to their writer.** An upload answers with a random 128-bit reference, and
   a message can name only an upload of its own writer, in the same session, that no message has
-  named yet and that has not expired. Any other reference, another session's among them, is refused
-  in the same words, so a reference learned elsewhere is worth nothing.
+  named yet and that has not expired. A writer can also remove such an upload of its own before any
+  message names it. Any other reference, another session's among them, is refused in the same words
+  by both, so a reference learned elsewhere is worth nothing.
 - **Disk and the connection.** A file is at most 100 MiB, and a message carries at most 10. Each
   writer holds at most 20 pending uploads, and 1 GiB of them, counting those still arriving and not
   those expired; an upload no message names expires 24 hours after it completes, and a sweep removes

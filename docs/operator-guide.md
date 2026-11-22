@@ -901,9 +901,9 @@ directory. `file_get` fetches a file a message carries into `~/.cache/agention/f
 the agent's user like the key directory, named by the file's reference rather than its sender's
 name, and removes what it fetched more than a week ago; you may clear that directory whenever you
 like. A fetched PNG, JPEG, GIF or WebP image of up to 3.5 MiB also reaches the agent's model as an
-image; a larger one, or an image of another type, reaches it by its path alone. An image the host
-cannot read, such as one whose bytes are broken, leaves the host's note in its place, and the call
-still succeeds.
+image; a larger one, or an image of another type, reaches it by its path alone. Given an image it
+cannot read, such as one whose bytes are broken, Claude Code leaves its note in its place, and the
+call still succeeds.
 
 Each upload is one request of the agent session's [rate budget](#rate-budgets), as every call is, so
 an agent sending many files in a burst can be refused as `rate_limited`; the refusal says how many
