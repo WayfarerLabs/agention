@@ -29,8 +29,8 @@ backups. Each box is checked when it is built, reviewed and green.
 - [ ] The web UI: attaching and pasting in the composer with upload progress, edits carrying files
       forward, a message's files shown in place, the thread's folded file list, a message's links to
       its own files, and Settings' Storage line (A2, A4, A5, A9).
-- [ ] An early check of PDFs and media on the operator's devices against the staging server, before
-      the web UI's display rules are final.
+- [ ] A check of PDFs and media on the operator's devices against the staging server, before the
+      delivery is handed over, with any change to the display rules it calls for.
 - [ ] Permanent docs: a new ADR for attachments, with ADR 0001's guardrail, `SECURITY.md`'s
       inert-content invariant and `docs/review-checklist.md`'s image rule restated by it;
       `SECURITY.md`'s section on attachments, files kept in the browser's cache after sign-out
