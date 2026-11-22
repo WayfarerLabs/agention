@@ -42,40 +42,53 @@ export class Agent {
   }
 
   send<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<Answer<T>> {
-    const { origin, port, certificate } = this.#server;
-    const url = new URL(origin);
-    const payload = body === undefined ? undefined : JSON.stringify(body);
-    return new Promise((resolve, reject) => {
-      const outgoing = httpsRequest(
-        {
-          host: "127.0.0.1",
-          port,
-          servername: url.hostname,
-          ca: certificate,
-          method,
-          path: `/api/agent${path}`,
-          headers: {
-            host: url.host,
-            authorization: `Bearer ${this.token()}`,
-            ...(payload === undefined
-              ? {}
-              : {
-                  "content-type": "application/json",
-                  "content-length": Buffer.byteLength(payload),
-                }),
-          },
-        },
-        (response) => {
-          let text = "";
-          response.setEncoding("utf8");
-          response.on("data", (chunk: string) => (text += chunk));
-          response.on("end", () =>
-            resolve({ status: response.statusCode ?? 0, body: JSON.parse(text) as T }),
-          );
-        },
-      );
-      outgoing.on("error", reject);
-      outgoing.end(payload);
-    });
+    return callServer(this.#server, method, `/api/agent${path}`, `Bearer ${this.token()}`, body);
   }
+}
+
+// callServer sends one request to the server over TLS, trusting its test
+// certificate, with an Authorization header and no cookie, as a program
+// outside the browser does: the agent bridge, or a client holding an API key.
+export function callServer<T>(
+  server: AgentServer,
+  method: "GET" | "POST",
+  path: string,
+  authorization: string,
+  body?: unknown,
+): Promise<Answer<T>> {
+  const { origin, port, certificate } = server;
+  const url = new URL(origin);
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const outgoing = httpsRequest(
+      {
+        host: "127.0.0.1",
+        port,
+        servername: url.hostname,
+        ca: certificate,
+        method,
+        path,
+        headers: {
+          host: url.host,
+          authorization,
+          ...(payload === undefined
+            ? {}
+            : {
+                "content-type": "application/json",
+                "content-length": Buffer.byteLength(payload),
+              }),
+        },
+      },
+      (response) => {
+        let text = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => (text += chunk));
+        response.on("end", () =>
+          resolve({ status: response.statusCode ?? 0, body: JSON.parse(text) as T }),
+        );
+      },
+    );
+    outgoing.on("error", reject);
+    outgoing.end(payload);
+  });
 }
