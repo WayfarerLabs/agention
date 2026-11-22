@@ -83,18 +83,62 @@ export class TokenBucket {
     }
     return Math.ceil((1 - this.#tokens) * this.#rate.interval);
   }
+
+  // full says whether the bucket has refilled to its burst by now, when it is
+  // no different from a new one.
+  full(now: number): boolean {
+    const gained = Math.max(0, now - this.#updated) / this.#rate.interval;
+    return this.#tokens + gained >= this.#rate.burst;
+  }
+}
+
+// KeyedBudgets is a budget of one rate for each of many keys, each a full
+// bucket on its first request. A bucket that has refilled is no different
+// from a new one, so adding a key's bucket first drops every full one: the
+// buckets held are only those of keys that spent within about the time a
+// bucket takes to refill, however many keys there have ever been.
+export class KeyedBudgets<K> {
+  readonly #rate: Rate;
+  readonly #buckets = new Map<K, TokenBucket>();
+
+  constructor(rate: Rate) {
+    this.#rate = rate;
+  }
+
+  // The buckets held now.
+  get size(): number {
+    return this.#buckets.size;
+  }
+
+  // spend takes a token from the key's bucket, or throws rate_limited.
+  spend(key: K, now: number): void {
+    let bucket = this.#buckets.get(key);
+    if (bucket === undefined) {
+      for (const [each, held] of this.#buckets) {
+        if (held.full(now)) {
+          this.#buckets.delete(each);
+        }
+      }
+      bucket = new TokenBucket(this.#rate, now);
+      this.#buckets.set(key, bucket);
+    }
+    const wait = bucket.take(now);
+    if (wait > 0) {
+      throw new RateLimitedError(wait);
+    }
+  }
 }
 
 export class RateBudgets {
-  readonly #rates: Rates;
   readonly #clock: () => number;
   readonly #shared: Record<SharedBudget, TokenBucket>;
-  readonly #keys = new Map<string, TokenBucket>();
-  readonly #apiKeys = new Map<number, TokenBucket>();
+  readonly #keys: KeyedBudgets<string>;
+  readonly #apiKeys: KeyedBudgets<number>;
 
   constructor(rates: Rates, clock: () => number) {
-    this.#rates = rates;
     this.#clock = clock;
+    this.#keys = new KeyedBudgets(rates.key);
+    this.#apiKeys = new KeyedBudgets(rates.apiKey);
     const now = clock();
     this.#shared = {
       submit: new TokenBucket(rates.submit, now),
@@ -129,30 +173,14 @@ export class RateBudgets {
 
   // spendForKey takes a token from a registered key's own budget, or throws
   // rate_limited. Only keys the server has had a registration for get a
-  // budget, so the map grows no faster than the submit budget lets new keys
-  // register.
+  // budget.
   spendForKey(publicKey: string): void {
-    spendFrom(this.#keys, publicKey, this.#rates.key, this.#clock());
+    this.#keys.spend(publicKey, this.#clock());
   }
 
   // spendForApiKey takes a token from a live API key's own budget, or throws
-  // rate_limited. Only keys that authenticated get a budget, so the map grows
-  // no faster than the operator creates keys.
+  // rate_limited. Only keys that authenticated get a budget.
   spendForApiKey(id: number): void {
-    spendFrom(this.#apiKeys, id, this.#rates.apiKey, this.#clock());
-  }
-}
-
-// spendFrom takes a token from the bucket of one key among many, giving the
-// key a full bucket of the rate on its first request.
-function spendFrom<K>(buckets: Map<K, TokenBucket>, key: K, rate: Rate, now: number): void {
-  let bucket = buckets.get(key);
-  if (bucket === undefined) {
-    bucket = new TokenBucket(rate, now);
-    buckets.set(key, bucket);
-  }
-  const wait = bucket.take(now);
-  if (wait > 0) {
-    throw new RateLimitedError(wait);
+    this.#apiKeys.spend(id, this.#clock());
   }
 }

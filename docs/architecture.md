@@ -708,11 +708,13 @@ Token buckets in `apps/server/src/http/rates.ts` keep one kind of traffic from s
 none is keyed on the source address. A request signed by a key the server has a registration for
 spends that key's own budget, whether it is a pending agent checking its registration or an approved
 agent's session call, and a request on the operator mount carrying a live API key spends that key's
-own (`apiKey`). Everything else spends one budget per class: registrations of new keys, failed agent
-authentication, failed API key authentication (`failedKeyAuth`), failed passkey sign-ins and failed
-passkey links. Every class but new registrations is charged only for a request that failed, after it
-was checked, so draining one never refuses a valid key, passkey or link, and beginning a ceremony
-costs nothing. An exhausted budget answers `rate_limited`, with a `Retry-After` header. The
+own (`apiKey`). A key's bucket that has refilled is dropped when another key's is added, so the
+server holds buckets only for keys that spent recently, however many it has ever seen. Everything
+else spends one budget per class: registrations of new keys, failed agent authentication, failed API
+key authentication (`failedKeyAuth`), failed passkey sign-ins and failed passkey links. Every class
+but new registrations is charged only for a request that failed, after it was checked, so draining
+one never refuses a valid key, passkey or link, and beginning a ceremony costs nothing. An exhausted
+budget answers `rate_limited`, with a `Retry-After` header. The
 [operator guide](operator-guide.md#rate-budgets) lists the rates.
 
 ## Serving
