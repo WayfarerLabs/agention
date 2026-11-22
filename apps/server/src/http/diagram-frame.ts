@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import type { OwnHeaders } from "./app.ts";
 
 // The diagram frame: a page the web UI embeds in a sandboxed frame, with
 // scripts only, whose one script draws Mermaid diagrams from message text and
@@ -67,15 +68,11 @@ function readScript(root: string): string | undefined {
   return script;
 }
 
-// The security headers, by name in lower case, that each of the frame's
-// routes sets for itself, by its path: the page its policy and framing, and
-// the script its caching. No other route sets any.
-export type OwnHeaders = ReadonlyMap<string, readonly string[]>;
-
 // serveDiagramFrame adds the frame's page and its script, from the web UI's
 // build in root, before the routes that serve the rest of the build, and
 // says which security headers each sets for itself. A build without the
-// frame adds neither, so its path serves as any other.
+// frame adds neither, so its path serves as any other. The page sets its own
+// policy and framing, and the script its caching.
 export function serveDiagramFrame(app: Hono, root: string | undefined, origin: string): OwnHeaders {
   const script = root === undefined ? undefined : readScript(root);
   if (root === undefined || script === undefined) {

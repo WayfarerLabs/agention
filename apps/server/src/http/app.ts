@@ -12,7 +12,7 @@ import { openAiCompatible, type TranscriptionProvider } from "../transcription/p
 import { agentApi } from "./agent-api.ts";
 import { stateAgentApiVersion } from "./agent-api-version.ts";
 import { serveApiDocs } from "./api-docs.ts";
-import { diagramFramePath, type OwnHeaders, serveDiagramFrame } from "./diagram-frame.ts";
+import { diagramFramePath, serveDiagramFrame } from "./diagram-frame.ts";
 import {
   operatorApi,
   operatorApiPrefix,
@@ -42,10 +42,14 @@ export function contentSecurityPolicy(origin: string): string {
   );
 }
 
+// The security headers, by name in lower case, that a route sets for itself,
+// by its path: the diagram frame's and the API documentation page's.
+export type OwnHeaders = ReadonlyMap<string, readonly string[]>;
+
 // securityHeaders sets the security headers on every response, by name in
 // lower case, after its route has run. A route keeps a value of its own only
-// for the headers own names for its path, which only the diagram frame's
-// routes have; every other route's value is replaced.
+// for the headers own names for its path; every other route's value is
+// replaced.
 export function securityHeaders(origin: string, own: () => OwnHeaders): MiddlewareHandler {
   const headers = new Map([
     ["content-security-policy", contentSecurityPolicy(origin)],
@@ -108,7 +112,7 @@ export function createApp(options: AppOptions): Hono {
   const log = options.log ?? ((message: string) => process.stderr.write(`${message}\n`));
   const app = new Hono();
 
-  // Set below, once the diagram frame's routes are known.
+  // Set below, once the routes that set their own are known.
   let ownHeaders: OwnHeaders = new Map();
   app.use(securityHeaders(origin, () => ownHeaders));
 
@@ -164,12 +168,10 @@ export function createApp(options: AppOptions): Hono {
   app.route(operatorApiPrefix, operatorApi({ store, budgets, shutdown }));
   app.all("/api", (c) => c.json(notFoundBody, 404));
   app.all("/api/*", (c) => c.json(notFoundBody, 404));
-  if (options.apiDocs === true) {
-    serveApiDocs(app);
-  }
+  const docsHeaders = options.apiDocs === true ? serveApiDocs(app) : new Map();
   app.all("/docs/api", (c) => c.json(notFoundBody, 404));
   app.all("/docs/api/*", (c) => c.json(notFoundBody, 404));
-  ownHeaders = serveDiagramFrame(app, options.webRoot, origin);
+  ownHeaders = new Map([...docsHeaders, ...serveDiagramFrame(app, options.webRoot, origin)]);
   serveWebUi(app, options.webRoot, name);
   app.notFound((c) => c.json(notFoundBody, 404));
 

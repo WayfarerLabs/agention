@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import type { OwnHeaders } from "./app.ts";
 import { apiDocument, apiDocumentText } from "./openapi.ts";
 import { escapeHtml } from "./web-ui.ts";
 
@@ -6,10 +7,15 @@ import { escapeHtml } from "./web-ui.ts";
 // sign-in, since it describes the contract and no data: the OpenAPI document
 // at /docs/api/openapi.json, and a page a person reads at /docs/api/, which
 // the server renders from the same document. The page is static HTML with no
-// script or style, so the content security policy holds as it is, and
-// everything it shows from the document is escaped.
+// script or style, and everything it shows from the document is escaped.
 
 export const apiDocsPath = "/docs/api/";
+
+// The page's content security policy, in place of the web UI's: it loads
+// nothing, runs nothing, submits nothing and cannot be framed, so even an
+// escaping mistake could not run script there.
+export const apiDocsPolicy =
+  "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 type JsonObject = Record<string, unknown>;
 
@@ -147,14 +153,19 @@ export function apiDocsPage(document: JsonObject): string {
 }
 
 // serveApiDocs adds the documentation's routes, built once as the server
-// starts. The page's address without its trailing slash leads to it.
-export function serveApiDocs(app: Hono): void {
+// starts, and says which security headers the page sets for itself. The
+// page's address without its trailing slash leads to it.
+export function serveApiDocs(app: Hono): OwnHeaders {
   const document = apiDocument();
   const documentText = apiDocumentText(document);
   const page = apiDocsPage(document);
   app.get(`${apiDocsPath}openapi.json`, (c) =>
     c.body(documentText, 200, { "content-type": "application/json; charset=utf-8" }),
   );
-  app.get(apiDocsPath, (c) => c.html(page));
+  app.get(apiDocsPath, (c) => {
+    c.header("Content-Security-Policy", apiDocsPolicy);
+    return c.html(page);
+  });
   app.get(apiDocsPath.slice(0, -1), (c) => c.redirect(apiDocsPath, 301));
+  return new Map([[apiDocsPath, ["content-security-policy"]]]);
 }

@@ -499,7 +499,8 @@ name that resolves to the server cannot reach it, and no forwarded header is rea
 carries the security headers: a content security policy that allows only the server's own scripts,
 styles, images and connections, `blob:` images and the diagram frame as its only frame, and no
 framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and `no-store`; the diagram
-frame's page and script set their own policy, framing and caching, as described below.
+frame's page and script set their own policy, framing and caching, and the API documentation's page
+its own policy, as described below.
 
 The long poll answers at once while a thread in the session has unread messages newer than its
 `since`, and otherwise ends when such a message commits, when its credential is revoked, when the
@@ -571,11 +572,12 @@ generates, so every change to the contract is reviewed as a change to that file.
 page the server renders from it once, as it starts (`api-docs.ts`): the API's description, the
 authentication schemes and the error response, each mount's operations with their method, path,
 summary, authentication and scope, parameters, body and answer, and a section for each shared
-schema, which every reference to it links to. The page is static HTML with no script or style, so
-the content security policy holds as it is, and everything it shows from the document is escaped.
-`/docs/api` leads to the page with a permanent redirect. Both are served without sign-in, since they
-describe the contract and no data. Without the flag, every path under `/docs/api` answers the JSON
-`not_found`, never the web UI's page.
+schema, which every reference to it links to. The page is static HTML with no script or style, and
+everything it shows from the document is escaped; it is served under a content security policy of
+its own, `default-src 'none'` with no base, form action or framing allowed, so it loads, runs and
+submits nothing, whatever it holds. `/docs/api` leads to the page with a permanent redirect. Both
+are served without sign-in, since they describe the contract and no data. Without the flag, every
+path under `/docs/api` answers the JSON `not_found`, never the web UI's page.
 
 ## Authentication
 

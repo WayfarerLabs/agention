@@ -170,7 +170,8 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   key authentication spends a shared budget that never refuses a live key.
 - **The documentation.** `agention serve --api-docs` serves the API's documentation without sign-in
   to anyone who reaches the origin. It describes the contract, never data, and without the flag
-  nothing is served there.
+  nothing is served there. Its page is static HTML under a content security policy of its own that
+  lets it load, run and submit nothing.
 
 ### Private files
 

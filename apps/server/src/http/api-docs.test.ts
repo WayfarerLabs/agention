@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { apiDocsPage } from "./api-docs.ts";
+import { contentSecurityPolicy } from "./app.ts";
 import { agentOperations } from "./agent-operations.ts";
 import { apiDocument, apiDocumentText } from "./openapi.ts";
 import { operatorOperations } from "./operator-operations.ts";
-import { codeOf, Harness } from "./test-harness.ts";
+import { codeOf, Harness, origin } from "./test-harness.ts";
 
 const committed = new URL("../../../../docs/api/openapi.json", import.meta.url);
 
@@ -98,6 +99,30 @@ describe("serving the documentation", () => {
     expect(page.status).toBe(200);
     expect(page.headers.get("content-type")).toMatch(/^text\/html/);
     expect(page.body).toBe(apiDocsPage(apiDocument()));
+  });
+
+  it("serves the page under a policy of its own that loads, runs and submits nothing", async () => {
+    harness = new Harness({ apiDocs: true });
+    const page = await harness.request("GET", "/docs/api/");
+    const policy = new Map(
+      (page.headers.get("content-security-policy") ?? "").split(";").map((directive) => {
+        const [name = "", ...values] = directive.trim().split(/\s+/);
+        return [name, values];
+      }),
+    );
+    expect(Object.fromEntries(policy)).toEqual({
+      "default-src": ["'none'"],
+      "base-uri": ["'none'"],
+      "form-action": ["'none'"],
+      "frame-ancestors": ["'none'"],
+    });
+    expect(Object.fromEntries(page.headers)).toMatchObject({
+      "x-frame-options": "DENY",
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+    });
+    const document = await harness.request("GET", "/docs/api/openapi.json");
+    expect(document.headers.get("content-security-policy")).toBe(contentSecurityPolicy(origin));
   });
 
   it("leads from /docs/api to the page with --api-docs", async () => {
