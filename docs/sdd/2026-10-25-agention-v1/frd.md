@@ -1294,6 +1294,14 @@ Recorded from the design conversation.
 87. (2026-11-21) "I'm tempted to pull the voice support into 0.4.0. Does that screw you up?" Taken:
     the voice and settings effort merged before release-please's 0.4.0 pull request, so 0.4.0, the
     release that completes v1 (ruling 79), also carries voice and the Settings view.
+88. (2026-11-22) Asked what the check on their Android phone and Windows browser found once 0.4.0
+    was on their server, the operator chose "All good": "So we're using it now. Aside from the issue
+    with npx getting confused by the local package, I haven't seen any other issues. I think we're
+    good to lock." Taken: the live run and real-phone check over the definition of done passed on
+    0.4.0, the npx issue is documented for contributors, and this SDD locks.
+89. (2026-11-22) Asked whether both npm packages are set to require two-factor authentication and
+    disallow tokens, the operator chose "Yes, both". Taken: both packages disallow publishing with
+    tokens.
 
 ## Out of scope for v1
 
