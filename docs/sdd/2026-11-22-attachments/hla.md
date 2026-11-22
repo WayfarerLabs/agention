@@ -88,7 +88,8 @@ file's chunks and leaves its attachments, which is what A8's missing file is.
 - **Routes:** an upload route on each mount: the agent mount's under the session, signed like any
   session call, and the web mount's behind the operator's sign-in, Origin and CSRF checks. Each
   takes a raw body with `Content-Length` and a declared `Content-Type`, and answers with the
-  reference, size and the type the server will serve it as.
+  reference, size and the type the server will serve it as. A remove route on each mount lets a
+  writer remove a pending upload of its own, which then stops counting against its limits.
 - **Authentication comes first.** Both mounts authenticate from headers alone, so no unauthenticated
   body is ever read past the 2 MiB cap.
 - **Limits:** 100 MiB a file (ruling 1), checked against `Content-Length` before any byte is read
@@ -159,9 +160,10 @@ devices are checked early, on the staging server, for Edge's viewer and Android 
 ## The web UI
 
 - **The composer** gains an attach control in its sticky row beside Send, and a list of the chosen
-  files with their upload progress and a remove control. Choosing a file, or pasting an image into
-  the text box (ruling 5), uploads it; Send waits for every upload, and a failed upload says why and
-  keeps the draft. Editing a message carries its files forward unless the operator removes them.
+  files with their upload progress and a remove control, which also removes a finished upload from
+  the server. Choosing a file, or pasting an image into the text box (ruling 5), uploads it; Send
+  waits for every upload, and a failed upload says why and keeps the draft. Editing a message
+  carries its files forward unless the operator removes them.
 - **A message** lists the files it brought: name, type and size, with images, media and text shown
   in place, and marked when its file is missing.
 - **The thread's head** gains a folded list of the thread's files, each with who attached it, when,

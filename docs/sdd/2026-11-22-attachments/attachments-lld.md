@@ -41,7 +41,8 @@ read one source; server-only values live beside the code that uses them.
 | `timeouts.request`      | 30 seconds, every request but uploads  | server, `http/deadlines`  | Unchanged value; now enforced to the second                  |
 | `timeouts.bodyIdle`     | 30 seconds without a byte              | server, `http/deadlines`  | Every request, uploads included                              |
 | `transferIdle`          | 30 seconds without a byte              | bridge, `agent-api.ts`    | Replaces the answer timeout for file bodies                  |
-| `maxImageBlockBytes`    | 3.5 MiB, to confirm in the live run    | bridge, `file-tools.ts`   | Base64 stays under 5 MB, the strictest host limit found      |
+| `uploadDrainFloor`      | 64 KiB a second                        | bridge, `agent-api.ts`    | An upload's answer also has its size at this rate            |
+| `maxImageBlockBytes`    | 3.5 MiB                                | bridge, `file-tools.ts`   | Base64 stays under 5 MB, the strictest host limit found      |
 | `fetchedFileLifetime`   | 7 days                                 | bridge, `file-tools.ts`   | Fetched files are a cache                                    |
 | `codexToolTimeout`      | 600 seconds                            | `plugin.json`             | 100 MiB at about 1.4 Mbit/s                                  |
 | `inlineImageBytes`      | 2 MiB                                  | web, `views/thread/files` | Screenshots show at once; phone photos on demand             |
@@ -196,7 +197,9 @@ So `Database.open` gains one step after `#migrate()`, in a module of its own
   `SQLITE_BUSY` after `busy_timeout` among them, it logs the reason and the space the step needs,
   and the open carries on in mode none. Nothing in this effort needs the mode but returning swept
   pages to the disk; until it converts, freed pages stay in the file for reuse. The header check
-  retries at the next open.
+  retries at the next open. A switch that succeeds on a database that held data before the open logs
+  a line saying so; a new database's switch logs nothing. The server's every log line carries its
+  `agention:` prefix.
 - **Cost and space.** Once per database, before the server listens, in time proportional to the
   database (measured: 41 MB in 86 to 218 ms). `VACUUM` builds its temporary copy where SQLite puts
   temporary files, since `node:sqlite` is built with `TEMP_STORE=1`: `SQLITE_TMPDIR`, else `TMPDIR`,
@@ -385,7 +388,23 @@ with `Content-Length` (a chunked body is 411, as everywhere) and the declared `C
   ```
 
 - **Rate budgets:** an agent's upload spends one request of its key's budget, as any call; an
-  operator's spends none, as transcriptions spend none (`web-api.ts:262-267`).
+  operator's spends none, as transcriptions spend none (`web-api.ts:262-267`). A burst of uploads
+  can therefore be `rate_limited`; the operator guide and `file_upload`'s description say so.
+
+### Removing an upload
+
+`POST /s/:agent/:session/uploads/:ref/remove`, on both mounts, each write a POST naming its action
+as the API's other removals are (`/groups/:id/remove`). It removes one of the writer's own completed
+uploads that no message names, uploaded in that session, with its chunks, in one transaction, so it
+leaves the writer's pending limits at once. Any other reference (another writer's, another
+session's, one attached, one still arriving, or one naming nothing) is `not_found` at `upload`, in
+the same words, as `checkAttachments` refuses another's upload. `ref` is parsed as a `fileRef`. The
+answer is `{}`.
+
+An upload still arriving cannot be removed by reference: its writer learns the reference only from
+the upload's answer, once every byte has arrived. Ending the request is how its writer stops it, and
+Abort removes what arrived, as the web UI's Remove does by aborting its request. The bridge has no
+tool for it.
 
 ### Writing: the `attachments` field
 
@@ -504,10 +523,12 @@ arriving is not yet a file. The thread answer's `files` gives the per-thread fig
 | Bytes received differ from `Content-Length`                 | `invalid_input` | 400    |
 | `attachments` refused (see Writing)                         | `invalid_input` | 400    |
 | Unknown thread, message, name, or a file's contents missing | `not_found`     | 404    |
+| An upload to remove that is not the writer's pending one    | `not_found`     | 404    |
 | Range outside the file                                      | `invalid_input` | 416    |
 
 - **`storage_full`** is the one new code, on both mounts, so it is part of the next agent API
-  version: "the server's disk is too full to take this file; tell the operator".
+  version: "the server's disk is too full to take this file until space is freed on it", worded for
+  either reader, since the web UI shows it to the operator as the upload's failure.
 - **408 and 416** join 411 and 413 as the statuses `invalid_input` takes for bodies and ranges
   (`packages/api/src/errors.ts:40-44`): `timedOutBodyStatus` and `unsatisfiableRangeStatus`.
 
@@ -588,9 +609,13 @@ New tools in `apps/bridge/src/file-tools.ts`, registered with the others, annota
   all for an empty file, with `Content-Length` set to that size, so Node never chunks it. A file
   that shrinks while it is read ends short, and the bridge aborts with "the file changed while it
   was read"; one that grows sends only its first `size` bytes. The answer is read and its version
-  checked as for every request. A refusal the server answers before the body is all sent needs
-  nothing special in the bridge: the server's adapter drains a refused upload's body for a bounded
-  time before closing the connection, so the refusal stays readable as any answer is.
+  checked as for every request. Once the body is written, the answer has `answerTimeout` and the
+  file's size at `uploadDrainFloor`, 64 KiB a second (100 MiB: about 27 minutes more): writing ends
+  when the socket's buffers and those on the way, a proxy's or a tunnel's, have taken the bytes,
+  which the live run measured at megabytes the server had yet to receive. A refusal the server
+  answers before the body is all sent needs nothing special in the bridge: the server's adapter
+  drains a refused upload's body for a bounded time before closing the connection, so the refusal
+  stays readable as any answer is.
 - **Answer:** the server's `uploadResult`, with the text "Name it in `attachments` of `message_send`
   or `thread_create` as `{upload}` before `expires_at`".
 
@@ -693,8 +718,13 @@ display); `api.ts` gains `uploadFile`.
   again.
 - **Limits in the browser:** a file over 100 MiB, or an eleventh, is refused in the list with the
   limit named, without uploading.
-- **Remove** aborts an upload in progress, which the server then removes, and drops a finished one
-  from the draft, leaving it to expire: the server needs no route to discard one.
+- **Remove** aborts an upload in progress, which the server then removes, and removes a finished one
+  from the server through its remove route as it drops it from the draft, so a removed file stops
+  counting against the operator's pending limits at once. The draft keeps each finished upload's
+  reference by the file's id as the upload answers, so Remove finds it whatever the list last
+  rendered. A removal that fails leaves the upload to expire; the next refusal at the limit says so.
+  An upload the server completes as the operator removes it, its answer lost to the abort, is left
+  to expire, since its reference never reached the page.
 - **Send waits:** Send is unavailable while any file is waiting, uploading, failed or expired, with
   the Send row saying which ("Uploading 2 of 3 files", "A file did not upload: retry or remove it").
   A message may be files alone. `contentOf` (`writer.ts:197-213`) adds `attachments`: kept files as
@@ -724,11 +754,11 @@ display); `api.ts` gains `uploadFile`.
 
 - **Replaced messages** list their files in their folded body as they show everything else.
 - **The thread's head:** when `files.count` is above 0, a fold under the header, "Files (12, 340
-  MB)", folded on every visit. Unfolding reads the file list, 50 at a time with Show more, and
+  MiB)", folded on every visit. Unfolding reads the file list, 50 at a time with Show more, and
   rereads it as the thread refreshes while open. Each entry gives the name, type, size, who attached
   it, when, a link to its message (`#message-<seq>`, as the jump to unread moves there), and
   Download, or Missing.
-- **Settings** gains a Storage section, read-only, after Voice: "Attachments take 1.2 GB in 340
+- **Settings** gains a Storage section, read-only, after Voice: "Attachments take 1.2 GiB in 340
   files, and every backup copies them." It reads `storage` from `GET /settings`.
 - **Links in Markdown:** a link whose destination is `attachment:` and a name, percent-encoded where
   needed (`attachment:build%20log.txt`) or in angle brackets (`<attachment:build log.txt>`), is live
@@ -819,6 +849,8 @@ section (not yet on `main` at this branch's base; this effort follows it either 
 - **Store:**
   - Begin's two limits, counting uploads still arriving, and two uploads of one writer at once;
   - chunks, completion with the hash, a size mismatch, Abort in one transaction;
+  - removing an upload: the writer's own, its chunks with it, freeing its place at once; another
+    writer's, another session's, an attached, an arriving and an unknown reference `not_found`;
   - the credential checked again per chunk;
   - `checkAttachments`: another writer's, another session's, an unknown, an expired and an attached
     reference all refused alike; `keep` with and without `replaces`; NFC-equal names; ten and
@@ -833,6 +865,7 @@ section (not yet on `main` at this branch's base; this effort follows it either 
     not only that pages come back.
 - **Routes:**
   - the upload on both mounts, its answer, and each code in the table;
+  - removing an upload on both mounts, the other writer's refused, and a malformed reference;
   - an unauthenticated, an unversioned and an over-size upload refused before the body is read, the
     server reading no more than the adapter's drain allows;
   - the free-space floor, with `statfs` stubbed and other writers' uploads arriving;
@@ -865,12 +898,15 @@ section (not yet on `main` at this branch's base; this effort follows it either 
     by age of files and `.part` files alike, the image block for each raster type, none over the
     limit or for a lying signature, none for SVG;
   - the transfer idle timeout both ways;
+  - an upload's answer waiting `answerTimeout` and its size at `uploadDrainFloor` once its bytes are
+    written, against a stand-in server that takes them and does not answer;
   - `fit.ts` leaving out `attachments`;
   - the generated Codex plugin carrying `tool_timeout_sec`, and plugin drift.
 - **Compatibility:** the released-bridge additions above.
 - **Web units:**
   - paste: images attach, text pastes, mixed clipboards;
-  - the queue: one at a time, progress, idle abort, Retry, Remove of each state, expiry on refusal;
+  - the queue: one at a time, progress, idle abort, Retry, Remove of each state, a finished one
+    removed from the server, expiry on refusal;
   - Send unavailable until uploads finish, and a message of files alone;
   - `contentOf` with kept and new files; edit and answer changes loading kept files;
   - display by served type and size threshold, missing files, the text preview's range;
