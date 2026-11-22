@@ -23,10 +23,10 @@ export type DescribedSchema<T> = Schema<T> & ApiSchema;
 
 // A body or an answer that is a file's bytes as they are, rather than JSON,
 // which the documentation describes as binary. The mount reads no such body
-// and writes no such answer: the handler reads the bytes from the request,
-// and answers a Response it built. T is what the handler sees of it, so the
-// compiler holds the handler to it as it does to a schema: value is never
-// set, and only carries T.
+// and writes no such answer: the handler reads a body of bytes from the
+// request, and answers an answer of bytes as a Response it built. T is what
+// the handler sees of it, so the compiler holds the handler to it as it does
+// to a schema: value is never set, and only carries T.
 export interface BytesBody<T = unknown> {
   bytes: "body";
   // What the request's bytes and headers are, for the documentation.
