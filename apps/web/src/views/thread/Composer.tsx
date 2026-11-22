@@ -232,7 +232,7 @@ export function Composer({
   // Opening the Details box moves focus into it, in place of the control
   // that opened it.
   const focusDetail = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusDetail.current && detailsShown) {
       focusDetail.current = false;
       detailBox.current?.focus();

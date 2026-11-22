@@ -4,7 +4,15 @@ import type {
   SessionSummary,
   SessionUpdate,
 } from "@wayfarerlabs/agention-api";
-import { type MouseEvent, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  type Ref,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { query, request, sessionPath } from "../../api.ts";
 import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
@@ -341,7 +349,7 @@ function SessionLog({
   const more = (data?.shown.at(-1)?.seq ?? 1) > 1;
   const oldest = useRef<HTMLLIElement>(null);
   const focusOldest = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusOldest.current && !loadingOlder && !more) {
       focusOldest.current = false;
       oldest.current?.focus();

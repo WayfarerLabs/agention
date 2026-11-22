@@ -1,5 +1,5 @@
 import { presetOf } from "@wayfarerlabs/agention-api";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { ExternalLink } from "../../markdown/Markdown.tsx";
 import { recorderType, useDictation } from "../../voice/Dictation.tsx";
 
@@ -91,7 +91,7 @@ export function KeyField({
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [replaced, setReplaced] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (replaced && input.current !== null) {
       setReplaced(false);
       input.current.focus();

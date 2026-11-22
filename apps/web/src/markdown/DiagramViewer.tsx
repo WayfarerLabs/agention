@@ -1,5 +1,5 @@
 import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
-import { type KeyboardEvent, useEffect, useRef } from "react";
+import { type KeyboardEvent, useLayoutEffect, useRef } from "react";
 import { SvgImage } from "./SvgImage.tsx";
 
 // The diagram viewer: a diagram's image full screen, in a modal dialog, to
@@ -58,7 +58,7 @@ export function DiagramViewer({
   };
   const actualSize = () => show(1);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     dialog.current?.showModal();
     const img = image.current;
     const area = stage.current;

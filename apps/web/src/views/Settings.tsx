@@ -1,5 +1,5 @@
 import type { PasskeyList, SessionState, SettingsResult } from "@wayfarerlabs/agention-api";
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { request } from "../api.ts";
 import { Failure, focusLeftWith, Loadable, PageHeading, usePageTitle } from "../components.tsx";
 import { useAction, useResource } from "../data.ts";
@@ -79,7 +79,7 @@ function Section({
 }) {
   const id = useId();
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focus && heading.current !== null) {
       if (focusLeftWith()) {
         heading.current.focus();

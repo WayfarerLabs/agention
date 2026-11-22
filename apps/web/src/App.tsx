@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import { ErrorBoundary } from "./boundary.tsx";
 import { Failure, PageHeading, usePageTitle } from "./components.tsx";
 import { plural, Spoken } from "./format.tsx";
@@ -162,7 +162,7 @@ function Frame({ nav, children }: { nav?: ReactNode; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   const first = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (first.current) {
       first.current = false;
       return;

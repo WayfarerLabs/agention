@@ -9,7 +9,16 @@ import type {
   ThreadsView,
   UnreadInput,
 } from "@wayfarerlabs/agention-api";
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { describeFailure, query, request, threadPath } from "../../api.ts";
 import {
   Loadable,
@@ -452,7 +461,7 @@ function ThreadPage({
   // The messages archived fold into one line at the top, once the earliest
   // message loaded is one of them or follows them.
   const folding = archivedThrough > 0 && (messages[0]?.seq ?? 1) <= archivedThrough + 1;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (toFold && folding) {
       fold.current?.focus();
       setToFold(false);
@@ -476,7 +485,7 @@ function ThreadPage({
     },
     [show, loaded.failure],
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusing === undefined) {
       return;
     }
