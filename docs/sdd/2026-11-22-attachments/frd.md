@@ -35,7 +35,8 @@ message is written.
 
 **A2. The operator attaches files.** The composer can attach files from the device, a phone's camera
 included, within the same limits, said in the UI. The operator sees what is attached, and can remove
-it, before sending. Nothing is uploaded for good until the message is sent.
+it, before sending. An image pasted into the composer's text box becomes an attachment (ruling 5).
+Nothing is uploaded for good until the message is sent.
 
 **A3. A file is its message's.** A file belongs to the message that brought it, under its name, and
 a message carries at most one file of each name. The same name in another message is another file,
@@ -131,6 +132,10 @@ tests cover them.
 4. (2026-11-22) "Dope. Build it! Lmk if you encounter any major questions. Otherwise just make good
    decisions and let 'er rip." Taken: the requirements stand as amended, and the effort lead
    proceeds through design and build, bringing only major questions to the operator.
+
+5. (2026-11-22) "Oh! And it would be amazing to support pasting of image data in the message reply
+   text box, which would then turn into an attachment. Not required but really, really nice to
+   have." Taken, extending A2: an image pasted into the composer's text box becomes an attachment.
 
 ## Definition of done
 
