@@ -8,7 +8,7 @@ import {
   typeOfName,
 } from "@wayfarerlabs/agention-api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { query, sessionPath, uploadFile } from "../../../api.ts";
+import { query, request, sessionPath, uploadFile } from "../../../api.ts";
 import { useUnauthenticatedCheck } from "../../../data.ts";
 import { byteSize } from "../../../format.tsx";
 import { useSession } from "../../../session.tsx";
@@ -18,8 +18,9 @@ import type { ThreadTarget } from "../writer.ts";
 // each uploaded as soon as it is added, and, on a replacement, the files of
 // the message it replaces, kept unless removed. The draft keeps each File, so
 // a failed or expired upload can be sent again. Nothing is uploaded for good
-// until the message is sent: an upload no message names expires on the
-// server, which says so when a write names it.
+// until the message is sent: removing a file removes its upload from the
+// server too, and one no message names expires there, which the server says
+// when a write names it.
 //
 // Uploads run one at a time, in the order added. A browser opens only a few
 // connections to one host, and the page's long poll and every read share
@@ -172,7 +173,8 @@ export interface DraftFiles {
   // and uploads them in turn; one that breaks a limit is refused.
   add(added: { file: File; name: string }[]): void;
   // remove drops a file, stopping its upload under way, which the server
-  // then removes; an upload finished is left to expire.
+  // then removes, or removing its finished upload from the server, so it no
+  // longer counts against the operator's pending uploads.
   remove(id: number): void;
   // retry sends a failed or expired upload again.
   retry(id: number): void;
@@ -196,6 +198,9 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   const nextId = useRef(1);
   // The upload under way, if any.
   const running = useRef<{ id: number; controller: AbortController }>(undefined);
+  // The upload reference of each file whose upload finished, by its id, as
+  // the upload answered, so Remove finds it whatever the list last rendered.
+  const finished = useRef(new Map<number, string>());
 
   const update = useCallback((id: number, state: UploadState) => {
     setFiles((current) =>
@@ -229,6 +234,7 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
     }).then(
       (result) => {
         done();
+        finished.current.set(next.id, result.upload);
         update(next.id, { kind: "uploaded", upload: result.upload });
       },
       (failure: unknown) => {
@@ -282,17 +288,35 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   }, []);
 
   // Removing the file under way frees the queue at once, so the next starts
-  // as the list changes.
-  const remove = useCallback((id: number) => {
-    if (running.current?.id === id) {
-      running.current.controller.abort();
-      running.current = undefined;
-    }
-    setFiles((current) => current.filter((file) => file.id !== id));
-  }, []);
+  // as the list changes. A finished upload is removed from the server as the
+  // file leaves the list; should that fail, it counts until it expires, as
+  // the server's refusal of another upload then says.
+  const remove = useCallback(
+    (id: number) => {
+      if (running.current?.id === id) {
+        running.current.controller.abort();
+        running.current = undefined;
+      }
+      const upload = finished.current.get(id);
+      if (upload !== undefined) {
+        finished.current.delete(id);
+        request("POST", sessionPath(target.agent, target.session, `/uploads/${upload}/remove`), {
+          csrf,
+        }).catch(onFailure);
+      }
+      setFiles((current) => current.filter((file) => file.id !== id));
+    },
+    [target.agent, target.session, csrf, onFailure],
+  );
 
   const retry = useCallback((id: number) => update(id, { kind: "waiting" }), [update]);
-  const expire = useCallback((id: number) => update(id, { kind: "expired" }), [update]);
+  const expire = useCallback(
+    (id: number) => {
+      finished.current.delete(id);
+      update(id, { kind: "expired" });
+    },
+    [update],
+  );
 
   const keep = useCallback((message: Message) => {
     setFiles(
@@ -310,6 +334,9 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   }, []);
 
   const sent = useCallback((ids: readonly number[]) => {
+    for (const id of ids) {
+      finished.current.delete(id);
+    }
     setFiles((current) => current.filter((file) => !ids.includes(file.id)));
   }, []);
 

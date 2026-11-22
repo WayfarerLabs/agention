@@ -147,6 +147,34 @@ describe("an upload", () => {
   });
 });
 
+describe("removing an upload", () => {
+  it.each(mounts)(
+    "on the %s mount removes the writer's own, which another writer cannot",
+    async (mount) => {
+      const other: Mount = mount === "agent" ? "web" : "agent";
+      const own = json(await upload(harness, mount, agent, Buffer.from("x"))) as UploadResult;
+      const others = json(await upload(harness, other, agent, Buffer.from("y"))) as UploadResult;
+      const remove = (as: Mount, ref: string) =>
+        as === "agent"
+          ? harness.agent(agent, "POST", `/s/builder/main/uploads/${ref}/remove`)
+          : harness.web("POST", `/s/builder/main/uploads/${ref}/remove`);
+      const refused = await remove(mount, others.upload);
+      expect([refused.status, (refused.body as ErrorBody).error.code]).toEqual([404, "not_found"]);
+      const removed = await remove(mount, own.upload);
+      expect([removed.status, removed.body]).toEqual([200, {}]);
+      expect(count("files")).toBe(1);
+      const again = await remove(mount, own.upload);
+      expect([again.status, (again.body as ErrorBody).error.code]).toEqual([404, "not_found"]);
+    },
+  );
+
+  it("refuses a reference that cannot be one", async () => {
+    const sent = await harness.web("POST", "/s/builder/main/uploads/not-a-ref/remove");
+    const { error } = sent.body as ErrorBody;
+    expect([sent.status, error.code, error.field]).toEqual([400, "invalid_input", "upload"]);
+  });
+});
+
 describe("the body bounds", () => {
   it("keep 2 MiB on every route but uploads", async () => {
     const sent = await send(

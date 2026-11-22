@@ -248,12 +248,16 @@ describe("an upload under way", () => {
 describe("Remove", () => {
   it("drops a file in each state, stopping the one under way, and the next upload starts", async () => {
     await opened();
+    const removal = `/s/builder/main/uploads/${ref(1)}/remove`;
+    page.api.on("POST", removal, { body: {} });
     choose(file("a.png"), file("b.png"), file("c.png"), file("d.png"));
     await waitFor(() => expect(uploads).toHaveLength(1));
     uploaded(0, 1);
     await waitFor(() => expect(uploads).toHaveLength(2));
-    // Uploaded: dropped, left to expire on the server.
+    // Uploaded: dropped, and removed from the server.
     fireEvent.click(control("Remove a.png"));
+    await waitFor(() => expect(page.api.callsTo("POST", removal)).toHaveLength(1));
+    expect(page.api.callsTo("POST", removal)[0]?.headers["x-csrf-token"]).toBe(csrf);
     // Waiting: never sent.
     fireEvent.click(control("Remove c.png"));
     // Under way: stopped.
@@ -267,6 +271,10 @@ describe("Remove", () => {
     expect(fileList()).toBeNull();
     expect(uploads).toHaveLength(3);
     expect(page.writes()).toEqual([]);
+    // Only the finished upload was removed from the server.
+    expect(
+      page.api.calls.filter((call) => /\/uploads\/[^/]+\/remove$/.test(call.url.pathname)),
+    ).toHaveLength(1);
   });
 
   it("moves focus to the next file's Remove, else the previous one's, else Attach", async () => {

@@ -11,6 +11,7 @@ export {
   bytesArriving,
   chunkBytes,
   completeUpload,
+  removeUpload,
   type Upload,
   writeChunk,
 } from "./files.ts";

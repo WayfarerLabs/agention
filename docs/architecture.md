@@ -544,6 +544,13 @@ The routes on files are thread routes, so they are the same on both mounts under
   refused upload leaves its body unread, and `@hono/node-server` then reads it for at most 500 ms or
   64 MiB before closing the connection, so a refusal goes out first and no refused upload holds the
   server longer.
+- **Removing an upload.** `POST /s/:agent/:session/uploads/:ref/remove` removes one of the writer's
+  own completed uploads that no message names, uploaded in that session, with its bytes, so it stops
+  counting against the writer's pending limits at once. Any other reference, another writer's,
+  another session's, one attached or one still arriving, is `not_found`, as for a reference that
+  names nothing. An upload still arriving has not yet answered with its reference; ending its
+  request stops it, and the server removes what arrived. The web UI's **Remove** calls it for an
+  uploaded file; the bridge has no tool for it.
 - **A thread's files.** `GET /threads/:n/files?cursor=&limit=` lists a thread's files, each once
   with the message that brought it, its author and its time, newest first, up to 50 a page by
   default.
@@ -586,6 +593,7 @@ The routes on files are thread routes, so they are the same on both mounts under
 | A message's `attachments` refused                             | `invalid_input` | 400    |
 | The disk under the free-space floor                           | `storage_full`  | 507    |
 | An unknown thread, message or name, or a file's missing bytes | `not_found`     | 404    |
+| An upload to remove that is not the writer's pending one      | `not_found`     | 404    |
 | A range outside the file                                      | `invalid_input` | 416    |
 
 ## Authentication
@@ -1008,20 +1016,21 @@ whose clipboard holds only image files, PNG, JPEG, GIF or WebP, attaches them, n
 `pasted-YYYYMMDD-HHMMSS` in local time with their type's extension, and inserts nothing; a paste
 that carries `text/plain` stays text, since some programs put a picture of what was copied beside
 its text. A name another file of the draft has gets `-2`, `-3` and so on before its extension. A
-file over 100 MiB, or an eleventh, is refused in the list, naming the limit, without uploading. The
-others upload one at a time, in the order added, since a browser opens only a few connections to one
-host and the long poll and every read share them. `uploadFile` in `src/api.ts` sends each with
-`XMLHttpRequest`, which reports upload progress, as the `File` itself, so the browser states its
-length, declaring `File.type`, else `typeOfName`; no progress for 60 seconds aborts it, longer than
-the server's own idle limit so the server's answer comes first, and there is no total deadline.
-`request` announces each change that lands, but an upload alone changes none of the navigation's
-counts, so it announces none. The list shows each file's name, size and state, with a progress bar
-while it uploads, **Retry** for one that failed, **Upload again** for one that expired, and
-**Remove**, which stops an upload under way and leaves a finished one to expire. Send waits until
-every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then uploads as
-`{upload, name}`; a refusal naming an upload marks that file expired. A stale write keeps the files
-with the draft. Editing a message, or changing its answers, loads its files as kept, which
-**Remove** drops from the replacement.
+file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh, is refused in the
+list, saying why, without uploading. The others upload one at a time, in the order added, since a
+browser opens only a few connections to one host and the long poll and every read share them.
+`uploadFile` in `src/api.ts` sends each with `XMLHttpRequest`, which reports upload progress, as the
+`File` itself, so the browser states its length, declaring `File.type`, else `typeOfName`; no
+progress for 60 seconds aborts it, longer than the server's own idle limit so the server's answer
+comes first, and there is no total deadline. `request` announces each change that lands, but an
+upload alone changes none of the navigation's counts, so it announces none. The list shows each
+file's name, size and state, with a progress bar while it uploads, **Retry** for one that failed,
+**Upload again** for one that expired, and **Remove**, which stops an upload under way and removes a
+finished one from the server, so it stops counting against the operator's pending uploads at once.
+Send waits until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`,
+then uploads as `{upload, name}`; a refusal naming an upload marks that file expired. A stale write
+keeps the files with the draft. Editing a message, or changing its answers, loads its files as kept,
+which **Remove** drops from the replacement.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with

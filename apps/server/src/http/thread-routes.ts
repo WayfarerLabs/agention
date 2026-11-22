@@ -1,4 +1,5 @@
 import {
+  fileRef,
   markInput,
   messageSendInput,
   threadFilesQuery,
@@ -13,10 +14,11 @@ import {
   listThreadFiles,
   markRead,
   markUnread,
+  removeUpload,
   sendMessage,
 } from "../store/index.ts";
 import { serveFile } from "./files.ts";
-import { parseBody, parseQuery, threadTarget } from "./input.ts";
+import { parse, parseBody, parseQuery, sessionTarget, threadTarget } from "./input.ts";
 import { receiveUpload, type UploadOptions } from "./uploads.ts";
 
 // The variables every authenticated route reads: who is acting, as the mount's
@@ -33,6 +35,11 @@ export function threadRoutes(options: UploadOptions): Hono<IdentityEnv> {
   const { store, log } = options;
   const routes = new Hono<IdentityEnv>();
   routes.post("/uploads", (c) => receiveUpload(c, options));
+  routes.post("/uploads/:ref/remove", (c) => {
+    const target = sessionTarget(c);
+    removeUpload(store, c.var.identity, target, parse(fileRef, c.req.param("ref"), "upload"));
+    return c.json({});
+  });
   routes.get("/threads/:n", (c) =>
     c.json(getThread(store, c.var.identity, threadTarget(c), parseQuery(c, threadGetQuery))),
   );

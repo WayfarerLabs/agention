@@ -15,6 +15,7 @@ import {
   bytesArriving,
   chunkBytes,
   completeUpload,
+  removeUpload,
   storageTotals,
   type Upload,
   writeChunk,
@@ -168,6 +169,49 @@ describe("the pending limits", () => {
     expect(failure(() => begin(1)).code).toBe("invalid_input");
     fixture.advance(pendingLifetime);
     expect(() => begin(1)).not.toThrow();
+  });
+});
+
+describe("removing an upload", () => {
+  it("removes the writer's own, its chunks with it, and frees its place in the limits at once", () => {
+    const refs = Array.from({ length: maxPendingFiles }, () =>
+      uploaded(Buffer.alloc(chunkBytes + 1)),
+    );
+    expect(failure(() => begin(1)).code).toBe("invalid_input");
+    removeUpload(fixture.store, agent.identity, agent.target, refs[0]!);
+    expect([count("files"), count("file_chunks")]).toEqual([
+      maxPendingFiles - 1,
+      (maxPendingFiles - 1) * 2,
+    ]);
+    expect(() => begin(1)).not.toThrow();
+  });
+
+  it("is not_found for any upload but the writer's own pending one in the session named", () => {
+    const operators = uploaded(Buffer.from("x"), fixture.operator);
+    const other = fixture.registerAgent("builder", "nightly");
+    const nightlyOperators = uploaded(Buffer.from("x"), fixture.operator, other.target);
+    const attached = uploaded(Buffer.from("x"));
+    fixture.createThread(agent, { attachments: [{ upload: attached }] });
+    const arriving = begin(1);
+    const refused = [
+      // Another writer's, in this session.
+      [agent.identity, agent.target, operators],
+      // The writer's own, named in another session.
+      [fixture.operator, agent.target, nightlyOperators],
+      // One a message names.
+      [agent.identity, agent.target, attached],
+      // One still arriving.
+      [agent.identity, agent.target, arriving.ref],
+      // One that names nothing.
+      [agent.identity, agent.target, "AAAAAAAAAAAAAAAAAAAAAA"],
+    ] as const;
+    for (const [identity, target, ref] of refused) {
+      expect(failure(() => removeUpload(fixture.store, identity, target, ref))).toEqual({
+        code: "not_found",
+        field: "upload",
+      });
+    }
+    expect(count("files")).toBe(4);
   });
 });
 

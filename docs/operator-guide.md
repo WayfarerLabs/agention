@@ -826,9 +826,10 @@ carries its files to the new version unless you remove them, and the earlier ver
   **Details** attaches it, named by when you pasted it, such as `pasted-20261122-143005.png`; a
   paste that carries text, as from a spreadsheet, pastes the text. Each file uploads as soon as you
   add it, one at a time, with its progress in the list above the box. **Remove** takes a file off
-  the message, stopping its upload; **Retry** sends again one that failed, and **Upload again** one
-  the server no longer holds. **Send** waits until every file has uploaded, and says what it waits
-  on. A message may be files alone. A file you upload and never send is removed a day later.
+  the message, stopping its upload or removing it from the server; **Retry** sends again one that
+  failed, and **Upload again** one the server no longer holds. **Send** waits until every file has
+  uploaded, and says what it waits on. A message may be files alone. A file you upload and never
+  send is removed a day later.
 - **What shows in place.** Each file shows its name, type and size, and **Download**. An image up to
   2 MiB shows at once, and a larger one, such as a phone's photo, behind **Show image**. Video and
   audio play in the page, loading nothing until you play them. Text, code and logs show behind
@@ -842,10 +843,11 @@ carries its files to the new version unless you remove them, and the earlier ver
 - **The thread's files.** **Files** in the thread's head, folded on every visit, lists every file
   the thread holds, newest first, each with who attached it, when, and a link to its message.
 - **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, and each agent
-  session, can hold at most 20 files, and 1 GiB, uploaded and not yet sent. The server refuses an
-  upload, saying its disk is too full, unless the disk holding its data directory keeps 1 GiB free
-  beyond the files arriving. An upload has no time limit as long as its bytes keep moving, but stops
-  after 30 seconds without any, so a slow link finishes and a dead one fails.
+  session, can hold at most 20 files, and 1 GiB, uploaded and not yet sent; a file you remove before
+  sending stops counting at once. The server refuses an upload, saying its disk is too full, unless
+  the disk holding its data directory keeps 1 GiB free beyond the files arriving. An upload has no
+  time limit as long as its bytes keep moving, but stops after 30 seconds without any, so a slow
+  link finishes and a dead one fails.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.

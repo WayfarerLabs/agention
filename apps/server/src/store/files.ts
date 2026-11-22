@@ -9,7 +9,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
 import type { Database } from "../database/database.ts";
-import { invalidInput } from "../errors.ts";
+import { invalidInput, notFound } from "../errors.ts";
 import { authorize, checkCredential, type Identity } from "../identity.ts";
 import { resolveSession } from "./directory.ts";
 import type { Store } from "./store.ts";
@@ -18,7 +18,8 @@ import type { SessionTarget } from "./threads.ts";
 // Uploads: a file's bytes arrive a chunk per transaction, so other requests
 // run between them and a revoked credential stops an upload within a chunk.
 // An upload is pending until a message names it, and is removed by Abort
-// when it fails, or by the sweep once it expires or was left incomplete.
+// when it fails, by its writer, or by the sweep once it expires or was left
+// incomplete.
 
 // Every file is stored in chunks of this many bytes, all full but its last.
 // A release that changes it adds a per-file column in a migration of its own,
@@ -144,13 +145,52 @@ export function completeUpload(
   };
 }
 
-// removePending removes a file no message names, with its bytes, in one
-// transaction. The triggers refuse it for a file a message names.
-export function removePending(db: Database, id: number): void {
+// removeUpload removes one of the writer's own completed uploads that no
+// message names, uploaded in the session named, with its bytes, so it leaves
+// the writer's pending limits at once. Any other reference, another writer's
+// upload, another session's, one attached, one still arriving or one that
+// names nothing, is not_found in the same words, so a reference learned
+// elsewhere tells nothing. An upload still arriving has not yet answered with
+// its reference: its writer stops it by ending the request.
+export function removeUpload(
+  store: Store,
+  identity: Identity,
+  target: SessionTarget,
+  ref: string,
+): void {
+  const { db } = store;
   db.transaction(() => {
-    db.prepare("DELETE FROM file_chunks WHERE file_id = ?").run(id);
-    db.prepare("DELETE FROM files WHERE id = ?").run(id);
+    const sessionId = authorize(
+      db,
+      identity,
+      resolveSession(db, target.agent, target.session),
+      store.clock(),
+    );
+    const file = db
+      .prepare(
+        `SELECT id FROM files
+         WHERE ref = ? AND actor_id = ? AND session_id = ?
+           AND completed_at IS NOT NULL AND attached_at IS NULL`,
+      )
+      .get(ref, identity.actor, sessionId) as { id: number } | undefined;
+    if (file === undefined) {
+      throw notFound("upload");
+    }
+    deletePending(db, file.id);
   });
+}
+
+// removePending removes a file no message names, with its bytes, in one
+// transaction.
+export function removePending(db: Database, id: number): void {
+  db.transaction(() => deletePending(db, id));
+}
+
+// deletePending deletes a file no message names, with its bytes, inside the
+// caller's transaction. The triggers refuse it for a file a message names.
+function deletePending(db: Database, id: number): void {
+  db.prepare("DELETE FROM file_chunks WHERE file_id = ?").run(id);
+  db.prepare("DELETE FROM files WHERE id = ?").run(id);
 }
 
 // abortUpload removes an upload that failed after it began, whatever the
