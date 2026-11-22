@@ -19,9 +19,8 @@ import type { SessionTarget } from "./threads.ts";
 // run between them and a revoked credential stops an upload within a chunk.
 // Uploading is writing to a thread's session, so every step requires
 // threads:write. An upload is pending until a message names it, and is
-// removed by Abort
-// when it fails, by its writer, or by the sweep once it expires or was left
-// incomplete.
+// removed by Abort when it fails, by its writer, or by the sweep once it
+// expires or was left incomplete.
 
 // Every file is stored in chunks of this many bytes, all full but its last.
 // A release that changes it adds a per-file column in a migration of its own,

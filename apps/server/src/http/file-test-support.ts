@@ -1,5 +1,6 @@
-// Uploads and file reads through the app, on either mount, for the HTTP
-// tests of files.
+// Uploads and file reads through the app, on the agent or the web mount, for
+// the HTTP tests of files; operator-files.test.ts calls the operator mount
+// with keys itself.
 import { type ErrorBody, type UploadResult } from "@wayfarerlabs/agention-api";
 import { type AgentKey, type Harness, host, origin, sessionCookie } from "./test-harness.ts";
 
