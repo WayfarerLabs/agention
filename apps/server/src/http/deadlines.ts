@@ -64,7 +64,9 @@ export class Deadlines {
     this.#tracked.add({
       request,
       response,
-      upload: isUploadRequest(request.method ?? "", request.url ?? ""),
+      // The adapter builds the URL Hono routes by from the host and the
+      // request's target, so the host here changes nothing.
+      upload: isUploadRequest(request.method ?? "", `http://listener${request.url ?? ""}`),
       arrivedAt: now,
       bytesRead: request.socket.bytesRead,
       grewAt: now,

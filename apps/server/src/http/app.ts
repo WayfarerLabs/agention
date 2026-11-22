@@ -135,7 +135,7 @@ export function createApp(options: AppOptions): Hono {
     return next();
   });
   // An upload's body is a file, and every other body a request of the API;
-  // each has its own bound, chosen from the request's raw path as the
+  // each has its own bound, chosen from the path Hono routes, as the
   // listener chooses its deadlines. With a Content-Length, the bound compares
   // the header alone and reads nothing.
   const fileLimit = bodyLimit({
@@ -154,10 +154,9 @@ export function createApp(options: AppOptions): Hono {
         oversizedBodyStatus,
       ),
   });
-  app.use("/api/*", (c, next) => {
-    const { pathname } = new URL(c.req.url);
-    return (isUploadRequest(c.req.method, pathname) ? fileLimit : requestLimit)(c, next);
-  });
+  app.use("/api/*", (c, next) =>
+    (isUploadRequest(c.req.method, c.req.url) ? fileLimit : requestLimit)(c, next),
+  );
 
   app.route("/api/agent", agentApi({ store, origin, budgets, shutdown, log, freeBytes }));
   app.route(

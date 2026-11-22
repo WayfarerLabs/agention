@@ -28,13 +28,11 @@ export const freeSpaceFloor = 1024 ** 3;
 const uploadPath = /^\/api\/(agent|web)\/s\/[^/?#]+\/[^/?#]+\/uploads$/;
 
 // isUploadRequest says whether a request is an upload, from its method and
-// raw path, its query ignored. The listener's deadlines and the body's bound
-// both decide by it, from the same text: one that Hono routes elsewhere only
-// gets the larger bound on a route that never reads past its own, and one
-// Hono routes to uploads that this does not call one keeps the smaller bound
-// and the total deadline, so either disagreement fails safe.
-export function isUploadRequest(method: string, target: string): boolean {
-  return method === "POST" && uploadPath.test(target.split("?", 1)[0] ?? "");
+// its URL as the adapter hands it to Hono, by the path Hono routes: dot
+// segments resolved and the query ignored. The listener's deadlines and the
+// body's bound both decide by it, so they always agree.
+export function isUploadRequest(method: string, url: string): boolean {
+  return method === "POST" && uploadPath.test(URL.parse(url)?.pathname ?? "");
 }
 
 // freeBytes reads how many bytes the server may still write in a directory:

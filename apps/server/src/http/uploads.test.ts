@@ -150,13 +150,15 @@ describe("the body bounds", () => {
     ["POST", "/api/agent/s/builder/main/uploads", true],
     ["POST", "/api/web/s/builder/main/uploads?name=a.txt", true],
     ["POST", "/api/web/s/b%20x/m/uploads", true],
+    ["POST", "/api/web/s/builder/main/x/../uploads", true],
+    ["POST", "/api/web/s/builder/%2e%2e/uploads", false],
     ["GET", "/api/web/s/builder/main/uploads", false],
     ["POST", "/api/web/s/builder/main/uploads/x", false],
     ["POST", "/api/web/s/builder/main/threads/1/uploads", false],
     ["POST", "/api/other/s/builder/main/uploads", false],
     ["POST", "/api/web/s//main/uploads", false],
   ])("call %s %s an upload: %s", (method, target, expected) => {
-    expect(isUploadRequest(method, target)).toBe(expected);
+    expect(isUploadRequest(method, `https://agention.test${target}`)).toBe(expected);
   });
 });
 
