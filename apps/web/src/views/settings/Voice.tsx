@@ -20,8 +20,9 @@ import { Destination, Field, KeyField, TryIt } from "./VoiceParts.tsx";
 // Settings' voice: the transcription provider dictation sends recordings
 // to, through the server, which holds its key. The operator picks a preset
 // or enters their own server's address, a model, words to expect, and a key,
-// which is written and never shown again. A field the server's environment
-// supplies shows as set there and cannot be changed here. Below the fields
+// which is written and shown again at most as its last four characters. A
+// field the server's environment supplies shows as set there and cannot be
+// changed here. Below the fields
 // the section says where recordings go, and once voice is on, Try it records
 // and transcribes through the composer's own dictation.
 
@@ -399,6 +400,7 @@ function VoiceForm({
       <KeyField
         id={`${id}-key`}
         shown={keyShown}
+        ending={voice?.key_ending ?? null}
         environment={envKey}
         unused={keyState === "unused"}
         moved={keyMoved}

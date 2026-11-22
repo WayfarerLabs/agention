@@ -13,6 +13,7 @@ const voiceOn = {
     model: "gpt-transcribe",
     prompt: null,
     key: "set",
+    key_ending: "c3dE",
     from_environment: [],
     invalid: false,
   },

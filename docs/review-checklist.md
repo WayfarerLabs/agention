@@ -66,12 +66,12 @@ the operator has not approved (`docs/architecture.md` "Authentication"). Web mut
 CSRF token and the exact origin, and `Host` must equal the origin's host. Adding or removing a
 passkey, and every voice change, needs a recent sign-in; the last passkey is never removed; removing
 one ends the browser sessions it signed in (the **Separate authentication** invariant in
-`SECURITY.md` "Security model"). The transcription provider's key is never answered or logged, and
-goes only to the base URL it was entered for (`SECURITY.md` "Voice"). Look for identity-header
-bypasses, an insecure TLS fallback, a first-user-wins bootstrap instead of the one-time
-`passkey-link`, recovery paths that skip ceremony checks, and a bridge that sends tokens or message
-text anywhere but its configured HTTPS origin, a followed redirect included (`SECURITY.md` "The
-agent bridge").
+`SECURITY.md` "Security model"). The transcription provider's key is never logged, no answer carries
+more of it than its last four characters, and it goes only to the base URL it was entered for
+(`SECURITY.md` "Voice"). Look for identity-header bypasses, an insecure TLS fallback, a
+first-user-wins bootstrap instead of the one-time `passkey-link`, recovery paths that skip ceremony
+checks, and a bridge that sends tokens or message text anywhere but its configured HTTPS origin, a
+followed redirect included (`SECURITY.md` "The agent bridge").
 
 ## A5. Roles follow the direction of attention
 

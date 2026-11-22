@@ -75,14 +75,15 @@ with each other or with what the product does, the disagreement is the finding.
   registration approval, rejection, and revocation from past requests and a session's options;
   diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
   gestures, buttons and keys, on a phone's width too; Settings, with `/passkeys` leading there, and
-  voice set up, with the write-only key, what the environment supplies shown read-only, Turn off and
-  Try it; dictation through Chromium's fake microphone and a stub provider, its text at the caret
-  with nothing sent, the microphone and what it says beside Send on a short screen, its failures
-  keeping the recording for a retry, and a recording stopped when the page is hidden; and Read aloud
-  and Stop, in WebKit too where it installs (`docs/operator-guide.md` "Signing in", "Using the web
-  UI", "Voice" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while
-  writing, dictation with a real provider, and diagrams and their viewer in iOS Safari, are the
-  operator's acceptance, not the tester's.
+  voice set up, with the write-only key shown masked but for its last four characters, what the
+  environment supplies shown read-only, Turn off and Try it; dictation through Chromium's fake
+  microphone and a stub provider, its text at the caret with nothing sent, the microphone and what
+  it says beside Send on a short screen, its failures keeping the recording for a retry, and a
+  recording stopped when the page is hidden; and Read aloud and Stop, in WebKit too where it
+  installs (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice" and "Approving
+  agents"). Real-phone passkeys, Send above a phone's keyboard while writing, dictation with a real
+  provider, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
+  tester's.
 
 ## Layers to cross-check
 

@@ -734,9 +734,11 @@ only what you send. Reading a message aloud needs none of this: the browser spea
 - **Model**: as the provider names it, such as `gpt-transcribe` or `whisper-large-v3-turbo`.
 - **Words to recognize**: optional, up to 500 characters, such as names the provider might mishear.
 - **Key**: the provider's key, up to 1,024 characters. OpenAI and Groq need one; your own server may
-  not. It is kept on the server and never shown again: once saved, Settings show only that a key is
-  set, with **Replace**. A key goes only to the base URL it was entered for, so changing the base
-  URL clears it: as you change it, the key's field shows again, saying so, for you to enter it.
+  not. It is kept on the server and never shown again whole: once saved, its field shows it masked
+  but for its last four characters, so you can tell which key it is, with **Replace** to enter
+  another. A key shorter than 16 characters shows masked throughout. A key goes only to the base URL
+  it was entered for, so changing the base URL clears it: as you change it, the key's field shows
+  again, saying so, for you to enter it.
 
 Below the form, Settings say where your recordings go, with a link to what OpenAI or Groq say about
 keeping them and training on them. **Save** turns voice on, or saves your changes; **Turn off**
@@ -766,8 +768,8 @@ that names the variable and never shows the value. An empty value is such a valu
 left unset, so delete a line rather than blank it. `AGENTION_TRANSCRIPTION_KEY` without
 `AGENTION_TRANSCRIPTION_URL` stops it too, so a key from the environment only goes to an address
 from it. In Settings, what the environment supplies shows as set there and cannot be changed: the
-base URL and the model as their values, and a key as set, never shown. A key saved in Settings is
-used only while the base URL in effect is the one it was entered for, so a new
+base URL and the model as their values, and a key masked but for its last four characters. A key
+saved in Settings is used only while the base URL in effect is the one it was entered for, so a new
 `AGENTION_TRANSCRIPTION_URL` leaves it unused until you enter it again. With both the base URL and
 the model from the environment, **Turn off** reads **Clear saved settings**, and voice stays on
 until you remove the variable and restart the server. With only the base URL from it, the model is

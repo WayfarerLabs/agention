@@ -2284,8 +2284,25 @@ button.diagram-open img {
   overflow-wrap: anywhere;
 }
 
-.masked-key span {
+/* A key in effect: its own input, read-only, with Replace beside it when it
+   was saved here. */
+.masked-key {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.masked-key input {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-surface-2);
+  color: var(--color-muted);
   letter-spacing: 0.1em;
+  font-family: var(--font-mono);
+}
+
+.masked-key button {
+  flex: none;
 }
 
 .heard {

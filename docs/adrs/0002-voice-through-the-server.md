@@ -30,8 +30,9 @@ for is one.
   service by default: a provider is one the operator opts into, and can be a server on their own
   network that costs nothing. This narrows ADR 0001's "no paid services" to "none by default".
 - **The server relays.** The browser records and sends the recording to Agention, which calls the
-  provider with the key it holds and returns only the text. The key never reaches a browser or an
-  agent, and no provider's origin enters the web UI's content security policy. The cost is one
+  provider with the key it holds and returns only the text. The key never reaches an agent, nor a
+  browser but for its last four characters, which Settings show so the operator can recognize it,
+  and no provider's origin enters the web UI's content security policy. The cost is one
   operator-only endpoint and one hop for at most 2 MiB; the recording is sized to fit the API's
   existing body cap and request deadline, so no route is exempt from them. The server keeps neither
   the audio nor the text.

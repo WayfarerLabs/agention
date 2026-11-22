@@ -22,7 +22,8 @@ import type { Store } from "./store.ts";
 // entering it in Settings would. A value from the environment wins over the
 // row's. The row always records the base URL in effect when it was saved, so
 // a key saved in Settings goes only to the address it was entered for. A key
-// is read only to call the provider: no answer carries one.
+// is read only to call the provider: no answer carries more of one than its
+// ending (keyEndingOf).
 
 // What the server's environment supplies, read and checked once at start.
 export interface VoiceEnvironment {
@@ -83,6 +84,13 @@ function inEffect(row: VoiceRow | undefined, environment: VoiceEnvironment) {
   return { baseUrl, model, key, keyState };
 }
 
+// keyEndingOf is the most of a key an answer carries: its last four
+// characters, and none of a key shorter than 16, so they are never more than
+// a quarter of it.
+function keyEndingOf(key: string | undefined): string | null {
+  return key !== undefined && key.length >= 16 ? key.slice(-4) : null;
+}
+
 function fieldsFrom(environment: VoiceEnvironment): VoiceField[] {
   return (["base_url", "model", "api_key"] as const).filter(
     (field) => environment[field] !== undefined,
@@ -95,13 +103,14 @@ function voiceOf(saved: Saved, environment: VoiceEnvironment): VoiceSettings | n
   if (row === undefined && !invalid && fromEnvironment.length === 0) {
     return null;
   }
-  const { baseUrl, model, keyState } = inEffect(row, environment);
+  const { baseUrl, model, key, keyState } = inEffect(row, environment);
   return {
     on: baseUrl !== undefined && model !== undefined,
     base_url: baseUrl ?? null,
     model: model ?? null,
     prompt: row?.prompt ?? null,
     key: keyState,
+    key_ending: keyEndingOf(key),
     from_environment: fromEnvironment,
     invalid,
   };
@@ -111,7 +120,8 @@ const settingsOf = (db: Database, environment: VoiceEnvironment): SettingsResult
   voice: voiceOf(readRow(db), environment),
 });
 
-// readSettings reads the operator's settings, never with a key.
+// readSettings reads the operator's settings, with no more of a key than its
+// ending.
 export function readSettings(store: Store, environment: VoiceEnvironment): SettingsResult {
   return store.db.transaction(() => settingsOf(store.db, environment));
 }

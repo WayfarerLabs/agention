@@ -526,11 +526,12 @@ The key in effect is the environment's, else the row's only while the base URL i
 row's. A save, which needs a recent sign-in, refuses a field the environment supplies, writes the
 base URL and model then in effect, and keeps the stored key only when none is given and the base URL
 written is the stored one, so a changed address, from the request or the environment, never receives
-a saved key; a hosted preset's base URL needs a key in effect. No answer carries a key:
-`GET /settings` says only whether a saved one is set, saved for another address, or missing, and
-which fields the environment supplies. The row is checked against the rules a save is held to on
-every read, each transcription's included; one they refuse, as a later release's stricter rule can,
-is reported as invalid and never used, and a clear or a save replaces it.
+a saved key; a hosted preset's base URL needs a key in effect. No answer carries more of a key than
+its last four characters: `GET /settings` says whether a saved one is set, saved for another
+address, or missing, gives the key in effect's last four as `key_ending`, none of a key shorter than
+16, and says which fields the environment supplies. The row is checked against the rules a save is
+held to on every read, each transcription's included; one they refuse, as a later release's stricter
+rule can, is reported as invalid and never used, and a clear or a save replaces it.
 
 The base URL rule has two halves. `normalizeBaseUrl`, in `packages/api`, reads a URL into its stored
 form, which the web UI and the server both use. `checkBaseUrl`
