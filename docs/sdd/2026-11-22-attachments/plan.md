@@ -32,8 +32,10 @@ backups. Each box is checked when it is built, reviewed and green.
 - [x] The web UI: attaching and pasting in the composer with upload progress, edits carrying files
       forward, a message's files shown in place, the thread's folded file list, a message's links to
       its own files, and Settings' Storage line (A2, A4, A5, A9). (agention#46)
-- [ ] A check of PDFs and media on the operator's devices against the staging server, before the
-      delivery is handed over, with any change to the display rules it calls for.
+- [x] A check of PDFs and media on the operator's devices against the staging server, before the
+      delivery is handed over, with any change to the display rules it calls for: PDFs, images,
+      video, audio and text opened on Android Chrome and Windows Edge, and no display rule needed
+      changing. (agention#46)
 - [x] Permanent docs: a new ADR for attachments, with ADR 0001's guardrail, `SECURITY.md`'s
       inert-content invariant and `docs/review-checklist.md`'s image rule restated by it;
       `SECURITY.md`'s section on attachments, files kept in the browser's cache after sign-out
@@ -44,8 +46,8 @@ backups. Each box is checked when it is built, reviewed and green.
       block's size confirmed, transfer times against each host's tool limit, the serving headers
       hunted with HTML, SVG and mislabeled files in Chromium, a broken image block on both hosts,
       and an upload refused mid-body from the phone through Tailscale Serve.
-- [ ] The operator's check on Android Chrome and Windows Edge or Chrome against the staging server:
+- [x] The operator's check on Android Chrome and Windows Edge or Chrome against the staging server:
       a photo from the phone read by an agent, and an image, a PDF, a video and a text file an agent
-      attached, opened.
+      attached, opened. The phone's image read through `file_get` as an image block. (agention#46)
 - [ ] The release carrying it, through release-please.
 - [ ] `locked.md` in this directory, with the final merge.
