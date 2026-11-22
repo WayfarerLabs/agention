@@ -285,8 +285,9 @@ function ApiKeyItem({
 }
 
 // NewSecret shows a new key's secret, once, with Copy, which falls back to
-// selecting it where the clipboard is unavailable. The secret lives only in
-// this view's props: never in storage, the address or a log.
+// selecting it where the clipboard is unavailable. The secret is held in
+// memory only, in ApiKeys' state until Done clears it, and passed here as a
+// prop: never in storage, the address or a log.
 function NewSecret({ created, onDone }: { created: ApiKeyCreated; onDone: () => void }) {
   const id = useId();
   const field = useRef<HTMLTextAreaElement>(null);
