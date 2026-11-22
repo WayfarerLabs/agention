@@ -8,6 +8,10 @@ import { recorderType, useDictation } from "../../voice/Dictation.tsx";
 
 const setByEnvironment = "Set by the server's environment.";
 
+// masked is how a key in effect shows: masked, but for its last four
+// characters when the server shows them.
+const masked = (ending: string | null) => "\u2022".repeat(8) + (ending ?? "");
+
 // Field is one labelled setting: an input, or, when the environment
 // supplies it, its value, which cannot be changed here.
 export function Field({
@@ -57,14 +61,15 @@ export function Field({
   );
 }
 
-// KeyField is the provider's key, write-only. A key in effect shows masked,
-// saying a key is there and nothing of it, since no part of a key reaches
-// the browser: one from the environment as set there, one saved here with
-// Replace. A saved key for another address says so, and the field is empty
-// to enter one.
+// KeyField is the provider's key, write-only. A key in effect shows in the
+// key's own input, read-only and masked but for its last four characters, all
+// of it that reaches the browser: one from the environment as set there, one
+// saved here with Replace, which empties the field for a new key. A saved key
+// for another address says so, and the field is empty to enter one.
 export function KeyField({
   id,
   shown,
+  ending,
   environment,
   unused,
   moved,
@@ -76,6 +81,9 @@ export function KeyField({
 }: {
   id: string;
   shown: boolean;
+  // The last four characters of the key in effect, when the server shows
+  // them.
+  ending: string | null;
   environment: boolean;
   // A saved key for another address than the one in effect.
   unused: boolean;
@@ -99,27 +107,38 @@ export function KeyField({
   }, [replaced]);
   if (shown) {
     return (
-      <div className="setting">
-        <p className="label">Key</p>
-        <p className="setting-value masked-key">
-          <span aria-hidden="true">{"\u2022".repeat(12)}</span> A key is set.
-        </p>
-        {environment ? (
-          <p className="hint">{setByEnvironment}</p>
-        ) : (
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              setReplaced(true);
-              onReplace();
-            }}
-          >
-            Replace
-          </button>
+      <Field
+        id={id}
+        label="Key"
+        hint={environment ? setByEnvironment : "Saved here. Replace it to enter another."}
+        problem={problem}
+      >
+        {(describedBy, invalid) => (
+          <div className="masked-key">
+            <input
+              id={id}
+              readOnly
+              autoComplete="off"
+              spellCheck={false}
+              value={masked(ending)}
+              aria-invalid={invalid}
+              aria-describedby={describedBy}
+            />
+            {!environment && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setReplaced(true);
+                  onReplace();
+                }}
+              >
+                Replace
+              </button>
+            )}
+          </div>
         )}
-        {problem !== undefined && <p className="field-error">{problem}</p>}
-      </div>
+      </Field>
     );
   }
   return (
@@ -133,8 +152,8 @@ export function KeyField({
             ? "The saved key was for another address, so enter it again. "
             : "") +
         (needed === undefined
-          ? "If your server needs one. It is kept on the server and never shown again."
-          : `${needed} needs one. It is kept on the server and never shown again.`)
+          ? "If your server needs one. It is kept on the server, which shows at most its last four characters."
+          : `${needed} needs one. It is kept on the server, which shows at most its last four characters.`)
       }
       problem={problem}
     >

@@ -102,13 +102,15 @@ device, and involves no server.
   provider's address receives the recordings, under its own terms, which Settings link to for the
   hosted presets.
 - **The key.** The provider's key is a secret like the server's own: written in Settings and never
-  read back, sent to no browser or agent, and never logged. Settings show only whether one is set. A
-  key saved in Settings goes only to the base URL it was entered for: changing the base URL clears
-  it, and a base URL the environment changes leaves it unused until the operator enters it again. A
-  backup holds a key saved in Settings, which is one reason backups are private files. A key from
-  `AGENTION_TRANSCRIPTION_KEY` needs `AGENTION_TRANSCRIPTION_URL` too, so it only goes to an address
-  from the environment; it is never written to the database, and belongs in an environment file only
-  the server's user can read.
+  read back whole, and never logged. No agent receives any of it, and a browser only its last four
+  characters, which Settings show in the masked key field so the operator can tell which key is in
+  effect; a key shorter than 16 characters shows none, so the four are never more than a quarter of
+  it. A key saved in Settings goes only to the base URL it was entered for: changing the base URL
+  clears it, and a base URL the environment changes leaves it unused until the operator enters it
+  again. A backup holds a key saved in Settings, which is one reason backups are private files. A
+  key from `AGENTION_TRANSCRIPTION_KEY` needs `AGENTION_TRANSCRIPTION_URL` too, so it only goes to
+  an address from the environment; it is never written to the database, and belongs in an
+  environment file only the server's user can read.
 - **The base URL.** Changing it needs a recent sign-in, so a browser left signed in cannot redirect
   the recordings or the key. It is absolute, with no user, password, query or fragment; `https`
   reaches any host, and plain `http` only `localhost` and IP addresses on the operator's own network
