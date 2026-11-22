@@ -385,16 +385,17 @@ its open asks, the most pressing, beside their count and the earliest.
 sub-application mounted on both under `/s/:agent/:session`, so the role and message checks are the
 same for both kinds of caller. Each mount authenticates its own credential and refuses the other's:
 the agent mount refuses any request carrying a cookie, and the web mount any request carrying an
-`Authorization` header. The operator's own routes are on the web mount alone: the sessions view and
-its count of sessions with unread updates (`GET /sessions/unread-updates`), a session's log, and the
-session groups and tags, whose reads are `GET /groups-and-tags` and whose writes are each a POST
-naming its action, as the passkey routes' are (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
-`/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
-`/agents/:agent/tags`), and the settings: `GET /settings`, `POST /settings/voice`,
-`POST /settings/voice/clear`, and `POST /transcriptions`, whose body is a recording sent as
-`audio/webm`, `audio/mp4` or `audio/ogg`, at least 1,000 bytes, under the same body cap as every
-other ([Voice](#voice)). `provider_failed` comes only from the web mount, and transcriptions spend
-no rate budget.
+`Authorization` header. The operator's own routes are on the web mount alone: the sessions view, the
+counts of what waits on the operator that the navigation's tabs show (`GET /attention`: the unread
+threads, the thread list's total with Unread the only filter on, and the registrations waiting for
+approval), a session's log, and the session groups and tags, whose reads are `GET /groups-and-tags`
+and whose writes are each a POST naming its action, as the passkey routes' are (`/groups`,
+`/groups/:id/name`, `/groups/:id/remove`, `/tags/:tag/name`, `/tags/:tag/remove`,
+`/s/:agent/:session/group`, `/s/:agent/:session/tags` and `/agents/:agent/tags`), and the settings:
+`GET /settings`, `POST /settings/voice`, `POST /settings/voice/clear`, and `POST /transcriptions`,
+whose body is a recording sent as `audio/webm`, `audio/mp4` or `audio/ogg`, at least 1,000 bytes,
+under the same body cap as every other ([Voice](#voice)). `provider_failed` comes only from the web
+mount, and transcriptions spend no rate budget.
 
 Every route reads its path, query and body through the shared schemas, so input outside a bound
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and
@@ -768,11 +769,13 @@ row says when the session was last seen, from its presence, as quiet while it is
 stopped. Each session's row shows its group and tags, and each agent's header its tags, from the
 sessions view's page; the sheets that set them, and the Groups and tags sheet, load the operator's
 groups and tags while they are open, and reload the view once a change lands. While the operator is
-signed in, the navigation reads how many sessions have unread updates, refreshing it as views
-refresh, and the sessions view refreshes it at once whenever it reloads, as reading a log does.
-Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
-summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
-seen; otherwise no active credential.
+signed in, the navigation reads what waits on the operator, from `GET /attention`, and shows it as a
+badge on each tab while there is any: the unread threads on Threads and the registrations waiting
+for approval on Sessions. The counts refresh on an interval, on returning to the page, on going to
+another view, and at once after any change the page makes lands, which the web API client announces
+for every request but a read and signing in or out. Wherever a thread shows as stranded, the UI says
+why from the session's presence in the thread's summary: the stop the session reported, with its
+outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

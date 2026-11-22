@@ -67,23 +67,23 @@ with each other or with what the product does, the disagreement is the finding.
   open asks in the thread list's words and its threads' roll-up, the links from a row, an agent and
   a group to the thread list filtered to them, and from a row's and an agent's stranded flag to
   their stranded threads, a row unfolded to its log and marking it read, the Sessions tab's count of
-  sessions with unread updates falling as logs are read, and the folds kept, on a phone's width too;
-  the operator's session groups and tags: a session's group and an agent's and a session's tags set
-  from their options, the chips that show them, and the Groups and tags sheet's rename, its refusal
-  of a name another group or tag has, and its removal, asked first; a thread the operator starts
-  there, with the warning for a session not there to see it, and the agent's reply in it;
-  registration approval, rejection, and revocation from past requests and a session's options;
-  diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
-  gestures, buttons and keys, on a phone's width too; Settings, with `/passkeys` leading there, and
-  voice set up, with the write-only key shown masked but for its last four characters, what the
-  environment supplies shown read-only, Turn off and Try it; dictation through Chromium's fake
-  microphone and a stub provider, its text at the caret with nothing sent, the microphone and what
-  it says beside Send on a short screen, its failures keeping the recording for a retry, and a
-  recording stopped when the page is hidden; and Read aloud and Stop, in WebKit too where it
-  installs (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice" and "Approving
-  agents"). Real-phone passkeys, Send above a phone's keyboard while writing, dictation with a real
-  provider, and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the
-  tester's.
+  registrations waiting falling as they are approved or rejected, the Threads tab's count of unread
+  threads falling as they are read or archived, and the folds kept, on a phone's width too; the
+  operator's session groups and tags: a session's group and an agent's and a session's tags set from
+  their options, the chips that show them, and the Groups and tags sheet's rename, its refusal of a
+  name another group or tag has, and its removal, asked first; a thread the operator starts there,
+  with the warning for a session not there to see it, and the agent's reply in it; registration
+  approval, rejection, and revocation from past requests and a session's options; diagrams, drawn in
+  light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons and
+  keys, on a phone's width too; Settings, with `/passkeys` leading there, and voice set up, with the
+  write-only key shown masked but for its last four characters, what the environment supplies shown
+  read-only, Turn off and Try it; dictation through Chromium's fake microphone and a stub provider,
+  its text at the caret with nothing sent, the microphone and what it says beside Send on a short
+  screen, its failures keeping the recording for a retry, and a recording stopped when the page is
+  hidden; and Read aloud and Stop, in WebKit too where it installs (`docs/operator-guide.md`
+  "Signing in", "Using the web UI", "Voice" and "Approving agents"). Real-phone passkeys, Send above
+  a phone's keyboard while writing, dictation with a real provider, and diagrams and their viewer in
+  iOS Safari, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -120,11 +120,12 @@ On top of the method's failure classes, look for:
   session whose threads holding an unread message of the operator's are not stranded, or stay
   stranded once it reports working, a session's unread updates against its log and the operator's
   mark, a session's open asks and whether they block against its threads' asks and their Blocked on
-  you marks, the Sessions tab's count against the sessions with unread updates, a filter value's
-  count against the list that value produces, a group's roll-up against the threads it holds and the
-  list its link opens, a stranded count in the sessions view against the list its link opens, a tag
-  on an agent against the threads of each of its sessions, an archived thread that another party's
-  later message failed to bring back to the list, and one the caller's own message brought back.
+  you marks, the Threads tab's count against the list's total with Unread the only filter on, the
+  Sessions tab's count against the registrations waiting for approval, a filter value's count
+  against the list that value produces, a group's roll-up against the threads it holds and the list
+  its link opens, a stranded count in the sessions view against the list its link opens, a tag on an
+  agent against the threads of each of its sessions, an archived thread that another party's later
+  message failed to bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them
