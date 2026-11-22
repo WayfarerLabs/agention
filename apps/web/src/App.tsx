@@ -1,17 +1,14 @@
-import type { SessionState } from "@wayfarerlabs/agention-api";
 import { type ReactNode, useEffect, useRef } from "react";
-import { describeFailure, request } from "./api.ts";
 import { ErrorBoundary } from "./boundary.tsx";
 import { Failure, PageHeading, usePageTitle } from "./components.tsx";
-import { useAction } from "./data.ts";
 import { plural, Spoken } from "./format.tsx";
 import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
 import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
 import { UnreadUpdatesProvider, useUnreadUpdates } from "./unread-updates.tsx";
 import { LinkPage } from "./views/LinkPage.tsx";
-import { Passkeys } from "./views/Passkeys.tsx";
 import { Sessions } from "./views/Sessions.tsx";
+import { Settings } from "./views/Settings.tsx";
 import { SignIn } from "./views/SignIn.tsx";
 import { ThreadList } from "./views/ThreadList.tsx";
 import { ThreadView } from "./views/thread/ThreadView.tsx";
@@ -92,8 +89,8 @@ function View({ route }: { route: Route }) {
       return <ThreadView agent={route.agent} session={route.session} thread={route.thread} />;
     case "sessions":
       return <Sessions />;
-    case "passkeys":
-      return <Passkeys />;
+    case "settings":
+      return <Settings />;
     default:
       return <NotFound />;
   }
@@ -118,53 +115,32 @@ function NotFound() {
 const sections: { to: string; label: string; route: Route["name"]; within?: Route["name"] }[] = [
   { to: "/", label: "Threads", route: "threads", within: "thread" },
   { to: "/sessions", label: "Sessions", route: "sessions" },
-  { to: "/passkeys", label: "Passkeys", route: "passkeys" },
+  { to: "/settings", label: "Settings", route: "settings" },
 ];
 
 function Navigation({ route }: { route: Route }) {
-  const session = useSession();
-  const signOut = useAction();
-  const leave = async () => {
-    const state = await signOut.run((csrf) =>
-      request<SessionState>("POST", "/auth/signout", { csrf }),
-    );
-    if (state !== undefined) {
-      navigate("/sign-in", { replace: true });
-      session.update(state);
-    }
-  };
   return (
-    <>
-      <nav aria-label="Views">
-        <ul>
-          {sections.map((section) => (
-            <li key={section.to}>
-              <Link
-                to={section.to}
-                aria-current={
-                  section.route === route.name
-                    ? "page"
-                    : section.within === route.name
-                      ? "true"
-                      : undefined
-                }
-              >
-                {section.label}
-                {section.route === "sessions" && <UnreadUpdatesBadge />}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <button type="button" className="quiet" disabled={signOut.pending} onClick={leave}>
-        Sign out
-      </button>
-      {signOut.failure !== undefined && (
-        <p className="banner-failure" role="alert">
-          Signing out failed: {describeFailure(signOut.failure)}
-        </p>
-      )}
-    </>
+    <nav aria-label="Views">
+      <ul>
+        {sections.map((section) => (
+          <li key={section.to}>
+            <Link
+              to={section.to}
+              aria-current={
+                section.route === route.name
+                  ? "page"
+                  : section.within === route.name
+                    ? "true"
+                    : undefined
+              }
+            >
+              {section.label}
+              {section.route === "sessions" && <UnreadUpdatesBadge />}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 

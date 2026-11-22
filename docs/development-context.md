@@ -9,8 +9,8 @@ index of those docs.
 - Tester: none; live testing follows the shared `integration-testing` tester method with Agention's
   surfaces, layers, hunts and bed rails in `docs/live-testing.md`
 - SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"), active effort
-  `docs/sdd/2026-10-25-agention-v1/`; SDD check: `scripts/check-sdd.sh`, in the "SDD records" gate
-  of `scripts/check.sh`
+  `docs/sdd/2026-11-21-voice-and-settings/`; SDD check: `scripts/check-sdd.sh`, in the "SDD records"
+  gate of `scripts/check.sh`
 
 ## Identity and design
 
@@ -30,8 +30,10 @@ index of those docs.
 - Load-bearing dependencies and optional integrations: ADR 0001 "Repository and supply chain", and
   `docs/architecture.md` "API contract" and "Web UI"; optional: Tailscale, one documented way to
   publish the server (`docs/operator-guide.md` "Publishing it with `tailscale serve`", ADR 0001
-  "Transport independence"), and Agentworks, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only
-  default the session's names (`docs/operator-guide.md` "Agents")
+  "Transport independence"), Agentworks, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only
+  default the session's names (`docs/operator-guide.md` "Agents"), and a transcription provider for
+  voice, off until the operator chooses one, reached through the OpenAI-compatible API
+  (`docs/operator-guide.md` "Voice", ADR 0002)
 - Product shape, which selects the `project-review` conditional checks: long-lived managed entities
   agents, sessions, registrations and threads (ADR 0001 "Agents, sessions and threads";
   `docs/architecture.md` "Store"; `docs/operator-guide.md` "Approving agents"); persisted state and
@@ -110,7 +112,9 @@ index of those docs.
   harness, `apps/bridge/src/test-harness.ts`, which runs the server in process over TLS and bridges
   in process or as processes, released bundles among them (`docs/architecture.md` "Agent bridge");
   the browser tests in `apps/web/e2e/`, which drive the built server in Chromium with virtual
-  authenticators (`docs/architecture.md` "Web UI"); and `scripts/check-sdd.test.sh`
+  authenticators and Chromium's fake microphone (`docs/architecture.md` "Web UI"); the local stub
+  transcription provider, `apps/server/src/transcription/test-provider.ts`, which the server's and
+  the browser tests share; and `scripts/check-sdd.test.sh`
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`); setup is the locked install and Chromium's headless shell (`CONTRIBUTING.md`
   "Prerequisites"), and the release tags for the agent compatibility gate (`CONTRIBUTING.md`
@@ -122,13 +126,14 @@ index of those docs.
   API")
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
-  acceptance by the operator; Codex used only for basic plugin-integration prompts (an operator
-  bound); private inventory location: none
+  acceptance, and dictation with a real transcription provider, by the operator; Codex used only for
+  basic plugin-integration prompts (an operator bound); private inventory location: none
 - Known acceptance gaps and standing issues not to re-report: the residual `fast-uri` and `katex`
   advisories recorded in `CONTRIBUTING.md` "Dependencies"; live Codex checks need an authenticated
   Codex session; the macOS launchd setup is untested (`docs/operator-guide.md` "macOS: a launchd
   agent"); installing the plugins from the repository's marketplace is not yet verified on either
-  host (`docs/architecture.md` "Generated plugins")
+  host (`docs/architecture.md` "Generated plugins"); dictation runs in no automated browser but
+  Chromium, the only one with a fake microphone, so dictation in Apple browsers is untested
 
 ## Process
 

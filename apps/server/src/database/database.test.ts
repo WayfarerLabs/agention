@@ -753,6 +753,62 @@ describe("a database an earlier release wrote", () => {
       database.close();
     }
   });
+
+  it("opens with groups and tags intact and no voice settings", () => {
+    const file = path.join(root, "agention.db");
+    const before = withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      connection.exec(migrations[0] ?? "");
+      connection.exec(migrations[1] ?? "");
+      connection.exec(migrations[2] ?? "");
+      connection.exec("PRAGMA user_version = 3");
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO agents (name, created_at) VALUES ('builder', 1);
+        INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 'main', 1);
+        INSERT INTO session_groups (name, created_at) VALUES ('Work', 1);
+        INSERT INTO session_group_members (session_id, group_id) VALUES (1, 1);
+        INSERT INTO agent_tags (agent_id, name) VALUES (1, 'infra');
+        INSERT INTO session_tags (session_id, name) VALUES (1, 'release');
+      `);
+      return rowsOf(connection);
+    });
+    chmodSync(file, 0o600);
+
+    const database = Database.open(file);
+    try {
+      const after = rowsOf(database);
+      expect(Object.keys(after).sort()).toEqual([...Object.keys(before), "voice_settings"].sort());
+      expect(earlier(after, before)).toEqual(before);
+      expect(after.voice_settings).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+});
+
+describe("voice settings", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  it("hold at most one row, with a base URL and a model", () => {
+    const insert = (id: number, baseUrl: string | null, model: string | null) =>
+      database
+        .prepare("INSERT INTO voice_settings (id, base_url, model) VALUES (?, ?, ?)")
+        .run(id, baseUrl, model);
+    expect(() => insert(2, "https://api.openai.com/v1", "gpt-transcribe")).toThrow();
+    expect(() => insert(1, null, "gpt-transcribe")).toThrow();
+    expect(() => insert(1, "https://api.openai.com/v1", null)).toThrow();
+    insert(1, "https://api.openai.com/v1", "gpt-transcribe");
+    expect(() => insert(1, "https://api.groq.com/openai/v1", "whisper-large-v3-turbo")).toThrow();
+  });
 });
 
 describe("the instance", () => {

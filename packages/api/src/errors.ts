@@ -28,6 +28,9 @@ export const statusByErrorCode = {
   conflict: 409,
   // A rate budget is exhausted.
   rate_limited: 429,
+  // On the web mount only: the transcription provider failed or could not be
+  // reached; the message says which, never what the provider answered.
+  provider_failed: 502,
   // Anything else; details go only to the server log.
   internal: 500,
 } as const;

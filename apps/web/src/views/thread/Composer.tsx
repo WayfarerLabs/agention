@@ -4,6 +4,7 @@ import {
   type SetStateAction,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -13,6 +14,7 @@ import { useStillOpen } from "../../data.ts";
 import { useDeviceChoice } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
+import { useDictation, useVoiceOn } from "../../voice/Dictation.tsx";
 import { type MessageContext, MessageView } from "./Messages.tsx";
 import {
   blank,
@@ -31,7 +33,8 @@ import {
 } from "./writer.ts";
 
 // The composer: a Markdown box for the message's text, a Details box for its
-// detail, folded under it until opened, and one Send button. What the message
+// detail, folded under it until opened, and one Send button, with dictation
+// beside it while voice is on. What the message
 // does besides its text comes from the thread's messages: answers written on
 // asks' cards, a change of the answers a message of the operator's carries,
 // or an edit of one of their messages. A line above the box names each answer
@@ -180,14 +183,27 @@ export function Composer({
   context: MessageContext;
 }) {
   // The message the draft was started from: the last one on screen when the
-  // operator started typing or staging, so a message that lands meanwhile,
-  // or one the page has not shown, makes the write stale instead of being
-  // answered unseen. Emptying the composer ends the draft.
+  // operator started typing, staging or recording, so a message that lands
+  // meanwhile, or one the page has not shown, makes the write stale instead
+  // of being answered unseen. Emptying the composer ends the draft, unless a
+  // recording is still to become its text.
   const [basis, setBasis] = useState<number | undefined>(undefined);
   const empty = blank(text) && blank(detail);
+  const [dictating, setDictating] = useState(false);
   useEffect(() => {
-    setBasis((current) => (staged === undefined && empty ? undefined : (current ?? shown)));
-  }, [staged, empty, shown]);
+    setBasis((current) =>
+      staged === undefined && empty && !dictating ? undefined : (current ?? shown),
+    );
+  }, [staged, empty, dictating, shown]);
+  const voiceOn = useVoiceOn();
+  // How many messages the composer has sent, so a transcript that arrives
+  // after its draft was sent is dropped rather than starting a new one.
+  const sends = useRef(0);
+  const sendsAtRecording = useRef(0);
+  // The box that last had focus, where a transcript goes.
+  const lastBox = useRef<"text" | "detail">("text");
+  // Where to put the caret once a transcript is in, and in which box.
+  const caret = useRef<{ box: "text" | "detail"; at: number }>(undefined);
   const [changed, setChanged] = useState<string>();
   const [status, setStatus] = useState("");
   const actions = useRef<HTMLDivElement>(null);
@@ -245,6 +261,7 @@ export function Composer({
       return;
     }
     wrote(outcome.written);
+    sends.current += 1;
     // Clear only what was sent: text typed meanwhile is a new draft.
     setText((current) => (current === sentText ? "" : current));
     setDetail((current) => (current === sentDetail ? "" : current));
@@ -298,6 +315,68 @@ export function Composer({
       ? writer.failure
       : undefined;
   const removed = () => box.current?.focus();
+
+  // insert puts a transcript at the caret of the box that last had focus,
+  // with a space on each side where it meets other text, and moves focus
+  // there, to after it, unless the operator has put focus somewhere else
+  // meanwhile.
+  const insert = (words: string, focusFree: boolean) => {
+    if (sends.current !== sendsAtRecording.current) {
+      return;
+    }
+    const which = lastBox.current === "detail" && detailBox.current !== null ? "detail" : "text";
+    const element = which === "detail" ? detailBox.current : box.current;
+    if (element === null) {
+      return;
+    }
+    const { value } = element;
+    const start = element.selectionStart ?? value.length;
+    const before = value.slice(0, start);
+    const after = value.slice(element.selectionEnd ?? start);
+    const lead = before !== "" && !/\s$/.test(before) ? " " : "";
+    const trail = after !== "" && !/^\s/.test(after) ? " " : "";
+    const placed = `${before}${lead}${words}`;
+    (which === "detail" ? setDetail : setText)(`${placed}${trail}${after}`);
+    if (focusFree || document.activeElement === element) {
+      caret.current = { box: which, at: placed.length };
+    }
+  };
+  // The caret moves in the same commit as the text it follows, before the
+  // browser paints or handles another key, so a key typed as a transcript
+  // arrives lands after it, never at the end of the box.
+  useLayoutEffect(() => {
+    const placed = caret.current;
+    if (placed === undefined) {
+      return;
+    }
+    caret.current = undefined;
+    const element = placed.box === "detail" ? detailBox.current : box.current;
+    element?.focus();
+    element?.setSelectionRange(placed.at, placed.at);
+  });
+  const dictation = useDictation({
+    disabled: loading,
+    onText: insert,
+    onActive: (active) => {
+      if (active) {
+        sendsAtRecording.current = sends.current;
+      }
+      setDictating(active);
+    },
+  });
+  // Go back after sending sits beside Send, and drops below the row while
+  // dictation has controls there, so the row stays short at the foot of a
+  // phone's screen.
+  const goBackOption = (
+    <label className="check">
+      <input
+        type="checkbox"
+        checked={goBack}
+        onChange={(event) => setGoBack(event.target.checked)}
+      />
+      Go back after sending
+    </label>
+  );
   return (
     <section className="composer" aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`}>Reply</h2>
@@ -378,6 +457,7 @@ export function Composer({
           value={text}
           aria-invalid={textError === undefined ? undefined : true}
           aria-describedby={`${id}-hint${textError === undefined ? "" : ` ${id}-error`}`}
+          onFocus={() => (lastBox.current = "text")}
           onChange={(event) => setText(event.target.value)}
         />
         {textError !== undefined && (
@@ -399,6 +479,7 @@ export function Composer({
               value={detail}
               aria-invalid={detailError === undefined ? undefined : true}
               aria-describedby={`${id}-detail-hint${detailError === undefined ? "" : ` ${id}-detail-error`}`}
+              onFocus={() => (lastBox.current = "detail")}
               onChange={(event) => setDetail(event.target.value)}
             />
             {detailError !== undefined && (
@@ -422,27 +503,25 @@ export function Composer({
             Details
           </button>
         )}
-        {/* What answers Send shows beside it, as it stays at the foot of the
-            screen: a failure above it, and what was sent after it. */}
+        {/* What answers Send and dictation show beside them, as the row stays
+            at the foot of the screen: a failure above them, and what was
+            sent or heard after them. */}
         <div ref={actions} className="actions">
           {otherFailure !== undefined && (
             <div className="notice danger" role="alert">
               <p>{describeFailure(otherFailure)}</p>
             </div>
           )}
+          {voiceOn && dictation.problem}
           <button type="button" disabled={writer.pending || loading || !ready} onClick={send}>
             Send
           </button>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={goBack}
-              onChange={(event) => setGoBack(event.target.checked)}
-            />
-            Go back after sending
-          </label>
+          {voiceOn && dictation.controls}
+          {!dictating && goBackOption}
           {status !== "" && <Status>{status}</Status>}
+          {voiceOn && dictation.said}
         </div>
+        {dictating && goBackOption}
       </form>
     </section>
   );

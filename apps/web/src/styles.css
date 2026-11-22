@@ -198,9 +198,9 @@ pre.command {
   top: var(--space-2);
 }
 
-/* The banner: the brand and Sign out, with the views' tabs between them on a
-   wide screen and in a row of their own beneath them on a phone. It has no
-   padding at its foot, so the current tab's bar meets its border. */
+/* The banner: the brand, with the views' tabs beside it on a wide screen and
+   in a row of their own beneath it on a phone. It has no padding at its foot,
+   so the current tab's bar meets its border. */
 .banner {
   display: flex;
   flex-wrap: wrap;
@@ -295,15 +295,6 @@ pre.command {
   .banner nav li {
     flex: none;
   }
-}
-
-/* A failed sign-out, said above a phone's row of tabs. */
-.banner-failure {
-  order: 2;
-  flex-basis: 100%;
-  margin: 0 0 var(--space-2);
-  color: var(--color-danger);
-  font-weight: 600;
 }
 
 main {
@@ -1271,8 +1262,9 @@ a > .flag {
 /* Send and its option stay at the foot of the screen while the composer's
    form is on it, so a phone's keyboard, which the page's viewport shrinks
    for, does not hide them; they never leave the form, so they never lie
-   over the messages above it. A failed send's notice shows above Send, and
-   what was sent after it, so what answers Send shows beside it. */
+   over the messages above it. A failed send's or dictation's notice shows
+   above Send, and what was sent or heard after it, so what answers Send or
+   Dictate shows beside it. */
 .composer .actions {
   position: sticky;
   bottom: 0;
@@ -1284,7 +1276,8 @@ a > .flag {
   background: var(--color-surface);
 }
 
-.composer .actions > .notice {
+.composer .actions > .notice,
+.composer .actions > .field-error {
   flex-basis: 100%;
   margin: 0;
 }
@@ -1965,7 +1958,7 @@ button.older[aria-disabled="true"] {
   background: var(--color-surface);
 }
 
-.passkey h2 {
+.passkey h3 {
   margin: 0 0 var(--space-1);
   font-size: 1.0625rem;
   overflow-wrap: anywhere;
@@ -2265,4 +2258,81 @@ button.diagram-open img {
   flex: none;
   max-width: none;
   user-select: none;
+}
+
+/* Settings */
+
+.settings-section {
+  margin: var(--space-5) 0;
+}
+
+.settings-section:first-of-type {
+  margin-top: var(--space-3);
+}
+
+.setting {
+  margin-bottom: var(--space-3);
+}
+
+.setting .label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.setting-value {
+  margin: var(--space-1) 0;
+  overflow-wrap: anywhere;
+}
+
+.masked-key span {
+  letter-spacing: 0.1em;
+}
+
+.heard {
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+/* Dictation: the microphone beside Send, and while it records, how long it
+   has recorded against its limit. */
+.dictation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dictation > p {
+  margin: 0;
+}
+
+.dictation > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.recording-time,
+.dictation-failed {
+  color: var(--color-danger);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* In the composer's row beside Send, the microphone is its icon alone on a
+   phone, the recording's time drops its "Recording", and a failure drops its
+   "Failed", which the notice above says, so the row stays short; the words
+   stay for assistive technology. */
+@media (max-width: 40rem) {
+  .composer .dictate-label,
+  .composer .recording-word,
+  .composer .dictation-failed {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }

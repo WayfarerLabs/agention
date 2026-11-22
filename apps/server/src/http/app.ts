@@ -7,7 +7,8 @@ import {
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { ApiError } from "../errors.ts";
-import type { Store } from "../store/index.ts";
+import type { Store, VoiceEnvironment } from "../store/index.ts";
+import { openAiCompatible, type TranscriptionProvider } from "../transcription/provider.ts";
 import { agentApi } from "./agent-api.ts";
 import { stateAgentApiVersion } from "./agent-api-version.ts";
 import { diagramFramePath, type OwnHeaders, serveDiagramFrame } from "./diagram-frame.ts";
@@ -73,6 +74,11 @@ export interface AppOptions {
   shutdown?: AbortSignal;
   // Where internal errors are written; their details never reach the client.
   log?: (message: string) => void;
+  // The voice settings the server's environment supplies.
+  voiceEnvironment?: VoiceEnvironment;
+  // The transcription provider's client; the OpenAI-compatible one unless
+  // given another.
+  transcription?: TranscriptionProvider;
 }
 
 const notFoundBody: ErrorBody = { error: { code: "not_found", message: "not found" } };
@@ -131,7 +137,18 @@ export function createApp(options: AppOptions): Hono {
   );
 
   app.route("/api/agent", agentApi({ store, origin, budgets, shutdown, log }));
-  app.route("/api/web", webApi({ store, origin, name, budgets }));
+  app.route(
+    "/api/web",
+    webApi({
+      store,
+      origin,
+      name,
+      budgets,
+      voiceEnvironment: options.voiceEnvironment ?? {},
+      transcription: options.transcription ?? openAiCompatible(),
+      log,
+    }),
+  );
   app.all("/api", (c) => c.json(notFoundBody, 404));
   app.all("/api/*", (c) => c.json(notFoundBody, 404));
   ownHeaders = serveDiagramFrame(app, options.webRoot, origin);

@@ -175,6 +175,19 @@ export function Loadable<T>({
   );
 }
 
+// focusLeftWith says whether focus is where a pressed control left it: on
+// nothing, as when that control was removed, or within one of the elements
+// given. A control that replaces another moves focus to its successor only
+// then, never away from where the operator has since put it.
+export function focusLeftWith(...within: (Element | null | undefined)[]): boolean {
+  const active = document.activeElement;
+  return (
+    active === null ||
+    active === document.body ||
+    within.some((element) => element?.contains(active) === true)
+  );
+}
+
 // Status announces the outcome of an action, politely, where it was taken.
 export function Status({ children }: { children: ReactNode }) {
   return (

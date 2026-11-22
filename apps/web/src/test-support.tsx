@@ -8,6 +8,7 @@ import {
   type Registration,
   type SessionState,
   type SessionSummary,
+  type SettingsResult,
   statusByErrorCode,
   type ThreadCounts,
   type ThreadGetResult,
@@ -72,6 +73,9 @@ export const noCounts: ThreadCounts = {
 
 export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
+// The settings of a server without voice.
+export const noSettings: SettingsResult = { voice: null };
+
 export const signedIn: SessionState = {
   signed_in: true,
   operator: { name: "operator" },
@@ -104,6 +108,7 @@ export class FakeApi {
     this.on("GET", "/sessions", { body: { agents: [] } });
     this.on("GET", "/sessions/unread-updates", { body: { sessions: 0 } });
     this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
+    this.on("GET", "/settings", { body: noSettings });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),
     );
@@ -135,9 +140,12 @@ export class FakeApi {
       this.unhandled.push(`${method} ${path}`);
       reply = failure("internal", "internal error");
     } else {
+      // A request aborted before its answer fails as fetch's does; one
+      // aborted after it is answered already.
       const aborted = new Promise<never>((_, reject) => {
         init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
       });
+      aborted.catch(() => undefined);
       reply =
         typeof handler === "function" ? await Promise.race([handler(call), aborted]) : handler;
     }
@@ -302,4 +310,150 @@ export function installPasskeys(json: Record<string, unknown>) {
   };
   Object.defineProperty(navigator, "credentials", { value: credentials, configurable: true });
   return { FakePublicKeyCredential, credentials };
+}
+
+// A recorder as a browser with MediaRecorder offers it, recording the types
+// given. Each recording delivers its data on stop, as a browser's last
+// dataavailable does: finalBytes of it, by default past the server's
+// smallest size. refuse makes the microphone refuse to start, and failStart
+// the recorder.
+export function installRecorder(
+  options: {
+    types?: string[];
+    refuse?: DOMException;
+    finalBytes?: number;
+    failStart?: boolean;
+    // Holds the microphone from opening until it settles, as a browser's
+    // prompt does.
+    opened?: Promise<void>;
+  } = {},
+): {
+  recorders: FakeMediaRecorder[];
+  tracks: { stopped: boolean }[];
+} {
+  const types = options.types ?? ["audio/webm;codecs=opus"];
+  const recorders: FakeMediaRecorder[] = [];
+  const tracks: { stopped: boolean }[] = [];
+  class Recorder extends FakeMediaRecorder {
+    static isTypeSupported(type: string): boolean {
+      return types.includes(type);
+    }
+
+    constructor(_stream: unknown, recorderOptions: MediaRecorderOptions) {
+      super(recorderOptions, options.finalBytes ?? 4000);
+      recorders.push(this);
+    }
+
+    override start(timeslice?: number): void {
+      if (options.failStart === true) {
+        throw new DOMException("the track ended", "InvalidStateError");
+      }
+      super.start(timeslice);
+    }
+  }
+  vi.stubGlobal("MediaRecorder", Recorder);
+  const getUserMedia = async () => {
+    await options.opened;
+    if (options.refuse !== undefined) {
+      throw options.refuse;
+    }
+    const track = {
+      stopped: false,
+      stop() {
+        this.stopped = true;
+      },
+    };
+    tracks.push(track);
+    return { getTracks: () => [track] };
+  };
+  Object.defineProperty(navigator, "mediaDevices", {
+    value: { getUserMedia },
+    configurable: true,
+  });
+  return { recorders, tracks };
+}
+
+export class FakeMediaRecorder {
+  state: "inactive" | "recording" = "inactive";
+  timeslice: number | undefined;
+  readonly options: MediaRecorderOptions;
+  readonly finalBytes: number;
+  ondataavailable: ((event: { data: Blob }) => void) | null = null;
+  onstop: (() => void) | null = null;
+
+  constructor(options: MediaRecorderOptions, finalBytes: number) {
+    this.options = options;
+    this.finalBytes = finalBytes;
+  }
+
+  start(timeslice?: number): void {
+    this.state = "recording";
+    this.timeslice = timeslice;
+  }
+
+  // emit delivers size bytes of recorded data, as each timeslice does.
+  emit(size: number): void {
+    this.ondataavailable?.({ data: new Blob([new Uint8Array(size)]) });
+  }
+
+  stop(): void {
+    if (this.state === "inactive") {
+      return;
+    }
+    this.state = "inactive";
+    queueMicrotask(() => {
+      this.emit(this.finalBytes);
+      this.onstop?.();
+    });
+  }
+}
+
+// Speech synthesis as a browser offers it, recording what each utterance
+// says; finish ends the one speaking, as the browser does when it is done.
+export function installSpeech(): {
+  spoken: string[];
+  cancels: () => number;
+  finish(): void;
+  fail(error: string): void;
+} {
+  const spoken: string[] = [];
+  let queue: {
+    text: string;
+    onend: (() => void) | null;
+    onerror: ((event: { error: string }) => void) | null;
+  }[] = [];
+  let cancels = 0;
+  class Utterance {
+    text: string;
+    lang = "";
+    onend: (() => void) | null = null;
+    onerror: ((event: { error: string }) => void) | null = null;
+
+    constructor(text: string) {
+      this.text = text;
+    }
+  }
+  vi.stubGlobal("SpeechSynthesisUtterance", Utterance);
+  vi.stubGlobal("speechSynthesis", {
+    speak(utterance: Utterance) {
+      spoken.push(utterance.text);
+      queue.push(utterance);
+    },
+    cancel() {
+      cancels++;
+      queue = [];
+    },
+  });
+  return {
+    spoken,
+    cancels: () => cancels,
+    finish() {
+      queue.shift()?.onend?.();
+    },
+    // fail ends the utterance speaking with the error given, as a device
+    // without voices does.
+    fail(error: string) {
+      queue.shift()?.onerror?.({ error });
+    },
+  };
 }

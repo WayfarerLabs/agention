@@ -11,10 +11,11 @@
 // link to its threads, the links to stranded threads and a tag as tall in a
 // header as in a row, at a phone's width too, the last session's options menu
 // over the folds below it, grouped or not, the Sessions tab's count of sessions
-// with unread updates, signing in again, a second passkey that takes over from
-// the first, and a second server on another port of the host signed in beside
-// the first. CDP virtual authenticators stand in for the operator's devices;
-// one page carries through the steps, in order.
+// with unread updates, signing out from Settings and in again, a second passkey
+// that takes over from the first in Settings, which /passkeys leads to, and a
+// second server on another port of the host signed in beside the first. CDP
+// virtual authenticators stand in for the operator's devices; one page carries
+// through the steps, in order.
 import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
 import type {
   PublicKey,
@@ -846,6 +847,7 @@ test("the last session's options menu lies over the folds below it, grouped or n
 });
 
 test("signing in with the passkey returns to the page that needed it", async () => {
+  await page.getByRole("link", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
@@ -858,7 +860,7 @@ test("signing in with the passkey returns to the page that needed it", async () 
 });
 
 test("a passkey added on a second device signs in, and the first is removed", async () => {
-  await page.getByRole("link", { name: "Passkeys" }).click();
+  await page.getByRole("link", { name: "Settings" }).click();
   await expect(page.getByRole("article", { name: "Passkey Laptop" })).toBeVisible();
 
   // The laptop's authenticator gives way to the phone's.
@@ -869,8 +871,13 @@ test("a passkey added on a second device signs in, and the first is removed", as
   await expect(page.getByRole("article", { name: "Passkey Phone" })).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
+  // The passkeys' own page of old leads to Settings.
   await page.goto("/passkeys");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   const phone = page.getByRole("article", { name: "Passkey Phone" });
   await expect(phone.getByText("Signed in this browser")).toBeVisible();
 

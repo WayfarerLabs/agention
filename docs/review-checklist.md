@@ -24,9 +24,11 @@ Agention never grants permissions, injects into a chat, controls a harness, or a
 content (ADR 0001 "Not doing"). Tailscale is one documented way to host, not a dependency (ADR 0001
 "Transport independence"); Agentworks only supplies the session's default names, and nothing else
 depends on it; the MCP surface and usage skill work on every supported agent host (ADR 0001
-"Distribution: generated agent plugins"); and Agention uses no paid services (ADR 0001 "Repository
-and supply chain"). Look for core paths that import, require, or default to one host, network, or
-harness, new paid services, and optionality or dependencies nothing in the docs calls for.
+"Distribution: generated agent plugins"); and Agention uses no paid service by default: voice's
+transcription provider is the one optional paid service, which the operator opts into and which is
+off until they do (ADR 0002). Look for core paths that import, require, or default to one host,
+network, or harness, a paid service on by default or without a decision of its own, and optionality
+or dependencies nothing in the docs calls for.
 
 ## A2. Actor from authentication, target from the request
 
@@ -62,12 +64,14 @@ stored public key, bound to the origin and short-lived; approval and revocation 
 each operation's transaction and during long polls, and only the registration route accepts a key
 the operator has not approved (`docs/architecture.md` "Authentication"). Web mutations require the
 CSRF token and the exact origin, and `Host` must equal the origin's host. Adding or removing a
-passkey needs a recent sign-in; the last passkey is never removed; removing one ends the browser
-sessions it signed in (the **Separate authentication** invariant in `SECURITY.md` "Security model").
-Look for identity-header bypasses, an insecure TLS fallback, a first-user-wins bootstrap instead of
-the one-time `passkey-link`, recovery paths that skip ceremony checks, and a bridge that sends
-tokens or message text anywhere but its configured HTTPS origin, a followed redirect included
-(`SECURITY.md` "The agent bridge").
+passkey, and every voice change, needs a recent sign-in; the last passkey is never removed; removing
+one ends the browser sessions it signed in (the **Separate authentication** invariant in
+`SECURITY.md` "Security model"). The transcription provider's key is never answered or logged, and
+goes only to the base URL it was entered for (`SECURITY.md` "Voice"). Look for identity-header
+bypasses, an insecure TLS fallback, a first-user-wins bootstrap instead of the one-time
+`passkey-link`, recovery paths that skip ceremony checks, and a bridge that sends tokens or message
+text anywhere but its configured HTTPS origin, a followed redirect included (`SECURITY.md` "The
+agent bridge").
 
 ## A5. Roles follow the direction of attention
 
@@ -220,8 +224,9 @@ stays concise and teaches use, never development.
 
 Refines the shared **Declared environment matrix** check and the evidence-kind rule in **Tests
 police behavior, never our own prose**. Agention's evidence kinds are store and HTTP tests,
-component tests, a browser drive with a virtual WebAuthn authenticator, real-phone passkey
-acceptance, installed plugin metadata, an authenticated Claude Code or Codex install, and a live run
-behind `tailscale serve` from another machine. None stands in for another; report uncovered
+component tests, a browser drive with a virtual WebAuthn authenticator and Chromium's fake
+microphone against a stub transcription provider, real-phone passkey and dictation acceptance with a
+real provider, installed plugin metadata, an authenticated Claude Code or Codex install, and a live
+run behind `tailscale serve` from another machine. None stands in for another; report uncovered
 dimensions explicitly, and do not re-report the known acceptance gaps in the development context's
 "Testing" as new findings.

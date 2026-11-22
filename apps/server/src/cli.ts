@@ -12,6 +12,7 @@ import { Database, DatabaseOpenError } from "./database/database.ts";
 import { createApp } from "./http/app.ts";
 import { ListenerConfigError, listen, planListener } from "./http/listener.ts";
 import { createStore, findOperator, serverName, storedName, storeName } from "./store/index.ts";
+import { readVoiceEnvironment, VoiceEnvironmentError } from "./transcription/environment.ts";
 
 const usage = `Usage: agention <command> [options]
 
@@ -43,13 +44,21 @@ Options:
                       first start that serves (default Agention), and never
                       changed after
   -h, --help          Print this help
+
+Environment, read once at start, each optional; each supplies one field of
+Settings' voice exactly as entering it there would, and Settings show it as
+set by the server's environment:
+  AGENTION_TRANSCRIPTION_URL    The transcription provider's base URL
+  AGENTION_TRANSCRIPTION_MODEL  The provider's model
+  AGENTION_TRANSCRIPTION_KEY    The provider's key; needs
+                                AGENTION_TRANSCRIPTION_URL
 `;
 
 const passkeyLinkUsage = `Usage: agention passkey-link --data DIR --origin URL [--operator-name NAME]
 
 The first link creates the operator; each later one replaces the operator's
 passkeys and signs out their browsers. Issuing one revokes every unused link.
-To add a passkey beside the others, use the Passkeys page instead.
+To add a passkey beside the others, use Settings in the web UI instead.
 
 Options:
   --data DIR            The server's data directory
@@ -93,6 +102,9 @@ export interface Io {
   stderr: Output;
   // Aborts when the process is asked to stop, which ends agention serve.
   stop: AbortSignal;
+  // The process's environment, which agention serve reads its voice
+  // settings from.
+  env: Readonly<Record<string, string | undefined>>;
 }
 
 // The web UI's build, which the server package carries beside the directory
@@ -139,7 +151,11 @@ export async function run(args: readonly string[], io: Io): Promise<number> {
   try {
     return await handler(rest, io);
   } catch (error) {
-    if (error instanceof UsageError || error instanceof ListenerConfigError) {
+    if (
+      error instanceof UsageError ||
+      error instanceof ListenerConfigError ||
+      error instanceof VoiceEnvironmentError
+    ) {
       io.stderr.write(`agention ${command}: ${error.message}\n`);
       return exitUsage;
     }
@@ -258,6 +274,7 @@ async function serve(args: string[], io: Io): Promise<number> {
   const origin = originFlag(flags.origin);
   const quietAfter = quietAfterFlag(flags["quiet-minutes"]);
   const givenName = nameFlag(flags.name);
+  const voiceEnvironment = readVoiceEnvironment(io.env);
   const plan = planListener({
     listen: flags.listen,
     tlsCert: flags["tls-cert"],
@@ -290,6 +307,7 @@ async function serve(args: string[], io: Io): Promise<number> {
       origin,
       name,
       webRoot: webDirectory,
+      voiceEnvironment,
       shutdown: shutdown.signal,
       log: (message) => io.stderr.write(`${message}\n`),
     });

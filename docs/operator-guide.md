@@ -13,6 +13,7 @@ To set up an instance:
 4. [Register your first passkey](#signing-in) and sign in.
 5. [Install the plugins](#installing-the-plugins) where your agents run, and
    [approve each agent](#approving-agents) as it registers.
+6. If you like, [set up voice](#voice), to dictate your replies.
 
 ## Commands
 
@@ -137,7 +138,8 @@ signing each other out.
 
 `--listen` takes an IP address, not a name, with an IPv6 address in brackets: `[::1]:8080`.
 [Giving it an HTTPS origin](#giving-it-an-https-origin) says what the origin is, and when to use
-`--listen`, `--tls-cert`, `--tls-key` and `--allow-plain-http`.
+`--listen`, `--tls-cert`, `--tls-key` and `--allow-plain-http`. The server also reads three
+environment variables, each optional, which supply voice's settings: [Voice](#voice) says how.
 
 An agent session is seen each time it calls the server, kept to the minute. One not seen within
 `--quiet-minutes` and the minute that may take to show, or never, is quiet: it has stopped, or is
@@ -307,23 +309,25 @@ the operator, named `operator` unless you give `--operator-name`: 1 to 63 of `a-
 A link works once. Anyone who opens it before you can register their own passkey, so keep it as
 private as a password. Issuing a new link revokes any earlier one that has not been used.
 
-You can hold up to 20 passkeys, one on each device you use, and manage them under **Passkeys** in
-the web UI: each has the name you gave it, shows when it was added and last signed in, and the one
-this browser signed in with is marked. There you add a passkey on the device in hand. To add one on
-another device, sign in there with a passkey you hold, through the browser's cross-device sign-in
-(it shows a QR code that your phone, holding the passkey, scans), then add the device's own passkey
-on its passkeys page. A device that cannot is added by `agention passkey-link`, below, which
-replaces every passkey. You rename a passkey at any time, and remove any but your last; removing one
-signs out every browser it signed in. Adding a passkey and removing one need a sign-in within the
-last 10 minutes, and the page offers to sign in again.
+You can hold up to 20 passkeys, one on each device you use, and manage them in the web UI's
+**Settings**, under **Passkeys**: each has the name you gave it, shows when it was added and last
+signed in, and the one this browser signed in with is marked. There you add a passkey on the device
+in hand. To add one on another device, sign in there with a passkey you hold, through the browser's
+cross-device sign-in (it shows a QR code that your phone, holding the passkey, scans), then add the
+device's own passkey in its Settings. A device that cannot is added by `agention passkey-link`,
+below, which replaces every passkey. You rename a passkey at any time, and remove any but your last;
+removing one signs out every browser it signed in. Adding a passkey and removing one need a sign-in
+within the last 10 minutes, and Settings offer to sign in again, above everything else, while yours
+is older.
 
 To replace your passkeys, after losing your devices for example, run `agention passkey-link` again.
 Using the new link replaces all your passkeys with the one it registers and signs out every browser.
 
 Passkeys must verify you, with a PIN or biometric, and be stored by the authenticator, so signing in
 asks for no name: open the origin and choose **Sign in with a passkey**. A browser session lasts 30
-days, and ends sooner after seven days without use or when you sign out. When it ends, the next page
-you open, or the one you have open, returns to sign-in and comes back to that page afterwards.
+days, and ends sooner after seven days without use or when you sign out, with **Sign out** at the
+foot of **Settings**. When it ends, the next page you open, or the one you have open, returns to
+sign-in and comes back to that page afterwards.
 
 ## Using the web UI
 
@@ -491,15 +495,22 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     them, each with the archive box. The page never reads them while they are folded. A message you
     send to an archived thread is archived with the rest, but stays in view until you leave the
     page.
-  - The **⋯** button on a message that has not been replaced opens its options: **Mark unread from
-    here** and **Archive through here**, until you have archived that message; **Change answer** on
-    a message carrying your answers while an ask it answered is still live; **Edit** on your other
-    messages. A message offering none has no **⋯** button. Escape, a tap elsewhere, or moving on to
-    another control closes them. **Mark unread from here** makes the agent's messages from that one
-    on unread again, and returns to the list; it never marks read what you have not read. **Archive
-    through here** archives that message and every earlier one, and your own replies right after it,
-    which fold away while the page stays, through the latest message too. It waits, naming the ask
-    to answer or decline first, while an ask open to you sits in that message or an earlier one.
+  - The **⋯** button on a message opens its options: **Mark unread from here** and **Archive through
+    here**, until you have archived that message; **Change answer** on a message carrying your
+    answers while an ask it answered is still live; **Edit** on your other messages; and **Read
+    aloud**, wherever the browser can speak, on a replaced message too, once you open it. A message
+    offering none has no **⋯** button. Escape, a tap elsewhere, or moving on to another control
+    closes them. **Mark unread from here** makes the agent's messages from that one on unread again,
+    and returns to the list; it never marks read what you have not read. **Archive through here**
+    archives that message and every earlier one, and your own replies right after it, which fold
+    away while the page stays, through the latest message too. It waits, naming the ask to answer or
+    decline first, while an ask open to you sits in that message or an earlier one. **Read aloud**
+    speaks the message on your device, in the browser's own voice for the page's language: its text
+    and details, a code block or a diagram named rather than read, then its asks with their
+    suggested answers, and its answers. It reads **Stop** while it speaks; reading another message
+    aloud, starting a recording or leaving the thread stops it too. A device that cannot speak, such
+    as one without voices installed, says so under the message, and **Read aloud** is offered again.
+    Nothing is read aloud unless you ask.
   - A message's text is a short summary of what the matter is and what is needed. Whatever else the
     message says is in its details: a **Details** line directly under the text opens them in place
     and folds them again, and details you opened stay open as the page refreshes.
@@ -553,9 +564,23 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     with your draft. It is checked until you uncheck it, and this browser keeps your choice. While
     you write, **Send** and its option stay at the foot of the screen, above a phone's keyboard,
     with what answers **Send** beside it: why a message failed to send above it, and what was sent
-    after it.
+    after it. While voice is on, **Dictate** sits there too, and what it says goes in the same
+    places: why dictation failed above, and anything else after. While a recording, its
+    transcription or its **Retry** is there, **Go back after sending** moves just below the row, so
+    the row stays short above a phone's keyboard.
   - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
     thread you read without replying, and without scrolling back up.
+  - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
+    records, showing how long against its limit of five minutes, until you choose **Stop**; then
+    **Transcribing**, with **Cancel**, and the text goes in where the cursor was, in the box you
+    were last in, with a space where it meets other text, for you to read and change. Nothing is
+    sent until you send it. A transcript of nothing, or a recording too short to hold any, says
+    **Nothing heard**. A transcription that fails says why and keeps your draft as it was, and the
+    recording for **Retry**, beside **Discard**. A recording also stops when it reaches 1.9 MiB, or
+    when you switch away from the page, so the microphone never runs while you are not looking, and
+    what it recorded is transcribed as usual; leaving the thread discards it. Starting a recording
+    counts as seeing the thread then: a message the agent writes while you record makes sending
+    stale, as below.
 
   If the agent writes to the thread while you are writing, sending fails as stale: your draft stays,
   the messages you missed appear above it, and **Mark these read and send again** sends it, as it
@@ -628,6 +653,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
 
+- **Settings** holds, in order, your **Passkeys**, as [Signing in](#signing-in) describes,
+  **Voice**, as [Voice](#voice) describes, and **Sign out**, which signs this browser out and leaves
+  your others signed in. `/passkeys` opens it too. While your sign-in is too old for a change to
+  passkeys or voice, **Sign in again** comes first.
+
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image shows as a link and never loads, and only absolute `https`
 links are live, opening in a new tab. A link whose text is not its own address shows the address's
@@ -675,6 +705,104 @@ the sessions under their groups, and the sessions view folds the agents under th
   **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
   sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
   carries is gone, as a topic no thread carries is.
+
+## Voice
+
+Voice lets you dictate a reply in a thread instead of typing it, and is off until you set it up. A
+transcription provider turns your recording into text: you choose it in **Settings**, under
+**Voice**, and the server sends it each recording with a key it holds, and returns only the text.
+The provider receives your recordings, so turning voice on means choosing who does, under their
+terms. Agention keeps neither the recording nor the text, and agents never see either: they read
+only what you send. Reading a message aloud needs none of this: the browser speaks on your device.
+
+**Set up** shows the form:
+
+- **Provider**: **OpenAI**, **Groq**, each filling in its base URL and model, or **Your own
+  server**, any service speaking the OpenAI-compatible transcription API, such as a Whisper server
+  on your own network.
+- **Base URL**: the address the API is under, such as `https://api.openai.com/v1`; the server sends
+  recordings to `audio/transcriptions` beneath it. It must use `https`, unless it is `localhost` or
+  an IP address on your own network (loopback, a private range, a tailnet's `100.64.0.0/10` or a
+  unique local IPv6 address), which may use plain `http`; then your key and your recordings cross
+  that network unencrypted, and Settings say so. A local server can also be reached over `https`
+  through `tailscale serve`. It carries no user name, query or fragment, and the server follows no
+  redirect from it: a provider that answers with one fails, saying it tried to redirect, so give the
+  address it redirects to instead. It never names a link-local address, nor a cloud's metadata
+  address outside one (`100.100.100.200`, `fd00:ec2::254` and `fd20:ce::254`); a host name over
+  `https` is not checked by its address, since the provider's certificate is what proves where it
+  goes.
+- **Model**: as the provider names it, such as `gpt-transcribe` or `whisper-large-v3-turbo`.
+- **Words to recognize**: optional, up to 500 characters, such as names the provider might mishear.
+- **Key**: the provider's key, up to 1,024 characters. OpenAI and Groq need one; your own server may
+  not. It is kept on the server and never shown again: once saved, Settings show only that a key is
+  set, with **Replace**. A key goes only to the base URL it was entered for, so changing the base
+  URL clears it: as you change it, the key's field shows again, saying so, for you to enter it.
+
+Below the form, Settings say where your recordings go, with a link to what OpenAI or Groq say about
+keeping them and training on them. **Save** turns voice on, or saves your changes; **Turn off**
+deletes the settings and the key; **Cancel**, while you set voice up, leaves it off. Saving and
+turning off need a sign-in within the last 10 minutes. Settings saved by an earlier release that the
+rules now refuse show as no longer valid, and voice does not use them until you clear them, with
+**Clear saved settings**, or save new ones. Once voice is on, **Try it** records a few words and
+shows the text, through the same path dictation takes.
+
+A recording is at most five minutes, and must reach the server within 30 seconds, which for five
+minutes asks about 330 kbit/s of upload; a slower connection fails with the recording kept for a
+retry. The provider has a minute to answer.
+
+### Voice from the environment
+
+The server can also take the base URL, the model and the key from its environment, each exactly as
+if entered in Settings and under the same rules:
+
+| Variable                       | Supplies     |
+| ------------------------------ | ------------ |
+| `AGENTION_TRANSCRIPTION_URL`   | The base URL |
+| `AGENTION_TRANSCRIPTION_MODEL` | The model    |
+| `AGENTION_TRANSCRIPTION_KEY`   | The key      |
+
+`agention serve` reads them once, at start. A value that breaks the rules stops it with a message
+that names the variable and never shows the value. An empty value is such a value, not the variable
+left unset, so delete a line rather than blank it. `AGENTION_TRANSCRIPTION_KEY` without
+`AGENTION_TRANSCRIPTION_URL` stops it too, so a key from the environment only goes to an address
+from it. In Settings, what the environment supplies shows as set there and cannot be changed: the
+base URL and the model as their values, and a key as set, never shown. A key saved in Settings is
+used only while the base URL in effect is the one it was entered for, so a new
+`AGENTION_TRANSCRIPTION_URL` leaves it unused until you enter it again. With both the base URL and
+the model from the environment, **Turn off** reads **Clear saved settings**, and voice stays on
+until you remove the variable and restart the server. With only the base URL from it, the model is
+saved in Settings, so **Turn off** still turns voice off: it deletes the saved model, words and key,
+and the base URL stays.
+
+Keep them in an environment file only you can read, not in the unit or the plist itself, each value
+in single quotes:
+
+```bash
+mkdir -p ~/.config/agention
+(umask 077; cat >~/.config/agention/voice.env) <<'END'
+AGENTION_TRANSCRIPTION_URL='https://api.openai.com/v1'
+AGENTION_TRANSCRIPTION_MODEL='gpt-transcribe'
+AGENTION_TRANSCRIPTION_KEY='your-key'
+END
+```
+
+With systemd, add `EnvironmentFile=%h/.config/agention/voice.env` to the unit's `[Service]` section,
+and run `systemctl --user daemon-reload` and `systemctl --user restart agention`.
+
+launchd has no environment file of its own, so have the plist start a shell that reads the file and
+then runs the server, in place of starting `node` directly: its `ProgramArguments` become these
+three strings, with your paths, origin and home directory, then `bootout` and `bootstrap` it again
+as [macOS: a launchd agent](#macos-a-launchd-agent) shows. Like the rest of the launchd setup, this
+is untested.
+
+```xml
+<string>/bin/sh</string>
+<string>-c</string>
+<string>set -a; . /Users/you/.config/agention/voice.env; exec /usr/local/bin/node /usr/local/bin/agention serve --data /Users/you/.local/share/agention --origin https://agention.example.com</string>
+```
+
+A backup holds what Settings saved, a key among it, but never the environment, which stays with the
+service.
 
 ## Agents
 
@@ -1003,11 +1131,12 @@ which `npx` fetches as the first of them starts.
 ## Backing up
 
 The database, `agention.db` in the data directory, is the whole of an instance's state: its own key,
-your passkeys' records, every thread and every session's log. `agention backup` writes a consistent
-copy of it to a new file, while the server runs or not, and then checks the copy and prints its
-path, size and schema version. It never changes what the database holds, though with the server
-stopped SQLite may leave an empty `agention.db-wal` and an `agention.db-shm` beside it, which the
-server uses as its own when it starts. The copy holds what the database holds, so it is created
+your passkeys' records, every thread and every session's log, and voice's settings with a key saved
+in Settings. Voice settings from the environment are not in it. `agention backup` writes a
+consistent copy of it to a new file, while the server runs or not, and then checks the copy and
+prints its path, size and schema version. It never changes what the database holds, though with the
+server stopped SQLite may leave an empty `agention.db-wal` and an `agention.db-shm` beside it, which
+the server uses as its own when it starts. The copy holds what the database holds, so it is created
 readable only by you, and the command refuses a directory for it that other users could read or
 change, as the data directory's is refused, a file that already exists, and a path SQLite keeps for
 the database's own files, such as `agention.db-wal`. A backup that fails leaves no file behind and
@@ -1026,8 +1155,8 @@ The command opens the database read-only and never migrates it, so a copy taken 
 release, before you start it on the database, is a copy of the database as the older server left it.
 
 A copy on the same disk is a rollback, not a backup, so keep one on another disk or machine too. The
-copy holds the instance's own key and your passkeys' records, so encrypt any copy you move off the
-machine.
+copy holds the instance's own key, your passkeys' records and any transcription key saved in
+Settings, so encrypt any copy you move off the machine.
 
 To restore a copy, stop the server, move the database and the files SQLite keeps beside it out of
 the data directory, put the copy in as `agention.db`, and start the server. Move the `-wal` and
