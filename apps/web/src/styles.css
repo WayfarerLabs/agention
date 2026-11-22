@@ -356,7 +356,7 @@ button:disabled {
   opacity: 0.6;
 }
 
-input:not([type="checkbox"], [type="radio"]),
+input:not([type="checkbox"], [type="radio"], [hidden]),
 select,
 textarea {
   display: block;
