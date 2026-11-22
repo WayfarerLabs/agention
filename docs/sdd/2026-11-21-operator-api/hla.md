@@ -43,18 +43,18 @@ by construction.
 
 ## Operations
 
-An operation declares its method and path, a one-line summary, its path, query and body schemas and
-its response schema from `packages/api`, and its handler, which takes the store, the identity and
-the parsed input and returns the response schema's type, so the compiler holds each declared
-response to the code. A mount builds Hono routes from its list: parsing every input through its
-schema, as `parseBody` and `parseQuery` do now, then calling the handler.
+An operation declares its name, method and path, a one-line summary, its path, query and body
+schemas and its response schema from `packages/api`, and its handler, which takes the store, the
+identity and the parsed input and returns the response schema's type, so the compiler holds each
+declared response to the code. A mount builds Hono routes from its list: parsing every input through
+its schema, as `parseBody` and `parseQuery` do now, then calling the handler.
 
 - **Operator operations** (`apps/server/src/http/operator-operations.ts`): every operation a key may
   call, each with the one scope it requires. Being in this list is what puts an operation on the
   operator mount, and its scope is required, so leaving an operation out keeps it off and nothing
   fails open. The web mount builds the same list for the browser session, which holds every scope.
-  The thread routes the agent mount shares (`threadRoutes`, today in `thread-routes.ts`) are entries
-  of both lists, so they keep one handler each.
+  The operations on one thread, which the agent mount shares (`threadOperations`, in
+  `thread-operations.ts`), are entries of both lists, so they keep one handler each.
 - **Agent operations** (`apps/server/src/http/agent-operations.ts`): the agent mount's routes,
   declared the same way so they are documented (ruling 2). Its middleware (the version header, the
   cookie refusal, token authentication, rate spending and marking a session seen) stays as it is,
@@ -80,15 +80,16 @@ operator operation names the one scope it requires:
 
 | Scope              | Operations                                                                                                         |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `threads:read`     | thread list, counts, a thread                                                                                      |
+| `threads:read`     | thread list, counts, the wait across sessions, a thread                                                            |
 | `threads:write`    | start a thread, send a message, read, unread, archive, bulk read and archive                                       |
 | `sessions:read`    | sessions, unread updates, a session's log, groups and tags, registrations                                          |
 | `sessions:write`   | the log's read mark, group create, rename, remove, tag rename, remove, a session's group and tags, an agent's tags |
 | `sessions:approve` | registration approve, reject, revoke                                                                               |
 
-A test over the list confirms every operation requiring a read scope is a `GET` whose store work
-writes nothing but credential bookkeeping (a browser session's idle expiry, a key's last use), so a
-read key cannot change anything.
+A test over the list confirms every operation requiring a read scope is a `GET` without a body whose
+handler writes nothing, so a read key cannot change anything; the only writes its requests cause are
+credential bookkeeping in authentication, before the handler (a browser session's idle expiry, a
+key's last use).
 
 ## Keys
 
@@ -134,16 +135,27 @@ read key cannot change anything.
 `GET /api/operator/v1/wait`, an operator operation under `threads:read`, is the agent long poll's
 counterpart across every session: it answers at once when a thread has a message newer than the
 client's `since` that the operator has not read, and otherwise when one commits, when the key is
-revoked, when the client disconnects, when the server shuts down, or when its wait (up to the agent
-wait's bound) runs out. Its answer is a page of thread summaries, each naming its session, and the
-next `since`, an opaque cursor, so a client is never woken twice for one message.
+revoked or expires, when the client disconnects, when the server shuts down, or when its wait (up to
+the agent wait's bound) runs out. Held on the web mount by a browser session, it ends likewise when
+that session ends or expires. Its answer is a page of thread summaries, each naming its session, and
+the next `since`, an opaque cursor, so a client is never woken twice for one message.
 
-- **Cursor.** Positions today count within a session (`sessions.last_pos`), so a cross-session
-  cursor is the message's position in the whole database: the row order messages are inserted in,
-  which never goes backwards. A `since` past the latest counts as none, as the agent wait's does.
+- **Cursor.** Positions count within a session (`sessions.last_pos`), and a message has no stable
+  integer key of its own: it is keyed by its thread and sequence, and its table's rowid is no
+  column's alias, so `VACUUM` may renumber it. Migration 6 therefore adds `message_positions`, whose
+  `INTEGER PRIMARY KEY AUTOINCREMENT` gives every message a position in the order messages are
+  written that is kept and never reused, so it never goes backwards. A trigger fills it as each
+  message is written, triggers refuse updating or deleting a position, and the migration numbers the
+  messages already written in the order they were stored. The cross-session cursor is a position
+  there, in a cursor of its own kind, so no session's `since` is taken for one. A `since` past the
+  latest counts as none, as the agent wait's does.
 - **Wake-up.** `SessionNotifier` gains one more channel, woken on every session's notification, so
   the operator's waiters wake on any commit and on any revocation, including their own key's. The
-  revocation path notifies that channel too, so a revoked key's wait ends at once (K5).
+  key revocation path notifies that channel too, so a revoked key's wait ends at once (K5), and so
+  does every way a browser session ends but expiry: signing out, signing in again on that browser,
+  removing the passkey that signed it in, and replacing the passkeys through a link. Expiry needs no
+  notification: the wait polls again when its credential expires, so an expired key's wait ends at
+  once too.
 - **Reuse.** The loop is `waitForThreads`'s: poll in a transaction with authorization, wait on the
   notifier, poll again. The shared part moves into one function both waits call, so the agent wait
   keeps its behavior (E1).
@@ -158,12 +170,22 @@ next `since`, an opaque cursor, so a client is never woken twice for one message
   statuses. Rules a schema enforces only in code (zod refinements) are absent from the generated
   schema, so the document can describe less than the server checks, never more; each such rule is
   stated in its field's description, which zod carries into the document.
+- **Shared schemas.** The schemas that recur across operations, such as `Message` and
+  `ThreadSummary`, are described once each under `components.schemas` and referenced by `$ref`
+  wherever they appear, so the document reads, and changes, in one place for each. A schema that
+  reads differently as input than as output (one with defaults, or that reads text into values, or
+  that holds such a schema) has a second component for its input, named with `Input` after it. The
+  descriptions come from `@wayfarerlabs/agention-api/json-schemas`, an entry point of its own so the
+  web bundle never carries them; it refuses a reference that would say more or less than the schema
+  inline.
 - `agention serve --api-docs` serves `GET /docs/api/openapi.json` and `GET /docs/api/`, a page the
   server renders from the same document: each operation's method, path, summary, scope and
-  parameters, and its schemas as formatted JSON. It is static HTML with no script, so the content
-  security policy is unchanged and no dependency is added. Documentation is served without sign-in,
-  since it describes the contract and no data. Without the flag, both paths answer the JSON
-  `not_found`, not the web UI's index page, so nothing is served there (D1).
+  parameters, and its schemas as formatted JSON, then a section for each shared schema, which every
+  `$ref` on the page links to. `/docs/api` leads to the page with a permanent redirect. It is static
+  HTML with no script or style, so the content security policy is unchanged and no dependency is
+  added. Documentation is served without sign-in, since it describes the contract and no data.
+  Without the flag, every path under `/docs/api` answers the JSON `not_found`, not the web UI's
+  index page, so nothing is served there (D1).
 - The document is committed at `docs/api/openapi.json`, and a test fails when the generated document
   differs from it byte for byte (ruling 2). It is a generated output, listed with the others in
   `docs/development-context.md`, and regenerated by a script beside the plugin generator's.
