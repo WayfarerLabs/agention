@@ -38,7 +38,7 @@ export function pollThreads(
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    const sessionId = authorizeSession(db, identity, target, now);
+    const sessionId = authorizeSession(db, identity, "threads:read", target, now);
     const { last_pos: latest } = db
       .prepare("SELECT last_pos FROM sessions WHERE id = ?")
       .get(sessionId) as { last_pos: number };

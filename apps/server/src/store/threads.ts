@@ -5,6 +5,7 @@ import {
   pageLimit,
   parseTimestamp,
   type Reference,
+  type Scope,
   type ThreadCreateInput,
   type ThreadGetQuery,
   type ThreadGetResult,
@@ -40,15 +41,18 @@ export interface ThreadTarget extends SessionTarget {
 const missedLimit = pageLimit.parse(undefined);
 
 // authorizeSession resolves a session target and authorizes the identity for
-// it, so an unknown session and someone else's look the same.
+// it with the scope the operation requires, so an unknown session and someone
+// else's look the same.
 export function authorizeSession(
   db: Database,
   identity: Identity,
+  scope: Scope,
   target: SessionTarget,
   now: number,
   field?: string,
 ): number {
-  return authorize(db, identity, resolveSession(db, target.agent, target.session), now, field);
+  const sessionId = resolveSession(db, target.agent, target.session);
+  return authorize(db, identity, scope, sessionId, now, field);
 }
 
 export interface StoredThread {
@@ -473,7 +477,7 @@ function addThread(
   const { request_id: requestId, title, ...parts } = input;
   const outcome = db.transaction(() => {
     const now = store.clock();
-    const sessionId = authorizeSession(db, identity, target, now);
+    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const digest = writeDigest(operation, { session: sessionId }, { title, ...parts });
     const prior = replayed(db, identity.actor, requestId, digest);
     if (prior !== undefined) {
@@ -556,7 +560,7 @@ export function sendMessage(
   const { seen_through: seenThrough, request_id: requestId, ...parts } = input;
   const outcome = db.transaction(() => {
     const now = store.clock();
-    const sessionId = authorizeSession(db, identity, target, now);
+    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const thread = requireThread(db, sessionId, target.thread);
     const digest = writeDigest(
       "message_send",
@@ -620,7 +624,7 @@ export function getThread(
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    const sessionId = authorizeSession(db, identity, target, now);
+    const sessionId = authorizeSession(db, identity, "threads:read", target, now);
     const stored = requireThread(db, sessionId, target.thread);
     return {
       thread: readThread(store, stored.id, identity.actor, now),

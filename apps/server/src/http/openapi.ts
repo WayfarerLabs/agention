@@ -97,8 +97,8 @@ function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaratio
     ...(declaration.query === undefined ? [] : parametersOf(schemas, declaration.query, "query")),
   ];
   const name = declaration.name.charAt(0).toUpperCase() + declaration.name.slice(1);
-  // A key's scope is listed; an agent's token always holds what its session's
-  // thread operations require, so none is.
+  // A key's scope is listed; an agent's token always holds what every agent
+  // operation requires, so none is.
   const scopes =
     mount.security === "apiKey" && declaration.scope !== undefined ? [declaration.scope] : [];
   return {

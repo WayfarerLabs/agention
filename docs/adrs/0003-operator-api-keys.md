@@ -42,9 +42,10 @@ contract, and documentation.
   its cookie credential, its CSRF and `Origin` checks, its refusal of `Authorization`, and the
   routes no key may call.
 - **Every identity has scopes.** A browser session holds every scope, a key its own, and an agent's
-  registration `threads:write` over its own session, which is what an agent could already do. One
-  scope check before the handler governs every mount, and replaces the separate administration
-  grant.
+  registration `threads:write` over its own session, which is what an agent could already do. The
+  mount refuses an identity without the operation's scope before reading any input, and the store
+  confirms the scope again inside the operation's transaction, so every mount and every adapter is
+  held to the same scopes; this replaces the separate administration grant.
 - **The version is in the path.** A version changes only additively; a change that would break a
   client is a new version beside the old. `GET /api/operator` lists the versions served.
 - **Documentation generated from the declarations.** The operator and agent operations produce one

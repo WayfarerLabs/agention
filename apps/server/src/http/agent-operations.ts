@@ -16,14 +16,16 @@ import { type Declaration, operation } from "./operations.ts";
 import { threadOperations } from "./thread-operations.ts";
 
 // The agent mount's operations, each on the session the agent's token is
-// approved for. They need no scope beyond what a registration holds, and the
-// store refuses any other session as not_found.
+// approved for. Each names its scope as every operation does, and each is
+// within the threads:write a registration holds; the store refuses any other
+// session as not_found.
 export const agentOperations = [
   operation({
     name: "updateSession",
     method: "POST",
     path: "/s/:agent/:session/status",
     summary: "Report the session's status: its state, title, goal, progress and a note",
+    scope: "threads:write",
     params: sessionParams,
     body: sessionUpdateInput,
     response: sessionStatus,
@@ -34,6 +36,7 @@ export const agentOperations = [
     method: "POST",
     path: "/s/:agent/:session/threads",
     summary: "Start a thread in the session, with its first message",
+    scope: "threads:write",
     params: sessionParams,
     body: threadCreateInput,
     response: writeResult,
@@ -44,6 +47,7 @@ export const agentOperations = [
     method: "GET",
     path: "/s/:agent/:session/threads",
     summary: "List the session's threads, filtered and in pages",
+    scope: "threads:read",
     params: sessionParams,
     query: sessionThreadsQuery,
     response: threadPage,
@@ -57,6 +61,7 @@ export const agentOperations = [
     method: "GET",
     path: "/s/:agent/:session/wait",
     summary: "Wait for messages from others on the session's threads since a cursor",
+    scope: "threads:read",
     params: sessionParams,
     query: waitQuery,
     response: waitResult,

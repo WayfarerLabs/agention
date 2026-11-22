@@ -245,12 +245,14 @@ the web mount serves the same list, so no operation has a second handler (`docs/
 stays a web-only route. Each operation requires the narrowest scope that covers it: an operation a
 read scope grants is a `GET` without a body whose store work writes nothing, which the test over the
 list in `apps/server/src/http/operations.test.ts` holds, and approving, rejecting or revoking a
-registration needs `sessions:approve`, which no other scope includes. A later resource adds scopes
-of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what an existing
-scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the list, an
-operation with a scope wider or narrower than what it does, a read-scoped operation that writes or
-takes a body, a key-reachable route that manages credentials or Settings, and a scope whose meaning
-changes.
+registration needs `sessions:approve`, which no other scope includes. The mount refuses a missing
+scope before reading input, and the store operation confirms the same scope inside its transaction,
+which a test over every operation in the same file holds. A later resource adds scopes of the form
+`<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what an existing scope
+grants (`SECURITY.md` "API keys"). Look for an operator route added outside the list, an operation
+with a scope wider or narrower than what it does, a read-scoped operation that writes or takes a
+body, a store operation that leaves its scope to the mount, a key-reachable route that manages
+credentials or Settings, and a scope whose meaning changes.
 
 ## A18. The operator API contract and its document
 

@@ -120,18 +120,20 @@ export function checkCredential(db: Database, identity: Identity, now: number): 
   return live.expires_at;
 }
 
-// authorize confirms the credential is live and grants the session, which is
+// authorize confirms the credential is live, holds the scope the operation
+// requires, as authorizeScope does, and grants the session, which is
 // undefined when the request named one that does not exist. Unknown and
 // unauthorized sessions both fail as not_found, naming field when the session
 // is one of several the request names.
 export function authorize(
   db: Database,
   identity: Identity,
+  scope: Scope,
   sessionId: number | undefined,
   now: number,
   field?: string,
 ): number {
-  checkCredential(db, identity, now);
+  authorizeScope(db, identity, scope, now);
   const { sessions } = identity.grants;
   if (sessionId === undefined || (sessions !== "all" && !sessions.includes(sessionId))) {
     throw notFound(field);
@@ -144,11 +146,12 @@ export function holds(identity: Identity, scope: Scope): boolean {
   return holdsScope(identity.grants.scopes, scope);
 }
 
-// authorizeScope confirms the credential is live and holds the scope, for an
-// operation that reaches across sessions, such as listing them or deciding a
-// registration, and answers when the credential will expire, as
-// checkCredential does. To an identity without the scope the operation does
-// not exist, as the mounts also answer before running it.
+// authorizeScope confirms the credential is live and holds the scope the
+// operation requires, and answers when the credential will expire, as
+// checkCredential does. Every store operation taking an identity calls it, or
+// authorize, inside its transaction, so the store holds every adapter to the
+// same scopes; the mounts also refuse before reading any input. To an
+// identity without the scope the operation does not exist.
 export function authorizeScope(
   db: Database,
   identity: Identity,

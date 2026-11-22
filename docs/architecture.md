@@ -205,51 +205,53 @@ created.
 ## Store
 
 Every operation (`apps/server/src/store/`) takes the caller's identity, the target the request
-names, and input its schema has already parsed. Inside the operation's transaction, `authorize`
-confirms the credential is still live (the registration approved, the browser session unexpired, the
-API key neither revoked nor expired) and that it grants the target session; an unknown session and
-someone else's both fail as `not_found`. An identity also holds scopes, `<resource>:<access>`
+names, and input its schema has already parsed. An identity holds scopes, `<resource>:<access>`
 ([HTTP API](#http-api)): a browser session holds every one, an API key those the operator gave it,
-and an agent's registration `threads:write` over its own session. An operation across sessions, such
-as listing them or deciding a registration, confirms its scope with `authorizeScope` in the same
-transaction, and to an identity without it the operation does not exist. A write then checks, in
-order, request-id replay, roles (only the requester asks, withdraws asks or sets a topic, only the
-audience answers), staleness, and the rules that depend on the thread's messages: a replacement
-names a live message of the writer's own; each answer names an open ask and fits it, and a message
-answers an ask at most once; a replacement answers again every ask the message it replaces answered
-that is still live, and none its requester since revised or retracted, an answer to such an ask
-going with the replaced message, and may answer open asks besides; each withdrawal names an open
-ask, the replaced message's own included, and a message withdraws an ask at most once; a replacement
-withdraws again every ask the message it replaces withdrew, with the same reason or a new one,
-whether or not the ask's own message is still live, so a withdrawal is never undone; a replacement
-of a message holding open asks asks each again or withdraws it by name, its asks and its withdrawals
-of those asks numbering at least as many as it holds open, since a replacement's asks are numbered
-anew and the count is what can be checked; and a thread reference names a thread in the same
-session. Refusals name asks by their numbers. An answer is a decline, or distinct picks among the
-ask's suggested answers and the answerer's own words, at least one of them: an ask without suggested
-answers takes own words alone, and one that allows a single answer takes one pick or own words,
-never both. The own words are the answer's, plain text apart from the message's Markdown text and
-detail, which are any additional information. It appends the message with its asks and answers and
-raises the writer's read mark through it in the same transaction, where a writer for whom the thread
-is archived keeps it archived, its archive mark moving to its own message. A later message carries
-some part unless it replaces another, a rule the request's schema holds, since no constraint on a
-message's row sees the rows of its own; a thread's first message may carry nothing, since its title
-speaks for it, and a replacement carrying nothing retracts the message it replaces, which the rules
-above allow only while that message holds no open ask. A replacement is a whole message: what it
-leaves out, its detail included, is gone with the message it replaces. A write answers with the
-thread number and the message's sequence, and a retry of the same request id gets that same answer,
-while a retry with any part changed, its detail included, is a request-id conflict. A stale write
-appends nothing, so its retry may reuse the id. Everything a thread shows beyond its title, roles
-and latest sequence, such as its topic, open asks, status, unread count and count of live messages,
-is derived in queries over the two views, never stored. A thread's status rolls up the asks on its
-live messages and those a live message withdraws, so an ask its own message's replacement withdrew
-counts and a revised ask does not: `open` while any is open; otherwise `withdrawn` when every one is
-withdrawn, with the latest such withdrawal, and `answered` when there are any; `none` when there are
-none. It is the same whoever views it. After a write or a registration's revocation commits, an
-in-process notifier wakes the long polls waiting on the session, and with them the waits across
-every session. Revoking an API key and ending a browser session, by signing out, signing in again on
-that browser, removing the passkey that signed it in or replacing the passkeys through a link, wake
-the waits across every session alone once they commit, since no session's own changed.
+and an agent's registration `threads:write` over its own session. Inside the operation's
+transaction, `authorizeScope` confirms the credential is still live (the registration approved, the
+browser session unexpired, the API key neither revoked nor expired) and that it holds the scope the
+operation requires, and to an identity without it the operation does not exist; an operation on one
+session uses `authorize`, which does the same and confirms the credential grants the target session,
+an unknown session and someone else's both failing as `not_found`. The mounts refuse a missing scope
+too, before reading any input, but every operation confirms its own, so each adapter over the store
+is held to the same scopes. A write then checks, in order, request-id replay, roles (only the
+requester asks, withdraws asks or sets a topic, only the audience answers), staleness, and the rules
+that depend on the thread's messages: a replacement names a live message of the writer's own; each
+answer names an open ask and fits it, and a message answers an ask at most once; a replacement
+answers again every ask the message it replaces answered that is still live, and none its requester
+since revised or retracted, an answer to such an ask going with the replaced message, and may answer
+open asks besides; each withdrawal names an open ask, the replaced message's own included, and a
+message withdraws an ask at most once; a replacement withdraws again every ask the message it
+replaces withdrew, with the same reason or a new one, whether or not the ask's own message is still
+live, so a withdrawal is never undone; a replacement of a message holding open asks asks each again
+or withdraws it by name, its asks and its withdrawals of those asks numbering at least as many as it
+holds open, since a replacement's asks are numbered anew and the count is what can be checked; and a
+thread reference names a thread in the same session. Refusals name asks by their numbers. An answer
+is a decline, or distinct picks among the ask's suggested answers and the answerer's own words, at
+least one of them: an ask without suggested answers takes own words alone, and one that allows a
+single answer takes one pick or own words, never both. The own words are the answer's, plain text
+apart from the message's Markdown text and detail, which are any additional information. It appends
+the message with its asks and answers and raises the writer's read mark through it in the same
+transaction, where a writer for whom the thread is archived keeps it archived, its archive mark
+moving to its own message. A later message carries some part unless it replaces another, a rule the
+request's schema holds, since no constraint on a message's row sees the rows of its own; a thread's
+first message may carry nothing, since its title speaks for it, and a replacement carrying nothing
+retracts the message it replaces, which the rules above allow only while that message holds no open
+ask. A replacement is a whole message: what it leaves out, its detail included, is gone with the
+message it replaces. A write answers with the thread number and the message's sequence, and a retry
+of the same request id gets that same answer, while a retry with any part changed, its detail
+included, is a request-id conflict. A stale write appends nothing, so its retry may reuse the id.
+Everything a thread shows beyond its title, roles and latest sequence, such as its topic, open asks,
+status, unread count and count of live messages, is derived in queries over the two views, never
+stored. A thread's status rolls up the asks on its live messages and those a live message withdraws,
+so an ask its own message's replacement withdrew counts and a revised ask does not: `open` while any
+is open; otherwise `withdrawn` when every one is withdrawn, with the latest such withdrawal, and
+`answered` when there are any; `none` when there are none. It is the same whoever views it. After a
+write or a registration's revocation commits, an in-process notifier wakes the long polls waiting on
+the session, and with them the waits across every session. Revoking an API key and ending a browser
+session, by signing out, signing in again on that browser, removing the passkey that signed it in or
+replacing the passkeys through a link, wake the waits across every session alone once they commit,
+since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
 every conversation, marks its session seen before its own work, in a transaction of its own, so a
@@ -447,8 +449,9 @@ one-line summary, the scope it requires, its path, query and body schemas and it
 from `packages/api`, and its handler, which the compiler holds to those schemas. A mount builds its
 routes from a list of operations: each route authenticates, refuses an identity without the
 operation's scope as `not_found`, as if the operation did not exist, before reading any input, reads
-the path, the query and the body through their schemas, and answers what the handler returns. The
-API's documentation is built from the same lists ([API documentation](#api-documentation)).
+the path, the query and the body through their schemas, and answers what the handler returns; the
+store confirms the scope again inside the operation's transaction ([Store](#store)). The API's
+documentation is built from the same lists ([API documentation](#api-documentation)).
 
 - **Operator operations** (`operator-operations.ts`) are every operation an API key may call, each
   with the one scope it requires. Being in the list is what puts an operation on the operator mount,
@@ -470,12 +473,12 @@ API's documentation is built from the same lists ([API documentation](#api-docum
 - **Agent operations** (`agent-operations.ts`) are the agent mount's: a session's status, starting a
   thread in it, its thread list and its long poll, and the operations on one thread
   (`thread-operations.ts`), which every mount shares under `/s/:agent/:session/threads/:thread`, so
-  the role and message checks have one handler each. An agent's registration holds `threads:write`
-  over its own session, which those require. One path can name different operations on different
-  mounts: `POST /s/:agent/:session/threads` is an agent's `createThread` on the agent mount and the
-  operator's `startThread` on the others. Registration, the one agent route a key not yet approved
-  may call, authenticates against the key its token carries, so its route is built by hand from its
-  declaration.
+  the role and message checks have one handler each. Each names its scope, and an agent's
+  registration holds `threads:write` over its own session, which covers every one. One path can name
+  different operations on different mounts: `POST /s/:agent/:session/threads` is an agent's
+  `createThread` on the agent mount and the operator's `startThread` on the others. Registration,
+  the one agent route a key not yet approved may call, authenticates against the key its token
+  carries, so its route is built by hand from its declaration.
 - **Web-only routes** are plain routes on the web mount, which no key can call: the browser session,
   the passkey ceremonies and signing out; the passkeys; the settings, `GET /settings`,
   `POST /settings/voice` and `POST /settings/voice/clear`; `POST /transcriptions`, whose body is a

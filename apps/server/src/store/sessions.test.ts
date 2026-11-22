@@ -262,15 +262,15 @@ describe("the session log", () => {
     ).toBe("not_found");
   });
 
-  it("is the operator's alone to read and mark, the session's own credential refused", () => {
+  it("does not exist for the session's own credential, which holds no sessions scope", () => {
     const query = sessionLogQuery.parse({});
     expect(failure(() => sessionLog(fixture.store, agent.identity, agent.target, query))).toEqual({
-      code: "not_allowed",
+      code: "not_found",
       field: undefined,
     });
     expect(
       failure(() => readSessionLog(fixture.store, agent.identity, agent.target, { through: 1 })),
-    ).toEqual({ code: "not_allowed", field: undefined });
+    ).toEqual({ code: "not_found", field: undefined });
     expect(log().read_through).toBe(0);
   });
 });

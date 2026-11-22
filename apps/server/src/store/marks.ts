@@ -11,7 +11,7 @@ import type {
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";
-import type { Identity } from "../identity.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import type { Store } from "./store.ts";
 import { marksOf, partyCursors } from "./thread-reads.ts";
 import {
@@ -62,7 +62,7 @@ export function markRead(
 ): CursorsResult {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, target, store.clock());
+    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
     return { cursors: readThrough(db, identity, sessionId, target.thread, input.through) };
   });
 }
@@ -79,7 +79,7 @@ export function markUnread(
 ): CursorsResult {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, target, store.clock());
+    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
     const thread = requireThread(db, sessionId, target.thread);
     if (input.from > thread.last_seq) {
       throw invalidInput("from", "is beyond the thread's latest message");
@@ -160,7 +160,7 @@ export function archiveThread(
 ): MarksResult {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, target, store.clock());
+    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
     const outcome = archiveThrough(db, identity, sessionId, target.thread, input.through);
     if ("openAsks" in outcome) {
       const [number] = outcome.openAsks;
@@ -179,10 +179,11 @@ export function bulkRead(store: Store, identity: Identity, input: BulkMarkInput)
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
+    authorizeScope(db, identity, "threads:write", now);
     return {
       threads: input.threads.map((target, index) => {
         const field = `threads.${index}`;
-        const sessionId = authorizeSession(db, identity, target, now, field);
+        const sessionId = authorizeSession(db, identity, "threads:write", target, now, field);
         const cursors = readThrough(db, identity, sessionId, target.thread, target.through, field);
         return { agent: target.agent, session: target.session, thread: target.thread, cursors };
       }),
@@ -201,10 +202,11 @@ export function bulkArchive(
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
+    authorizeScope(db, identity, "threads:write", now);
     const result: BulkArchiveResult = { archived: [], skipped: [] };
     input.threads.forEach((target, index) => {
       const field = `threads.${index}`;
-      const sessionId = authorizeSession(db, identity, target, now, field);
+      const sessionId = authorizeSession(db, identity, "threads:write", target, now, field);
       const outcome = archiveThrough(db, identity, sessionId, target.thread, target.through, field);
       const named = { agent: target.agent, session: target.session, thread: target.thread };
       if ("openAsks" in outcome) {
