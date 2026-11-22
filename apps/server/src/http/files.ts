@@ -9,6 +9,7 @@ import {
   unsatisfiableRangeStatus,
 } from "@wayfarerlabs/agention-api";
 import type { Context } from "hono";
+import { ApiError } from "../errors.ts";
 import { chunkBytes, findCarriedFile, readFileChunk, type Store } from "../store/index.ts";
 import { parse, parseQuery, threadTarget } from "./input.ts";
 import { ownHeaders } from "./own-headers.ts";
@@ -130,10 +131,19 @@ export function serveFile(
   }
   let index = Math.floor(start / chunkBytes);
   const lastIndex = Math.floor(end / chunkBytes);
+  // The first chunk is read before the answer starts, so a credential revoked
+  // since the file was found, or a chunk that is gone, is answered as any
+  // refusal is, with the app's headers, rather than as a broken body.
+  let first = readFileChunk(store, identity, file.id, index);
+  if (first === undefined) {
+    log(`file ${file.id} is missing its chunk ${index}, so its read was refused`);
+    throw new ApiError("not_found", "this file's contents are missing");
+  }
   const body = new ReadableStream<Uint8Array>(
     {
       pull(controller) {
-        const data = readFileChunk(store, identity, file.id, index);
+        const data = first ?? readFileChunk(store, identity, file.id, index);
+        first = undefined;
         if (data === undefined) {
           log(`file ${file.id} is missing its chunk ${index}, so its read was cut short`);
           controller.error(new Error("a chunk of the file is missing"));

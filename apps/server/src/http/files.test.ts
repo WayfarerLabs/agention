@@ -5,12 +5,14 @@ import {
   type ThreadFilesPage,
   type ThreadGetResult,
 } from "@wayfarerlabs/agention-api";
+import { type IncomingMessage, request as httpRequest } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chunkBytes } from "../store/index.ts";
+import { ApiError } from "../errors.ts";
+import { chunkBytes, revokeRegistration } from "../store/index.ts";
 import { contentSecurityPolicy } from "./app.ts";
-import { codeOf, json, type Mount, readFile, uploaded } from "./file-test-support.ts";
+import { codeOf, type Mount, readFile, uploaded } from "./file-test-support.ts";
 import { contentDisposition, fileCaching, filePolicy, wantedOf } from "./files.ts";
-import { type AgentKey, Harness, newThread, origin } from "./test-harness.ts";
+import { type AgentKey, Harness, host, newThread, origin, sessionCookie } from "./test-harness.ts";
 
 let harness: Harness;
 let agent: AgentKey;
@@ -80,6 +82,50 @@ describe("a file read", () => {
     await attach([{ bytes, name: "big.bin", type: "application/octet-stream" }]);
     const sent = await readFile(harness, "web", agent, 1, "big.bin");
     expect(sent.bytes.equals(bytes)).toBe(true);
+  });
+
+  it("stops within a chunk once its credential is revoked", async () => {
+    await attach([{ bytes: Buffer.alloc(chunkBytes * 3), name: "big.bin" }]);
+    const response = await harness.app.request(
+      "/api/agent/s/builder/main/threads/1/messages/1/files/big.bin",
+      { headers: { host, authorization: `Bearer ${await harness.token(agent)}` } },
+    );
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    expect((await reader?.read())?.value?.length).toBe(chunkBytes);
+    revokeRegistration(
+      harness.fixture.store,
+      harness.fixture.operator,
+      harness.registrationId(agent),
+    );
+    await expect(reader?.read()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("whose first chunk fails is answered by the app, with its headers, over a real connection", async () => {
+    await attach([{ bytes: Buffer.alloc(chunkBytes * 2), name: "big.bin" }]);
+    harness.fixture.db.prepare("DROP TRIGGER file_chunks_kept").run();
+    harness.fixture.db.prepare("DELETE FROM file_chunks WHERE idx = 0").run();
+    const listening = await harness.listen();
+    try {
+      const answer = await new Promise<IncomingMessage>((resolve, reject) => {
+        const request = httpRequest({
+          host: "127.0.0.1",
+          port: listening.address.port,
+          path: "/api/web/s/builder/main/threads/1/messages/1/files/big.bin",
+          headers: { host, cookie: `${sessionCookie}=${harness.cookie}` },
+        });
+        request.on("response", resolve).on("error", reject).end();
+      });
+      answer.resume();
+      expect([answer.statusCode, answer.headers["content-type"]]).toEqual([
+        404,
+        "application/json",
+      ]);
+      expect(answer.headers["content-security-policy"]).toBe(contentSecurityPolicy(origin));
+      expect(answer.headers["x-content-type-options"]).toBe("nosniff");
+    } finally {
+      await listening.close();
+    }
   });
 
   it("is not_found for a thread of another session, an unknown message or name, and another file's ref", async () => {
@@ -381,6 +427,5 @@ describe("a thread's files", () => {
     await uploaded(harness, "web", agent, Buffer.from("123456"));
     const settings = await harness.web("GET", "/settings");
     expect((settings.body as { storage: unknown }).storage).toEqual({ files: 2, bytes: 10 });
-    expect(json).toBeDefined();
   });
 });
