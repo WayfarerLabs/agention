@@ -18,7 +18,7 @@
   "paths": {
     "/api/operator": {
       "get": {
-        "operationId": "listVersions",
+        "operationId": "operatorListVersions",
         "summary": "List the versions of the operator API this server serves",
         "tags": [
           "operator"

@@ -24,18 +24,28 @@ import { operatorApiPrefix, operatorApiVersion, versionsDeclaration } from "./op
 
 type JsonObject = Record<string, unknown>;
 
-// A documented mount: where it is, how a caller authenticates on it, and its
-// declarations.
+// A documented mount: where it is, the tag its operations are listed under,
+// how a caller authenticates on it, if at all, and its declarations. A mount
+// listed under another's tag leaves the tag's description to that one.
 interface Mount {
   tag: string;
-  description: string;
+  description?: string;
   prefix: string;
-  security: "apiKey" | "agentToken";
+  security: "apiKey" | "agentToken" | undefined;
   versionHeader: boolean;
   declarations: readonly Declaration[];
 }
 
 const mounts: readonly Mount[] = [
+  // The versions the server serves, beside the versions' mounts, which any
+  // client may ask without a key.
+  {
+    tag: "operator",
+    prefix: "/api/operator",
+    security: undefined,
+    versionHeader: false,
+    declarations: [versionsDeclaration],
+  },
   {
     tag: "operator",
     description:
@@ -105,7 +115,7 @@ function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaratio
     operationId: `${mount.tag}${name}`,
     summary: declaration.summary,
     tags: [mount.tag],
-    security: [{ [mount.security]: scopes }],
+    security: mount.security === undefined ? [] : [{ [mount.security]: scopes }],
     ...(parameters.length === 0 ? {} : { parameters }),
     ...(declaration.body === undefined
       ? {}
@@ -141,25 +151,7 @@ const statuses =
 // once, under components.schemas, and referenced wherever it appears.
 export function apiDocument(): JsonObject {
   const schemas = new JsonSchemas();
-  const paths: Record<string, JsonObject> = {
-    "/api/operator": {
-      get: {
-        operationId: versionsDeclaration.name,
-        summary: versionsDeclaration.summary,
-        tags: ["operator"],
-        security: [],
-        responses: {
-          "200": {
-            description: "Done",
-            content: {
-              "application/json": { schema: schemas.of(versionsDeclaration.response, "output") },
-            },
-          },
-          default: { $ref: "#/components/responses/error" },
-        },
-      },
-    },
-  };
+  const paths: Record<string, JsonObject> = {};
   for (const mount of mounts) {
     for (const declaration of mount.declarations) {
       const path = pathOf(mount, declaration);
@@ -184,7 +176,9 @@ export function apiDocument(): JsonObject {
         `GET /api/operator lists the operator API versions the server serves; the agent API ` +
         `serves versions ${agentApi.oldest} to ${agentApi.version}.`,
     },
-    tags: mounts.map((mount) => ({ name: mount.tag, description: mount.description })),
+    tags: mounts.flatMap(({ tag, description }) =>
+      description === undefined ? [] : [{ name: tag, description }],
+    ),
     paths,
     components: {
       securitySchemes: {
