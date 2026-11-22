@@ -34,3 +34,12 @@
       unchanged (agention#41; on a loopback bed at the reviewed head, with an agent bridge approved
       and answered through keys).
 - [x] `locked.md` in this directory, with the final merge (agention#41).
+
+## Delivery 2: files, after attachments (agention#46)
+
+- [ ] Main merged in, with attachments' four file routes declared as operations on every mount,
+      bytes bodies and answers in the declaration and the API document, and file scopes checked in
+      the store on every chunk (K4, ruling 10).
+- [ ] Live run: a key uploads, attaches, lists and reads a file, whole and by range; a read key is
+      refused an upload; removing an attached file is refused.
+- [ ] `locked.md` updated for files.

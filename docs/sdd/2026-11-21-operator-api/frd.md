@@ -3,7 +3,7 @@
 <!-- cspell:ignore taht -->
 
 - Status: Accepted by the operator 2026-11-21 with changes (ruling 5); A3 added by ruling 7 and
-  confirmed by ruling 9; K5 extended by ruling 8
+  confirmed by ruling 9; K5 extended by ruling 8; K4 extended to files by ruling 10
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -59,9 +59,11 @@ keys.
 **K4. A key acts as the operator, within its scopes.** A key holds one or more scopes, each a
 resource and an access (ruling 1):
 
-- **`threads:read`**: the operator's thread list and its counts, and any thread with its messages.
+- **`threads:read`**: the operator's thread list and its counts, and any thread with its messages
+  and the files they carry (ruling 10).
 - **`threads:write`**: also starting threads, writing in them and answering asks, and marking
-  threads read, unread and archived, one at a time or in bulk.
+  threads read, unread and archived, one at a time or in bulk; uploading files, attaching them to a
+  message, and removing an upload no message carries yet (ruling 10).
 - **`sessions:read`**: the sessions view with its agents, tags and groups, a session's log, the
   count of sessions with unread updates, and agents' registrations.
 - **`sessions:write`**: also marking a session's log read, managing groups and tags and setting a
@@ -159,6 +161,13 @@ operator, which ADR 0001 ruled out.
    stays listed as expired.
 9. (2026-11-22) Asked "Is A3 and the Out of scope edit, as quoted, right?", the operator chose "Yes,
    as written". Taken: A3 and the Out of scope list as they stand.
+10. (2026-11-22) With attachments (agention#46) landing first: "And I think that we should adjust
+    the new API to include files, right?" Asked "Files in the operator API: upload and remove under
+    threads:write, list and fetch under threads:read?", the operator chose "Yes", adding: "But to be
+    clear, "remove" should only work for staged files that haven't yet been attached to a sent
+    message. Once attached to a sent message, they are immutable just like the message itself. And
+    this should be true for both this API as well as the feature as a whole." Taken: K4's file
+    clauses; attachments' own rules already hold an attached file immutable on every mount.
 
 ## Definition of done
 
