@@ -13,6 +13,7 @@ let api: FakeApi;
 beforeEach(() => {
   api = new FakeApi();
   api.on("GET", "/passkeys", { body: { passkeys: [], recent: true } });
+  api.on("GET", "/keys", { body: { keys: [], recent: true } });
 });
 
 afterEach(() => {
@@ -101,13 +102,18 @@ describe("Settings' sections", () => {
   });
 
   it("each load only what they show", async () => {
+    const loads = () =>
+      ["/passkeys", "/keys", "/settings"].map((path) => api.callsTo("GET", path).length);
     await open("/settings/sign-out", "Sign out");
-    expect([api.callsTo("GET", "/passkeys"), api.callsTo("GET", "/settings")]).toEqual([[], []]);
+    expect(loads()).toEqual([0, 0, 0]);
     cleanup();
     await open("/settings/passkeys", "Passkeys");
     await screen.findByRole("region", { name: "Add a passkey on this device" });
-    expect(api.callsTo("GET", "/passkeys")).toHaveLength(1);
-    expect(api.callsTo("GET", "/settings")).toEqual([]);
+    expect(loads()).toEqual([1, 0, 0]);
+    cleanup();
+    await open("/settings/api-keys", "API keys");
+    await screen.findByRole("button", { name: "Create an API key" });
+    expect(loads()).toEqual([1, 1, 0]);
     cleanup();
     await open("/settings/voice", "Voice");
     await screen.findByRole("button", { name: "Set up" });

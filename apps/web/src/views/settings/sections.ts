@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { ApiKeysSection } from "./ApiKeys.tsx";
 import { PasskeysSection } from "./Passkeys.tsx";
 import { SignOutSection } from "./SignOut.tsx";
 import { VoiceSection } from "./Voice.tsx";
@@ -33,6 +34,7 @@ export interface SettingsSection {
 
 export const settingsSections: readonly SettingsSection[] = [
   { slug: "passkeys", title: "Passkeys", group: "Access", component: PasskeysSection },
+  { slug: "api-keys", title: "API keys", group: "Access", component: ApiKeysSection },
   { slug: "voice", title: "Voice", group: "Features", component: VoiceSection },
   { slug: "sign-out", title: "Sign out", component: SignOutSection },
 ];

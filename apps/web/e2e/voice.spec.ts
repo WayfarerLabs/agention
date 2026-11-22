@@ -170,6 +170,7 @@ test("Settings at a phone's width lists the sections alone, and a section leads 
 
     for (const [title, shows] of [
       ["Passkeys", page.getByRole("article", { name: "Passkey Laptop" })],
+      ["API keys", page.getByRole("button", { name: "Create an API key" })],
       ["Voice", page.getByRole("button", { name: "Set up" })],
       ["Sign out", page.getByRole("main").getByRole("button", { name: "Sign out" })],
     ] as const) {
