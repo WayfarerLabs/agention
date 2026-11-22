@@ -1,7 +1,7 @@
 // cspell:ignore filechooser
 // Attachments in Chromium against the real server, on a server of these
-// tests' own: an agent's files shown in place, an image, a video played and
-// text read, a PDF opened in its tab and a missing file marked; every file
+// tests' own: an agent's files shown in place, an image, a video and audio
+// played and text read, a PDF opened in its tab and a missing file marked; every file
 // downloading under its name; the operator attaching a file and pasting an
 // image, which the agent reads, and the thread's files folded in its head;
 // and bytes of HTML and script declared as each type shown, opened on their
@@ -23,7 +23,7 @@ const problems: string[] = [];
 const log = "step 1: built\nstep 2: tested\nstep 3: shipped ✓\n";
 
 // The agent's files on thread 1's first message, by name.
-const files = ["shot.png", "clip.webm", "build.log", "spec.pdf", "lost.png"];
+const files = ["shot.png", "clip.webm", "tone.webm", "build.log", "spec.pdf", "lost.png"];
 
 const message = (seq: number) =>
   page.getByRole("article", { name: new RegExp(`^Message ${seq} `) });
@@ -44,9 +44,11 @@ test.beforeAll(async ({ browser, filesServer }) => {
   page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
 
   const video = await webm(page);
+  const sound = await webm(page, "audio");
   const refs = {
     "shot.png": await upload(agent, "shot.png", png(320, 180), "image/png"),
     "clip.webm": await upload(agent, "clip.webm", video, "video/webm"),
+    "tone.webm": await upload(agent, "tone.webm", sound, "audio/webm"),
     "build.log": await upload(agent, "build.log", Buffer.from(log), "text/plain"),
     "spec.pdf": await upload(agent, "spec.pdf", pdf(), "application/pdf"),
     "lost.png": await upload(agent, "lost.png", png(16, 16), "image/png"),
@@ -65,7 +67,7 @@ test.afterAll(async () => {
   await context.close();
 });
 
-test("a message shows its image, video and text in place, opens its PDF in a tab, and marks a missing file", async () => {
+test("a message shows its image, video, audio and text in place, opens its PDF in a tab, and marks a missing file", async () => {
   await page.goto(`${threads}/1`);
   await expect(filesOf(1).getByRole("listitem")).toHaveCount(files.length);
 
@@ -85,6 +87,17 @@ test("a message shows its image, video and text in place, opens its PDF in a tab
   });
   await expect
     .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeGreaterThan(0);
+
+  // So does the audio, in its player.
+  const audio = entry(1, "tone.webm").locator("audio");
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.readyState)).toBe(0);
+  await audio.evaluate((element: HTMLAudioElement) => {
+    element.muted = true;
+    return element.play();
+  });
+  await expect
+    .poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime))
     .toBeGreaterThan(0);
 
   // The text's link shows it in place, and moves focus to it.
@@ -181,11 +194,12 @@ test("the operator attaches a file and pastes an image, which arrive with the me
   // The thread's head folds its files, which list once unfolded, each
   // linking to its message.
   await page.reload();
-  const fold = page.getByRole("button", { name: /^Files \(7, / });
+  const held = files.length + 2;
+  const fold = page.getByRole("button", { name: new RegExp(`^Files \\(${held}, `) });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await fold.click();
   const listed = page.getByRole("region", { name: "Files" }).getByRole("listitem");
-  await expect(listed).toHaveCount(7);
+  await expect(listed).toHaveCount(held);
   await listed.filter({ hasText: "shot.png" }).getByRole("link", { name: "#1" }).click();
   await expect(message(1)).toBeFocused();
 });

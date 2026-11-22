@@ -64,33 +64,52 @@ export function pdf(): Buffer {
   return Buffer.from(text, "latin1");
 }
 
-// webm records a second and a half of color changing on a canvas, as WebM
-// video, in the page's browser, which has the encoder.
-export async function webm(page: Page): Promise<Buffer> {
-  const base64 = await page.evaluate(async () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 160;
-    canvas.height = 90;
-    const context = canvas.getContext("2d")!;
-    const recorder = new MediaRecorder(canvas.captureStream(25), { mimeType: "video/webm" });
+// webm records a second and a half in the page's browser, which has the
+// encoders, as WebM: video of color changing on a canvas, or audio of a tone
+// rising.
+export async function webm(page: Page, kind: "video" | "audio" = "video"): Promise<Buffer> {
+  const base64 = await page.evaluate(async (kind) => {
+    let stream: MediaStream;
+    let step: () => void;
+    let stop = () => {};
+    if (kind === "video") {
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = 90;
+      const context = canvas.getContext("2d")!;
+      stream = canvas.captureStream(25);
+      let frame = 0;
+      step = () => {
+        context.fillStyle = `hsl(${(frame++ * 12) % 360} 70% 50%)`;
+        context.fillRect(0, 0, 160, 90);
+      };
+    } else {
+      const audio = new AudioContext();
+      await audio.resume();
+      const tone = audio.createOscillator();
+      const output = audio.createMediaStreamDestination();
+      tone.connect(output);
+      tone.start();
+      stream = output.stream;
+      step = () => tone.frequency.setValueAtTime(tone.frequency.value + 20, audio.currentTime);
+      stop = () => void audio.close();
+    }
+    const recorder = new MediaRecorder(stream, { mimeType: `${kind}/webm` });
     const chunks: Blob[] = [];
     recorder.ondataavailable = (event) => chunks.push(event.data);
-    let frame = 0;
-    const timer = setInterval(() => {
-      context.fillStyle = `hsl(${(frame++ * 12) % 360} 70% 50%)`;
-      context.fillRect(0, 0, 160, 90);
-    }, 40);
+    const timer = setInterval(step, 40);
     recorder.start();
     await new Promise((resolve) => setTimeout(resolve, 1500));
     const stopped = new Promise((resolve) => (recorder.onstop = resolve));
     recorder.stop();
     await stopped;
     clearInterval(timer);
+    stop();
     const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer());
     let binary = "";
     bytes.forEach((byte) => (binary += String.fromCharCode(byte)));
     return btoa(binary);
-  });
+  }, kind);
   return Buffer.from(base64, "base64");
 }
 
