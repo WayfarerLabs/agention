@@ -617,9 +617,9 @@ path under `/docs/api` answers the JSON `not_found`, never the web UI's page.
 - **Passkey links.** Links come only from `agention passkey-link`, on the server's machine, so
   holding a passkey never yields one. A link is valid for 15 minutes, and issuing one revokes every
   unused link. Finishing it, in one transaction that also consumes it, creates the operator the
-  first time, and afterwards replaces their passkeys, which ends every browser session. A
-  replacement keeps the WebAuthn user id, so an authenticator overwrites the old passkey instead of
-  keeping it.
+  first time, and afterwards replaces their passkeys, which ends every browser session and revokes
+  every API key that has not already ended, waking any wait they hold. A replacement keeps the
+  WebAuthn user id, so an authenticator overwrites the old passkey instead of keeping it.
 - **Browser sessions.** A finished sign-in or link opens a session in the
   `__Host-agention-<port>-session` cookie (`Secure`, `HttpOnly`, `SameSite=Strict`), closing the one
   the browser held before. The session ends after seven days without use or thirty days after it

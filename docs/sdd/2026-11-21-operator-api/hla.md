@@ -110,6 +110,9 @@ key's last use).
   `checkCredential` confirms, inside each operation's transaction, that the key is unrevoked and
   unexpired, so revocation takes effect on the next request (K5). Last used is written at most
   hourly, as a browser session's idle expiry is.
+- **Recovery.** Replacing the operator's passkeys with `agention passkey-link` also revokes every
+  live key, in the same transaction, since whoever held the old passkeys may have created keys. This
+  is the lead's recommended default while the operator's ruling on it is pending.
 - **Management.** On the web mount only: `GET /keys`; `POST /keys` with the name, scopes and expiry,
   answering the secret once; and `POST /keys/:id/revoke`. Creating and revoking need the recent
   sign-in that passkey changes need; listing does not, as listing passkeys does not. At most 20 keys

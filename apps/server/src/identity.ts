@@ -148,8 +148,8 @@ export function holds(identity: Identity, scope: Scope): boolean {
 
 // authorizeScope confirms the credential is live and holds the scope the
 // operation requires, and answers when the credential will expire, as
-// checkCredential does. Every store operation taking an identity calls it, or
-// authorize, inside its transaction, so the store holds every adapter to the
+// checkCredential does. Every store operation an API key or an agent can reach
+// calls it, or authorize, inside its transaction, so the store holds every adapter to the
 // same scopes; the mounts also refuse before reading any input. To an
 // identity without the scope the operation does not exist.
 export function authorizeScope(
