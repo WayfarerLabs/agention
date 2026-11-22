@@ -202,7 +202,3 @@ export const sessionsPage = z.object({
   next: cursor.optional(),
 });
 export type SessionsPage = z.infer<typeof sessionsPage>;
-
-// How many sessions have log entries the operator has not read.
-export const unreadUpdates = z.object({ sessions: sequence });
-export type UnreadUpdates = z.infer<typeof unreadUpdates>;

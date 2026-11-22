@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { request } from "./api.ts";
 import { matchRoute, safeReturnPath } from "./router.tsx";
 import {
   csrf,
@@ -399,6 +400,45 @@ describe("the shell", () => {
       ["Settings", null],
     ]);
     expect(heading.classList.contains("visually-hidden")).toBe(false);
+  });
+
+  it("counts on each tab what waits in its view, showing no count of none", async () => {
+    const attention = { unread_threads: 3, pending_registrations: 0 };
+    api.on("GET", "/attention", () => ({ body: { ...attention } }));
+    renderAt("/");
+    await screen.findByRole("heading", { name: "Threads" });
+    const views = screen.getByRole("navigation", { name: "Views" });
+    // A tab with a count is named by its label, then the count.
+    await within(views).findByRole("link", { name: /^Threads\s*3\b/ });
+    expect(within(views).getByRole("link", { name: "Sessions" }).textContent).toBe("Sessions");
+    attention.unread_threads = 0;
+    attention.pending_registrations = 2;
+    window.dispatchEvent(new Event("focus"));
+    await within(views).findByRole("link", { name: /^Sessions\s*2\b/ });
+    expect(within(views).getByRole("link", { name: "Threads" }).textContent).toBe("Threads");
+    expect(within(views).getByRole("link", { name: "Settings" }).textContent).toBe("Settings");
+  });
+
+  it("reads the counts again once a change lands, and not after a read, a refusal or signing out", async () => {
+    const attention = { unread_threads: 1, pending_registrations: 0 };
+    api
+      .on("GET", "/attention", () => ({ body: { ...attention } }))
+      .on("POST", "/reads", { body: { threads: [] } })
+      .on("POST", "/archives", failure("invalid_input", "Choose a thread."))
+      .on("POST", "/auth/signout", { body: signedOut });
+    renderAt("/");
+    const views = await screen.findByRole("navigation", { name: "Views" });
+    await within(views).findByRole("link", { name: /^Threads\s*1\b/ });
+    const loads = () => api.callsTo("GET", "/attention").length;
+    const loaded = loads();
+    attention.unread_threads = 0;
+    await request("GET", "/threads");
+    await expect(request("POST", "/archives", { csrf, body: {} })).rejects.toThrow();
+    await request("POST", "/auth/signout", { csrf });
+    expect(loads()).toBe(loaded);
+    await act(() => request("POST", "/reads", { csrf, body: { threads: [] } }));
+    await within(views).findByRole("link", { name: "Threads" });
+    expect(loads()).toBe(loaded + 1);
   });
 
   it("shows the heading of a page with no tab", async () => {

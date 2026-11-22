@@ -42,8 +42,8 @@ import {
   bulkArchive,
   clearVoiceSettings,
   bulkRead,
+  countAttention,
   countThreads,
-  countUnreadUpdates,
   createGroup,
   findOperator,
   listGroupsAndTags,
@@ -294,6 +294,8 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   api.post("/archives", requireSession, async (c) =>
     c.json(bulkArchive(store, c.var.identity, await parseBody(c, bulkMarkInput))),
   );
+  // What waits on the operator, which the navigation's tabs count.
+  api.get("/attention", requireSession, (c) => c.json(countAttention(store, c.var.identity)));
   api.get("/registrations", requireSession, (c) =>
     c.json(listRegistrations(store, c.var.identity, parseQuery(c, registrationsQuery))),
   );
@@ -310,9 +312,6 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   );
   api.get("/sessions", requireSession, (c) =>
     c.json(listSessions(store, c.var.identity, parseQuery(c, sessionsQuery))),
-  );
-  api.get("/sessions/unread-updates", requireSession, (c) =>
-    c.json(countUnreadUpdates(store, c.var.identity)),
   );
 
   // The operator's session groups and tags.

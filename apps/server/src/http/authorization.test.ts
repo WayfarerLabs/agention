@@ -80,7 +80,7 @@ const webRoutes: [string, string, unknown][] = [
   ["POST", "/registrations/1/reject", undefined],
   ["POST", "/registrations/1/revoke", undefined],
   ["GET", "/sessions", undefined],
-  ["GET", "/sessions/unread-updates", undefined],
+  ["GET", "/attention", undefined],
   ["GET", "/passkeys", undefined],
   ["POST", "/passkeys/register/begin", { name: "Phone" }],
   ["POST", "/passkeys/register/finish", { credential: {} }],
@@ -158,7 +158,7 @@ describe("the operator's own routes", () => {
   it("are none of the agent mount's", async () => {
     for (const [method, path, body] of [
       ["GET", "/sessions", undefined],
-      ["GET", "/sessions/unread-updates", undefined],
+      ["GET", "/attention", undefined],
       ["GET", "/s/builder/main/updates", undefined],
       ["POST", "/s/builder/main/updates/read", { through: 0 }],
       ...groupAndTagRoutes,

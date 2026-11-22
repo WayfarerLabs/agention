@@ -339,10 +339,12 @@ for the agent, **S** for the session and **T** for the topic; holding the pointe
 it. A topic is a name like an agent's or a session's, such as `auth`, and belongs to its session:
 beside its session it shows alone, and elsewhere as `session/topic`.
 
-- **The thread list**, **Threads**, shows every thread you have not archived. Its head holds
-  **Sort**, the order it is in, beside a button saying which way the order runs, then **Group**, how
-  the list is grouped, and **Filters**, a funnel with a badge counting the filters that are on. On a
-  phone, **Sort** and its button take one row, with **Group** and **Filters** beneath them; on the
+- **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
+  counts those holding a message you have not read, the threads the **Unread** filter keeps with no
+  other filter on, and reading or archiving them clears the count. The list's head holds **Sort**,
+  the order it is in, beside a button saying which way the order runs, then **Group**, how the list
+  is grouped, and **Filters**, a funnel with a badge counting the filters that are on. On a phone,
+  **Sort** and its button take one row, with **Group** and **Filters** beneath them; on the
   narrowest phones, or with enlarged text, the button wraps beneath **Sort**.
   - **Sort** orders the list by:
     - **Priority**, the default: the threads with asks open to you first, each by the most pressing
@@ -595,7 +597,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Groups and tags** opens the sheet listing your session groups and tags, as
     [Groups and tags](#groups-and-tags) describes.
   - **Waiting for approval** holds the registrations to approve, as
-    [Approving agents](#approving-agents) describes.
+    [Approving agents](#approving-agents) describes. The **Sessions** tab counts them, and approving
+    or rejecting them clears the count.
   - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
     with how many sessions it has and what they add up to: their threads' roll-up and unread updates
     as each session's row shows them, their open asks as each row shows its own, their stranded
@@ -637,8 +640,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     60%**, and **Older** shows the updates before. Unfolding reads the updates it shows, which stay
     marked unread until you fold the row again. Rows start folded each time you open the view, and a
     row under an agent or a group you folded reads nothing, since it is not shown. This browser
-    keeps the agents you fold, under each group apart. The **Sessions** tab shows how many sessions
-    have updates you have not read, which goes down as you read them.
+    keeps the agents you fold, under each group apart.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.

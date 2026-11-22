@@ -281,7 +281,7 @@ pre.command {
   border-bottom: 3px solid var(--color-accent);
 }
 
-/* How many sessions have unread updates, on the Sessions tab. */
+/* A tab's count of what waits on the operator in its view. */
 .banner nav .badge {
   margin-left: var(--space-1);
 }

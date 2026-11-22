@@ -1,4 +1,5 @@
 import type {
+  AttentionCounts,
   ErrorBody,
   GroupRef,
   GroupsAndTags,
@@ -18,6 +19,7 @@ import {
   type AgentKey,
   codeOf,
   Harness,
+  newAgentKey,
   newThread,
   origin,
   sessionCookie,
@@ -336,13 +338,8 @@ describe("the sessions view", () => {
     });
     const older = await harness.web("GET", "/s/builder/main/updates?before=2");
     expect(older.body).toMatchObject({ updates: [{ seq: 1, state: "working" }] });
-    const unread = async () => (await harness.web("GET", "/sessions/unread-updates")).body;
-    expect(await unread()).toEqual({ sessions: 1 });
-    await harness.web("POST", "/s/builder/main/updates/read", { through: 2 });
-    expect(await unread()).toEqual({ sessions: 1 });
     const read = await harness.web("POST", "/s/builder/main/updates/read", { through: 3 });
     expect(read.body).toEqual({ read_through: 3 });
-    expect(await unread()).toEqual({ sessions: 0 });
     const beyond = await harness.web("POST", "/s/builder/main/updates/read", { through: 4 });
     expect([codeOf(beyond), (beyond.body as ErrorBody).error.field]).toEqual([
       "invalid_input",
@@ -357,6 +354,20 @@ describe("the sessions view", () => {
       },
     );
     expect(codeOf(unsigned)).toBe("unauthenticated");
+  });
+
+  it("counts what waits on the operator: unread threads, and registrations waiting", async () => {
+    const attention = async () => (await harness.web("GET", "/attention")).body;
+    expect(await attention()).toEqual({
+      unread_threads: 1,
+      pending_registrations: 0,
+    } satisfies AttentionCounts);
+    const waiting = newAgentKey();
+    await harness.register(waiting, "builder", "side");
+    await markRead();
+    expect(await attention()).toEqual({ unread_threads: 0, pending_registrations: 1 });
+    await harness.web("POST", `/registrations/${harness.registrationId(waiting)}/reject`);
+    expect(await attention()).toEqual({ unread_threads: 0, pending_registrations: 0 });
   });
 
   it("starts the operator's thread on a session, which the session's next wait reports", async () => {

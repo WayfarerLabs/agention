@@ -7,7 +7,12 @@ Date: 2026-10-25
 Accepted. [docs/architecture.md](../architecture.md) describes what exists. Until v1 is released
 this ADR is edited in place to state each decision as it stands; later decisions get ADRs of their
 own. Its "no paid services" is superseded by [ADR 0002](0002-voice-through-the-server.md): none by
-default, with voice's transcription provider one the operator may opt into.
+default, with voice's transcription provider one the operator may opt into. Its sessions view's tab
+counting the sessions with unread updates is superseded: a navigation badge counts only what its own
+tab lets the operator clear, so the Sessions tab counts the registrations waiting for approval and
+the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web UI" and the
+[operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row still marks its
+unread updates.
 
 ## Context
 
@@ -192,8 +197,9 @@ Threads stay on the thread list and session status on the sessions view. The ses
 each session's status and log, never its threads, but rolls up each session's, each agent's and,
 once any session is in a group, each group's threads as the list's parents do, each with a link to
 the thread list filtered to them; a session's unread updates show apart, so unread always means
-threads. The view's tab counts the sessions with unread updates. A topic is different: the
-requester's own, one per thread, within its session.
+threads. The view's tab counts the sessions with unread updates (superseded: the tab counts the
+registrations waiting for approval, as the Status says). A topic is different: the requester's own,
+one per thread, within its session.
 
 ### People and agents authenticate separately
 

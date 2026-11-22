@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { AttentionProvider, useAttention } from "./attention.tsx";
 import { ErrorBoundary } from "./boundary.tsx";
 import { Failure, PageHeading, usePageTitle } from "./components.tsx";
 import { plural, Spoken } from "./format.tsx";
 import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
 import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
-import { UnreadUpdatesProvider, useUnreadUpdates } from "./unread-updates.tsx";
 import { LinkPage } from "./views/LinkPage.tsx";
 import { Sessions } from "./views/Sessions.tsx";
 import { Settings } from "./views/Settings.tsx";
@@ -78,7 +78,7 @@ function Shell() {
       )}
     </Frame>
   );
-  return state.signed_in ? <UnreadUpdatesProvider>{frame}</UnreadUpdatesProvider> : frame;
+  return state.signed_in ? <AttentionProvider>{frame}</AttentionProvider> : frame;
 }
 
 function View({ route }: { route: Route }) {
@@ -135,7 +135,8 @@ function Navigation({ route }: { route: Route }) {
               }
             >
               {section.label}
-              {section.route === "sessions" && <UnreadUpdatesBadge />}
+              {section.route === "threads" && <UnreadThreadsBadge />}
+              {section.route === "sessions" && <PendingRegistrationsBadge />}
             </Link>
           </li>
         ))}
@@ -144,13 +145,29 @@ function Navigation({ route }: { route: Route }) {
   );
 }
 
-// UnreadUpdatesBadge shows on the Sessions tab how many sessions have
-// updates the operator has not read, while any has.
-function UnreadUpdatesBadge() {
-  const sessions = useUnreadUpdates()?.data?.sessions ?? 0;
-  return sessions === 0 ? null : (
+// Each tab's badge counts what waits on the operator that its view clears,
+// while anything does: on Threads, the unread threads, which reading or
+// archiving clears; on Sessions, the registrations waiting for approval,
+// which deciding clears.
+function UnreadThreadsBadge() {
+  const threads = useAttention()?.data?.unread_threads ?? 0;
+  return <Badge count={threads} spoken={plural(threads, "unread thread")} />;
+}
+
+function PendingRegistrationsBadge() {
+  const registrations = useAttention()?.data?.pending_registrations ?? 0;
+  return (
+    <Badge
+      count={registrations}
+      spoken={`${plural(registrations, "registration")} waiting for approval`}
+    />
+  );
+}
+
+function Badge({ count, spoken }: { count: number; spoken: string }) {
+  return count === 0 ? null : (
     <span className="badge">
-      <Spoken shown={String(sessions)} spoken={`${plural(sessions, "session")} with new updates`} />
+      <Spoken shown={String(count)} spoken={spoken} />
     </span>
   );
 }

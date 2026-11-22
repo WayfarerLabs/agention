@@ -1,6 +1,7 @@
 // Test support for the component tests: a fake web API behind fetch, and
 // fixtures shaped as the server answers.
 import {
+  type AttentionCounts,
   type ErrorBody,
   type ErrorCode,
   type GroupsAndTags,
@@ -71,6 +72,9 @@ export const noCounts: ThreadCounts = {
   reset: 0,
 };
 
+// Nothing waiting on the operator.
+export const noAttention: AttentionCounts = { unread_threads: 0, pending_registrations: 0 };
+
 export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
 // The settings of a server without voice.
@@ -99,14 +103,15 @@ export class FakeApi {
   readonly unhandled: string[] = [];
   readonly #routes = new Map<string, Handler>();
 
-  // Signed in, with an empty thread list, no sessions, none with unread
-  // updates, and no groups or tags, unless a test registers other answers.
+  // Signed in, with an empty thread list, no sessions, nothing waiting on
+  // the operator, and no groups or tags, unless a test registers other
+  // answers.
   constructor() {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
     this.on("GET", "/threads/counts", { body: noCounts });
     this.on("GET", "/sessions", { body: { agents: [] } });
-    this.on("GET", "/sessions/unread-updates", { body: { sessions: 0 } });
+    this.on("GET", "/attention", { body: noAttention });
     this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
     this.on("GET", "/settings", { body: noSettings });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>

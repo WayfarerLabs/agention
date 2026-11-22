@@ -21,7 +21,6 @@ import {
 import { usePages, useResource } from "../data.ts";
 import { useFolds } from "../device.ts";
 import { plural } from "../format.tsx";
-import { useUnreadUpdates } from "../unread-updates.tsx";
 import { GroupSheet, GroupsAndTagsSheet, TagChip, TagsSheet } from "./sessions/GroupsAndTags.tsx";
 import { NewThreadSheet } from "./sessions/NewThreadSheet.tsx";
 import {
@@ -52,8 +51,7 @@ import { SessionRow, sessionKey } from "./sessions/SessionRow.tsx";
 // up its sessions with a link to their threads, and an agent with sessions
 // in two groups comes under each with that group's sessions alone. The view
 // reads every session before it shows any, so it folds them by the group
-// each session carries. It refreshes as every view does, and the Sessions
-// tab's count of sessions with unread updates with it. This browser keeps
+// each session carries. It refreshes as every view does. This browser keeps
 // the groups and agents it folds and whether the past requests are shown; a
 // session's row starts folded on every visit. What a fold hides is not
 // loaded, so a session's log loads and is read only while its row is
@@ -79,19 +77,16 @@ export function Sessions() {
   usePageTitle("Sessions");
   const pending = usePages<Registration>(loadRegistrations("pending"));
   const sessions = useResource<AgentList>(listSessions);
-  const unreadUpdates = useUnreadUpdates();
-  // Each decision or read the view makes reloads it, the past requests and
-  // the Sessions tab's count too.
+  // Each decision or read the view makes reloads it, and the past requests
+  // too.
   const [changes, changed] = useReducer((count: number) => count + 1, 0);
   const { refresh: refreshPending } = pending;
   const { refresh: refreshSessions } = sessions;
-  const refreshUnread = unreadUpdates?.refresh;
   const refresh = useCallback(() => {
     refreshPending();
     refreshSessions();
-    refreshUnread?.();
     changed();
-  }, [refreshPending, refreshSessions, refreshUnread]);
+  }, [refreshPending, refreshSessions]);
   const sections = useFolds(unfoldedSections);
   // The session the new-thread sheet is open on, as it was when it opened,
   // and the control focus returns to when it closes. The sheet follows the
