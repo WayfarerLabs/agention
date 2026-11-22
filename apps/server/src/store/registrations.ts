@@ -13,7 +13,7 @@ import {
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
-import { authorizeAdministration, type Identity } from "../identity.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import { findAgentId, findSessionId, insertAgent, insertSession } from "./directory.ts";
 import { pageOf } from "./thread-reads.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
@@ -174,7 +174,7 @@ export function listRegistrations(
       : decodeCursor("registrations", query.cursor, ["number"], "cursor");
   return db.transaction(() => {
     const now = store.clock();
-    authorizeAdministration(db, identity, now);
+    authorizeScope(db, identity, "sessions:read", now);
     const rows = db
       .prepare(
         `${registrationsShown}
@@ -212,7 +212,7 @@ function decide(
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    authorizeAdministration(db, identity, now);
+    authorizeScope(db, identity, "sessions:approve", now);
     const row = readRegistration(db, id, now);
     if (row === undefined) {
       throw notFound();

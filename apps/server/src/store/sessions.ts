@@ -19,7 +19,7 @@ import {
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notAllowed } from "../errors.ts";
-import { authorizeAdministration, type Identity } from "../identity.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import { findOperator, sessionActorId } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
@@ -265,7 +265,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       : decodeCursor("sessions", query.cursor, ["string"], "cursor");
   return db.transaction(() => {
     const now = store.clock();
-    authorizeAdministration(db, identity, now);
+    authorizeScope(db, identity, "sessions:read", now);
     const viewing = viewerAndCutoff(store, identity.actor, now);
     const agents = db
       .prepare(
@@ -407,7 +407,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
 export function countUnreadUpdates(store: Store, identity: Identity): UnreadUpdates {
   const { db } = store;
   return db.transaction(() => {
-    authorizeAdministration(db, identity, store.clock());
+    authorizeScope(db, identity, "sessions:read", store.clock());
     return db
       .prepare(
         `SELECT count(*) AS sessions

@@ -146,6 +146,7 @@ export function createApp(options: AppOptions): Hono {
       budgets,
       voiceEnvironment: options.voiceEnvironment ?? {},
       transcription: options.transcription ?? openAiCompatible(),
+      shutdown,
       log,
     }),
   );

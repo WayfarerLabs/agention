@@ -1,3 +1,4 @@
+import { holdsScope, type Scope, scopes } from "@wayfarerlabs/agention-api";
 import type { Database } from "./database/database.ts";
 import { agentUnauthenticated, notFound, unapprovedKey, unauthenticated } from "./errors.ts";
 
@@ -6,11 +7,11 @@ import { agentUnauthenticated, notFound, unapprovedKey, unauthenticated } from "
 export type Credential =
   { kind: "registration"; registrationId: number } | { kind: "browser_session"; hash: Uint8Array };
 
-// What an identity may act on: every session or the listed ones, and whether it
-// may administer registrations.
+// What an identity may act on: every session or the listed ones, and the
+// scopes it holds there.
 export interface Grants {
   sessions: "all" | readonly number[];
-  administration: boolean;
+  scopes: readonly Scope[];
 }
 
 // Identity is who is acting, with what credential, and what it may reach. The
@@ -23,7 +24,8 @@ export interface Identity {
 
 // identityForRegistration builds the identity of an agent credential: its
 // actor is the session the registration was approved for, and it reaches that
-// session only. A registration never approved has no identity.
+// session only, to read and write its threads. A registration never approved
+// has no identity.
 export function identityForRegistration(
   db: Database,
   registrationId: number,
@@ -41,12 +43,12 @@ export function identityForRegistration(
   return {
     actor: row.actor_id,
     credential: { kind: "registration", registrationId },
-    grants: { sessions: [row.session_id], administration: false },
+    grants: { sessions: [row.session_id], scopes: ["threads:write"] },
   };
 }
 
 // identityForBrowserSession builds the operator's identity from a browser
-// session: every session, plus administration.
+// session: every session, with every scope.
 export function identityForBrowserSession(db: Database, hash: Uint8Array): Identity | undefined {
   const row = db
     .prepare(
@@ -61,7 +63,7 @@ export function identityForBrowserSession(db: Database, hash: Uint8Array): Ident
   return {
     actor: row.actor_id,
     credential: { kind: "browser_session", hash },
-    grants: { sessions: "all", administration: true },
+    grants: { sessions: "all", scopes },
   };
 }
 
@@ -69,9 +71,9 @@ export function identityForBrowserSession(db: Database, hash: Uint8Array): Ident
 // registration still approved, the browser session unexpired. Operations call
 // it inside their transaction, so a revocation and the data it protects are
 // read in one snapshot and no layer above re-checks. An agent whose
-// registration stopped being approved during the request, as when a revocation
-// ends its long poll, is refused as authentication would refuse it, and told to
-// call register.
+// registration stopped being approved during the request, as when a
+// revocation ends its long poll, is refused as authentication would refuse
+// it, and told to call register.
 export function checkCredential(db: Database, identity: Identity, now: number): void {
   const { credential } = identity;
   if (credential.kind === "registration") {
@@ -113,11 +115,18 @@ export function authorize(
   return sessionId;
 }
 
-// authorizeAdministration confirms the credential is live and may administer
-// registrations; to anything else, administration does not exist.
-export function authorizeAdministration(db: Database, identity: Identity, now: number): void {
+// holds says whether the identity holds a scope, directly or by inclusion.
+export function holds(identity: Identity, scope: Scope): boolean {
+  return holdsScope(identity.grants.scopes, scope);
+}
+
+// authorizeScope confirms the credential is live and holds the scope, for an
+// operation that reaches across sessions, such as listing them or deciding a
+// registration. To an identity without the scope the operation does not
+// exist, as the mounts also answer before running it.
+export function authorizeScope(db: Database, identity: Identity, scope: Scope, now: number): void {
   checkCredential(db, identity, now);
-  if (!identity.grants.administration) {
+  if (!holds(identity, scope)) {
     throw notFound();
   }
 }

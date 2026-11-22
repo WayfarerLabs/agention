@@ -1,22 +1,9 @@
 import {
-  approveInput,
-  bulkMarkInput,
-  groupNameInput,
   newPasskeyInput,
   passkeyLinkBeginInput,
   passkeyNameInput,
-  registrationsQuery,
-  sessionGroupInput,
-  sessionLogMarkInput,
-  sessionLogQuery,
-  sessionsQuery,
   type SessionState,
   signInFinishInput,
-  tagNameInput,
-  tagsInput,
-  threadFilters,
-  threadStartInput,
-  threadsQuery,
   voiceSettingsInput,
 } from "@wayfarerlabs/agention-api";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
@@ -37,49 +24,20 @@ import {
 import { challengeLifetime } from "../auth/sealed-challenges.ts";
 import { sameSecret } from "../auth/secrets.ts";
 import { unauthenticated } from "../errors.ts";
+import type { Identity } from "../identity.ts";
 import {
-  approveRegistration,
-  bulkArchive,
   clearVoiceSettings,
-  bulkRead,
-  countThreads,
-  countUnreadUpdates,
-  createGroup,
   findOperator,
-  listGroupsAndTags,
-  listRegistrations,
-  listSessions,
-  listThreads,
-  readSessionLog,
   readSettings,
-  rejectRegistration,
-  removeGroup,
-  removeTag,
-  renameGroup,
-  renameTag,
-  revokeRegistration,
   saveVoiceSettings,
-  sessionLog,
-  setAgentTags,
-  setSessionGroup,
-  setSessionTags,
-  startThread,
   type Store,
   type VoiceEnvironment,
 } from "../store/index.ts";
 import type { TranscriptionProvider } from "../transcription/provider.ts";
-import {
-  agentOf,
-  groupOf,
-  parseBody,
-  parseQuery,
-  passkeyOf,
-  registrationOf,
-  sessionTarget,
-  tagOf,
-} from "./input.ts";
+import { parseBody, passkeyOf } from "./input.ts";
+import { operatorOperations } from "./operator-operations.ts";
+import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
-import { type IdentityEnv, threadRoutes } from "./thread-routes.ts";
 import { transcribe } from "./transcription-route.ts";
 
 // The cookies a server sets: its browser session and a passkey ceremony's
@@ -112,6 +70,8 @@ export interface WebApiOptions {
   voiceEnvironment: VoiceEnvironment;
   transcription: TranscriptionProvider;
   log: (message: string) => void;
+  // Aborts when the server shuts down.
+  shutdown: AbortSignal;
 }
 
 const isMutation = (c: Context) => !["GET", "HEAD", "OPTIONS"].includes(c.req.method);
@@ -143,7 +103,7 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
 
   // The operator's routes need a live browser session, and changes need its
   // CSRF token too.
-  const requireSession: MiddlewareHandler<IdentityEnv> = async (c, next) => {
+  const sessionIdentity = (c: Context): Identity => {
     const session = resumeBrowserSession(store, getCookie(c, sessionCookie));
     if (session === undefined) {
       throw unauthenticated("sign in first");
@@ -151,7 +111,10 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     if (isMutation(c) && !sameSecret(c.req.header("x-csrf-token") ?? "", session.csrfToken)) {
       throw unauthenticated("the CSRF token is missing or does not match the session");
     }
-    c.set("identity", session.identity);
+    return session.identity;
+  };
+  const requireSession: MiddlewareHandler<IdentityEnv> = async (c, next) => {
+    c.set("identity", sessionIdentity(c));
     await next();
   };
 
@@ -266,98 +229,12 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     transcribe(c, store, voiceEnvironment, options.transcription, options.log),
   );
 
-  api.use("/s/*", requireSession);
-  api.route("/s/:agent/:session", threadRoutes(store));
-  api.post("/s/:agent/:session/threads", async (c) => {
-    const target = sessionTarget(c);
-    const input = await parseBody(c, threadStartInput);
-    return c.json(startThread(store, c.var.identity, target, input));
-  });
-  api.get("/s/:agent/:session/updates", (c) =>
-    c.json(sessionLog(store, c.var.identity, sessionTarget(c), parseQuery(c, sessionLogQuery))),
-  );
-  api.post("/s/:agent/:session/updates/read", async (c) => {
-    const target = sessionTarget(c);
-    const input = await parseBody(c, sessionLogMarkInput);
-    return c.json(readSessionLog(store, c.var.identity, target, input));
-  });
-
-  api.get("/threads", requireSession, (c) =>
-    c.json(listThreads(store, c.var.identity, parseQuery(c, threadsQuery))),
-  );
-  api.get("/threads/counts", requireSession, (c) =>
-    c.json(countThreads(store, c.var.identity, parseQuery(c, threadFilters))),
-  );
-  api.post("/reads", requireSession, async (c) =>
-    c.json(bulkRead(store, c.var.identity, await parseBody(c, bulkMarkInput))),
-  );
-  api.post("/archives", requireSession, async (c) =>
-    c.json(bulkArchive(store, c.var.identity, await parseBody(c, bulkMarkInput))),
-  );
-  api.get("/registrations", requireSession, (c) =>
-    c.json(listRegistrations(store, c.var.identity, parseQuery(c, registrationsQuery))),
-  );
-  api.post("/registrations/:id/approve", requireSession, async (c) => {
-    const id = registrationOf(c);
-    const input = await parseBody(c, approveInput);
-    return c.json(approveRegistration(store, c.var.identity, id, input));
-  });
-  api.post("/registrations/:id/reject", requireSession, (c) =>
-    c.json(rejectRegistration(store, c.var.identity, registrationOf(c))),
-  );
-  api.post("/registrations/:id/revoke", requireSession, (c) =>
-    c.json(revokeRegistration(store, c.var.identity, registrationOf(c))),
-  );
-  api.get("/sessions", requireSession, (c) =>
-    c.json(listSessions(store, c.var.identity, parseQuery(c, sessionsQuery))),
-  );
-  api.get("/sessions/unread-updates", requireSession, (c) =>
-    c.json(countUnreadUpdates(store, c.var.identity)),
-  );
-
-  // The operator's session groups and tags.
-  api.get("/groups-and-tags", requireSession, (c) =>
-    c.json(listGroupsAndTags(store, c.var.identity)),
-  );
-  api.post("/groups", requireSession, async (c) =>
-    c.json(createGroup(store, c.var.identity, await parseBody(c, groupNameInput))),
-  );
-  api.post("/groups/:id/name", requireSession, async (c) => {
-    const id = groupOf(c);
-    const input = await parseBody(c, groupNameInput);
-    return c.json(renameGroup(store, c.var.identity, id, input));
-  });
-  api.post("/groups/:id/remove", requireSession, (c) => {
-    removeGroup(store, c.var.identity, groupOf(c));
-    return c.json({});
-  });
-  api.post("/tags/:tag/name", requireSession, async (c) => {
-    const tag = tagOf(c);
-    const input = await parseBody(c, tagNameInput);
-    renameTag(store, c.var.identity, tag, input);
-    return c.json({});
-  });
-  api.post("/tags/:tag/remove", requireSession, (c) => {
-    removeTag(store, c.var.identity, tagOf(c));
-    return c.json({});
-  });
-  api.post("/s/:agent/:session/group", async (c) => {
-    const target = sessionTarget(c);
-    const input = await parseBody(c, sessionGroupInput);
-    setSessionGroup(store, c.var.identity, target, input);
-    return c.json({});
-  });
-  api.post("/s/:agent/:session/tags", async (c) => {
-    const target = sessionTarget(c);
-    const input = await parseBody(c, tagsInput);
-    setSessionTags(store, c.var.identity, target, input);
-    return c.json({});
-  });
-  api.post("/agents/:agent/tags", requireSession, async (c) => {
-    const agent = agentOf(c);
-    const input = await parseBody(c, tagsInput);
-    setAgentTags(store, c.var.identity, agent, input);
-    return c.json({});
+  // Every operator operation, for the browser session, which holds every
+  // scope.
+  addOperations(api, operatorOperations, {
+    store,
+    shutdown: options.shutdown,
+    authenticate: sessionIdentity,
   });
   return api;
 }

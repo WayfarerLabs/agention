@@ -1,16 +1,6 @@
-import {
-  groupId,
-  invalidInputBody,
-  name,
-  passkeyId,
-  queryNumber,
-  registrationId,
-  tagName,
-  threadNumber,
-} from "@wayfarerlabs/agention-api";
+import { invalidInputBody, passkeyId, queryNumber } from "@wayfarerlabs/agention-api";
 import type { Context } from "hono";
 import { ApiError } from "../errors.ts";
-import type { SessionTarget, ThreadTarget } from "../store/index.ts";
 
 // Every route reads its input, path, query and body alike, through the shared
 // schemas, so a request breaking a bound fails as invalid_input before any
@@ -69,36 +59,9 @@ export async function parseBody<T>(c: Context, schema: Schema<T>): Promise<T> {
   return parse(schema, value);
 }
 
-export function sessionTarget(c: Context): SessionTarget {
-  return {
-    agent: parse(name, c.req.param("agent"), "agent"),
-    session: parse(name, c.req.param("session"), "session"),
-  };
-}
-
-export function threadTarget(c: Context): ThreadTarget {
-  return {
-    ...sessionTarget(c),
-    thread: parse(queryNumber(threadNumber), c.req.param("n"), "thread"),
-  };
-}
-
-export function registrationOf(c: Context): number {
-  return parse(queryNumber(registrationId), c.req.param("id"), "id");
-}
+// The ids in the web-only routes' paths. Operations declare theirs as schemas
+// instead.
 
 export function passkeyOf(c: Context): number {
   return parse(queryNumber(passkeyId), c.req.param("id"), "id");
-}
-
-export function groupOf(c: Context): number {
-  return parse(queryNumber(groupId), c.req.param("id"), "id");
-}
-
-export function tagOf(c: Context): string {
-  return parse(tagName, c.req.param("tag"), "tag");
-}
-
-export function agentOf(c: Context): string {
-  return parse(name, c.req.param("agent"), "agent");
 }
