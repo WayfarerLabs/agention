@@ -17,8 +17,8 @@
 - Files on every mount, after attachments (agention#46): uploading, removing a staged upload,
   listing a thread's files and reading one by range, declared once with bodies and answers of bytes.
   Uploads and removal need `threads:write`, and listing and reading `threads:read`; an attached file
-  is never removed (ruling 10). The count of sessions with unread updates left the operator API with
-  the web UI's move to `/attention`, which stays web-only (ruling 11).
+  is never removed (ruling 10). The operator API has no count of sessions with unread updates, and
+  `/attention` stays web-only (ruling 11).
 - An OpenAPI 3.1 document of the operator and agent APIs, generated from those declarations,
   committed at `docs/api/openapi.json` with a parity test, and served with a static page under
   `/docs/api/` by `agention serve --api-docs`.
@@ -29,7 +29,7 @@
 The live run passed on a loopback bed at the reviewed head: a key created in Settings read sessions
 and threads with `curl` from the served docs, a read key was refused a write, a revoked key was
 refused and its wait ended, and the web UI and an agent bridge, approved and answered through keys,
-worked unchanged. After files, a second run at the reviewed head: keys uploaded and attached files,
+worked unchanged. After files, a second run at 64d2f14: keys uploaded and attached files, listed and
 read them whole, by range and past the end, and were refused an upload without `threads:write` and
 the removal of an attached file; a key revoked mid-transfer stopped its upload and its read within a
 chunk; and the bridge fetched the files a key attached.

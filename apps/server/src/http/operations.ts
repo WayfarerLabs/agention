@@ -32,16 +32,14 @@ export interface BytesBody {
 }
 
 // An answer of bytes, which a request may ask for one range of, with Range,
-// answered 206, or 416 when it lies outside them. T is what the handler
-// answers, so the compiler holds it to a Response as it does to a schema:
-// value is never set, and only carries T.
-export interface BytesAnswer<T extends Response = Response> {
+// answered 206, or 416 when it lies outside them.
+export interface BytesAnswer {
   bytes: "answer";
   // What the answer's bytes and headers are, for the documentation.
   description: string;
   // The types the bytes are answered as.
   types: readonly string[];
-  readonly value?: T;
+  readonly value?: Response;
 }
 
 // isBytes says whether a declared body or answer is bytes rather than a
@@ -98,7 +96,9 @@ interface Definition<P, Q, B, R> {
   params?: DescribedSchema<P>;
   query?: DescribedSchema<Q>;
   body?: DescribedSchema<B> | BytesBody;
-  // An answer of bytes gives R as its value's type, which is a Response.
+  // An answer of bytes gives R as its value's type, a Response, so the
+  // compiler holds its handler to one as it holds a JSON handler to its
+  // schema: value is never set, and only carries the type.
   response: DescribedSchema<R> | (BytesAnswer & { readonly value?: R });
   handler(input: OperationInput<P, Q, B>): NoInfer<R> | Promise<NoInfer<R>>;
 }

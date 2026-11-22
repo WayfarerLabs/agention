@@ -284,9 +284,9 @@ uploading and removing a pending upload need `threads:write`, and a thread's fil
 confirms the same scope inside its transaction, which a test over every operation in the same file
 holds; a file's chunk reads and writes are store calls too, and confirm it as every other does. Each
 chunk also re-checks the credential, in its own transaction, so a transfer stops within one chunk
-once its credential is revoked or expires, which the store's `apps/server/src/store/files.test.ts`
-("stops within a chunk once its credential is revoked") and the HTTP tests in
-`apps/server/src/http/files.test.ts` (the same, for a read) and
+once its credential is revoked or expires (one check for both), which the store's
+`apps/server/src/store/files.test.ts` ("stops within a chunk once its credential is revoked") and
+the HTTP tests in `apps/server/src/http/files.test.ts` (the same, for a read) and
 `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
 adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
 an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the
