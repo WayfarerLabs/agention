@@ -873,15 +873,21 @@ read at `/docs/api/openapi.json`, both without sign-in, so anyone who reaches th
 them; they describe the API, never your data. The same document is in Agention's repository, at
 `docs/api/openapi.json`.
 
-For example, with your origin in `origin` and a key holding `sessions:read` and `threads:read` read
-into `key` from a file only you can read, so it stays out of your shell's history:
+For example, in bash, with your origin in `origin` and a key holding `sessions:read` and
+`threads:read` read into `key` from a file only you can read, so it stays out of your shell's
+history:
 
 ```bash
 origin=https://agention.example.com
 key="$(cat ~/.config/my-tool/agention-key)"
-curl -sS -H "Authorization: Bearer $key" "$origin/api/operator/v1/sessions"
-curl -sS -H "Authorization: Bearer $key" "$origin/api/operator/v1/wait?wait=25"
+auth() { printf 'Authorization: Bearer %s\n' "$key"; }
+curl -sS -H @<(auth) "$origin/api/operator/v1/sessions"
+curl -sS -H @<(auth) "$origin/api/operator/v1/wait?wait=25"
 ```
+
+`-H @<(auth)` has curl read the header from a file that bash's own `printf` writes, so the key is
+never among a command's arguments, which anyone on the machine can read in its process list for as
+long as the command runs.
 
 The first lists your agents with their sessions. The second answers at once with the threads, in any
 session, holding messages you have not read, each naming its agent and session; with none, it waits
