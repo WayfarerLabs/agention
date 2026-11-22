@@ -1,5 +1,7 @@
 # Operator API: Functional Requirements
 
+<!-- cspell:ignore taht -->
+
 - Status: Accepted by the operator 2026-11-21 with changes (ruling 5); A3 added by ruling 7
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
