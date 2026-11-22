@@ -34,11 +34,11 @@ export class Database {
   }
 
   // open opens the database file, creating it and its directory when missing,
-  // applies any migrations this release has that the file lacks, and then
-  // switches a database not yet vacuumed incrementally to that mode, logging
-  // the switch, or why it could not and carrying on. It refuses an unsafe data directory or
-  // file, a file that is not an Agention database, and a database written by
-  // a newer release.
+  // applies any migrations this release has that the file lacks, then
+  // switches it to incremental vacuuming if it is not yet, logging the switch
+  // of a database that held data, or why it failed. It refuses an unsafe data
+  // directory or file, a file that is not an Agention database, and a
+  // database written by a newer release.
   static open(file: string, options: { log?: (message: string) => void } = {}): Database {
     const log =
       options.log ?? ((message: string) => process.stderr.write(`agention: ${message}\n`));

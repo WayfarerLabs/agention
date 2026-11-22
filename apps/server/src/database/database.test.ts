@@ -605,6 +605,10 @@ describe("session updates and their marks", () => {
 });
 
 describe("a database an earlier release wrote", () => {
+  // Opening one logs its switch to incremental vacuuming, which
+  // vacuum-mode.test.ts checks; these opens keep that out of the run's output.
+  const quiet = { log: () => {} };
+
   // Every row of every table, in a stable order, by table.
   function rowsOf(connection: { prepare: DatabaseSync["prepare"] }): Record<string, string[]> {
     const tables = connection
@@ -676,7 +680,7 @@ describe("a database an earlier release wrote", () => {
     });
     chmodSync(file, 0o600);
 
-    const database = Database.open(file);
+    const database = Database.open(file, quiet);
     try {
       expect(database.prepare("PRAGMA user_version").get()).toEqual({
         user_version: migrations.length,
@@ -731,7 +735,7 @@ describe("a database an earlier release wrote", () => {
     });
     chmodSync(file, 0o600);
 
-    const database = Database.open(file);
+    const database = Database.open(file, quiet);
     try {
       const after = rowsOf(database);
       expect(earlier(after, before)).toEqual(before);
@@ -775,7 +779,7 @@ describe("a database an earlier release wrote", () => {
     });
     chmodSync(file, 0o600);
 
-    const database = Database.open(file);
+    const database = Database.open(file, quiet);
     try {
       const after = rowsOf(database);
       expect(Object.keys(after)).toEqual(
@@ -814,7 +818,7 @@ describe("a database an earlier release wrote", () => {
     });
     chmodSync(file, 0o600);
 
-    const database = Database.open(file);
+    const database = Database.open(file, quiet);
     try {
       const after = rowsOf(database);
       expect(Object.keys(after).sort()).toEqual(

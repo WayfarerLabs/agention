@@ -103,7 +103,7 @@ export function createApp(options: AppOptions): Hono {
   const host = new URL(origin).host;
   const budgets = new RateBudgets(options.rates ?? defaultRates, store.clock);
   const shutdown = options.shutdown ?? new AbortController().signal;
-  const log = options.log ?? ((message: string) => process.stderr.write(`${message}\n`));
+  const log = options.log ?? ((message: string) => process.stderr.write(`agention: ${message}\n`));
   const app = new Hono();
 
   app.use(securityHeaders(origin));
