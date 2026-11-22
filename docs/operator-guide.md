@@ -325,7 +325,9 @@ within the last 10 minutes, and the Passkeys, API keys and Voice sections of Set
 in again while yours is older.
 
 To replace your passkeys, after losing your devices for example, run `agention passkey-link` again.
-Using the new link replaces all your passkeys with the one it registers and signs out every browser.
+Using the new link replaces all your passkeys with the one it registers, signs out every browser and
+revokes every API key, since whoever held the old passkeys could have created keys; create again the
+ones your programs still need ([API keys](#api-keys)).
 
 Passkeys must verify you, with a PIN or biometric, and be stored by the authenticator, so signing in
 asks for no name: open the origin and choose **Sign in with a passkey**. A browser session lasts 30
@@ -849,7 +851,8 @@ and create another.
 
 The list shows each key's name and scopes, when it was created, when it expires and when it was last
 used, to within an hour. **Revoke**, which asks first, ends a key at once: the program's next
-request is refused, and so is a wait it holds. A revoked or expired key stays listed, marked so,
+request is refused, and so is a wait it holds. Replacing your passkeys with `agention passkey-link`
+revokes every key ([Signing in](#signing-in)). A revoked or expired key stays listed, marked so,
 until the server next changes its keys. Creating and revoking a key need a sign-in within the last
 10 minutes, and the section offers **Sign in again** while yours is older. You can hold up to 20
 keys that are neither revoked nor expired.

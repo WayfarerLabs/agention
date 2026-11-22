@@ -38,11 +38,12 @@ the server's part of them on every request, and the web UI renders content inert
   to the same operator. Adding a passkey, removing one and every change to voice need a sign-in
   within the last 10 minutes, and removing a passkey ends the browser sessions it signed in. Passkey
   links come only from `agention passkey-link` on the server's machine, so holding a passkey never
-  yields one, and access can always be recovered there: a link replaces every passkey, works once
-  within 15 minutes, and issuing one revokes every unused link. A program acting for the operator
-  authenticates with an API key the operator created ([API keys](#api-keys)). No credential works on
-  another's surface: a browser session only on the web mount, an agent's token only on the agent
-  mount, and an API key only on the operator mount.
+  yields one, and access can always be recovered there: a link replaces every passkey, which signs
+  out every browser and revokes every API key, works once within 15 minutes, and issuing one revokes
+  every unused link. A program acting for the operator authenticates with an API key the operator
+  created ([API keys](#api-keys)). No credential works on another's surface: a browser session only
+  on the web mount, an agent's token only on the agent mount, and an API key only on the operator
+  mount.
 - **Inert content.** A message's text, its detail and its references are displayed, never executed,
   fetched or followed by the server. Markdown renders with raw HTML shown as text, images shown as
   links rather than loaded, and only HTTPS links live; no class or style comes from the text. Every
@@ -162,8 +163,9 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with
-  its refusal as soon as the key is revoked or expires. Creating and revoking a key need a sign-in
-  within the last 10 minutes, and at most 20 keys are live at once.
+  its refusal as soon as the key is revoked or expires. Replacing the passkeys with a passkey link
+  revokes every key, since whoever held the old passkeys could have created some. Creating and
+  revoking a key need a sign-in within the last 10 minutes, and at most 20 keys are live at once.
 - **Refusals.** Every refusal of a key is the same, so none tells whether a key ever existed. Failed
   key authentication spends a shared budget that never refuses a live key.
 - **The documentation.** `agention serve --api-docs` serves the API's documentation without sign-in

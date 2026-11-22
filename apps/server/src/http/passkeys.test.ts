@@ -323,6 +323,30 @@ describe("a later passkey link", () => {
     expect(codeOf(await browser().signIn(old))).toBe("unauthenticated");
     expect(codeOf(await browser().signIn(replacement))).toBe("ok");
   });
+
+  it("revokes every API key, which then lists as revoked", async () => {
+    const first = browser();
+    expect(codeOf(await first.link(link(), new TestAuthenticator()))).toBe("ok");
+    const created = await first.post("/keys", {
+      name: "status board",
+      scopes: ["threads:read"],
+      expiry: { kind: "none" },
+    });
+    expect(codeOf(created)).toBe("ok");
+    const { secret } = created.body as { secret: string };
+    const withKey = () =>
+      server.app.request("/api/operator/v1/threads", {
+        headers: { host: new URL(server.origin).host, authorization: `Bearer ${secret}` },
+      });
+    expect((await withKey()).status).toBe(200);
+
+    const replacing = browser();
+    expect(codeOf(await replacing.link(link(), new TestAuthenticator()))).toBe("ok");
+    expect((await withKey()).status).toBe(401);
+    expect((await replacing.send("GET", "/keys")).body).toMatchObject({
+      keys: [{ name: "status board", status: "revoked" }],
+    });
+  });
 });
 
 describe("an origin with a port", () => {

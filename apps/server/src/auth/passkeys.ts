@@ -403,8 +403,8 @@ export async function beginLink(
 // finishLink verifies the new passkey and, in one transaction that also
 // consumes the link, stores it and opens a session for this browser. The link
 // creates the operator or replaces their passkeys, which ends every browser
-// session they signed in, this browser's included, and wakes the waits across
-// sessions so one those sessions hold ends now.
+// session they signed in, this browser's included, revokes every API key, and
+// wakes the waits across sessions so one those credentials hold ends now.
 export async function finishLink(
   store: Store,
   rp: RelyingParty,
@@ -438,6 +438,11 @@ export async function finishLink(
       operator = insertOperator(db, operatorName, now);
     } else {
       db.prepare("DELETE FROM passkeys WHERE person_id = ?").run(operator.personId);
+      // Recovery assumes the old passkeys' holder may be someone else, who
+      // could have created keys, so every key is revoked with them.
+      db.prepare(
+        "UPDATE api_keys SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL",
+      ).run(now, operator.personId);
     }
     const passkeyId = insertPasskey(db, operator.personId, passkey, name, now, now);
     return {
