@@ -21,7 +21,7 @@ afterEach(async () => {
 it("serves an agent host over standard input and output", async () => {
   const { bridge, stderr } = await harness.process();
   const { tools } = await bridge.client.listTools();
-  expect(tools).toHaveLength(9);
+  expect(tools).toHaveLength(11);
   expect(await bridge.ok("register")).toMatchObject({
     status: "pending",
     code: registrationCode(harness.keyOnDisk()),

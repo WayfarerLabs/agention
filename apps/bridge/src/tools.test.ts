@@ -41,6 +41,8 @@ const tools = [
   "thread_archive",
   "message_wait",
   "session_update",
+  "file_upload",
+  "file_get",
 ];
 
 function newThread(requestId: string, fields: Record<string, unknown> = {}) {
@@ -137,6 +139,8 @@ async function everyToolRefuses(bridge: TestBridge, setting: string): Promise<vo
     ["thread_archive", { thread: 1, through: 1 }],
     ["message_wait", { wait_seconds: 0 }],
     ["session_update", { state: "working" }],
+    ["file_upload", { path: path.join(harness.home, "notes.txt") }],
+    ["file_get", { thread: 1, seq: 1, name: "notes.txt" }],
   ];
   for (const [tool, args] of calls) {
     const answer = await bridge.call(tool, args);

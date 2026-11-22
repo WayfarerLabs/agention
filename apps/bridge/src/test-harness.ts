@@ -3,7 +3,13 @@
 // as processes of their own, for the bridge's tests.
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { agentApi, agentApiHeader, type PublicKey, publicKey } from "@wayfarerlabs/agention-api";
+import {
+  agentApi,
+  agentApiHeader,
+  type PublicKey,
+  publicKey,
+  type UploadResult,
+} from "@wayfarerlabs/agention-api";
 import { createApp, securityHeaderValues } from "@wayfarerlabs/agention/src/http/app.ts";
 import { type Listening, listen } from "@wayfarerlabs/agention/src/http/listener.ts";
 import { defaultRates } from "@wayfarerlabs/agention/src/http/rates.ts";
@@ -19,7 +25,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import { fileURLToPath } from "node:url";
+import { AgentApi } from "./agent-api.ts";
 import { type BridgeEnvironment, createBridge } from "./bridge.ts";
+import { KeyFile, type SessionKey } from "./key-file.ts";
 
 // The server's certificate, made once for the test file, which this process
 // trusts the way NODE_EXTRA_CA_CERTS makes a bridge trust a private authority.
@@ -42,12 +50,13 @@ export function serverJson(body: unknown, status = 200): Response {
   });
 }
 
-// What a tool answered: its text, the JSON it holds if any, and whether it
-// is an error.
+// What a tool answered: its text, the JSON it holds if any, whether it is an
+// error, and every content block, the text's first.
 export interface Answer {
   isError: boolean;
   text: string;
   json: unknown;
+  content: Record<string, unknown>[];
 }
 
 export class TestBridge {
@@ -59,15 +68,15 @@ export class TestBridge {
 
   async call(name: string, args: Record<string, unknown> = {}): Promise<Answer> {
     const result = await this.client.callTool({ name, arguments: args });
-    const [content] = result.content as { type: string; text: string }[];
-    const text = content?.text ?? "";
+    const content = result.content as Record<string, unknown>[];
+    const text = typeof content[0]?.text === "string" ? content[0].text : "";
     let json: unknown;
     try {
       json = JSON.parse(text);
     } catch {
       json = undefined;
     }
-    return { isError: result.isError === true, text, json };
+    return { isError: result.isError === true, text, json, content };
   }
 
   // ok calls a tool that must succeed and returns its JSON.
@@ -142,6 +151,8 @@ export class BridgeHarness {
       // The fixture's clock stands still, so no budget refills; these tests
       // are not about budgets.
       rates: { ...defaultRates, key: { burst: 10_000, interval: 1000 } },
+      // Nor about the disk, which is always roomy enough.
+      freeBytes: () => Promise.resolve(Number.MAX_SAFE_INTEGER),
       shutdown: this.server.shutdown.signal,
       log: (message) => this.logged.push(message),
     });
@@ -266,6 +277,40 @@ export class BridgeHarness {
     if (response.status !== 200) {
       throw new Error(`${decision} failed: ${JSON.stringify(response.body)}`);
     }
+  }
+
+  // asAgent acts as the agent of a session without a bridge: the agent API,
+  // signing with the key the bridges keep on disk for it and the server's
+  // clock.
+  asAgent(names: { agent: string; session: string } = { agent, session }): {
+    api: AgentApi;
+    key: SessionKey;
+  } {
+    const key = new KeyFile(this.home, this.#origin, names).read();
+    if (key === undefined) {
+      throw new Error("the session has no key on disk");
+    }
+    const api = new AgentApi({ origin: this.#origin, clock: () => this.server.fixture.now });
+    return { api, key };
+  }
+
+  // operatorUploads uploads a file as the operator, through the web API, to
+  // a session.
+  async operatorUploads(
+    bytes: Uint8Array,
+    options: { name: string; type: string },
+    names: { agent: string; session: string } = { agent, session },
+  ): Promise<UploadResult> {
+    const response = await this.server.web(
+      "POST",
+      `/s/${names.agent}/${names.session}/uploads?name=${encodeURIComponent(options.name)}`,
+      bytes,
+      { headers: { "content-type": options.type, "content-length": String(bytes.length) } },
+    );
+    if (response.status !== 200) {
+      throw new Error(`the operator's upload failed: ${JSON.stringify(response.body)}`);
+    }
+    return response.body as UploadResult;
   }
 
   // operatorWrites sends a message to a thread as the operator, through the

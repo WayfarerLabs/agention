@@ -28,13 +28,36 @@ import {
 import { z } from "zod";
 import { type AgentApi, type ApiRequest, answerTimeout } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
+import { registerFileTools, WithContent } from "./file-tools.ts";
 import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
+import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
 import type { Session } from "./session.ts";
 
-// What the tools act through: the server's API and the session, or why the
-// bridge cannot reach them.
-export type Connection = { api: AgentApi; session: Session } | { problem: BridgeError };
+// What the tools act through: the server's API, the session, and the home
+// directory the bridge keeps its files under, or why the bridge cannot reach
+// them.
+export type Connection =
+  { api: AgentApi; session: Session; home: string } | { problem: BridgeError };
+export type Connected = Exclude<Connection, { problem: BridgeError }>;
+
+// What a tool makes its requests in the session with: the API, the key on
+// disk, and the path of the session the operator granted it, below which the
+// session's routes are.
+export interface InSession {
+  api: AgentApi;
+  key: SessionKey;
+  sessionPath: string;
+}
+
+// DefineTool registers one tool, whose run answers with what the tool's text
+// holds as JSON, or with a WithContent, which adds content blocks after it.
+export type DefineTool = <Input extends z.ZodType>(
+  toolName: string,
+  description: string,
+  input: Input,
+  run: (input: z.output<Input>, signal: AbortSignal) => Promise<unknown>,
+) => void;
 
 // Every tool is truthfully annotated as neither read-only nor destructive,
 // and as acting on a closed world: messages are append-only, a key is replaced
@@ -67,6 +90,9 @@ const tooLongText =
   "omitted, and the operator's web UI shows them in full.";
 const requestIdText =
   "Give every write a new request_id; retrying a write with the same one is safe.";
+const attachingText =
+  "To attach a file, upload it with file_upload, then name its upload in attachments; text " +
+  "and detail can link to the message's own files as [label](attachment:name).";
 
 // registerTools defines the bridge's tools on the MCP server. Each thread tool
 // is one request on the agent API, apart from asking again for a smaller page
@@ -75,12 +101,7 @@ export function registerTools(server: McpServer, connection: Connection): void {
   // tool registers one tool. The SDK advertises the input's JSON Schema; the
   // tool parses the arguments itself, so input outside a bound is answered
   // as the server would answer it, and refuses a field it does not know.
-  const tool = <Input extends z.ZodType>(
-    toolName: string,
-    description: string,
-    input: Input,
-    run: (input: z.output<Input>, signal: AbortSignal) => Promise<unknown>,
-  ): void => {
+  const tool: DefineTool = (toolName, description, input, run) => {
     server.registerTool(
       toolName,
       {
@@ -100,6 +121,11 @@ export function registerTools(server: McpServer, connection: Connection): void {
         }
         try {
           const answer = await run(parsed.data, context.mcpReq.signal);
+          if (answer instanceof WithContent) {
+            return {
+              content: [{ type: "text", text: JSON.stringify(answer.answer) }, ...answer.content],
+            };
+          }
           return { content: [{ type: "text", text: JSON.stringify(answer) }] };
         } catch (error) {
           if (error instanceof ApiFailure) {
@@ -114,22 +140,28 @@ export function registerTools(server: McpServer, connection: Connection): void {
     );
   };
 
-  const connected = (): { api: AgentApi; session: Session } => {
+  const connected = (): Connected => {
     if ("problem" in connection) {
       throw connection.problem;
     }
     return connection;
   };
 
-  // onSession makes a request in the session, under the names the operator
-  // granted, signed by the key now on disk.
+  // inSession gives what a request in the session needs: the names the
+  // operator granted, and the key now on disk to sign it.
+  const inSession = async (signal: AbortSignal): Promise<InSession> => {
+    const { api, session } = connected();
+    const { key, granted } = await session.credential(signal);
+    return { api, key, sessionPath: `/s/${granted.agent}/${granted.session}` };
+  };
+
+  // onSession makes a request in the session.
   const onSession = async (
     signal: AbortSignal,
     request: (sessionPath: string) => ApiRequest,
   ): Promise<unknown> => {
-    const { api, session } = connected();
-    const { key, granted } = await session.credential(signal);
-    return api.request(key, { ...request(`/s/${granted.agent}/${granted.session}`), signal });
+    const { api, key, sessionPath } = await inSession(signal);
+    return api.request(key, { ...request(sessionPath), signal });
   };
 
   tool(
@@ -161,8 +193,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "their own words instead, or beside their picks where several are allowed; or, on an ask " +
       "without suggested answers, their own words alone. They may also decline it. The title, " +
       "questions, suggested answers, fallbacks and references are plain text. " +
-      `${priorityText} ${requestIdText} Answers with the thread's number and its first ` +
-      "message's sequence.",
+      `${attachingText} ${priorityText} ${requestIdText} Answers with the thread's number and ` +
+      "its first message's sequence.",
     threadCreateInput,
     (input, signal) =>
       onSession(signal, (path) => ({ method: "POST", path: `${path}/threads`, body: input })),
@@ -179,12 +211,14 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "ask by replacing its message, never by asking the same thing again beside it; a " +
       "replacement's asks are asked again under new numbers, answered or not. A replacement is " +
       "a whole message: send again every part you keep, the detail included, or it is gone, " +
-      "and if the message set the topic, the thread's current topic. A replacement cannot drop " +
+      "and if the message set the topic, the thread's current topic, and it carries a file of " +
+      "the message it replaces only by naming it in keep. A replacement cannot drop " +
       "an open ask: it asks again, or withdraws by name and with a reason, each open ask of the " +
       "message it replaces, and it withdraws again every ask that message withdrew. " +
       "seen_through is the latest message sequence you have read: if others landed since, the " +
       "message fails as stale and lists what you missed, so read it and decide again. " +
-      `${priorityText} ${requestIdText} Answers with the new message's sequence.`,
+      `${attachingText} ${priorityText} ${requestIdText} Answers with the new message's ` +
+      "sequence.",
     messageFields
       .omit({ answers: true })
       .extend({ thread })
@@ -208,7 +242,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "whether that ask is still live; each of its withdrawals the ask it withdrew and why. An " +
       "answer says whether the operator declined, which suggested answers they picked, with " +
       "their labels, and in text their own words on the ask; the text and detail of the " +
-      "message carrying it are any additional information. " +
+      "message carrying it are any additional information. A message lists the files it " +
+      "carries in attachments, which file_get fetches. " +
       "More messages follow while the last one's seq is below the thread's " +
       "last_seq. A result too long to return comes back with fewer messages; " +
       tooLongText,
@@ -378,6 +413,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
     (input, signal) =>
       onSession(signal, (path) => ({ method: "POST", path: `${path}/status`, body: input })),
   );
+
+  registerFileTools(tool, connected, inSession);
 }
 
 // pause resolves once the time given has passed, or at once when the call is
