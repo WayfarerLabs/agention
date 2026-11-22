@@ -92,7 +92,8 @@ export function planListener(flags: ListenerFlags): ListenerPlan {
 // sends nothing for 30 seconds is cut off, an upload's included; and an idle
 // keep-alive connection closes after 120 seconds. A long poll's response
 // takes longer, which these allow: they bound only how long the request
-// takes to arrive. Each is checked every second.
+// takes to arrive. Each but the keep-alive timeout, which Node keeps on the
+// idle socket itself, is checked every second.
 export const timeouts = {
   headers: 10_000,
   request: 30_000,

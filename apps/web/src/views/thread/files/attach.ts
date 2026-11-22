@@ -84,7 +84,7 @@ export function pastedName(type: string, at: Date): string {
 // uniqueName gives name, or when another file of the draft has it, the name
 // with -2, -3 and so on before its extension, since a message carries one
 // file of each name.
-export function uniqueName(name: string, taken: ReadonlySet<string>): string {
+function uniqueName(name: string, taken: ReadonlySet<string>): string {
   if (!taken.has(fileNameKey(name))) {
     return name;
   }

@@ -15,7 +15,7 @@ export const sweepInterval = 10 * 60_000;
 
 // The pages each vacuum step returns to the disk: 8 MiB of 4 KiB pages, which
 // holds the connection for about 15 ms.
-export const vacuumStepPages = 2048;
+const vacuumStepPages = 2048;
 
 // sweepFiles removes what the sweep removes, each file in a transaction of
 // its own, and then, when that freed pages, returns them to the disk a

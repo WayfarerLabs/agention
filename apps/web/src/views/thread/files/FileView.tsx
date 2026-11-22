@@ -19,7 +19,7 @@ export const textPreviewBytes = 256 * 1024;
 // as text, opened in a tab of its own as a PDF is, or downloaded alone.
 export type Display = "image" | "video" | "audio" | "text" | "pdf" | "download";
 
-export function displayOf(served: ServedType): Display {
+function displayOf(served: ServedType): Display {
   if (served.startsWith("image/")) {
     return "image";
   }

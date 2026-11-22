@@ -14,9 +14,10 @@ import { chunkBytes } from "./files.ts";
 // them.
 
 // missingFile is the SQL condition that a file of the files table, under the
-// alias given, has lost its contents: its last chunk is gone. A purge removes
-// every chunk of a file, so that one lookup finds what it leaves; a zero-byte
-// file is never missing.
+// alias given, has lost its contents: its last chunk is gone. Nothing removes
+// an attached file's chunks today, and the triggers forbid it; a future purge
+// removes every chunk of a file, so that one lookup finds what it leaves. A
+// zero-byte file is never missing.
 export function missingFile(alias: string): string {
   return (
     `(${alias}.size > 0 AND NOT EXISTS (SELECT 1 FROM file_chunks c ` +
@@ -149,12 +150,13 @@ export function readAttachments(
   }[];
   const bySeq = new Map<number, AttachmentRead[]>();
   for (const row of rows) {
-    bySeq.set(row.seq, [...(bySeq.get(row.seq) ?? []), attachmentRead(row)]);
+    bySeq.set(row.seq, [...(bySeq.get(row.seq) ?? []), attachmentOfRow(row)]);
   }
   return bySeq;
 }
 
-export function attachmentRead(row: {
+// attachmentOfRow gives a file a message carries as the API reads it.
+export function attachmentOfRow(row: {
   name: string;
   ref: string;
   size: number;

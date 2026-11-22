@@ -185,7 +185,7 @@ async function exchange<T>(
 // An upload of a file gives up once this long passes with no progress:
 // longer than the server's own idle cut, so the server's answer arrives
 // first. Nothing bounds an upload's whole length, so a slow uplink finishes.
-export const uploadIdle = 60_000;
+const uploadIdle = 60_000;
 
 // uploadFile sends a file to a session's uploads, declared as type, and
 // returns the upload's answer, or throws an ApiFailure as request does. fetch

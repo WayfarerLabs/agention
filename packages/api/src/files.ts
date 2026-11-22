@@ -26,7 +26,7 @@ export const maxPendingBytes = 1024 * 1024 * 1024;
 export const pendingLifetime = 24 * 60 * 60 * 1000;
 
 // A size in bytes, or a total of them.
-export const byteCount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const byteCount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 // A file's name, which fits one path segment and one header: a single line
 // of 1 to 200 code points without white space at either end, that is neither
@@ -66,7 +66,7 @@ const typeAliases: Readonly<Record<string, string>> = {
   "audio/mp3": "audio/mpeg",
   "audio/x-flac": "audio/flac",
 };
-export const unknownFileType = "application/octet-stream";
+const unknownFileType = "application/octet-stream";
 
 export function declaredTypeOf(contentType: string | undefined): string {
   const essence = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
@@ -161,7 +161,7 @@ export function typeOfName(name: string): string {
 
 // The types a file is served as, whatever it declared. None is a script or
 // style type.
-export const textServedType = "text/plain; charset=utf-8";
+const textServedType = "text/plain; charset=utf-8";
 export const servedTypes = [
   "image/png",
   "image/jpeg",

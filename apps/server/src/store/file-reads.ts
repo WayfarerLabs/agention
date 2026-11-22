@@ -6,7 +6,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { ApiError, notFound } from "../errors.ts";
 import { checkCredential, type Identity } from "../identity.ts";
-import { attachmentRead, missingFile } from "./attachments.ts";
+import { attachmentOfRow, missingFile } from "./attachments.ts";
 import { authorOf } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
@@ -65,7 +65,7 @@ export function listThreadFiles(
     const last = page.rows.at(-1);
     return {
       files: page.rows.map((row) => ({
-        ...attachmentRead(row),
+        ...attachmentOfRow(row),
         seq: row.seq,
         author: authorOf(db, row.actor_id),
         created_at: formatTimestamp(row.created_at),
