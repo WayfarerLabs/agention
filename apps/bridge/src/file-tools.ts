@@ -4,6 +4,7 @@ import {
   fileName,
   fileNameKey,
   maxFileBytes,
+  message,
   sequence,
   servedType,
   threadNumber,
@@ -29,7 +30,7 @@ import {
 import { type FileHandle, open } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { ApiFailure, BridgeError } from "./errors.ts";
+import { ApiFailure, BridgeError, settingProblem } from "./errors.ts";
 import type { Connected, DefineTool, InSession } from "./tools.ts";
 
 // The tools that move files between this machine and the server: file_upload
@@ -186,7 +187,7 @@ export function registerFileTools(
         query: { after: input.seq - 1, limit: 1 },
         signal,
       });
-      const carried = findCarried(page, input);
+      const carried = findCarried(page, input, api.origin);
       const directory = fetchedDirectory(home);
       prune(directory, Date.now());
       const part = path.join(directory, `.${randomBytes(8).toString("hex")}.part`);
@@ -342,15 +343,33 @@ function isWithin(at: string, directory: string): boolean {
   );
 }
 
+// What file_get reads of a page of a thread: its messages' sequences and
+// files, in the shared schemas, so a file's reference, which names the file
+// it is written to, is one and never a path.
+const carriedPage = z.object({
+  messages: z.array(message.pick({ seq: true, attachments: true })),
+});
+
 // findCarried finds the file a message carries under a name, compared as
 // names are, in a page of the thread that starts at the message.
-function findCarried(page: unknown, input: { seq: number; name: string }): AttachmentRead {
-  const message = (page as { messages?: { seq: number; attachments?: AttachmentRead[] }[] })
-    .messages?.[0];
-  if (message?.seq !== input.seq) {
+function findCarried(
+  page: unknown,
+  input: { seq: number; name: string },
+  origin: string,
+): AttachmentRead {
+  const parsed = carriedPage.safeParse(page);
+  if (!parsed.success) {
+    throw settingProblem(
+      `The server at ${origin} answered the thread's read with something other than ` +
+        "Agention's JSON",
+      "set AGENTION_URL to the Agention server's origin",
+    );
+  }
+  const first = parsed.data.messages[0];
+  if (first?.seq !== input.seq) {
     throw ApiFailure.of("not_found", "not found", "seq");
   }
-  const carried = message.attachments?.find(
+  const carried = first.attachments?.find(
     (each) => fileNameKey(each.name) === fileNameKey(input.name),
   );
   if (carried === undefined) {

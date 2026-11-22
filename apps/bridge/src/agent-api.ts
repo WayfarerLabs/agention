@@ -3,6 +3,7 @@ import {
   agentApiHeader,
   agentApiVersion,
   type ErrorBody,
+  maxFileBytes,
 } from "@wayfarerlabs/agention-api";
 import { SignJWT } from "jose";
 import packageJson from "../package.json" with { type: "json" };
@@ -249,6 +250,21 @@ export class AgentApi {
         return answerOf(response);
       }
       this.#requireVersion(versionOf(response));
+      // Agention's server states a file's length, which Node then holds the
+      // body to, and serves none larger than a file may be. Nothing of an
+      // answer that does otherwise is written, so a server at the wrong
+      // origin cannot fill the disk.
+      const stated = response.headers["content-length"];
+      if (stated === undefined || Number(stated) > maxFileBytes) {
+        response.destroy();
+        throw operatorProblem(
+          `The server at ${this.origin} answered with a file ` +
+            `${stated === undefined ? "without stating its length" : "larger than a file may be"}, ` +
+            "which an Agention server never does",
+          "check that AGENTION_URL is the Agention server's origin and that nothing on the way " +
+            `changes its answers, ${restartAfterURL}`,
+        );
+      }
       receiving = true;
       response.once("error", () => (responseFailed = true));
       watchdog.arm(transferIdle, "stalled");

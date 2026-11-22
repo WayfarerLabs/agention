@@ -194,6 +194,25 @@ describe("a download", () => {
     await expect(download(api, into)).rejects.toBeInstanceOf(BridgeError);
   });
 
+  it.each([
+    ["is over the limit on a file", String(maxFileBytes + 1)],
+    ["is not stated", undefined],
+  ])("is refused before any of it is written when its length %s", async (_, length) => {
+    const api = await serve((_request, answer) => {
+      answer.writeHead(200, {
+        "content-type": "text/plain; charset=utf-8",
+        ...(length === undefined ? {} : { "content-length": length }),
+        [agentApiHeader]: String(agentApi.version),
+      });
+      answer.end("bytes");
+    });
+    const into = new PassThrough();
+    const chunks: Buffer[] = [];
+    into.on("data", (chunk: Buffer) => chunks.push(chunk));
+    await expect(download(api, into)).rejects.toBeInstanceOf(BridgeError);
+    expect(chunks).toEqual([]);
+  });
+
   it("leaves a failure to write what arrives to its caller", async () => {
     const { api, send } = await answerSlowly(4);
     const full = Object.assign(new Error("no space left on device"), { code: "ENOSPC" });

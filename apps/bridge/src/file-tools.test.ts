@@ -1,4 +1,9 @@
-import { maxFileBytes, maxPendingFiles } from "@wayfarerlabs/agention-api";
+import {
+  agentApi,
+  agentApiHeader,
+  maxFileBytes,
+  maxPendingFiles,
+} from "@wayfarerlabs/agention-api";
 import { host, sessionCookie } from "@wayfarerlabs/agention/src/http/test-harness.ts";
 import { execFileSync } from "node:child_process";
 import {
@@ -16,7 +21,7 @@ import {
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fetchedFileLifetime, fetchedFilesDirectory, maxImageBlockBytes } from "./file-tools.ts";
-import { BridgeHarness, type TestBridge } from "./test-harness.ts";
+import { BridgeHarness, serverJson, type TestBridge } from "./test-harness.ts";
 
 let harness: BridgeHarness;
 let bridge: TestBridge;
@@ -420,6 +425,38 @@ describe("file_get", () => {
       code: "not_found",
     });
     expect(existsSync(path.join(fetchedFilesDirectory(harness.home), "here.txt"))).toBe(false);
+  });
+
+  it("refuses a message whose file is not a reference, writing nothing", async () => {
+    const seq = await operatorAttaches(Buffer.from("x"), "a.txt", "text/plain");
+    // A server that names the file with a path, and serves bytes for it.
+    harness.beforeRequest = (request) => {
+      const { pathname } = new URL(request.url);
+      if (pathname.endsWith("/threads/1")) {
+        return serverJson({
+          messages: [
+            {
+              seq,
+              attachments: [
+                { name: "a.txt", file: "../../../planted", size: 7, type: "text/plain" },
+              ],
+            },
+          ],
+        });
+      }
+      if (pathname.includes("/files/")) {
+        return new Response("planted", {
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            [agentApiHeader]: String(agentApi.version),
+          },
+        });
+      }
+      return undefined;
+    };
+    const answer = await bridge.call("file_get", { thread: 1, seq, name: "a.txt" });
+    expect([answer.isError, answer.json]).toEqual([true, undefined]);
+    expect(readdirSync(harness.home)).not.toContain("planted.txt");
   });
 
   it("refuses a directory for its files that others can reach", async () => {
