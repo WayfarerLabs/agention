@@ -108,7 +108,9 @@ async function operatorReads(seq: number, name: string): Promise<Buffer> {
   return Buffer.from(await response.arrayBuffer());
 }
 
-describe("file_upload", () => {
+// Every test runs the server in process and a bridge against it, which under
+// load can take longer than Vitest's default 5 seconds.
+describe("file_upload", { timeout: 30_000 }, () => {
   it("uploads a file that a message then carries for good", async () => {
     const bytes = "line one\nline two\n";
     const uploaded = await bridge.ok("file_upload", { path: scratch("notes.md", bytes) });
@@ -286,7 +288,7 @@ const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46,
 const gif = Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00", "latin1");
 const webp = Buffer.from("RIFF\x24\x00\x00\x00WEBP" + "VP8 ", "latin1");
 
-describe("file_get", () => {
+describe("file_get", { timeout: 30_000 }, () => {
   it("fetches a file into the bridge's private directory, named by its reference", async () => {
     const bytes = Buffer.from("build output\n");
     const seq = await operatorAttaches(bytes, "build.log", "text/x-log");

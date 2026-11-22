@@ -151,7 +151,9 @@ async function everyToolRefuses(bridge: TestBridge, setting: string): Promise<vo
   expect(existsSync(path.join(harness.home, ".config"))).toBe(false);
 }
 
-describe("a setting the bridge cannot work with", () => {
+// Each test calls every tool, which under load can take longer than Vitest's
+// default 5 seconds.
+describe("a setting the bridge cannot work with", { timeout: 30_000 }, () => {
   it.each([
     ["unset", undefined],
     ["empty", ""],

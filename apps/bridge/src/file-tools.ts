@@ -32,6 +32,7 @@ import path from "node:path";
 import { z } from "zod";
 import type { Downloaded } from "./agent-api.ts";
 import { ApiFailure, BridgeError, detailOf, settingProblem } from "./errors.ts";
+import { keyDirectory } from "./key-file.ts";
 import { type Connected, type DefineTool, type InSession, WithContent } from "./tools.ts";
 
 // The tools that move files between this machine and the server: file_upload
@@ -46,11 +47,6 @@ export const maxImageBlockBytes = 3.5 * 1024 * 1024;
 // How long a fetched file is kept: fetched files are a cache, which every
 // file_get prunes.
 export const fetchedFileLifetime = 7 * 24 * 60 * 60 * 1000;
-
-// The directory of every session's key, below the home directory.
-export function keyDirectory(home: string): string {
-  return path.join(home, ".config", "agention");
-}
 
 // The directory fetched files are written to, below the home directory and
 // outside the key directory, which every server and session shares: a file's
@@ -256,10 +252,11 @@ function nameOf(filePath: string): string {
 }
 
 // openForUpload opens a file to read, without waiting, so a FIFO in its place
-// cannot hold the call up.
+// cannot hold the call up, and without making a terminal in its place the
+// bridge's controlling terminal.
 async function openForUpload(filePath: string): Promise<FileHandle> {
   try {
-    return await open(filePath, constants.O_RDONLY | constants.O_NONBLOCK);
+    return await open(filePath, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOCTTY);
   } catch (error) {
     throw unopened(error);
   }
@@ -282,7 +279,9 @@ function unopened(error: unknown): ApiFailure {
 // real path, so a key named through a symlink is refused too, and a file over
 // the size limit. The key directory check keeps an agent from handing a
 // credential to the server by mistake; it is no boundary against the agent,
-// which runs as this user and could read the key itself.
+// which runs as this user and could read the key itself. So it resolves the
+// path again rather than the open file, and a symlink swapped between the
+// two is left alone: only something running as this user could swap it.
 async function checkForUpload(
   file: FileHandle,
   filePath: string,
