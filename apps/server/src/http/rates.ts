@@ -4,9 +4,10 @@ import { ApiError } from "../errors.ts";
 // keyed on the source address, which behind a proxy such as tailscale serve is
 // the same for everyone and which Agention never trusts. Requests signed by a
 // key the server knows, and requests carrying a live API key, spend that key's
-// own budget; everything else spends one budget shared by its class. Every shared budget but the submit budget is
-// spent only by requests that fail, after they have been checked, so draining
-// one never refuses a valid key, passkey or link.
+// own budget; everything else spends one budget shared by its class. Every
+// shared budget but the submit budget is spent only by requests that fail,
+// after they have been checked, so draining one never refuses a valid key,
+// passkey or link.
 
 // A token bucket's shape: it holds up to burst tokens and gains one every
 // interval milliseconds; each request spends one.
