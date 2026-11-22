@@ -223,8 +223,9 @@ So `Database.open` gains one step after `#migrate()`, in a module of its own
 `threads.ts`. Every operation is a synchronous transaction, as every store operation is.
 
 - **Begin** (one transaction): authorize the session (`authorizeSession`, `store/threads.ts:44-52`);
-  then refuse `maxPendingFiles` pending files of this actor, complete or arriving, and pending bytes
-  of this actor, counted by declared `size`, plus this upload's, over `maxPendingBytes`. Then insert
+  then refuse `maxPendingFiles` pending files of this actor, arriving or complete and not expired,
+  and pending bytes of those files, counted by declared `size`, plus this upload's, over
+  `maxPendingBytes`. An expired upload can no longer be named, so it no longer counts. Then insert
   the file row, incomplete, with a new `ref` (16 random bytes, base64url without padding: 22
   characters), and add its id to the process's set of uploads in flight. A writer may run several
   uploads at once, as the operator does from two devices; those limits bound what one writer holds,
@@ -239,7 +240,8 @@ So `Database.open` gains one step after `#migrate()`, in a module of its own
   about 2 ms for 100 MiB, since SQLite frees overflow pages without rewriting them); the id leaves
   the set. An Abort that itself fails is logged, and leaves the rows for the sweep.
 - **Expiry:** a pending file expires `pendingLifetime` after `completed_at`. A message naming one
-  that has expired but is not yet swept is refused as if it were gone.
+  that has expired but is not yet swept is refused as if it were gone, and it leaves its writer's
+  pending limits at once.
 
 ### The sweep
 
@@ -294,28 +296,33 @@ listener replaces it with its own, in a new module, `apps/server/src/http/deadli
   arrive: when it arrived, its socket's `bytesRead` at the last check, and when that last grew.
   `socket.bytesRead` grows as bytes arrive whether or not a route is reading them, so it measures
   the client, not the route. One `setInterval` of a second, which never holds the process open and
-  stops on close, checks them all, and drops a request once `request.complete` or its response has
-  finished. A long poll's request is complete once its headers arrive, so no deadline ever touches
-  the wait.
+  stops on close, checks them all, and drops a request once its body is complete
+  (`request.complete`) or its connection has closed, not when its answer finishes: a request
+  answered before its body is complete, such as a refusal or a `GET` carrying a body, keeps its
+  deadlines, so the rest of its body cannot hold the connection open. A long poll's request is
+  complete once its headers arrive, so no deadline ever touches the wait.
 - **The deadlines.** A request is cut when its body has sent nothing for `timeouts.bodyIdle`, or,
   unless it is an upload, when it is still incomplete `timeouts.request` after its headers arrived.
   An upload has no total deadline, so a slow phone uplink finishes.
 - **The cut.** If its response has not started, the listener answers 408 with the API's error JSON,
   `invalid_input`, "the request body stopped arriving" or "the request took longer than 30 seconds
-  to arrive", and `Connection: close`; otherwise it destroys the socket. The answer is written
-  outside Hono, so the module adds what the app's middleware would have: the security headers, from
-  the same table `securityHeaders` uses, and on `/api/agent/` paths the agent API version header,
-  without which a bridge would read the answer as a server older than itself
+  to arrive", and `Connection: close`, then destroys the request once that answer is written; if the
+  response has started, it destroys the request, and if the response has finished, the socket. The
+  answer is written outside Hono, so the module adds what the app's middleware would have: the
+  security headers, from the same table `securityHeaders` uses, and on `/api/agent/` paths the agent
+  API version header, without which a bridge would read the answer as a server older than itself
   (`apps/bridge/src/agent-api.ts:138-140`, `:165-176`). The route's body read then fails, and an
-  upload aborts and removes its partial file. A later answer from the route to a response already
-  ended is dropped by the adapter, which a test pins.
+  upload aborts and removes its partial file. The route then answers too, to a response the 408 has
+  ended: `deadlines.ts` replaces that response's `writeHead` with one that does nothing, so the
+  route's headers go nowhere rather than reaching the adapter as an error of its own, and the `end`
+  that follows finds the response finished. A test pins that.
 - **Which requests are uploads.** `isUploadRequest(method, url)` in
-  `apps/server/src/http/uploads.ts` matches `POST` with the raw path
-  `^/api/(agent|web)/s/[^/?#]+/[^/?#]+/uploads$`, query ignored. The listener and the body cap both
-  call it on the raw URL, so both decide from the same text. A request they call an upload that Hono
-  routes elsewhere only gets the larger body cap on a route that never reads past its own, and one
-  Hono routes to the upload handler that they do not call an upload keeps the 2 MiB cap and the
-  total deadline: either disagreement fails safe.
+  `apps/server/src/http/uploads.ts` matches `POST` whose path is
+  `^/api/(agent|web)/s/[^/?#]+/[^/?#]+/uploads$`, query ignored, judged on the path Hono routes: the
+  URL as the adapter builds it for Hono, parsed with `URL.parse`, so dot segments are resolved. The
+  listener calls it on the request's target under a placeholder host, which changes nothing, and the
+  body cap on the request Hono sees, so the listener, the body cap and the router all decide from
+  the same path.
 - **Slow unauthenticated bodies.** Both mounts authenticate from headers alone, before reading a
   byte (`agent-api.ts:94-104`, `web-api.ts:146-156`), and every check before them reads headers
   only. A refusal (version, authentication, size, a limit, an unknown route) leaves the body unread,
@@ -327,9 +334,9 @@ listener replaces it with its own, in a new module, `apps/server/src/http/deadli
   2 MiB cap and the 30-second deadline, as today.
 - **The body cap.** Hono's `bodyLimit` takes one fixed `maxSize`, so the app holds two instances,
   `maxFileBytes` and `maxBodyBytes` (`app.ts:127-137`), and a middleware picks one per request with
-  `isUploadRequest` on the raw URL. With a `Content-Length` it only compares the header and reads
-  nothing. An upload over 100 MiB is answered 413 naming the limit, and the route counts the bytes
-  again as they arrive.
+  `isUploadRequest` on the path Hono routes. With a `Content-Length` it only compares the header and
+  reads nothing. An upload over 100 MiB is answered 413 naming the limit, and the route counts the
+  bytes again as they arrive.
 - **Docs.** `docs/architecture.md` "Serving" and the operator guide's statement of the deadline say:
   10 seconds for headers; 30 for a whole request but an upload; any request body cut off after 30
   seconds without a byte.
@@ -457,8 +464,8 @@ is percent-encoded and Hono decodes it.
   under that name, else `not_found`. The web UI always gives it, from the message's
   `attachments[].file`, so the browser's cache key names the bytes: after a restore from an older
   backup, a new message that reuses a thread's number and sequence and a file's name is a different
-  URL, and no cached copy of the old file shows in its place. The bridge leaves it out, since it
-  keeps no HTTP cache.
+  URL, and no cached copy of the old file shows in its place. The bridge gives it too, from the
+  message it reads first (`file_get` below), so a file is fetched only by a reference that names it.
 - **The body** streams: a `ReadableStream` whose `pull` reads one chunk in its own transaction,
   which checks the credential again, so other requests run between chunks and a revoked agent's
   download stops within one. A chunk missing mid-file errors the stream, which ends the connection,
@@ -478,11 +485,12 @@ is percent-encoded and Hono decodes it.
 `GET /settings` gains `storage`:
 
 ```ts
-storage: { files: number, bytes: number }
+storage: { count: number, bytes: number }
 ```
 
-`files` and `bytes` count every file the database holds, pending ones included, since that is the
-disk they take. The thread answer's `files` gives the per-thread figure.
+The same totals shape as the thread answer's `files`. `count` and `bytes` count every completed file
+the database holds, pending ones included, since that is the disk they take; an upload still
+arriving is not yet a file. The thread answer's `files` gives the per-thread figure.
 
 ### Error codes and statuses
 
@@ -562,15 +570,16 @@ New tools in `apps/bridge/src/file-tools.ts`, registered with the others, annota
 - **Input:** `{ path, name? }`. `path` is an absolute path, else `invalid_input`; `name` is a
   `fileName`, by default the path's last segment, which must itself be one, else `invalid_input`
   asking for `name`.
-- **Opening:** `open(path, O_RDONLY | O_NONBLOCK)`, so a FIFO cannot hang the call, then `fstat` the
-  descriptor and refuse:
+- **Opening:** `open(path, O_RDONLY | O_NONBLOCK | O_NOCTTY)`, so a FIFO cannot hang the call and a
+  terminal never becomes the bridge's controlling terminal, then `fstat` the descriptor and refuse:
   - anything but a regular file;
   - a size over `maxFileBytes`, naming 100 MiB, before any byte is sent;
   - any file of the bridge's own: the path's real path (`fs.realpath`) at or under the real path of
     `~/.config/agention`, where every session's key lives, so a key named directly or through a
     symlink is refused, for every session, since sessions sharing a home share keys (SECURITY.md
-    "Isolation between sessions"). Fetched files live outside that tree, so an agent may send one
-    on. The check keeps the agent from handing a credential to the server by mistake; it is no
+    "Isolation between sessions"). When `~/.config/agention` does not exist, there is no key to
+    protect, and the check is skipped. Fetched files live outside that tree, so an agent may send
+    one on. The check keeps the agent from handing a credential to the server by mistake; it is no
     boundary against the agent, which runs as the same user and could read the key itself, so a hard
     link it made on purpose is out of its scope.
 - **The type:** `typeOfName(name)`. The bridge reads no file's content to choose it.
@@ -579,23 +588,31 @@ New tools in `apps/bridge/src/file-tools.ts`, registered with the others, annota
   all for an empty file, with `Content-Length` set to that size, so Node never chunks it. A file
   that shrinks while it is read ends short, and the bridge aborts with "the file changed while it
   was read"; one that grows sends only its first `size` bytes. The answer is read and its version
-  checked as for every request. A response that arrives before the body is sent, a refusal, is used
-  even when the socket then fails with `EPIPE` or `ECONNRESET`, since the server's adapter closes a
-  refused upload's connection after its bounded drain.
+  checked as for every request. A refusal the server answers before the body is all sent needs
+  nothing special in the bridge: the server's adapter drains a refused upload's body for a bounded
+  time before closing the connection, so the refusal stays readable as any answer is.
 - **Answer:** the server's `uploadResult`, with the text "Name it in `attachments` of `message_send`
   or `thread_create` as `{upload}` before `expires_at`".
 
 ### `file_get`
 
 - **Input:** `{ thread, seq, name }`.
+- **The message first:** it reads the thread from just before `seq`, one message
+  (`after: seq - 1, limit: 1`), through the shared message schema, for the file's reference and
+  declared type under that name, compared as names are; a message or name it does not find is
+  `not_found`. Only a reference that parses as `fileRef` names a file. It then reads the file with
+  `?file=<ref>`.
 - **The directory:** one flat cache, `~/.cache/agention/files/`, under the private-file rule
   (`ensurePrivateDirectory`), outside the key tree. A ref is 128 random bits, so the files of every
   server and session can share it.
 - **The file's name** is `<file ref>.<extension>`, the extension the bridge's own for the served
   type (`png`, `jpg`, `gif`, `webp`, `svg`, `pdf`, `mp4`, `webm`, `ogv`, `mp3`, `m4a`, `ogg`, `wav`,
-  `flac`, `txt`, else `bin`), never anything from the sender's name. The body streams into
-  `.<random>.part` in that directory, created with mode 0600, and is renamed into place once its
-  length matches `Content-Length`. Fetching the same file again replaces it.
+  `flac`, `txt`, else `bin`), never anything from the sender's name. An answer that states no
+  `Content-Length`, or one over `maxFileBytes`, is refused before anything is written, so a server
+  at the wrong origin cannot fill the disk. The body streams into `.<random>.part` in that
+  directory, created with mode 0600, and is renamed into place once it ends: Node holds a body to
+  its `Content-Length`, so a body short of it fails the read. A failure removes the `.part` file.
+  Fetching the same file again replaces it.
 - **Cleanup:** each call first removes every entry of that directory modified more than
   `fetchedFileLifetime` ago, `.part` files included, so ended sessions' files go too.
 - **Answer:** `{ path, name, size, type, served_type }` as text, and, when the served type is a

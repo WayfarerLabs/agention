@@ -93,7 +93,8 @@ file's chunks and leaves its attachments, which is what A8's missing file is.
   body is ever read past the 2 MiB cap.
 - **Limits:** 100 MiB a file (ruling 1), checked against `Content-Length` before any byte is read
   and again while reading; at most a set number of pending files and pending bytes for each writer,
-  and one upload at a time for each, on both mounts. The 2 MiB body cap stays on every other route.
+  counting the uploads still arriving, on both mounts, so a writer may run several uploads at once.
+  The 2 MiB body cap stays on every other route.
 - **Deadlines.** The 30-second deadline is Node's server-wide `requestTimeout`, which no route can
   lift. The listener enforces deadlines itself instead: every request's body is cut off once it
   sends nothing for a set time, and every request but an upload keeps a total deadline, now exact
