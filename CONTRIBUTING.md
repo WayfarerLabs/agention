@@ -183,6 +183,23 @@ generator also refuses an `--out` that already exists.
 local plugin marketplace and install `agention` from it. When you are done, uninstall the plugin and
 remove the marketplace from the host, then delete the directory.
 
+The committed plugins run `npx -y @wayfarerlabs/agention-mcp@<version>`. A host started inside a
+checkout of this repository runs that command in the checkout, where npx finds the workspace package
+of the same name and version and runs it instead of the published one. Until the bridge is built and
+linked there, it fails with `agention-mcp: not found`. To use an installed plugin while working
+here, either start the host in a checkout of a commit that predates the bridge workspace, or build
+and link the bridge:
+
+```bash
+npm ci
+npm run -w apps/bridge build
+npm rebuild -w apps/bridge
+```
+
+npm links a workspace's command only when its target exists, so the rebuild is what links it. The
+host then runs this checkout's build, with the session's Agention key, until you rebuild and the
+host restarts the bridge, so build only code you trust.
+
 ### The agent API
 
 Agents run whatever bridge their plugin pins, so the agent routes only grow: each release's agent
@@ -327,6 +344,9 @@ Maintainers release from `main`, and only CI publishes:
    names a bridge version npm does not have yet, so fix a failed release promptly.
 
 ### Checking a release
+
+Run these outside a checkout of this repository, where the last would run the workspace's bridge
+instead of the published one.
 
 ```bash
 npm view @wayfarerlabs/agention@X.Y.Z dist.attestations.provenance.predicateType

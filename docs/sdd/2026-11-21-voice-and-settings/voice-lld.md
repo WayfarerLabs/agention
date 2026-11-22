@@ -66,9 +66,9 @@ Three variables may each supply one field, exactly as entering it in Settings wo
 - **In Settings:** every field the environment supplies is shown, read-only, with "Set by the
   server's environment": the base URL and model as their values, and a key masked. A masked key
   shows that a key is there and nothing of the key itself, since no part of a key ever reaches a
-  browser. With the base URL from the environment, Turn off reads Clear saved settings, which
-  deletes the row and any saved key, and the section says that voice stays on until the variable is
-  removed and the server restarted.
+  browser (ruling 7, after release, shows its last four characters). With the base URL from the
+  environment, Turn off reads Clear saved settings, which deletes the row and any saved key, and the
+  section says that voice stays on until the variable is removed and the server restarted.
 - **Backups** carry the row, never the environment, which stays with the service unit.
 - **Documentation:** they are the server's first environment variables. The operator guide gives
   them in a mode-0600 environment file for the service unit, not inline, and `agention serve --help`

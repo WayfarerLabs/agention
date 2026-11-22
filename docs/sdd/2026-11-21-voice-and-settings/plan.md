@@ -38,5 +38,6 @@ checked when it is built, reviewed and green.
       operator's check on Android Chrome and Windows against the staging server with a real provider
       (ruling 2) (agention#33; WebKit could not run on the test host, so dictation in Apple browsers
       is a named gap; the operator's check passed, ruling 6).
-- [ ] The release carrying it, through release-please.
-- [ ] `locked.md` in this directory, with the final merge.
+- [x] The release carrying it, through release-please (0.4.0, agention#27, published 2026-11-22 with
+      provenance, beside Agention v1's completion, ruling 5).
+- [x] `locked.md` in this directory, with the final merge. (2026-11-22)

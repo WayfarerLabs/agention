@@ -2,7 +2,7 @@
 
 <!-- cspell:ignore Wispr -->
 
-- Status: Accepted by the operator 2026-11-21 (ruling 1); V3 amended by ruling 3; ruling 4
+- Status: Accepted by the operator 2026-11-21 (ruling 1); V3 amended by rulings 3 and 7; ruling 4
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -132,6 +132,11 @@ settings, voice, where audio goes, and how a provider key is kept; the live test
    to merge. Let's just make sure the followups are clearly identified." Taken: the operator's
    real-device check passed; better read aloud and an Audio Mode are agention#37, and
    provider-agnostic voice settings, voice context and the Settings layout are agention#38.
+7. (2026-11-22) On using 0.4.0: "The API key field looks really amateur once set (turned into just
+   text, not a text entry field). When entered, it should just show a masked value in the field.
+   Let's expose the last 4 digits." Taken, amending V3: Settings show a key in effect masked in its
+   field, ending in its last four characters, and only those four reach a browser; a key under 16
+   characters shows masked throughout, so the four are never more than a quarter of it.
 
 ## Definition of done
 

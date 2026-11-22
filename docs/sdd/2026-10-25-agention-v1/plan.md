@@ -217,13 +217,14 @@ model.
       ports, each with cookies named for its port; the guide's note that a second server runs on its
       own machine; then a live check on a phone, on a fresh database. (agention#1; the phone check,
       rulings 56 and 57)
-- [ ] Earliest due on rows (ruling 57): a thread's row shows the earliest answer-by among its open
+- [x] Earliest due on rows (ruling 57): a thread's row shows the earliest answer-by among its open
       asks, today's as a time and another day's with its date, and its year when not this year's,
       and once it has passed, Overdue since then in place of the lead ask's overdue mark; then a
-      live check on a phone.
-- [ ] Unread and total on rows (ruling 58): the thread summary's count of live messages, and a row
+      live check on a phone. (agention#1; the operator's check of 0.4.0, ruling 88)
+- [x] Unread and total on rows (ruling 58): the thread summary's count of live messages, and a row
       showing its unread messages over that count ("2/5") beside the closed envelope while any is
       unread, and otherwise the count beside the open envelope; then a live check on a phone.
+      (agention#1; the operator's check of 0.4.0, ruling 88)
 - [x] Migration 1 frozen at 0.1.0: from the first release every schema change is a new migration, so
       an operator's database survives every upgrade, and a test pinning migration 1's text fails on
       any edit to it (ruling 50). (agention#1)
@@ -240,7 +241,7 @@ model.
       52), approving agents, upgrading the server and the plugins, and backing up by stopping the
       server and copying the data directory until `agention backup` (Delivery 4, R34); the launchd
       service marked as not yet tested (ruling 52); the README says what is published. (agention#1)
-- [ ] Release setup (operator action, rulings 50 to 52): a fresh public `WayfarerLabs/agention`, the
+- [x] Release setup (operator action, rulings 50 to 52): a fresh public `WayfarerLabs/agention`, the
       current repository renamed and kept private as an archive, and this delivery opened in the new
       repository as a pull request; the GitHub configuration applied to it, and private
       vulnerability reporting enabled; the release-please GitHub App installed on it, its key a
@@ -248,7 +249,10 @@ model.
       only bypass for creating them is the App; the `npm` environment limited to `v*` tags; a stub
       `0.0.0-placeholder` of each package published and deprecated, so the packages exist; and a
       trusted publisher on each, naming `release.yml` and the `npm` environment, set up within two
-      days of the release it first publishes.
+      days of the release it first publishes. (Done by the operator before 0.1.0: the public
+      repository, its tag rulesets, the `npm` and `release-please` environments, the deprecated
+      placeholders, and trusted publishing, through which every release from 0.1.0 to 0.4.0 went
+      out.)
 - [ ] First release, 0.1.0, through release-please once this delivery's pull request merges (the
       operator merges it when the lead says it is ready), then checked as published: provenance on
       both packages, `npx @wayfarerlabs/agention-mcp@0.1.0 --version`, the server installed with
@@ -346,13 +350,15 @@ command. Governed by the [Completion LLD](completion-lld.md).
 - [x] The new tables arrive through forward migrations, tested against a database written by
       Delivery 3. (agention#26)
 - [x] The issuer seam kept free of v1 dependencies (R4), and backup (R34). (agention#26)
-- [ ] Live run and real-phone check repeated over the FRD definition of done, with the plugins
-      installed from the repository and the bridge from npm.
+- [x] Live run and real-phone check repeated over the FRD definition of done, with the plugins
+      installed from the repository and the bridge from npm. (The operator, on 0.4.0 with the
+      published plugin, ruling 88; the lead's session ran the 0.4.0 bridge from npm.)
 - [x] Material decisions promoted to ADRs and permanent docs (R39), checking that ADR 0001's
       alternatives and "not doing" guardrails still match the shipped design. (agention#26)
 - [x] `docs/live-testing.md` extended to Delivery 4's surfaces (groups, tags, backup, and Mermaid
       diagrams drawn in isolation, with a `mermaid` block among the Markdown hand-check inputs), and
       the live test running the bridge from npm; and the rules `docs/review-checklist.md` states for
       them checked against what was built. (agention#26)
-- [ ] The release that completes v1, through release-please.
-- [ ] `locked.md` in this directory, with the final merge.
+- [x] The release that completes v1, through release-please (0.4.0, agention#27, published
+      2026-11-22 with provenance; it also carries voice and settings, ruling 87).
+- [x] `locked.md` in this directory, with the final merge. (2026-11-22)
