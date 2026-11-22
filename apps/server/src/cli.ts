@@ -9,7 +9,7 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 import { issuePasskeyLink, passkeyLinkLifetime } from "./auth/passkey-links.ts";
 import { BackupError, backupDatabase } from "./database/backup.ts";
 import { Database, DatabaseOpenError } from "./database/database.ts";
-import { createApp } from "./http/app.ts";
+import { createApp, securityHeaderValues } from "./http/app.ts";
 import { ListenerConfigError, listen, planListener } from "./http/listener.ts";
 import {
   createStore,
@@ -327,7 +327,7 @@ async function serve(args: string[], io: Io): Promise<number> {
     });
     let listening;
     try {
-      listening = await listen(app, plan.address, tls);
+      listening = await listen(app, plan.address, tls, () => securityHeaderValues(origin));
     } catch (error) {
       io.stderr.write(
         `agention serve: cannot listen on ${flags.listen}: ${(error as Error).message}\n`,

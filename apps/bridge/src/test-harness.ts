@@ -4,7 +4,7 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { agentApi, agentApiHeader, type PublicKey, publicKey } from "@wayfarerlabs/agention-api";
-import { createApp } from "@wayfarerlabs/agention/src/http/app.ts";
+import { createApp, securityHeaderValues } from "@wayfarerlabs/agention/src/http/app.ts";
 import { type Listening, listen } from "@wayfarerlabs/agention/src/http/listener.ts";
 import { defaultRates } from "@wayfarerlabs/agention/src/http/rates.ts";
 import {
@@ -131,6 +131,7 @@ export class BridgeHarness {
       front,
       { host: "127.0.0.1", port: 0 },
       { cert: Buffer.from(tls.cert), key: Buffer.from(tls.key) },
+      () => securityHeaderValues(this.#origin),
     );
     this.#origin = options.origin ?? `https://localhost:${this.#listening.address.port}`;
     app = createApp({

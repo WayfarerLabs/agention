@@ -8,6 +8,7 @@ import {
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { BlockList, isIP, type Socket } from "node:net";
+import { Deadlines } from "./deadlines.ts";
 
 // The listener's address and TLS mode are independent of the origin people
 // reach the server at: Agention can terminate TLS itself on any address, or
@@ -86,11 +87,18 @@ export function planListener(flags: ListenerFlags): ListenerPlan {
   return { address, tls: undefined };
 }
 
-// The server's timeouts: a client gets 10 seconds to send its headers and 30
-// to send its whole request, and an idle keep-alive connection closes after
-// 120 seconds. A long poll's response takes longer, which these allow: they
-// bound only how long the request takes to arrive.
-export const timeouts = { headers: 10_000, request: 30_000, keepAlive: 120_000 };
+// The server's timeouts: a client gets 10 seconds to send its headers, and 30
+// to send its whole request unless it is an upload; any request body that
+// sends nothing for 30 seconds is cut off, an upload's included; and an idle
+// keep-alive connection closes after 120 seconds. A long poll's response
+// takes longer, which these allow: they bound only how long the request
+// takes to arrive. Each is checked every second.
+export const timeouts = {
+  headers: 10_000,
+  request: 30_000,
+  bodyIdle: 30_000,
+  keepAlive: 120_000,
+};
 
 // After shutdown starts, connections get this long to finish what they are
 // doing before they are closed anyway, whatever state they are in.
@@ -108,18 +116,26 @@ export interface Listening {
 }
 
 // listen starts serving the app as planned, with the certificate and key
-// already read when the plan terminates TLS.
+// already read when the plan terminates TLS. securityHeaders gives the
+// headers the app sets on every answer, which the listener's own answers
+// carry too.
 export async function listen(
   app: Hono,
   address: ListenAddress,
   tls: { cert: Buffer; key: Buffer } | undefined,
+  securityHeaders: () => ReadonlyMap<string, string>,
 ): Promise<Listening> {
   // The adapter replaces the global Request and Response with its own, as it
   // does by default; Hono's middleware relies on them matching its requests.
   const handler = getRequestListener(app.fetch);
   let closing = false;
   const unanswered = new Set<ServerResponse>();
+  const deadlines = new Deadlines({
+    limits: { bodyIdle: timeouts.bodyIdle, request: timeouts.request },
+    securityHeaders,
+  });
   const serve = (request: IncomingMessage, response: ServerResponse) => {
+    deadlines.track(request, response);
     if (closing) {
       response.setHeader("Connection", "close");
     } else {
@@ -128,10 +144,17 @@ export async function listen(
     }
     void handler(request, response);
   };
+  // Node checks the headers deadline every connectionsCheckingInterval, so
+  // it fires within a second; its whole-request deadline is off, for the
+  // listener's own.
+  const checking = { connectionsCheckingInterval: 1000 };
   const server: Server =
     tls === undefined
-      ? createHttpServer(serve)
-      : createHttpsServer({ cert: tls.cert, key: tls.key, minVersion: "TLSv1.3" }, serve);
+      ? createHttpServer(checking, serve)
+      : createHttpsServer(
+          { ...checking, cert: tls.cert, key: tls.key, minVersion: "TLSv1.3" },
+          serve,
+        );
   // Every socket the server accepts, in whatever state: a TLS socket still in
   // its handshake has not reached HTTP, so only this set can close it.
   const sockets = new Set<Socket>();
@@ -140,7 +163,7 @@ export async function listen(
     socket.once("close", () => sockets.delete(socket));
   });
   server.headersTimeout = timeouts.headers;
-  server.requestTimeout = timeouts.request;
+  server.requestTimeout = 0;
   server.keepAliveTimeout = timeouts.keepAlive;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -149,6 +172,7 @@ export async function listen(
       resolve();
     });
   });
+  deadlines.start();
   const bound = server.address();
   const port = typeof bound === "object" && bound !== null ? bound.port : address.port;
   return {
@@ -157,6 +181,7 @@ export async function listen(
     close: () =>
       new Promise<void>((resolve) => {
         closing = true;
+        deadlines.stop();
         for (const response of unanswered) {
           if (!response.headersSent) {
             response.setHeader("Connection", "close");

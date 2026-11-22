@@ -8,7 +8,6 @@ import { connect } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { beginUpload } from "../store/index.ts";
 import { maxBodyBytes } from "./app.ts";
-import { listen } from "./listener.ts";
 import { codeOf, json, type Mount, mountHeaders, send, upload } from "./file-test-support.ts";
 import { type AgentKey, Harness, host } from "./test-harness.ts";
 import { freeSpaceFloor, isUploadRequest } from "./uploads.ts";
@@ -200,7 +199,7 @@ describe("a refused upload over a real connection", () => {
   }
 
   it("is answered and closed before its body is read, unauthenticated, unversioned or over-size", async () => {
-    const listening = await listen(harness.app, { host: "127.0.0.1", port: 0 }, undefined);
+    const listening = await harness.listen();
     try {
       const { port } = listening.address;
       const token = `Bearer ${await harness.token(agent)}`;
