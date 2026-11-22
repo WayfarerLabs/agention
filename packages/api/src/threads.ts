@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { askNumber, pageLimit, queryNumber, requestId, sequence, threadNumber } from "./bounds.ts";
+import {
+  askNumber,
+  cursor,
+  pageLimit,
+  queryNumber,
+  requestId,
+  sequence,
+  threadNumber,
+} from "./bounds.ts";
+import { attachmentList, attachmentRead, fileTotals } from "./files.ts";
 import { name } from "./names.ts";
 import { reference, referenceList } from "./references.ts";
 import { threadPresence } from "./sessions.ts";
@@ -245,6 +254,7 @@ const messageParts = {
   text: messageText.optional(),
   detail: messageDetail.optional(),
   references: referenceList.optional(),
+  attachments: attachmentList.optional(),
   asks: askList.optional(),
   topic: topic.optional(),
 };
@@ -277,8 +287,8 @@ export type ThreadCreateInput = z.infer<typeof threadCreateInput>;
 // The operator's start of a thread on a session: a title and a first message
 // of text, with its detail. The session stays the thread's requester and the
 // operator its audience, so the requester's parts, asks and a topic, have no
-// field here, and neither do references, which the web UI's sheet does not
-// offer. Like every schema here it drops what it does not know, so a start
+// field here, and neither do references and attachments, which the web UI's
+// sheet does not offer. Like every schema here it drops what it does not know, so a start
 // carrying any of them starts a thread without them.
 export const threadStartInput = z.object({
   request_id: requestId,
@@ -314,6 +324,7 @@ export function needsAPart(
   value: {
     text?: string | undefined;
     references?: unknown[] | undefined;
+    attachments?: unknown[] | undefined;
     asks?: unknown[] | undefined;
     answers?: unknown[] | undefined;
     withdrawals?: unknown[] | undefined;
@@ -325,6 +336,7 @@ export function needsAPart(
   if (
     value.text === undefined &&
     value.references === undefined &&
+    value.attachments === undefined &&
     value.asks === undefined &&
     value.answers === undefined &&
     value.withdrawals === undefined &&
@@ -335,8 +347,8 @@ export function needsAPart(
       code: "custom",
       path: [],
       message:
-        "a message needs text, references, asks, answers, withdrawals, a topic or a message it " +
-        "replaces",
+        "a message needs text, references, attachments, asks, answers, withdrawals, a topic or a " +
+        "message it replaces",
     });
   }
 }
@@ -415,8 +427,8 @@ export const answerRead = z.object({
 export type AnswerRead = z.infer<typeof answerRead>;
 
 // A message as it reads now. live says no later message replaced it, and
-// replaced_by names the one that did. Its asks, answers and withdrawals come
-// in ask number order.
+// replaced_by names the one that did. Its attachments come in the order it
+// gave them; its asks, answers and withdrawals in ask number order.
 export const message = z.object({
   seq: sequence,
   author,
@@ -427,6 +439,7 @@ export const message = z.object({
   text: z.string().optional(),
   detail: z.string().optional(),
   references: z.array(reference).optional(),
+  attachments: z.array(attachmentRead).optional(),
   topic: name.optional(),
   asks: z.array(askRead).optional(),
   answers: z.array(answerRead).optional(),
@@ -536,12 +549,39 @@ export const marksResult = z.object({ marks });
 export type MarksResult = z.infer<typeof marksResult>;
 
 // The thread, a page of its messages after the requested sequence (more
-// follow while the last is below the thread's last_seq), both read cursors
-// and the caller's marks.
+// follow while the last is below the thread's last_seq), both read cursors,
+// the caller's marks, and the distinct files its messages carry, replaced
+// ones included.
 export const threadGetResult = z.object({
   thread: threadSummary,
   messages: z.array(message),
   cursors,
   marks,
+  files: fileTotals,
 });
 export type ThreadGetResult = z.infer<typeof threadGetResult>;
+
+export const threadFilesQuery = z.object({
+  cursor: cursor.optional(),
+  limit: queryNumber(pageLimit),
+});
+export type ThreadFilesQuery = z.infer<typeof threadFilesQuery>;
+
+// A file of a thread as its file list gives it, with the first message that
+// carried it, which brought it: that message's sequence, author and time,
+// and the name it carries the file under.
+export const threadFile = attachmentRead.extend({
+  seq: sequence,
+  author,
+  created_at: z.string(),
+});
+export type ThreadFile = z.infer<typeof threadFile>;
+
+// A page of a thread's files, each listed once, newest first by the message
+// that brought it and then that message's order; next, when present,
+// continues the list.
+export const threadFilesPage = z.object({
+  files: z.array(threadFile),
+  next: cursor.optional(),
+});
+export type ThreadFilesPage = z.infer<typeof threadFilesPage>;

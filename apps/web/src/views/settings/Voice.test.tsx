@@ -7,6 +7,7 @@ import {
   failure,
   installPasskeys,
   installRecorder,
+  noSettings,
   renderAt,
   signedIn,
 } from "../../test-support.tsx";
@@ -62,8 +63,13 @@ function expectMaskedKey(ending: string | null) {
 const describer = (element: HTMLElement) =>
   document.getElementById(element.getAttribute("aria-describedby") ?? "");
 
-async function open(settings: SettingsResult) {
-  api.on("GET", "/settings", { body: settings });
+// The settings these tests answer with: the voice settings given, on a server
+// without files.
+type VoiceAnswer = Pick<SettingsResult, "voice">;
+const settingsOf = (answer: VoiceAnswer): SettingsResult => ({ ...noSettings, ...answer });
+
+async function open(settings: VoiceAnswer) {
+  api.on("GET", "/settings", { body: settingsOf(settings) });
   renderAt("/settings");
   await within(await screen.findByRole("region", { name: "Voice" })).findByRole("button", {
     name: /^(Set up|Save)$/,
@@ -73,17 +79,17 @@ async function open(settings: SettingsResult) {
 
 // later answers as a server does, a little after the request, so focus that
 // waits for the answer is tested as a browser meets it.
-function later(body: SettingsResult) {
+function later(body: VoiceAnswer) {
   return () =>
     new Promise<{ body: SettingsResult }>((resolve) => {
-      setTimeout(() => resolve({ body }), 50);
+      setTimeout(() => resolve({ body: settingsOf(body) }), 50);
     });
 }
 
 // answerSaves answers a save with the settings given, and lists what each
 // save carried.
-function answerSaves(settings: SettingsResult) {
-  api.on("POST", "/settings/voice", { body: settings });
+function answerSaves(settings: VoiceAnswer) {
+  api.on("POST", "/settings/voice", { body: settingsOf(settings) });
   return () => api.callsTo("POST", "/settings/voice").map((call) => call.body);
 }
 

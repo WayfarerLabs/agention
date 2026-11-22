@@ -77,8 +77,8 @@ export const noAttention: AttentionCounts = { unread_threads: 0, pending_registr
 
 export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
-// The settings of a server without voice.
-export const noSettings: SettingsResult = { voice: null };
+// The settings of a server without voice or files.
+export const noSettings: SettingsResult = { voice: null, storage: { files: 0, bytes: 0 } };
 
 export const signedIn: SessionState = {
   signed_in: true,
@@ -260,15 +260,15 @@ export function answerTo(
   };
 }
 
-// threadAnswer is a GET of a thread: the thread, its messages, both cursors
-// and the operator's marks.
+// threadAnswer is a GET of a thread: the thread, its messages, both cursors,
+// the operator's marks, and no files.
 export function threadAnswer(
   thread: ThreadSummary,
   messages: Message[],
   cursors = { requester: thread.last_seq, audience: thread.last_seq - thread.unread },
   marks = { read_through: thread.last_seq - thread.unread, archived_through: 0 },
 ): ThreadGetResult {
-  return { thread, messages, cursors, marks };
+  return { thread, messages, cursors, marks, files: { count: 0, bytes: 0 } };
 }
 
 export function registration(overrides: Partial<Registration> = {}): Registration {

@@ -627,6 +627,8 @@ export function getThread(
       messages: readMessages(db, stored.id, query.after, query.limit),
       cursors: partyCursors(db, stored),
       marks: marksOf(db, identity.actor, stored.id),
+      // Placeholder until the file store counts the thread's files.
+      files: { count: 0, bytes: 0 },
     };
   });
 }

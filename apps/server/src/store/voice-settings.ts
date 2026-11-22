@@ -118,6 +118,8 @@ function voiceOf(saved: Saved, environment: VoiceEnvironment): VoiceSettings | n
 
 const settingsOf = (db: Database, environment: VoiceEnvironment): SettingsResult => ({
   voice: voiceOf(readRow(db), environment),
+  // Placeholder until the file store counts the server's files.
+  storage: { files: 0, bytes: 0 },
 });
 
 // readSettings reads the operator's settings, with no more of a key than its

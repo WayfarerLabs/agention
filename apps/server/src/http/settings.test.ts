@@ -8,6 +8,8 @@ const openAi = "https://api.openai.com/v1";
 const ownServer = "http://192.168.1.20:8000/v1";
 const secretKey = "sk-Qv7Xm2Zp9Lw4Kt8R-c3dE";
 const otherKey = "sk-Ny6Hb1Jg5Fd0Sa9P-x8yZ";
+// What a server without files answers its storage as.
+const noFiles = { files: 0, bytes: 0 };
 
 let harness: Harness;
 // Every answer the tests saw, to check that none carries more of a key than
@@ -68,7 +70,7 @@ function row() {
 describe("the settings", () => {
   it("hold no voice until it is set up", async () => {
     start();
-    expect(await settings()).toEqual({ voice: null });
+    expect(await settings()).toEqual({ voice: null, storage: noFiles });
   });
 
   it("save a provider, show it with only its key's ending, and clear it", async () => {
@@ -89,8 +91,8 @@ describe("the settings", () => {
       from_environment: [],
       invalid: false,
     };
-    expect(saved.body).toEqual({ voice });
-    expect(await settings()).toEqual({ voice });
+    expect(saved.body).toEqual({ voice, storage: noFiles });
+    expect(await settings()).toEqual({ voice, storage: noFiles });
     expect(row()).toEqual({
       base_url: openAi,
       model: "gpt-transcribe",
@@ -99,7 +101,7 @@ describe("the settings", () => {
     });
 
     const cleared = await clear();
-    expect(cleared.body).toEqual({ voice: null });
+    expect(cleared.body).toEqual({ voice: null, storage: noFiles });
     expect(row()).toBeUndefined();
   });
 
@@ -199,13 +201,14 @@ describe("a saved row the rules refuse", () => {
         from_environment: [],
         invalid: true,
       },
+      storage: noFiles,
     });
     const transcribed = await harness.web("POST", "/transcriptions", new Uint8Array(4000), {
       headers: { "content-type": "audio/webm" },
     });
     expect(codeOf(transcribed)).toBe("not_found");
     expect(codeOf(await clear())).toBe("ok");
-    expect(await settings()).toEqual({ voice: null });
+    expect(await settings()).toEqual({ voice: null, storage: noFiles });
 
     harness.fixture.db
       .prepare(
@@ -233,6 +236,7 @@ describe("the settings under the server's environment", () => {
         from_environment: ["model"],
         invalid: false,
       },
+      storage: noFiles,
     });
     // The row records the model in effect when it was saved.
     expect(row()).toEqual({
@@ -315,6 +319,7 @@ describe("the settings under the server's environment", () => {
         from_environment: ["base_url"],
         invalid: false,
       },
+      storage: noFiles,
     });
 
     harness.close();
@@ -332,6 +337,7 @@ describe("the settings under the server's environment", () => {
         from_environment: ["base_url", "model"],
         invalid: false,
       },
+      storage: noFiles,
     });
     expect(row()).toBeUndefined();
   });
