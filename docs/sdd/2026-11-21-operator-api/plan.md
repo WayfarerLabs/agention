@@ -16,6 +16,9 @@
 - [ ] The key management routes on the web mount, with recent sign-in (K3).
 - [ ] The OpenAPI document, `--api-docs` and `/docs/api/`, and the committed `docs/api/openapi.json`
       with its parity test (D1, D2).
+- [ ] Settings sections: the declared list, `/settings/<slug>`, the navigation column on wide
+      screens and the list-then-section flow on phones, the recent sign-in offer per section, and
+      the existing sections moved into it with no behavior lost (S1).
 - [ ] Settings: the API keys section (K1 to K3).
 - [ ] Permanent docs: ADR 0003, ADR 0001's clause marked superseded, the architecture document, the
       operator guide (keys, the operator API, `--api-docs`), SECURITY.md,

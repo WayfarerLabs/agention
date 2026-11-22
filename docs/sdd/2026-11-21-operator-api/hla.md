@@ -5,125 +5,190 @@
 
 ## Shape
 
-One table of operator operations, mounted twice and documented from the same table:
+Each documented mount's routes are declared once, as operations, and both the routes and the
+documentation are built from those declarations:
 
 ```mermaid
 flowchart LR
   ui[Web UI] -- cookie + CSRF --> web["/api/web"]
-  client[Client such as pitwall] -- "Bearer key" --> op["/api/operator"]
+  client[Client such as pitwall] -- "Bearer key" --> op["/api/operator/v1"]
   agent[Agent bridge] -- signed token --> ag["/api/agent"]
-  web --> table[(operator operations table)]
-  op --> table
-  ag --> threads[thread routes]
-  table --> threads
-  table --> store[Store]
-  threads --> store
-  table --> docs["/docs/api/ (with --api-docs)"]
+  web --> operatorOps[(operator operations)]
+  web --> webRoutes[web-only routes]
+  op --> operatorOps
+  ag --> agentOps[(agent operations)]
+  operatorOps --> store[Store]
+  agentOps --> store
+  webRoutes --> store
+  operatorOps --> docs["/docs/api/ (with --api-docs)"]
+  agentOps --> docs
 ```
 
-This is the operator's option 1 in substance (the API the web UI uses is the general-purpose one)
-and option 2 in form (the web UI keeps its own mount, whose credential and unversioned contract fit
-a UI the server ships in step). Neither mount has a handler of its own for an operation they share,
-so A1's "never implemented twice" holds by construction.
+This follows ruling 1: a third, key-only mount serving the web UI's operations with the same code.
+The web UI keeps its own mount, whose cookie credential and unversioned contract fit a UI the server
+ships in step, and adds the routes no key may call. No operation has a second handler, so A1 holds
+by construction.
 
 ### Why not the alternatives
 
 - **The web mount takes keys too.** It would carry two credentials with different rules (CSRF and
-  `Origin` for one, none for the other) on one mount, and its refusal of `Authorization`, which is
-  what keeps a token from ever riding a cookie's authority, would go. Separate mounts keep each
+  `Origin` for one, none for the other) on one mount, and its refusal of `Authorization`, which
+  keeps a token from ever riding a cookie's authority, would go. Separate mounts keep each
   credential's checks whole, as the agent and web mounts already do.
 - **A separately designed resource API.** Two implementations of the same operations, which A1 rules
   out, and a second shape for every reader to learn.
+- **Documentation listed beside the routes, with a test comparing the two.** Hono routes carry no
+  schemas, so the list would be a second definition, and the test could only catch drift in the
+  route list, never in a field. Declaring the operation once is the simpler way to meet D2.
 
-## The operations table
+## Operations
 
-`apps/server/src/http/operations.ts` declares each operator operation once: its method and path, a
-one-line summary, its query or body schema and its response schema from `packages/api`, and its
-handler, which takes the store, the identity and the parsed input. The web mount and the operator
-mount both build their routes from it; the docs are built from it too, so D2 holds by construction.
-The thread routes the agent mount shares are entries in the same table, and the agent mount builds
-them from the table as well, so it keeps one set of handlers.
+An operation declares its method and path, a one-line summary, its path, query and body schemas and
+its response schema from `packages/api`, and its handler, which takes the store, the identity and
+the parsed input and returns the response schema's type, so the compiler holds each declared
+response to the code. A mount builds Hono routes from its list: parsing every input through its
+schema, as `parseBody` and `parseQuery` do now, then calling the handler.
 
-An operation is on the operator mount unless the table marks it web-only. Web-only: the passkey
-ceremonies and passkeys, signing out, Settings and voice, transcription, key management, and every
-registrations route (K4). A table entry's method decides what a read key may do: a read key may call
-only `GET` operations, and every `GET` operation is free of writes, which a test over the table and
-the store confirms.
+- **Operator operations** (`apps/server/src/http/operator-operations.ts`): every operation a key may
+  call, each with the one scope it requires. Being in this list is what puts an operation on the
+  operator mount, and its scope is required, so leaving an operation out keeps it off and nothing
+  fails open. The web mount builds the same list for the browser session, which holds every scope.
+  The thread routes the agent mount shares (`threadRoutes`, today in `thread-routes.ts`) are entries
+  of both lists, so they keep one handler each.
+- **Agent operations** (`apps/server/src/http/agent-operations.ts`): the agent mount's routes,
+  declared the same way so they are documented (ruling 2). Its middleware (the version header, the
+  cookie refusal, token authentication, rate spending and marking a session seen) stays as it is,
+  and so does every answer (E1). Registration, whose token is checked against the key it carries,
+  declares its schemas the same way and keeps its own authentication step.
+- **Web-only routes** stay plain Hono routes in `web-api.ts`: the passkey ceremonies and passkeys,
+  sign-in and signing out, Settings and voice, transcription, and key management. They use cookies,
+  ceremonies or a raw body, which an operation's shape does not need to carry.
 
-Response schemas for routes that answer `{}` or a store result without one get a schema in
-`packages/api`, since a documented response must have one.
+One path can name different operations on different mounts: `POST /s/:agent/:session/threads` is an
+agent's `createThread` on the agent mount and the operator's `startThread` on the others. Each list
+holds its own entry, so this is two declarations, not a mount-dependent handler.
+
+Routes that answer `{}` or an untyped store result get a response schema in `packages/api`, since a
+documented response must have one.
+
+## Scopes
+
+A scope is `<resource>:<access>`, with resources `threads` and `sessions` and accesses `read` and
+`write`, a write including its resource's read (K4). `packages/api` defines them as one enum, so a
+later resource is a new member. Each operator operation names the one scope it requires:
+
+| Scope            | Operations                                                                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threads:read`   | thread list, counts, a thread                                                                                                                            |
+| `threads:write`  | start a thread, send a message, read, unread, archive, bulk read and archive                                                                             |
+| `sessions:read`  | sessions, unread updates, a session's log, groups and tags, registrations                                                                                |
+| `sessions:write` | the log's read mark, group create, rename, remove, tag rename, remove, a session's group and tags, an agent's tags, registration approve, reject, revoke |
+
+A test over the list confirms every operation requiring a read scope is a `GET` whose store work
+writes nothing but credential bookkeeping (a browser session's idle expiry, a key's last use), so a
+read key cannot change anything.
 
 ## Keys
 
-- **Table.** Migration 5 adds `api_keys`: an id, the operator's person id, the name, the scope
-  (`read` or `read_write`), the SHA-256 of the secret, and the created, expiry, last-used and
-  revoked times. Revoking keeps the row, so the list shows it until it expires; expired keys are
+- **Table.** Migration 5 adds `api_keys`: an id, the operator's person id, the name, the scopes, the
+  SHA-256 of the secret, and the created, expiry (none for a key without one), last-used and revoked
+  times. A revoked key keeps its row so the list can show it, and revoked and expired rows are
   deleted when the table is next written, as browser sessions are.
-- **Secret.** 256 random bits, shown as `agention_` followed by their base64url, so secret scanners
-  and people can recognize one. Only its hash is stored (K5), as browser sessions and passkey links
-  already are.
-- **Identity.** `Credential` gains `{ kind: "api_key", id }`. A key's grants are every session, no
-  administration, and a new `writes` flag that the browser session and registrations hold as true;
-  the operator mount refuses a non-`GET` from a read key before the handler runs. `checkCredential`
-  confirms, inside each operation's transaction, that the key is unrevoked and unexpired, so a
-  revocation takes effect on the next request (K5). Last used is written at most hourly, as a
-  browser session's idle expiry is.
-- **Management.** `GET /api/web/keys`, `POST /api/web/keys` (name, scope, expiry; answers the secret
-  once) and `POST /api/web/keys/:id/revoke`, on the web mount only, each needing the recent sign-in
-  that passkey changes need. At most 20 live keys, checked in the creating transaction.
-- **Expiry.** 7, 30, 60 or 90 days, or a date up to 365 days away (K2), validated by the schema and
-  stored as a time.
+- **Secret.** 256 random bits, written as `agention_` and their base64url, so people and secret
+  scanners recognize one. Only its hash is stored (K5), as with browser sessions and passkey links.
+- **Identity.** `Credential` gains `{ kind: "api_key", id }`, and `Grants` gains the scopes an
+  identity holds. A key's grants are every session and its scopes; a browser session holds every
+  scope; an agent's registration holds `threads:write` over its own session only, which is what it
+  can do today, so the thread routes check scopes the same way on every mount. The mount refuses an
+  operation whose scope the identity lacks as `not_found`, as administration is refused today,
+  before the handler runs. `authorizeAdministration` gives way to the scope check, since
+  `sessions:write` now covers what administration meant. `checkCredential` confirms, inside each
+  operation's transaction, that the key is unrevoked and unexpired, so revocation takes effect on
+  the next request (K5). Last used is written at most hourly, as a browser session's idle expiry is.
+- **Management.** On the web mount only: `GET /keys`; `POST /keys` with the name, scopes and expiry,
+  answering the secret once; and `POST /keys/:id/revoke`. Creating and revoking need the recent
+  sign-in that passkey changes need; listing does not, as listing passkeys does not. At most 20 keys
+  that are neither revoked nor expired, checked in the creating transaction.
+- **Expiry.** 7, 30, 60 or 90 days, a date up to 365 days away, or none (K2).
 
 ## The operator mount
 
-- `/api/operator/` accepts only `Authorization: Bearer agention_...`, and refuses any request
-  carrying a cookie, as the agent mount does, so a browser's ambient credential never reaches it. No
-  CSRF token or `Origin` is needed, since a browser never attaches a bearer key on its own.
-- **Version.** `operatorApi = { version: 1, oldest: 1 }` and the `Agention-Operator-API` header,
-  with exactly the agent mount's rules (a missing header means 1; above the server's or below its
-  oldest is `unsupported_version` before authentication). The version-stating middleware is
-  generalized from the agent mount's so both share it. Within a version, changes are additive (a new
-  operation, a new optional request field, a new response field); a change that would break a client
-  keeps the old behavior for the old version or bumps `oldest` by a maintainer's decision (A2). The
-  committed OpenAPI document (below) makes every contract change visible in review.
-- **Rates.** A key's requests spend a budget of their own, like a registered agent key's, and failed
-  key authentication spends a shared `failedKeyAuth` budget, spent only on failure.
-- **Errors** are the shared error shape. Every refusal of a key says to create a new one in
-  Settings, naming neither whether the key existed nor why it failed beyond "expired or revoked".
+- `/api/operator/v1/` accepts only `Authorization: Bearer agention_...`, and refuses any request
+  carrying a cookie, as the agent mount does, so a browser's ambient credential never reaches it. It
+  needs no CSRF token or `Origin`, since a browser never attaches a bearer key on its own.
+- **Version in the path.** `GET /api/operator` answers the versions the server serves,
+  `{"versions":[1]}`, and an unknown version is the existing `not_found`. A version changes only
+  additively (a new operation, a new optional request field, a new response field); a change that
+  would break a client is a new version beside the old, by a maintainer's decision (A2). The agent
+  mount's header exists because bridges and servers release apart and the bridge refuses an older
+  server; a client of this mount needs only to know a version is served, which the path says.
+- **Rates.** A key's requests spend a budget of the key's own, as a registered agent key's do, and
+  failed key authentication spends a shared `failedKeyAuth` budget, spent only on failure.
+- **Errors** are the shared error shape. A refused key is told to check it or create a new one in
+  Settings, with nothing that says whether the key ever existed.
 
 ## Documentation
 
-- `apps/server/src/http/openapi.ts` builds an OpenAPI 3.1 document from the operations table that
-  are on the operator mount, with `z.toJSONSchema` for every schema, the bearer security scheme, the
-  version header, and the error shape with its codes and statuses.
-- `agention serve --api-docs` serves `GET /docs/api/openapi.json` and `GET /docs/api/`, a page
-  rendered on the server from the same document, static HTML with no script, so the content security
-  policy holds unchanged. Without the flag both paths answer as the web UI's other unknown paths do.
-  Documentation is served without sign-in: it describes the contract, not data.
-- The document is also committed at `docs/api/openapi.json`, and a test fails when the generated
-  document differs from it byte for byte, so a contract change is a reviewed diff. That file is a
-  generated output, listed with the others in `docs/development-context.md`.
-- No new dependency: zod 4 generates the JSON Schema, and the page is plain server-rendered HTML.
+- `apps/server/src/http/openapi.ts` builds one OpenAPI 3.1 document from the operator and agent
+  operations: `z.toJSONSchema` for every schema, the bearer scheme for the operator mount and the
+  signed token for the agent mount, the agent version header, and the error shape with its codes and
+  statuses. Rules a schema enforces only in code (zod refinements) are absent from the generated
+  schema, so the document can describe less than the server checks, never more; each such rule is
+  stated in its field's description, which zod carries into the document.
+- `agention serve --api-docs` serves `GET /docs/api/openapi.json` and `GET /docs/api/`, a page the
+  server renders from the same document: each operation's method, path, summary, scope and
+  parameters, and its schemas as formatted JSON. It is static HTML with no script, so the content
+  security policy is unchanged and no dependency is added. Documentation is served without sign-in,
+  since it describes the contract and no data. Without the flag, both paths answer the JSON
+  `not_found`, not the web UI's index page, so nothing is served there (D1).
+- The document is committed at `docs/api/openapi.json`, and a test fails when the generated document
+  differs from it byte for byte (ruling 2). It is a generated output, listed with the others in
+  `docs/development-context.md`, and regenerated by a script beside the plugin generator's.
 
 ## Web UI
 
-Settings gains an API keys section beside Passkeys: the list (K3), a create form with name, scope
-and expiry, a one-time view of the new secret with a copy control and a warning that it is shown
-once, and revoke with confirmation. A stale sign-in leads to the same re-sign-in prompt the passkey
-section uses.
+### Settings sections (S1)
+
+Settings becomes a list of sections, declared once in `apps/web/src/views/settings/sections.ts`:
+each with a slug, a title, the group it is listed under, and its component. The router reads
+`/settings/<slug>`; the navigation and the page are built from the list, so a later section is one
+entry and one component. Groups, in order: **Access** (Passkeys, API keys) and **Features** (Voice),
+with **Sign out** last, apart from the groups.
+
+- **Wide screens:** a navigation column, the groups with their sections, beside the open section,
+  with the current one marked (`aria-current`). `/settings` opens the first section.
+- **Narrow screens:** `/settings` shows the navigation alone, as a full-width list; a section's page
+  shows a back link to it in place of the column. The breakpoint is the one the app's layout already
+  uses, in CSS, so nothing about the layout is decided in script.
+- `/passkeys` leads to `/settings/passkeys`, and `/settings` keeps working (S1).
+- The recent sign-in offer, which every section that changes a secret needs, moves from the view's
+  top into the sections that need it (Passkeys, Voice, API keys), shown once per section. Each
+  section loads its own data, so opening one fetches only what it shows.
+
+This is the pattern later settings follow; agention#38's reorganization of voice settings fits
+inside its Voice section.
+
+### API keys section
+
+The API keys section, under Access: the list (K3); a create form with name, scopes and expiry,
+warning when no expiry is chosen; a one-time view of the new secret with a copy control and a note
+that it is shown once; and revoke, with confirmation. A stale sign-in leads to the same re-sign-in
+prompt the passkey section uses.
 
 ## Security
 
-- A key is a bearer credential with the operator's reach within its scope, so it is never logged,
-  never sent back after creation, compared only as a hash, and bounded in life (K2).
+- A key is a bearer credential with the operator's reach within its scopes, so it is never logged,
+  never sent back after creation, kept only as a hash, and bounded in life unless the operator
+  chooses otherwise, which Settings warns against.
 - The operator mount has no cookie path and the web mount no `Authorization` path, so neither
   credential can borrow the other's authority, and CSRF does not arise on the key mount.
-- Keys cannot reach administration, passkeys, keys or Settings, so a leaked key cannot entrench
-  itself, approve an agent, or change where audio goes.
+- No key can manage keys, passkeys or Settings, so a leaked key cannot make itself another key, add
+  a passkey, or change where audio goes. A `sessions:write` key can approve an agent's registration
+  (ruling 1), so the operator guide and the key form say what that scope grants.
 - ADR 0003 records that integrations may act for the operator through keys, superseding that clause
-  of ADR 0001 "Not doing"; `SECURITY.md` gains the key's threat model, and
-  `docs/review-checklist.md` a check that every new operation states its mount and that read keys
-  stay read-only.
+  of ADR 0001 "Not doing"; `SECURITY.md` gains the key's threat model; and
+  `docs/review-checklist.md` gains a check that every new operation names its scope, and that read
+  scopes stay read-only.
 
 ## Out of scope here
 

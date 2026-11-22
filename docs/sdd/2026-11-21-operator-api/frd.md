@@ -1,6 +1,6 @@
 # Operator API: Functional Requirements
 
-- Status: Draft, awaiting the operator's acceptance
+- Status: Draft, revised for rulings 1 to 4, awaiting the operator's acceptance
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -30,25 +30,44 @@ tool can hold and no API documented for it to build against.
 
 ## Functional requirements
 
+### Settings
+
+**S1. Settings with structure.** Settings is organized as named sections, each on its own page with
+its own address, reached from a navigation that lists them grouped by kind, as GitHub's settings
+are: on a wide screen the navigation stays beside the open section, and on a phone Settings opens on
+the list and a section offers the way back to it. Passkeys, voice, signing out and API keys are
+sections, and adding a later section adds an entry without reshaping the rest (ruling 4). The
+addresses Settings has today keep leading where they lead.
+
 ### Keys
 
-**K1. Keys created in Settings.** Settings has an API keys section. The operator creates a key with
-a name and an expiry, and chooses what it may do (K4). The key's secret is shown once, when it is
+**K1. Keys created in Settings.** Settings has an API keys section (S1). The operator creates a key
+with a name and an expiry, and chooses its scopes (K4). The key's secret is shown once, when it is
 created, with a way to copy it, and never again by the server.
 
-**K2. Keys expire.** A key's expiry is chosen from 7, 30, 60 or 90 days, or a date of the operator's
-choosing up to a year away. No key lives forever.
+**K2. Expiry.** A key's expiry is chosen from 7, 30, 60 or 90 days, a date of the operator's
+choosing up to a year away, or no expiry, which Settings warns against when it is chosen (ruling 2).
 
-**K3. Keys are managed in one place.** The section lists every key with its name, what it may do,
-when it was created, when it expires and when it was last used. The operator can revoke any key.
-Creating or revoking a key needs a recent sign-in, as changing passkeys does. The operator holds at
-most 20 keys.
+**K3. Keys are managed in one place.** The section lists every key with its name, its scopes, when
+it was created, when it expires and when it was last used. The operator can revoke any key. Creating
+or revoking a key needs a recent sign-in, as changing passkeys does. The operator holds at most 20
+keys.
 
-**K4. A key acts as the operator, within its scope.** A key is either **read**, which may read what
-the operator reads in the web UI, or **read and write**, which may also do what the operator does
-with threads and sessions: write and start threads, answer asks, mark read, unread and archived, and
-set groups and tags. No key may manage keys, passkeys or Settings, transcribe, or list, approve,
-reject or revoke agents' registrations; those stay behind a passkey.
+**K4. A key acts as the operator, within its scopes.** A key holds one or more scopes, each a
+resource and an access (ruling 1):
+
+- **`threads:read`**: the operator's thread list and its counts, and any thread with its messages.
+- **`threads:write`**: also starting threads, writing in them and answering asks, and marking
+  threads read, unread and archived, one at a time or in bulk.
+- **`sessions:read`**: the sessions view with its agents, tags and groups, a session's log, the
+  count of sessions with unread updates, and agents' registrations.
+- **`sessions:write`**: also marking a session's log read, managing groups and tags and setting a
+  session's group and an agent's or a session's tags, and approving, rejecting and revoking agents'
+  registrations (ruling 1).
+
+A write scope includes its resource's read. Scopes are named `<resource>:<access>` so that later
+resources add scopes without changing these. No key may manage keys, passkeys or Settings, or
+transcribe; those stay behind a passkey.
 
 **K5. Revocation and expiry are immediate.** A revoked or expired key stops working at once. The
 server keeps no copy of a key's secret from which the key could be used.
@@ -65,12 +84,16 @@ versions it serves.
 
 ### Documentation
 
-**D1. Live documentation.** Started with `--api-docs`, the server serves documentation of the API a
-key uses under `/docs/api/`: a page a person reads, and the machine-readable description a client
-generator reads. Without the flag, nothing is served there.
+**D1. Live documentation.** Started with `--api-docs`, the server serves documentation under
+`/docs/api/` of the API a key uses and of the agent API the bridge uses (ruling 2): a page a person
+reads, and the machine-readable description a client generator reads. Without the flag, nothing is
+served there.
 
 **D2. Generated from the code.** The documentation is generated from the same definitions the server
-runs, so it cannot describe a request, field, bound or error the server does not have.
+runs, so it cannot describe a request, field, bound or error the server does not have. The
+machine-readable description is also kept in the repository, and checks fail when it differs from
+what the code generates, so every change to the contract is reviewed as a change to that file
+(ruling 2).
 
 ### Engineering
 
@@ -92,7 +115,21 @@ operator, which ADR 0001 ruled out.
 
 ## Operator rulings, 2026-11-21 onward
 
-None yet.
+1. (2026-11-21) Asked how the API should be shaped, the operator chose "Third mount, shared
+   handlers": a versioned, key-only mount beside the web UI's, serving the same operations with the
+   same code. Asked what a key may do: "Yeah, let's define threads read/write and sessions
+   read/write for now. Leave room for other scopes." Asked whether keys may approve or revoke agent
+   registrations: "Only with session/write". Taken: K4's four scopes, named so others can follow,
+   with registrations under the sessions scopes.
+2. (2026-11-21) Asked about expiry, the operator chose "Same, plus no expiry"; about the
+   documentation's scope, "Operator and agent mounts"; and whether to commit the generated
+   description with a drift check, "Yes". Taken: K2's no-expiry choice, D1's two APIs, and D2's
+   committed description.
+3. (2026-11-21) Asked whether to close out the voice-and-settings SDD first: "Leave it". Taken: this
+   effort does not touch that SDD.
+4. (2026-11-21) "Btw, in doing this, we're going to need to add more structure to settings. It's
+   important that it still work on mobile, but think more Github settings vs what we have today.
+   What you do here will establish the pattern for future settings expansion." Taken: S1.
 
 ## Definition of done
 
