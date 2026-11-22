@@ -33,10 +33,9 @@ read one source; server-only values live beside the code that uses them.
 | `maxPendingBytes`       | 1 GiB a writer                         | `packages/api`            | One full message of 100 MiB files, with room                 |
 | `pendingLifetime`       | 24 hours from the upload's completion  | `packages/api`            | Outlives an agent's turn (Synapse's 24 hours)                |
 | `chunkBytes`            | 1 MiB                                  | server, `store/files.ts`  | Measured: p50 1.7 to 2.1 ms a commit, p99 under 110 ms       |
-| `abandonedAfter`        | 60 seconds untouched                   | server, `store/files.ts`  | Twice the body-idle deadline                                 |
 | `sweepInterval`         | 10 minutes, and once at start          | server, `store/files.ts`  |                                                              |
-| `vacuumStep`            | 2,048 pages (8 MiB) a step             | server, `store/files.ts`  | Measured: about 15 ms a step                                 |
-| `freeSpaceFloor`        | 1 GiB, plus the upload's length        | server, `http/uploads.ts` | Keeps room for the database and its log                      |
+| `vacuumStep`            | 2,048 pages (8 MiB) a step             | server, `store/files.ts`  | Measured: 12 to 15 ms a step                                 |
+| `freeSpaceFloor`        | 1 GiB, beyond every upload arriving    | server, `http/uploads.ts` | Keeps room for the database and its log                      |
 | `journalSizeLimit`      | 16 MiB                                 | server, `database.ts`     | Truncates a log a backup's long read let grow                |
 | `timeouts.headers`      | 10 seconds, checked every second       | server, `http/listener`   | Unchanged value; now checked every second                    |
 | `timeouts.request`      | 30 seconds, every request but uploads  | server, `http/deadlines`  | Unchanged value; now enforced to the second                  |
@@ -58,8 +57,8 @@ STRICT tables, append-only where the HLA says so, with the rules each trigger na
 milliseconds, as everywhere.
 
 ```sql
--- Every uploaded file. Its bytes are rows of file_chunks, chunk_size bytes
--- each but the last, numbered from 0. size is the length the upload declared,
+-- Every uploaded file. Its bytes are rows of file_chunks, 1 MiB each but the
+-- last, numbered from 0. size is the length the upload declared,
 -- known before any byte arrives. A file is incomplete until every byte has
 -- arrived (completed_at, with its SHA-256), and pending until a message first
 -- names it (attached_at). ref is the random reference an upload answers with
@@ -74,12 +73,10 @@ CREATE TABLE files (
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK (length(type) BETWEEN 3 AND 127),
   size INTEGER NOT NULL CHECK (size >= 0),
-  chunk_size INTEGER NOT NULL CHECK (chunk_size > 0),
   actor_id INTEGER NOT NULL REFERENCES actors (id),
   session_id INTEGER NOT NULL REFERENCES sessions (id),
   registration_id INTEGER REFERENCES registrations (id),
   created_at INTEGER NOT NULL,
-  touched_at INTEGER NOT NULL,
   sha256 BLOB CHECK (sha256 IS NULL OR length(sha256) = 32),
   completed_at INTEGER,
   attached_at INTEGER,
@@ -91,12 +88,11 @@ CREATE INDEX files_pending ON files (actor_id) WHERE attached_at IS NULL;
 
 CREATE TRIGGER files_fixed BEFORE UPDATE ON files
 WHEN new.id IS NOT old.id OR new.ref IS NOT old.ref OR new.name IS NOT old.name
-  OR new.type IS NOT old.type OR new.size IS NOT old.size
-  OR new.chunk_size IS NOT old.chunk_size OR new.actor_id IS NOT old.actor_id
+  OR new.type IS NOT old.type OR new.size IS NOT old.size OR new.actor_id IS NOT old.actor_id
   OR new.session_id IS NOT old.session_id OR new.registration_id IS NOT old.registration_id
   OR new.created_at IS NOT old.created_at
   OR (old.completed_at IS NOT NULL AND (new.completed_at IS NOT old.completed_at
-    OR new.sha256 IS NOT old.sha256 OR new.touched_at IS NOT old.touched_at))
+    OR new.sha256 IS NOT old.sha256))
   OR (old.attached_at IS NOT NULL AND new.attached_at IS NOT old.attached_at)
 BEGIN
   SELECT RAISE(ABORT, 'a file changes only as its upload arrives and a message first names it');
@@ -106,8 +102,8 @@ BEGIN
   SELECT RAISE(ABORT, 'an attached file is never removed');
 END;
 
--- A file's bytes, in order. A rowid table on purpose: rows near chunk_size
--- would make a WITHOUT ROWID b-tree's pages hold one row each.
+-- A file's bytes, in order. A rowid table on purpose: rows of 1 MiB would
+-- make a WITHOUT ROWID b-tree's pages hold one row each.
 CREATE TABLE file_chunks (
   file_id INTEGER NOT NULL REFERENCES files (id),
   idx INTEGER NOT NULL CHECK (idx >= 0),
@@ -118,11 +114,6 @@ CREATE TABLE file_chunks (
 CREATE TRIGGER file_chunks_fixed BEFORE UPDATE ON file_chunks
 BEGIN
   SELECT RAISE(ABORT, 'a file''s bytes never change');
-END;
-CREATE TRIGGER file_chunks_whole BEFORE INSERT ON file_chunks
-WHEN (SELECT completed_at FROM files WHERE id = new.file_id) IS NOT NULL
-BEGIN
-  SELECT RAISE(ABORT, 'a completed file takes no more bytes');
 END;
 CREATE TRIGGER file_chunks_kept BEFORE DELETE ON file_chunks
 WHEN (SELECT attached_at FROM files WHERE id = old.file_id) IS NOT NULL
@@ -155,13 +146,6 @@ CREATE TRIGGER attachments_no_delete BEFORE DELETE ON attachments
 BEGIN
   SELECT RAISE(ABORT, 'attachments are append-only');
 END;
-CREATE TRIGGER attachments_whole_and_own BEFORE INSERT ON attachments
-WHEN (SELECT completed_at FROM files WHERE id = new.file_id) IS NULL
-  OR (SELECT session_id FROM files WHERE id = new.file_id)
-    IS NOT (SELECT session_id FROM threads WHERE id = new.thread_id)
-BEGIN
-  SELECT RAISE(ABORT, 'a message carries only whole files of its own session');
-END;
 CREATE TRIGGER attachments_attach AFTER INSERT ON attachments
 BEGIN
   UPDATE files SET attached_at = (
@@ -170,16 +154,18 @@ BEGIN
 END;
 ```
 
-- **What the triggers hold.** Nothing removes an attached file or its bytes (A8, ruling 1); no
-  completed file gains or changes bytes; a file is attached only whole and only in its own session's
-  threads. The store holds the rest: that a message names only its writer's own pending uploads, and
-  a file of another message only by keeping one of the message it replaces.
+- **What the schema holds.** Nothing removes an attached file or its bytes, and no chunk changes
+  (A8, ruling 1), by the triggers; a file is attached only once complete, by the `CHECK` that
+  `attachments_attach` would otherwise break. The store holds the cross-row rules, as the schema's
+  convention has it (`migrations.ts:177-181`): that a message names only its writer's own pending
+  uploads of its own session, and a file of another message only by keeping one of the message it
+  replaces, all in `checkAttachments`.
 - **Missing.** A file is missing when its last chunk is gone: for `size > 0`, no row at
-  `idx = (size - 1) / chunk_size`. A future purge deletes all of a file's chunks, so that one lookup
+  `idx = (size - 1) / chunkBytes`. A future purge deletes all of a file's chunks, so that one lookup
   finds what it leaves; a read that meets a gap mid-file fails the stream. A zero-byte file is never
   missing. A future purge changes `file_chunks_kept` in its own migration.
-- **Why per-file `chunk_size`.** Stored bytes outlive any constant, so a later release may change
-  `chunkBytes` and still read old files.
+- **One chunk size.** Every file is written in `chunkBytes` chunks. A release that changes it adds a
+  per-file column in its own migration, `DEFAULT 1048576`, so every older row reads right.
 - **Indexes.** `files.ref` (unique) finds an upload by reference; `files_pending` serves the
   per-writer limits and the sweep; `file_chunks`' key serves every read and range; `attachments`'
   key serves a message's files and a thread's, and `attachments_files` the distinct-file queries and
@@ -197,23 +183,34 @@ Turning `auto_vacuum` on needs care, measured on Node 24.18 and 26.13.1:
 - On a database that has tables, the switch needs `VACUUM`, which refuses to run in a transaction
   and rewrites the whole file. In WAL mode it works and writes the whole database through the log.
 
-So `Database.open` gains one step on each side of `#migrate()`, in a module of its own
+So `Database.open` gains one step after `#migrate()`, in a module of its own
 (`database/vacuum-mode.ts`):
 
-- **Before the migrations,** on a file at `user_version` 0, it runs
-  `PRAGMA auto_vacuum = INCREMENTAL` outside any transaction. A new database is incremental from its
-  first table, and never vacuumed.
-- **After the migrations,** when `PRAGMA auto_vacuum` reads 0 (none), it runs
-  `PRAGMA auto_vacuum = INCREMENTAL`, `VACUUM`, then `PRAGMA wal_checkpoint(TRUNCATE)`, and writes
-  one line to standard error first ("converting the database to incremental vacuuming, once"). The
-  check reads the header, not the migration number, so a backup restored from an older release
-  converts too, and a database already converted never vacuums again.
-- **Cost.** Once per database, at the first open after the upgrade, before the server listens. It
-  takes time proportional to the database (measured: 41 MB in 86 to 218 ms) and free disk of about
-  twice its size, for SQLite's temporary copy and the log, which the checkpoint then truncates. A
-  database without attachments is small. `VACUUM` takes the write lock, so a second process opening
-  at the same time waits on `busy_timeout`, and whichever opens first (normally `agention serve`)
-  converts. A crash during it leaves the database as it was, since `VACUUM` is atomic.
+- **The step.** When `PRAGMA auto_vacuum` reads 0 (none), it runs
+  `PRAGMA auto_vacuum = INCREMENTAL`, `VACUUM`, then `PRAGMA wal_checkpoint(TRUNCATE)`. A new
+  database takes it too, just after its migrations (measured: 1.1 ms for a fresh schema). The check
+  reads the header, not the migration number, so a backup restored from an older release converts
+  too, and a database already converted never vacuums again.
+- **Failure.** The migrations have committed by then, and an older release refuses the migrated
+  database, so a failed step must not keep the server from starting. On any error, `SQLITE_FULL` or
+  `SQLITE_BUSY` after `busy_timeout` among them, it logs the reason and the space the step needs,
+  and the open carries on in mode none. Nothing in this effort needs the mode but returning swept
+  pages to the disk; until it converts, freed pages stay in the file for reuse. The header check
+  retries at the next open.
+- **Cost and space.** Once per database, before the server listens, in time proportional to the
+  database (measured: 41 MB in 86 to 218 ms). `VACUUM` builds its temporary copy where SQLite puts
+  temporary files, since `node:sqlite` is built with `TEMP_STORE=1`: `SQLITE_TMPDIR`, else `TMPDIR`,
+  else `/var/tmp`, else `/tmp`, not beside the database; that needs free space of about the
+  database's size there. It then writes the whole database through the log beside the database
+  (measured: about 1.05 times its size), which the checkpoint empties. The operator guide's upgrade
+  note names both. A database without attachments is small. `VACUUM` takes the write lock, so a
+  second process opening at the same time waits on `busy_timeout`, and whichever opens first
+  (normally `agention serve`) converts. A crash during it leaves the database as it was, since
+  `VACUUM` is atomic.
+- **The method.** `Database` exposes only `prepare` and `transaction` (`database.ts:60-82`), and a
+  prepared `PRAGMA incremental_vacuum(N)` frees one page per `run()` in `node:sqlite`, so it gains
+  `vacuumStep(pages)`, which runs it through `exec` outside any transaction and frees all `pages`,
+  and `freePages()`, which reads `PRAGMA freelist_count`.
 - **Page size** stays 4,096. Changing it needs a database out of WAL mode, and 1 MiB chunks read in
   about 1.1 ms at the median at this size.
 - `PRAGMA journal_size_limit` is set at every open beside the other pragmas. No explicit checkpoint
@@ -226,24 +223,21 @@ So `Database.open` gains one step on each side of `#migrate()`, in a module of i
 `threads.ts`. Every operation is a synchronous transaction, as every store operation is.
 
 - **Begin** (one transaction): authorize the session (`authorizeSession`, `store/threads.ts:44-52`);
-  then refuse, in this order:
-  - another incomplete file of this actor touched within `abandonedAfter`: one upload at a time for
-    each writer, across processes, since the rule reads the database;
-  - `maxPendingFiles` pending files of this actor, complete or arriving;
-  - pending bytes of this actor, counted by declared `size`, plus this upload's, over
-    `maxPendingBytes`.
-
-  Then insert the file row, incomplete, with a new `ref` (16 random bytes, base64url without
-  padding: 22 characters), `chunk_size = chunkBytes`, and `touched_at = created_at = now`.
-
+  then refuse `maxPendingFiles` pending files of this actor, complete or arriving, and pending bytes
+  of this actor, counted by declared `size`, plus this upload's, over `maxPendingBytes`. Then insert
+  the file row, incomplete, with a new `ref` (16 random bytes, base64url without padding: 22
+  characters), and add its id to the process's set of uploads in flight. A writer may run several
+  uploads at once, as the operator does from two devices; those limits bound what one writer holds,
+  arriving or not.
 - **A chunk** (one transaction each): check the credential again (`checkCredential`), so a revoked
-  agent's upload stops within a chunk; insert the chunk; set `touched_at = now`. The route gathers
-  the body into `chunkBytes` buffers, so a chunk is written once full, or at the end.
+  agent's upload stops within a chunk; insert the chunk. The route gathers the body into
+  `chunkBytes` buffers, so a chunk is written once full, or at the end.
 - **Complete** (one transaction): check that the bytes received equal `size`, then set `sha256` and
-  `completed_at`.
+  `completed_at`; the id leaves the set.
 - **Abort**, on any failure after begin (a stream error, a deadline, a revoked credential, a size
-  mismatch, shutdown): delete the file's chunks, 16 to a transaction, then its row. A crash leaves
-  them for the sweep.
+  mismatch, shutdown): delete the file's chunks and its row in one transaction (measured in review:
+  about 2 ms for 100 MiB, since SQLite frees overflow pages without rewriting them); the id leaves
+  the set. An Abort that itself fails is logged, and leaves the rows for the sweep.
 - **Expiry:** a pending file expires `pendingLifetime` after `completed_at`. A message naming one
   that has expired but is not yet swept is refused as if it were gone.
 
@@ -252,23 +246,37 @@ So `Database.open` gains one step on each side of `#migrate()`, in a module of i
 `sweepFiles(store)` runs once as `agention serve` starts, before it listens, then every
 `sweepInterval` on a timer that shutdown clears and that never holds the process open. It removes:
 
-- incomplete files untouched for `abandonedAfter`: crashed or dropped uploads, of this process or
-  another, since a live upload touches its row with every chunk;
-- complete pending files past `pendingLifetime`.
+- **at start:** every incomplete file, since none can be arriving before the server listens: what a
+  crash or a failed Abort left;
+- **on the timer:** complete pending files past `pendingLifetime`, and incomplete files whose ids
+  are not in the set of uploads in flight, which only a failed Abort leaves.
 
-Each file goes as Abort removes one. When the pass freed any pages (`PRAGMA freelist_count` above
-0), it then runs `PRAGMA incremental_vacuum(2048)` repeatedly, each its own statement outside a
-transaction and each followed by `setImmediate`, until the free list is empty, so space returns to
-the disk without holding the connection more than about 15 ms at a time. That exercises the path a
-future purge uses. A failure in a pass is logged and the next pass tries again.
+The set is in memory because only `agention serve` takes uploads (`apps/server/src/cli.ts:122-127`).
+Two servers on one database are already unsupported, since a long poll's notifier is in-process
+(`docs/architecture.md` "Store"); one would sweep the other's uploads in flight, and the operator
+guide says to run one. A slow upload is never swept, however long a chunk takes to fill.
+
+Each file goes as Abort removes one. When the pass freed any pages (`freePages()` above 0), it then
+calls `vacuumStep(2048)` repeatedly, each followed by `setImmediate`, until the free list is empty,
+so space returns to the disk without holding the connection more than about 15 ms at a time. That
+exercises the path a future purge uses. A database the one-time step has not yet converted skips the
+vacuum. A failure in a pass is logged and the next pass tries again.
 
 ### The free-space floor
 
 Before Begin, the upload route reads `await fs.promises.statfs(dataDirectory)`, on the data
-directory's real path, and refuses the upload when `bavail * bsize - size < freeSpaceFloor`, as
-`storage_full`. `bavail` counts the blocks an unprivileged user may take, which is what the server
-can. It is checked once per upload: concurrent uploads are at most one a writer and 100 MiB each,
-which the floor's 1 GiB absorbs.
+directory's real path, and the bytes still to arrive across every incomplete file, in one query:
+
+```sql
+SELECT COALESCE(SUM(
+  f.size - (SELECT count(*) FROM file_chunks c WHERE c.file_id = f.id) * 1048576
+), 0) FROM files f WHERE f.completed_at IS NULL
+```
+
+An incomplete file's chunks are all full ones, the last being written only at the end, so that is
+exact. The upload is refused as `storage_full` when
+`bavail * bsize - arriving - size < freeSpaceFloor`. `bavail` counts the blocks an unprivileged user
+may take, which is what the server can. It covers every writer's uploads, however many run at once.
 
 ## Deadlines in the listener
 
@@ -294,27 +302,34 @@ listener replaces it with its own, in a new module, `apps/server/src/http/deadli
   An upload has no total deadline, so a slow phone uplink finishes.
 - **The cut.** If its response has not started, the listener answers 408 with the API's error JSON,
   `invalid_input`, "the request body stopped arriving" or "the request took longer than 30 seconds
-  to arrive", and `Connection: close`; otherwise it destroys the socket. The route's body read then
-  fails, and an upload aborts and removes its partial file. A later answer from the route to a
-  response already ended is dropped by the adapter, which a test pins.
+  to arrive", and `Connection: close`; otherwise it destroys the socket. The answer is written
+  outside Hono, so the module adds what the app's middleware would have: the security headers, from
+  the same table `securityHeaders` uses, and on `/api/agent/` paths the agent API version header,
+  without which a bridge would read the answer as a server older than itself
+  (`apps/bridge/src/agent-api.ts:138-140`, `:165-176`). The route's body read then fails, and an
+  upload aborts and removes its partial file. A later answer from the route to a response already
+  ended is dropped by the adapter, which a test pins.
 - **Which requests are uploads.** `isUploadRequest(method, url)` in
   `apps/server/src/http/uploads.ts` matches `POST` with the raw path
   `^/api/(agent|web)/s/[^/?#]+/[^/?#]+/uploads$`, query ignored. The listener and the body cap both
-  call it, on the raw URL, so both decide from the same text. A request they call an upload that
-  Hono routes elsewhere only gets the larger body cap on a route that never reads past its own, and
-  one Hono routes to the upload handler that they do not call an upload keeps the 2 MiB cap and the
+  call it on the raw URL, so both decide from the same text. A request they call an upload that Hono
+  routes elsewhere only gets the larger body cap on a route that never reads past its own, and one
+  Hono routes to the upload handler that they do not call an upload keeps the 2 MiB cap and the
   total deadline: either disagreement fails safe.
 - **Slow unauthenticated bodies.** Both mounts authenticate from headers alone, before reading a
-  byte (`agent-api.ts:94-104`, `web-api.ts:146-156`). Every response on an upload path carries
-  `Connection: close`, set by an app middleware for those paths, so a refusal (version,
-  authentication, size, a limit, an unknown route) closes the connection instead of draining up to
-  100 MiB: measured on Node 24.18, a keep-alive refusal read the whole 50 MB body before closing,
-  and `Connection: close` stopped it at once. A new connection per upload costs one TLS handshake,
-  nothing beside 100 MiB. Every other path keeps the 2 MiB cap and the 30-second deadline, as today.
-- **The body cap.** The `bodyLimit` middleware (`app.ts:127-137`) takes its `maxSize` per request:
-  `maxFileBytes` for an upload request, `maxBodyBytes` otherwise, both from `Content-Length` before
-  anything is read. An upload over 100 MiB is answered 413 naming the limit, and the route counts
-  the bytes again as they arrive.
+  byte (`agent-api.ts:94-104`, `web-api.ts:146-156`), and every check before them reads headers
+  only. A refusal (version, authentication, size, a limit, an unknown route) leaves the body unread,
+  and `@hono/node-server` 2.1.8 then drains it for at most 500 ms or 64 MiB before closing the
+  connection (`drainIncoming`, `dist/index.mjs:826-864`), so no refused upload holds the server
+  longer. A plain Node server drains a refused body whole, which an earlier measurement here showed
+  and which the adapter's bound replaces. The refusal goes out before the drain, so a client that
+  keeps sending still reads it, which the live run checks on real links. Every other path keeps the
+  2 MiB cap and the 30-second deadline, as today.
+- **The body cap.** Hono's `bodyLimit` takes one fixed `maxSize`, so the app holds two instances,
+  `maxFileBytes` and `maxBodyBytes` (`app.ts:127-137`), and a middleware picks one per request with
+  `isUploadRequest` on the raw URL. With a `Content-Length` it only compares the header and reads
+  nothing. An upload over 100 MiB is answered 413 naming the limit, and the route counts the bytes
+  again as they arrive.
 - **Docs.** `docs/architecture.md` "Serving" and the operator guide's statement of the deadline say:
   10 seconds for headers; 30 for a whole request but an upload; any request body cut off after 30
   seconds without a byte.
@@ -432,23 +447,30 @@ attachments = z.array(attachment).min(1).max(maxAttachments);
 
 ### Reading a file
 
-`GET` (and `HEAD`) `/threads/:n/messages/:seq/files/:name`, on both mounts; `:name` is
-percent-encoded and Hono decodes it.
+`GET` (and `HEAD`) `/threads/:n/messages/:seq/files/:name?file=<fileRef>`, on both mounts; `:name`
+is percent-encoded and Hono decodes it.
 
 - **Authorization:** the thread is the session's, the message the thread's, and the name the
   message's, all in one snapshot; any miss is `not_found`. A missing file is `not_found`, "this
   file's contents are missing".
+- **The file's ref in the URL.** `file`, when given, must be the ref of the file the message carries
+  under that name, else `not_found`. The web UI always gives it, from the message's
+  `attachments[].file`, so the browser's cache key names the bytes: after a restore from an older
+  backup, a new message that reuses a thread's number and sequence and a file's name is a different
+  URL, and no cached copy of the old file shows in its place. The bridge leaves it out, since it
+  keeps no HTTP cache.
 - **The body** streams: a `ReadableStream` whose `pull` reads one chunk in its own transaction,
   which checks the credential again, so other requests run between chunks and a revoked agent's
   download stops within one. A chunk missing mid-file errors the stream, which ends the connection,
   and is logged.
 - **Range:** a single `Range: bytes=a-b`, `bytes=a-` or `bytes=-n` is answered 206 with
   `Content-Range`, reading only the chunks it covers and trimming the first and last. Several
-  ranges, or another unit, are ignored and answered 200 whole. `If-Range` is honored only when it
-  equals the `ETag`; otherwise the answer is 200 whole. A range starting at or beyond the size, any
-  range of an empty file included, is 416 with `Content-Range: bytes */size` and the API's error
-  JSON, `invalid_input`, "the range is outside the file".
-- **Conditional:** `If-None-Match` equal to the `ETag` is answered 304 without a body.
+  ranges, or another unit, are ignored and answered 200 whole. A range starting at or beyond the
+  size, any range of an empty file included, is 416 with `Content-Range: bytes */size` and the API's
+  error JSON, `invalid_input`, "the range is outside the file".
+- **No conditional requests.** The bytes at a URL never change and are cached as `immutable`, so
+  `If-None-Match` and `If-Range` are ignored: honoring them could only give the same answer. The
+  `ETag` stays, as the strong validator a browser's cache needs to keep range answers.
 - **`HEAD`** answers as `GET` and reads no chunk.
 
 ### Storage (A9)
@@ -456,12 +478,11 @@ percent-encoded and Hono decodes it.
 `GET /settings` gains `storage`:
 
 ```ts
-storage: { files: number, bytes: number, database_bytes: number }
+storage: { files: number, bytes: number }
 ```
 
 `files` and `bytes` count every file the database holds, pending ones included, since that is the
-disk they take; `database_bytes` is the database file's size, which every backup copies whole. The
-thread answer's `files` gives the per-thread figure.
+disk they take. The thread answer's `files` gives the per-thread figure.
 
 ### Error codes and statuses
 
@@ -470,7 +491,6 @@ thread answer's `files` gives the per-thread figure.
 | Upload over 100 MiB by `Content-Length`                     | `invalid_input` | 413    |
 | Upload sent chunked                                         | `invalid_input` | 411    |
 | A body stopped, or took over 30 seconds                     | `invalid_input` | 408    |
-| Another of the writer's uploads still arriving              | `rate_limited`  | 429    |
 | Pending count or bytes at their limit, naming which         | `invalid_input` | 400    |
 | Disk under the free-space floor                             | `storage_full`  | 507    |
 | Bytes received differ from `Content-Length`                 | `invalid_input` | 400    |
@@ -482,7 +502,6 @@ thread answer's `files` gives the per-thread figure.
   version: "the server's disk is too full to take this file; tell the operator".
 - **408 and 416** join 411 and 413 as the statuses `invalid_input` takes for bodies and ranges
   (`packages/api/src/errors.ts:40-44`): `timedOutBodyStatus` and `unsatisfiableRangeStatus`.
-- **`rate_limited`** for a concurrent upload carries `Retry-After: 5`.
 
 ## Serving headers
 
@@ -547,44 +566,45 @@ New tools in `apps/bridge/src/file-tools.ts`, registered with the others, annota
   descriptor and refuse:
   - anything but a regular file;
   - a size over `maxFileBytes`, naming 100 MiB, before any byte is sent;
-  - any of the bridge's own files: the descriptor's device and inode equal to those of a file in the
-    bridge's configuration tree, `~/.config/agention`. The bridge takes that root's real path, walks
-    it with `lstat` without following links (at most four levels, as server, agent and session sit
-    above each key, and at most 10,000 entries), and compares identities. Identity rather than a
-    path prefix refuses a key reached through a symlink or a hard link, for every session's keys,
-    since sessions sharing a home share keys (SECURITY.md "Isolation between sessions"). Files the
-    bridge fetched live outside that tree, so an agent may send one on. The check keeps the agent
-    from handing its own credential to the server by mistake; it is no boundary against the agent,
-    which runs as the same user.
-- **The type:** the four raster signatures (PNG, JPEG, GIF, WebP, from the first 12 bytes) decide
-  when they match; otherwise `typeOfName(name)`.
-- **Streaming:** `AgentApi` gains `upload`, which sends a `fs.createReadStream` of the descriptor,
-  `start` 0 and `end` the `fstat` size, with `Content-Length` set to that size, so Node never chunks
-  it. A file that shrinks while it is read ends short, and the bridge aborts with "the file changed
-  while it was read". The answer is read and its version checked as for every request. A response
-  that arrives before the body is sent, a refusal, is used even when the socket then fails with
-  `EPIPE` or `ECONNRESET`, since the server closes upload connections.
+  - any file of the bridge's own: the path's real path (`fs.realpath`) at or under the real path of
+    `~/.config/agention`, where every session's key lives, so a key named directly or through a
+    symlink is refused, for every session, since sessions sharing a home share keys (SECURITY.md
+    "Isolation between sessions"). Fetched files live outside that tree, so an agent may send one
+    on. The check keeps the agent from handing a credential to the server by mistake; it is no
+    boundary against the agent, which runs as the same user and could read the key itself, so a hard
+    link it made on purpose is out of its scope.
+- **The type:** `typeOfName(name)`. The bridge reads no file's content to choose it.
+- **Streaming:** `AgentApi` gains `upload`, which sends a `fs.createReadStream` of the descriptor
+  with `start` 0 and `end` the `fstat` size minus one, since `end` is inclusive, and no stream at
+  all for an empty file, with `Content-Length` set to that size, so Node never chunks it. A file
+  that shrinks while it is read ends short, and the bridge aborts with "the file changed while it
+  was read"; one that grows sends only its first `size` bytes. The answer is read and its version
+  checked as for every request. A response that arrives before the body is sent, a refusal, is used
+  even when the socket then fails with `EPIPE` or `ECONNRESET`, since the server's adapter closes a
+  refused upload's connection after its bounded drain.
 - **Answer:** the server's `uploadResult`, with the text "Name it in `attachments` of `message_send`
   or `thread_create` as `{upload}` before `expires_at`".
 
 ### `file_get`
 
 - **Input:** `{ thread, seq, name }`.
-- **The directory:** `~/.cache/agention/<server>/<agent>/<session>/files/`, under the private-file
-  rule (`ensurePrivateDirectory`), outside the key tree, named like the key's path
-  (`key-file.ts:59-71`).
+- **The directory:** one flat cache, `~/.cache/agention/files/`, under the private-file rule
+  (`ensurePrivateDirectory`), outside the key tree. A ref is 128 random bits, so the files of every
+  server and session can share it.
 - **The file's name** is `<file ref>.<extension>`, the extension the bridge's own for the served
   type (`png`, `jpg`, `gif`, `webp`, `svg`, `pdf`, `mp4`, `webm`, `ogv`, `mp3`, `m4a`, `ogg`, `wav`,
   `flac`, `txt`, else `bin`), never anything from the sender's name. The body streams into
   `.<random>.part` in that directory, created with mode 0600, and is renamed into place once its
   length matches `Content-Length`. Fetching the same file again replaces it.
-- **Cleanup:** each call first removes, from that directory, files modified more than
-  `fetchedFileLifetime` ago and `.part` files over a day old.
+- **Cleanup:** each call first removes every entry of that directory modified more than
+  `fetchedFileLifetime` ago, `.part` files included, so ended sessions' files go too.
 - **Answer:** `{ path, name, size, type, served_type }` as text, and, when the served type is a
-  raster image, its leading bytes carry that type's signature, and its size is at most
+  raster image, its leading bytes carry that type's signature (PNG, JPEG, GIF or WebP, from the
+  first 12 bytes; the bridge's one reading of a file's content), and its size is at most
   `maxImageBlockBytes`, an `image` block with its base64 and type. Over the limit, the text says
   "too large to show here; read the file at path". The text and the block are the whole result: no
-  `resource_link`, no `structuredContent` (HLA, Agents).
+  `resource_link`, no `structuredContent` (HLA, Agents). The live run sends both hosts a broken
+  block; if neither fails the whole call over one, the signature check goes.
 - `tools.ts`'s `tool` helper gains a way for a tool to add content blocks after its text; every
   other tool answers as now.
 
@@ -647,13 +667,13 @@ display); `api.ts` gains `uploadFile`.
   with a `<progress>`, uploaded, failed with why and Retry, or expired with Upload again; each with
   Remove. It says the limits once: "Up to 10 files, 100 MiB each."
 - **Uploading:** one file at a time, in the order chosen, starting as soon as it is chosen or
-  pasted; the server takes one upload at a time from the operator. `uploadFile` uses
-  `XMLHttpRequest`, since `fetch` reports no upload progress: the body is the `File`, so the browser
-  sends its length; headers carry the declared type (`File.type`, else `typeOfName`) and the CSRF
-  token; `upload.onprogress` drives the bar; no progress for `uploadIdle` aborts it as a network
-  failure; there is no total deadline. Answers are read as `exchange` reads them (`api.ts:114-162`),
-  so a refusal shows the API's message. The draft keeps each `File`, so Retry and Upload again send
-  it again.
+  pasted, so the bar shows one file filling the link. `uploadFile` uses `XMLHttpRequest`, since
+  `fetch` reports no upload progress: the body is the `File`, so the browser sends its length;
+  headers carry the declared type (`File.type`, else `typeOfName`) and the CSRF token;
+  `upload.onprogress` drives the bar; no progress for `uploadIdle` aborts it as a network failure;
+  there is no total deadline. Answers are read as `exchange` reads them (`api.ts:114-162`), so a
+  refusal shows the API's message. The draft keeps each `File`, so Retry and Upload again send it
+  again.
 - **Limits in the browser:** a file over 100 MiB, or an eleventh, is refused in the list with the
   limit named, without uploading.
 - **Remove** aborts an upload in progress, which the server then removes, and drops a finished one
@@ -671,7 +691,8 @@ display); `api.ts` gains `uploadFile`.
 ### Showing files
 
 - **In a message:** under its text, detail and references, a list of its files: name, type, size;
-  Download for every file present (`<a download>` naming it); and by served type:
+  Download for every file present (`<a download>` naming it); every element and link loads the
+  file's URL with its `file` ref; and by served type:
   - images up to `inlineImageBytes` show at once as `<img loading="lazy">`, scaled to the column;
     larger ones behind Show image;
   - video and audio as their players, `preload="none"`, so nothing loads until played;
@@ -691,8 +712,7 @@ display); `api.ts` gains `uploadFile`.
   it, when, a link to its message (`#message-<seq>`, as the jump to unread moves there), and
   Download, or Missing.
 - **Settings** gains a Storage section, read-only, after Voice: "Attachments take 1.2 GB in 340
-  files. The database, which every backup copies whole, is 1.3 GB." It reads `storage` from
-  `GET /settings`.
+  files, and every backup copies them." It reads `storage` from `GET /settings`.
 - **Links in Markdown:** a link whose destination is `attachment:` and a name, percent-encoded where
   needed (`attachment:build%20log.txt`) or in angle brackets (`<attachment:build log.txt>`), is live
   when the name, decoded and NFC-normalized, is one of that message's own files. It acts as the name
@@ -749,8 +769,10 @@ section (not yet on `main` at this branch's base; this effort follows it either 
   states: who can read a file; the allowlist, headers and in-page display; no `blob:` or `data:`
   URLs; references private to their writer; the bridge's refusals and its fetch directory; the disk
   floor and pending limits; photos keeping their metadata, location included, which reaches agents;
-  files cached in the browser after sign-out; and that in Chrome a PDF's safety rests on the
-  browser's viewer, which ignores a PDF's sandbox policy.
+  files cached in the browser after sign-out; and that in Chrome and Edge a PDF's safety rests on
+  the browser's viewer, which ignores a PDF's sandbox policy. Firefox, whose viewer is pdf.js, is
+  untested for that: the operator's devices run Chrome and Edge, and the section says so rather than
+  claim it.
 - **`docs/review-checklist.md` A9** becomes: no Markdown image loads, and an attached file loads
   only through the file routes, with their headers, as an `<img>`, `<video>` or `<audio>` of the
   app's page, as text the page fetched, or as a PDF in a tab: never in a frame, and never as a
@@ -759,10 +781,12 @@ section (not yet on `main` at this branch's base; this effort follows it either 
   the sweep), "HTTP API" (the routes, the body cap, the codes), "Serving" (the deadlines), "Agent
   bridge" (the tools, the fetch directory, the timeouts) and "Web UI" (attaching and showing).
 - **`docs/operator-guide.md`:** the limits; backups growing with attachments and needing free space
-  equal to the database; the Storage line; photos keeping their location; the free-space floor; the
-  fetch directory on agent machines; Codex's timeout set by the plugin, and Claude Code's
-  `MCP_TOOL_TIMEOUT`; a proxy in front capping bodies (Tailscale Serve, by the live run); that "Open
-  video in new tab" from a context menu fails, by design.
+  equal to the database; the upgrade's one-time conversion and the space it needs, in SQLite's
+  temporary directory and beside the database; running one server per database; the Storage line;
+  photos keeping their location; the free-space floor; the fetch cache on agent machines,
+  `~/.cache/agention/files/`, which may be cleared; Codex's timeout set by the plugin, and Claude
+  Code's `MCP_TOOL_TIMEOUT`; a proxy in front capping bodies (Tailscale Serve, by the live run);
+  that "Open video in new tab" from a context menu fails, by design.
 - **The usage skill** and the tool descriptions: uploading, naming, keeping, linking and fetching.
 - **`docs/live-testing.md`:** the attachment hunts below.
 
@@ -771,13 +795,13 @@ section (not yet on `main` at this branch's base; this effort follows it either 
 - **Migration:**
   - a database at the migration before opened at HEAD gains the tables and converts to incremental
     vacuum once, its data unchanged, and a second open does not vacuum again;
-  - a new database is incremental from the start, never vacuumed;
-  - every trigger refuses what it names: an attached file deleted, its chunks deleted or changed, a
-    chunk added after completion, an incomplete file attached, a file attached in another session's
-    thread, an attachment changed or deleted.
+  - a new database converts just after its migrations;
+  - the step forced to fail: the open logs and succeeds in mode none, and the next open converts;
+  - every trigger refuses what it names: an attached file deleted, its chunks deleted or changed, an
+    attachment changed or deleted; and the `CHECK` refuses attaching an incomplete file.
 - **Store:**
-  - Begin's refusals, in order, and the one-at-a-time rule across two connections;
-  - chunks, completion with the hash, a size mismatch, Abort;
+  - Begin's two limits, counting uploads still arriving, and two uploads of one writer at once;
+  - chunks, completion with the hash, a size mismatch, Abort in one transaction;
   - the credential checked again per chunk;
   - `checkAttachments`: another writer's, another session's, an unknown, an expired and an attached
     reference all refused alike; `keep` with and without `replaces`; NFC-equal names; ten and
@@ -786,16 +810,19 @@ section (not yet on `main` at this branch's base; this effort follows it either 
   - distinct files per thread, the totals, the file list's order and paging;
   - missing by fixture: a file whose chunks a test removed after dropping the trigger reads as
     missing in messages and lists, and its read is `not_found`;
-  - the sweep: abandoned and expired files removed, a live upload and attached files left, pages
-    returned to the disk by incremental vacuum.
+  - the sweep: at start, every incomplete file removed; on the timer, expired files and incomplete
+    files not in flight removed, while an upload in flight that has not filled a chunk for minutes
+    and attached files stay; pages returned to the disk, asserting the number of `vacuumStep` calls,
+    not only that pages come back.
 - **Routes:**
   - the upload on both mounts, its answer, and each code in the table;
-  - an unauthenticated, an unversioned and an over-size upload refused with `Connection: close`
-    before the body is read, measured by bytes the server read;
-  - the free-space floor, with `statfs` stubbed;
-  - the file read on both mounts, another session's thread `not_found`;
-  - ranges: each form, several ranges answered whole, `If-Range`, 416 with `Content-Range`, an empty
-    file, `HEAD` reading no chunk, `If-None-Match` and 304;
+  - an unauthenticated, an unversioned and an over-size upload refused before the body is read, the
+    server reading no more than the adapter's drain allows;
+  - the free-space floor, with `statfs` stubbed and other writers' uploads arriving;
+  - the file read on both mounts, another session's thread `not_found`, and a `file` ref that is not
+    the message's file's `not_found`;
+  - ranges: each form, several ranges answered whole, 416 with `Content-Range`, an empty file,
+    `HEAD` reading no chunk, `If-None-Match` and `If-Range` ignored;
   - the 2 MiB cap kept on every other route.
 - **Headers:**
   - for each allowlisted type and others (HTML, SVG, HEIC, a type with parameters, none, malformed):
@@ -809,15 +836,17 @@ section (not yet on `main` at this branch's base; this effort follows it either 
   - an idle upload body cut at 30 seconds and its partial file gone; an upload trickling a byte a
     second past 30 seconds finishing; a non-upload body cut at 30 seconds whole, to the second; a
     long poll outliving both; headers still cut at 10;
+  - the listener's 408 carrying the security headers, and on the agent mount the agent API version,
+    read through the bridge's `AgentApi` as the server's own refusal, not as an older server;
   - a fake clock drives the module, and one test with real timers checks the wiring.
 - **Bridge:**
   - `file_upload`: a relative path, a directory, a FIFO (no hang), a device, a file over the limit,
-    a key file by path, by symlink and by hard link, another session's key, a fetched file sent on,
-    a file that shrinks while read, a refusal answered mid-body;
-  - the type from signatures, then the extension;
+    a key file by path and by symlink, another session's key, a fetched file sent on, an empty file,
+    a file that shrinks or grows while read, a refusal answered mid-body;
+  - the type from the extension;
   - `file_get`: its directory under the private-file rule, the naming, `.part` and rename, cleanup
-    by age, the image block for each raster type, none over the limit or for a lying signature, none
-    for SVG;
+    by age of files and `.part` files alike, the image block for each raster type, none over the
+    limit or for a lying signature, none for SVG;
   - the transfer idle timeout both ways;
   - `fit.ts` leaving out `attachments`;
   - the generated Codex plugin carrying `tool_timeout_sec`, and plugin drift.
@@ -833,7 +862,8 @@ section (not yet on `main` at this branch's base; this effort follows it either 
   - focus after each control change, judged inside `waitFor` the first time the change shows.
 - **Browser (Chromium, in the gate):**
   - attach a file and paste an image, send, see both in the message and the head list;
-  - an image, a video (played and sought), audio and text shown in place;
+  - an image, a video (played and sought, counting the fetches the seek makes), audio and text shown
+    in place;
   - a PDF opening in a tab;
   - every file downloading;
   - served bytes of HTML and script declared as each allowlisted type, opened in the page and on
@@ -842,6 +872,12 @@ section (not yet on `main` at this branch's base; this effort follows it either 
 - **Live run** (the `integration-testing` method, `docs/live-testing.md`):
   - the image block's limit: 0.5, 2 and 3.5 MiB photos through `file_get` in Claude Code and Codex,
     lowering `maxImageBlockBytes` if a host refuses, truncates or errs;
+  - a broken `image` block (bytes that are not the image its type says) in each host, to learn
+    whether a host fails the whole call or only shows an error, which decides whether `file_get`
+    keeps its signature check;
+  - a refusal mid-body (a pending limit or `storage_full`) of an upload from the phone over mobile
+    data, and from the bridge through Tailscale Serve, arriving named rather than as a reset
+    connection; if it does not, the adapter's drain is revisited;
   - tool-call times: a 100 MiB upload over a throttled link in each host, confirming Codex honors
     the plugin's `tool_timeout_sec` and measuring Claude Code's default;
   - a 100 MiB body through Tailscale Serve to the staging server;
