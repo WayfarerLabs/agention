@@ -173,8 +173,8 @@ the row. Which provider it means is worked out from its base URL, never stored a
 `api_keys` holds the operator's API keys: each one's name, its scopes as a JSON array, the SHA-256
 of its secret, which is unique, and when it was created, when it expires (null for a key without an
 expiry, and otherwise after its creation), when it was last used, kept to the hour, and when it was
-revoked. A revoked or expired key keeps its row, so the operator's list can show it, until the table
-is next written. Ids never repeat, so an id names one key for good.
+revoked. A revoked or expired key keeps its row, so the operator's list can show it, until the
+operator next creates or revokes a key. Ids never repeat, so an id names one key for good.
 
 `message_positions` gives every message a position among all messages, in the order they are
 written, which the operator's wait across sessions counts from. A message has no stable integer key
@@ -630,18 +630,19 @@ describe the contract and no data. Without the flag, every path under `/docs/api
   within the last 10 minutes, as passkey changes do; listing them does not, and the list says
   whether the sign-in is recent, as the passkey list does. The operator holds at most 20 keys that
   are neither revoked nor expired, counted in the creating transaction. The list holds every key,
-  newest first, with its scopes, its status and its times, a revoked or expired one until the table
-  is next written. On the operator mount, the key must exist, unrevoked and unexpired, and each
-  operation's transaction confirms it again, so a revoked key is refused from its next request and a
-  wait it holds ends at once. Every refusal of a key is the same `unauthenticated`, telling the
-  client to check the key or create a new one in Settings, so it never says whether a key existed. A
-  key's use is recorded at most hourly. A key acts as the operator over every session, within its
-  scopes; the API keys, passkeys, settings and transcription are web-only routes, so no key reaches
-  them.
+  newest first, with its scopes, its status and its times, a revoked or expired one until the
+  operator next creates or revokes a key. On the operator mount, the key must exist, unrevoked and
+  unexpired, and each operation's transaction confirms it again, so a revoked key is refused from
+  its next request and a wait it holds ends at once. Every refusal of a key is the same
+  `unauthenticated`, telling the client to check the key or create a new one in Settings, so it
+  never says whether a key existed. A key's use is recorded at most hourly. A key acts as the
+  operator over every session, within its scopes; the API keys, passkeys, settings and transcription
+  are web-only routes, so no key reaches them.
 
 Browser sessions, links and API keys are 256 random bits, stored only as their SHA-256. Expired
 sessions, links and used challenges are deleted whenever their table is next written, and so are
-revoked and expired API keys, and registrations that expired while pending, so no timer runs.
+registrations that expired while pending, and revoked and expired API keys are deleted when a key is
+next created or revoked, so no timer runs.
 
 ## An external issuer
 

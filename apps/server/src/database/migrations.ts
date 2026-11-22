@@ -439,8 +439,8 @@ export const migrations: readonly string[] = [
   -- only its holder keeps. scopes is the JSON array of the scopes it holds.
   -- expires_at is null for a key without an expiry. last_used_at is kept to
   -- the hour. A revoked or expired key keeps its row, so the list can show it,
-  -- until the table is next written; ids never repeat, so an id names one key
-  -- for good.
+  -- until the operator next creates or revokes a key; ids never repeat, so an
+  -- id names one key for good.
   CREATE TABLE api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     person_id INTEGER NOT NULL REFERENCES people (id),

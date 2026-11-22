@@ -64,7 +64,7 @@ export const apiKeyCreateInput = z.object({
 export type ApiKeyCreateInput = z.infer<typeof apiKeyCreateInput>;
 
 // A key as the operator's list shows it. A revoked or expired key stays
-// listed, with its status, until the keys are next changed.
+// listed, with its status, until the operator next creates or revokes a key.
 export const apiKeyStatus = z.enum(["active", "expired", "revoked"]);
 export type ApiKeyStatus = z.infer<typeof apiKeyStatus>;
 

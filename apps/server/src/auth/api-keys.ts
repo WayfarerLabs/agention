@@ -68,8 +68,9 @@ function summaryOf(row: KeyRow, now: number): ApiKeySummary {
   };
 }
 
-// Revoked and expired keys are deleted whenever the table is next written,
-// inside the writer's transaction, before its own change.
+// Revoked and expired keys are deleted when the operator next creates or
+// revokes a key, inside that transaction, before its own change, so the list
+// shows them until then. Recording a key's use deletes none.
 function deleteDead(db: Database, now: number): void {
   db.prepare(
     "DELETE FROM api_keys WHERE revoked_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at <= ?)",
@@ -212,10 +213,7 @@ export function authenticateApiKey(
     throw apiKeyUnauthenticated();
   }
   if (row.last_used_at === null || now - row.last_used_at >= lastUsedStep) {
-    db.transaction(() => {
-      deleteDead(db, now);
-      db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(now, row.id);
-    });
+    db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(now, row.id);
   }
   return {
     identity: {

@@ -136,6 +136,19 @@ describe("revoking a key", () => {
     expect(codeOf(await revoke(key.id))).toBe("not_found");
   });
 
+  it("stays listed while another key's use is recorded", async () => {
+    const { key } = await harness.createKey(["threads:read"]);
+    const other = await harness.createKey(["threads:read"]);
+    const revoked = (await revoke(key.id)).body as ApiKeyRevoked;
+    expect(codeOf(await harness.operator(other.secret, "GET", "/threads"))).toBe("ok");
+    const { keys } = await list();
+    expect(keys.map((each) => [each.id, each.status])).toEqual([
+      [other.key.id, "active"],
+      [revoked.key.id, "revoked"],
+    ]);
+    expect(keys[0]?.last_used_at).toBe(formatTimestamp(harness.fixture.now));
+  });
+
   it("is not_found for a key that does not exist", async () => {
     expect(codeOf(await revoke(1))).toBe("not_found");
   });

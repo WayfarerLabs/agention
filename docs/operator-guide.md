@@ -853,9 +853,9 @@ The list shows each key's name and scopes, when it was created, when it expires 
 used, to within an hour. **Revoke**, which asks first, ends a key at once: the program's next
 request is refused, and so is a wait it holds. Replacing your passkeys with `agention passkey-link`
 revokes every key ([Signing in](#signing-in)). A revoked or expired key stays listed, marked so,
-until the server next changes its keys. Creating and revoking a key need a sign-in within the last
-10 minutes, and the section offers **Sign in again** while yours is older. You can hold up to 20
-keys that are neither revoked nor expired.
+until you next create or revoke a key. Creating and revoking a key need a sign-in within the last 10
+minutes, and the section offers **Sign in again** while yours is older. You can hold up to 20 keys
+that are neither revoked nor expired.
 
 ### Using the operator API
 
