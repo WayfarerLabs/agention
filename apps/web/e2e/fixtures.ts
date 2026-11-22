@@ -2,7 +2,7 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram and voice tests' own.
+// and so do servers of the diagram, voice and attachment tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -39,6 +39,9 @@ export const diagramsServerName = "Diagrams";
 // The name of the server the voice tests start for themselves.
 export const voiceServerName = "Voice";
 
+// The name of the server the attachment tests start for themselves.
+export const filesServerName = "Files";
+
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
 const serverBundle = fileURLToPath(new URL("../../server/dist/agention.js", import.meta.url));
@@ -50,6 +53,8 @@ const startLimit = 30_000;
 export interface Agention extends AgentServer {
   // passkeyLink runs agention passkey-link and returns the link it prints.
   passkeyLink(): string;
+  // The server's data directory, which holds its database.
+  data: string;
 }
 
 // The certificate every server of a worker presents for the host, and the
@@ -151,6 +156,7 @@ async function startServer(
     origin,
     port,
     certificate: certificate.cert,
+    data,
     passkeyLink: () =>
       execFileSync(
         process.execPath,
@@ -191,6 +197,7 @@ export const test = base.extend<
     secondServer: Agention;
     diagramsServer: Agention;
     voiceServer: Agention;
+    filesServer: Agention;
   }
 >({
   certificate: [
@@ -203,6 +210,7 @@ export const test = base.extend<
   secondServer: [serving(secondServerName), { scope: "worker" }],
   diagramsServer: [serving(diagramsServerName), { scope: "worker" }],
   voiceServer: [serving(voiceServerName), { scope: "worker" }],
+  filesServer: [serving(filesServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({

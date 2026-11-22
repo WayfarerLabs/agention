@@ -7,6 +7,7 @@ import {
   failure,
   installPasskeys,
   installRecorder,
+  noSettings,
   renderAt,
   signedIn,
 } from "../../test-support.tsx";
@@ -62,8 +63,13 @@ function expectMaskedKey(ending: string | null) {
 const describer = (element: HTMLElement) =>
   document.getElementById(element.getAttribute("aria-describedby") ?? "");
 
-async function open(settings: SettingsResult) {
-  api.on("GET", "/settings", { body: settings });
+// The settings these tests answer with: the voice settings given, on a server
+// without files.
+type VoiceAnswer = Pick<SettingsResult, "voice">;
+const settingsOf = (answer: VoiceAnswer): SettingsResult => ({ ...noSettings, ...answer });
+
+async function open(settings: VoiceAnswer) {
+  api.on("GET", "/settings", { body: settingsOf(settings) });
   renderAt("/settings");
   await within(await screen.findByRole("region", { name: "Voice" })).findByRole("button", {
     name: /^(Set up|Save)$/,
@@ -73,29 +79,29 @@ async function open(settings: SettingsResult) {
 
 // later answers as a server does, a little after the request, so focus that
 // waits for the answer is tested as a browser meets it.
-function later(body: SettingsResult) {
+function later(body: VoiceAnswer) {
   return () =>
     new Promise<{ body: SettingsResult }>((resolve) => {
-      setTimeout(() => resolve({ body }), 50);
+      setTimeout(() => resolve({ body: settingsOf(body) }), 50);
     });
 }
 
 // answerSaves answers a save with the settings given, and lists what each
 // save carried.
-function answerSaves(settings: SettingsResult) {
-  api.on("POST", "/settings/voice", { body: settings });
+function answerSaves(settings: VoiceAnswer) {
+  api.on("POST", "/settings/voice", { body: settingsOf(settings) });
   return () => api.callsTo("POST", "/settings/voice").map((call) => call.body);
 }
 
 describe("the Settings view", () => {
-  it("is in the navigation, with passkeys, voice and signing out in that order", async () => {
+  it("is in the navigation, with passkeys, voice, storage and signing out in that order", async () => {
     await open({ voice: null });
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe(
       "page",
     );
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
-    ).toEqual(["Passkeys", "Voice", "Sign out"]);
+    ).toEqual(["Passkeys", "Voice", "Storage", "Sign out"]);
     expect(
       within(screen.getByRole("banner")).queryByRole("button", { name: "Sign out" }),
     ).toBeNull();
@@ -346,7 +352,7 @@ describe("voice in Settings", () => {
     expect(section().querySelector(".notice.warning")).not.toBeNull();
     api.on("POST", "/settings/voice/clear", { body: { voice: null } });
     fireEvent.click(button("Clear saved settings"));
-    api.on("GET", "/settings", { body: { voice: null } });
+    api.on("GET", "/settings", { body: settingsOf({ voice: null }) });
     fireEvent.click(button("Clear them"));
     await within(section()).findByRole("button", { name: "Set up" });
   });

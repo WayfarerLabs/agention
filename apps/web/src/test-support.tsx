@@ -77,8 +77,8 @@ export const noAttention: AttentionCounts = { unread_threads: 0, pending_registr
 
 export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
-// The settings of a server without voice.
-export const noSettings: SettingsResult = { voice: null };
+// The settings of a server without voice or files.
+export const noSettings: SettingsResult = { voice: null, storage: { count: 0, bytes: 0 } };
 
 export const signedIn: SessionState = {
   signed_in: true,
@@ -162,6 +162,107 @@ export class FakeApi {
       },
     });
   }
+}
+
+// FakeUpload is one request XMLHttpRequest sent, as the page uploads files:
+// what it was sent, and controls a test answers it with.
+export class FakeUpload {
+  method = "";
+  url = "";
+  readonly headers: Record<string, string> = {};
+  body: unknown;
+  aborted = false;
+  status = 0;
+  responseText = "";
+  readonly upload: { onprogress: ((event: { loaded: number }) => void) | null } = {
+    onprogress: null,
+  };
+  onprogress: (() => void) | null = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  #responseHeaders: Record<string, string> = {};
+  readonly #sent: FakeUpload[];
+
+  constructor(sent: FakeUpload[]) {
+    this.#sent = sent;
+  }
+
+  open(method: string, url: string): void {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(name: string, value: string): void {
+    this.headers[name.toLowerCase()] = value;
+  }
+
+  getResponseHeader(name: string): string | null {
+    return this.#responseHeaders[name.toLowerCase()] ?? null;
+  }
+
+  send(body: unknown): void {
+    this.body = body;
+    this.#sent.push(this);
+  }
+
+  abort(): void {
+    if (!this.aborted && this.status === 0) {
+      this.aborted = true;
+      this.onabort?.();
+    }
+  }
+
+  // The query of the request's URL.
+  get query(): URLSearchParams {
+    return new URL(this.url, "https://agention.test").searchParams;
+  }
+
+  progress(loaded: number): void {
+    this.upload.onprogress?.({ loaded });
+  }
+
+  // respond answers with reply, as the server would.
+  respond(reply: Reply): void {
+    this.status = reply.status ?? 200;
+    this.responseText = reply.text ?? JSON.stringify(reply.body ?? {});
+    this.#responseHeaders = Object.fromEntries(
+      Object.entries(reply.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value]),
+    );
+    this.onload?.();
+  }
+
+  // fail ends the request with no answer, as a dropped connection does.
+  fail(): void {
+    this.onerror?.();
+  }
+}
+
+// installUploads stands in for XMLHttpRequest, recording each request sent.
+export function installUploads(): FakeUpload[] {
+  const sent: FakeUpload[] = [];
+  vi.stubGlobal(
+    "XMLHttpRequest",
+    class {
+      constructor() {
+        return new FakeUpload(sent);
+      }
+    },
+  );
+  return sent;
+}
+
+// uploadAnswer is the server's answer to an upload, by its reference.
+export function uploadAnswer(
+  upload: string,
+  name: string,
+  size: number,
+  type = "image/png",
+  expiresAt = "2099-01-01T00:00:00.000Z",
+): Reply {
+  return {
+    body: { upload, name, size, type, served_type: type, expires_at: expiresAt },
+  };
 }
 
 // jsdom has no modal dialogs. This stand-in opens one and closes it as
@@ -260,15 +361,15 @@ export function answerTo(
   };
 }
 
-// threadAnswer is a GET of a thread: the thread, its messages, both cursors
-// and the operator's marks.
+// threadAnswer is a GET of a thread: the thread, its messages, both cursors,
+// the operator's marks, and no files.
 export function threadAnswer(
   thread: ThreadSummary,
   messages: Message[],
   cursors = { requester: thread.last_seq, audience: thread.last_seq - thread.unread },
   marks = { read_through: thread.last_seq - thread.unread, archived_through: 0 },
 ): ThreadGetResult {
-  return { thread, messages, cursors, marks };
+  return { thread, messages, cursors, marks, files: { count: 0, bytes: 0 } };
 }
 
 export function registration(overrides: Partial<Registration> = {}): Registration {

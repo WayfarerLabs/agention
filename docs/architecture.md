@@ -66,7 +66,13 @@ inferred types the server, the bridge and the web UI share:
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
-  the hosted presets, the types a recording is sent as, and a transcription's answer;
+  the hosted presets, the types a recording is sent as, a transcription's answer, and the space
+  attachments take;
+- files (`packages/api/src/files.ts`): the limits on files and pending uploads, a file's name and
+  reference, an upload's query and result, a message's `attachments` as written and as read, a
+  thread's file list and file totals, and the types: the type an upload declares (`declaredTypeOf`),
+  the type a name's extension suggests (`typeOfName`), and the type a file is served as and its
+  disposition (`servedTypeOf`, `dispositionOf`), which the server serves by and the web UI shows by;
 - the claims of an agent's token, and the error shape.
 
 The schemas are the bounds: text lengths count Unicode code points, required text needs a character
@@ -147,6 +153,37 @@ has text, matched as titles are. It keeps no copy of them, only each message's t
 since a message has no integer key of its own for an external-content index to rest on; a trigger
 fills it as a message is written, since messages are append-only, and a search joins its rows to
 `live_messages`, so a replaced message no longer matches.
+
+Files have three tables. `files` holds one row per upload: its random reference, the name and
+declared type it was uploaded with, its size, as its `Content-Length` declared it before any byte
+arrived, who uploaded it, in which session and with which registration, and, once every byte has
+arrived, its SHA-256 and when it completed; a file is pending until a message first names it, which
+`attached_at` records. `file_chunks` holds its bytes, in chunks of 1 MiB numbered from 0, all full
+but the last, in a rowid table, since rows of 1 MiB would leave a `WITHOUT ROWID` tree's pages one
+row each. `attachments` holds the files each message carries, in the order it gave them, each under
+a name unique within the message, append-only as messages are; a trigger marks a file attached as
+the first message names it, with that message's time, and a check refuses attaching a file that is
+not complete. Triggers let a file's row change only by completing once and being attached once, keep
+a chunk's bytes from ever changing, and refuse removing an attached file or any of its chunks. A
+file is missing when its last chunk is gone, which is what a future purge, deleting all of a file's
+chunks, would leave; a zero-byte file never is.
+
+The database uses incremental vacuuming, so the pages that removing an upload frees return to the
+disk a step at a time. SQLite takes that mode only on a database without tables, or through a
+`VACUUM` that rewrites the whole file, and neither inside a transaction, so it cannot be a
+migration: `apps/server/src/database/vacuum-mode.ts` switches a database whose header still says no
+vacuuming, after its migrations, with `PRAGMA auto_vacuum = INCREMENTAL`, `VACUUM` and a truncating
+checkpoint. Reading the header rather than the migration number means a backup restored from an
+older release switches too. `VACUUM` builds its copy in SQLite's temporary directory
+(`SQLITE_TMPDIR`, else `TMPDIR`, else `/var/tmp`, else `/tmp`), needing about the database's size
+free there, then writes the database whole through the log beside it. A switch of a database that
+held data before the open is logged once it is done, and one of a new database is not. A switch that
+fails logs why and the space it needs, and the open carries on without it, since the migrations have
+committed and an older release refuses the migrated database; freed pages then stay in the file for
+reuse, and the next open tries again. `Database` has `vacuumStep(pages)`, which runs
+`PRAGMA incremental_vacuum` outside any transaction, `freePages()`, and `incrementalVacuum`, which
+says whether the database is in that mode, for the sweep to skip the vacuum until it is. Every open
+also sets `journal_size_limit` to 16 MiB, so a log that a backup's long read let grow is truncated.
 
 `voice_settings` holds at most one row, what the operator's Settings last saved for voice: the base
 URL and model in effect when it was saved, the environment's included, so the row always records the
@@ -270,13 +307,51 @@ tags, and each session's group and tags.
 
 The operator starts a thread on a session with a title and a first message of text, with its detail.
 The session stays the thread's requester and the operator its audience, so the operator's request
-has no field for asks or a topic, nor for references, which the web UI does not offer; a request
-carrying any of them starts a thread without them. The session reads the thread as the operator's
-words and replies in it. The thread starts whatever the session's state or credential, stranded from
-the start when the session is not there to read it; the operator's read mark reaches their message,
-and the session's long polls wake. A retry with the same request id is answered as the first was,
-and one with other content is a request-id conflict, as for a session's own thread, which a session
-still starts only in itself.
+has no field for asks or a topic, nor for references or attachments, which the web UI does not offer
+there; a request carrying any of them starts a thread without them. The session reads the thread as
+the operator's words and replies in it. The thread starts whatever the session's state or
+credential, stranded from the start when the session is not there to read it; the operator's read
+mark reaches their message, and the session's long polls wake. A retry with the same request id is
+answered as the first was, and one with other content is a request-id conflict, as for a session's
+own thread, which a session still starts only in itself.
+
+An upload (`apps/server/src/store/files.ts`) begins in one transaction, which authorizes the session
+and refuses it while its writer holds 20 pending uploads, or would hold more than 1 GiB of them by
+their declared sizes with this one, counting those still arriving and not those expired; then it
+inserts the file's row with a reference of 16 random bytes in base64url, and adds the file to the
+process's set of uploads in flight. A writer may run several uploads at once. Each chunk is written
+in a transaction of its own, which checks the credential again, so a revoked agent's upload stops
+within a chunk. Completing checks that the bytes received number the declared size, and records the
+hash and the time. Any failure after the upload begins, a body cut off, a revoked credential or a
+length that does not match among them, removes the file and its chunks in one transaction; a removal
+that itself fails is logged and left to the sweep. A completed upload no message names expires 24
+hours after it completed.
+
+A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
+`store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
+thread's session, complete, not yet attached and not expired; anything else, another writer's or
+another session's upload included, is `invalid_input` at `attachments.N.upload` in the same words,
+so a reference learned elsewhere tells nothing. Each `keep` needs `replaces` and must name a file of
+the replaced message, under its name there, and the message carries it again. The names resolved,
+given, kept or an upload's own, must differ after NFC normalization. Attachments are part of the
+digest a request id covers, and the replay runs before the check, so a retry whose first attempt
+consumed its uploads answers as the first did. A message may carry files alone; a replacement that
+keeps files does not retract the message it replaces, and one that does not keep a file leaves it
+with the replaced message. A message reads back with its attachments, in order: each file's name,
+reference, size, declared type, and whether it is missing. A thread's answer carries `files`, the
+count and bytes of its distinct files, each counted once however many messages carry it, and its
+file list gives each once, with the first message that carried it, newest first, paged by an opaque
+cursor. The settings' `storage` counts every completed file, pending ones included, since that is
+the disk they take, and their bytes.
+
+The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those completed more
+than 24 hours ago, and those left incomplete that are not in the set of uploads in flight, each in a
+transaction of its own. `agention serve` runs it once before it listens, when nothing is in flight,
+so every incomplete upload goes, and then every 10 minutes on a timer that never holds the process
+open; a pass that fails is logged and the next tries again. When a pass freed pages on a database
+using incremental vacuuming, it returns them to the disk 2,048 pages, 8 MiB, at a time, yielding to
+other work between steps. The set of uploads in flight is in the process, so one server serves a
+database, as the long poll's notifier already requires.
 
 Marking read, marking unread and archiving move only the caller's own marks on a thread; they write
 no message and wake no one. Marking read raises the read mark and never lowers it. Marking unread
@@ -401,20 +476,27 @@ Every route reads its path, query and body through the shared schemas, so input 
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and
 its statuses. Anything that is not an API error is logged and answered as `internal`, with no
 details. A request body on an API route must declare its length, so its size is known before
-anything is read or authenticated: a chunked body is answered with status 411, and one over 2 MiB,
-which holds a message with every field at its bound, with status 413. A body that is not valid UTF-8
-is refused, never repaired. Every request's `Host` must be the origin's host, so a page on another
-name that resolves to the server cannot reach it, and no forwarded header is read. Every response
-carries the security headers: a content security policy that allows only the server's own scripts,
-styles, images and connections, `blob:` images and the diagram frame as its only frame, and no
-framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and `no-store`; the diagram
-frame's page and script set their own policy, framing and caching, as described below.
+anything is read or authenticated: a chunked body is answered with status 411, and one over its
+bound with status 413. An upload's bound is 100 MiB, the largest file; every other body's is 2 MiB,
+which holds a message with every field at its bound. The bound is chosen by `isUploadRequest`
+(`apps/server/src/http/uploads.ts`), from the path Hono routes, with dot segments resolved and the
+query ignored, which the listener's deadlines read too, so both always agree; with a
+`Content-Length` the bound compares the header alone and reads nothing. A JSON body that is not
+valid UTF-8 is refused, never repaired. Every request's `Host` must be the origin's host, so a page
+on another name that resolves to the server cannot reach it, and no forwarded header is read. Every
+response carries the security headers: a content security policy that allows only the server's own
+scripts, styles, images, media and connections, `blob:` images and the diagram frame as its only
+frame, and no framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and
+`no-store`. The security headers middleware sets every one of them after the route has run,
+replacing what the route set, except those the route declared its own for its response with
+`ownHeaders` (`apps/server/src/http/own-headers.ts`): the diagram frame's page and script declare
+their policy, framing and caching, and a file's response its policy and caching, as described below.
 
 The long poll answers at once while a thread in the session has unread messages newer than its
 `since`, and otherwise ends when such a message commits, when its credential is revoked, when the
 client disconnects, when the server shuts down, or when its wait runs out.
 
-The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 2 in this release,
+The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 3 in this release,
 serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
 to the agent contract, a new route or a new field on one, bumps it. Every answer on the agent mount,
 the refusals of the checks before it included, states the server's version in the
@@ -442,9 +524,78 @@ names no script of the build stops the server from starting. The page's response
 content security policy, `sandbox allow-scripts`, nothing allowed but that script, named by its full
 URL, and inline styles, and `frame-ancestors` naming the server's origin, with
 `X-Frame-Options: SAMEORIGIN`. The script's name carries its content's hash, so its response is
-cached for good. The security headers middleware sets every header after the route, and leaves a
-header a route set itself only for the frame's two routes, and only those they name: the page's
-policy and framing, and the script's caching.
+cached for good. Both routes declare those headers their own with `ownHeaders`.
+
+### Files
+
+The routes on files are thread routes, so they are the same on both mounts under
+`/s/:agent/:session`, behind each mount's own authentication.
+
+- **Uploading.** `POST /s/:agent/:session/uploads?name=<name>` takes the file's bytes as the raw
+  body, with its `Content-Length` and a `Content-Type` read as its declared type: the type's
+  essence, lowercased, under its standard name where it has a common alias, or
+  `application/octet-stream`. In order: the app's checks of the host, the length and the bound; the
+  mount's checks and authentication, from headers alone; the name, a file name of 1 to 200 code
+  points on one line, with no `/` or `\`, not `.` or `..`, and no white space at either end; the
+  free-space floor; the start of the upload, with its limits; the bytes, a chunk at a time; and the
+  completion. The floor refuses an upload as `storage_full`, status 507, unless the disk holding the
+  database, by `statfs`'s blocks available to an unprivileged user, would keep 1 GiB free beyond
+  this file and every byte still to arrive across all incomplete uploads. The answer is the upload's
+  reference, name, size, declared type, the type it is served as, and when it expires. An agent's
+  upload spends one request of its key's budget, as any call does; the operator's spends none. A
+  refused upload leaves its body unread, and `@hono/node-server` then reads it for at most 500 ms or
+  64 MiB before closing the connection, so a refusal goes out first and no refused upload holds the
+  server longer.
+- **Removing an upload.** `POST /s/:agent/:session/uploads/:ref/remove` removes one of the writer's
+  own completed uploads that no message names, uploaded in that session, with its bytes, so it stops
+  counting against the writer's pending limits at once. Any other reference, another writer's,
+  another session's, one attached or one still arriving, is `not_found`, as for a reference that
+  names nothing. An upload still arriving has not yet answered with its reference; ending its
+  request stops it, and the server removes what arrived. The web UI's **Remove** calls it for an
+  uploaded file; the bridge has no tool for it.
+- **A thread's files.** `GET /threads/:n/files?cursor=&limit=` lists a thread's files, each once
+  with the message that brought it, its author and its time, newest first, up to 50 a page by
+  default.
+- **Reading a file.** `GET` and `HEAD /threads/:n/messages/:seq/files/:name?file=<reference>` read
+  the file a message carries under a name, percent-encoded in the path and compared after NFC
+  normalization (`apps/server/src/http/files.ts`). The thread must be the session's, the message the
+  thread's and the name the message's, and `file`, when given, the reference of that file, or the
+  read is `not_found`; the web UI always gives it, so a URL always names the same bytes, and a copy
+  cached before a restore from an older backup never shows in place of a later file. A missing file
+  is `not_found`, saying its contents are missing. A single range, `bytes=a-b`, `bytes=a-` or
+  `bytes=-n`, is answered 206 with `Content-Range`, reading only the chunks it covers; several
+  ranges, another unit or a malformed header are answered 200 with the whole file; a range starting
+  at or beyond the end, any range of an empty file included, is 416 `invalid_input` with
+  `Content-Range: bytes */<size>`. `If-None-Match` and `If-Range` are ignored, since the bytes at a
+  URL never change. `HEAD` reads no chunk. The body streams a chunk at a time, each read in its own
+  transaction, which checks the credential again; the first chunk is read before the answer starts,
+  so a credential revoked meanwhile or a chunk that is gone is answered as any refusal is, and a
+  chunk missing later cuts the body short, which is logged.
+- **A file's headers.** `Content-Type` is the served type: the declared type when it is PNG, JPEG,
+  GIF, WebP or SVG (`image/svg+xml`), PDF, `video/mp4`, `video/webm` or `video/ogg`, or
+  `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/webm`, `audio/wav` or `audio/flac`;
+  `text/plain; charset=utf-8` for every `text/` type and for JSON, XML, NDJSON, YAML and TOML;
+  otherwise `application/octet-stream`. No served type is a script or style type, so the app's own
+  policy can never be pointed at a file. `Content-Disposition` is `attachment` for SVG and
+  `application/octet-stream`, `inline` for the rest, with an ASCII fallback name and the name itself
+  in RFC 5987's `filename*`. Beside `Content-Length`, a file answers with `Accept-Ranges: bytes`, a
+  strong `ETag` of its SHA-256 in hex, `Cross-Origin-Resource-Policy: same-origin`,
+  `Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'` and
+  `Cache-Control: private, max-age=31536000, immutable`, the last two declared its own, and the
+  other security headers, the agent API version on the agent mount included.
+
+| Situation                                                     | Code            | Status |
+| ------------------------------------------------------------- | --------------- | ------ |
+| A body sent chunked                                           | `invalid_input` | 411    |
+| A body over its bound, an upload's over 100 MiB               | `invalid_input` | 413    |
+| A body that stopped arriving, or took over 30 seconds         | `invalid_input` | 408    |
+| Pending uploads at their limit, by count or bytes             | `invalid_input` | 400    |
+| An upload's bytes not numbering its `Content-Length`          | `invalid_input` | 400    |
+| A message's `attachments` refused                             | `invalid_input` | 400    |
+| The disk under the free-space floor                           | `storage_full`  | 507    |
+| An unknown thread, message or name, or a file's missing bytes | `not_found`     | 404    |
+| An upload to remove that is not the writer's pending one      | `not_found`     | 404    |
+| A range outside the file                                      | `invalid_input` | 416    |
 
 ## Authentication
 
@@ -579,12 +730,28 @@ racer with the same name serves too, and one with another closes its listener an
 After that the name never changes. The name feeds the index page, the relying party and new
 passkeys' user names. The server listens on `--listen`, an IP address and port. With `--tls-cert`
 and `--tls-key` it terminates TLS 1.3 itself; without them it serves plain HTTP, which it refuses on
-a non-loopback address unless `--allow-plain-http` is given. A client gets 10 seconds to send its
-request headers and 30 to send its whole request, and an idle keep-alive connection closes after 120
-seconds; a long poll's response may take longer. On `SIGINT` or `SIGTERM` the server ends its long
-polls, answers every request still open with `Connection: close`, closes idle connections, and exits
-once the open requests finish. Three seconds after it starts stopping it closes every connection
-still open, whatever its state, a TLS handshake that never finished included.
+a non-loopback address unless `--allow-plain-http` is given. Before it listens, it runs the first
+sweep of uploads ([Store](#store)). A client gets 10 seconds to send its request headers, checked
+every second, and an idle keep-alive connection closes after 120 seconds.
+
+The listener keeps its own deadlines on request bodies (`apps/server/src/http/deadlines.ts`), with
+Node's `requestTimeout` set to 0, since Node's is server-wide, cannot be lifted for one request and
+is checked only every 30 seconds. It tracks each request from when its headers arrive until its body
+is complete or its connection closes, not until its answer is written, and checks them all every
+second on a timer that never holds the process open. A request whose body sends nothing for 30
+seconds is cut off, an upload's included, judged by the bytes its socket has read whether or not the
+route reads them; every request but an upload is cut off once it is still arriving 30 seconds after
+its headers. An upload has no total deadline, so a slow link finishes; a long poll's request is
+complete once its headers arrive, so no deadline touches its wait. A request cut off before its
+answer started is answered 408 `invalid_input` with `Connection: close`, carrying the security
+headers and, on agent paths, the agent API version, which the listener adds itself since the answer
+is written outside the app; the request is then destroyed, so the route's read of the body fails and
+an upload removes what arrived, and the route's own later answer is discarded. A request cut off
+after its answer started, or after it finished, has its connection destroyed. On `SIGINT` or
+`SIGTERM` the server ends its long polls, answers every request still open with `Connection: close`,
+closes idle connections, and exits once the open requests finish. Three seconds after it starts
+stopping it closes every connection still open, whatever its state, a TLS handshake that never
+finished included.
 
 ## Agent bridge
 
@@ -623,8 +790,13 @@ its key file, its tokens and where its requests may go.
   still pending, and the operator revokes the stray registration. Every operation applies the
   private-file rule, and writes, links and renames only in the session directory's real path. The
   home directory must exist: the bridge creates only the directories below it.
-- **Tokens.** `jose` mints a token for each request, signed with the session's key. Each body is
-  sent as a string, so it declares its length.
+- **Tokens.** `jose` mints a token for each request, signed with the session's key.
+- **Bodies.** A JSON body is sent whole, as a string, so it declares its length. A file's bytes
+  stream from the open file with its `Content-Length`, the size the file had when it was opened, so
+  Node never sends it chunked: a file that grows sends only that much, and one that shrinks while it
+  is read fails the upload, saying the file changed. A download streams into its file, and an answer
+  that does not state a length of at most 100 MiB is refused before any of it is written; Node then
+  holds the body to that length.
 - **Agent API version.** Every request states the version the bridge speaks in the
   `Agention-Agent-API` header. An answer in Agention's JSON that states an older version, or none,
   as every server before the header does, is refused before anything uses it, as a problem only the
@@ -643,6 +815,15 @@ its key file, its tokens and where its requests may go.
   origin too. A connection that has not opened within 10 seconds, its TLS handshake included, fails
   as unreachable. A connection that fails is reported naming `AGENTION_CONNECT` and its address when
   that is set, since the tunnel or forward there is the operator's.
+- **Time limits.** A request has 30 seconds to be answered, beyond any wait it asks for. A transfer
+  has no total deadline: it fails once its bytes, sent or received, stop moving for 30 seconds,
+  telling the agent the transfer stalled. Once an upload's body is written its answer has 30 seconds
+  and the file's size at 64 KiB a second, since buffers on the way, the socket's own, a proxy's or a
+  tunnel's, can hold megabytes the server has yet to receive. The answer and transfer limits share
+  one timer per request, which never keeps the process alive, so a bridge whose host has gone exits
+  even while a call waits. A host also limits how long one tool call may take: the Codex plugin sets
+  `tool_timeout_sec` to 600 seconds for every tool, and Claude Code's default limit, which
+  `MCP_TOOL_TIMEOUT` changes, is long enough.
 - **`register`** submits the key to `POST /api/agent/registrations`, which for a key the server
   knows creates nothing and reports its state. It answers with that state, keeping its `expires_at`
   only while the registration is pending, so an agent never reads it as the credential's; `replaced`
@@ -654,29 +835,53 @@ its key file, its tokens and where its requests may go.
   to. A thread tool that does not know them for the key on disk first makes the request `register`
   makes, and answers `unauthenticated` with what the operator still has to do unless the key is
   approved. Thread requests go to `/api/agent/s/<agent>/<session>/` under the granted names.
-- **Tools.** `register`, seven thread tools, `thread_create`, `message_send`, `thread_get`,
-  `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update`, which
-  reports the session's status, each annotated neither read-only nor destructive and as acting on a
-  closed world. `thread_create` and `message_send` take a message's detail beside its text, and
-  refuse it without text, as the server does. A session never answers an ask, so `message_send`
-  takes no answers; it takes the withdrawals of the session's own open asks. `message_wait` waits
-  for nothing by default and answers at once, which is how an agent checks for answers as it works;
-  a longer wait is for an agent with no other work and open asks or unread messages, or for a waiter
-  of its own. `register`'s answer, once approved, says how answers reach the agent: when it checks.
-  No tool marks a thread unread, which agents have no use for, though the agent API offers it as the
-  web API does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but
-  the bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the
-  field, as the server would answer it. A tool also refuses a field it does not know, at any depth,
-  as `invalid_input` naming it, so a misspelled field never drops silently, while the server's
-  request schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying
-  on that against an older server. An answer is the API's JSON as text, and a call the server
-  refuses is an error result holding the API's error JSON. A problem the bridge finds itself, such
-  as its configuration, an unreachable server, missing names or a cancelled call, is an error result
-  in plain text, worded for the agent: what to do, or, for what only the operator can fix, to tell
-  them at the terminal what to change and whether the session must restart.
-  `apps/bridge/src/errors.ts` words those. `message_wait` gives every error but `invalid_input` no
-  sooner than its `wait_seconds` would have ended, counted from the call's start, so an agent that
-  waits again at once does not call a server it cannot use in a tight loop.
+- **Tools.** Eleven: `register`, seven thread tools, `thread_create`, `message_send`, `thread_get`,
+  `thread_list`, `thread_read`, `thread_archive` and `message_wait`, `session_update`, which reports
+  the session's status, and two file tools, `file_upload` and `file_get`, each annotated neither
+  read-only nor destructive and as acting on a closed world. `thread_create` and `message_send` take
+  a message's detail beside its text, refusing detail without text as the server does, and its
+  `attachments`, which may be all a message carries. A session never answers an ask, so
+  `message_send` takes no answers; it takes the withdrawals of the session's own open asks.
+  `message_wait` waits for nothing by default and answers at once, which is how an agent checks for
+  answers as it works; a longer wait is for an agent with no other work and open asks or unread
+  messages, or for a waiter of its own. `register`'s answer, once approved, says how answers reach
+  the agent: when it checks. No tool marks a thread unread, which agents have no use for, though the
+  agent API offers it as the web API does. The SDK advertises each tool's JSON Schema, generated
+  from the shared schemas, but the bridge parses the arguments itself, so input outside a bound is
+  `invalid_input` naming the field, as the server would answer it. A tool also refuses a field it
+  does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
+  silently, while the server's request schemas ignore unknown fields, and the agent API version
+  keeps a newer bridge from relying on that against an older server. An answer is the API's JSON as
+  text, and a call the server refuses is an error result holding the API's error JSON. A problem the
+  bridge finds itself, such as its configuration, an unreachable server, missing names or a
+  cancelled call, is an error result in plain text, worded for the agent: what to do, or, for what
+  only the operator can fix, to tell them at the terminal what to change and whether the session
+  must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error but
+  `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's start,
+  so an agent that waits again at once does not call a server it cannot use in a tight loop.
+- **File tools** (`apps/bridge/src/file-tools.ts`). `file_upload` takes an absolute path and an
+  optional name, by default the path's last segment, and declares the type `typeOfName` gives the
+  name, reading nothing of the file to choose it. It opens the path with `O_RDONLY`, `O_NONBLOCK`
+  and `O_NOCTTY`, so a FIFO cannot hold the call and a terminal never becomes the bridge's own, then
+  refuses, from the open file, anything but a regular file, anything whose real path is at or under
+  the real path of `~/.config/agention`, which is skipped when that directory does not exist, and a
+  file over 100 MiB, before a byte is sent. The key check resolves the path again rather than the
+  open file, so a symlink swapped between the two is out of its scope: only something running as the
+  agent's user could swap it, and that already holds the key. It answers with the server's upload
+  result and a line saying to name it in `attachments` before it expires. `file_get` takes a thread,
+  a message's sequence and a file's name. It reads that message first, for the file's reference and
+  declared type, then the file by its URL with the reference, into `~/.cache/agention/files/`, a
+  directory under the private-file rule outside the key directory, which every server and session
+  shares, since references are random. The file is named by its reference and the extension of its
+  served type, `bin` for one without, never by the sender's name, and only a reference that parses
+  as one names a file. It streams into a `.<random>.part` file of mode 0600, renamed into place once
+  whole, which any failure removes. Each call, once it has read the message and before it fetches
+  the file, removes every file of the directory last written more than seven days ago, partial files
+  included, leaving directories alone. It answers with the path, name, size, declared type and
+  served type, and when the file is a PNG, JPEG, GIF or WebP of at most 3.5 MiB whose leading bytes
+  carry that type's signature, an `image` block of it after the text, which both hosts show the
+  model; a larger image's answer says to read the file at its path. Answers are text, with that
+  block alone beside it: no `resource_link` or `structuredContent`.
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`. A page of messages or threads over the limit is asked for
@@ -687,15 +892,16 @@ its key file, its tokens and where its requests may go.
   ends within 55 seconds, under Codex's 60-second tool timeout, and answers that the server did not
   answer in time if it runs out. An answer still over it at one element leaves out its largest
   text-bearing fields, largest first, until it fits: texts (each answer's own words included) and
-  details, references, each ask's fallback text, question and suggested answers, the question each
-  answer carries, and the reasons of withdrawals, the thread's and each ask's included, each named
-  in `omitted` as a dotted path, such as `messages.0.asks.2.fallback`. A detail of one-byte
-  characters that JSON need not escape always comes back whole beside its text, unless the message's
-  other fields are large too; one in other scripts can be left out and named in `omitted`, from
-  roughly 19,000 code points in a two-byte script down to about 9,500 in emoji, and the web UI
-  always shows it in full. A `stale` error lists only the leading missed messages that fit and says
-  from which sequence to read the rest, or that none fits; every other error stays within its limit
-  by construction, quoting at most 100 characters of any configured value.
+  details, references, a message's attachments whole, each ask's fallback text, question and
+  suggested answers, the question each answer carries, and the reasons of withdrawals, the thread's
+  and each ask's included, each named in `omitted` as a dotted path, such as
+  `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not escape always
+  comes back whole beside its text, unless the message's other fields are large too; one in other
+  scripts can be left out and named in `omitted`, from roughly 19,000 code points in a two-byte
+  script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale` error lists
+  only the leading missed messages that fit and says from which sequence to read the rest, or that
+  none fits; every other error stays within its limit by construction, quoting at most 100
+  characters of any configured value.
 
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
@@ -710,19 +916,19 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                 |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                         |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                      |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                        |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                     |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                      |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                         |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                          |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                       |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings view's passkeys and voice |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                             |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                        |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                     |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                  |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                    |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                 |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                  |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                     |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                      |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                   |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings view's passkeys and voice |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                         |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                    |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -807,13 +1013,58 @@ so the keyboard does not hide Send. The composer measures the row as it changes 
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
 
+A message's files (`src/views/thread/files/`) come in two halves. In the composer, **Attach**, an
+icon beside Send, opens a hidden file input that takes several files, with no `accept` and no
+`capture`, so a phone offers its camera among its sources. A paste into the message or Details box
+whose clipboard holds only image files, PNG, JPEG, GIF or WebP, attaches them, named
+`pasted-YYYYMMDD-HHMMSS` in local time with their type's extension, and inserts nothing; a paste
+that carries `text/plain` stays text, since some programs put a picture of what was copied beside
+its text. A name another file of the draft has gets `-2`, `-3` and so on before its extension. A
+file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh, is refused in the
+list, saying why, without uploading. The others upload one at a time, in the order added, since a
+browser opens only a few connections to one host and the long poll and every read share them.
+`uploadFile` in `src/api.ts` sends each with `XMLHttpRequest`, which reports upload progress, as the
+`File` itself, so the browser states its length, declaring `File.type`, else `typeOfName`; no
+progress for 60 seconds aborts it, longer than the server's own idle limit so the server's answer
+comes first, and there is no total deadline. `request` announces each change that lands, but an
+upload alone changes none of the navigation's counts, so it announces none. The list shows each
+file's name, size and state, with a progress bar while it uploads, **Retry** for one that failed,
+**Upload again** for one that expired, and **Remove**, which stops an upload under way while bytes
+remain, lets one whose every byte has gone answer and then removes it from the server, and removes a
+finished one from the server, so it stops counting against the operator's pending uploads at once.
+Only a Remove in the instant before the list shows the last byte gone or the upload's answer, or a
+removal the connection loses, leaves the upload counting until it expires. Send waits until every
+file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then uploads as
+`{upload, name}`; a refusal naming an upload marks that file expired. A stale write keeps the files
+with the draft. Editing a message, or changing its answers, loads its files as kept, which
+**Remove** drops from the replacement.
+
+A message lists its files under its text, detail and references, each with its name, type and size,
+and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with
+nothing to open. Every element and link loads the file's own URL, with its reference, so the
+server's headers always apply: no file becomes a `blob:` or `data:` URL, and none shows in a frame.
+By the served type, `servedTypeOf`: an image of up to 2 MiB shows at once as a lazily loaded
+`<img>`, and a larger one behind **Show image**; video and audio as their players with
+`preload="none"`, so nothing loads until played; text behind **Show text**, which reads at most the
+first 256 KiB with a `Range` request and decodes it as UTF-8 with replacement, saying when there is
+more; a PDF as **Open**, a link that opens it in a new tab, since Chromium shows no PDF in a frame;
+and anything else as **Download** alone. A Markdown link whose destination is `attachment:` and a
+name, percent-encoded or in angle brackets, is live when the name, decoded and NFC-normalized, is
+one of that message's own files, and opens it as its entry in the list does; any other is its text,
+and an image written with one still never loads. The thread's head, when the thread holds any file,
+holds a fold, **Files** with their count and size, folded on every visit, which reads the thread's
+file list a page at a time while it is open, each entry with who attached it, when, and a link to
+its message. Sizes are written in binary units, KiB, MiB and GiB.
+
 The Settings view answers `/settings`, and `/passkeys`, where passkeys had a page of their own. It
 loads the settings and the passkeys, and while the passkey list says the sign-in is not recent it
-offers to sign in again above every section. Its voice form starts afresh from what the server holds
-whenever that changes, and normalizes a base URL with the API's own reader; which hosts it may reach
-is the server's to judge, when it is saved. After a save or a clear, focus waits for the settings
-the server then holds before moving to the control that shows them, and moves only from the control
-pressed. Signing in again moves focus to the first section's heading.
+offers to sign in again above every section. Its Storage section, after Voice, says from the
+settings' `storage` how much space attachments take, in how many files, and that every backup copies
+them. Its voice form starts afresh from what the server holds whenever that changes, and normalizes
+a base URL with the API's own reader; which hosts it may reach is the server's to judge, when it is
+saved. After a save or a clear, focus waits for the settings the server then holds before moving to
+the control that shows them, and moves only from the control pressed. Signing in again moves focus
+to the first section's heading.
 
 Dictation (`src/voice/Dictation.tsx`) shows in the composer, and in Settings' Try it, while the
 settings the page read when it opened say voice is on and the browser has a `MediaRecorder` for
@@ -852,7 +1103,10 @@ address with `--host-resolver-rules` and trusts the certificate made for that na
 its public key with `--ignore-certificate-errors-spki-list`. That makes the page a real secure
 context rather than one that bypasses a certificate error. The diagram tests start a server of their
 own, and drive the frame under the server's real policies. The voice tests start one too, with a
-local stub of a transcription provider, and record through Chromium's fake microphone.
+local stub of a transcription provider, and record through Chromium's fake microphone. The
+attachment tests attach a file and paste an image, show images, video, audio and text in place and
+open a PDF's tab, download every file, and serve HTML and script bytes declared as each served type,
+which run nothing in the page or opened on their own.
 
 ## Generated plugins
 
@@ -869,7 +1123,9 @@ version: `npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the s
 environment. Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those
 the server lists, so the Codex declaration lists the bridge's configuration variables:
 `AGENTION_CONNECT`, `AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and
-`NODE_EXTRA_CA_CERTS`.
+`NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes the Codex declaration's
+`tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
+can take longer; Claude Code's plugin format has no such setting.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a
@@ -884,5 +1140,5 @@ the generated outputs stay current without regeneration. A `v*` tag runs
 `.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
 [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
 
-The agent API has a version of its own, which a release bumps only when it changes the agent
-contract, as [HTTP API](#http-api) describes.
+The agent API has a version of its own, 3 in this release, which a release bumps only when it
+changes the agent contract, as [HTTP API](#http-api) describes.

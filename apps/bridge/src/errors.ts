@@ -28,6 +28,13 @@ export class BridgeError extends Error {
   override name = "BridgeError";
 }
 
+// detailOf names a failure of Node's, such as a file's or a connection's, by
+// its code, else its message, for a BridgeError to give in brackets.
+export function detailOf(error: unknown): string {
+  const failure = error as { code?: unknown; message?: unknown };
+  return String(failure.code ?? failure.message);
+}
+
 // A BridgeError's message is worded for the agent. What only the operator can
 // fix, the agent tells them at its terminal, since Agention is what is not
 // working.

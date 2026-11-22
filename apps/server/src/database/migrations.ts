@@ -434,4 +434,101 @@ export const migrations: readonly string[] = [
     api_key TEXT
   ) STRICT;
   `,
+  `
+  -- Every uploaded file. Its bytes are rows of file_chunks, 1 MiB each but the
+  -- last, numbered from 0. size is the length the upload declared, known
+  -- before any byte arrives. A file is incomplete until every byte has arrived
+  -- (completed_at, with its SHA-256), and pending until a message first names
+  -- it (attached_at). ref is the random reference an upload answers with and
+  -- messages name it by. A file belongs to the session it was uploaded under
+  -- and to the actor that uploaded it; registration_id records the credential
+  -- behind an agent's upload. name and type are as the uploader gave them: the
+  -- name the file is attached under unless the message names another, and the
+  -- declared type, which serving maps onto its allowlist.
+  CREATE TABLE files (
+    id INTEGER PRIMARY KEY,
+    ref TEXT NOT NULL UNIQUE CHECK (length(ref) = 22),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (length(type) BETWEEN 3 AND 127),
+    size INTEGER NOT NULL CHECK (size >= 0),
+    actor_id INTEGER NOT NULL REFERENCES actors (id),
+    session_id INTEGER NOT NULL REFERENCES sessions (id),
+    registration_id INTEGER REFERENCES registrations (id),
+    created_at INTEGER NOT NULL,
+    sha256 BLOB CHECK (sha256 IS NULL OR length(sha256) = 32),
+    completed_at INTEGER,
+    attached_at INTEGER,
+    CHECK ((sha256 IS NULL) = (completed_at IS NULL)),
+    CHECK (attached_at IS NULL OR completed_at IS NOT NULL)
+  ) STRICT;
+
+  CREATE INDEX files_pending ON files (actor_id) WHERE attached_at IS NULL;
+
+  CREATE TRIGGER files_fixed BEFORE UPDATE ON files
+  WHEN new.id IS NOT old.id OR new.ref IS NOT old.ref OR new.name IS NOT old.name
+    OR new.type IS NOT old.type OR new.size IS NOT old.size OR new.actor_id IS NOT old.actor_id
+    OR new.session_id IS NOT old.session_id OR new.registration_id IS NOT old.registration_id
+    OR new.created_at IS NOT old.created_at
+    OR (old.completed_at IS NOT NULL AND (new.completed_at IS NOT old.completed_at
+      OR new.sha256 IS NOT old.sha256))
+    OR (old.attached_at IS NOT NULL AND new.attached_at IS NOT old.attached_at)
+  BEGIN
+    SELECT RAISE(ABORT, 'a file changes only as its upload arrives and a message first names it');
+  END;
+  CREATE TRIGGER files_attached_kept BEFORE DELETE ON files WHEN old.attached_at IS NOT NULL
+  BEGIN
+    SELECT RAISE(ABORT, 'an attached file is never removed');
+  END;
+
+  -- A file's bytes, in order. A rowid table on purpose: rows of 1 MiB would
+  -- make a WITHOUT ROWID b-tree's pages hold one row each.
+  CREATE TABLE file_chunks (
+    file_id INTEGER NOT NULL REFERENCES files (id),
+    idx INTEGER NOT NULL CHECK (idx >= 0),
+    data BLOB NOT NULL,
+    PRIMARY KEY (file_id, idx)
+  ) STRICT;
+
+  CREATE TRIGGER file_chunks_fixed BEFORE UPDATE ON file_chunks
+  BEGIN
+    SELECT RAISE(ABORT, 'a file''s bytes never change');
+  END;
+  CREATE TRIGGER file_chunks_kept BEFORE DELETE ON file_chunks
+  WHEN (SELECT attached_at FROM files WHERE id = old.file_id) IS NOT NULL
+  BEGIN
+    SELECT RAISE(ABORT, 'an attached file keeps its bytes');
+  END;
+
+  -- The files each message carries, in the order it gave them, each under a
+  -- name unique within the message. A message carries a file it uploaded, or
+  -- one the message it replaces carries, which it names again. Append-only, as
+  -- messages are. Naming a file attaches it, for good.
+  CREATE TABLE attachments (
+    thread_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL,
+    position INTEGER NOT NULL CHECK (position >= 0),
+    name TEXT NOT NULL,
+    file_id INTEGER NOT NULL REFERENCES files (id),
+    PRIMARY KEY (thread_id, seq, position),
+    UNIQUE (thread_id, seq, name),
+    FOREIGN KEY (thread_id, seq) REFERENCES messages (thread_id, seq)
+  ) STRICT, WITHOUT ROWID;
+
+  CREATE INDEX attachments_files ON attachments (file_id);
+
+  CREATE TRIGGER attachments_no_update BEFORE UPDATE ON attachments
+  BEGIN
+    SELECT RAISE(ABORT, 'attachments are append-only');
+  END;
+  CREATE TRIGGER attachments_no_delete BEFORE DELETE ON attachments
+  BEGIN
+    SELECT RAISE(ABORT, 'attachments are append-only');
+  END;
+  CREATE TRIGGER attachments_attach AFTER INSERT ON attachments
+  BEGIN
+    UPDATE files SET attached_at = (
+      SELECT created_at FROM messages WHERE thread_id = new.thread_id AND seq = new.seq
+    ) WHERE id = new.file_id AND attached_at IS NULL;
+  END;
+  `,
 ];

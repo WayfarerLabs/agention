@@ -6,6 +6,7 @@ import type { ErrorBody } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Hono } from "hono";
 import { contentSecurityPolicy, maxBodyBytes, securityHeaders } from "./app.ts";
+import { ownHeaders } from "./own-headers.ts";
 import { type AgentKey, codeOf, Harness, newThread, origin } from "./test-harness.ts";
 import { nameSlots } from "./web-ui.ts";
 
@@ -349,52 +350,60 @@ describe("the diagram frame", () => {
     });
   });
 
-  it("keeps a route's own security headers only for the frame's routes, and only those they name", async () => {
+  it("keeps a route's own security headers only where it declares them, and only those", async () => {
     const probe = new Hono();
-    probe.use(
-      securityHeaders(
-        origin,
-        () =>
-          new Map([
-            ["/diagram-frame", ["content-security-policy", "x-frame-options"]],
-            [`/${script}`, ["cache-control"]],
-          ]),
-      ),
-    );
+    probe.use(securityHeaders(origin));
     const own = {
       "Content-Security-Policy": "default-src *",
       "X-Frame-Options": "SAMEORIGIN",
       "Cache-Control": "public",
     };
+    const declaring = new Map([
+      ["/frame", ["content-security-policy", "x-frame-options"]],
+      ["/script", ["Cache-Control"]],
+      // A declared header the route did not set is still set.
+      ["/unset", ["referrer-policy"]],
+    ]);
     probe.get("*", (c) => {
       for (const [header, value] of Object.entries(own)) {
         c.header(header, value);
       }
+      ownHeaders(c, declaring.get(c.req.path) ?? []);
       return c.text("");
     });
     const headersOf = async (target: string) => {
       const response = await probe.request(target);
-      return ["content-security-policy", "x-frame-options", "cache-control"].map((header) =>
-        response.headers.get(header),
+      return ["content-security-policy", "x-frame-options", "cache-control", "referrer-policy"].map(
+        (header) => response.headers.get(header),
       );
     };
-    expect(await headersOf("/diagram-frame")).toEqual(["default-src *", "SAMEORIGIN", "no-store"]);
-    expect(await headersOf(`/${script}`)).toEqual([
+    expect(await headersOf("/frame")).toEqual([
+      "default-src *",
+      "SAMEORIGIN",
+      "no-store",
+      "no-referrer",
+    ]);
+    expect(await headersOf("/script")).toEqual([
       contentSecurityPolicy(origin),
       "DENY",
       "public",
+      "no-referrer",
     ]);
-    expect(await headersOf("/sessions")).toEqual([
-      contentSecurityPolicy(origin),
-      "DENY",
-      "no-store",
-    ]);
+    for (const target of ["/unset", "/diagram-frame", "/sessions"]) {
+      expect(await headersOf(target)).toEqual([
+        contentSecurityPolicy(origin),
+        "DENY",
+        "no-store",
+        "no-referrer",
+      ]);
+    }
   });
 
   it("is the one frame the web UI may embed, and its images may be blob: URLs", async () => {
     const policy = directives(contentSecurityPolicy(origin));
     expect(policy.get("frame-src")).toEqual([`${origin}/diagram-frame`]);
     expect(policy.get("img-src")).toEqual(["'self'", "blob:"]);
+    expect(policy.get("media-src")).toEqual(["'self'"]);
     expect(policy.get("frame-ancestors")).toEqual(["'none'"]);
   });
 

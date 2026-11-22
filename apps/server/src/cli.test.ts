@@ -13,7 +13,8 @@ import { Agent, get } from "node:http";
 import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DatabaseSync } from "node:sqlite";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import packageJson from "../package.json" with { type: "json" };
 import { run } from "./cli.ts";
 import { Database } from "./database/database.ts";
@@ -24,6 +25,7 @@ import { identityForBrowserSession } from "./identity.ts";
 import { insertTestPasskey } from "./store/test-fixture.ts";
 import {
   approveRegistration,
+  beginUpload,
   createStore,
   findRegistrationByKey,
   insertOperator,
@@ -31,6 +33,20 @@ import {
   storeName,
   submitRegistration,
 } from "./store/index.ts";
+
+// The first sweep's pass, which a test may hold open to see what serve does
+// meanwhile; the real pass runs either way.
+const firstSweep = vi.hoisted(() => ({ held: Promise.resolve() }));
+vi.mock("./store/file-sweep.ts", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./store/file-sweep.ts")>();
+  return {
+    ...real,
+    sweepFilesRegularly: (...args: Parameters<typeof real.sweepFilesRegularly>) => {
+      const sweeps = real.sweepFilesRegularly(...args);
+      return { ...sweeps, first: sweeps.first.then(() => firstSweep.held) };
+    },
+  };
+});
 
 function capture() {
   return {
@@ -116,8 +132,9 @@ describe("agention serve and passkey-link", () => {
   ];
 
   // createDatabase makes the database agention serve would, with an operator
-  // and an approved agent when asked, and returns the agent's key.
-  function createDatabase(withAgent = false): AgentKey | undefined {
+  // and an approved agent when asked, and returns the agent's key; and with
+  // an upload a crash left unfinished, when asked too.
+  function createDatabase(withAgent = false, unfinished = false): AgentKey | undefined {
     const db = Database.open(path.join(data, "agention.db"));
     try {
       if (!withAgent) {
@@ -142,6 +159,14 @@ describe("agention serve and passkey-link", () => {
         findRegistrationByKey(db, key.publicKey)?.id ?? 0,
         { agent: { name: "builder", existing: false }, session: { name: "main", existing: false } },
       );
+      if (unfinished) {
+        beginUpload(
+          store,
+          identity ?? (undefined as never),
+          { agent: "builder", session: "main" },
+          { name: "left.bin", type: "application/octet-stream", size: 10 },
+        );
+      }
       return key;
     } finally {
       db.close();
@@ -416,6 +441,49 @@ describe("agention serve and passkey-link", () => {
       stderr:
         'agention serve: this server is named "Work" by a start that served first; start it again\n',
     });
+  });
+
+  it("sweeps before it listens, removing an upload a crash left unfinished", async () => {
+    createDatabase(true, true);
+    const files = () => {
+      const db = new DatabaseSync(path.join(data, "agention.db"), { readOnly: true });
+      try {
+        return (db.prepare("SELECT count(*) AS n FROM files").get() as { n: number }).n;
+      } finally {
+        db.close();
+      }
+    };
+    expect(files()).toBe(1);
+    let release = () => {};
+    firstSweep.held = new Promise((resolve) => (release = resolve));
+    const stop = new AbortController();
+    const stderr = capture();
+    const running = run(["serve", "--data", data, "--origin", origin, "--listen", "127.0.0.1:0"], {
+      stdout: capture(),
+      stderr,
+      stop: stop.signal,
+      env: {},
+    });
+    const listening = () => /on http:\/\/127\.0\.0\.1:\d+/.test(stderr.text);
+    try {
+      for (let i = 0; i < 200 && files() > 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      // The pass has run, and while it is held the server does not listen.
+      expect(files()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(listening()).toBe(false);
+      release();
+      for (let i = 0; i < 200 && !listening(); i++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(listening()).toBe(true);
+    } finally {
+      firstSweep.held = Promise.resolve();
+      release();
+      stop.abort();
+    }
+    expect(await running).toBe(0);
   });
 
   it("stops promptly while a keep-alive client holds a long poll", async () => {

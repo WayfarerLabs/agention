@@ -61,6 +61,7 @@ const messageText = [
   ["text"],
   ["detail"],
   ["references"],
+  ["attachments"],
   ["asks", "*", "question"],
   ["asks", "*", "suggestions"],
   ["asks", "*", "fallback"],
@@ -107,10 +108,10 @@ function fieldsAt(prefix: string, value: unknown, path: string[]): TextField[] {
 
 // leaveOutText makes an answer still over the cap at one element fit by
 // leaving out its largest text-bearing fields, largest first: titles, texts
-// (an answer's own words included) and details, references, questions (an
-// answer's included), suggested answers and the labels of those picked,
-// fallback text, and withdrawals' reasons, of its thread, messages or
-// threads. Each field it leaves out is named, as a dotted path, in the
+// (an answer's own words included) and details, references, a message's list
+// of files, questions (an answer's included), suggested answers and the
+// labels of those picked, fallback text, and withdrawals' reasons, of its
+// thread, messages or threads. Each field it leaves out is named, as a dotted path, in the
 // answer's omitted list.
 function leaveOutText(answer: unknown): unknown {
   if (!isJson(answer)) {

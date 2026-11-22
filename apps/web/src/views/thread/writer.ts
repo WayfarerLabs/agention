@@ -1,4 +1,5 @@
 import {
+  type Attachment,
   codePointLength,
   type CursorsResult,
   type Message,
@@ -92,10 +93,12 @@ function complete(staged: StagedAnswer): boolean {
 }
 
 // What the operator writes in the composer's boxes: the message's text, a
-// summary, and its detail, which the thread shows folded under the text.
+// summary, and its detail, which the thread shows folded under the text; and
+// the files it carries, once each is ready to send.
 export interface Draft {
   text: string;
   detail: string;
+  attachments: Attachment[];
 }
 
 // Why each of the composer's boxes cannot be sent as it stands, if it cannot.
@@ -119,7 +122,7 @@ function overBy(text: string, max: number): string | undefined {
 // detail without text, which it goes under. Neither box cuts what is typed or
 // pasted into it, so the operator sees what is over and moves it; the
 // message box, a summary, says where the rest belongs.
-export function draftProblems({ text, detail }: Draft): DraftProblems {
+export function draftProblems({ text, detail }: Pick<Draft, "text" | "detail">): DraftProblems {
   const textOver = overBy(text, maxMessageText);
   const detailOver = overBy(detail, maxMessageDetail);
   return {
@@ -137,9 +140,9 @@ export function draftProblems({ text, detail }: Draft): DraftProblems {
 }
 
 // sendable says whether the composer holds something complete to send, each
-// box within its bound: answers, each complete, with text or without; or text
-// alone. An edit replaces a message, so it needs text: the page never sends a
-// bare withdrawal.
+// box within its bound: answers, each complete, with text or files or
+// without; or text or files alone. An edit replaces a message, so it needs
+// text or files: the page never sends a bare withdrawal.
 export function sendable(draft: Draft, staged: Staged | undefined): boolean {
   const problems = draftProblems(draft);
   if (problems.text !== undefined || problems.detail !== undefined) {
@@ -148,7 +151,7 @@ export function sendable(draft: Draft, staged: Staged | undefined): boolean {
   if (staged?.kind === "answers") {
     return staged.answers.length > 0 && staged.answers.every(complete);
   }
-  return !blank(draft.text);
+  return !blank(draft.text) || draft.attachments.length > 0;
 }
 
 // withAnswer stages the answer on one ask's card, beside the others staged.
@@ -190,14 +193,19 @@ function answerOf(staged: StagedAnswer): NonNullable<WriteContent["answers"]>[nu
   };
 }
 
-// contentOf builds the message the composer sends: its text and its detail,
-// each when it has any, and what is staged. A replacement is a whole message,
-// so an edit carries the text and detail again, and a change of answers its
-// text and detail, if any, and every answer.
-export function contentOf({ text, detail }: Draft, staged: Staged | undefined): WriteContent {
+// contentOf builds the message the composer sends: its text, its detail and
+// its files, each when it has any, and what is staged. A replacement is a
+// whole message, so an edit carries the text, detail and files it keeps
+// again, and a change of answers its text, detail and files, if any, and
+// every answer.
+export function contentOf(
+  { text, detail, attachments }: Draft,
+  staged: Staged | undefined,
+): WriteContent {
   const written = {
     ...(blank(text) ? {} : { text }),
     ...(blank(detail) ? {} : { detail }),
+    ...(attachments.length === 0 ? {} : { attachments }),
   };
   if (staged === undefined) {
     return written;
@@ -316,8 +324,10 @@ export function staleChange(
 }
 
 // How a write ended: the message written, the messages it missed when it was
-// stale, or undefined when it failed otherwise.
-export type Outcome = { written: number } | { missed: Message[] } | undefined;
+// stale, why it failed otherwise, as a refusal, no answer or a lost sign-in,
+// or undefined when it was not sent: marking the missed messages read first
+// failed, or there were none to mark.
+export type Outcome = { written: number } | { missed: Message[] } | { failed: unknown } | undefined;
 
 export interface Writer {
   pending: boolean;
@@ -365,7 +375,9 @@ export function useWriter(target: ThreadTarget, onWritten: (reached?: number) =>
   const run = useCallback(
     async <T>(
       change: () => Promise<T>,
-    ): Promise<{ done: T } | { failed: "stale"; missed: Message[] } | { failed: "other" }> => {
+    ): Promise<
+      { done: T } | { failed: "stale"; missed: Message[] } | { failed: "other"; failure: unknown }
+    > => {
       setPending(true);
       setFailure(undefined);
       try {
@@ -378,7 +390,7 @@ export function useWriter(target: ThreadTarget, onWritten: (reached?: number) =>
         }
         setFailure(error);
         onFailure(error);
-        return { failed: "other" };
+        return { failed: "other", failure: error };
       } finally {
         setPending(false);
       }
@@ -423,7 +435,7 @@ export function useWriter(target: ThreadTarget, onWritten: (reached?: number) =>
         if (readFirst || result.failed === "stale") {
           onWritten(readFirst ? seenThrough : undefined);
         }
-        return result.failed === "stale" ? { missed: result.missed } : undefined;
+        return result.failed === "stale" ? { missed: result.missed } : { failed: result.failure };
       }
       attempt.current = undefined;
       setMissed(undefined);

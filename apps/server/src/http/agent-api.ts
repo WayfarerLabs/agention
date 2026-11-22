@@ -132,6 +132,6 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
     const signal = AbortSignal.any([c.req.raw.signal, options.shutdown]);
     return c.json(await waitForThreads(store, c.var.identity, target, query, signal));
   });
-  api.route("/s/:agent/:session", threadRoutes(store));
+  api.route("/s/:agent/:session", threadRoutes({ store, log }));
   return api;
 }

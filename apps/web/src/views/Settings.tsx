@@ -3,13 +3,15 @@ import { type ReactNode, useCallback, useId, useLayoutEffect, useRef, useState }
 import { request } from "../api.ts";
 import { Failure, focusLeftWith, Loadable, PageHeading, usePageTitle } from "../components.tsx";
 import { useAction, useResource } from "../data.ts";
+import { byteSize, plural } from "../format.tsx";
 import { navigate } from "../router.tsx";
 import { useSession } from "../session.tsx";
 import { loadPasskeys, Passkeys, SignInAgain } from "./settings/Passkeys.tsx";
 import { Voice } from "./settings/Voice.tsx";
 
-// The Settings view: what the operator configures, in three sections, their
-// passkeys, voice and signing out. Changing passkeys or voice needs a recent
+// The Settings view: what the operator configures, in sections, their
+// passkeys, voice, the space files take, which is only shown, and signing
+// out. Changing passkeys or voice needs a recent
 // sign-in; while this browser's is not, the view offers to sign in again
 // before anything else, and the controls it holds back say why.
 
@@ -57,6 +59,11 @@ export function Settings() {
           )}
         </Loadable>
       </Section>
+      <Section title="Storage">
+        <Loadable data={settings.data} failure={settings.failure} retry={settings.refresh}>
+          {(data) => <Storage totals={data.storage} />}
+        </Loadable>
+      </Section>
       <Section title="Sign out">
         <SignOut />
       </Section>
@@ -94,6 +101,18 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+// Storage says how much space the files attached to messages take, pending
+// uploads among them, which every backup copies.
+function Storage({ totals }: { totals: SettingsResult["storage"] }) {
+  return (
+    <p>
+      {totals.count === 0
+        ? "No files are attached yet."
+        : `Attachments take ${byteSize(totals.bytes)} in ${plural(totals.count, "file")}, and every backup copies them.`}
+    </p>
   );
 }
 

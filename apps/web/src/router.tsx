@@ -129,6 +129,12 @@ export function navigate(to: string, options: { replace?: boolean; state?: unkno
   window.dispatchEvent(new Event(navigated));
 }
 
+// plainClick says whether a click on a link is a plain one, which the page
+// handles itself: any other, as for a new tab or a download, is the
+// browser's own.
+export const plainClick = (event: MouseEvent<HTMLAnchorElement>) =>
+  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
 // Link is an anchor that navigates within the page on a plain click, and
 // leaves every other click (a new tab, a download) to the browser. state, when
 // given, says on the click what the new history entry records.
@@ -141,7 +147,7 @@ export function Link({
   "href" | "onClick"
 >) {
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    if (!plainClick(event)) {
       return;
     }
     event.preventDefault();

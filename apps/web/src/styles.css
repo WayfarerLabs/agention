@@ -356,7 +356,7 @@ button:disabled {
   opacity: 0.6;
 }
 
-input:not([type="checkbox"], [type="radio"]),
+input:not([type="checkbox"], [type="radio"], [hidden]),
 select,
 textarea {
   display: block;
@@ -1646,6 +1646,140 @@ button.options-button[aria-expanded="true"] {
 
 .suggestions li.unpicked {
   color: var(--color-muted);
+}
+
+/* A message's files, and the thread's in its head: each a row of its own,
+   its name, type and size, then its controls, then what shows in place,
+   scaled to the column. */
+.files {
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file {
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.file-head,
+.file-from {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-from {
+  font-size: var(--text-small);
+}
+
+.file-name {
+  font-weight: 600;
+}
+
+.file-missing {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-4);
+}
+
+.file-actions a,
+.file-from a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+}
+
+.file-shown {
+  margin-top: var(--space-2);
+}
+
+.file-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+.file-media {
+  display: block;
+  width: 100%;
+}
+
+audio.file-media {
+  min-height: var(--touch);
+}
+
+.file-text {
+  max-height: 30rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.thread-files {
+  margin-bottom: var(--space-3);
+}
+
+.thread-files .files {
+  margin-top: 0;
+}
+
+/* The composer's files, above its Send row, each with how it stands and
+   Remove. */
+.attached {
+  margin: var(--space-3) 0 0;
+}
+
+.attached ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attached li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.attached-file {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.attached-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.attached-state progress {
+  width: 8rem;
+}
+
+/* Attach beside Send: its paper clip alone, named for assistive
+   technology. */
+.composer button.attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch);
+  padding: var(--space-2);
+}
+
+.composer .actions > .hold {
+  margin: 0;
 }
 
 .suggestions li .own-words {

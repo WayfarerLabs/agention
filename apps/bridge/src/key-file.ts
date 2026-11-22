@@ -36,6 +36,12 @@ export interface SessionKey {
   publicKey: PublicKey;
 }
 
+// keyDirectory is the directory below the home directory that holds every
+// session's key.
+export function keyDirectory(home: string): string {
+  return path.join(home, ".config", "agention");
+}
+
 // KeyFile is a session's key file, the bridge's only state: an Ed25519
 // private key in PKCS #8 PEM at
 // ~/.config/agention/<server>/<agent>/<session>/key.pem, where the server is
@@ -67,7 +73,7 @@ export class KeyFile {
       );
     }
     this.#home = home;
-    this.path = path.join(home, ".config", "agention", ...parts, keyName);
+    this.path = path.join(keyDirectory(home), ...parts, keyName);
   }
 
   // read returns the key on disk, or undefined when there is none.

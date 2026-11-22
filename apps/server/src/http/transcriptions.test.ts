@@ -2,7 +2,6 @@ import { request as httpRequest } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openAiCompatible } from "../transcription/provider.ts";
 import { recording, StubProvider } from "../transcription/test-provider.ts";
-import { listen } from "./listener.ts";
 import { codeOf, Harness, host, origin, type Response, sessionCookie } from "./test-harness.ts";
 
 const secretKey = "sk-test-0123456789-never-shown";
@@ -191,7 +190,7 @@ describe("a transcription the browser abandons", () => {
   it("aborts the call to the provider", async () => {
     await setUp();
     stub.answer = () => ({ hang: true });
-    const listening = await listen(harness.app, { host: "127.0.0.1", port: 0 }, undefined);
+    const listening = await harness.listen({ host: "127.0.0.1", port: 0 });
     try {
       const client = await send(listening.address.port, true);
       await until(() => stub.requests.length > 0);
@@ -207,7 +206,7 @@ describe("a transcription the browser abandons", () => {
 
   it("logs a cancelled upload as cancelled, not as an internal error", async () => {
     await setUp();
-    const listening = await listen(harness.app, { host: "127.0.0.1", port: 0 }, undefined);
+    const listening = await harness.listen({ host: "127.0.0.1", port: 0 });
     try {
       const client = await send(listening.address.port, false);
       await new Promise((resolve) => setTimeout(resolve, 50));

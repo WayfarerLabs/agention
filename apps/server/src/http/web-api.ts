@@ -267,7 +267,7 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   );
 
   api.use("/s/*", requireSession);
-  api.route("/s/:agent/:session", threadRoutes(store));
+  api.route("/s/:agent/:session", threadRoutes({ store, log: options.log }));
   api.post("/s/:agent/:session/threads", async (c) => {
     const target = sessionTarget(c);
     const input = await parseBody(c, threadStartInput);

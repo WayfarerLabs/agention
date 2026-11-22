@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { request, requestTimeout } from "./api.ts";
+import { readTextStart, request, requestTimeout } from "./api.ts";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -40,4 +40,43 @@ it("stops waiting once an answer arrives", async () => {
   vi.stubGlobal("fetch", async () => Response.json({ threads: [] }));
   await expect(request("GET", "/threads")).resolves.toEqual({ threads: [] });
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it("reads a text file's start as UTF-8, leaving out a character the range cut", async () => {
+  vi.useRealTimers();
+  // "aé" is 3 bytes; a range of 2 cuts the é in half.
+  const bytes = new TextEncoder().encode("a\u00e9");
+  vi.stubGlobal("fetch", async () => new Response(bytes, { status: 206 }));
+  await expect(readTextStart("/file", 2)).resolves.toBe("a");
+  await expect(readTextStart("/file", 3)).resolves.toBe("a\u00e9");
+  // Invalid bytes read as replacement characters.
+  vi.stubGlobal("fetch", async () => new Response(new Uint8Array([0x61, 0xff]), { status: 200 }));
+  await expect(readTextStart("/file", 10)).resolves.toBe("a\ufffd");
+});
+
+it("reads no more of a text file than asked, though the server answer the whole file", async () => {
+  vi.useRealTimers();
+  let pulled = 0;
+  let cancelled = false;
+  const whole = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulled++;
+      controller.enqueue(new Uint8Array(1024).fill(0x61));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  vi.stubGlobal("fetch", async () => new Response(whole, { status: 200 }));
+  await expect(readTextStart("/file", 1500)).resolves.toBe("a".repeat(1500));
+  expect(pulled).toBeLessThanOrEqual(3);
+  expect(cancelled).toBe(true);
+});
+
+it("gives up on a text file's read that gets no answer in time", async () => {
+  hang();
+  const read = readTextStart("/file", 10);
+  read.catch(() => undefined);
+  await vi.advanceTimersByTimeAsync(requestTimeout);
+  await expect(read).rejects.toMatchObject({ code: "network" });
 });

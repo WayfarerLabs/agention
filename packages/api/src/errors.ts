@@ -28,6 +28,8 @@ export const statusByErrorCode = {
   conflict: 409,
   // A rate budget is exhausted.
   rate_limited: 429,
+  // The server's disk is too full to take an upload; the operator frees space.
+  storage_full: 507,
   // On the web mount only: the transcription provider failed or could not be
   // reached; the message says which, never what the provider answered.
   provider_failed: 502,
@@ -37,11 +39,14 @@ export const statusByErrorCode = {
 
 export type ErrorCode = keyof typeof statusByErrorCode;
 
-// Request bodies are the exceptions to the table: a body over the size limit,
-// and one sent without a declared length (chunked), are invalid_input, sent
-// with these statuses instead of 400.
+// Request bodies and ranges are the exceptions to the table: a body over the
+// size limit, one sent without a declared length (chunked), one that stopped
+// arriving or took too long, and a range outside a file are invalid_input,
+// sent with these statuses instead of 400.
 export const oversizedBodyStatus = 413;
 export const unsizedBodyStatus = 411;
+export const timedOutBodyStatus = 408;
+export const unsatisfiableRangeStatus = 416;
 
 export const errorCode = z.enum(Object.keys(statusByErrorCode) as [ErrorCode, ...ErrorCode[]]);
 

@@ -23,14 +23,16 @@ server to agents asking and you answering. The repository contains:
   passkey sign-in for the person and key authentication for agents, over the server's database and
   store, and `agention passkey-link` issues the link that registers the person's passkeys;
 - the web UI, which the server serves: the person signs in with a passkey, works through one thread
-  list, filtered, grouped and searched down to what messages say, reads and answers threads,
-  archives them, follows every session's status and updates in one view, where they approve agents'
-  registrations, start threads on a session, and sort sessions into groups and tag agents and
-  sessions, and in Settings manages their passkeys and voice, which dictates replies through a
-  transcription provider they choose and reads messages aloud on their device;
+  list, filtered, grouped and searched down to what messages say, reads and answers threads, opens
+  the files agents attach and attaches their own, archives threads, follows every session's status
+  and updates in one view, where they approve agents' registrations, start threads on a session, and
+  sort sessions into groups and tag agents and sessions, and in Settings manages their passkeys and
+  voice, which dictates replies through a transcription provider they choose and reads messages
+  aloud on their device;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
-  starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
-  checks for new messages, and reports its state, such as working or stopped;
+  starts threads, writes and reads their messages, uploads files for them to carry and fetches those
+  they carry, withdraws the asks it no longer needs answered, checks for new messages, and reports
+  its state, such as working or stopped;
 - the API contract, which the server, the bridge and the web UI share;
 - the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
   run the bridge at the version they pin.
@@ -49,7 +51,9 @@ as a reverse proxy or `tailscale serve`, as the operator guide describes.
 [ADR 0001](docs/adrs/0001-agention-v1-architecture.md) records the design and the alternatives
 considered. Voice is optional and off until the person chooses a transcription provider: the server
 relays their recordings to it with a key it holds, and keeps none of them, as
-[ADR 0002](docs/adrs/0002-voice-through-the-server.md) records.
+[ADR 0002](docs/adrs/0002-voice-through-the-server.md) records. Files attached to messages live in
+the same database, and are served under rules that keep them from acting as the person, as
+[ADR 0004](docs/adrs/0004-attachments.md) records.
 
 Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
 provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY.md) describes.

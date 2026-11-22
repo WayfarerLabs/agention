@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type Listening,
   ListenerConfigError,
-  listen,
   type ListenerFlags,
   parseListenAddress,
   planListener,
@@ -118,7 +117,7 @@ describe("a real listener", () => {
     const certificate = testCertificate();
     const keys = { cert: Buffer.from(certificate.cert), key: Buffer.from(certificate.key) };
     for (const address of ["127.0.0.1:0", "0.0.0.0:0"]) {
-      listening = await listen(harness.app, parseListenAddress(address), keys);
+      listening = await harness.listen(parseListenAddress(address), keys);
       const response = await get(listening.address.port, "/api/web/session", certificate.cert);
       expect(response).toMatchObject({ status: 200, protocol: "TLSv1.3" });
       await expect(get(listening.address.port, "/api/web/session")).rejects.toThrow();
@@ -155,7 +154,7 @@ describe("a real listener", () => {
       planListener(flags("127.0.0.1:0")),
       planListener(flags("0.0.0.0:0", { allowPlainHttp: true })),
     ]) {
-      listening = await listen(harness.app, plan.address, undefined);
+      listening = await harness.listen(plan.address);
       expect((await get(listening.address.port, "/api/web/session")).status).toBe(200);
       await listening.close();
       listening = undefined;
@@ -210,7 +209,7 @@ describe("a real listener", () => {
   }
 
   it("takes request bodies over the socket with a length, and bounds them", async () => {
-    listening = await listen(harness.app, parseListenAddress("127.0.0.1:0"), undefined);
+    listening = await harness.listen(parseListenAddress("127.0.0.1:0"));
     const { port } = listening.address;
     const browser = { origin: "https://agention.test" };
     expect(await send(port, "/api/web/auth/signin/begin", browser)).toBe(200);
@@ -226,7 +225,7 @@ describe("a real listener", () => {
   });
 
   it("refuses a body without a length before authenticating it", async () => {
-    listening = await listen(harness.app, parseListenAddress("127.0.0.1:0"), undefined);
+    listening = await harness.listen(parseListenAddress("127.0.0.1:0"));
     const { port } = listening.address;
     const registration = JSON.stringify({ agent: "builder", session: "main" });
     const signed = {
@@ -247,7 +246,7 @@ describe("a real listener", () => {
       const agent = await harness.approvedAgent("builder", "main");
       const certificate = testCertificate();
       const keys = { cert: Buffer.from(certificate.cert), key: Buffer.from(certificate.key) };
-      listening = await listen(harness.app, parseListenAddress("127.0.0.1:0"), keys);
+      listening = await harness.listen(parseListenAddress("127.0.0.1:0"), keys);
       const { port } = listening.address;
 
       // A TCP connection that never sends a ClientHello, so it never reaches HTTP.
@@ -285,7 +284,7 @@ describe("a real listener", () => {
 
   it("ends a long poll when its client disconnects", async () => {
     const agent = await harness.approvedAgent("builder", "main");
-    listening = await listen(harness.app, parseListenAddress("127.0.0.1:0"), undefined);
+    listening = await harness.listen(parseListenAddress("127.0.0.1:0"));
     const token = await harness.token(agent);
     const request = httpRequest({
       host: "127.0.0.1",

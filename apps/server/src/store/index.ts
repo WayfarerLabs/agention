@@ -3,6 +3,18 @@
 // target the request names, and input its schema has already parsed.
 export { countAttention } from "./attention.ts";
 export { findOperator, insertOperator, type Operator } from "./directory.ts";
+export { type CarriedFile, findCarriedFile, listThreadFiles, readFileChunk } from "./file-reads.ts";
+export { sweepFiles, sweepFilesRegularly } from "./file-sweep.ts";
+export {
+  abortUpload,
+  beginUpload,
+  bytesArriving,
+  chunkBytes,
+  completeUpload,
+  removeUpload,
+  type Upload,
+  writeChunk,
+} from "./files.ts";
 export {
   createGroup,
   listGroupsAndTags,
