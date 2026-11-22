@@ -61,10 +61,11 @@ with each other or with what the product does, the disagreement is the finding.
   answered whole, a range outside the file answered 416 with `Content-Range`, `HEAD`, and a `file`
   reference that is not the file's, and another session's thread, `not_found`; on the operator
   mount, an upload or its removal refused to a key without `threads:write` and a list or read
-  refused to one without `threads:read`, as `not_found`, and a revoked key's transfer stopped within
-  a chunk; and the listener's deadlines, an idle body cut at 30 seconds with a 408 carrying the
-  security headers and, on the agent mount, the version, a request body cut at 30 seconds whole, and
-  an upload trickling past that finishing (`docs/architecture.md` "HTTP API" and "Serving").
+  refused to one without `threads:read`, as `not_found`, removing an attached file refused, and the
+  file still reading, and a revoked key's transfer stopped within a chunk; and the listener's
+  deadlines, an idle body cut at 30 seconds with a 408 carrying the security headers and, on the
+  agent mount, the version, a request body cut at 30 seconds whole, and an upload trickling past
+  that finishing (`docs/architecture.md` "HTTP API" and "Serving").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter

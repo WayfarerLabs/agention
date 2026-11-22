@@ -859,7 +859,9 @@ carries its files to the new version unless you remove them, and the earlier ver
   removed a day later. The server refuses an upload, saying its disk is too full, unless the disk
   holding its data directory keeps 1 GiB free beyond the files arriving. An upload has no time limit
   as long as its bytes keep moving, but stops after 30 seconds without any, so a slow link finishes
-  and a dead one fails.
+  and a dead one fails. Those 20 files and 1 GiB are yours as one person: the browser and every API
+  key share them, so a program that uploads files and never sends them can use them up for you until
+  they expire, a day later.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.

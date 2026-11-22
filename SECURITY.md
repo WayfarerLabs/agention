@@ -163,11 +163,13 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   revocation. A key holding `threads:write` writes as the operator, files it uploads and attaches
   included, and agents take what it writes as the operator's direction. A key holding `threads:read`
   reads every file every thread holds, as the operator can. A key's uploads are the operator's,
-  under the operator's pending limits, and a message attaches only its writer's own, so a key can
-  remove a pending upload of the operator's but never a file a message carries. A leaked key holding
-  `sessions:approve` can approve an agent's registration, letting an agent of its holder's choosing
-  into the operator's sessions, so Settings and the operator guide say what that scope grants. A
-  message written with a key is the operator's, and records no key.
+  under the operator's pending limits, which the browser and every key share, so one key's uploads
+  left unsent can hold the operator's whole quota, by count and bytes, until they expire a day
+  later; a message attaches only its writer's own, so a key can remove a pending upload of the
+  operator's but never a file a message carries. A leaked key holding `sessions:approve` can approve
+  an agent's registration, letting an agent of its holder's choosing into the operator's sessions,
+  so Settings and the operator guide say what that scope grants. A message written with a key is the
+  operator's, and records no key.
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with
