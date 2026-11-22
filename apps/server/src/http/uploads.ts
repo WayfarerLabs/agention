@@ -45,7 +45,7 @@ async function freeBytes(directory: string): Promise<number> {
 }
 
 // The body an upload declares: the file's bytes.
-export const uploadBytes: BytesBody<undefined> = {
+export const uploadBytes: BytesBody = {
   bytes: "body",
   description:
     "The file's bytes, exactly as they are, with a Content-Length, which is required. " +

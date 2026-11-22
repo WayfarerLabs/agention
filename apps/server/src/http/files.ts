@@ -88,7 +88,7 @@ export function wantedOf(header: string | undefined, size: number): Wanted {
 }
 
 // The answer a file read declares: the file's bytes.
-export const fileBytes: BytesAnswer<Response> = {
+export const fileBytes: BytesAnswer = {
   bytes: "answer",
   description:
     "The file's bytes, as the type it is served as, which follows from its declared type " +
