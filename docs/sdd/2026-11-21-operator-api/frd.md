@@ -1,6 +1,6 @@
 # Operator API: Functional Requirements
 
-- Status: Draft, revised for rulings 1 to 4, awaiting the operator's acceptance
+- Status: Accepted by the operator 2026-11-21 with changes (ruling 5)
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -62,12 +62,12 @@ resource and an access (ruling 1):
 - **`sessions:read`**: the sessions view with its agents, tags and groups, a session's log, the
   count of sessions with unread updates, and agents' registrations.
 - **`sessions:write`**: also marking a session's log read, managing groups and tags and setting a
-  session's group and an agent's or a session's tags, and approving, rejecting and revoking agents'
-  registrations (ruling 1).
+  session's group and an agent's or a session's tags.
+- **`sessions:approve`**: also approving, rejecting and revoking agents' registrations (ruling 5).
 
-A write scope includes its resource's read. Scopes are named `<resource>:<access>` so that later
-resources add scopes without changing these. No key may manage keys, passkeys or Settings, or
-transcribe; those stay behind a passkey.
+A write or approve scope includes its resource's read, and neither includes the other. Scopes are
+named `<resource>:<access>` so that later resources add scopes without changing these. No key may
+manage keys, passkeys or Settings, or transcribe; those stay behind a passkey.
 
 **K5. Revocation and expiry are immediate.** A revoked or expired key stops working at once. The
 server keeps no copy of a key's secret from which the key could be used.
@@ -120,7 +120,7 @@ operator, which ADR 0001 ruled out.
    same code. Asked what a key may do: "Yeah, let's define threads read/write and sessions
    read/write for now. Leave room for other scopes." Asked whether keys may approve or revoke agent
    registrations: "Only with session/write". Taken: K4's four scopes, named so others can follow,
-   with registrations under the sessions scopes.
+   with registrations under the sessions scopes (amended by ruling 5).
 2. (2026-11-21) Asked about expiry, the operator chose "Same, plus no expiry"; about the
    documentation's scope, "Operator and agent mounts"; and whether to commit the generated
    description with a drift check, "Yes". Taken: K2's no-expiry choice, D1's two APIs, and D2's
@@ -130,6 +130,12 @@ operator, which ADR 0001 ruled out.
 4. (2026-11-21) "Btw, in doing this, we're going to need to add more structure to settings. It's
    important that it still work on mobile, but think more Github settings vs what we have today.
    What you do here will establish the pattern for future settings expansion." Taken: S1.
+5. (2026-11-21) Asked to accept the revised requirements, the operator chose "Accept with changes":
+   "Only two changes: 1. Move passkeys to /settings/passkeys 2. Lets add a special sessions:approve
+   scope specifically for approving/managing registrations. sessions:write is just groups/tags/etc."
+   Taken: Passkeys is the Settings section at `/settings/passkeys`, and `/passkeys` redirects there
+   (S1); K4 gains `sessions:approve`, which alone covers approving, rejecting and revoking
+   registrations.
 
 ## Definition of done
 

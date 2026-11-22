@@ -30,10 +30,12 @@ contract, and documentation.
   Its secret, `agention_` and 256 random bits in base64url, is shown once; the server keeps only its
   SHA-256. Creating or revoking a key needs the recent sign-in that passkey changes need. At most 20
   keys are live at once.
-- **Scopes, `<resource>:<access>`.** `threads:read`, `threads:write`, `sessions:read` and
-  `sessions:write`, a write including its resource's read. Registrations belong to sessions:
-  approving, rejecting or revoking an agent needs `sessions:write`. No key may manage keys, passkeys
-  or Settings, or transcribe. Later resources add scopes of the same form.
+- **Scopes, `<resource>:<access>`.** `threads:read`, `threads:write`, `sessions:read`,
+  `sessions:write` and `sessions:approve`. A write or approve scope includes its resource's read,
+  and neither includes the other. Approving, rejecting or revoking an agent's registration needs
+  `sessions:approve`, a scope of its own, since it decides who may write to the operator;
+  `sessions:write` covers only groups, tags and a session log's read mark. No key may manage keys,
+  passkeys or Settings, or transcribe. Later resources add scopes of the same form.
 - **A third mount, the same operations.** `/api/operator/v1/` accepts only a bearer key and refuses
   cookies. It serves the operator operations the web UI uses, declared once with their schemas,
   scope and handler, so the web mount and the operator mount run the same code. The web mount keeps
@@ -54,7 +56,7 @@ contract, and documentation.
 ## Consequences
 
 - A key is a bearer credential with the operator's reach within its scopes. Whoever holds it acts as
-  the operator until it expires or is revoked, so a leaked `sessions:write` key can approve an
+  the operator until it expires or is revoked, so a leaked `sessions:approve` key can approve an
   agent. Keys cannot make more keys, add passkeys, or change Settings, so a leaked key cannot
   outlive its revocation.
 - A copy of the database holds no usable key, as it holds no usable browser session.

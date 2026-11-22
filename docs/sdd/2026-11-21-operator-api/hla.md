@@ -73,16 +73,18 @@ documented response must have one.
 
 ## Scopes
 
-A scope is `<resource>:<access>`, with resources `threads` and `sessions` and accesses `read` and
-`write`, a write including its resource's read (K4). `packages/api` defines them as one enum, so a
-later resource is a new member. Each operator operation names the one scope it requires:
+A scope is `<resource>:<access>`: `threads:read`, `threads:write`, `sessions:read`, `sessions:write`
+and `sessions:approve`. A write or approve scope includes its resource's read, and neither includes
+the other (K4). `packages/api` defines them as one enum, so a later resource is a new member. Each
+operator operation names the one scope it requires:
 
-| Scope            | Operations                                                                                                                                               |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `threads:read`   | thread list, counts, a thread                                                                                                                            |
-| `threads:write`  | start a thread, send a message, read, unread, archive, bulk read and archive                                                                             |
-| `sessions:read`  | sessions, unread updates, a session's log, groups and tags, registrations                                                                                |
-| `sessions:write` | the log's read mark, group create, rename, remove, tag rename, remove, a session's group and tags, an agent's tags, registration approve, reject, revoke |
+| Scope              | Operations                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `threads:read`     | thread list, counts, a thread                                                                                      |
+| `threads:write`    | start a thread, send a message, read, unread, archive, bulk read and archive                                       |
+| `sessions:read`    | sessions, unread updates, a session's log, groups and tags, registrations                                          |
+| `sessions:write`   | the log's read mark, group create, rename, remove, tag rename, remove, a session's group and tags, an agent's tags |
+| `sessions:approve` | registration approve, reject, revoke                                                                               |
 
 A test over the list confirms every operation requiring a read scope is a `GET` whose store work
 writes nothing but credential bookkeeping (a browser session's idle expiry, a key's last use), so a
@@ -102,7 +104,7 @@ read key cannot change anything.
   can do today, so the thread routes check scopes the same way on every mount. The mount refuses an
   operation whose scope the identity lacks as `not_found`, as administration is refused today,
   before the handler runs. `authorizeAdministration` gives way to the scope check, since
-  `sessions:write` now covers what administration meant. `checkCredential` confirms, inside each
+  `sessions:approve` now covers what administration meant. `checkCredential` confirms, inside each
   operation's transaction, that the key is unrevoked and unexpired, so revocation takes effect on
   the next request (K5). Last used is written at most hourly, as a browser session's idle expiry is.
 - **Management.** On the web mount only: `GET /keys`; `POST /keys` with the name, scopes and expiry,
@@ -160,7 +162,8 @@ with **Sign out** last, apart from the groups.
 - **Narrow screens:** `/settings` shows the navigation alone, as a full-width list; a section's page
   shows a back link to it in place of the column. The breakpoint is the one the app's layout already
   uses, in CSS, so nothing about the layout is decided in script.
-- `/passkeys` leads to `/settings/passkeys`, and `/settings` keeps working (S1).
+- Passkeys is at `/settings/passkeys`, and `/passkeys` redirects there, replacing the history entry
+  (S1, ruling 5).
 - The recent sign-in offer, which every section that changes a secret needs, moves from the view's
   top into the sections that need it (Passkeys, Voice, API keys), shown once per section. Each
   section loads its own data, so opening one fetches only what it shows.
@@ -183,8 +186,8 @@ prompt the passkey section uses.
 - The operator mount has no cookie path and the web mount no `Authorization` path, so neither
   credential can borrow the other's authority, and CSRF does not arise on the key mount.
 - No key can manage keys, passkeys or Settings, so a leaked key cannot make itself another key, add
-  a passkey, or change where audio goes. A `sessions:write` key can approve an agent's registration
-  (ruling 1), so the operator guide and the key form say what that scope grants.
+  a passkey, or change where audio goes. Only a `sessions:approve` key can approve an agent's
+  registration (ruling 5), so the operator guide and the key form say what that scope grants.
 - ADR 0003 records that integrations may act for the operator through keys, superseding that clause
   of ADR 0001 "Not doing"; `SECURITY.md` gains the key's threat model; and
   `docs/review-checklist.md` gains a check that every new operation names its scope, and that read
