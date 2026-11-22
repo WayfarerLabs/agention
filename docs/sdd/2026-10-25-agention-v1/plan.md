@@ -354,5 +354,6 @@ command. Governed by the [Completion LLD](completion-lld.md).
       diagrams drawn in isolation, with a `mermaid` block among the Markdown hand-check inputs), and
       the live test running the bridge from npm; and the rules `docs/review-checklist.md` states for
       them checked against what was built. (agention#26)
-- [ ] The release that completes v1, through release-please.
+- [x] The release that completes v1, through release-please (0.4.0, published 2026-11-22 with
+      provenance; it also carries voice and settings, ruling 87).
 - [ ] `locked.md` in this directory, with the final merge.

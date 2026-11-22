@@ -1291,6 +1291,9 @@ Recorded from the design conversation.
     Sessions view shows "N open asks", and "Blocked on you" only while one blocks, in the thread
     list's tones. (The stale idle was the lead's session not reporting working; making a session's
     state follow what it does is agention#34, after v1.)
+87. (2026-11-21) "I'm tempted to pull the voice support into 0.4.0. Does that screw you up?" Taken:
+    the voice and settings effort merged before release-please's 0.4.0 pull request, so 0.4.0, the
+    release that completes v1 (ruling 79), also carries voice and the Settings view.
 
 ## Out of scope for v1
 
