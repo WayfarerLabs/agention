@@ -105,7 +105,8 @@ const requestIdText =
   "Give every write a new request_id; retrying a write with the same one is safe.";
 const attachingText =
   "To attach a file, upload it with file_upload, then name its upload in attachments; text " +
-  "and detail can link to the message's own files as [label](attachment:name).";
+  "and detail can link to the message's own files as [label](attachment:name), or as " +
+  "[label](<attachment:name with spaces>) for a name with spaces.";
 
 // registerTools defines the bridge's tools on the MCP server. Each thread tool
 // is one request on the agent API, apart from asking again for a smaller page

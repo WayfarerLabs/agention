@@ -122,7 +122,9 @@ export function registerFileTools(
       "{upload}, before expires_at, and the message carries it for good. The name, by default " +
       `the file's own, is the one it is attached under. Up to ${megabytes(maxFileBytes)}; ` +
       "only a regular file, and none of the bridge's own key directory. A large file on a slow " +
-      "link can outlast your host's limit on one tool call.",
+      "link can outlast your host's limit on one tool call. Each upload is one request of this " +
+      "session's rate budget, so a burst of many files can be refused as rate_limited: wait the " +
+      "seconds its message names, then call again.",
     fileUploadInput,
     async (input, signal) => {
       const { home } = connected();

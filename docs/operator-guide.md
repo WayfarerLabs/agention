@@ -895,11 +895,19 @@ the bridge's tools answer with what to change, such as running `chmod go-w ~`; t
 nothing that exists.
 
 An agent sends a file with `file_upload`, by its path on the agent's machine, then names the upload
-in a message. The bridge sends only a regular file of up to 100 MiB, and never one of its own keys.
-`file_get` fetches a file a message carries into `~/.cache/agention/files/`, private to the agent's
-user like the key directory, named by the file's reference rather than its sender's name, and
-removes what it fetched more than a week ago; you may clear that directory whenever you like. A
-fetched image of up to 3.5 MiB also reaches the agent's model as an image.
+in a message. The bridge sends only a regular file of up to 100 MiB, and never a file in its own key
+directory. `file_get` fetches a file a message carries into `~/.cache/agention/files/`, private to
+the agent's user like the key directory, named by the file's reference rather than its sender's
+name, and removes what it fetched more than a week ago; you may clear that directory whenever you
+like. A fetched PNG, JPEG, GIF or WebP image of up to 3.5 MiB also reaches the agent's model as an
+image; a larger one, or an image of another type, reaches it by its path alone. An image the host
+cannot read, such as one whose bytes are broken, leaves the host's note in its place, and the call
+still succeeds.
+
+Each upload is one request of the agent session's [rate budget](#rate-budgets), as every call is, so
+an agent sending many files in a burst can be refused as `rate_limited`; the refusal says how many
+seconds to wait, as its `Retry-After` header does, and `file_upload`'s description tells the agent
+to wait that long and call it again. Your own uploads spend no budget.
 
 An agent host limits how long one tool call may take, and a large file on a slow link can take
 longer than a host allows. The Codex plugin sets Codex's limit to 10 minutes for the bridge's tools,
@@ -1119,6 +1127,9 @@ answered `rate_limited` with a `Retry-After` header.
 | Agent requests that fail authentication                | Shared      | 60    | 1 per second       |
 | Passkey sign-ins that fail                             | Shared      | 20    | 1 every 6 seconds  |
 | Passkey links that fail, at the link or at the passkey | Shared      | 20    | 1 every 6 seconds  |
+
+A key's budget counts every request its session makes, each upload, each file fetched and each read
+a tool makes on the way included: a message of ten files is at least eleven requests.
 
 The shared budgets other than registrations are spent only by requests that fail, after they have
 been checked, so exhausting one never refuses a valid agent key, passkey or link; only further

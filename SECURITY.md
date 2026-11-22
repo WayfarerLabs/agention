@@ -230,7 +230,8 @@ sends only what its tools are given.
   path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a
   symlink is never sent. It opens the path without waiting and without taking a terminal as the
   bridge's own. This keeps an agent from handing the server a credential by mistake; it is no
-  boundary against the agent, which runs as the same user and could read the key itself.
+  boundary against the agent, which runs as the same user and could read the key itself, so a hard
+  link to a key elsewhere, whose real path is its own, is not refused.
 - **Files it writes.** `file_get` writes only into `~/.cache/agention/files/`, a
   [private](#private-files) directory outside the key directory, each file with mode 0600 and named
   by the file's reference and the extension of the type it was served as, never by the name its

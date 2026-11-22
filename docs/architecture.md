@@ -481,9 +481,9 @@ bound with status 413. An upload's bound is 100 MiB, the largest file; every oth
 which holds a message with every field at its bound. The bound is chosen by `isUploadRequest`
 (`apps/server/src/http/uploads.ts`), from the path Hono routes, with dot segments resolved and the
 query ignored, which the listener's deadlines read too, so both always agree; with a
-`Content-Length` the bound compares the header alone and reads nothing. A body that is not valid
-UTF-8 is refused, never repaired. Every request's `Host` must be the origin's host, so a page on
-another name that resolves to the server cannot reach it, and no forwarded header is read. Every
+`Content-Length` the bound compares the header alone and reads nothing. A JSON body that is not
+valid UTF-8 is refused, never repaired. Every request's `Host` must be the origin's host, so a page
+on another name that resolves to the server cannot reach it, and no forwarded header is read. Every
 response carries the security headers: a content security policy that allows only the server's own
 scripts, styles, images, media and connections, `blob:` images and the diagram frame as its only
 frame, and no framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and
@@ -579,11 +579,10 @@ The routes on files are thread routes, so they are the same on both mounts under
   policy can never be pointed at a file. `Content-Disposition` is `attachment` for SVG and
   `application/octet-stream`, `inline` for the rest, with an ASCII fallback name and the name itself
   in RFC 5987's `filename*`. Beside `Content-Length`, a file answers with `Accept-Ranges: bytes`, a
-  strong `ETag` of its SHA-256 in hex,
-  `Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'`,
-  `Cross-Origin-Resource-Policy: same-origin` and
-  `Cache-Control: private, max-age=31536000, immutable`, which it declares its own, and the other
-  security headers, the agent API version on the agent mount included.
+  strong `ETag` of its SHA-256 in hex, `Cross-Origin-Resource-Policy: same-origin`,
+  `Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'` and
+  `Cache-Control: private, max-age=31536000, immutable`, the last two declared its own, and the
+  other security headers, the agent API version on the agent mount included.
 
 | Situation                                                     | Code            | Status |
 | ------------------------------------------------------------- | --------------- | ------ |
@@ -840,26 +839,26 @@ its key file, its tokens and where its requests may go.
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, `session_update`, which reports
   the session's status, and two file tools, `file_upload` and `file_get`, each annotated neither
   read-only nor destructive and as acting on a closed world. `thread_create` and `message_send` take
-  a message's detail beside its text, and refuse it without text, as the server does, and its
-  `attachments`. A session never answers an ask, so `message_send` takes no answers; it takes the
-  withdrawals of the session's own open asks. `message_wait` waits for nothing by default and
-  answers at once, which is how an agent checks for answers as it works; a longer wait is for an
-  agent with no other work and open asks or unread messages, or for a waiter of its own.
-  `register`'s answer, once approved, says how answers reach the agent: when it checks. No tool
-  marks a thread unread, which agents have no use for, though the agent API offers it as the web API
-  does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but the
-  bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the field,
-  as the server would answer it. A tool also refuses a field it does not know, at any depth, as
-  `invalid_input` naming it, so a misspelled field never drops silently, while the server's request
-  schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying on that
-  against an older server. An answer is the API's JSON as text, and a call the server refuses is an
-  error result holding the API's error JSON. A problem the bridge finds itself, such as its
-  configuration, an unreachable server, missing names or a cancelled call, is an error result in
-  plain text, worded for the agent: what to do, or, for what only the operator can fix, to tell them
-  at the terminal what to change and whether the session must restart. `apps/bridge/src/errors.ts`
-  words those. `message_wait` gives every error but `invalid_input` no sooner than its
-  `wait_seconds` would have ended, counted from the call's start, so an agent that waits again at
-  once does not call a server it cannot use in a tight loop.
+  a message's detail beside its text, refusing detail without text as the server does, and its
+  `attachments`, which may be all a message carries. A session never answers an ask, so
+  `message_send` takes no answers; it takes the withdrawals of the session's own open asks.
+  `message_wait` waits for nothing by default and answers at once, which is how an agent checks for
+  answers as it works; a longer wait is for an agent with no other work and open asks or unread
+  messages, or for a waiter of its own. `register`'s answer, once approved, says how answers reach
+  the agent: when it checks. No tool marks a thread unread, which agents have no use for, though the
+  agent API offers it as the web API does. The SDK advertises each tool's JSON Schema, generated
+  from the shared schemas, but the bridge parses the arguments itself, so input outside a bound is
+  `invalid_input` naming the field, as the server would answer it. A tool also refuses a field it
+  does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
+  silently, while the server's request schemas ignore unknown fields, and the agent API version
+  keeps a newer bridge from relying on that against an older server. An answer is the API's JSON as
+  text, and a call the server refuses is an error result holding the API's error JSON. A problem the
+  bridge finds itself, such as its configuration, an unreachable server, missing names or a
+  cancelled call, is an error result in plain text, worded for the agent: what to do, or, for what
+  only the operator can fix, to tell them at the terminal what to change and whether the session
+  must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error but
+  `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's start,
+  so an agent that waits again at once does not call a server it cannot use in a tight loop.
 - **File tools** (`apps/bridge/src/file-tools.ts`). `file_upload` takes an absolute path and an
   optional name, by default the path's last segment, and declares the type `typeOfName` gives the
   name, reading nothing of the file to choose it. It opens the path with `O_RDONLY`, `O_NONBLOCK`
@@ -876,12 +875,13 @@ its key file, its tokens and where its requests may go.
   shares, since references are random. The file is named by its reference and the extension of its
   served type, `bin` for one without, never by the sender's name, and only a reference that parses
   as one names a file. It streams into a `.<random>.part` file of mode 0600, renamed into place once
-  whole, which any failure removes; each call first removes every entry older than seven days,
-  partial files included. It answers with the path, name, size, declared type and served type, and
-  when the file is a PNG, JPEG, GIF or WebP of at most 3.5 MiB whose leading bytes carry that type's
-  signature, an `image` block of it after the text, which both hosts show the model; a larger
-  image's answer says to read the file at its path. Answers are text, with that block alone beside
-  it: no `resource_link` or `structuredContent`.
+  whole, which any failure removes. Each call, once it has read the message and before it fetches
+  the file, removes every file of the directory last written more than seven days ago, partial files
+  included, leaving directories alone. It answers with the path, name, size, declared type and
+  served type, and when the file is a PNG, JPEG, GIF or WebP of at most 3.5 MiB whose leading bytes
+  carry that type's signature, an `image` block of it after the text, which both hosts show the
+  model; a larger image's answer says to read the file at its path. Answers are text, with that
+  block alone beside it: no `resource_link` or `structuredContent`.
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`. A page of messages or threads over the limit is asked for
