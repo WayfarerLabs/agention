@@ -37,15 +37,13 @@ export function isUploadRequest(method: string, url: string): boolean {
 
 // freeBytes reads how many bytes the server may still write in a directory:
 // the blocks an unprivileged user may take.
-export async function freeBytes(directory: string): Promise<number> {
+async function freeBytes(directory: string): Promise<number> {
   const stats = await statfs(directory);
   return stats.bavail * stats.bsize;
 }
 
 export interface UploadOptions {
   store: Store;
-  // The bytes free where the database lives.
-  freeBytes: (directory: string) => Promise<number>;
   log: (message: string) => void;
 }
 
@@ -63,7 +61,7 @@ export async function receiveUpload(
   const { name } = parseQuery(c, uploadQuery);
   const size = Number(c.req.header("content-length") ?? "0");
   const type = declaredTypeOf(c.req.header("content-type"));
-  const free = await options.freeBytes(path.dirname(store.db.file));
+  const free = await freeBytes(path.dirname(store.db.file));
   if (free - bytesArriving(store) - size < freeSpaceFloor) {
     throw new ApiError(
       "storage_full",

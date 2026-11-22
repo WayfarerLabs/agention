@@ -31,8 +31,6 @@ export interface AgentApiOptions {
   shutdown: AbortSignal;
   // Where a failure the call carries on past is written.
   log: (message: string) => void;
-  // The bytes free where the database lives, which uploads leave room in.
-  freeBytes: (directory: string) => Promise<number>;
 }
 
 // The least time between two logged failures to mark a session seen.
@@ -134,6 +132,6 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
     const signal = AbortSignal.any([c.req.raw.signal, options.shutdown]);
     return c.json(await waitForThreads(store, c.var.identity, target, query, signal));
   });
-  api.route("/s/:agent/:session", threadRoutes({ store, freeBytes: options.freeBytes, log }));
+  api.route("/s/:agent/:session", threadRoutes({ store, log }));
   return api;
 }

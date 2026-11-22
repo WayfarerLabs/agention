@@ -6,21 +6,26 @@ import {
   type UploadResult,
 } from "@wayfarerlabs/agention-api";
 import { connect } from "node:net";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { beginUpload } from "../store/index.ts";
 import { maxBodyBytes } from "./app.ts";
 import { codeOf, json, type Mount, mountHeaders, send, upload } from "./file-test-support.ts";
 import { type AgentKey, Harness, host, newThread } from "./test-harness.ts";
 import { freeSpaceFloor, isUploadRequest } from "./uploads.ts";
 
+// The bytes the stubbed file system says are free, in blocks of one byte.
+const disk = vi.hoisted(() => ({ free: 0 }));
+vi.mock("node:fs/promises", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:fs/promises")>()),
+  statfs: async () => ({ bavail: disk.free, bsize: 1 }),
+}));
+
 let harness: Harness;
 let agent: AgentKey;
-// The bytes the stubbed file system says are free.
-let free: number;
 
 beforeEach(async () => {
-  free = 100 * 1024 ** 3;
-  harness = new Harness({ freeBytes: async () => free });
+  disk.free = 100 * 1024 ** 3;
+  harness = new Harness();
   agent = await harness.approvedAgent("builder", "main");
 });
 
@@ -131,10 +136,10 @@ describe("an upload", () => {
       },
     );
     const size = 10;
-    free = freeSpaceFloor + arriving + size - 1;
+    disk.free = freeSpaceFloor + arriving + size - 1;
     const refused = await upload(harness, "agent", agent, Buffer.alloc(size));
     expect([refused.status, codeOf(refused)]).toEqual([507, "storage_full"]);
-    free += 1;
+    disk.free += 1;
     expect((await upload(harness, "agent", agent, Buffer.alloc(size))).status).toBe(200);
   });
 

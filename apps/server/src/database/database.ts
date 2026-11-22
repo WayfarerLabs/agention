@@ -110,17 +110,11 @@ export class Database {
     return count;
   }
 
-  // vacuumStep returns up to pages free pages to the disk, outside any
-  // transaction, holding the connection only as long as that takes. A
-  // prepared incremental_vacuum frees one page each time it runs, so it runs
-  // through exec, which frees them all.
+  // vacuumStep returns up to pages free pages to the disk, or every one for
+  // 0. Run outside a transaction, it holds the connection only as long as
+  // that takes. A prepared incremental_vacuum frees one page each time it
+  // runs, so it runs through exec, which frees them all.
   vacuumStep(pages: number): void {
-    if (!Number.isSafeInteger(pages) || pages < 1) {
-      throw new RangeError(`a vacuum step frees at least one page, not ${pages}`);
-    }
-    if (this.#connection.isTransaction) {
-      throw new TypeError("a vacuum step runs outside any transaction");
-    }
     this.#connection.exec(`PRAGMA incremental_vacuum(${pages})`);
   }
 

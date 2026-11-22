@@ -151,8 +151,6 @@ export class BridgeHarness {
       // The fixture's clock stands still, so no budget refills; these tests
       // are not about budgets.
       rates: { ...defaultRates, key: { burst: 10_000, interval: 1000 } },
-      // Nor about the disk, which is always roomy enough.
-      freeBytes: () => Promise.resolve(Number.MAX_SAFE_INTEGER),
       shutdown: this.server.shutdown.signal,
       log: (message) => this.logged.push(message),
     });

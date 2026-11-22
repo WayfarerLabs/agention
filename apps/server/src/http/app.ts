@@ -15,7 +15,7 @@ import { stateAgentApiVersion } from "./agent-api-version.ts";
 import { diagramFramePath, serveDiagramFrame } from "./diagram-frame.ts";
 import { declaredOwn } from "./own-headers.ts";
 import { defaultRates, RateBudgets, RateLimitedError, type Rates } from "./rates.ts";
-import { freeBytes as fileSystemFreeBytes, isUploadRequest } from "./uploads.ts";
+import { isUploadRequest } from "./uploads.ts";
 import { webApi } from "./web-api.ts";
 import { serveWebUi } from "./web-ui.ts";
 
@@ -87,9 +87,6 @@ export interface AppOptions {
   // The transcription provider's client; the OpenAI-compatible one unless
   // given another.
   transcription?: TranscriptionProvider;
-  // How many bytes are free where the database lives, by default as the file
-  // system says.
-  freeBytes?: (directory: string) => Promise<number>;
 }
 
 const notFoundBody: ErrorBody = { error: { code: "not_found", message: "not found" } };
@@ -107,7 +104,6 @@ export function createApp(options: AppOptions): Hono {
   const budgets = new RateBudgets(options.rates ?? defaultRates, store.clock);
   const shutdown = options.shutdown ?? new AbortController().signal;
   const log = options.log ?? ((message: string) => process.stderr.write(`${message}\n`));
-  const freeBytes = options.freeBytes ?? fileSystemFreeBytes;
   const app = new Hono();
 
   app.use(securityHeaders(origin));
@@ -158,7 +154,7 @@ export function createApp(options: AppOptions): Hono {
     (isUploadRequest(c.req.method, c.req.url) ? fileLimit : requestLimit)(c, next),
   );
 
-  app.route("/api/agent", agentApi({ store, origin, budgets, shutdown, log, freeBytes }));
+  app.route("/api/agent", agentApi({ store, origin, budgets, shutdown, log }));
   app.route(
     "/api/web",
     webApi({
@@ -169,7 +165,6 @@ export function createApp(options: AppOptions): Hono {
       voiceEnvironment: options.voiceEnvironment ?? {},
       transcription: options.transcription ?? openAiCompatible(),
       log,
-      freeBytes,
     }),
   );
   app.all("/api", (c) => c.json(notFoundBody, 404));

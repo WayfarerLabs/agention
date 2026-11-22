@@ -145,11 +145,11 @@ export function completeUpload(
 }
 
 // removePending removes a file no message names, with its bytes, in one
-// transaction.
+// transaction. The triggers refuse it for a file a message names.
 export function removePending(db: Database, id: number): void {
   db.transaction(() => {
     db.prepare("DELETE FROM file_chunks WHERE file_id = ?").run(id);
-    db.prepare("DELETE FROM files WHERE id = ? AND attached_at IS NULL").run(id);
+    db.prepare("DELETE FROM files WHERE id = ?").run(id);
   });
 }
 
