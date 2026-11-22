@@ -14,6 +14,7 @@ import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";
 import type { Identity } from "../identity.ts";
 import { checkBaseUrl } from "../transcription/base-url.ts";
+import { storageTotals } from "./files.ts";
 import type { Store } from "./store.ts";
 
 // Voice: the transcription provider the server calls with the operator's
@@ -118,8 +119,7 @@ function voiceOf(saved: Saved, environment: VoiceEnvironment): VoiceSettings | n
 
 const settingsOf = (db: Database, environment: VoiceEnvironment): SettingsResult => ({
   voice: voiceOf(readRow(db), environment),
-  // Placeholder until the file store counts the server's files.
-  storage: { files: 0, bytes: 0 },
+  storage: storageTotals(db),
 });
 
 // readSettings reads the operator's settings, with no more of a key than its

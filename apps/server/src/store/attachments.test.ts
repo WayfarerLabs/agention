@@ -1,0 +1,329 @@
+import { pendingLifetime, threadFilesQuery } from "@wayfarerlabs/agention-api";
+import { createHash } from "node:crypto";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "../errors.ts";
+import { findCarriedFile, listThreadFiles, readFileChunk } from "./file-reads.ts";
+import { beginUpload, chunkBytes, completeUpload, writeChunk } from "./files.ts";
+import { type Agent, Fixture, requestId, threadTarget } from "./test-fixture.ts";
+import type { Identity } from "../identity.ts";
+
+let fixture: Fixture;
+let agent: Agent;
+
+beforeEach(() => {
+  fixture = new Fixture();
+  agent = fixture.registerAgent("builder", "main");
+});
+
+afterEach(() => {
+  fixture.close();
+});
+
+function failure(fn: () => unknown): { code: string; field: string | undefined } {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { code: error.code, field: error.field };
+    }
+    throw error;
+  }
+  throw new Error("expected the operation to fail");
+}
+
+// upload uploads a file of the given text, under a name, and answers with
+// its reference.
+function upload(
+  text: string,
+  options: { name?: string; identity?: Identity; target?: Agent["target"] } = {},
+): string {
+  const bytes = Buffer.from(text);
+  const started = beginUpload(
+    fixture.store,
+    options.identity ?? agent.identity,
+    options.target ?? agent.target,
+    { name: options.name ?? "notes.txt", type: "text/plain", size: bytes.length },
+  );
+  if (bytes.length > 0) {
+    writeChunk(fixture.store, started, 0, bytes);
+  }
+  return completeUpload(
+    fixture.store,
+    started,
+    bytes.length,
+    createHash("sha256").update(bytes).digest(),
+  ).upload;
+}
+
+const target = (number = 1) => threadTarget(agent, number);
+const messageAt = (seq: number) =>
+  fixture.thread(fixture.operator, target()).messages.find((message) => message.seq === seq);
+
+describe("a message's attachments", () => {
+  it("carry the writer's uploads in order, under their own names or the ones given", () => {
+    const first = upload("one", { name: "one.txt" });
+    const second = upload("two!", { name: "two.txt" });
+    fixture.createThread(agent, {
+      text: "Logs attached.",
+      attachments: [{ upload: second, name: "renamed.txt" }, { upload: first }],
+    });
+    expect(messageAt(1)?.attachments).toEqual([
+      { name: "renamed.txt", file: second, size: 4, type: "text/plain" },
+      { name: "one.txt", file: first, size: 3, type: "text/plain" },
+    ]);
+    expect(fixture.thread(fixture.operator, target()).files).toEqual({ count: 2, bytes: 7 });
+  });
+
+  it("may be all a message carries", () => {
+    fixture.createThread(agent);
+    const file = upload("x", { identity: fixture.operator });
+    fixture.write(fixture.operator, target(), { attachments: [{ upload: file }] });
+    expect(messageAt(2)?.attachments?.map((each) => each.file)).toEqual([file]);
+  });
+
+  it("refuse alike another writer's, another session's, an unknown, an expired and an attached upload", () => {
+    fixture.createThread(agent);
+    const nightly = fixture.registerAgent("builder", "nightly");
+    const operators = upload("op", { identity: fixture.operator });
+    const otherSession = upload("ns", { identity: nightly.identity, target: nightly.target });
+    const attached = upload("at");
+    fixture.write(agent.identity, target(), { attachments: [{ upload: attached }] });
+    const expired = upload("ex");
+    fixture.advance(pendingLifetime);
+    for (const ref of [operators, otherSession, "A".repeat(22), expired, attached]) {
+      expect(
+        failure(() => fixture.write(agent.identity, target(), { attachments: [{ upload: ref }] })),
+      ).toEqual({ code: "invalid_input", field: "attachments.0.upload" });
+    }
+    // The operator's own upload in another thread's session is refused too.
+    fixture.createThread(nightly);
+    expect(
+      failure(() =>
+        fixture.write(fixture.operator, threadTarget(nightly, 1), {
+          attachments: [{ upload: upload("o2", { identity: fixture.operator }) }],
+        }),
+      ),
+    ).toEqual({ code: "invalid_input", field: "attachments.0.upload" });
+  });
+
+  it("keep files of the replaced message only by naming them, and the replaced message keeps its own", () => {
+    const kept = upload("kept", { name: "Kept.txt" });
+    const dropped = upload("dropped", { name: "dropped.txt" });
+    fixture.createThread(agent, {
+      text: "v1",
+      attachments: [{ upload: kept }, { upload: dropped }],
+    });
+    const fresh = upload("fresh", { name: "fresh.txt" });
+    fixture.write(agent.identity, target(), {
+      text: "v2",
+      replaces: 1,
+      attachments: [{ keep: "Kept.txt" }, { upload: fresh }],
+    });
+    expect(messageAt(2)?.attachments?.map((each) => [each.name, each.file])).toEqual([
+      ["Kept.txt", kept],
+      ["fresh.txt", fresh],
+    ]);
+    expect(messageAt(1)?.attachments?.map((each) => each.file)).toEqual([kept, dropped]);
+    // A kept file counts once.
+    expect(fixture.thread(fixture.operator, target()).files).toEqual({
+      count: 3,
+      bytes: "kept".length + "dropped".length + "fresh".length,
+    });
+    // A replacement without keep leaves the files with the message it replaced.
+    fixture.write(agent.identity, target(), { text: "v3", replaces: 2 });
+    expect(messageAt(3)?.attachments).toBeUndefined();
+    expect(messageAt(2)?.attachments).toHaveLength(2);
+  });
+
+  it("keep a file only on a replacement, and only one the replaced message carries", () => {
+    fixture.createThread(agent, { attachments: [{ upload: upload("a", { name: "a.txt" }) }] });
+    expect(
+      failure(() => fixture.write(agent.identity, target(), { attachments: [{ keep: "a.txt" }] })),
+    ).toEqual({ code: "invalid_input", field: "attachments.0.keep" });
+    expect(
+      failure(() =>
+        fixture.write(agent.identity, target(), { replaces: 1, attachments: [{ keep: "b.txt" }] }),
+      ),
+    ).toEqual({ code: "invalid_input", field: "attachments.0.keep" });
+  });
+
+  it("refuse two names equal after NFC normalization, an upload's own name included", () => {
+    const composed = "café.txt";
+    const decomposed = "café.txt";
+    fixture.createThread(agent);
+    expect(
+      failure(() =>
+        fixture.write(agent.identity, target(), {
+          attachments: [
+            { upload: upload("1", { name: composed }) },
+            { upload: upload("2", { name: decomposed }) },
+          ],
+        }),
+      ),
+    ).toEqual({ code: "invalid_input", field: "attachments.1.name" });
+    // Case is kept: these are two names.
+    fixture.write(agent.identity, target(), {
+      attachments: [
+        { upload: upload("3", { name: "Log.txt" }) },
+        { upload: upload("4", { name: "log.txt" }) },
+      ],
+    });
+    expect(messageAt(2)?.attachments).toHaveLength(2);
+  });
+
+  it("number at most ten", () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({
+      upload: upload(`${i}`, { name: `${i}.txt` }),
+    }));
+    fixture.createThread(agent, { attachments: ten });
+    expect(messageAt(1)?.attachments).toHaveLength(10);
+    const eleven = Array.from({ length: 11 }, (_, i) => ({
+      upload: upload(`${i}`, { name: `${i}.txt` }),
+    }));
+    expect(() => fixture.write(agent.identity, target(), { attachments: eleven })).toThrow(/10/);
+  });
+
+  it("are part of a write's digest, so a retry answers as the first did after its uploads were consumed", () => {
+    fixture.createThread(agent);
+    const file = upload("x");
+    const id = requestId();
+    const write = (attachments: unknown) =>
+      fixture.write(agent.identity, target(), { request_id: id, seen_through: 1, attachments });
+    const first = write([{ upload: file }]);
+    expect(write([{ upload: file }])).toEqual(first);
+    expect(failure(() => write([{ upload: file, name: "other.txt" }]))).toEqual({
+      code: "request_id_conflict",
+      field: "request_id",
+    });
+    // A thread's first message too.
+    const opening = upload("y");
+    const create = { request_id: requestId(), attachments: [{ upload: opening }] };
+    const created = fixture.createThread(agent, create);
+    expect(fixture.createThread(agent, create)).toEqual(created);
+  });
+
+  it("land with their message or not at all", () => {
+    fixture.createThread(agent);
+    const file = upload("x");
+    expect(
+      failure(() =>
+        fixture.write(agent.identity, target(), {
+          attachments: [{ upload: file }, { upload: "B".repeat(22) }],
+        }),
+      ).code,
+    ).toBe("invalid_input");
+    const pending = fixture.db.prepare("SELECT attached_at FROM files").get() as {
+      attached_at: number | null;
+    };
+    expect(pending.attached_at).toBeNull();
+  });
+});
+
+describe("a missing file", () => {
+  it("reads as missing in its messages and the thread's list, and its read is not_found", () => {
+    const file = upload("gone", { name: "gone.txt" });
+    const empty = upload("", { name: "empty.txt" });
+    fixture.createThread(agent, { attachments: [{ upload: file }, { upload: empty }] });
+    // As a future purge would leave it.
+    fixture.db.prepare("DROP TRIGGER file_chunks_kept").run();
+    fixture.db.prepare("DELETE FROM file_chunks").run();
+    expect(messageAt(1)?.attachments).toEqual([
+      { name: "gone.txt", file, size: 4, type: "text/plain", missing: true },
+      { name: "empty.txt", file: empty, size: 0, type: "text/plain" },
+    ]);
+    const listed = listThreadFiles(
+      fixture.store,
+      fixture.operator,
+      target(),
+      threadFilesQuery.parse({}),
+    );
+    expect(listed.files.map((each) => each.missing)).toEqual([true, undefined]);
+    const find = (name: string) => () =>
+      findCarriedFile(fixture.store, fixture.operator, {
+        ...target(),
+        seq: 1,
+        name,
+        ref: undefined,
+      });
+    expect(failure(find("gone.txt")).code).toBe("not_found");
+    expect(find("empty.txt")().size).toBe(0);
+  });
+});
+
+describe("the thread's file list", () => {
+  it("lists each file once, with the message that brought it, newest first, in pages", () => {
+    const a = upload("a", { name: "a.txt" });
+    const b = upload("b", { name: "b.txt" });
+    fixture.createThread(agent, { attachments: [{ upload: a }, { upload: b }] });
+    const c = upload("c", { name: "c.txt" });
+    fixture.advance(1000);
+    fixture.write(fixture.operator, target(), {
+      attachments: [{ upload: upload("d", { name: "d.txt", identity: fixture.operator }) }],
+    });
+    fixture.write(agent.identity, target(), {
+      replaces: 1,
+      attachments: [{ keep: "b.txt" }, { upload: c }],
+    });
+    const page = (cursor?: string) =>
+      listThreadFiles(
+        fixture.store,
+        fixture.operator,
+        target(),
+        threadFilesQuery.parse({ limit: "2", ...(cursor === undefined ? {} : { cursor }) }),
+      );
+    const first = page();
+    expect(first.files.map((each) => [each.seq, each.name])).toEqual([
+      [3, "c.txt"],
+      [2, "d.txt"],
+    ]);
+    expect(first.files[1]?.author).toEqual({ kind: "person", name: "operator" });
+    const second = page(first.next);
+    expect(second.files.map((each) => [each.seq, each.name, each.author.kind])).toEqual([
+      [1, "a.txt", "session"],
+      [1, "b.txt", "session"],
+    ]);
+    expect(second.next).toBeUndefined();
+    expect(failure(() => page("bm90IGEgY3Vyc29y"))).toEqual({
+      code: "invalid_input",
+      field: "cursor",
+    });
+  });
+
+  it("is not_found for a thread of another session", () => {
+    const nightly = fixture.registerAgent("builder", "nightly");
+    fixture.createThread(nightly);
+    expect(
+      failure(() =>
+        listThreadFiles(
+          fixture.store,
+          agent.identity,
+          threadTarget(nightly, 1),
+          threadFilesQuery.parse({}),
+        ),
+      ).code,
+    ).toBe("not_found");
+  });
+});
+
+describe("a file read", () => {
+  it("finds a message's file by its name, compared as names are, and its ref when given", () => {
+    const file = upload("hello", { name: "café.txt" });
+    fixture.createThread(agent, { attachments: [{ upload: file }] });
+    const find = (fields: { seq?: number; name?: string; ref?: string }) =>
+      findCarriedFile(fixture.store, agent.identity, {
+        ...target(),
+        seq: fields.seq ?? 1,
+        name: fields.name ?? "café.txt",
+        ref: fields.ref,
+      });
+    const found = find({ name: "café.txt", ref: file });
+    expect(found).toMatchObject({ name: "café.txt", size: 5, type: "text/plain" });
+    expect(Buffer.from(readFileChunk(fixture.store, agent.identity, found.id, 0) ?? [])).toEqual(
+      Buffer.from("hello"),
+    );
+    for (const miss of [{ seq: 2 }, { name: "other.txt" }, { ref: "C".repeat(22) }]) {
+      expect(failure(() => find(miss)).code).toBe("not_found");
+    }
+    expect(chunkBytes).toBe(1024 * 1024);
+  });
+});
