@@ -146,10 +146,7 @@ export class AgentApi {
 
   // upload sends a file's bytes and returns the body of a successful answer,
   // failing as request does. The bytes stream under the transfer's idle
-  // limit, and its answer then has the usual time to arrive. An answer that
-  // arrives before the bytes are all sent, a refusal, is the answer, even if
-  // the connection then fails, as the server closes a refused upload's
-  // connection once it has read a bounded part of the rest.
+  // limit, and its answer then has the usual time to arrive.
   async upload(key: SessionKey, upload: UploadRequest): Promise<unknown> {
     const url = this.#url(upload.path, upload.query);
     const headers = await this.#headers(key, {
@@ -159,11 +156,7 @@ export class AgentApi {
     const watchdog = new Watchdog();
     const signals = [watchdog.signal, ...(upload.signal === undefined ? [] : [upload.signal])];
     let changed = false;
-    let bodySent = false;
-    const sent = (): void => {
-      bodySent = true;
-      watchdog.arm(answerTimeout, "answer");
-    };
+    const sent = (): void => watchdog.arm(answerTimeout, "answer");
     const send = (outgoing: ClientRequest): void => {
       watchdog.arm(transferIdle, "stalled");
       if (upload.size === 0) {
@@ -197,18 +190,7 @@ export class AgentApi {
         url,
         { method: "POST", headers, signal: AbortSignal.any(signals) },
         send,
-        // An answer that arrives while the body is still being sent ends
-        // the sending.
-        (response, outgoing) => {
-          if (!bodySent) {
-            watchdog.arm(answerTimeout, "answer");
-          }
-          return answerOf(response).finally(() => {
-            if (!bodySent) {
-              outgoing.destroy();
-            }
-          });
-        },
+        answerOf,
       );
     } catch (error) {
       if (changed) {
@@ -226,8 +208,7 @@ export class AgentApi {
 
   // download writes the bytes of a successful answer into a stream and
   // returns their size and served type, failing as request does. The bytes
-  // stream under the transfer's idle limit, and must come to the length the
-  // answer states.
+  // stream under the transfer's idle limit.
   async download(key: SessionKey, request: DownloadRequest, into: Writable): Promise<Downloaded> {
     const url = this.#url(request.path, request.query);
     const headers = await this.#headers(key, { accept: "*/*" });
@@ -277,9 +258,6 @@ export class AgentApi {
         },
       });
       await pipeline(response, counted, into);
-      if (received !== Number(response.headers["content-length"])) {
-        throw new Error("the answer ended before the length it stated");
-      }
       return { size: received, servedType: response.headers["content-type"] ?? "" };
     };
     let result: Answer | Downloaded;
@@ -398,26 +376,18 @@ export class AgentApi {
 
   // send makes one request through the origin's agent, which never follows a
   // redirect: write sends its body, and read reads the answer once it
-  // arrives. A failure of the request after its answer arrived, such as the
-  // connection closing while the body is still being sent, is the answer's
-  // to report, or none.
+  // arrives.
   #send<T>(
     url: URL,
     options: { method: string; headers: OutgoingHttpHeaders; signal: AbortSignal },
     write: (outgoing: ClientRequest) => void,
-    read: (response: IncomingMessage, outgoing: ClientRequest) => Promise<T>,
+    read: (response: IncomingMessage) => Promise<T>,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
-      let answered = false;
       const outgoing = httpsRequest(url, { ...options, agent: this.#agent }, (response) => {
-        answered = true;
-        read(response, outgoing).then(resolve, reject);
+        read(response).then(resolve, reject);
       });
-      outgoing.on("error", (error) => {
-        if (!answered) {
-          reject(error);
-        }
-      });
+      outgoing.on("error", reject);
       write(outgoing);
     });
   }

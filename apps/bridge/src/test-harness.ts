@@ -277,14 +277,11 @@ export class BridgeHarness {
     }
   }
 
-  // asAgent acts as the agent of a session without a bridge: the agent API,
+  // asAgent acts as the agent of the session without a bridge: the agent API,
   // signing with the key the bridges keep on disk for it and the server's
   // clock.
-  asAgent(names: { agent: string; session: string } = { agent, session }): {
-    api: AgentApi;
-    key: SessionKey;
-  } {
-    const key = new KeyFile(this.home, this.#origin, names).read();
+  asAgent(): { api: AgentApi; key: SessionKey } {
+    const key = new KeyFile(this.home, this.#origin, { agent, session }).read();
     if (key === undefined) {
       throw new Error("the session has no key on disk");
     }
@@ -293,15 +290,14 @@ export class BridgeHarness {
   }
 
   // operatorUploads uploads a file as the operator, through the web API, to
-  // a session.
+  // the session.
   async operatorUploads(
     bytes: Uint8Array,
     options: { name: string; type: string },
-    names: { agent: string; session: string } = { agent, session },
   ): Promise<UploadResult> {
     const response = await this.server.web(
       "POST",
-      `/s/${names.agent}/${names.session}/uploads?name=${encodeURIComponent(options.name)}`,
+      `/s/${agent}/${session}/uploads?name=${encodeURIComponent(options.name)}`,
       bytes,
       { headers: { "content-type": options.type, "content-length": String(bytes.length) } },
     );
