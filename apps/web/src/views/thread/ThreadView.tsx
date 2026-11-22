@@ -49,6 +49,7 @@ import { Icon, Mark } from "../../icons.tsx";
 import { leaveNotice } from "../../notice.ts";
 import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
 import { Composer } from "./Composer.tsx";
+import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine } from "./Messages.tsx";
 import {
   blank,
@@ -739,6 +740,8 @@ function ThreadPage({
         />
         <HeadFailure action="Reading this thread" failure={reading.failure} />
       </header>
+
+      <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
 
       {!thread.credential_active && (
         <p className="notice">

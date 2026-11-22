@@ -94,14 +94,14 @@ function answerSaves(settings: VoiceAnswer) {
 }
 
 describe("the Settings view", () => {
-  it("is in the navigation, with passkeys, voice and signing out in that order", async () => {
+  it("is in the navigation, with passkeys, voice, storage and signing out in that order", async () => {
     await open({ voice: null });
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe(
       "page",
     );
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
-    ).toEqual(["Passkeys", "Voice", "Sign out"]);
+    ).toEqual(["Passkeys", "Voice", "Storage", "Sign out"]);
     expect(
       within(screen.getByRole("banner")).queryByRole("button", { name: "Sign out" }),
     ).toBeNull();
@@ -352,7 +352,7 @@ describe("voice in Settings", () => {
     expect(section().querySelector(".notice.warning")).not.toBeNull();
     api.on("POST", "/settings/voice/clear", { body: { voice: null } });
     fireEvent.click(button("Clear saved settings"));
-    api.on("GET", "/settings", { body: { voice: null } });
+    api.on("GET", "/settings", { body: settingsOf({ voice: null }) });
     fireEvent.click(button("Clear them"));
     await within(section()).findByRole("button", { name: "Set up" });
   });

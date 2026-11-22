@@ -219,6 +219,24 @@ export const statusLabel: Record<ThreadStatus, TerseLabel> = {
 // plural counts things in words: "1 thread", "12 threads".
 export const plural = (count: number, one: string) => `${count} ${one}${count === 1 ? "" : "s"}`;
 
+// byteSize says how large something is, in bytes under a thousand and in
+// decimal units above, to three figures: "512 bytes", "1.2 MB", "340 MB".
+const figures = new Intl.NumberFormat("en", { maximumSignificantDigits: 3 });
+const byteUnits = ["KB", "MB", "GB", "TB", "PB"];
+
+export function byteSize(bytes: number): string {
+  if (bytes < 1000) {
+    return plural(bytes, "byte");
+  }
+  let value = bytes / 1000;
+  let unit = 0;
+  while (Number(value.toPrecision(3)) >= 1000 && unit < byteUnits.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  return `${figures.format(value)} ${byteUnits[unit]}`;
+}
+
 // quoted writes labels as a reader sees them chosen: “Ship it”, “Hold”.
 export const quoted = (labels: string[]) => labels.map((label) => `“${label}”`).join(", ");
 

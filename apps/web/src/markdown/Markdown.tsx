@@ -7,14 +7,23 @@ import { gfmTaskListItemFromMarkdown } from "mdast-util-gfm-task-list-item";
 import { gfmStrikethrough } from "micromark-extension-gfm-strikethrough";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTaskListItem } from "micromark-extension-gfm-task-list-item";
-import { createElement, Fragment, type ReactNode, useMemo } from "react";
+import {
+  createContext,
+  createElement,
+  Fragment,
+  type MouseEvent,
+  type ReactNode,
+  useContext,
+  useMemo,
+} from "react";
 import { ErrorBoundary } from "../boundary.tsx";
 import { Diagram } from "./Diagram.tsx";
 
 // Agention's Markdown: CommonMark with GitHub's tables, task lists and
 // strikethrough, rendered inert. Nothing in the text can run, load or style
 // anything: raw HTML shows as text, images show as links, only absolute https
-// links are live, and no class or attribute comes from the text. A fenced
+// links are live, besides links to the message's own files, and no class or
+// attribute comes from the text. A fenced
 // block whose language is mermaid is a diagram, which is drawn in a sandboxed
 // frame and shows as an image the page makes from the frame's answer. Bare URLs
 // stay text, since GFM's autolink literals are not enabled, and so do
@@ -106,6 +115,64 @@ export function ExternalLink({
   );
 }
 
+// How a message's text links to one of its own files, by name: where the
+// link goes, and either what opening it in place does, or that it opens in
+// a new tab, or the name it downloads under.
+export type FileLink =
+  | { href: string; open: () => void }
+  | { href: string; newTab: true }
+  | { href: string; download: string };
+
+// The files a message's text may link to: the link to the file the message
+// carries under a name, or undefined when it carries none by that name.
+export type FileLinks = (name: string) => FileLink | undefined;
+
+const FileLinksContext = createContext<FileLinks | undefined>(undefined);
+
+// The scheme of a link to one of the message's own files, by its name,
+// percent-encoded where needed or written in angle brackets.
+const attachmentScheme = /^attachment:/i;
+
+// AttachmentLink is a link to one of the message's own files, live when the
+// name, decoded, is one of them, and otherwise its text.
+function AttachmentLink({ url, children }: { url: string; children: ReactNode }) {
+  const files = useContext(FileLinksContext);
+  let name: string | undefined;
+  try {
+    name = decodeURIComponent(url.replace(attachmentScheme, ""));
+  } catch {
+    name = undefined;
+  }
+  const link = name === undefined || name === "" ? undefined : files?.(name);
+  if (link === undefined) {
+    return children;
+  }
+  if ("open" in link) {
+    // A plain click opens the file in place; any other, as in a new tab, is
+    // the browser's own.
+    const open = (event: MouseEvent<HTMLAnchorElement>) => {
+      if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        event.preventDefault();
+        link.open();
+      }
+    };
+    return (
+      <a href={link.href} onClick={open}>
+        {children}
+      </a>
+    );
+  }
+  return "newTab" in link ? (
+    <a href={link.href} target="_blank" rel="noopener">
+      {children}
+    </a>
+  ) : (
+    <a href={link.href} download={link.download}>
+      {children}
+    </a>
+  );
+}
+
 interface Context {
   // Link and image reference definitions, by normalized label.
   definitions: Map<string, string>;
@@ -167,6 +234,9 @@ function renderLink(
   children: ReactNode,
   context: Context,
 ): ReactNode {
+  if (url !== undefined && !context.inLink && attachmentScheme.test(url)) {
+    return <AttachmentLink url={url}>{children}</AttachmentLink>;
+  }
   const live = url === undefined || context.inLink ? undefined : liveUrl(url);
   return live === undefined ? (
     children
@@ -341,11 +411,15 @@ function Rendered({ text }: { text: string }) {
 }
 
 // Markdown renders text written as Markdown. Its headings sit two levels below
-// the page's own heading, and stop at level six.
-export function Markdown({ text }: { text: string }) {
+// the page's own heading, and stop at level six. files, when given, are the
+// files its links may name, which a message's text and detail give as its
+// own.
+export function Markdown({ text, files }: { text: string; files?: FileLinks | undefined }) {
   return (
-    <ErrorBoundary key={text} fallback={<AsText text={text} />}>
-      <Rendered text={text} />
-    </ErrorBoundary>
+    <FileLinksContext value={files}>
+      <ErrorBoundary key={text} fallback={<AsText text={text} />}>
+        <Rendered text={text} />
+      </ErrorBoundary>
+    </FileLinksContext>
   );
 }

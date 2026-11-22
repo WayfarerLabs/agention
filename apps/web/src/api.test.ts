@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { request, requestTimeout } from "./api.ts";
+import { readTextStart, request, requestTimeout } from "./api.ts";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -40,4 +40,16 @@ it("stops waiting once an answer arrives", async () => {
   vi.stubGlobal("fetch", async () => Response.json({ threads: [] }));
   await expect(request("GET", "/threads")).resolves.toEqual({ threads: [] });
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it("reads a text file's start as UTF-8, leaving out a character the range cut", async () => {
+  vi.useRealTimers();
+  // "aé" is 3 bytes; a range of 2 cuts the é in half.
+  const bytes = new TextEncoder().encode("a\u00e9");
+  vi.stubGlobal("fetch", async () => new Response(bytes, { status: 206 }));
+  await expect(readTextStart("/file", 2)).resolves.toBe("a");
+  await expect(readTextStart("/file", 3)).resolves.toBe("a\u00e9");
+  // Invalid bytes read as replacement characters.
+  vi.stubGlobal("fetch", async () => new Response(new Uint8Array([0x61, 0xff]), { status: 200 }));
+  await expect(readTextStart("/file", 10)).resolves.toBe("a\ufffd");
 });

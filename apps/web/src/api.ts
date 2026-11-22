@@ -46,24 +46,34 @@ export interface RequestOptions {
 
 // The answer is read as an error body only when it has the API's error shape:
 // a proxy in front of the server can answer with anything.
-async function failureOf(response: Response): Promise<ApiFailure> {
+function failureFrom(status: number, text: string, retryAfterHeader: string | null): ApiFailure {
   let parsed: unknown;
   try {
-    parsed = await response.json();
+    parsed = JSON.parse(text);
   } catch {
     parsed = undefined;
   }
   const body = errorBody.safeParse(parsed);
   if (!body.success) {
-    return new ApiFailure("unexpected", `The server answered with status ${response.status}.`);
+    return new ApiFailure("unexpected", `The server answered with status ${status}.`);
   }
   const { code, message, field, missed } = body.data.error;
-  const retryAfter = Number(response.headers.get("retry-after") ?? "");
+  const retryAfter = Number(retryAfterHeader ?? "");
   return new ApiFailure(code, message, {
     ...(field === undefined ? {} : { field }),
     ...(missed === undefined ? {} : { missed }),
     ...(Number.isFinite(retryAfter) && retryAfter > 0 ? { retryAfter } : {}),
   });
+}
+
+async function failureOf(response: Response): Promise<ApiFailure> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // An unreadable body reads as an answer other than the API's.
+  }
+  return failureFrom(response.status, text, response.headers.get("retry-after"));
 }
 
 // No request waits longer than this for its answer, so one that hangs fails
@@ -169,6 +179,46 @@ async function exchange<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// fileUrl is the URL of a file a message carries, by the message's sequence,
+// the name it carries the file under and the file's reference, which makes
+// the URL name the same bytes for good, so the browser's cache can keep them.
+export function fileUrl(
+  target: { agent: string; session: string; number: number },
+  seq: number,
+  name: string,
+  file: string,
+): string {
+  const rest = `/messages/${seq}/files/${encodeURIComponent(name)}${query({ file })}`;
+  return `/api/web${threadPath(target.agent, target.session, target.number, rest)}`;
+}
+
+// readTextStart reads up to the first bytes of a file at url, by a range
+// request, as UTF-8 with replacement. A cut through a character at the end
+// leaves that character out. It throws an ApiFailure as request does.
+export async function readTextStart(url: string, bytes: number): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { range: `bytes=0-${bytes - 1}` },
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiFailure("network", "Agention could not be reached. Check the connection.");
+  }
+  if (!response.ok) {
+    throw await failureOf(response);
+  }
+  let body: ArrayBuffer;
+  try {
+    body = await response.arrayBuffer();
+  } catch {
+    throw new ApiFailure("network", "The file stopped arriving. Check the connection.");
+  }
+  // A server that ignored the range answers the whole file.
+  const start = new Uint8Array(body, 0, Math.min(body.byteLength, bytes));
+  return new TextDecoder("utf-8").decode(start, { stream: start.length === bytes });
 }
 
 export type QueryValues = Record<
