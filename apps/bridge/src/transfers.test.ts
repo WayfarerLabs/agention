@@ -10,14 +10,15 @@ import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentApi, transferIdle } from "./agent-api.ts";
+import { AgentApi, answerTimeout, transferIdle } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 import { certificate } from "./test-harness.ts";
 
-// Transfers against servers that stand in for Agention's, as far as a file's
-// body goes: one that stops reading an upload, one that stops sending a
-// download, and one whose listener cuts off an upload with its 408.
+// Requests and transfers against servers that stand in for Agention's, as
+// far as an answer or a file's body goes: one that never answers, one that
+// stops reading an upload, one that stops sending a download, and one whose
+// listener cuts off an upload with its 408.
 
 const { privateKey } = generateKeyPairSync("ed25519");
 const key: SessionKey = { privateKey, publicKey: "unused" as SessionKey["publicKey"] };
@@ -83,6 +84,22 @@ function tracked<T>(promise: Promise<T>): { promise: Promise<T>; settled: () => 
   promise.then(settle, settle);
   return { promise, settled: () => done };
 }
+
+describe("a request", () => {
+  it("fails once the server has not answered in its time and the wait's", async () => {
+    let asked = false;
+    const api = await serve(() => (asked = true));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const call = tracked(
+      api.request(key, { method: "GET", path: "/s/builder/main/wait", wait: 20_000 }),
+    );
+    await until(() => asked);
+    await vi.advanceTimersByTimeAsync(answerTimeout + 20_000 - 1);
+    expect(call.settled()).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(call.promise).rejects.toBeInstanceOf(BridgeError);
+  });
+});
 
 describe("an upload", () => {
   it("is abandoned once its bytes stop moving for the idle limit", async () => {

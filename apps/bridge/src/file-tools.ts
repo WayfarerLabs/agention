@@ -1,4 +1,3 @@
-import type { ContentBlock } from "@modelcontextprotocol/server";
 import {
   type AttachmentRead,
   fileName,
@@ -32,8 +31,8 @@ import { type FileHandle, open } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { Downloaded } from "./agent-api.ts";
-import { ApiFailure, BridgeError, settingProblem } from "./errors.ts";
-import type { Connected, DefineTool, InSession } from "./tools.ts";
+import { ApiFailure, BridgeError, detailOf, settingProblem } from "./errors.ts";
+import { type Connected, type DefineTool, type InSession, WithContent } from "./tools.ts";
 
 // The tools that move files between this machine and the server: file_upload
 // sends one up for a message to attach, and file_get fetches one a message
@@ -47,18 +46,6 @@ export const maxImageBlockBytes = 3.5 * 1024 * 1024;
 // How long a fetched file is kept: fetched files are a cache, which every
 // file_get prunes.
 export const fetchedFileLifetime = 7 * 24 * 60 * 60 * 1000;
-
-// A tool's answer with content blocks after its text, such as an image the
-// model can look at. Every other answer is its text alone.
-export class WithContent {
-  readonly answer: unknown;
-  readonly content: ContentBlock[];
-
-  constructor(answer: unknown, content: ContentBlock[]) {
-    this.answer = answer;
-    this.content = content;
-  }
-}
 
 // The directory of every session's key, below the home directory.
 export function keyDirectory(home: string): string {
@@ -223,7 +210,7 @@ export function registerFileTools(
         }
         throw new BridgeError(
           `Check that this user can write files in ${directory}, and that its disk has room ` +
-            `(${errorCode(error)}).`,
+            `(${detailOf(error)}).`,
         );
       }
       const answer = {
@@ -280,7 +267,7 @@ async function openForUpload(filePath: string): Promise<FileHandle> {
 
 // unopened refuses a path the bridge cannot open or resolve.
 function unopened(error: unknown): ApiFailure {
-  const code = errorCode(error);
+  const code = detailOf(error);
   const why =
     code === "ENOENT"
       ? "names no file on this machine"
@@ -392,7 +379,7 @@ function fetchedDirectory(home: string): string {
     return ensurePrivateDirectory(directory);
   } catch (error) {
     const detail =
-      error instanceof PrivateFileError ? `${error.reason} at ${error.path}` : errorCode(error);
+      error instanceof PrivateFileError ? `${error.reason} at ${error.path}` : detailOf(error);
     throw new BridgeError(
       `The bridge keeps the files it fetches in ${directory}, which must be a directory that ` +
         "belongs to this user with mode 700, below directories only this user or root can " +
@@ -426,16 +413,11 @@ function createdPart(part: string): number {
     fd = createPrivateFile(part);
   } catch (error) {
     throw new BridgeError(
-      `Check that this user can write files in ${path.dirname(part)} (${errorCode(error)}).`,
+      `Check that this user can write files in ${path.dirname(part)} (${detailOf(error)}).`,
     );
   }
   if (fd === undefined) {
     throw new BridgeError(`Remove ${part}, which is in the way of a fetched file, and try again.`);
   }
   return fd;
-}
-
-function errorCode(error: unknown): string {
-  const failure = error as { code?: unknown; message?: unknown };
-  return String(failure.code ?? failure.message);
 }

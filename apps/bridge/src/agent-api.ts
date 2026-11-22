@@ -15,7 +15,7 @@ import { text as readText } from "node:stream/consumers";
 import { pipeline } from "node:stream/promises";
 import type { TLSSocket } from "node:tls";
 import { type ConnectAddress, formatAddress } from "./connect-address.ts";
-import { ApiFailure, BridgeError, operatorProblem, settingProblem } from "./errors.ts";
+import { ApiFailure, BridgeError, detailOf, operatorProblem, settingProblem } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 
 // How long a token the bridge mints stays valid. The server accepts tokens
@@ -123,15 +123,16 @@ export class AgentApi {
   // else.
   async request(key: SessionKey, request: ApiRequest): Promise<unknown> {
     const url = this.#url(request.path, request.query);
-    const timeout = AbortSignal.timeout(answerTimeout + (request.wait ?? 0));
-    const signals = request.signal === undefined ? [timeout] : [timeout, request.signal];
     const sent = request.body === undefined ? undefined : JSON.stringify(request.body);
     const headers = await this.#headers(
       key,
       sent === undefined ? {} : { "content-type": "application/json" },
     );
+    const watchdog = new Watchdog();
+    const signals = [watchdog.signal, ...(request.signal === undefined ? [] : [request.signal])];
     let answer: Answer;
     try {
+      watchdog.arm(answerTimeout + (request.wait ?? 0), "answer");
       answer = await this.#send(
         url,
         { method: request.method, headers, signal: AbortSignal.any(signals) },
@@ -139,7 +140,9 @@ export class AgentApi {
         answerOf,
       );
     } catch (error) {
-      throw this.#unreachable(error, request.signal, timeout.aborted ? "answer" : undefined);
+      throw this.#unreachable(error, request.signal, watchdog.expired);
+    } finally {
+      watchdog.stop();
     }
     return this.#answer(answer);
   }
@@ -485,18 +488,14 @@ async function answerOf(response: IncomingMessage): Promise<Answer> {
   return { status: response.statusCode ?? 0, version: versionOf(response), text };
 }
 
-// detailOf names a failure by its code, else its message.
-function detailOf(error: unknown): string {
-  const failure = error as { code?: unknown; message?: unknown };
-  return String(failure.code ?? failure.message);
-}
-
 // The limits a request runs under: the time its answer has to arrive, and
 // the time a transfer's bytes may stop moving.
 type Limit = "answer" | "stalled";
 
 // Watchdog aborts its signal once the limit it was last armed with runs out,
-// and says which limit that was. A transfer re-arms it as its bytes move.
+// and says which limit that was. A transfer re-arms it as its bytes move. Its
+// timer never holds the process open, so a bridge whose host has gone exits
+// even while a call waits.
 class Watchdog {
   readonly #controller = new AbortController();
   #timer: NodeJS.Timeout | undefined;
@@ -511,7 +510,7 @@ class Watchdog {
     this.#timer = setTimeout(() => {
       this.expired = limit;
       this.#controller.abort(new DOMException(`The ${limit} limit ran out.`, "TimeoutError"));
-    }, milliseconds);
+    }, milliseconds).unref();
   }
 
   stop(): void {

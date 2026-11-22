@@ -1,5 +1,6 @@
 import type {
   CallToolResult,
+  ContentBlock,
   McpServer,
   StandardSchemaWithJSON,
   ToolAnnotations,
@@ -28,7 +29,7 @@ import {
 import { z } from "zod";
 import { type AgentApi, type ApiRequest, answerTimeout } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
-import { registerFileTools, WithContent } from "./file-tools.ts";
+import { registerFileTools } from "./file-tools.ts";
 import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
 import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
@@ -48,6 +49,18 @@ export interface InSession {
   api: AgentApi;
   key: SessionKey;
   sessionPath: string;
+}
+
+// A tool's answer with content blocks after its text, such as an image the
+// model can look at. Every other answer is its text alone.
+export class WithContent {
+  readonly answer: unknown;
+  readonly content: ContentBlock[];
+
+  constructor(answer: unknown, content: ContentBlock[]) {
+    this.answer = answer;
+    this.content = content;
+  }
 }
 
 // DefineTool registers one tool, whose run answers with what the tool's text
