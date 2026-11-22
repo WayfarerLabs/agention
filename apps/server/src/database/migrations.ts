@@ -434,4 +434,23 @@ export const migrations: readonly string[] = [
     api_key TEXT
   ) STRICT;
   `,
+  `
+  -- The operator's API keys. hash is the SHA-256 of the key's secret, which
+  -- only its holder keeps. scopes is the JSON array of the scopes it holds.
+  -- expires_at is null for a key without an expiry. last_used_at is kept to
+  -- the hour. A revoked or expired key keeps its row, so the list can show it,
+  -- until the table is next written; ids never repeat, so an id names one key
+  -- for good.
+  CREATE TABLE api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id INTEGER NOT NULL REFERENCES people (id),
+    name TEXT NOT NULL,
+    scopes TEXT NOT NULL CHECK (json_valid(scopes) AND json_type(scopes) = 'array'),
+    hash BLOB NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER CHECK (expires_at > created_at),
+    last_used_at INTEGER,
+    revoked_at INTEGER
+  ) STRICT;
+  `,
 ];

@@ -12,6 +12,12 @@ import { openAiCompatible, type TranscriptionProvider } from "../transcription/p
 import { agentApi } from "./agent-api.ts";
 import { stateAgentApiVersion } from "./agent-api-version.ts";
 import { diagramFramePath, type OwnHeaders, serveDiagramFrame } from "./diagram-frame.ts";
+import {
+  operatorApi,
+  operatorApiPrefix,
+  servedVersions,
+  versionsDeclaration,
+} from "./operator-api.ts";
 import { defaultRates, RateBudgets, RateLimitedError, type Rates } from "./rates.ts";
 import { webApi } from "./web-api.ts";
 import { serveWebUi } from "./web-ui.ts";
@@ -88,8 +94,9 @@ function invalidBody(message: string): ErrorBody {
 }
 
 // createApp builds the server's one Hono application: the agent API at
-// /api/agent, the web API at /api/web, the diagram frame at /diagram-frame,
-// and the web UI on every other path.
+// /api/agent, the web API at /api/web, the operator API's versions at
+// /api/operator, the diagram frame at /diagram-frame, and the web UI on every
+// other path.
 export function createApp(options: AppOptions): Hono {
   const { store, origin, name } = options;
   const host = new URL(origin).host;
@@ -146,10 +153,12 @@ export function createApp(options: AppOptions): Hono {
       budgets,
       voiceEnvironment: options.voiceEnvironment ?? {},
       transcription: options.transcription ?? openAiCompatible(),
-      shutdown,
       log,
+      shutdown,
     }),
   );
+  app.on(versionsDeclaration.method, "/api/operator", (c) => c.json(servedVersions));
+  app.route(operatorApiPrefix, operatorApi({ store, budgets, shutdown }));
   app.all("/api", (c) => c.json(notFoundBody, 404));
   app.all("/api/*", (c) => c.json(notFoundBody, 404));
   ownHeaders = serveDiagramFrame(app, options.webRoot, origin);

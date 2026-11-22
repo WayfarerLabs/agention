@@ -1,11 +1,20 @@
 import { holdsScope, type Scope, scopes } from "@wayfarerlabs/agention-api";
 import type { Database } from "./database/database.ts";
-import { agentUnauthenticated, notFound, unapprovedKey, unauthenticated } from "./errors.ts";
+import {
+  agentUnauthenticated,
+  apiKeyUnauthenticated,
+  notFound,
+  unapprovedKey,
+  unauthenticated,
+} from "./errors.ts";
 
 // The credential an identity was authenticated with: an agent's approved
-// registration, or the operator's browser session.
+// registration, the operator's browser session, or one of the operator's API
+// keys.
 export type Credential =
-  { kind: "registration"; registrationId: number } | { kind: "browser_session"; hash: Uint8Array };
+  | { kind: "registration"; registrationId: number }
+  | { kind: "browser_session"; hash: Uint8Array }
+  | { kind: "api_key"; id: number };
 
 // What an identity may act on: every session or the listed ones, and the
 // scopes it holds there.
@@ -68,12 +77,12 @@ export function identityForBrowserSession(db: Database, hash: Uint8Array): Ident
 }
 
 // checkCredential confirms the identity's credential is still live: the
-// registration still approved, the browser session unexpired. Operations call
-// it inside their transaction, so a revocation and the data it protects are
-// read in one snapshot and no layer above re-checks. An agent whose
-// registration stopped being approved during the request, as when a
-// revocation ends its long poll, is refused as authentication would refuse
-// it, and told to call register.
+// registration still approved, the browser session unexpired, the API key
+// neither revoked nor expired. Operations call it inside their transaction, so
+// a revocation and the data it protects are read in one snapshot and no layer
+// above re-checks. An agent whose registration stopped being approved during
+// the request, as when a revocation ends its long poll, is refused as
+// authentication would refuse it, and told to call register.
 export function checkCredential(db: Database, identity: Identity, now: number): void {
   const { credential } = identity;
   if (credential.kind === "registration") {
@@ -82,6 +91,18 @@ export function checkCredential(db: Database, identity: Identity, now: number): 
       .get(credential.registrationId) as { status: string } | undefined;
     if (registration?.status !== "approved") {
       throw agentUnauthenticated(unapprovedKey(registration?.status));
+    }
+    return;
+  }
+  if (credential.kind === "api_key") {
+    const live = db
+      .prepare(
+        `SELECT 1 FROM api_keys
+         WHERE id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`,
+      )
+      .get(credential.id, now);
+    if (live === undefined) {
+      throw apiKeyUnauthenticated();
     }
     return;
   }

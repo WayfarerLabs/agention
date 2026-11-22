@@ -1,4 +1,5 @@
 import {
+  apiKeyCreateInput,
   newPasskeyInput,
   passkeyLinkBeginInput,
   passkeyNameInput,
@@ -8,6 +9,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { createApiKey, listApiKeys, revokeApiKey } from "../auth/api-keys.ts";
 import { closeBrowserSession, resumeBrowserSession } from "../auth/browser-sessions.ts";
 import { listPasskeys, removePasskey, renamePasskey } from "../auth/operator-passkeys.ts";
 import {
@@ -34,7 +36,7 @@ import {
   type VoiceEnvironment,
 } from "../store/index.ts";
 import type { TranscriptionProvider } from "../transcription/provider.ts";
-import { parseBody, passkeyOf } from "./input.ts";
+import { apiKeyOf, parseBody, passkeyOf } from "./input.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
@@ -229,8 +231,18 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     transcribe(c, store, voiceEnvironment, options.transcription, options.log),
   );
 
-  // Every operator operation, for the browser session, which holds every
-  // scope.
+  // The operator's API keys, which only a browser session manages. Creating
+  // and revoking one needs a recent sign-in, as changing passkeys does.
+  api.get("/keys", requireSession, (c) => c.json(listApiKeys(store, c.var.identity)));
+  api.post("/keys", requireSession, async (c) =>
+    c.json(createApiKey(store, c.var.identity, await parseBody(c, apiKeyCreateInput))),
+  );
+  api.post("/keys/:id/revoke", requireSession, (c) =>
+    c.json(revokeApiKey(store, c.var.identity, apiKeyOf(c))),
+  );
+
+  // Every operation an API key may call, for the browser session, which
+  // holds every scope.
   addOperations(api, operatorOperations, {
     store,
     shutdown: options.shutdown,

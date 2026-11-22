@@ -778,9 +778,39 @@ describe("a database an earlier release wrote", () => {
     const database = Database.open(file);
     try {
       const after = rowsOf(database);
-      expect(Object.keys(after).sort()).toEqual([...Object.keys(before), "voice_settings"].sort());
+      expect(Object.keys(after).sort()).toEqual(
+        [...Object.keys(before), "voice_settings", "api_keys"].sort(),
+      );
       expect(earlier(after, before)).toEqual(before);
       expect(after.voice_settings).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("opens with voice settings intact and no API keys", () => {
+    const file = path.join(root, "agention.db");
+    const before = withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      for (const migration of migrations.slice(0, 4)) {
+        connection.exec(migration);
+      }
+      connection.exec("PRAGMA user_version = 4");
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO voice_settings (id, base_url, model, prompt, api_key)
+          VALUES (1, 'https://api.example.test/v1', 'whisper-1', NULL, 'sk-test');
+      `);
+      return rowsOf(connection);
+    });
+    chmodSync(file, 0o600);
+
+    const database = Database.open(file);
+    try {
+      const after = rowsOf(database);
+      expect(Object.keys(after).sort()).toEqual([...Object.keys(before), "api_keys"].sort());
+      expect(earlier(after, before)).toEqual(before);
+      expect(after.api_keys).toEqual([]);
     } finally {
       database.close();
     }

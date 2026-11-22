@@ -1,4 +1,4 @@
-import { invalidInputBody, passkeyId, queryNumber } from "@wayfarerlabs/agention-api";
+import { apiKeyId, invalidInputBody, passkeyId, queryNumber } from "@wayfarerlabs/agention-api";
 import type { Context } from "hono";
 import { ApiError } from "../errors.ts";
 
@@ -64,4 +64,8 @@ export async function parseBody<T>(c: Context, schema: Schema<T>): Promise<T> {
 
 export function passkeyOf(c: Context): number {
   return parse(queryNumber(passkeyId), c.req.param("id"), "id");
+}
+
+export function apiKeyOf(c: Context): number {
+  return parse(queryNumber(apiKeyId), c.req.param("id"), "id");
 }
