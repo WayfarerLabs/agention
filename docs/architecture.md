@@ -1071,19 +1071,20 @@ settings the page read when it opened say voice is on and the browser has a `Med
 `audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`, tried in that order. It records at
 32 kbit/s with a one-second timeslice, so it can count the data, and stops at five minutes by the
 clock or 1.9 MiB of data, which keeps a recording within the API's body cap; a page hidden while it
-records stops it, so the microphone never runs unwatched, and transcribes what it recorded. A
-recording under the API's 1,000 bytes is not sent, and reads as nothing heard. The upload declares
-the type the recorder was asked for and waits up to two minutes. A recording, or one awaiting a
-transcription or a retry, holds the composer's draft open, so its stale-write check counts from when
-the recording started. The text goes in at the caret of the box that last had focus, unless the
-draft was sent meanwhile; a failure keeps the recording for Retry until it is discarded.
-`useDictation` gives its caller the controls, what went wrong and what it says otherwise apart, and
-the composer puts all three in its Send row, a failure before Send and anything else after it. The
-row stays short on a phone whatever its fonts: the microphone is its icon alone, the recording's
-time and a failure drop the words the rest says, and Go back after sending moves below the row while
-dictation has controls in it. Each control that replaces another moves focus to the next state's own
-control, unless the operator has put focus somewhere else meanwhile, as into the message box while
-the microphone opens, and starting a recording is announced once.
+records stops it and transcribes what it recorded, and one still hidden when the microphone opens
+closes it unused, so the microphone never runs unwatched. A recording under the API's 1,000 bytes is
+not sent, and reads as nothing heard. The upload declares the type the recorder was asked for and
+waits up to two minutes. A recording, or one awaiting a transcription or a retry, holds the
+composer's draft open, so its stale-write check counts from when the recording started. The text
+goes in at the caret of the box that last had focus, unless the draft was sent meanwhile; a failure
+keeps the recording for Retry until it is discarded. `useDictation` gives its caller the controls,
+what went wrong and what it says otherwise apart, and the composer puts all three in its Send row, a
+failure before Send and anything else after it. The row stays short on a phone whatever its fonts:
+the microphone is its icon alone, the recording's time and a failure drop the words the rest says,
+and Go back after sending moves below the row while dictation has controls in it. Each control that
+replaces another moves focus to the next state's own control, unless the operator has put focus
+somewhere else meanwhile, as into the message box while the microphone opens, and starting a
+recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a

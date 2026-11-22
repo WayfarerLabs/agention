@@ -585,9 +585,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     **Nothing heard**. A transcription that fails says why and keeps your draft as it was, and the
     recording for **Retry**, beside **Discard**. A recording also stops when it reaches 1.9 MiB, or
     when you switch away from the page, so the microphone never runs while you are not looking, and
-    what it recorded is transcribed as usual; leaving the thread discards it. Starting a recording
-    counts as seeing the thread then: a message the agent writes while you record makes sending
-    stale, as below.
+    what it recorded is transcribed as usual; if you are still away from the page when the
+    microphone opens, it closes without recording, and leaving the thread discards a recording.
+    Starting a recording counts as seeing the thread then: a message the agent writes while you
+    record makes sending stale, as below.
 
   If the agent writes to the thread while you are writing, sending fails as stale: your draft stays,
   the messages you missed appear above it, and **Mark these read and send again** sends it, as it

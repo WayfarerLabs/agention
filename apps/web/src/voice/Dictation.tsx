@@ -236,6 +236,13 @@ export function useDictation({
       stopTracks();
       return;
     }
+    // A page still hidden when the microphone opens was hidden before any
+    // recorder existed for the hide to stop, so none starts unwatched.
+    if (document.visibilityState === "hidden") {
+      stopTracks();
+      end("dictate");
+      return;
+    }
     const chunks: Blob[] = [];
     let bytes = 0;
     const started = Date.now();
