@@ -291,7 +291,9 @@ async function serve(args: string[], io: Io): Promise<number> {
     }
   }
 
-  const db = Database.open(databaseFile(data));
+  const db = Database.open(databaseFile(data), {
+    log: (message) => io.stderr.write(`${message}\n`),
+  });
   const shutdown = new AbortController();
   try {
     // The server's name is the stored one or, on a new database, the one
@@ -379,7 +381,9 @@ async function passkeyLink(args: string[], io: Io): Promise<number> {
     );
     return exitFailure;
   }
-  const db = Database.open(databaseFile(data));
+  const db = Database.open(databaseFile(data), {
+    log: (message) => io.stderr.write(`${message}\n`),
+  });
   try {
     const operator = findOperator(db);
     if (operator !== undefined && flags["operator-name"] !== undefined) {

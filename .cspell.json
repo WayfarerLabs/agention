@@ -17,6 +17,7 @@
     "elkjs",
     "errcode",
     "fastdom",
+    "freelist",
     "gast",
     "Groq",
     "gsub",

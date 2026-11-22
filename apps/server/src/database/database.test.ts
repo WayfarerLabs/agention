@@ -778,9 +778,50 @@ describe("a database an earlier release wrote", () => {
     const database = Database.open(file);
     try {
       const after = rowsOf(database);
-      expect(Object.keys(after).sort()).toEqual([...Object.keys(before), "voice_settings"].sort());
+      expect(Object.keys(after)).toEqual(
+        expect.arrayContaining([...Object.keys(before), "voice_settings"]),
+      );
       expect(earlier(after, before)).toEqual(before);
       expect(after.voice_settings).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("opens with every earlier row intact and no files", () => {
+    const file = path.join(root, "agention.db");
+    const before = withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      for (const migration of migrations.slice(0, -1)) {
+        connection.exec(migration);
+      }
+      connection.exec(`PRAGMA user_version = ${migrations.length - 1}`);
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO agents (name, created_at) VALUES ('builder', 1);
+        INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 'main', 1);
+        INSERT INTO actors (person_id) VALUES (1);
+        INSERT INTO actors (session_id) VALUES (1);
+        INSERT INTO threads (session_id, number, requester_actor_id, audience_actor_id, title,
+            created_at, last_seq)
+          VALUES (1, 1, 2, 1, 'Logs', 1, 1);
+        INSERT INTO messages (thread_id, seq, session_id, session_pos, actor_id, created_at,
+            request_id, digest, text)
+          VALUES (1, 1, 1, 1, 2, 1, 'r-1', zeroblob(32), 'See the log.');
+        INSERT INTO voice_settings (id, base_url, model) VALUES (1, 'https://stt.test/v1', 'm');
+      `);
+      return rowsOf(connection);
+    });
+    chmodSync(file, 0o600);
+
+    const database = Database.open(file);
+    try {
+      const after = rowsOf(database);
+      expect(Object.keys(after).sort()).toEqual(
+        [...Object.keys(before), "attachments", "file_chunks", "files"].sort(),
+      );
+      expect(earlier(after, before)).toEqual(before);
+      expect([after.files, after.file_chunks, after.attachments]).toEqual([[], [], []]);
     } finally {
       database.close();
     }
