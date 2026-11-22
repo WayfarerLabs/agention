@@ -281,14 +281,18 @@ list in `apps/server/src/http/operations.test.ts` holds, and approving, rejectin
 registration needs `sessions:approve`, which no other scope includes. Files are their threads':
 uploading and removing a pending upload need `threads:write`, and a thread's files and reading one
 `threads:read`. The mount refuses a missing scope before reading input, and the store operation
-confirms the same scope inside its transaction, and on each chunk of a file it writes or reads,
-which a test over every operation in the same file holds. A later resource adds scopes of the form
-`<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what an existing scope
-grants (`SECURITY.md` "API keys"). Look for an operator route added outside the list, an operation
-with a scope wider or narrower than what it does, a read-scoped operation that writes or takes a
-body, a store operation or a file's chunk read or write that leaves its scope to the mount, an
-operation whose body or answer is bytes but not declared so, a key-reachable route that manages
-credentials or Settings, and a scope whose meaning changes.
+confirms the same scope inside its transaction, which a test over every operation in the same file
+holds. Each chunk of a file written or read confirms the credential and the scope again, in its own
+transaction, so a transfer stops within a chunk once its credential ends, which the store's
+`apps/server/src/store/files.test.ts` ("stops within a chunk once its credential is revoked") and
+the HTTP tests in `apps/server/src/http/files.test.ts` (the same, for a read) and
+`apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
+adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
+an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the
+list, an operation with a scope wider or narrower than what it does, a read-scoped operation that
+writes or takes a body, a store operation or a file's chunk read or write that leaves its scope to
+the mount, an operation whose body or answer is bytes but not declared so, a key-reachable route
+that manages credentials or Settings, and a scope whose meaning changes.
 
 ## A19. The operator API contract and its document
 

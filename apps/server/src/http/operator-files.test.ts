@@ -214,31 +214,39 @@ describe("a key's file transfer", () => {
     await expect(reader?.read()).rejects.toBeInstanceOf(ApiError);
   });
 
-  it("stops an upload within a chunk once the key is revoked, keeping nothing of it", async () => {
+  it("stops an upload at its next chunk once the key is revoked, before its last arrives, keeping nothing", async () => {
     const { key, secret } = await harness.createKey(["threads:write"]);
-    // The body sends one chunk, then waits for the revocation before the
-    // rest.
+    // A body of three chunks, each pulled only as the upload reads it. The
+    // upload asks for the second once it has stored the first, and the key is
+    // revoked then. Refused as it stores the second, the upload never pulls
+    // the third, so the refusal is the chunk's own check and not the
+    // completion's.
     let revoked: () => void = () => undefined;
     const revocation = new Promise<void>((resolve) => (revoked = resolve));
-    let sentFirst: () => void = () => undefined;
-    const firstSent = new Promise<void>((resolve) => (sentFirst = resolve));
+    let askedSecond: () => void = () => undefined;
+    const secondAsked = new Promise<void>((resolve) => (askedSecond = resolve));
     let pulls = 0;
-    const body = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        pulls += 1;
-        if (pulls === 1) {
-          controller.enqueue(new Uint8Array(chunkBytes));
-          sentFirst();
-          return;
-        }
-        await revocation;
-        if (pulls <= 3) {
-          controller.enqueue(new Uint8Array(chunkBytes));
-        } else {
-          controller.close();
-        }
+    const body = new ReadableStream<Uint8Array>(
+      {
+        async pull(controller) {
+          pulls += 1;
+          if (pulls === 1) {
+            controller.enqueue(new Uint8Array(chunkBytes));
+            return;
+          }
+          if (pulls === 2) {
+            askedSecond();
+          }
+          await revocation;
+          if (pulls <= 3) {
+            controller.enqueue(new Uint8Array(chunkBytes));
+          } else {
+            controller.close();
+          }
+        },
       },
-    });
+      { highWaterMark: 0 },
+    );
     const answer = harness.app.request(`${prefix}/uploads?name=big.bin`, {
       method: "POST",
       headers: {
@@ -250,7 +258,8 @@ describe("a key's file transfer", () => {
       body,
       duplex: "half",
     } as RequestInit);
-    await firstSent;
+    await secondAsked;
+    expect(count("file_chunks")).toBe(1);
     await harness.web("POST", `/keys/${key.id}/revoke`);
     revoked();
     const response = await answer;
@@ -258,6 +267,7 @@ describe("a key's file transfer", () => {
       401,
       "unauthenticated",
     ]);
+    expect(pulls).toBe(2);
     expect([count("files"), count("file_chunks")]).toEqual([0, 0]);
   });
 });
