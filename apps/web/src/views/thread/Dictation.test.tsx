@@ -230,6 +230,26 @@ describe("dictation in the composer", () => {
     expect(recorder.tracks.every((track) => track.stopped)).toBe(true);
   });
 
+  it("never starts recording when the page was hidden while the microphone opened", async () => {
+    let open = () => {};
+    const recorder = installRecorder({ opened: new Promise<void>((resolve) => (open = resolve)) });
+    await openThread();
+    fireEvent.click(control("Dictate"));
+    try {
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      open();
+      await waitFor(() => expect(recorder.tracks).toHaveLength(1));
+      await waitFor(() => expect(control("Dictate")).toHaveProperty("disabled", false));
+      expect(recorder.recorders).toHaveLength(0);
+      expect(recorder.tracks.every((track) => track.stopped)).toBe(true);
+    } finally {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
+  });
+
   it("says the microphone failed when it is refused", async () => {
     installRecorder({ refuse: new DOMException("denied", "NotAllowedError") });
     await openThread();
