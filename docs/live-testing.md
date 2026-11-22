@@ -38,7 +38,16 @@ with each other or with what the product does, the disagreement is the finding.
   the agent mount; every voice change refused without a recent sign-in; a base URL the rule refuses
   in any spelling of a refused address; a changed base URL clearing the key; no answer or log
   carrying a key or a provider's body; and each provider failure, against a local stub provider
-  (`docs/architecture.md` "Voice").
+  (`docs/architecture.md` "Voice"). The file routes on both mounts: an upload's answer, each of its
+  refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
+  `storage_full` with the disk filled, a length that does not match), a message naming another
+  writer's, another session's, an expired or an attached upload refused alike, `keep` on a
+  replacement; a file read with each single range, several ranges answered whole, a range outside
+  the file answered 416 with `Content-Range`, `HEAD`, and a `file` reference that is not the file's,
+  and another session's thread, `not_found`; and the listener's deadlines, an idle body cut at 30
+  seconds with a 408 carrying the security headers and, on the agent mount, the version, a request
+  body cut at 30 seconds whole, and an upload trickling past that finishing (`docs/architecture.md`
+  "HTTP API" and "Serving").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -47,10 +56,14 @@ with each other or with what the product does, the disagreement is the finding.
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update` through a
   session's life: working once registered, idle, stopped with each outcome, working again on
   resuming, a goal changed without a percent, and a note alone (`docs/architecture.md` "Agent
-  bridge" and "Store"). The bridge at the head against a server of an earlier release, which it
-  refuses with what the operator upgrades, and a bridge an earlier release published against the
-  server at the head, which it still serves, where the charter names those releases; the agent
-  compatibility gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
+  bridge" and "Store"). `file_upload` with a file, an empty one, one at 100 MiB, and each refusal: a
+  relative path, a directory, a FIFO, which must not hang, a file over 100 MiB, and a key file named
+  directly and through a symlink; `file_get` of each served type, its file's name and mode, and its
+  image block; attachments on `thread_create` and `message_send`, and a replacement keeping a file.
+  The bridge at the head against a server of an earlier release, which it refuses with what the
+  operator upgrades, and a bridge an earlier release published against the server at the head, which
+  it still serves, where the charter names those releases; the agent compatibility gate covers the
+  latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
@@ -80,10 +93,16 @@ with each other or with what the product does, the disagreement is the finding.
   read-only, Turn off and Try it; dictation through Chromium's fake microphone and a stub provider,
   its text at the caret with nothing sent, the microphone and what it says beside Send on a short
   screen, its failures keeping the recording for a retry, and a recording stopped when the page is
-  hidden; and Read aloud and Stop, in WebKit too where it installs (`docs/operator-guide.md`
-  "Signing in", "Using the web UI", "Voice" and "Approving agents"). Real-phone passkeys, Send above
-  a phone's keyboard while writing, dictation with a real provider, and diagrams and their viewer in
-  iOS Safari, are the operator's acceptance, not the tester's.
+  hidden; and Read aloud and Stop, in WebKit too where it installs; attachments: **Attach**, a
+  pasted image and a paste carrying text, progress, **Remove**, **Retry** and **Upload again**,
+  **Send** waiting on uploads, a message of files alone, an edit keeping and removing files, each
+  kind of file shown in place, **Show image** and **Show text**, a PDF's tab, **Download**, an
+  `attachment:` link, a missing file, the thread's **Files** fold, and **Storage**, on a phone's
+  width too (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice", "Attachments" and
+  "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
+  with a real provider, diagrams and their viewer in iOS Safari, and a photo from the phone read by
+  an agent, with an image, a PDF, a video and a text file an agent attached opened in Android Chrome
+  and Windows Edge or Chrome, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -92,11 +111,14 @@ Compare what a surface reports with:
 - the database, opened read-only beside the running server: what each thread's messages derive (live
   messages, open asks, status, topic) against the log, each session's latest entry in its log
   against the status `session_update` answered and the sessions view shows, registration rows and
-  states, browser sessions, used challenges (`docs/architecture.md` "Database");
+  states, browser sessions, used challenges, files, their chunks and the attachments naming them,
+  pending uploads against the limits, and the database's vacuum mode and free pages after a sweep
+  (`docs/architecture.md` "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
-  `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443 (`SECURITY.md`
-  "Private files" and "The agent bridge");
+  `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443, and the
+  fetched files in `~/.cache/agention/files/`, `0700` with `0600` files and no partial file left
+  behind (`SECURITY.md` "Private files" and "The agent bridge");
 - processes and sockets: the listener's address and TLS, bridge processes the hosts start and stop,
   and the shutdown `docs/operator-guide.md` "Running the server" and `docs/architecture.md`
   "Serving" describe, with long polls open;
@@ -152,6 +174,20 @@ On top of the method's failure classes, look for:
   nothing in the page, requests nothing beyond the server, and leaves the frame where it was; a
   diagram image's `blob:` URL, once the image shows, no longer opens on its own; and
   `/diagram-frame` opened on its own does nothing.
+- **Attachments**: files that try to act as the app (`SECURITY.md` "Attachments"). HTML, HTML
+  declared as each allowlisted type, an SVG with script and an external image, and bytes mislabeled
+  as an image, a PDF or a video, each shown in the page and opened on its own, run nothing and
+  request nothing beyond the server, an SVG drawing only as an image and downloading when opened,
+  and every file response carrying its headers. Ranges as a video seeks, and the fetches a seek
+  makes. A refusal mid-body, a pending limit or `storage_full`, of an upload from the phone over
+  mobile data and from the bridge through Tailscale Serve, arriving named rather than as a reset
+  connection, and a 100 MiB body through Tailscale Serve. The image block on Claude Code and Codex:
+  photos of 0.5, 2 and 3.5 MiB through `file_get`, and a broken block, bytes that are not the image
+  their type says, to learn whether a host fails the whole call or only shows an error. A 100 MiB
+  upload over a throttled link in each host, against Codex's `tool_timeout_sec` and Claude Code's
+  default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
+  an upload cut off, or the server killed during one, leaving no file or chunks after the next
+  sweep; a `file_get` that fails leaving no partial file.
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong
@@ -174,12 +210,12 @@ On top of the method's safety rails:
   the operator's tunnel.
 - Write nothing to shared `/tmp`: set `TMPDIR` to the run's scratch directory for every process the
   run starts, and put tarballs, renders, and certificates there too.
-- The bridge's key path is fixed under the home directory, so use a separate `HOME` wherever the run
-  allows it, including for checking a plugin's installed files. Load the plugin into an
-  authenticated Claude Code session with `claude --plugin-dir <path>` (that session only). Install
-  into a real home only when the charter names it, one tester at a time, never where an `agention`
-  plugin or marketplace already exists. On Claude Code, add the marketplace with
-  `claude plugin marketplace add <path> --scope local` and install with
+- The bridge's key path and its fetched files' directory are fixed under the home directory, so use
+  a separate `HOME` wherever the run allows it, including for checking a plugin's installed files.
+  Load the plugin into an authenticated Claude Code session with `claude --plugin-dir <path>` (that
+  session only). Install into a real home only when the charter names it, one tester at a time,
+  never where an `agention` plugin or marketplace already exists. On Claude Code, add the
+  marketplace with `claude plugin marketplace add <path> --scope local` and install with
   `claude plugin install agention@agention --scope local`, both in the run's scratch project; a
   Codex install changes the whole home. Allow only the plugin's tools for the run
   (`--allowedTools`); never use a permission-bypass mode or save an allow rule.

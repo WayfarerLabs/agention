@@ -134,7 +134,9 @@ in **Work · operator**.
 
 A second server, such as one for personal use beside one for work, runs on its own machine, with its
 own `--name` given on its first start. Servers can also share a host under different ports without
-signing each other out.
+signing each other out. Each server has a data directory of its own: run one server per database,
+since a server keeps track of the uploads still arriving in its own process, and a second one on the
+same database would remove them as abandoned.
 
 `--listen` takes an IP address, not a name, with an IPv6 address in brackets: `[::1]:8080`.
 [Giving it an HTTPS origin](#giving-it-an-https-origin) says what the origin is, and when to use
@@ -516,6 +518,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - A message's text is a short summary of what the matter is and what is needed. Whatever else the
     message says is in its details: a **Details** line directly under the text opens them in place
     and folds them again, and details you opened stay open as the page refreshes.
+  - A message's files show under it, and **Attach** beside **Send** adds yours, as
+    [Attachments](#attachments) describes. While the thread holds any, its head holds **Files**,
+    folded, with how many there are and the space they take.
   - Each ask shows as a card on its message, which may carry several. Asks are numbered within the
     thread as the agent writes them, and the card leads with the number (**Ask 3**), then the
     question, its priority, impact, how long answering takes when the agent said, and answer-by,
@@ -656,15 +661,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     decided.
 
 - **Settings** holds, in order, your **Passkeys**, as [Signing in](#signing-in) describes,
-  **Voice**, as [Voice](#voice) describes, and **Sign out**, which signs this browser out and leaves
-  your others signed in. `/passkeys` opens it too. While your sign-in is too old for a change to
-  passkeys or voice, **Sign in again** comes first.
+  **Voice**, as [Voice](#voice) describes, **Storage**, as [Attachments](#attachments) describes,
+  and **Sign out**, which signs this browser out and leaves your others signed in. `/passkeys` opens
+  it too. While your sign-in is too old for a change to passkeys or voice, **Sign in again** comes
+  first.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
-inert: raw HTML shows as text, an image shows as a link and never loads, and only absolute `https`
-links are live, opening in a new tab. A link whose text is not its own address shows the address's
-host after it. Titles, questions, suggested answers, the own words of an answer and other fields
-show exactly as written, as plain text.
+inert: raw HTML shows as text, an image written in Markdown shows as a link and never loads, unlike
+a file attached to the message, and only absolute `https` links are live, opening in a new tab. A
+link whose text is not its own address shows the address's host after it. Titles, questions,
+suggested answers, the own words of an answer and other fields show exactly as written, as plain
+text.
 
 A fenced code block whose language is `mermaid` shows as a diagram, drawn by
 [Mermaid](https://mermaid.js.org/) in isolation from the page, as an image at its natural size, no
@@ -808,6 +815,49 @@ is untested.
 A backup holds what Settings saved, a key among it, but never the environment, which stays with the
 service.
 
+## Attachments
+
+You and your agents can attach files to messages: a screenshot, a log, a report, a photo from your
+phone. A file belongs to the message that brought it, under its name, for good; editing that message
+carries its files to the new version unless you remove them, and the earlier version keeps them too.
+
+- **Attaching.** **Attach**, the paper clip beside **Send**, opens your device's file picker, where
+  a phone also offers its camera. Pasting a screenshot or another image into the message box or
+  **Details** attaches it, named by when you pasted it, such as `pasted-20261122-143005.png`; a
+  paste that carries text, as from a spreadsheet, pastes the text. Each file uploads as soon as you
+  add it, one at a time, with its progress in the list above the box. **Remove** takes a file off
+  the message, stopping its upload; **Retry** sends again one that failed, and **Upload again** one
+  the server no longer holds. **Send** waits until every file has uploaded, and says what it waits
+  on. A message may be files alone. A file you upload and never send is removed a day later.
+- **What shows in place.** Each file shows its name, type and size, and **Download**. An image up to
+  2 MiB shows at once, and a larger one, such as a phone's photo, behind **Show image**. Video and
+  audio play in the page, loading nothing until you play them. Text, code and logs show behind
+  **Show text**, the first 256 KiB of them. A PDF opens in a new tab, in the browser's own viewer.
+  Anything else downloads. A file whose bytes are gone shows as **Missing**. A message's text can
+  link to one of its own files as `[the log](attachment:build.log)`, or
+  `[the log](<attachment:build log.txt>)` for a name with spaces, which opens it as its entry does.
+  Media opened in a tab of its own, as from a context menu's **Open video in new tab**, does not
+  play there, by design: a file opened on its own runs as nothing of Agention's, without your
+  sign-in, so play it in the page or download it.
+- **The thread's files.** **Files** in the thread's head, folded on every visit, lists every file
+  the thread holds, newest first, each with who attached it, when, and a link to its message.
+- **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, and each agent
+  session, can hold at most 20 files, and 1 GiB, uploaded and not yet sent. The server refuses an
+  upload, saying its disk is too full, unless the disk holding its data directory keeps 1 GiB free
+  beyond the files arriving. An upload has no time limit as long as its bytes keep moving, but stops
+  after 30 seconds without any, so a slow link finishes and a dead one fails.
+- **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
+  camera recorded, its location among it, and an agent that fetches it can read that. Remove the
+  location before attaching a photo you would not share it with, or turn it off in the camera.
+- **Storage.** **Settings** shows, under **Storage**, how much space attachments take, in how many
+  files. Files live in the database, so every backup copies them all, and grows as they do
+  ([Backing up](#backing-up)).
+- **Your browser keeps them.** A browser keeps the files it showed in its cache for up to a year,
+  after signing out too, so on a shared device clear its data for the server's site.
+
+Agents attach and fetch files with the bridge's `file_upload` and `file_get` tools, as
+[Agents](#agents) describes.
+
 ## Agents
 
 Agents reach Agention through the agent bridge, `agention-mcp`, an MCP server that the Agention
@@ -841,6 +891,20 @@ The key file is private to the agent's user, under the rule
 directory must exist, and the bridge creates only the directories below it. Until the rule holds,
 the bridge's tools answer with what to change, such as running `chmod go-w ~`; the bridge changes
 nothing that exists.
+
+An agent sends a file with `file_upload`, by its path on the agent's machine, then names the upload
+in a message. The bridge sends only a regular file of up to 100 MiB, and never one of its own keys.
+`file_get` fetches a file a message carries into `~/.cache/agention/files/`, private to the agent's
+user like the key directory, named by the file's reference rather than its sender's name, and
+removes what it fetched more than a week ago; you may clear that directory whenever you like. A
+fetched image of up to 3.5 MiB also reaches the agent's model as an image.
+
+An agent host limits how long one tool call may take, and a large file on a slow link can take
+longer than a host allows. The Codex plugin sets Codex's limit to 10 minutes for the bridge's tools,
+in place of its default of one minute. Claude Code's plugins cannot set one; Claude Code reads its
+limit from the `MCP_TOOL_TIMEOUT` environment variable, in milliseconds, so set it where you start
+Claude Code should an upload or a fetch be cut off, such as `export MCP_TOOL_TIMEOUT=600000` for 10
+minutes.
 
 ### Installing the plugins
 
@@ -1087,6 +1151,16 @@ agention version
 systemctl --user start agention
 ```
 
+The first start after upgrading from a release without attachments rewrites the database once,
+before the server listens, so that space removed uploads free can go back to the disk. It takes
+longer the larger the database is, and needs free space of about the database's size in SQLite's
+temporary directory, `SQLITE_TMPDIR`, else `TMPDIR`, else `/var/tmp`, else `/tmp`, and as much again
+on the disk holding the data directory. Should it fail, for lack of space or because another process
+holds the database, the server logs why and how much space it needs and starts anyway, nothing lost:
+until it succeeds, space that removed uploads free stays in the database file for reuse rather than
+going back to the disk, and each start tries again. A database restored from an older release's
+backup is rewritten the same way.
+
 `@latest` installs the newest release; a version, such as `@0.2.0`, installs that one. On macOS,
 stop the server with `launchctl bootout gui/$UID/com.wayfarerlabs.agention` and start it with
 `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.wayfarerlabs.agention.plist`. Run by hand,
@@ -1135,19 +1209,21 @@ which `npx` fetches as the first of them starts.
 ## Backing up
 
 The database, `agention.db` in the data directory, is the whole of an instance's state: its own key,
-your passkeys' records, every thread and every session's log, and voice's settings with a key saved
-in Settings. Voice settings from the environment are not in it. `agention backup` writes a
-consistent copy of it to a new file, while the server runs or not, and then checks the copy and
-prints its path, size and schema version. It never changes what the database holds, though with the
-server stopped SQLite may leave an empty `agention.db-wal` and an `agention.db-shm` beside it, which
-the server uses as its own when it starts. The copy holds what the database holds, so it is created
-readable only by you, and the command refuses a directory for it that other users could read or
-change, as the data directory's is refused, a file that already exists, and a path SQLite keeps for
-the database's own files, such as `agention.db-wal`. A backup that fails leaves no file behind and
-exits with status 1.
+your passkeys' records, every thread and every session's log, every file attached to a message, and
+voice's settings with a key saved in Settings. Voice settings from the environment are not in it.
+`agention backup` writes a consistent copy of it to a new file, while the server runs or not, and
+then checks the copy and prints its path, size and schema version. It never changes what the
+database holds, though with the server stopped SQLite may leave an empty `agention.db-wal` and an
+`agention.db-shm` beside it, which the server uses as its own when it starts. The copy holds what
+the database holds, so it is created readable only by you, and the command refuses a directory for
+it that other users could read or change, as the data directory's is refused, a file that already
+exists, and a path SQLite keeps for the database's own files, such as `agention.db-wal`. A backup
+that fails leaves no file behind and exits with status 1.
 
-Keep the backups in a directory of their own, with mode 0700; the time in each file's name gives
-each backup a new file. On Linux and on macOS:
+Every backup is a whole copy, files included, so each takes about as much space as the database,
+which grows with every file attached; **Storage** in Settings shows how much attachments take. Keep
+the backups in a directory of their own, with mode 0700; the time in each file's name gives each
+backup a new file. On Linux and on macOS:
 
 ```bash
 mkdir -m 700 -p ~/agention-backups

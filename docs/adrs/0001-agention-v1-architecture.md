@@ -7,7 +7,10 @@ Date: 2026-10-25
 Accepted. [docs/architecture.md](../architecture.md) describes what exists. Until v1 is released
 this ADR is edited in place to state each decision as it stands; later decisions get ADRs of their
 own. Its "no paid services" is superseded by [ADR 0002](0002-voice-through-the-server.md): none by
-default, with voice's transcription provider one the operator may opt into. Its sessions view's tab
+default, with voice's transcription provider one the operator may opt into. Its "never executed or
+fetched", in its trust model, and "so no content makes the browser fetch anything", in "Text is
+Markdown, rendered inert", are superseded for files by [ADR 0004](0004-attachments.md): message text
+stays inert, and files load only as attachments, under that ADR's rules. Its sessions view's tab
 counting the sessions with unread updates is superseded: a navigation badge counts only what its own
 tab lets the operator clear, so the Sessions tab counts the registrations waiting for approval and
 the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web UI" and the
@@ -42,10 +45,11 @@ Agention is an honor system. An agent can fail to report or report falsely, and 
 Agention therefore does not build enforcement around reporting behavior. It enforces what an honor
 system cannot provide: who wrote each message, isolation between sessions, append-only attributed
 history, role checks (only a thread's requester asks, and only its audience answers), and that
-message content is inert (displayed, never executed or fetched). Whether and what to report is
-steered by defaults, the agent skill and visible signals. Because authorship is enforced, the skill
-has an agent take a message the operator wrote as the operator's direction, exactly as their words
-at its terminal; messages from agent sessions are not the operator's.
+message content is inert (displayed, never executed or fetched; superseded for files by
+[ADR 0004](0004-attachments.md), under which files load only as attachments). Whether and what to
+report is steered by defaults, the agent skill and visible signals. Because authorship is enforced,
+the skill has an agent take a message the operator wrote as the operator's direction, exactly as
+their words at its terminal; messages from agent sessions are not the operator's.
 
 ### One Node server and one SQLite database
 
@@ -137,16 +141,18 @@ is only read.
 A message's text and its detail are Markdown (CommonMark with GitHub's tables, task lists and
 strikethrough), whoever writes them; every other text field is plain text. Rendering keeps content
 inert: raw HTML is shown as text, images are shown as links rather than loaded, so no content makes
-the browser fetch anything, and only HTTPS links are live. Text is stored and returned exactly as
-written. The renderer is Agention's own, over a Markdown parser given only those three extensions,
-so a bare URL never becomes a link and no footnote makes links of its own.
+the browser fetch anything (superseded by [ADR 0004](0004-attachments.md): files load only as
+attachments, and Markdown images still never load), and only HTTPS links are live. Text is stored
+and returned exactly as written. The renderer is Agention's own, over a Markdown parser given only
+those three extensions, so a bare URL never becomes a link and no footnote makes links of its own.
 
 A fenced `mermaid` block is drawn as the diagram it describes, but Mermaid never runs in the web
 UI's page. It runs in a frame served from a route of its own and sandboxed with scripts only, so its
 origin is opaque; the route's content security policy sandboxes it even when it is opened on its own
 and lets it fetch nothing. The frame answers with SVG, which the page shows as an image, so it runs
-no script and loads nothing; the page's own policy gains only that frame and `blob:` images. A
-diagram that is too large, fails or takes too long shows its source instead.
+no script and loads nothing; the page's own policy gains only that frame and `blob:` images (and
+media from its own origin, for attachments, by [ADR 0004](0004-attachments.md)). A diagram that is
+too large, fails or takes too long shows its source instead.
 
 ### Read and archive marks, and optimistic concurrency
 
