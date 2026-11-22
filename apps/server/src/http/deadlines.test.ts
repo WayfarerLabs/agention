@@ -183,6 +183,29 @@ describe("the listener's deadlines, on a fake clock", () => {
     expect(connection.received()).toContain("longer than 30 seconds");
   });
 
+  it("close a connection whose body still trickles in once its answer has gone", async () => {
+    // A GET carrying a body is answered without reading it, and Node then
+    // discards the rest of the body as it arrives, on a keep-alive connection
+    // whose idle timer every byte resets.
+    const connection = open(
+      port,
+      headOf("GET", "/api/web/session", { "content-length": String(1_000_000) }),
+    );
+    await until(() => connection.received().includes("\r\n\r\n{"), "the answer");
+    expect(headersOf(connection.received()).status).toBe(200);
+    for (let second = 1; second < 30; second++) {
+      connection.socket.write("x");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      advance(1000);
+    }
+    expect(connection.closed()).toBe(false);
+    connection.socket.write("x");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    advance(1000);
+    await until(() => connection.closed(), "the connection to close");
+    expect(deadlines.tracking).toBe(0);
+  });
+
   it("leave a long poll alone however long it waits, and the web mount's answers without the version", async () => {
     const poll = open(
       port,

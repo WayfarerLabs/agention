@@ -14,7 +14,9 @@ import { isUploadRequest } from "./uploads.ts";
 // and, unless it is an upload, once it is still arriving the total limit
 // after its headers. An upload has no total limit, so a slow link finishes.
 // A request whose body is complete, a long poll's among them, is never
-// touched, however long its answer takes.
+// touched, however long its answer takes. A request answered before its
+// body is complete, such as a GET that carries one, keeps its deadlines, so
+// the rest of its body cannot hold the connection open.
 
 export interface DeadlineLimits {
   // How long a body may send nothing, in milliseconds.
@@ -74,13 +76,13 @@ export class Deadlines {
     return this.#tracked.size;
   }
 
-  // check drops the requests whose bodies are complete or whose answers
-  // have finished, and cuts off those past a deadline.
+  // check drops the requests whose bodies are complete or whose connections
+  // have closed, and cuts off those past a deadline.
   check(): void {
     const now = this.#now();
     for (const tracked of this.#tracked) {
-      const { request, response } = tracked;
-      if (request.complete || response.writableFinished || request.destroyed) {
+      const { request } = tracked;
+      if (request.complete || request.destroyed || request.socket.destroyed) {
         this.#tracked.delete(tracked);
         continue;
       }
@@ -115,6 +117,8 @@ export class Deadlines {
   // connection, and otherwise ends the connection. Either way the request is
   // then destroyed, so the route's read of the body fails, rather than waiting
   // on a body Node has stopped delivering, and an upload removes what arrived.
+  // A request already answered has left the response, and Node discards the
+  // rest of its body, so its socket is destroyed itself.
   // The answer carries what the app's middleware would have added: the
   // security headers, and on the agent mount the agent API version, without
   // which a bridge would take it for the answer of a server older than itself.
@@ -122,6 +126,10 @@ export class Deadlines {
     this.#tracked.delete(tracked);
     const { request, response } = tracked;
     const cutOff = new Error(message);
+    if (response.writableFinished) {
+      request.socket.destroy();
+      return;
+    }
     if (response.headersSent) {
       request.destroy(cutOff);
       return;
