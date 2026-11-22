@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { sequence } from "./bounds.ts";
-import { byteCount } from "./files.ts";
+import { fileTotals } from "./files.ts";
 import { multilineText } from "./text.ts";
 
 // The operator's settings on the web mount: voice, whose transcription
@@ -124,18 +123,14 @@ export const voiceSettings = z.object({
 });
 export type VoiceSettings = z.infer<typeof voiceSettings>;
 
-// What the server's files take: every file the database holds, pending
-// uploads included, since that is the disk they take, and their bytes.
-export const storageTotals = z.object({ files: sequence, bytes: byteCount });
-export type StorageTotals = z.infer<typeof storageTotals>;
-
 // The operator's settings: voice, null while neither Settings nor the
-// environment gives any of it, and what the server's files take. Whether the
-// sign-in is recent enough to change them is the passkey list's to say, for
-// both.
+// environment gives any of it, and what the server's files take: every file
+// the database holds, pending uploads included, since that is the disk they
+// take. Whether the sign-in is recent enough to change them is the passkey
+// list's to say, for both.
 export const settingsResult = z.object({
   voice: voiceSettings.nullable(),
-  storage: storageTotals,
+  storage: fileTotals,
 });
 export type SettingsResult = z.infer<typeof settingsResult>;
 

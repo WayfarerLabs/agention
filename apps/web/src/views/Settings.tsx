@@ -109,9 +109,9 @@ function Section({
 function Storage({ totals }: { totals: SettingsResult["storage"] }) {
   return (
     <p>
-      {totals.files === 0
+      {totals.count === 0
         ? "No files are attached yet."
-        : `Attachments take ${byteSize(totals.bytes)} in ${plural(totals.files, "file")}, and every backup copies them.`}
+        : `Attachments take ${byteSize(totals.bytes)} in ${plural(totals.count, "file")}, and every backup copies them.`}
     </p>
   );
 }

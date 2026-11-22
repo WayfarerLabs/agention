@@ -14,8 +14,8 @@ afterEach(() => {
   expect(api.unhandled).toEqual([]);
 });
 
-async function storage(files: number, bytes: number) {
-  api.on("GET", "/settings", { body: { ...noSettings, storage: { files, bytes } } });
+async function storage(count: number, bytes: number) {
+  api.on("GET", "/settings", { body: { ...noSettings, storage: { count, bytes } } });
   renderAt("/settings");
   const section = await screen.findByRole("region", { name: "Storage" });
   // The line that replaces Loading once the settings arrive.

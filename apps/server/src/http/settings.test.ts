@@ -9,7 +9,7 @@ const ownServer = "http://192.168.1.20:8000/v1";
 const secretKey = "sk-Qv7Xm2Zp9Lw4Kt8R-c3dE";
 const otherKey = "sk-Ny6Hb1Jg5Fd0Sa9P-x8yZ";
 // What a server without files answers its storage as.
-const noFiles = { files: 0, bytes: 0 };
+const noFiles = { count: 0, bytes: 0 };
 
 let harness: Harness;
 // Every answer the tests saw, to check that none carries more of a key than

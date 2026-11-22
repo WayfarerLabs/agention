@@ -1,10 +1,10 @@
 import {
+  type FileTotals,
   formatTimestamp,
   maxPendingBytes,
   maxPendingFiles,
   pendingLifetime,
   servedTypeOf,
-  type StorageTotals,
   type UploadResult,
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
@@ -185,11 +185,11 @@ export function bytesArriving(store: Store): number {
 // storageTotals counts every file the database holds, pending uploads
 // included, since that is the disk they take, and their bytes. An upload
 // still arriving is not yet a file.
-export function storageTotals(db: Database): StorageTotals {
+export function storageTotals(db: Database): FileTotals {
   return db
     .prepare(
-      `SELECT count(*) AS files, COALESCE(SUM(size), 0) AS bytes FROM files
+      `SELECT count(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM files
        WHERE completed_at IS NOT NULL`,
     )
-    .get() as unknown as StorageTotals;
+    .get() as unknown as FileTotals;
 }

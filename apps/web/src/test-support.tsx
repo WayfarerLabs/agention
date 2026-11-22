@@ -78,7 +78,7 @@ export const noAttention: AttentionCounts = { unread_threads: 0, pending_registr
 export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
 // The settings of a server without voice or files.
-export const noSettings: SettingsResult = { voice: null, storage: { files: 0, bytes: 0 } };
+export const noSettings: SettingsResult = { voice: null, storage: { count: 0, bytes: 0 } };
 
 export const signedIn: SessionState = {
   signed_in: true,

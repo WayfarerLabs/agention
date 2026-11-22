@@ -102,7 +102,7 @@ describe("an upload", () => {
       { idx: 1, length: chunkBytes },
       { idx: 2, length: 5 },
     ]);
-    expect(storageTotals(fixture.db)).toEqual({ files: 1, bytes: bytes.length });
+    expect(storageTotals(fixture.db)).toEqual({ count: 1, bytes: bytes.length });
   });
 
   it("is refused at completion when the bytes received differ from its declared size", () => {

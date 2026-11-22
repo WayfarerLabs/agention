@@ -364,6 +364,6 @@ describe("a thread's files", () => {
     await attach([{ bytes: Buffer.from("1234"), name: "a.txt" }]);
     await uploaded(harness, "web", agent, Buffer.from("123456"));
     const settings = await harness.web("GET", "/settings");
-    expect((settings.body as { storage: unknown }).storage).toEqual({ files: 2, bytes: 10 });
+    expect((settings.body as { storage: unknown }).storage).toEqual({ count: 2, bytes: 10 });
   });
 });
