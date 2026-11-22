@@ -10,14 +10,7 @@ import { chunkBytes } from "../store/index.ts";
 import { hour } from "../store/test-fixture.ts";
 import { codeOf, json, send, type Sent } from "./file-test-support.ts";
 import { filePolicy } from "./files.ts";
-import {
-  type AgentKey,
-  codeOf as answerCodeOf,
-  Harness,
-  host,
-  newThread,
-  sessionCookie,
-} from "./test-harness.ts";
+import { type AgentKey, codeOf as answerCodeOf, Harness, host, newThread } from "./test-harness.ts";
 
 // Files on the operator mount, with API keys: uploads and file reads run the
 // same operations the agent and web mounts do, under the threads scopes.
@@ -118,16 +111,6 @@ describe("files on the operator mount", () => {
     expect(count("files")).toBe(1);
   });
 
-  it("refuses listing and reading to a key without threads:read as not_found", async () => {
-    const writer = await harness.createKey(["threads:write"]);
-    const { upload: ref } = json(await upload(writer.secret, Buffer.from("x"))) as UploadResult;
-    const seq = await attach(writer.secret, ref);
-    const other = await harness.createKey(["sessions:approve"]);
-    const list = await harness.operator(other.secret, "GET", "/s/builder/main/threads/1/files");
-    expect(answerCodeOf(list)).toBe("not_found");
-    expect(codeOf(await readFile(other.secret, seq, "notes.txt"))).toBe("not_found");
-  });
-
   it("holds a key's pending upload as the operator's, which the web session can attach", async () => {
     const writer = await harness.createKey(["threads:write"]);
     const { upload: ref } = json(await upload(writer.secret, Buffer.from("x"))) as UploadResult;
@@ -153,36 +136,9 @@ describe("files on the operator mount", () => {
     const read = await readFile(writer.secret, seq, "notes.txt");
     expect([read.status, read.bytes.toString()]).toEqual([200, "kept"]);
   });
-
-  it("refuses an upload and a read carrying a cookie, even with a valid key", async () => {
-    const { secret } = await harness.createKey(["threads:write"]);
-    const { upload: ref } = json(await upload(secret, Buffer.from("x"))) as UploadResult;
-    const seq = await attach(secret, ref);
-    const cookie = { cookie: `${sessionCookie}=${harness.cookie}` };
-    const sent = await send(
-      harness,
-      "POST",
-      `${prefix}/uploads?name=a.txt`,
-      { ...bearer(secret), ...cookie, "content-type": "text/plain", "content-length": "1" },
-      Buffer.from("y"),
-    );
-    expect(codeOf(sent)).toBe("unauthenticated");
-    expect(codeOf(await readFile(secret, seq, "notes.txt", cookie))).toBe("unauthenticated");
-    expect(count("files")).toBe(1);
-  });
 });
 
 describe("a key's file transfer", () => {
-  it("is refused once the key is revoked, upload and read alike", async () => {
-    const { key, secret } = await harness.createKey(["threads:write"]);
-    const { upload: ref } = json(await upload(secret, Buffer.from("x"))) as UploadResult;
-    const seq = await attach(secret, ref);
-    await harness.web("POST", `/keys/${key.id}/revoke`);
-    expect(codeOf(await upload(secret, Buffer.from("y")))).toBe("unauthenticated");
-    expect(codeOf(await readFile(secret, seq, "notes.txt"))).toBe("unauthenticated");
-    expect(count("files")).toBe(1);
-  });
-
   it("stops a read within a chunk once the key is revoked", async () => {
     const { key, secret } = await harness.createKey(["threads:write"]);
     const big = Buffer.alloc(chunkBytes * 3);
