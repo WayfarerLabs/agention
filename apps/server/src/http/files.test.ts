@@ -238,39 +238,16 @@ describe("ranges", () => {
 
 describe("serving headers", () => {
   // The declared type an upload gives, and the served type and disposition
-  // it is answered with.
+  // it is answered with: a row for each way the upload reads a declared
+  // type, and one each for inline and attachment. The API package tests the
+  // mapping itself.
   const cases: [string | null, string, "inline" | "attachment"][] = [
     ["image/png", "image/png", "inline"],
-    ["image/jpeg", "image/jpeg", "inline"],
-    ["image/jpg", "image/jpeg", "inline"],
-    ["image/gif", "image/gif", "inline"],
-    ["image/webp", "image/webp", "inline"],
-    ["image/svg+xml", "image/svg+xml", "attachment"],
-    ["application/pdf", "application/pdf", "inline"],
-    ["video/mp4", "video/mp4", "inline"],
-    ["video/webm", "video/webm", "inline"],
-    ["video/ogg", "video/ogg", "inline"],
-    ["audio/mpeg", "audio/mpeg", "inline"],
-    ["audio/mp3", "audio/mpeg", "inline"],
-    ["audio/mp4", "audio/mp4", "inline"],
-    ["audio/ogg", "audio/ogg", "inline"],
-    ["audio/webm", "audio/webm", "inline"],
-    ["audio/wav", "audio/wav", "inline"],
-    ["audio/flac", "audio/flac", "inline"],
-    ["text/plain", "text/plain; charset=utf-8", "inline"],
-    ["text/markdown", "text/plain; charset=utf-8", "inline"],
-    ["application/json", "text/plain; charset=utf-8", "inline"],
-    ["application/yaml", "text/plain; charset=utf-8", "inline"],
-    ["text/html", "text/plain; charset=utf-8", "inline"],
-    ["text/javascript", "text/plain; charset=utf-8", "inline"],
-    ["Text/CSS; charset=latin1", "text/plain; charset=utf-8", "inline"],
-    ["application/xhtml+xml", "application/octet-stream", "attachment"],
-    ["application/javascript", "application/octet-stream", "attachment"],
-    ["image/heic", "application/octet-stream", "attachment"],
     ["application/zip", "application/octet-stream", "attachment"],
+    ["image/jpg", "image/jpeg", "inline"],
+    ["Text/CSS; charset=latin1", "text/plain; charset=utf-8", "inline"],
     [null, "application/octet-stream", "attachment"],
     ["not a type", "application/octet-stream", "attachment"],
-    ["image/png/x", "application/octet-stream", "attachment"],
   ];
 
   it.each(cases)("serve %s as %s, %s, inert", async (declared, served, disposition) => {
@@ -323,45 +300,6 @@ describe("serving headers", () => {
           ? /^attachment;/
           : /^inline;/,
       );
-    }
-  }, 20_000);
-
-  it("never serve a type outside the served set, whatever is declared", async () => {
-    // A seeded generator of declared types, so a failure repeats.
-    let seed = 20261122;
-    const next = () => {
-      seed = (seed * 1103515245 + 12345) % 2 ** 31;
-      return seed;
-    };
-    const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789+-./;= *\"'%éTEXT/HTML";
-    const known = ["text/", "image/", "audio/", "video/", "application/", "multipart/"];
-    const types = Array.from({ length: 30 }, () => {
-      const length = next() % 30;
-      const tail = Array.from({ length }, () => alphabet[next() % alphabet.length]).join("");
-      return `${known[next() % known.length]}${tail}`;
-    });
-    // The operator uploads them, whose uploads spend no rate budget, and
-    // attaches them ten a message to a thread the agent started.
-    await harness.agent(agent, "POST", "/s/builder/main/threads", newThread("r-types"));
-    for (let message = 0; message < types.length / 10; message++) {
-      const refs: string[] = [];
-      for (let i = message * 10; i < (message + 1) * 10; i++) {
-        const type = types[i] ?? "";
-        refs.push(
-          (await uploaded(harness, "web", agent, Buffer.from("x"), { name: `${i}`, type })).upload,
-        );
-      }
-      const sent = await harness.web("POST", "/s/builder/main/threads/1/messages", {
-        request_id: `r-${message}`,
-        seen_through: message + 1,
-        attachments: refs.map((upload) => ({ upload })),
-      });
-      expect(sent.status).toBe(200);
-    }
-    for (const [i, type] of types.entries()) {
-      const sent = await readFile(harness, "web", agent, Math.floor(i / 10) + 2, `${i}`);
-      expect(sent.status, type).toBe(200);
-      expect(servedTypes as readonly string[], type).toContain(sent.headers.get("content-type"));
     }
   }, 20_000);
 

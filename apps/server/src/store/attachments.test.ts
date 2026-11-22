@@ -197,7 +197,11 @@ describe("a message's attachments", () => {
     const eleven = Array.from({ length: 11 }, (_, i) => ({
       upload: upload(`${i}`, { name: `${i}.txt` }),
     }));
-    expect(() => fixture.write(agent.identity, target(), { attachments: eleven })).toThrow(/10/);
+    expect(() => fixture.write(agent.identity, target(), { attachments: eleven })).toThrow(
+      expect.objectContaining({
+        issues: [expect.objectContaining({ code: "too_big", path: ["attachments"] })],
+      }),
+    );
   });
 
   it("are part of a write's digest, so a retry answers as the first did after its uploads were consumed", () => {

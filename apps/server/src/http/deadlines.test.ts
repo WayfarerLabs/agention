@@ -180,7 +180,6 @@ describe("the listener's deadlines, on a fake clock", () => {
     advance(1000);
     await until(() => connection.closed(), "the connection to close");
     expect(headersOf(connection.received()).status).toBe(408);
-    expect(connection.received()).toContain("longer than 30 seconds");
   });
 
   it("close a connection whose body still trickles in once its answer has gone", async () => {

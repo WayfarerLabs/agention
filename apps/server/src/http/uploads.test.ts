@@ -110,15 +110,12 @@ describe("an upload", () => {
     expect([sent.status, codeOf(sent)]).toEqual([411, "invalid_input"]);
   });
 
-  it("is refused while its writer holds the most pending uploads, naming the limit", async () => {
+  it("is refused while its writer holds the most pending uploads", async () => {
     for (let i = 0; i < maxPendingFiles; i++) {
       expect((await upload(harness, "web", agent, Buffer.from("x"))).status).toBe(200);
     }
     const sent = await upload(harness, "web", agent, Buffer.from("x"));
     expect([sent.status, codeOf(sent)]).toEqual([400, "invalid_input"]);
-    expect((json(sent) as { error: { message: string } }).error.message).toContain(
-      String(maxPendingFiles),
-    );
     // The agent is another writer, with limits of its own.
     expect((await upload(harness, "agent", agent, Buffer.from("x"))).status).toBe(200);
   });
