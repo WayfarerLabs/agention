@@ -210,7 +210,8 @@ with **Sign out** last, apart from the groups.
   (S1, ruling 5).
 - The recent sign-in offer, which every section that changes a secret needs, moves from the view's
   top into the sections that need it (Passkeys, Voice, API keys), shown once per section. Each
-  section loads its own data, so opening one fetches only what it shows.
+  section loads only its own data. Since the layout is decided in CSS alone, `/settings` mounts the
+  first section, which loads its data, on every width, hiding it on a narrow screen.
 
 This is the pattern later settings follow; agention#38's reorganization of voice settings fits
 inside its Voice section.

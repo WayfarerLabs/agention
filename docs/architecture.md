@@ -955,15 +955,15 @@ that list, so a new section is one entry and one component, and a slug no sectio
 `/passkeys`, where passkeys had a page of their own, redirects to `/settings/passkeys`, replacing
 the history entry. The layout is decided in CSS alone: below the layout's `40rem` breakpoint
 `/settings` shows the navigation as a list and a section's page shows a back link to it; above it
-the navigation is a column beside the open section, and `/settings` opens the first section. Each
-section loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice,
-offers to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads
-`recent` from the key list, and Passkeys and Voice from the passkey list. The voice form starts
-afresh from what the server holds whenever that changes, and normalizes a base URL with the API's
-own reader; which hosts it may reach is the server's to judge, when it is saved. After a save or a
-clear, focus waits for the settings the server then holds before moving to the control that shows
-them, and moves only from the control pressed. Signing in again moves focus to the open section's
-heading.
+the navigation is a column beside the open section, and `/settings` opens the first section, which
+it mounts, and so loads, on every width, hidden below the breakpoint. Each section loads only its
+own data, and a section that changes a secret, Passkeys, API keys and Voice, offers to sign in again
+while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads `recent` from the key list, and
+Passkeys and Voice from the passkey list. The voice form starts afresh from what the server holds
+whenever that changes, and normalizes a base URL with the API's own reader; which hosts it may reach
+is the server's to judge, when it is saved. After a save or a clear, focus waits for the settings
+the server then holds before moving to the control that shows them, and moves only from the control
+pressed. Signing in again moves focus to the open section's heading.
 
 The API keys section (`src/views/settings/ApiKeys.tsx`) lists the keys as the server does, each with
 its scopes and when it was created, expires and was last used, flagged while it is live with no
