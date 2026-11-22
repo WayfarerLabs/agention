@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v2",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 2."
+    "version": "operator v1, agent v3",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 3."
   },
   "tags": [
     {
@@ -1423,13 +1423,33 @@
                     },
                     "marks": {
                       "$ref": "#/components/schemas/Marks"
+                    },
+                    "files": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "bytes"
+                      ]
                     }
                   },
                   "required": [
                     "thread",
                     "messages",
                     "cursors",
-                    "marks"
+                    "marks",
+                    "files"
                   ]
                 }
               }
@@ -1521,6 +1541,34 @@
                     "items": {
                       "$ref": "#/components/schemas/Reference"
                     }
+                  },
+                  "attachments": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "upload": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{22}$",
+                          "description": "The reference an upload of yours answered with, in this session and not yet attached to a message."
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "With upload: the name to attach the file under, by default the one it was uploaded under."
+                        },
+                        "keep": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "On a replacement: a file of the message it replaces, by its name there, which this message carries again."
+                        }
+                      }
+                    },
+                    "description": "Up to 10 files this message carries, in order, each under a name unique within it. Upload a file first, then name its upload here; a replacement carries a file of the message it replaces only by keeping it."
                   },
                   "asks": {
                     "minItems": 1,
@@ -1845,6 +1893,485 @@
                   "required": [
                     "marks"
                   ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/s/{agent}/{session}/uploads": {
+      "post": {
+        "operationId": "operatorUploadFile",
+        "summary": "Upload a file to attach to a message in the session, which stays pending, yours alone, until a message names it",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The file's bytes, exactly as they are, with a Content-Length, which is required. Content-Type declares the file's type, any type at all: its essence, lowercased, is stored, and without one, or with one that is not a type, the file is application/octet-stream. The upload's answer gives the type it is served as.",
+          "required": true,
+          "content": {
+            "application/octet-stream": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{22}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "served_type": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/gif",
+                        "image/webp",
+                        "image/svg+xml",
+                        "application/pdf",
+                        "video/mp4",
+                        "video/webm",
+                        "video/ogg",
+                        "audio/mpeg",
+                        "audio/mp4",
+                        "audio/ogg",
+                        "audio/webm",
+                        "audio/wav",
+                        "audio/flac",
+                        "text/plain; charset=utf-8",
+                        "application/octet-stream"
+                      ]
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "required": [
+                    "upload",
+                    "name",
+                    "size",
+                    "type",
+                    "served_type",
+                    "expires_at"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/s/{agent}/{session}/uploads/{upload}/remove": {
+      "post": {
+        "operationId": "operatorRemoveUpload",
+        "summary": "Remove one of your pending uploads, which no message has named yet",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{22}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/s/{agent}/{session}/threads/{thread}/files": {
+      "get": {
+        "operationId": "operatorListThreadFiles",
+        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "thread",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{22}$"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "missing": {
+                            "type": "boolean",
+                            "const": true
+                          },
+                          "seq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "author": {
+                            "$ref": "#/components/schemas/Author"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "file",
+                          "size",
+                          "type",
+                          "seq",
+                          "author",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "next": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  },
+                  "required": [
+                    "files"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/s/{agent}/{session}/threads/{thread}/messages/{seq}/files/{name}": {
+      "get": {
+        "operationId": "operatorReadFile",
+        "summary": "Read a file a message carries, by the name it carries it under, whole or a range",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "thread",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "seq",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{22}$"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "description": "One range of bytes, as bytes=first-last, bytes=first- or bytes=-suffix, answered 206. Several ranges, another unit and anything malformed are ignored, and the bytes are answered whole.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file's bytes, as the type it is served as, which follows from its declared type and is never a script or style. Content-Disposition names the file, inline or as an attachment to download. A file is served inert: its Content-Security-Policy sandboxes it and loads nothing, Cross-Origin-Resource-Policy is same-origin, and it may be cached privately for good, since the bytes at an address never change; ETag is the hex SHA-256 of its bytes. HEAD answers the same headers without the bytes.",
+            "content": {
+              "image/png": {},
+              "image/jpeg": {},
+              "image/gif": {},
+              "image/webp": {},
+              "image/svg+xml": {},
+              "application/pdf": {},
+              "video/mp4": {},
+              "video/webm": {},
+              "video/ogg": {},
+              "audio/mpeg": {},
+              "audio/mp4": {},
+              "audio/ogg": {},
+              "audio/webm": {},
+              "audio/wav": {},
+              "audio/flac": {},
+              "text/plain; charset=utf-8": {},
+              "application/octet-stream": {}
+            }
+          },
+          "206": {
+            "description": "The range asked for, of the same bytes, with the same headers.",
+            "headers": {
+              "Content-Range": {
+                "description": "bytes first-last/length",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/png": {},
+              "image/jpeg": {},
+              "image/gif": {},
+              "image/webp": {},
+              "image/svg+xml": {},
+              "application/pdf": {},
+              "video/mp4": {},
+              "video/webm": {},
+              "video/ogg": {},
+              "audio/mpeg": {},
+              "audio/mp4": {},
+              "audio/ogg": {},
+              "audio/webm": {},
+              "audio/wav": {},
+              "audio/flac": {},
+              "text/plain; charset=utf-8": {},
+              "application/octet-stream": {}
+            }
+          },
+          "416": {
+            "description": "The range lies outside the bytes, or the bytes are empty; invalid_input.",
+            "headers": {
+              "Content-Range": {
+                "description": "bytes */length",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -2299,47 +2826,6 @@
                   },
                   "required": [
                     "agents"
-                  ]
-                }
-              }
-            }
-          },
-          "default": {
-            "$ref": "#/components/responses/error"
-          }
-        }
-      }
-    },
-    "/api/operator/v1/sessions/unread-updates": {
-      "get": {
-        "operationId": "operatorCountUnreadUpdates",
-        "summary": "Count the sessions whose log has updates not yet read",
-        "tags": [
-          "operator"
-        ],
-        "security": [
-          {
-            "apiKey": [
-              "sessions:read"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Done",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "sessions": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "sessions"
                   ]
                 }
               }
@@ -3653,6 +4139,34 @@
                       "$ref": "#/components/schemas/Reference"
                     }
                   },
+                  "attachments": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "upload": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{22}$",
+                          "description": "The reference an upload of yours answered with, in this session and not yet attached to a message."
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "With upload: the name to attach the file under, by default the one it was uploaded under."
+                        },
+                        "keep": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "On a replacement: a file of the message it replaces, by its name there, which this message carries again."
+                        }
+                      }
+                    },
+                    "description": "Up to 10 files this message carries, in order, each under a name unique within it. Upload a file first, then name its upload here; a replacement carries a file of the message it replaces only by keeping it."
+                  },
                   "asks": {
                     "minItems": 1,
                     "maxItems": 10,
@@ -4040,13 +4554,33 @@
                     },
                     "marks": {
                       "$ref": "#/components/schemas/Marks"
+                    },
+                    "files": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "bytes"
+                      ]
                     }
                   },
                   "required": [
                     "thread",
                     "messages",
                     "cursors",
-                    "marks"
+                    "marks",
+                    "files"
                   ]
                 }
               }
@@ -4139,6 +4673,34 @@
                     "items": {
                       "$ref": "#/components/schemas/Reference"
                     }
+                  },
+                  "attachments": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "upload": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{22}$",
+                          "description": "The reference an upload of yours answered with, in this session and not yet attached to a message."
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "With upload: the name to attach the file under, by default the one it was uploaded under."
+                        },
+                        "keep": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "On a replacement: a file of the message it replaces, by its name there, which this message carries again."
+                        }
+                      }
+                    },
+                    "description": "Up to 10 files this message carries, in order, each under a name unique within it. Upload a file first, then name its upload here; a replacement carries a file of the message it replaces only by keeping it."
                   },
                   "asks": {
                     "minItems": 1,
@@ -4495,6 +5057,515 @@
           }
         }
       }
+    },
+    "/api/agent/s/{agent}/{session}/uploads": {
+      "post": {
+        "operationId": "agentUploadFile",
+        "summary": "Upload a file to attach to a message in the session, which stays pending, yours alone, until a message names it",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The file's bytes, exactly as they are, with a Content-Length, which is required. Content-Type declares the file's type, any type at all: its essence, lowercased, is stored, and without one, or with one that is not a type, the file is application/octet-stream. The upload's answer gives the type it is served as.",
+          "required": true,
+          "content": {
+            "application/octet-stream": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{22}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "served_type": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/gif",
+                        "image/webp",
+                        "image/svg+xml",
+                        "application/pdf",
+                        "video/mp4",
+                        "video/webm",
+                        "video/ogg",
+                        "audio/mpeg",
+                        "audio/mp4",
+                        "audio/ogg",
+                        "audio/webm",
+                        "audio/wav",
+                        "audio/flac",
+                        "text/plain; charset=utf-8",
+                        "application/octet-stream"
+                      ]
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "required": [
+                    "upload",
+                    "name",
+                    "size",
+                    "type",
+                    "served_type",
+                    "expires_at"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/agent/s/{agent}/{session}/uploads/{upload}/remove": {
+      "post": {
+        "operationId": "agentRemoveUpload",
+        "summary": "Remove one of your pending uploads, which no message has named yet",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{22}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/agent/s/{agent}/{session}/threads/{thread}/files": {
+      "get": {
+        "operationId": "agentListThreadFiles",
+        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "thread",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{22}$"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "missing": {
+                            "type": "boolean",
+                            "const": true
+                          },
+                          "seq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "author": {
+                            "$ref": "#/components/schemas/Author"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "file",
+                          "size",
+                          "type",
+                          "seq",
+                          "author",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "next": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  },
+                  "required": [
+                    "files"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/agent/s/{agent}/{session}/threads/{thread}/messages/{seq}/files/{name}": {
+      "get": {
+        "operationId": "agentReadFile",
+        "summary": "Read a file a message carries, by the name it carries it under, whole or a range",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "thread",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "seq",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{22}$"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "description": "One range of bytes, as bytes=first-last, bytes=first- or bytes=-suffix, answered 206. Several ranges, another unit and anything malformed are ignored, and the bytes are answered whole.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file's bytes, as the type it is served as, which follows from its declared type and is never a script or style. Content-Disposition names the file, inline or as an attachment to download. A file is served inert: its Content-Security-Policy sandboxes it and loads nothing, Cross-Origin-Resource-Policy is same-origin, and it may be cached privately for good, since the bytes at an address never change; ETag is the hex SHA-256 of its bytes. HEAD answers the same headers without the bytes.",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "image/png": {},
+              "image/jpeg": {},
+              "image/gif": {},
+              "image/webp": {},
+              "image/svg+xml": {},
+              "application/pdf": {},
+              "video/mp4": {},
+              "video/webm": {},
+              "video/ogg": {},
+              "audio/mpeg": {},
+              "audio/mp4": {},
+              "audio/ogg": {},
+              "audio/webm": {},
+              "audio/wav": {},
+              "audio/flac": {},
+              "text/plain; charset=utf-8": {},
+              "application/octet-stream": {}
+            }
+          },
+          "206": {
+            "description": "The range asked for, of the same bytes, with the same headers.",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              },
+              "Content-Range": {
+                "description": "bytes first-last/length",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/png": {},
+              "image/jpeg": {},
+              "image/gif": {},
+              "image/webp": {},
+              "image/svg+xml": {},
+              "application/pdf": {},
+              "video/mp4": {},
+              "video/webm": {},
+              "video/ogg": {},
+              "audio/mpeg": {},
+              "audio/mp4": {},
+              "audio/ogg": {},
+              "audio/webm": {},
+              "audio/wav": {},
+              "audio/flac": {},
+              "text/plain; charset=utf-8": {},
+              "application/octet-stream": {}
+            }
+          },
+          "416": {
+            "description": "The range lies outside the bytes, or the bytes are empty; invalid_input.",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              },
+              "Content-Range": {
+                "description": "bytes */length",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4528,13 +5599,13 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "2"
+          "const": "3"
         }
       }
     },
     "responses": {
       "error": {
-        "description": "Refused. The status follows error.code: invalid_input 400, unsupported_version 400, unauthenticated 401, not_allowed 403, not_found 404, stale 409, request_id_conflict 409, conflict 409, rate_limited 429, provider_failed 502, internal 500; a body over the server's size limit is invalid_input with 413, and one sent without a Content-Length is invalid_input with 411.",
+        "description": "Refused. The status follows error.code: invalid_input 400, unsupported_version 400, unauthenticated 401, not_allowed 403, not_found 404, stale 409, request_id_conflict 409, conflict 409, rate_limited 429, storage_full 507, provider_failed 502, internal 500; a body over the server's size limit is invalid_input with 413, and one sent without a Content-Length is invalid_input with 411.",
         "content": {
           "application/json": {
             "schema": {
@@ -4922,6 +5993,7 @@
                   "request_id_conflict",
                   "conflict",
                   "rate_limited",
+                  "storage_full",
                   "provider_failed",
                   "internal"
                 ]
@@ -5031,6 +6103,39 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Reference"
+            }
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{22}$"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "type": {
+                  "type": "string"
+                },
+                "missing": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": [
+                "name",
+                "file",
+                "size",
+                "type"
+              ]
             }
           },
           "topic": {

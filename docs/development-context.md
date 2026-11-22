@@ -8,9 +8,9 @@ index of those docs.
 - Reviewer: `project-reviewer`, with Agention's project checks in `docs/review-checklist.md`
 - Tester: none; live testing follows the shared `integration-testing` tester method with Agention's
   surfaces, layers, hunts and bed rails in `docs/live-testing.md`
-- SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"), no active effort, with
-  `docs/sdd/2026-11-21-voice-and-settings/` open until its release and lock; SDD check:
-  `scripts/check-sdd.sh`, in the "SDD records" gate of `scripts/check.sh`
+- SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"), active effort
+  `docs/sdd/2026-11-22-attachments/`; SDD check: `scripts/check-sdd.sh`, in the "SDD records" gate
+  of `scripts/check.sh`
 
 ## Identity and design
 
@@ -91,8 +91,9 @@ index of those docs.
 ## Invariants and collateral
 
 - Trust model, security checklist, and invariants reviewers check clause by clause: `SECURITY.md`
-  "Security model", with "Voice", "API keys", "Private files" and "The agent bridge"; the project
-  checks A1 to A18 in `docs/review-checklist.md`; the deliberate limits in ADR 0001 "Not doing"
+  "Security model", with "Voice", "API keys", "Attachments", "Private files" and "The agent bridge";
+  the project checks A1 to A19 in `docs/review-checklist.md`; the deliberate limits in ADR 0001 "Not
+  doing"
 - Collateral to keep in sync: docs `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/architecture.md`, `docs/operator-guide.md`, `docs/adrs/`, `docs/review-checklist.md`,
   `docs/live-testing.md`, this file, and `.github/pull_request_template.md`; sample config none (the
@@ -145,7 +146,9 @@ index of those docs.
   Codex session; the macOS launchd setup is untested (`docs/operator-guide.md` "macOS: a launchd
   agent"); installing the plugins from the repository's marketplace is not yet verified on either
   host (`docs/architecture.md` "Generated plugins"); dictation runs in no automated browser but
-  Chromium, the only one with a fake microphone, so dictation in Apple browsers is untested
+  Chromium, the only one with a fake microphone, so dictation in Apple browsers is untested; a PDF
+  attachment's safety in Firefox's viewer and in Apple browsers is untested (`SECURITY.md`
+  "Attachments")
 
 ## Process
 

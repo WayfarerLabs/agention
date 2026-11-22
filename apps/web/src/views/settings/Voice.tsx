@@ -10,7 +10,7 @@ import {
   type VoiceSettings,
   type VoiceSettingsInput,
 } from "@wayfarerlabs/agention-api";
-import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, describeFailure, request } from "../../api.ts";
 import { ConfirmButton, Failure, focusLeftWith, Loadable, Status } from "../../components.tsx";
 import { useAction, useResource } from "../../data.ts";
@@ -21,8 +21,9 @@ import { Destination, Field, KeyField, TryIt } from "./VoiceParts.tsx";
 // Settings' voice: the transcription provider dictation sends recordings
 // to, through the server, which holds its key. The operator picks a preset
 // or enters their own server's address, a model, words to expect, and a key,
-// which is written and never shown again. A field the server's environment
-// supplies shows as set there and cannot be changed here. Below the fields
+// which is written and shown again at most as its last four characters. A
+// field the server's environment supplies shows as set there and cannot be
+// changed here. Below the fields
 // the section says where recordings go, and once voice is on, Try it records
 // and transcribes through the composer's own dictation. Changing voice needs
 // a recent sign-in, which the section offers up front.
@@ -95,7 +96,7 @@ function Voice({
   const setUp = useRef<HTMLButtonElement>(null);
   // This runs after every render, since Set up may show later than the
   // request to focus it.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusTarget === "set-up" && setUp.current !== null) {
       setFocusNext(undefined);
       if (focusLeftWith(focusNext?.from)) {
@@ -215,7 +216,7 @@ function VoiceForm({
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const target =
       focus === "save"
         ? saveButton.current
@@ -435,6 +436,7 @@ function VoiceForm({
       <KeyField
         id={`${id}-key`}
         shown={keyShown}
+        ending={voice?.key_ending ?? null}
         environment={envKey}
         unused={keyState === "unused"}
         moved={keyMoved}

@@ -1,4 +1,4 @@
-import type { ErrorBody, SettingsResult } from "@wayfarerlabs/agention-api";
+import { type ErrorBody, type SettingsResult } from "@wayfarerlabs/agention-api";
 import { afterEach, describe, expect, it } from "vitest";
 import { recentSignIn } from "../auth/browser-sessions.ts";
 import type { VoiceEnvironment } from "../store/index.ts";
@@ -6,10 +6,14 @@ import { codeOf, Harness, type Response } from "./test-harness.ts";
 
 const openAi = "https://api.openai.com/v1";
 const ownServer = "http://192.168.1.20:8000/v1";
-const secretKey = "sk-test-0123456789-never-shown";
+const secretKey = "sk-Qv7Xm2Zp9Lw4Kt8R-c3dE";
+const otherKey = "sk-Ny6Hb1Jg5Fd0Sa9P-x8yZ";
+// What a server without files answers its storage as.
+const noFiles = { count: 0, bytes: 0 };
 
 let harness: Harness;
-// Every answer the tests saw, to check that none carries a key.
+// Every answer the tests saw, to check that none carries more of a key than
+// its last four characters.
 let answers: Response[];
 
 // start opens a harness whose server's environment is environment. The
@@ -20,9 +24,18 @@ function start(environment: VoiceEnvironment = {}) {
   answers = [];
 }
 
+// Every run of five characters in a key, none of which an answer may carry.
+const fiveOf = (key: string) =>
+  Array.from({ length: key.length - 4 }, (_, start) => key.slice(start, start + 5));
+
 afterEach(() => {
-  expect(JSON.stringify(answers)).not.toContain(secretKey);
-  expect(harness.logged.join("\n")).not.toContain(secretKey);
+  const answered = JSON.stringify(answers);
+  for (const key of [secretKey, otherKey]) {
+    for (const five of fiveOf(key)) {
+      expect(answered).not.toContain(five);
+    }
+    expect(harness.logged.join("\n")).not.toContain(key);
+  }
   harness.close();
 });
 
@@ -57,10 +70,10 @@ function row() {
 describe("the settings", () => {
   it("hold no voice until it is set up", async () => {
     start();
-    expect(await settings()).toEqual({ voice: null });
+    expect(await settings()).toEqual({ voice: null, storage: noFiles });
   });
 
-  it("save a provider, show it without its key, and clear it", async () => {
+  it("save a provider, show it with only its key's ending, and clear it", async () => {
     start();
     const saved = await save({
       base_url: `${openAi}/`,
@@ -74,11 +87,12 @@ describe("the settings", () => {
       model: "gpt-transcribe",
       prompt: "Agention, Morgan",
       key: "set",
+      key_ending: "c3dE",
       from_environment: [],
       invalid: false,
     };
-    expect(saved.body).toEqual({ voice });
-    expect(await settings()).toEqual({ voice });
+    expect(saved.body).toEqual({ voice, storage: noFiles });
+    expect(await settings()).toEqual({ voice, storage: noFiles });
     expect(row()).toEqual({
       base_url: openAi,
       model: "gpt-transcribe",
@@ -87,7 +101,7 @@ describe("the settings", () => {
     });
 
     const cleared = await clear();
-    expect(cleared.body).toEqual({ voice: null });
+    expect(cleared.body).toEqual({ voice: null, storage: noFiles });
     expect(row()).toBeUndefined();
   });
 
@@ -113,6 +127,24 @@ describe("the settings", () => {
     );
     expect((await settings()).voice?.key).toBe("none");
     expect(row()).toMatchObject({ api_key: null });
+  });
+
+  it("show the ending only of a key of 16 characters or more", async () => {
+    start();
+    await save({ base_url: ownServer, model: "whisper", api_key: "k".repeat(11) + "abcd" });
+    expect((await settings()).voice).toMatchObject({ key: "set", key_ending: null });
+    await save({ base_url: ownServer, model: "whisper", api_key: "k".repeat(12) + "abcd" });
+    expect((await settings()).voice).toMatchObject({ key: "set", key_ending: "abcd" });
+  });
+
+  it("show the environment's key's ending over a saved one's", async () => {
+    const environment: VoiceEnvironment = { base_url: ownServer };
+    start(environment);
+    await save({ model: "whisper", api_key: secretKey });
+    expect((await settings()).voice?.key_ending).toBe("c3dE");
+    // A restart with a key from the environment, which wins.
+    environment.api_key = otherKey;
+    expect((await settings()).voice).toMatchObject({ key: "set", key_ending: "x8yZ" });
   });
 
   it("refuse a preset's base URL without a key, and keep the key it was given", async () => {
@@ -165,16 +197,18 @@ describe("a saved row the rules refuse", () => {
         model: null,
         prompt: null,
         key: "none",
+        key_ending: null,
         from_environment: [],
         invalid: true,
       },
+      storage: noFiles,
     });
     const transcribed = await harness.web("POST", "/transcriptions", new Uint8Array(4000), {
       headers: { "content-type": "audio/webm" },
     });
     expect(codeOf(transcribed)).toBe("not_found");
     expect(codeOf(await clear())).toBe("ok");
-    expect(await settings()).toEqual({ voice: null });
+    expect(await settings()).toEqual({ voice: null, storage: noFiles });
 
     harness.fixture.db
       .prepare(
@@ -198,9 +232,11 @@ describe("the settings under the server's environment", () => {
         model: "env-model",
         prompt: null,
         key: "set",
+        key_ending: "c3dE",
         from_environment: ["model"],
         invalid: false,
       },
+      storage: noFiles,
     });
     // The row records the model in effect when it was saved.
     expect(row()).toEqual({
@@ -224,6 +260,7 @@ describe("the settings under the server's environment", () => {
       on: true,
       base_url: "http://10.0.0.5:8000/v1",
       key: "unused",
+      key_ending: null,
       from_environment: ["base_url"],
     });
 
@@ -248,11 +285,12 @@ describe("the settings under the server's environment", () => {
     expect((await settings()).voice?.key).toBe("none");
   });
 
-  it("never write the environment's key", async () => {
-    start({ base_url: openAi, api_key: secretKey });
+  it("never write the environment's key, and show its ending", async () => {
+    start({ base_url: openAi, api_key: otherKey });
     expect(codeOf(await save({ model: "gpt-transcribe" }))).toBe("ok");
     expect((await settings()).voice).toMatchObject({
       key: "none",
+      key_ending: "x8yZ",
       from_environment: ["base_url", "api_key"],
     });
     expect(row()).toMatchObject({ api_key: null });
@@ -277,9 +315,11 @@ describe("the settings under the server's environment", () => {
         model: null,
         prompt: null,
         key: "none",
+        key_ending: null,
         from_environment: ["base_url"],
         invalid: false,
       },
+      storage: noFiles,
     });
 
     harness.close();
@@ -293,9 +333,11 @@ describe("the settings under the server's environment", () => {
         model: "whisper",
         prompt: null,
         key: "none",
+        key_ending: null,
         from_environment: ["base_url", "model"],
         invalid: false,
       },
+      storage: noFiles,
     });
     expect(row()).toBeUndefined();
   });

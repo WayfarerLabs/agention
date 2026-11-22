@@ -21,9 +21,43 @@ export interface IdentityEnv {
 // answer, and is one of the API's schemas, which the documentation describes.
 export type DescribedSchema<T> = Schema<T> & ApiSchema;
 
+// A body or an answer that is a file's bytes as they are, rather than JSON,
+// which the documentation describes as binary. The mount reads no such body
+// and writes no such answer: the handler reads the bytes from the request,
+// and answers a Response it built. T is what the handler sees of it, so the
+// compiler holds the handler to it as it does to a schema: value is never
+// set, and only carries T.
+export interface BytesBody<T = unknown> {
+  bytes: "body";
+  // What the request's bytes and headers are, for the documentation.
+  description: string;
+  readonly value?: T;
+}
+
+export interface BytesAnswer<T = unknown> {
+  bytes: "answer";
+  // What the answer's bytes and headers are, for the documentation.
+  description: string;
+  // The types the bytes are answered as.
+  types: readonly string[];
+  // Whether a request may ask for one range of the bytes, with Range, which
+  // is answered 206, or 416 when it lies outside them.
+  ranges: boolean;
+  readonly value?: T;
+}
+
+// isBytes says whether a declared body or answer is bytes rather than a
+// schema.
+export function isBytes(
+  declared: DescribedSchema<unknown> | BytesBody | BytesAnswer,
+): declared is BytesBody | BytesAnswer {
+  return "bytes" in declared;
+}
+
 // Declaration is what the documentation reads of a route: its name (unique
 // on its mount), method, path relative to its mount, with :name for each path
-// parameter, one-line summary, the scope it requires, and its schemas. The
+// parameter, one-line summary, the scope it requires, and its schemas, or,
+// for a body or an answer that is a file's bytes, their description. The
 // path parameters' schema names each parameter as the path does.
 export interface Declaration {
   name: string;
@@ -33,13 +67,15 @@ export interface Declaration {
   scope?: Scope | undefined;
   params?: DescribedSchema<unknown>;
   query?: DescribedSchema<unknown>;
-  body?: DescribedSchema<unknown>;
-  response: DescribedSchema<unknown>;
+  body?: DescribedSchema<unknown> | BytesBody;
+  response: DescribedSchema<unknown> | BytesAnswer;
 }
 
 // What an operation's handler runs with: the store, who is calling, and the
 // input its schemas parsed. signal aborts when the client goes away or the
-// server shuts down, for an operation that waits.
+// server shuts down, for an operation that waits. request is the request
+// itself, which only an operation whose body or answer is bytes reads, and
+// log is where it writes a failure it carries on past.
 export interface OperationInput<P, Q, B> {
   store: Store;
   identity: Identity;
@@ -47,6 +83,8 @@ export interface OperationInput<P, Q, B> {
   query: Q;
   body: B;
   readonly signal: AbortSignal;
+  request: Request;
+  log: (message: string) => void;
 }
 
 // Operation is a declaration with the handler that answers it.
@@ -61,8 +99,8 @@ interface Definition<P, Q, B, R> {
   summary: string;
   params?: DescribedSchema<P>;
   query?: DescribedSchema<Q>;
-  body?: DescribedSchema<B>;
-  response: DescribedSchema<R>;
+  body?: DescribedSchema<B> | BytesBody<B>;
+  response: DescribedSchema<R> | BytesAnswer<R>;
   handler(input: OperationInput<P, Q, B>): NoInfer<R> | Promise<NoInfer<R>>;
 }
 
@@ -82,6 +120,8 @@ export interface MountOptions {
   store: Store;
   // Aborts when the server shuts down, ending the operations that wait.
   shutdown: AbortSignal;
+  // Where a failure an operation carries on past is written.
+  log: (message: string) => void;
   // authenticate establishes who is calling, before anything else the route
   // does, or throws.
   authenticate: (c: Context<IdentityEnv>) => Identity | Promise<Identity>;
@@ -90,14 +130,15 @@ export interface MountOptions {
 // addOperations adds a route for each operation to a mount. Each
 // authenticates first, then refuses an identity without the operation's scope
 // as not_found, as if the operation did not exist, before reading any input;
-// then it reads the path, the query and the body through their schemas, in
-// that order, and answers what the handler returns.
+// then it reads the path, the query and a JSON body through their schemas, in
+// that order, and answers what the handler returns, as JSON unless the
+// operation answers bytes. A GET route answers HEAD too, without a body.
 export function addOperations(
   api: Hono<IdentityEnv>,
   operations: readonly Operation[],
   options: MountOptions,
 ): void {
-  const { store, shutdown, authenticate } = options;
+  const { store, shutdown, log, authenticate } = options;
   for (const each of operations) {
     api.on(each.method, each.path, async (c) => {
       const identity = await authenticate(c);
@@ -106,7 +147,8 @@ export function addOperations(
       }
       const params = each.params === undefined ? undefined : parse(each.params, c.req.param());
       const query = each.query === undefined ? undefined : parseQuery(c, each.query);
-      const body = each.body === undefined ? undefined : await parseBody(c, each.body);
+      const body =
+        each.body === undefined || isBytes(each.body) ? undefined : await parseBody(c, each.body);
       const result = await each.handler({
         store,
         identity,
@@ -117,8 +159,10 @@ export function addOperations(
         get signal() {
           return AbortSignal.any([c.req.raw.signal, shutdown]);
         },
+        request: c.req.raw,
+        log,
       });
-      return c.json(result);
+      return isBytes(each.response) ? (result as Response) : c.json(result);
     });
   }
 }

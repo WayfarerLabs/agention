@@ -66,7 +66,8 @@ body cap, sends it on, decodes no audio, and keeps nothing.
   from the row or the environment. The key is read only by the transcription client.
 - **Web routes**, all on the web mount behind the operator's sign-in, Origin and CSRF checks, and
   none on the agent mount:
-  - `GET /settings`: the voice configuration without the key, saying only whether one is set.
+  - `GET /settings`: the voice configuration without the key, saying only whether one is set (ruling
+    7, after release, adds the last four characters of a key in effect).
   - `POST /settings/voice` and `POST /settings/voice/clear`: set or turn off voice.
   - `POST /transcriptions`: one recording in, its text out, or `not_found` while voice is off.
 - **Transcription client:** one interface, "transcribe this recording", implemented once, for the

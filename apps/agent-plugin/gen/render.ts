@@ -43,11 +43,19 @@ export function render({ definition: def, skills }: Sources, packageFile?: strin
   // Both hosts read a plugin's MCP servers from .mcp.json at its root. Claude
   // Code passes a server its whole environment; Codex passes only a few
   // common variables, such as HOME and PATH, and those the server lists.
+  // Codex also reads a limit on each tool call's time there, which Claude
+  // Code's plugin format has no field for.
   const server = def.mcpServer;
   const launch = { command: "npx", args: npxArgs(def, packageFile) };
   const claudeMcp = encodeJSON({ mcpServers: { [server.name]: launch } });
   const codexMcp = encodeJSON({
-    mcpServers: { [server.name]: { ...launch, env_vars: server.environment } },
+    mcpServers: {
+      [server.name]: {
+        ...launch,
+        env_vars: server.environment,
+        tool_timeout_sec: server.toolTimeoutSeconds,
+      },
+    },
   });
   const plugin = (manifestDir: string, mcp: FileContent) =>
     new Map([

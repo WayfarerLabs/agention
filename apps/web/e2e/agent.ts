@@ -42,7 +42,24 @@ export class Agent {
   }
 
   send<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<Answer<T>> {
-    return callServer(this.#server, method, `/api/agent${path}`, `Bearer ${this.token()}`, body);
+    return callServer(
+      this.#server,
+      method,
+      `/api/agent${path}`,
+      `Bearer ${this.token()}`,
+      body === undefined
+        ? undefined
+        : { type: "application/json", bytes: Buffer.from(JSON.stringify(body)) },
+    );
+  }
+
+  // upload sends bytes as the body of a POST, declared as type, as the
+  // bridge uploads a file.
+  upload<T>(path: string, bytes: Buffer, type: string): Promise<Answer<T>> {
+    return callServer(this.#server, "POST", `/api/agent${path}`, `Bearer ${this.token()}`, {
+      type,
+      bytes,
+    });
   }
 }
 
@@ -54,11 +71,10 @@ export function callServer<T>(
   method: "GET" | "POST",
   path: string,
   authorization: string,
-  body?: unknown,
+  payload?: { type: string; bytes: Buffer },
 ): Promise<Answer<T>> {
   const { origin, port, certificate } = server;
   const url = new URL(origin);
-  const payload = body === undefined ? undefined : JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const outgoing = httpsRequest(
       {
@@ -73,10 +89,7 @@ export function callServer<T>(
           authorization,
           ...(payload === undefined
             ? {}
-            : {
-                "content-type": "application/json",
-                "content-length": Buffer.byteLength(payload),
-              }),
+            : { "content-type": payload.type, "content-length": payload.bytes.length }),
         },
       },
       (response) => {
@@ -89,6 +102,6 @@ export function callServer<T>(
       },
     );
     outgoing.on("error", reject);
-    outgoing.end(payload);
+    outgoing.end(payload?.bytes);
   });
 }

@@ -7,6 +7,7 @@ import {
   failure,
   installPasskeys,
   installRecorder,
+  noSettings,
   renderAt,
   signedIn,
 } from "../../test-support.tsx";
@@ -39,6 +40,7 @@ function voice(overrides: Partial<VoiceSettings> = {}): VoiceSettings {
     model: "gpt-transcribe",
     prompt: null,
     key: "set",
+    key_ending: "c3dE",
     from_environment: [],
     invalid: false,
     ...overrides,
@@ -48,11 +50,26 @@ function voice(overrides: Partial<VoiceSettings> = {}): VoiceSettings {
 const section = () => screen.getByRole("region", { name: "Voice" });
 const field = (name: string) => within(section()).getByLabelText<HTMLInputElement>(name);
 const button = (name: string) => within(section()).getByRole<HTMLButtonElement>("button", { name });
+// The masking that a key in effect shows as, but for its ending.
+const maskOnly = /^\u2022+$/;
+// Whether the key's field shows a key in effect, read-only and masked, ending
+// in ending when the server shows one.
+function expectMaskedKey(ending: string | null) {
+  const key = field("Key");
+  expect(key.readOnly).toBe(true);
+  expect(key.value.slice(0, -4)).toMatch(maskOnly);
+  expect(ending === null ? key.value : key.value.slice(-4)).toMatch(ending ?? maskOnly);
+}
 const describer = (element: HTMLElement) =>
   document.getElementById(element.getAttribute("aria-describedby") ?? "");
 
-async function open(settings: SettingsResult) {
-  api.on("GET", "/settings", { body: settings });
+// The settings these tests answer with: the voice settings given, on a server
+// without files.
+type VoiceAnswer = Pick<SettingsResult, "voice">;
+const settingsOf = (answer: VoiceAnswer): SettingsResult => ({ ...noSettings, ...answer });
+
+async function open(settings: VoiceAnswer) {
+  api.on("GET", "/settings", { body: settingsOf(settings) });
   renderAt("/settings/voice");
   await within(await screen.findByRole("region", { name: "Voice" })).findByRole("button", {
     name: /^(Set up|Save)$/,
@@ -61,17 +78,17 @@ async function open(settings: SettingsResult) {
 
 // later answers as a server does, a little after the request, so focus that
 // waits for the answer is tested as a browser meets it.
-function later(body: SettingsResult) {
+function later(body: VoiceAnswer) {
   return () =>
     new Promise<{ body: SettingsResult }>((resolve) => {
-      setTimeout(() => resolve({ body }), 50);
+      setTimeout(() => resolve({ body: settingsOf(body) }), 50);
     });
 }
 
 // answerSaves answers a save with the settings given, and lists what each
 // save carried.
-function answerSaves(settings: SettingsResult) {
-  api.on("POST", "/settings/voice", { body: settings });
+function answerSaves(settings: VoiceAnswer) {
+  api.on("POST", "/settings/voice", { body: settingsOf(settings) });
   return () => api.callsTo("POST", "/settings/voice").map((call) => call.body);
 }
 
@@ -205,10 +222,9 @@ describe("voice in Settings", () => {
     await waitFor(() => expect(field("Model").getAttribute("aria-invalid")).toBe("true"));
   });
 
-  it("shows a saved key masked, with Replace, and sends a key only when one is entered", async () => {
+  it("shows a saved key masked in its field, with Replace, and sends a key only when one is entered", async () => {
     await open({ voice: voice({ prompt: "Names" }) });
-    expect(within(section()).queryByLabelText("Key")).toBeNull();
-    expect(section().querySelector(".masked-key")).not.toBeNull();
+    expectMaskedKey("c3dE");
     const saves = answerSaves({ voice: voice() });
     fireEvent.click(button("Save"));
     await waitFor(() => expect(saves()).toHaveLength(1));
@@ -218,17 +234,24 @@ describe("voice in Settings", () => {
     await waitFor(() => expect(document.activeElement).toBe(field("Key")));
     expect(field("Key").value).toBe("");
     expect(field("Key").type).toBe("password");
+    expect(field("Key").readOnly).toBe(false);
+  });
+
+  it("shows a saved key with no ending as masked throughout", async () => {
+    await open({ voice: voice({ key_ending: null }) });
+    expectMaskedKey(null);
   });
 
   it("asks for the key again when the base URL moves from the one it was saved for", async () => {
     await open({ voice: voice({ base_url: "https://api.groq.com/openai/v1", model: "whisper" }) });
-    expect(within(section()).queryByLabelText("Key")).toBeNull();
+    expectMaskedKey("c3dE");
     fireEvent.change(within(section()).getByLabelText("Provider"), {
       target: { value: "OpenAI" },
     });
     // The saved key would be left behind, so the field shows in place of the
     // mask, and Save says why it waits.
-    expect(section().querySelector(".masked-key")).toBeNull();
+    expect(field("Key").readOnly).toBe(false);
+    expect(field("Key").value).toBe("");
     fireEvent.click(button("Save"));
     expect(field("Key").getAttribute("aria-invalid")).toBe("true");
     expect(api.callsTo("POST", "/settings/voice")).toEqual([]);
@@ -236,26 +259,25 @@ describe("voice in Settings", () => {
     fireEvent.change(within(section()).getByLabelText("Provider"), {
       target: { value: "Groq" },
     });
-    expect(section().querySelector(".masked-key")).not.toBeNull();
+    expectMaskedKey("c3dE");
   });
 
   it("shows a saved key for another address as the field, empty", async () => {
     await open({
-      voice: voice({ base_url: "http://10.0.0.5:8000/v1", key: "unused" }),
+      voice: voice({ base_url: "http://10.0.0.5:8000/v1", key: "unused", key_ending: null }),
     });
     expect(field("Key").value).toBe("");
-    expect(section().querySelector(".masked-key")).toBeNull();
+    expect(field("Key").readOnly).toBe(false);
   });
 
   it("shows what the environment supplies read-only, and leaves it out of a save", async () => {
     await open({
-      voice: voice({ key: "none", from_environment: ["base_url", "api_key"] }),
+      voice: voice({ key: "none", key_ending: "x8yZ", from_environment: ["base_url", "api_key"] }),
     });
     expect(within(section()).queryByLabelText("Base URL")).toBeNull();
     expect(within(section()).queryByLabelText("Provider")).toBeNull();
-    expect(within(section()).queryByLabelText("Key")).toBeNull();
     expect(within(section()).getByText(openAi).tagName).toBe("CODE");
-    expect(section().querySelector(".masked-key")).not.toBeNull();
+    expectMaskedKey("x8yZ");
     expect(within(section()).queryByRole("button", { name: "Replace" })).toBeNull();
     const saves = answerSaves({ voice: voice() });
     fireEvent.click(button("Save"));
@@ -282,7 +304,13 @@ describe("voice in Settings", () => {
   it("turns voice off under an environment base URL alone, since the model is saved here", async () => {
     await open({ voice: voice({ from_environment: ["base_url"] }) });
     expect(within(section()).queryByRole("button", { name: "Clear saved settings" })).toBeNull();
-    const cleared = voice({ on: false, model: null, key: "none", from_environment: ["base_url"] });
+    const cleared = voice({
+      on: false,
+      model: null,
+      key: "none",
+      key_ending: null,
+      from_environment: ["base_url"],
+    });
     api.on("POST", "/settings/voice/clear", { body: { voice: cleared } });
     fireEvent.click(button("Turn off"));
     api.on("GET", "/settings", later({ voice: cleared }));
@@ -295,12 +323,19 @@ describe("voice in Settings", () => {
 
   it("shows saved settings the rules refuse as invalid, and clears them", async () => {
     await open({
-      voice: voice({ on: false, base_url: null, model: null, key: "none", invalid: true }),
+      voice: voice({
+        on: false,
+        base_url: null,
+        model: null,
+        key: "none",
+        key_ending: null,
+        invalid: true,
+      }),
     });
     expect(section().querySelector(".notice.warning")).not.toBeNull();
     api.on("POST", "/settings/voice/clear", { body: { voice: null } });
     fireEvent.click(button("Clear saved settings"));
-    api.on("GET", "/settings", { body: { voice: null } });
+    api.on("GET", "/settings", { body: settingsOf({ voice: null }) });
     fireEvent.click(button("Clear them"));
     await within(section()).findByRole("button", { name: "Set up" });
   });

@@ -29,6 +29,7 @@ import { unauthenticated } from "../errors.ts";
 import type { Identity } from "../identity.ts";
 import {
   clearVoiceSettings,
+  countAttention,
   findOperator,
   readSettings,
   saveVoiceSettings,
@@ -239,11 +240,16 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     c.json(revokeApiKey(store, c.var.identity, apiKeyOf(c))),
   );
 
+  // What waits on the operator, which the navigation's tabs count: the web
+  // UI's own summary, which no API key reaches.
+  api.get("/attention", requireSession, (c) => c.json(countAttention(store, c.var.identity)));
+
   // Every operation an API key may call, for the browser session, which
   // holds every scope.
   addOperations(api, operatorOperations, {
     store,
     shutdown: options.shutdown,
+    log: options.log,
     authenticate: sessionIdentity,
   });
   return api;

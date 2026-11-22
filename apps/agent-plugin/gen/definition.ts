@@ -40,6 +40,10 @@ export interface McpServer {
   // The server's configuration variables. A host that passes a server only
   // the environment variables it lists is given these.
   environment: string[];
+  // How long one tool call may take, in seconds, written for a host whose
+  // plugin configuration sets a limit of its own (Codex's tool_timeout_sec),
+  // so a large file's transfer is not cut off by the host's default.
+  toolTimeoutSeconds?: number;
 }
 
 const definitionFields = new Set([
@@ -54,7 +58,7 @@ const definitionFields = new Set([
   "mcpServer",
 ]);
 
-const mcpServerFields = new Set(["name", "package", "environment"]);
+const mcpServerFields = new Set(["name", "package", "environment", "toolTimeoutSeconds"]);
 
 // Everything rendering needs, loaded and validated.
 export interface Sources {
@@ -164,6 +168,13 @@ function mcpServerProblems(raw: unknown): string[] {
   const { environment } = raw;
   if (!(Array.isArray(environment) && environment.length > 0 && environment.every(isText))) {
     problems.push("mcpServer.environment must be a non-empty list of non-empty strings");
+  }
+  const { toolTimeoutSeconds } = raw;
+  if (
+    toolTimeoutSeconds !== undefined &&
+    !(Number.isSafeInteger(toolTimeoutSeconds) && (toolTimeoutSeconds as number) > 0)
+  ) {
+    problems.push("mcpServer.toolTimeoutSeconds must be a positive whole number when present");
   }
   return problems;
 }

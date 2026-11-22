@@ -32,7 +32,6 @@ import {
   threadList,
   threadStartInput,
   threadsQuery,
-  unreadUpdates,
   writeResult,
 } from "@wayfarerlabs/agention-api";
 import {
@@ -40,7 +39,6 @@ import {
   bulkArchive,
   bulkRead,
   countThreads,
-  countUnreadUpdates,
   createGroup,
   listGroupsAndTags,
   listRegistrations,
@@ -151,15 +149,6 @@ export const operatorOperations: readonly OperatorOperation[] = [
     query: sessionsQuery,
     response: sessionsPage,
     handler: ({ store, identity, query }) => listSessions(store, identity, query),
-  }),
-  operation({
-    name: "countUnreadUpdates",
-    method: "GET",
-    path: "/sessions/unread-updates",
-    summary: "Count the sessions whose log has updates not yet read",
-    scope: "sessions:read",
-    response: unreadUpdates,
-    handler: ({ store, identity }) => countUnreadUpdates(store, identity),
   }),
   operation({
     name: "readSessionLog",

@@ -24,19 +24,20 @@ server to agents asking and you answering. The repository contains:
   programs, over the server's database and store, and `agention passkey-link` issues the link that
   registers the person's passkeys;
 - the web UI, which the server serves: the person signs in with a passkey, works through one thread
-  list, filtered, grouped and searched down to what messages say, reads and answers threads,
-  archives them, follows every session's status and updates in one view, where they approve agents'
-  registrations, start threads on a session, and sort sessions into groups and tag agents and
-  sessions, and in Settings, in sections, manages their passkeys, their API keys and voice, which
-  dictates replies through a transcription provider they choose and reads messages aloud on their
-  device;
+  list, filtered, grouped and searched down to what messages say, reads and answers threads, opens
+  the files agents attach and attaches their own, archives threads, follows every session's status
+  and updates in one view, where they approve agents' registrations, start threads on a session, and
+  sort sessions into groups and tag agents and sessions, and in Settings, in sections, manages their
+  passkeys, their API keys and voice, which dictates replies through a transcription provider they
+  choose and reads messages aloud on their device, and sees the space files take;
 - the operator API, a versioned API through which a program the person runs, such as a tool that
-  already shows their agents, reads and answers Agention as them, with an API key they created in
-  Settings and within the scopes they gave it, and its OpenAPI document, which the server serves
-  with its documentation when asked;
+  already shows their agents, reads and answers Agention as them, files included, with an API key
+  they created in Settings and within the scopes they gave it, and its OpenAPI document, which the
+  server serves with its documentation when asked;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
-  starts threads, writes and reads their messages, withdraws the asks it no longer needs answered,
-  checks for new messages, and reports its state, such as working or stopped;
+  starts threads, writes and reads their messages, uploads files for them to carry and fetches those
+  they carry, withdraws the asks it no longer needs answered, checks for new messages, and reports
+  its state, such as working or stopped;
 - the API contract, which the server, the bridge and the web UI share, and the OpenAPI document
   generated from it;
 - the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
@@ -58,7 +59,9 @@ considered. Voice is optional and off until the person chooses a transcription p
 relays their recordings to it with a key it holds, and keeps none of them, as
 [ADR 0002](docs/adrs/0002-voice-through-the-server.md) records. Integrations act for the person only
 through API keys they create, each limited to its scopes and revocable at once, as
-[ADR 0003](docs/adrs/0003-operator-api-keys.md) records.
+[ADR 0003](docs/adrs/0003-operator-api-keys.md) records. Files attached to messages live in the same
+database, and are served under rules that keep them from acting as the person, as
+[ADR 0004](docs/adrs/0004-attachments.md) records.
 
 Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
 provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY.md) describes.

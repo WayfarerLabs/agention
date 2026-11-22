@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { fileTotals } from "./files.ts";
 import { multilineText } from "./text.ts";
 
 // The operator's settings on the web mount: voice, whose transcription
 // provider the server calls with the recordings the web UI sends it. A
 // provider is a service speaking the OpenAI-compatible transcription API: a
-// base URL, a model, and a key when it needs one. The key is written, never
-// read back.
+// base URL, a model, and a key when it needs one. The key is written, and
+// read back only as its last four characters.
 
 export const maxBaseUrlLength = 2048;
 
@@ -96,28 +97,40 @@ export type VoiceSettingsInput = z.infer<typeof voiceSettingsInput>;
 export const keyState = z.enum(["none", "set", "unused"]);
 export type KeyState = z.infer<typeof keyState>;
 
-// The voice settings as the web UI shows them, never with a key. on says a
-// base URL and a model are in effect; base_url and model are those in effect,
-// from the environment or saved; from_environment lists the fields the
-// server's environment supplies. invalid says the saved settings break the
-// rules a save is held to, as a later release's stricter rule can make them,
-// so none of them is used until they are cleared or saved anew.
+// The last four characters of a key, all a browser is shown of it, so the
+// operator can tell which key is in effect. A key shorter than 16 characters
+// shows none, so the four are never more than a quarter of it.
+export const keyEnding = z.string().regex(/^[\x21-\x7e]{4}$/);
+
+// The voice settings as the web UI shows them, never with more of a key than
+// its ending. on says a base URL and a model are in effect; base_url and
+// model are those in effect, from the environment or saved; key_ending ends
+// the key in effect, the environment's or the one saved for the base URL in
+// effect, and is null while there is none or it is too short to show any of;
+// from_environment lists the fields the server's environment supplies.
+// invalid says the saved settings break the rules a save is held to, as a
+// later release's stricter rule can make them, so none of them is used until
+// they are cleared or saved anew.
 export const voiceSettings = z.object({
   on: z.boolean(),
   base_url: z.string().nullable(),
   model: z.string().nullable(),
   prompt: z.string().nullable(),
   key: keyState,
+  key_ending: keyEnding.nullable(),
   from_environment: z.array(voiceField),
   invalid: z.boolean(),
 });
 export type VoiceSettings = z.infer<typeof voiceSettings>;
 
 // The operator's settings: voice, null while neither Settings nor the
-// environment gives any of it. Whether the sign-in is recent enough to change
-// them is the passkey list's to say, for both.
+// environment gives any of it, and what the server's files take: every file
+// the database holds, pending uploads included, since that is the disk they
+// take. Whether the sign-in is recent enough to change them is the passkey
+// list's to say, for both.
 export const settingsResult = z.object({
   voice: voiceSettings.nullable(),
+  storage: fileTotals,
 });
 export type SettingsResult = z.infer<typeof settingsResult>;
 

@@ -1,4 +1,5 @@
-import { readdirSync, realpathSync } from "node:fs";
+import { readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { open } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { agent, BridgeHarness, session, type TestBridge } from "./test-harness.ts";
@@ -205,6 +206,109 @@ describe.each(versions)("the bridge released as %s", (version) => {
     expect(await call("message_wait", { since: settled.since, wait_seconds: 1 })).toMatchObject({
       threads: [],
     });
+
+    // Files. The operator's message carrying one wakes a wait, and its
+    // attachments and the thread's file totals pass through to a bridge that
+    // cannot fetch them.
+    expect(
+      await call("thread_create", {
+        request_id: "compat-7",
+        title: "Screenshots",
+        text: "Send me the screenshot.",
+      }),
+    ).toEqual({ number: 3, seq: 1 });
+    const screenshot = Buffer.from("not really a PNG");
+    const shot = await harness.operatorUploads(screenshot, {
+      name: "screen.png",
+      type: "image/png",
+    });
+    await harness.operatorWrites(3, {
+      text: "Here it is.",
+      attachments: [{ upload: shot.upload }],
+    });
+    expect(
+      (await call("message_wait", { since: settled.since, wait_seconds: 5 })).threads,
+    ).toMatchObject([{ number: 3, unread: 1 }]);
+    const carried = { name: "screen.png", file: shot.upload, size: screenshot.length };
+    expect(await call("thread_get", { thread: 3, after: 1 })).toMatchObject({
+      files: { count: 1, bytes: screenshot.length },
+      messages: [{ seq: 2, attachments: [{ ...carried, type: "image/png" }] }],
+    });
+
+    // A message of the agent's own carrying a file, written through the API,
+    // which the bridge then replaces without keeping it: the file stays with
+    // the message it replaced.
+    const { api, key } = harness.asAgent();
+    const report = path.join(harness.home, "report.txt");
+    writeFileSync(report, "The report.\n");
+    const file = await open(report, "r");
+    let upload: string;
+    try {
+      ({ upload } = (await api.upload(key, {
+        path: `/s/${agent}/${session}/uploads`,
+        query: { name: "report.txt" },
+        file,
+        size: (await file.stat()).size,
+        type: "text/plain",
+      })) as { upload: string });
+    } finally {
+      await file.close();
+    }
+    await api.request(key, {
+      method: "POST",
+      path: `/s/${agent}/${session}/threads/3/messages`,
+      body: {
+        request_id: "compat-8",
+        seen_through: 2,
+        text: "The report.",
+        attachments: [{ upload }],
+      },
+    });
+    expect(
+      await call("message_send", {
+        thread: 3,
+        request_id: "compat-9",
+        seen_through: 3,
+        text: "The report, revised.",
+        replaces: 3,
+      }),
+    ).toEqual({ number: 3, seq: 4 });
+    const replaced = await call("thread_get", { thread: 3, after: 2 });
+    expect(replaced).toMatchObject({
+      files: { count: 2 },
+      messages: [
+        {
+          seq: 3,
+          live: false,
+          replaced_by: 4,
+          attachments: [{ name: "report.txt", file: upload }],
+        },
+        { seq: 4, live: true },
+      ],
+    });
+    expect((replaced.messages as object[])[1]).not.toHaveProperty("attachments");
+
+    // The file tools, in a release that has them.
+    if (has("file_get")) {
+      expect(await call("file_get", { thread: 3, seq: 2, name: "screen.png" })).toMatchObject({
+        name: carried.name,
+        size: carried.size,
+      });
+    }
+    if (has("file_upload")) {
+      const notes = path.join(harness.home, "notes.txt");
+      writeFileSync(notes, "Notes.\n");
+      const uploaded = await call("file_upload", { path: notes });
+      expect(
+        await call("message_send", {
+          thread: 3,
+          request_id: "compat-10",
+          seen_through: 4,
+          text: "My notes.",
+          attachments: [{ upload: uploaded.upload }],
+        }),
+      ).toEqual({ number: 3, seq: 5 });
+    }
 
     if (has("session_update")) {
       expect(

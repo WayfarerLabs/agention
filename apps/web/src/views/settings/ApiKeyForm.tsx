@@ -8,7 +8,7 @@ import {
   type Scope,
   scopes,
 } from "@wayfarerlabs/agention-api";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, describeFailure, request } from "../../api.ts";
 import { Failure } from "../../components.tsx";
 import { useAction } from "../../data.ts";
@@ -94,7 +94,7 @@ export function ApiKeyForm({
   const [expiry, setExpiry] = useState<ExpiryChoice>(defaultExpiry);
   const [date, setDate] = useState("");
   const [problems, setProblems] = useState<Problems>({});
-  useEffect(() => nameField.current?.focus(), []);
+  useLayoutEffect(() => nameField.current?.focus(), []);
 
   // The chosen scope that includes another, if one does.
   const includedBy = (scope: Scope) =>

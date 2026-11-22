@@ -118,6 +118,10 @@ describe("Settings' sections", () => {
     await open("/settings/voice", "Voice");
     await screen.findByRole("button", { name: "Set up" });
     expect(api.callsTo("GET", "/settings")).toHaveLength(1);
+    cleanup();
+    await open("/settings/storage", "Storage");
+    await screen.findByText("No files are attached yet.");
+    expect(api.callsTo("GET", "/settings")).toHaveLength(2);
   });
 
   it("are not found at a slug no section has, as at any other unknown page", async () => {

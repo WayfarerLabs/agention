@@ -3,7 +3,15 @@ import {
   type SettingsResult,
   type TranscriptionResult,
 } from "@wayfarerlabs/agention-api";
-import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { describeFailure, request, upload } from "../api.ts";
 import { focusLeftWith, Status } from "../components.tsx";
 import { useFollowing, useUnauthenticatedCheck } from "../data.ts";
@@ -137,7 +145,7 @@ export function useDictation({
   // Focus moves to the next state's control once it shows, unless the
   // operator has moved it meanwhile, as into the message box while the
   // microphone opens.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wanted = focus.current;
     const element = wanted === undefined ? undefined : controlRefs.current.get(wanted);
     if (element !== undefined) {

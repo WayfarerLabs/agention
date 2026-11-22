@@ -110,7 +110,7 @@ function connect(options: BridgeOptions): Connection {
     }
   }
   const api = new AgentApi({ origin, connectAddress, clock: options.clock ?? Date.now });
-  return { api, session: new Session({ api, home, environment }) };
+  return { api, session: new Session({ api, home, environment }), home };
 }
 
 // serveStdio runs the bridge for the agent host that started this process,

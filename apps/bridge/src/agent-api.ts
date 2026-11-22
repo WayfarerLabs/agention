@@ -3,16 +3,19 @@ import {
   agentApiHeader,
   agentApiVersion,
   type ErrorBody,
+  maxFileBytes,
 } from "@wayfarerlabs/agention-api";
 import { SignJWT } from "jose";
 import packageJson from "../package.json" with { type: "json" };
-import type { OutgoingHttpHeaders } from "node:http";
+import type { FileHandle } from "node:fs/promises";
+import type { ClientRequest, IncomingMessage, OutgoingHttpHeaders } from "node:http";
 import { Agent, request as httpsRequest, type RequestOptions } from "node:https";
-import type { Duplex } from "node:stream";
+import { type Duplex, Transform, type Writable } from "node:stream";
 import { text as readText } from "node:stream/consumers";
+import { pipeline } from "node:stream/promises";
 import type { TLSSocket } from "node:tls";
 import { type ConnectAddress, formatAddress } from "./connect-address.ts";
-import { ApiFailure, BridgeError, operatorProblem, settingProblem } from "./errors.ts";
+import { ApiFailure, BridgeError, detailOf, operatorProblem, settingProblem } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 
 // How long a token the bridge mints stays valid. The server accepts tokens
@@ -26,6 +29,24 @@ export const answerTimeout = 30_000;
 
 // How long a connection has to open, its TLS handshake included.
 export const connectTimeout = 10_000;
+
+// How long a file's bytes may stop moving, sent or received, before the
+// bridge gives up on the transfer. A file's transfer has no total deadline,
+// so a large file on a slow link finishes.
+export const transferIdle = 30_000;
+
+// The slowest rate, in bytes a second, at which the bytes of an upload the
+// bridge has written are taken to reach the server. Writing ends once the
+// local socket's buffers and those on the way, a proxy's or a tunnel's, have
+// taken the bytes, which may be megabytes the server has still to receive.
+// So an upload's answer has answerTimeout and the file's size at this rate.
+export const uploadDrainFloor = 64 * 1024;
+
+// uploadAnswerTimeout is how long an upload's answer has to arrive once its
+// bytes are written.
+function uploadAnswerTimeout(size: number): number {
+  return answerTimeout + Math.ceil((size / uploadDrainFloor) * 1000);
+}
 
 // agentToken mints the token for one request: a compact JWS signed with the
 // session's key, naming the key and bound to the server's origin for two
@@ -51,6 +72,32 @@ export interface ApiRequest {
   signal?: AbortSignal;
 }
 
+// An upload: a file's bytes, sent as the body of a POST from the start of an
+// open file, with its declared type.
+export interface UploadRequest {
+  path: string;
+  query?: ApiRequest["query"];
+  file: FileHandle;
+  // How many bytes to send: the file's size when it was opened. A file that
+  // has grown since sends only these; one that has shrunk fails the upload.
+  size: number;
+  type: string;
+  signal?: AbortSignal;
+}
+
+// A download: a GET whose successful answer is a file's bytes.
+export interface DownloadRequest {
+  path: string;
+  query?: ApiRequest["query"];
+  signal?: AbortSignal;
+}
+
+// What a download wrote: its size, and the type the server served it as.
+export interface Downloaded {
+  size: number;
+  servedType: string;
+}
+
 export interface AgentApiOptions {
   // The server's canonical origin.
   origin: string;
@@ -63,8 +110,9 @@ export interface AgentApiOptions {
 // AgentApi makes requests on the server's agent API, each signed by a token
 // minted for it and stating the agent API version the bridge speaks. Requests
 // go only to the origin: a redirect is answered as an error, never followed,
-// and nothing the bridge writes includes a token. A body is always sent whole,
-// as a string, so Node declares its length.
+// and nothing the bridge writes includes a token. Every body states its
+// length, so Node never sends one chunked: a JSON body is sent whole, as a
+// string, and a file's bytes stream with the length its upload declares.
 export class AgentApi {
   readonly origin: string;
   readonly #connectAddress: ConnectAddress | undefined;
@@ -87,53 +135,220 @@ export class AgentApi {
   // cannot be reached, is older than the bridge or answers with something
   // else.
   async request(key: SessionKey, request: ApiRequest): Promise<unknown> {
-    const url = new URL(`/api/agent${request.path}`, this.origin);
-    for (const [name, value] of Object.entries(request.query ?? {})) {
+    const url = this.#url(request.path, request.query);
+    const sent = request.body === undefined ? undefined : JSON.stringify(request.body);
+    const headers = await this.#headers(
+      key,
+      sent === undefined ? {} : { "content-type": "application/json" },
+    );
+    const watchdog = new Watchdog();
+    const signals = [watchdog.signal, ...(request.signal === undefined ? [] : [request.signal])];
+    let answer: Answer;
+    try {
+      watchdog.arm(answerTimeout + (request.wait ?? 0), "answer");
+      answer = await this.#send(
+        url,
+        { method: request.method, headers, signal: AbortSignal.any(signals) },
+        (outgoing) => outgoing.end(sent),
+        answerOf,
+      );
+    } catch (error) {
+      throw this.#unreachable(error, request.signal, watchdog.expired);
+    } finally {
+      watchdog.stop();
+    }
+    return this.#answer(answer);
+  }
+
+  // upload sends a file's bytes and returns the body of a successful answer,
+  // failing as request does. The bytes stream under the transfer's idle
+  // limit, and its answer then has uploadAnswerTimeout to arrive.
+  async upload(key: SessionKey, upload: UploadRequest): Promise<unknown> {
+    const url = this.#url(upload.path, upload.query);
+    const headers = await this.#headers(key, {
+      "content-type": upload.type,
+      "content-length": String(upload.size),
+    });
+    const watchdog = new Watchdog();
+    const signals = [watchdog.signal, ...(upload.signal === undefined ? [] : [upload.signal])];
+    let changed = false;
+    const sent = (): void => watchdog.arm(uploadAnswerTimeout(upload.size), "answer");
+    const send = (outgoing: ClientRequest): void => {
+      watchdog.arm(transferIdle, "stalled");
+      if (upload.size === 0) {
+        outgoing.end();
+        sent();
+        return;
+      }
+      let read = 0;
+      const counted = new Transform({
+        transform(chunk: Buffer, _encoding, done) {
+          read += chunk.length;
+          watchdog.arm(transferIdle, "stalled");
+          done(null, chunk);
+        },
+        flush(done) {
+          // The file ended before the size it had when it was opened.
+          changed = read < upload.size;
+          done(changed ? new Error("the file shrank while it was read") : null);
+        },
+      });
+      const source = upload.file.createReadStream({
+        start: 0,
+        end: upload.size - 1,
+        autoClose: false,
+      });
+      pipeline(source, counted, outgoing).then(sent, () => undefined);
+    };
+    let answer: Answer;
+    try {
+      answer = await this.#send(
+        url,
+        { method: "POST", headers, signal: AbortSignal.any(signals) },
+        send,
+        answerOf,
+      );
+    } catch (error) {
+      if (changed) {
+        throw new BridgeError(
+          "The file changed while it was read, so nothing was uploaded; call file_upload again " +
+            "once it stops changing.",
+        );
+      }
+      throw this.#unreachable(error, upload.signal, watchdog.expired);
+    } finally {
+      watchdog.stop();
+    }
+    return this.#answer(answer);
+  }
+
+  // download writes the bytes of a successful answer into a stream and
+  // returns their size and served type, failing as request does. The bytes
+  // stream under the transfer's idle limit.
+  async download(key: SessionKey, request: DownloadRequest, into: Writable): Promise<Downloaded> {
+    const url = this.#url(request.path, request.query);
+    const headers = await this.#headers(key, { accept: "*/*" });
+    const watchdog = new Watchdog();
+    const signals = [watchdog.signal, ...(request.signal === undefined ? [] : [request.signal])];
+    let receiving = false;
+    // A failure to write what arrives is the caller's to word. Whichever
+    // stream fails first is where the failure is, since the others then fail
+    // with it.
+    let responseFailed = false;
+    let writeFailure: unknown;
+    into.once("error", (error) => {
+      if (!responseFailed) {
+        writeFailure = error;
+      }
+    });
+    const receive = async (response: IncomingMessage): Promise<Answer | Downloaded> => {
+      const status = response.statusCode ?? 0;
+      if (status < 200 || status >= 300) {
+        return answerOf(response);
+      }
+      this.#requireVersion(versionOf(response));
+      // Agention's server states a file's length, which Node then holds the
+      // body to, and serves none larger than a file may be. Nothing of an
+      // answer that does otherwise is written, so a server at the wrong
+      // origin cannot fill the disk.
+      const stated = response.headers["content-length"];
+      if (stated === undefined || Number(stated) > maxFileBytes) {
+        response.destroy();
+        throw operatorProblem(
+          `The server at ${this.origin} answered with a file ` +
+            `${stated === undefined ? "without stating its length" : "larger than a file may be"}, ` +
+            "which an Agention server never does",
+          "check that AGENTION_URL is the Agention server's origin and that nothing on the way " +
+            `changes its answers, ${restartAfterURL}`,
+        );
+      }
+      receiving = true;
+      response.once("error", () => (responseFailed = true));
+      watchdog.arm(transferIdle, "stalled");
+      let received = 0;
+      const counted = new Transform({
+        transform(chunk: Buffer, _encoding, done) {
+          received += chunk.length;
+          watchdog.arm(transferIdle, "stalled");
+          done(null, chunk);
+        },
+      });
+      await pipeline(response, counted, into);
+      return { size: received, servedType: response.headers["content-type"] ?? "" };
+    };
+    let result: Answer | Downloaded;
+    try {
+      watchdog.arm(answerTimeout, "answer");
+      result = await this.#send(
+        url,
+        { method: "GET", headers, signal: AbortSignal.any(signals) },
+        (outgoing) => outgoing.end(),
+        receive,
+      );
+    } catch (error) {
+      if (error instanceof BridgeError || writeFailure !== undefined) {
+        throw writeFailure ?? error;
+      }
+      const cancelled = request.signal?.aborted === true;
+      if (receiving && watchdog.expired === undefined && !cancelled) {
+        throw new BridgeError(
+          `The file stopped arriving from the Agention server at ${this.origin} before it ` +
+            `finished (${detailOf(error)}); try again, and tell the operator at your terminal ` +
+            "if it keeps happening.",
+        );
+      }
+      throw this.#unreachable(error, request.signal, watchdog.expired);
+    } finally {
+      watchdog.stop();
+    }
+    if ("text" in result) {
+      return this.#failure(result, parsedJson(result.text));
+    }
+    return result;
+  }
+
+  // url is a path below /api/agent on the origin, with its query.
+  #url(path: string, query: ApiRequest["query"]): URL {
+    const url = new URL(`/api/agent${path}`, this.origin);
+    for (const [name, value] of Object.entries(query ?? {})) {
       if (value !== undefined) {
         url.searchParams.set(name, String(value));
       }
     }
+    return url;
+  }
+
+  // headers are a request's headers: a token minted for it, the agent API
+  // version, and those given.
+  async #headers(key: SessionKey, given: OutgoingHttpHeaders): Promise<OutgoingHttpHeaders> {
     const token = await agentToken(key, this.origin, this.#clock());
-    const timeout = AbortSignal.timeout(answerTimeout + (request.wait ?? 0));
-    const signals = request.signal === undefined ? [timeout] : [timeout, request.signal];
-    const sent = request.body === undefined ? undefined : JSON.stringify(request.body);
-    let status: number;
-    let version: string | undefined;
-    let text: string;
-    try {
-      ({ status, text, version } = await this.#send(
-        url,
-        {
-          method: request.method,
-          headers: {
-            accept: "application/json",
-            authorization: `Bearer ${token}`,
-            [agentApiHeader]: String(agentApi.version),
-            ...(sent === undefined ? {} : { "content-type": "application/json" }),
-          },
-          signal: AbortSignal.any(signals),
-        },
-        sent,
-      ));
-    } catch (error) {
-      throw this.#unreachable(error, request.signal, timeout);
+    return {
+      accept: "application/json",
+      authorization: `Bearer ${token}`,
+      [agentApiHeader]: String(agentApi.version),
+      ...given,
+    };
+  }
+
+  // answer reads an answer that is not a file's bytes: the body of a
+  // successful one in Agention's JSON, or the failure it describes.
+  #answer(answer: Answer): unknown {
+    const body = parsedJson(answer.text);
+    if (answer.status >= 200 && answer.status < 300 && body !== undefined) {
+      this.#requireVersion(answer.version);
+      return body;
     }
+    return this.#failure(answer, body);
+  }
+
+  // failure throws what an answer that is not a success means.
+  #failure({ status, version }: Answer, body: unknown): never {
     if (status >= 300 && status < 400) {
       throw settingProblem(
         `The server at ${this.origin} redirected the bridge's request, and the bridge sends its ` +
           "requests to that origin alone",
         "set AGENTION_URL to the Agention server's own origin",
       );
-    }
-    let body: unknown;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = undefined;
-    }
-    if (status >= 200 && status < 300 && body !== undefined) {
-      this.#requireVersion(version);
-      return body;
     }
     if (isErrorBody(body)) {
       this.#requireVersion(version);
@@ -176,33 +391,42 @@ export class AgentApi {
   }
 
   // send makes one request through the origin's agent, which never follows a
-  // redirect, and resolves with the answer's status, the agent API version it
-  // states, if any, and its body.
-  #send(
+  // redirect: write sends its body, and read reads the answer once it
+  // arrives.
+  #send<T>(
     url: URL,
     options: { method: string; headers: OutgoingHttpHeaders; signal: AbortSignal },
-    body: string | undefined,
-  ): Promise<{ status: number; version: string | undefined; text: string }> {
+    write: (outgoing: ClientRequest) => void,
+    read: (response: IncomingMessage) => Promise<T>,
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       const outgoing = httpsRequest(url, { ...options, agent: this.#agent }, (response) => {
-        const stated = response.headers[agentApiHeader.toLowerCase()];
-        const version = typeof stated === "string" ? stated : undefined;
-        readText(response).then(
-          (text) => resolve({ status: response.statusCode ?? 0, version, text }),
-          reject,
-        );
+        read(response).then(resolve, reject);
       });
       outgoing.on("error", reject);
-      outgoing.end(body);
+      write(outgoing);
     });
   }
 
-  #unreachable(error: unknown, cancel: AbortSignal | undefined, timeout: AbortSignal): BridgeError {
+  // unreachable says why a request got no answer: the call was cancelled, a
+  // limit ran out (the time to answer, or a transfer's idle limit), or the
+  // server could not be reached.
+  #unreachable(
+    error: unknown,
+    cancel: AbortSignal | undefined,
+    expired: Limit | undefined,
+  ): BridgeError {
     const timedOut =
-      timeout.aborted || (cancel?.reason as Error | undefined)?.name === "TimeoutError";
+      expired === "answer" || (cancel?.reason as Error | undefined)?.name === "TimeoutError";
     if (cancel?.aborted && !timedOut) {
       return new BridgeError(
         "The tool call was cancelled; call the tool again if you still need it.",
+      );
+    }
+    if (expired === "stalled") {
+      return new BridgeError(
+        `The transfer stalled for ${transferIdle / 1000} seconds; try again, and tell the ` +
+          "operator at your terminal if it keeps happening.",
       );
     }
     if (timedOut) {
@@ -211,8 +435,8 @@ export class AgentApi {
           "and tell the operator at your terminal if it keeps happening.",
       );
     }
-    const failure = error as { code?: unknown; message?: unknown };
-    const detail = String(failure.code ?? failure.message);
+    const failure = error as { message?: unknown };
+    const detail = detailOf(error);
     // Where the bridge connects, when AGENTION_CONNECT sets it.
     const through =
       this.#connectAddress === undefined
@@ -248,6 +472,62 @@ export class AgentApi {
       `The Agention server at ${this.origin} cannot be reached (${detail})`,
       `check that it is running and that AGENTION_URL is its origin, ${restartAfterURL}`,
     );
+  }
+}
+
+// An answer that is not a file's bytes: its status, the agent API version it
+// states, if any, and its body.
+interface Answer {
+  status: number;
+  version: string | undefined;
+  text: string;
+}
+
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function versionOf(response: IncomingMessage): string | undefined {
+  const stated = response.headers[agentApiHeader.toLowerCase()];
+  return typeof stated === "string" ? stated : undefined;
+}
+
+async function answerOf(response: IncomingMessage): Promise<Answer> {
+  const text = await readText(response);
+  return { status: response.statusCode ?? 0, version: versionOf(response), text };
+}
+
+// The limits a request runs under: the time its answer has to arrive, and
+// the time a transfer's bytes may stop moving.
+type Limit = "answer" | "stalled";
+
+// Watchdog aborts its signal once the limit it was last armed with runs out,
+// and says which limit that was. A transfer re-arms it as its bytes move. Its
+// timer never holds the process open, so a bridge whose host has gone exits
+// even while a call waits.
+class Watchdog {
+  readonly #controller = new AbortController();
+  #timer: NodeJS.Timeout | undefined;
+  expired: Limit | undefined;
+
+  get signal(): AbortSignal {
+    return this.#controller.signal;
+  }
+
+  arm(milliseconds: number, limit: Limit): void {
+    clearTimeout(this.#timer);
+    this.#timer = setTimeout(() => {
+      this.expired = limit;
+      this.#controller.abort(new DOMException(`The ${limit} limit ran out.`, "TimeoutError"));
+    }, milliseconds).unref();
+  }
+
+  stop(): void {
+    clearTimeout(this.#timer);
   }
 }
 

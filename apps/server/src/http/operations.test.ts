@@ -1,21 +1,53 @@
 import { holdsScope, type Scope, scopes } from "@wayfarerlabs/agention-api";
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import type { Identity } from "../identity.ts";
-import { createGroup, setSessionTags, submitRegistration } from "../store/index.ts";
+import {
+  beginUpload,
+  completeUpload,
+  createGroup,
+  setSessionTags,
+  submitRegistration,
+  writeChunk,
+} from "../store/index.ts";
 import { type Agent, Fixture, newPublicKey } from "../store/test-fixture.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
 import { parse } from "./input.ts";
-import type { Operation } from "./operations.ts";
+import { isBytes, type Operation } from "./operations.ts";
 import { operatorOperations } from "./operator-operations.ts";
 
 let fixture: Fixture;
 let agent: Agent;
+// Each identity's pending upload in builder/main, by its actor.
+let pendingUploads: Map<number, string>;
+
+// pendingUpload uploads a small file to builder/main as identity, answering
+// its reference.
+function pendingUpload(identity: Identity): string {
+  const bytes = Buffer.from("notes");
+  const started = beginUpload(fixture.store, identity, agent.target, {
+    name: "notes.txt",
+    type: "text/plain",
+    size: bytes.length,
+  });
+  writeChunk(fixture.store, started, 0, bytes);
+  const sha256 = createHash("sha256").update(bytes).digest();
+  return completeUpload(fixture.store, started, bytes.length, sha256).upload;
+}
 
 beforeEach(() => {
   fixture = new Fixture();
   agent = fixture.registerAgent("builder", "main");
   fixture.createThread(agent);
+  // Thread 2 starts with a file, which a file read reads.
+  fixture.createThread(agent, {
+    text: "The notes.",
+    attachments: [{ upload: pendingUpload(agent.identity) }],
+  });
+  pendingUploads = new Map(
+    [fixture.operator, agent.identity].map((each) => [each.actor, pendingUpload(each)]),
+  );
 });
 
 afterEach(() => {
@@ -34,7 +66,29 @@ const pathValues: Record<string, string> = {
   thread: "1",
   id: "1",
   tag: "infra",
+  upload: "A".repeat(22),
+  seq: "1",
+  name: "notes.txt",
 };
+
+// The path values an operation takes in place of those above: the thread
+// whose first message carries a file, for a file read.
+const pathsOf: Record<string, Record<string, string>> = {
+  readFile: { thread: "2" },
+};
+
+// requestFor is the request itself, which only an operation whose body or
+// answer is bytes reads: an upload's body is a small file.
+const requestFor = (operation: Operation): Request =>
+  operation.body !== undefined && isBytes(operation.body)
+    ? new Request("https://agention.test/", {
+        method: "POST",
+        headers: { "content-type": "text/plain", "content-length": "5" },
+        body: "notes",
+      })
+    : new Request("https://agention.test/", { method: operation.method });
+
+const log = () => undefined;
 
 const reads = operatorOperations.filter((each) => each.scope.endsWith(":read"));
 
@@ -45,13 +99,16 @@ describe("an operation a read scope grants", () => {
       expect(operation.method).toBe("GET");
       expect(operation.body).toBeUndefined();
       const before = changes();
+      const path = { ...pathValues, ...pathsOf[operation.name] };
       await operation.handler({
         store: fixture.store,
         identity: fixture.operator,
-        params: operation.params === undefined ? undefined : parse(operation.params, pathValues),
+        params: operation.params === undefined ? undefined : parse(operation.params, path),
         query: operation.query === undefined ? undefined : parse(operation.query, {}),
         body: undefined,
         signal: new AbortController().signal,
+        request: requestFor(operation),
+        log,
       });
       expect(changes()).toBe(before);
     },
@@ -103,6 +160,11 @@ const bodies: Record<string, unknown> = {
   },
 };
 
+// A valid query for each operation that requires one.
+const queries: Record<string, unknown> = {
+  uploadFile: { name: "notes.txt" },
+};
+
 // The fixture's pending registration, which approving and rejecting decide.
 const pendingRegistration: Record<string, string> = {
   approveRegistration: "2",
@@ -111,16 +173,28 @@ const pendingRegistration: Record<string, string> = {
 
 // run calls the operation's handler, and so its store work, as identity.
 async function run(operation: Operation, identity: Identity): Promise<string> {
-  const path = { ...pathValues, id: pendingRegistration[operation.name] ?? pathValues.id };
+  const path = {
+    ...pathValues,
+    ...pathsOf[operation.name],
+    id: pendingRegistration[operation.name] ?? pathValues.id,
+    upload: pendingUploads.get(identity.actor) ?? pathValues.upload,
+  };
   try {
     await operation.handler({
       store: fixture.store,
       identity,
       params: operation.params === undefined ? undefined : parse(operation.params, path),
-      query: operation.query === undefined ? undefined : parse(operation.query, {}),
+      query:
+        operation.query === undefined
+          ? undefined
+          : parse(operation.query, queries[operation.name] ?? {}),
       body:
-        operation.body === undefined ? undefined : parse(operation.body, bodies[operation.name]),
+        operation.body === undefined || isBytes(operation.body)
+          ? undefined
+          : parse(operation.body, bodies[operation.name]),
       signal: new AbortController().signal,
+      request: requestFor(operation),
+      log,
     });
   } catch (error) {
     if (error instanceof ApiError) {

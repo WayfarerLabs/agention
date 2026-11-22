@@ -53,7 +53,18 @@ with each other or with what the product does, the disagreement is the finding.
   page, the page running no script, the document equal to `docs/api/openapi.json` at the head, and
   without the flag every path under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP
   API", "API documentation" and "Authentication"; `docs/operator-guide.md` "Using the operator
-  API").
+  API"). The file routes on every mount, the operator mount with a key of each threads scope among
+  them: an upload's answer, each of its refusals by its code and status (chunked, over 100 MiB, the
+  pending limits by count and bytes, `storage_full` with the disk filled, a length that does not
+  match), a message naming another writer's, another session's, an expired or an attached upload
+  refused alike, `keep` on a replacement; a file read with each single range, several ranges
+  answered whole, a range outside the file answered 416 with `Content-Range`, `HEAD`, and a `file`
+  reference that is not the file's, and another session's thread, `not_found`; on the operator
+  mount, an upload or its removal refused to a key without `threads:write` and a list or read
+  refused to one without `threads:read`, as `not_found`, and a revoked key's transfer stopped within
+  a chunk; and the listener's deadlines, an idle body cut at 30 seconds with a 408 carrying the
+  security headers and, on the agent mount, the version, a request body cut at 30 seconds whole, and
+  an upload trickling past that finishing (`docs/architecture.md` "HTTP API" and "Serving").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -62,10 +73,14 @@ with each other or with what the product does, the disagreement is the finding.
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update` through a
   session's life: working once registered, idle, stopped with each outcome, working again on
   resuming, a goal changed without a percent, and a note alone (`docs/architecture.md` "Agent
-  bridge" and "Store"). The bridge at the head against a server of an earlier release, which it
-  refuses with what the operator upgrades, and a bridge an earlier release published against the
-  server at the head, which it still serves, where the charter names those releases; the agent
-  compatibility gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
+  bridge" and "Store"). `file_upload` with a file, an empty one, one at 100 MiB, and each refusal: a
+  relative path, a directory, a FIFO, which must not hang, a file over 100 MiB, and a key file named
+  directly and through a symlink; `file_get` of each served type, its file's name and mode, and its
+  image block; attachments on `thread_create` and `message_send`, and a replacement keeping a file.
+  The bridge at the head against a server of an earlier release, which it refuses with what the
+  operator upgrades, and a bridge an earlier release published against the server at the head, which
+  it still serves, where the charter names those releases; the agent compatibility gate covers the
+  latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
@@ -82,27 +97,35 @@ with each other or with what the product does, the disagreement is the finding.
   open asks in the thread list's words and its threads' roll-up, the links from a row, an agent and
   a group to the thread list filtered to them, and from a row's and an agent's stranded flag to
   their stranded threads, a row unfolded to its log and marking it read, the Sessions tab's count of
-  sessions with unread updates falling as logs are read, and the folds kept, on a phone's width too;
-  the operator's session groups and tags: a session's group and an agent's and a session's tags set
-  from their options, the chips that show them, and the Groups and tags sheet's rename, its refusal
-  of a name another group or tag has, and its removal, asked first; a thread the operator starts
-  there, with the warning for a session not there to see it, and the agent's reply in it;
-  registration approval, rejection, and revocation from past requests and a session's options;
-  diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
-  gestures, buttons and keys, on a phone's width too; Settings in sections, listed beside the open
-  one on a wide screen and listed first on a phone with each section's way back, with `/passkeys`
-  leading to Passkeys; API keys: one created with each expiry choice, the no-expiry warning and the
-  list's flag, a scope that a chosen one includes shown chosen with it, the secret shown once with
-  Copy and gone once dismissed, nowhere in storage or the address, the list's last use, Revoke asked
-  first, creating and revoking held back without a recent sign-in, and Create held back at 20 live
-  keys, at a phone's width too; and voice set up, with the write-only key, what the environment
-  supplies shown read-only, Turn off and Try it; dictation through Chromium's fake microphone and a
-  stub provider, its text at the caret with nothing sent, the microphone and what it says beside
-  Send on a short screen, its failures keeping the recording for a retry, and a recording stopped
-  when the page is hidden; and Read aloud and Stop, in WebKit too where it installs
-  (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice" and "Approving agents").
-  Real-phone passkeys, Send above a phone's keyboard while writing, dictation with a real provider,
-  and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the tester's.
+  registrations waiting falling as they are approved or rejected, the Threads tab's count of unread
+  threads falling as they are read or archived, and the folds kept, on a phone's width too; the
+  operator's session groups and tags: a session's group and an agent's and a session's tags set from
+  their options, the chips that show them, and the Groups and tags sheet's rename, its refusal of a
+  name another group or tag has, and its removal, asked first; a thread the operator starts there,
+  with the warning for a session not there to see it, and the agent's reply in it; registration
+  approval, rejection, and revocation from past requests and a session's options; diagrams, drawn in
+  light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons and
+  keys, on a phone's width too; Settings in sections, listed beside the open one on a wide screen
+  and listed first on a phone with each section's way back, with `/passkeys` leading to Passkeys;
+  API keys: one created with each expiry choice, the no-expiry warning and the list's flag, a scope
+  that a chosen one includes shown chosen with it, the secret shown once with Copy and gone once
+  dismissed, nowhere in storage or the address, the list's last use, Revoke asked first, creating
+  and revoking held back without a recent sign-in, and Create held back at 20 live keys, at a
+  phone's width too; and voice set up, with the write-only key shown masked but for its last four
+  characters, what the environment supplies shown read-only, Turn off and Try it; dictation through
+  Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
+  microphone and what it says beside Send on a short screen, its failures keeping the recording for
+  a retry, and a recording stopped when the page is hidden; and Read aloud and Stop, in WebKit too
+  where it installs; attachments: **Attach**, a pasted image and a paste carrying text, progress,
+  **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message of files alone,
+  an edit keeping and removing files, each kind of file shown in place, **Show image** and **Show
+  text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's **Files**
+  fold, and **Storage**, on a phone's width too (`docs/operator-guide.md` "Signing in", "Using the
+  web UI", "Voice", "Attachments" and "Approving agents"). Real-phone passkeys, Send above a phone's
+  keyboard while writing, dictation with a real provider, diagrams and their viewer in iOS Safari,
+  and a photo from the phone read by an agent, with an image, a PDF, a video and a text file an
+  agent attached opened in Android Chrome and Windows Edge or Chrome, are the operator's acceptance,
+  not the tester's.
 
 ## Layers to cross-check
 
@@ -111,12 +134,15 @@ Compare what a surface reports with:
 - the database, opened read-only beside the running server: what each thread's messages derive (live
   messages, open asks, status, topic) against the log, each session's latest entry in its log
   against the status `session_update` answered and the sessions view shows, registration rows and
-  states, browser sessions, used challenges, API keys holding only their secret's hash, and each
-  message's position (`docs/architecture.md` "Database");
+  states, browser sessions, used challenges, API keys holding only their secret's hash, each
+  message's position, files, their chunks and the attachments naming them, pending uploads against
+  the limits, and the database's vacuum mode and free pages after a sweep (`docs/architecture.md`
+  "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
-  `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443 (`SECURITY.md`
-  "Private files" and "The agent bridge");
+  `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443, and the
+  fetched files in `~/.cache/agention/files/`, `0700` with `0600` files and no partial file left
+  behind (`SECURITY.md` "Private files" and "The agent bridge");
 - processes and sockets: the listener's address and TLS, bridge processes the hosts start and stop,
   and the shutdown `docs/operator-guide.md` "Running the server" and `docs/architecture.md`
   "Serving" describe, with long polls open;
@@ -140,11 +166,12 @@ On top of the method's failure classes, look for:
   session whose threads holding an unread message of the operator's are not stranded, or stay
   stranded once it reports working, a session's unread updates against its log and the operator's
   mark, a session's open asks and whether they block against its threads' asks and their Blocked on
-  you marks, the Sessions tab's count against the sessions with unread updates, a filter value's
-  count against the list that value produces, a group's roll-up against the threads it holds and the
-  list its link opens, a stranded count in the sessions view against the list its link opens, a tag
-  on an agent against the threads of each of its sessions, an archived thread that another party's
-  later message failed to bring back to the list, and one the caller's own message brought back.
+  you marks, the Threads tab's count against the list's total with Unread the only filter on, the
+  Sessions tab's count against the registrations waiting for approval, a filter value's count
+  against the list that value produces, a group's roll-up against the threads it holds and the list
+  its link opens, a stranded count in the sessions view against the list its link opens, a tag on an
+  agent against the threads of each of its sessions, an archived thread that another party's later
+  message failed to bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them
@@ -172,6 +199,20 @@ On top of the method's failure classes, look for:
   nothing in the page, requests nothing beyond the server, and leaves the frame where it was; a
   diagram image's `blob:` URL, once the image shows, no longer opens on its own; and
   `/diagram-frame` opened on its own does nothing.
+- **Attachments**: files that try to act as the app (`SECURITY.md` "Attachments"). HTML, HTML
+  declared as each allowlisted type, an SVG with script and an external image, and bytes mislabeled
+  as an image, a PDF or a video, each shown in the page and opened on its own, run nothing and
+  request nothing beyond the server, an SVG drawing only as an image and downloading when opened,
+  and every file response carrying its headers. Ranges as a video seeks, and the fetches a seek
+  makes. A refusal mid-body, a pending limit or `storage_full`, of an upload from the phone over
+  mobile data and from the bridge through Tailscale Serve, arriving named rather than as a reset
+  connection, and a 100 MiB body through Tailscale Serve. The image block on Claude Code and Codex:
+  photos of 0.5, 2 and 3.5 MiB through `file_get`, and a broken block, bytes that are not the image
+  their type says, to learn whether a host fails the whole call or only shows an error. A 100 MiB
+  upload over a throttled link in each host, against Codex's `tool_timeout_sec` and Claude Code's
+  default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
+  an upload cut off, or the server killed during one, leaving no file or chunks after the next
+  sweep; a `file_get` that fails leaving no partial file.
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong
@@ -194,12 +235,12 @@ On top of the method's safety rails:
   the operator's tunnel.
 - Write nothing to shared `/tmp`: set `TMPDIR` to the run's scratch directory for every process the
   run starts, and put tarballs, renders, and certificates there too.
-- The bridge's key path is fixed under the home directory, so use a separate `HOME` wherever the run
-  allows it, including for checking a plugin's installed files. Load the plugin into an
-  authenticated Claude Code session with `claude --plugin-dir <path>` (that session only). Install
-  into a real home only when the charter names it, one tester at a time, never where an `agention`
-  plugin or marketplace already exists. On Claude Code, add the marketplace with
-  `claude plugin marketplace add <path> --scope local` and install with
+- The bridge's key path and its fetched files' directory are fixed under the home directory, so use
+  a separate `HOME` wherever the run allows it, including for checking a plugin's installed files.
+  Load the plugin into an authenticated Claude Code session with `claude --plugin-dir <path>` (that
+  session only). Install into a real home only when the charter names it, one tester at a time,
+  never where an `agention` plugin or marketplace already exists. On Claude Code, add the
+  marketplace with `claude plugin marketplace add <path> --scope local` and install with
   `claude plugin install agention@agention --scope local`, both in the run's scratch project; a
   Codex install changes the whole home. Allow only the plugin's tools for the run
   (`--allowedTools`); never use a permission-bypass mode or save an allow rule.

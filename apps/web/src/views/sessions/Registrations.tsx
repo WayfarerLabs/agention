@@ -5,7 +5,7 @@ import {
   type RegistrationResult,
   type RegistrationsPage,
 } from "@wayfarerlabs/agention-api";
-import { type RefObject, useEffect, useId, useRef, useState } from "react";
+import { type RefObject, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   type AgentList,
   type Agents,
@@ -515,7 +515,7 @@ export function Revocation({
   const [said, say] = useState("");
   // Whether focus returns to the opener once the question goes.
   const answered = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (asking === undefined && answered.current) {
       answered.current = false;
       opener.current?.focus({ preventScroll: true });

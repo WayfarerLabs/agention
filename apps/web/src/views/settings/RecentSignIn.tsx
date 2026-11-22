@@ -1,5 +1,5 @@
 import type { PasskeyList } from "@wayfarerlabs/agention-api";
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { ApiFailure, request } from "../../api.ts";
 import { Failure, focusLeftWith } from "../../components.tsx";
 import { type Resource, useAction, useResource } from "../../data.ts";
@@ -62,7 +62,7 @@ export function RecentSignIn({
   const session = useSession();
   const action = useAction();
   const [signedInAgain, setSignedInAgain] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (signedInAgain && recent === true) {
       setSignedInAgain(false);
       if (focusLeftWith()) {

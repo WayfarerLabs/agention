@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type SetStateAction,
   useEffect,
+  useLayoutEffect,
   useId,
   useRef,
   useState,
@@ -23,7 +24,7 @@ import {
   Spoken,
   Time,
 } from "../../format.tsx";
-import { ExternalLink, liveUrl, Markdown } from "../../markdown/Markdown.tsx";
+import { ExternalLink, type FileLinks, liveUrl, Markdown } from "../../markdown/Markdown.tsx";
 import { ThreadLink } from "../../router.tsx";
 import {
   speak,
@@ -33,6 +34,7 @@ import {
   useSpeechFailed,
   wordsOf,
 } from "../../voice/speech.ts";
+import { useMessageFiles } from "./files/FileList.tsx";
 import {
   type AnswerDraft,
   holdsAnswer,
@@ -86,7 +88,7 @@ export interface MessageActions {
 }
 
 const replacementHint =
-  "Available when the message box and Details are empty and nothing is staged.";
+  "Available when the message box and Details are empty, and nothing is attached or staged.";
 
 // mine says whether the operator wrote a message: they are the one person.
 export const mine = (message: Message) => message.author.kind === "person";
@@ -104,8 +106,17 @@ export interface MessageContext {
 // its text that opens it in place. Folded, the detail is not parsed: a
 // detail at its bound can take seconds to parse, so the page parses only the
 // details the operator opens. The list keeps each message's place by its
-// sequence, so a refresh keeps an opened detail open.
-function MessageDetail({ seq, detail }: { seq: number; detail: string }) {
+// sequence, so a refresh keeps an opened detail open. Its links may name the
+// message's own files.
+function MessageDetail({
+  seq,
+  detail,
+  files,
+}: {
+  seq: number;
+  detail: string;
+  files: FileLinks | undefined;
+}) {
   const id = useId();
   const [open, setOpen] = useState(false);
   return (
@@ -123,7 +134,7 @@ function MessageDetail({ seq, detail }: { seq: number; detail: string }) {
       </button>
       {open && (
         <div id={id} className="detail-body">
-          <Markdown text={detail} />
+          <Markdown text={detail} files={files} />
         </div>
       )}
     </div>
@@ -184,6 +195,7 @@ function carriesNothing(message: Message): boolean {
   return (
     message.text === undefined &&
     message.references === undefined &&
+    message.attachments === undefined &&
     message.asks === undefined &&
     message.answers === undefined &&
     message.withdrawals === undefined &&
@@ -284,7 +296,7 @@ function AskCard({
     words: useRef<HTMLTextAreaElement>(null),
   };
   const focusNext = useRef<keyof typeof targets>(undefined);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const next = focusNext.current;
     focusNext.current = undefined;
     if (next !== undefined) {
@@ -847,6 +859,7 @@ function MessageBody({
   const { actions, agentRead } = context;
   const failure = actions?.markFailure?.seq === message.seq ? actions.markFailure : undefined;
   const readAloud = useReadAloud(message, context.target);
+  const files = useMessageFiles(message, context.target);
   const options = [
     ...(actions !== undefined && message.live ? optionsOf(message, actions) : []),
     ...readAloud.options,
@@ -884,11 +897,14 @@ function MessageBody({
       {readAloud.failed && <Status>This device could not read this message aloud.</Status>}
       {message.seq === 1 && <p className="event">Started this thread.</p>}
       <Events message={message} find={context.find} />
-      {message.text !== undefined && <Markdown text={message.text} />}
-      {message.detail !== undefined && <MessageDetail seq={message.seq} detail={message.detail} />}
+      {message.text !== undefined && <Markdown text={message.text} files={files.links} />}
+      {message.detail !== undefined && (
+        <MessageDetail seq={message.seq} detail={message.detail} files={files.links} />
+      )}
       {message.references !== undefined && (
         <References references={message.references} target={context.target} />
       )}
+      {files.list}
       {message.asks?.map((ask) => (
         <AskCard key={ask.number} message={message} ask={ask} context={context} />
       ))}

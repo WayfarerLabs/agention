@@ -1,6 +1,7 @@
 import {
   type Ask,
   type Answer,
+  type Attachment,
   type MessageSendInput,
   pageLimit,
   parseTimestamp,
@@ -16,6 +17,12 @@ import {
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notAllowed, notFound } from "../errors.ts";
 import { authorize, type Identity } from "../identity.ts";
+import {
+  checkAttachments,
+  insertAttachments,
+  type ResolvedAttachment,
+  threadFileTotals,
+} from "./attachments.ts";
 import { findOperator, resolveSession, sessionActorId } from "./directory.ts";
 import { writeDigest } from "./digest.ts";
 import type { Store } from "./store.ts";
@@ -25,7 +32,7 @@ import { marksOf, partyCursors, readMessages, readThread } from "./thread-reads.
 // shape are checked before any transaction opens. Each write reads the clock
 // and authorizes inside its transaction, then runs its checks in a fixed
 // order: replay of a request id, roles, staleness, then the rules that depend
-// on the thread's messages.
+// on the thread's messages, the files it attaches last.
 
 export interface SessionTarget {
   agent: string;
@@ -130,6 +137,7 @@ interface Parts {
   text?: string | undefined;
   detail?: string | undefined;
   references?: Reference[] | undefined;
+  attachments?: Attachment[] | undefined;
   asks?: Ask[] | undefined;
   answers?: Answer[] | undefined;
   withdrawals?: Withdrawal[] | undefined;
@@ -161,7 +169,8 @@ function keepArchived(db: Database, actor: number, threadId: number, seq: number
 
 // appendMessage writes a message at the thread's next sequence and the
 // session's next position, with its asks, numbered on from the thread's
-// highest, its answers and its withdrawals, and moves the writer's read
+// highest, its answers, its withdrawals and its attachments, which marks
+// each file it names attached, and moves the writer's read
 // cursor to it: a writer has read through its own message. A writer for whom
 // the thread is archived keeps it archived. Its caller's transaction holds it
 // all, so a message and its rows land together or not at all.
@@ -170,7 +179,13 @@ function appendMessage(
   thread: { id: number; session_id: number },
   seq: number,
   identity: Identity,
-  write: { requestId: string; digest: Uint8Array; parts: Parts; now: number },
+  write: {
+    requestId: string;
+    digest: Uint8Array;
+    parts: Parts;
+    attachments: ResolvedAttachment[];
+    now: number;
+  },
 ): void {
   const { parts } = write;
   const { last_pos: position } = db
@@ -248,6 +263,7 @@ function appendMessage(
       insert.run({ thread_id: thread.id, seq, ask: withdrawal.ask, reason: withdrawal.reason });
     }
   }
+  insertAttachments(db, thread.id, seq, write.attachments);
   db.prepare("UPDATE threads SET last_seq = ? WHERE id = ?").run(seq, thread.id);
   raiseReadMark(db, identity.actor, thread.id, seq);
   keepArchived(db, identity.actor, thread.id, seq);
@@ -485,6 +501,11 @@ function addThread(
     }
     const { requester, audience } = roles(db, sessionId);
     checkReferences(db, sessionId, parts.references);
+    const attachments = checkAttachments(
+      db,
+      { sessionId, replaced: undefined, actor: identity.actor, now },
+      parts.attachments,
+    );
     const { number } = db
       .prepare("SELECT COALESCE(MAX(number), 0) + 1 AS number FROM threads WHERE session_id = ?")
       .get(sessionId) as { number: number };
@@ -499,6 +520,7 @@ function addThread(
       requestId,
       digest,
       parts,
+      attachments,
       now,
     });
     return { sessionId, appended: true, result: { number, seq: 1 } };
@@ -603,8 +625,19 @@ export function sendMessage(
     }
 
     checkParts(db, thread, identity.actor, parts);
+    const attachments = checkAttachments(
+      db,
+      {
+        sessionId: thread.session_id,
+        replaced:
+          parts.replaces === undefined ? undefined : { threadId: thread.id, seq: parts.replaces },
+        actor: identity.actor,
+        now,
+      },
+      parts.attachments,
+    );
     const seq = thread.last_seq + 1;
-    appendMessage(db, thread, seq, identity, { requestId, digest, parts, now });
+    appendMessage(db, thread, seq, identity, { requestId, digest, parts, attachments, now });
     return { sessionId, appended: true, result: { number: thread.number, seq } };
   });
   if (outcome.appended) {
@@ -614,7 +647,7 @@ export function sendMessage(
 }
 
 // getThread reads a thread, a page of its messages, both parties' read
-// cursors and the caller's own marks.
+// cursors, the caller's own marks and the totals of the thread's files.
 export function getThread(
   store: Store,
   identity: Identity,
@@ -631,6 +664,7 @@ export function getThread(
       messages: readMessages(db, stored.id, query.after, query.limit),
       cursors: partyCursors(db, stored),
       marks: marksOf(db, identity.actor, stored.id),
+      files: threadFileTotals(db, stored.id),
     };
   });
 }

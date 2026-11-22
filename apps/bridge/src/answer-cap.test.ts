@@ -237,6 +237,34 @@ describe("a result over the cap", () => {
     expect(result.messages[0]).not.toHaveProperty("detail");
   });
 
+  it("leaves out a message's files when they alone are too long", async () => {
+    await startThread("r1");
+    const path = "/api/agent/s/builder/main/threads/1";
+    harness.beforeRequest = (request) => {
+      if (request.method !== "GET" || new URL(request.url).pathname !== path) {
+        return undefined;
+      }
+      // Ten files, under names longer than any this release allows, as a
+      // later release's might be.
+      const attachments = Array.from({ length: 10 }, (_, i) => ({
+        name: `${i}${"n".repeat(4_500)}`,
+        file: "AAAAAAAAAAAAAAAAAAAAAA",
+        size: 1,
+        type: "text/plain",
+      }));
+      return serverJson({
+        thread: { number: 1, last_seq: 1 },
+        messages: [{ seq: 1, text: "Files.", attachments }],
+        cursors: {},
+      });
+    };
+    const answer = await bridge.call("thread_get", { thread: 1 });
+    withinCap(answer);
+    const result = answer.json as { messages: object[]; omitted: string[] };
+    expect(result.omitted).toEqual(["messages.0.attachments"]);
+    expect(result.messages).toEqual([{ seq: 1, text: "Files." }]);
+  });
+
   it("leaves out references when they alone are too long", async () => {
     await startThread("r1", { text: "Details.", references: references(2_048) });
     const answer = await bridge.call("thread_get", { thread: 1 });

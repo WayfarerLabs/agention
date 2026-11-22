@@ -1,14 +1,15 @@
 import type { Hono } from "hono";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { OwnHeaders } from "./app.ts";
+import { ownHeaders } from "./own-headers.ts";
 
 // The diagram frame: a page the web UI embeds in a sandboxed frame, with
 // scripts only, whose one script draws Mermaid diagrams from message text and
 // answers with their SVG. Its response carries a policy of its own, which
 // sandboxes it even when it is opened on its own, lets it load nothing but
-// its script, and lets only the server's own pages frame it. The security
-// headers middleware leaves that policy in place.
+// its script, and lets only the server's own pages frame it. Its routes
+// declare that policy, the framing and the script's caching their own, so
+// the security headers middleware leaves them in place.
 
 export const diagramFramePath = "/diagram-frame";
 
@@ -69,14 +70,12 @@ function readScript(root: string): string | undefined {
 }
 
 // serveDiagramFrame adds the frame's page and its script, from the web UI's
-// build in root, before the routes that serve the rest of the build, and
-// says which security headers each sets for itself. A build without the
-// frame adds neither, so its path serves as any other. The page sets its own
-// policy and framing, and the script its caching.
-export function serveDiagramFrame(app: Hono, root: string | undefined, origin: string): OwnHeaders {
+// build in root, before the routes that serve the rest of the build. A build
+// without the frame adds neither, so its path serves as any other.
+export function serveDiagramFrame(app: Hono, root: string | undefined, origin: string): void {
   const script = root === undefined ? undefined : readScript(root);
   if (root === undefined || script === undefined) {
-    return new Map();
+    return;
   }
   const page = framePage(script);
   const policy = diagramFramePolicy(origin, script);
@@ -84,15 +83,13 @@ export function serveDiagramFrame(app: Hono, root: string | undefined, origin: s
   app.get(diagramFramePath, (c) => {
     c.header("Content-Security-Policy", policy);
     c.header("X-Frame-Options", "SAMEORIGIN");
+    ownHeaders(c.req.raw, ["content-security-policy", "x-frame-options"]);
     return c.html(page);
   });
   app.get(`/${script}`, (c) => {
     c.header("Content-Type", "text/javascript; charset=utf-8");
     c.header("Cache-Control", scriptCaching);
+    ownHeaders(c.req.raw, ["cache-control"]);
     return c.body(content);
   });
-  return new Map([
-    [diagramFramePath, ["content-security-policy", "x-frame-options"]],
-    [`/${script}`, ["cache-control"]],
-  ]);
 }

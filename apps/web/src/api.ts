@@ -4,6 +4,7 @@ import {
   type Message,
   maxListed,
   type SessionsPage,
+  type UploadResult,
 } from "@wayfarerlabs/agention-api";
 
 // The web UI's client for the server's web API, mounted at /api/web. Requests
@@ -46,19 +47,19 @@ export interface RequestOptions {
 
 // The answer is read as an error body only when it has the API's error shape:
 // a proxy in front of the server can answer with anything.
-async function failureOf(response: Response): Promise<ApiFailure> {
+function failureFrom(status: number, text: string, retryAfterHeader: string | null): ApiFailure {
   let parsed: unknown;
   try {
-    parsed = await response.json();
+    parsed = JSON.parse(text);
   } catch {
     parsed = undefined;
   }
   const body = errorBody.safeParse(parsed);
   if (!body.success) {
-    return new ApiFailure("unexpected", `The server answered with status ${response.status}.`);
+    return new ApiFailure("unexpected", `The server answered with status ${status}.`);
   }
   const { code, message, field, missed } = body.data.error;
-  const retryAfter = Number(response.headers.get("retry-after") ?? "");
+  const retryAfter = Number(retryAfterHeader ?? "");
   return new ApiFailure(code, message, {
     ...(field === undefined ? {} : { field }),
     ...(missed === undefined ? {} : { missed }),
@@ -66,14 +67,30 @@ async function failureOf(response: Response): Promise<ApiFailure> {
   });
 }
 
+async function failureOf(response: Response): Promise<ApiFailure> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // An unreadable body reads as an answer other than the API's.
+  }
+  return failureFrom(response.status, text, response.headers.get("retry-after"));
+}
+
 // No request waits longer than this for its answer, so one that hangs fails
 // like one that got no answer, and refreshes and retries carry on.
 export const requestTimeout = 30_000;
 
+// The event request dispatches on the window once a change lands, so what
+// counts the operator's data, such as the navigation's counts, reloads at
+// once. Signing in and out change the browser's session, not the data, and
+// the page reloads its views after either, so they dispatch none.
+export const changeLanded = "agention:change-landed";
+
 // request sends one request to the web API and returns its JSON answer, or
 // throws an ApiFailure. The answer's type is the API contract's; the server
 // that serves this page is the one that answers it.
-export function request<T>(
+export async function request<T>(
   method: "GET" | "POST",
   path: string,
   options: RequestOptions = {},
@@ -82,7 +99,7 @@ export function request<T>(
   if (options.body !== undefined) {
     headers["content-type"] = "application/json";
   }
-  return exchange<T>(
+  const answer = await exchange<T>(
     path,
     {
       method,
@@ -92,6 +109,10 @@ export function request<T>(
     options.csrf,
     requestTimeout,
   );
+  if (method !== "GET" && !path.startsWith("/auth/")) {
+    window.dispatchEvent(new Event(changeLanded));
+  }
+  return answer;
 }
 
 // upload sends bytes, such as a recording, as the body of a change, declared
@@ -156,6 +177,146 @@ async function exchange<T>(
         ? noAnswer()
         : new ApiFailure("unexpected", "The server's answer could not be read.");
     }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// An upload of a file gives up once this long passes with no progress:
+// longer than the server's own idle cut, so the server's answer arrives
+// first. Nothing bounds an upload's whole length, so a slow uplink finishes.
+const uploadIdle = 60_000;
+
+// uploadFile sends a file to a session's uploads, declared as type, and
+// returns the upload's answer, or throws an ApiFailure as request does. fetch
+// reports no upload progress, so it goes by XMLHttpRequest, with the File as
+// the body, so the browser sends its length; onProgress hears how many bytes
+// have gone. Aborting signal, as Remove does, ends it as a network failure
+// the caller drops.
+export function uploadFile(
+  path: string,
+  file: Blob,
+  options: {
+    type: string;
+    csrf: string | undefined;
+    signal: AbortSignal;
+    onProgress: (sent: number) => void;
+  },
+): Promise<UploadResult> {
+  return new Promise<UploadResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    let stalled = false;
+    const settle = () => {
+      clearTimeout(idle);
+      options.signal.removeEventListener("abort", abort);
+    };
+    const rearm = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => {
+        stalled = true;
+        xhr.abort();
+      }, uploadIdle);
+    };
+    const abort = () => xhr.abort();
+    const noAnswer = () =>
+      stalled
+        ? new ApiFailure("network", "The upload stopped making progress. Check the connection.")
+        : new ApiFailure("network", "Agention could not be reached. Check the connection.");
+    xhr.open("POST", `/api/web${path}`);
+    xhr.setRequestHeader("accept", "application/json");
+    xhr.setRequestHeader("content-type", options.type);
+    if (options.csrf !== undefined) {
+      xhr.setRequestHeader("x-csrf-token", options.csrf);
+    }
+    xhr.upload.onprogress = (event) => {
+      rearm();
+      options.onProgress(event.loaded);
+    };
+    xhr.onload = () => {
+      settle();
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(failureFrom(xhr.status, xhr.responseText, xhr.getResponseHeader("retry-after")));
+        return;
+      }
+      try {
+        resolve(JSON.parse(xhr.responseText) as UploadResult);
+      } catch {
+        reject(new ApiFailure("unexpected", "The server's answer could not be read."));
+      }
+    };
+    xhr.onerror = xhr.onabort = () => {
+      settle();
+      reject(noAnswer());
+    };
+    options.signal.addEventListener("abort", abort);
+    rearm();
+    xhr.send(file);
+  });
+}
+
+// fileUrl is the URL of a file a message carries, by the message's sequence,
+// the name it carries the file under and the file's reference, which makes
+// the URL name the same bytes for good, so the browser's cache can keep them.
+export function fileUrl(
+  target: { agent: string; session: string; number: number },
+  seq: number,
+  name: string,
+  file: string,
+): string {
+  const rest = `/messages/${seq}/files/${encodeURIComponent(name)}${query({ file })}`;
+  return `/api/web${threadPath(target.agent, target.session, target.number, rest)}`;
+}
+
+// readTextStart reads up to the first bytes of a file at url, by a range
+// request, as UTF-8 with replacement. A cut through a character at the end
+// leaves that character out. It reads no more than bytes, even from a server
+// that ignores the range, and gives up after requestTimeout, as request does.
+// It throws an ApiFailure as request does. It leaves the browser's cache on,
+// since the bytes at a file's URL never change.
+export async function readTextStart(url: string, bytes: number): Promise<string> {
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), requestTimeout);
+  const noAnswer = () =>
+    timeout.signal.aborted
+      ? new ApiFailure("network", "Agention did not answer in time. Check the connection.")
+      : new ApiFailure("network", "Agention could not be reached. Check the connection.");
+  try {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: { range: `bytes=0-${bytes - 1}` },
+        credentials: "same-origin",
+        signal: timeout.signal,
+      });
+    } catch {
+      throw noAnswer();
+    }
+    if (!response.ok) {
+      throw await failureOf(response);
+    }
+    const start = new Uint8Array(bytes);
+    let length = 0;
+    const reader = response.body?.getReader();
+    try {
+      while (reader !== undefined && length < bytes) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        const taken = value.subarray(0, bytes - length);
+        start.set(taken, length);
+        length += taken.length;
+      }
+    } catch {
+      throw noAnswer();
+    }
+    if (length === bytes) {
+      void reader?.cancel().catch(() => undefined);
+    }
+    return new TextDecoder("utf-8").decode(start.subarray(0, length), {
+      stream: length === bytes,
+    });
   } finally {
     clearTimeout(timer);
   }

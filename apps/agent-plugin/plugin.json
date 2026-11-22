@@ -23,6 +23,7 @@
       "AGENTWORKS_AGENT",
       "AGENTWORKS_SESSION",
       "NODE_EXTRA_CA_CERTS"
-    ]
+    ],
+    "toolTimeoutSeconds": 600
   }
 }

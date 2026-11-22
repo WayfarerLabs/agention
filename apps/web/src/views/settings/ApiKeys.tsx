@@ -5,7 +5,7 @@ import {
   type ApiKeySummary,
   maxApiKeys,
 } from "@wayfarerlabs/agention-api";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import {
   ConfirmButton,
@@ -74,7 +74,7 @@ function ApiKeys({
   const create = useRef<HTMLButtonElement>(null);
   // This runs after every render, since Create an API key shows a render
   // after the form goes.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusNext === "create" && create.current !== null) {
       setFocusNext(undefined);
       if (focusLeftWith()) {
@@ -179,7 +179,7 @@ function ApiKeyItem({
   const [status, setStatus] = useState("");
   const article = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focus) {
       focused();
       if (focusLeftWith(article.current)) {
@@ -292,7 +292,7 @@ function NewSecret({ created, onDone }: { created: ApiKeyCreated; onDone: () => 
   const id = useId();
   const field = useRef<HTMLTextAreaElement>(null);
   const [status, setStatus] = useState("");
-  useEffect(() => field.current?.focus(), []);
+  useLayoutEffect(() => field.current?.focus(), []);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(created.secret);

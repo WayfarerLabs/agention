@@ -4,12 +4,19 @@ import {
   errorBody,
   oversizedBodyStatus,
   statusByErrorCode,
+  unsatisfiableRangeStatus,
   unsizedBodyStatus,
 } from "@wayfarerlabs/agention-api";
 import { JsonSchemas } from "@wayfarerlabs/agention-api/json-schemas";
 import { maxTokenLifetime } from "../auth/agent-tokens.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
-import type { Declaration, DescribedSchema } from "./operations.ts";
+import {
+  type BytesAnswer,
+  type BytesBody,
+  type Declaration,
+  type DescribedSchema,
+  isBytes,
+} from "./operations.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { operatorApiPrefix, operatorApiVersion, versionsDeclaration } from "./operator-api.ts";
 
@@ -99,12 +106,83 @@ function parametersOf(
 const pathOf = (mount: Mount, declaration: Declaration) =>
   mount.prefix + declaration.path.replace(/:([a-z]+)/g, "{$1}");
 
+// requestBodyOf describes a body: JSON its schema reads, or bytes as they
+// are, which the body's description says how to send.
+function requestBodyOf(schemas: JsonSchemas, body: DescribedSchema<unknown> | BytesBody) {
+  return isBytes(body)
+    ? {
+        description: body.description,
+        required: true,
+        content: { "application/octet-stream": {} },
+      }
+    : { required: true, content: { "application/json": { schema: schemas.of(body, "input") } } };
+}
+
+// answersOf describes an operation's answers: JSON its schema reads, or
+// bytes in any of their types, and when a range of them may be asked for,
+// that range, 206, or 416 for one outside them, which carries the bytes'
+// length in Content-Range and an error.
+function answersOf(
+  schemas: JsonSchemas,
+  response: DescribedSchema<unknown> | BytesAnswer,
+  headers: JsonObject | undefined,
+): JsonObject {
+  if (!isBytes(response)) {
+    return {
+      "200": {
+        description: "Done",
+        ...(headers === undefined ? {} : { headers }),
+        content: { "application/json": { schema: schemas.of(response, "output") } },
+      },
+    };
+  }
+  const content = Object.fromEntries(response.types.map((type) => [type, {}]));
+  const contentRange = (description: string) => ({
+    "Content-Range": { description, schema: { type: "string" } },
+  });
+  return {
+    "200": {
+      description: response.description,
+      ...(headers === undefined ? {} : { headers }),
+      content,
+    },
+    ...(response.ranges
+      ? {
+          "206": {
+            description: "The range asked for, of the same bytes, with the same headers.",
+            headers: { ...headers, ...contentRange("bytes first-last/length") },
+            content,
+          },
+          [unsatisfiableRangeStatus]: {
+            description: "The range lies outside the bytes, or the bytes are empty; invalid_input.",
+            headers: { ...headers, ...contentRange("bytes */length") },
+            content: { "application/json": { schema: schemas.of(errorBody, "output") } },
+          },
+        }
+      : {}),
+  };
+}
+
+// The Range header a request for bytes may send.
+const rangeHeader = {
+  name: "Range",
+  in: "header",
+  required: false,
+  description:
+    "One range of bytes, as bytes=first-last, bytes=first- or bytes=-suffix, answered 206. " +
+    "Several ranges, another unit and anything malformed are ignored, and the bytes are " +
+    "answered whole.",
+  schema: { type: "string" },
+};
+
 function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaration): JsonObject {
   const versionHeader = { $ref: "#/components/parameters/agentApiVersion" };
+  const ranges = isBytes(declaration.response) && declaration.response.ranges;
   const parameters = [
     ...(mount.versionHeader ? [versionHeader] : []),
     ...(declaration.params === undefined ? [] : parametersOf(schemas, declaration.params, "path")),
     ...(declaration.query === undefined ? [] : parametersOf(schemas, declaration.query, "query")),
+    ...(ranges ? [rangeHeader] : []),
   ];
   const name = declaration.name.charAt(0).toUpperCase() + declaration.name.slice(1);
   // A key's scope is listed; an agent's token always holds what every agent
@@ -119,20 +197,15 @@ function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaratio
     ...(parameters.length === 0 ? {} : { parameters }),
     ...(declaration.body === undefined
       ? {}
-      : {
-          requestBody: {
-            required: true,
-            content: { "application/json": { schema: schemas.of(declaration.body, "input") } },
-          },
-        }),
+      : { requestBody: requestBodyOf(schemas, declaration.body) }),
     responses: {
-      "200": {
-        description: "Done",
-        ...(mount.versionHeader
-          ? { headers: { [agentApiHeader]: { $ref: "#/components/headers/agentApiVersion" } } }
-          : {}),
-        content: { "application/json": { schema: schemas.of(declaration.response, "output") } },
-      },
+      ...answersOf(
+        schemas,
+        declaration.response,
+        mount.versionHeader
+          ? { [agentApiHeader]: { $ref: "#/components/headers/agentApiVersion" } }
+          : undefined,
+      ),
       default: { $ref: "#/components/responses/error" },
     },
   };
@@ -172,7 +245,8 @@ export function apiDocument(): JsonObject {
       version: `operator v${operatorApiVersion}, agent v${agentApi.version}`,
       description:
         "The operator API, for a client acting as the operator, and the agent API, for the " +
-        "Agention bridge. Every body is JSON, and every refusal is the shared error shape. " +
+        "Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a " +
+        "file read answers, and every refusal is the shared error shape. " +
         `GET /api/operator lists the operator API versions the server serves; the agent API ` +
         `serves versions ${agentApi.oldest} to ${agentApi.version}.`,
     },

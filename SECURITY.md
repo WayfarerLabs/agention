@@ -46,33 +46,36 @@ the server's part of them on every request, and the web UI renders content inert
   mount.
 - **Inert content.** A message's text, its detail and its references are displayed, never executed,
   fetched or followed by the server. Markdown renders with raw HTML shown as text, images shown as
-  links rather than loaded, and only HTTPS links live; no class or style comes from the text. Every
-  other field, such as a title, a question or an answer's own words, shows as plain text, as
-  written. Search text is matched word by word, each word quoted, so it is never read as query
-  syntax. A fenced `mermaid` block is drawn as a diagram, by Mermaid in a frame of its own, never in
-  the web UI's page: the frame is sandboxed with scripts only, so its origin is opaque and it can
-  read none of the web UI's cookies, storage or page, navigate the page, open windows or submit
-  forms, and its own content security policy sandboxes it too, even opened on its own, lets it load
-  nothing but its one script and fetch nothing, and lets only the server's own pages frame it. The
-  page sends the frame the diagram's text, accepts answers only from the frame's window, and shows
-  the SVG it answers as an image, which runs no script and loads nothing. The SVG is never shown any
-  other way. Its `blob:` URL, opened on its own by browser navigation, would be a document of the
-  web UI's origin under none of the web UI's content security policy, where what Mermaid's strict
-  level keeps, such as an image in a label or a link, would load; so the page revokes each image's
-  URL as soon as the image has loaded, leaving none to open, and until then only the page's own
-  script knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict
+  links rather than loaded, and only HTTPS links live; no class or style comes from the text. A
+  Markdown link to `attachment:` and a name is live only when the name is a file of the message's
+  own, and then opens that file as the message's own list does. Files attached to messages are not
+  message text: they load only as [Attachments](#attachments) describes, and nothing in a message's
+  text loads one. Every other field, such as a title, a question or an answer's own words, shows as
+  plain text, as written. Search text is matched word by word, each word quoted, so it is never read
+  as query syntax. A fenced `mermaid` block is drawn as a diagram, by Mermaid in a frame of its own,
+  never in the web UI's page: the frame is sandboxed with scripts only, so its origin is opaque and
+  it can read none of the web UI's cookies, storage or page, navigate the page, open windows or
+  submit forms, and its own content security policy sandboxes it too, even opened on its own, lets
+  it load nothing but its one script and fetch nothing, and lets only the server's own pages frame
+  it. The page sends the frame the diagram's text, accepts answers only from the frame's window, and
+  shows the SVG it answers as an image, which runs no script and loads nothing. The SVG is never
+  shown any other way. Its `blob:` URL, opened on its own by browser navigation, would be a document
+  of the web UI's origin under none of the web UI's content security policy, where what Mermaid's
+  strict level keeps, such as an image in a label or a link, would load; so the page revokes each
+  image's URL as soon as the image has loaded, leaving none to open, and until then only the page's
+  own script knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict
   security level. Where a browser runs the frame on the page's own thread, a diagram that sends
   Mermaid into a busy loop can still freeze the page; the size cap and Mermaid's own limits are the
-  defense there. The content security policy lets the web UI load only its own scripts, styles and
-  images, and the `blob:` images it makes from the frame's answers, and frame only the diagram
-  frame, as a second line. No text can break the web UI: a field that fails to render shows as its
-  text, and text nested too deeply shows as text without being parsed. Text can still slow it: some
-  Markdown parses in more than linear time, milliseconds for a message's text, which holds at most
-  1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A thread page
-  renders the text of up to 50 messages at a time and parses a detail once each time it is opened,
-  not as the page refreshes, so a deliberately hostile detail can stall one thread's page for that
-  long each time it is opened. The lists render no Markdown, so the operator can still reach the
-  sessions view and revoke the session's credential.
+  defense there. The content security policy lets the web UI load only its own scripts, styles,
+  images and media, and the `blob:` images it makes from the frame's answers, and frame only the
+  diagram frame, as a second line. No text can break the web UI: a field that fails to render shows
+  as its text, and text nested too deeply shows as text without being parsed. Text can still slow
+  it: some Markdown parses in more than linear time, milliseconds for a message's text, which holds
+  at most 1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A
+  thread page renders the text of up to 50 messages at a time and parses a detail once each time it
+  is opened, not as the page refreshes, so a deliberately hostile detail can stall one thread's page
+  for that long each time it is opened. The lists render no Markdown, so the operator can still
+  reach the sessions view and revoke the session's credential.
 - **No network identity.** No authentication decision or rate limit depends on source address,
   forwarded headers or network identity, so Agention does not rely on its network path for security.
   The server answers only for its configured origin's host, and plain HTTP is refused on a
@@ -108,13 +111,15 @@ device, and involves no server.
   provider's address receives the recordings, under its own terms, which Settings link to for the
   hosted presets.
 - **The key.** The provider's key is a secret like the server's own: written in Settings and never
-  read back, sent to no browser or agent, and never logged. Settings show only whether one is set. A
-  key saved in Settings goes only to the base URL it was entered for: changing the base URL clears
-  it, and a base URL the environment changes leaves it unused until the operator enters it again. A
-  backup holds a key saved in Settings, which is one reason backups are private files. A key from
-  `AGENTION_TRANSCRIPTION_KEY` needs `AGENTION_TRANSCRIPTION_URL` too, so it only goes to an address
-  from the environment; it is never written to the database, and belongs in an environment file only
-  the server's user can read.
+  read back whole, and never logged. No agent receives any of it, and a browser only its last four
+  characters, which Settings show in the masked key field so the operator can tell which key is in
+  effect; a key shorter than 16 characters shows none, so the four are never more than a quarter of
+  it. A key saved in Settings goes only to the base URL it was entered for: changing the base URL
+  clears it, and a base URL the environment changes leaves it unused until the operator enters it
+  again. A backup holds a key saved in Settings, which is one reason backups are private files. A
+  key from `AGENTION_TRANSCRIPTION_KEY` needs `AGENTION_TRANSCRIPTION_URL` too, so it only goes to
+  an address from the environment; it is never written to the database, and belongs in an
+  environment file only the server's user can read.
 - **The base URL.** Changing it needs a recent sign-in, so a browser left signed in cannot redirect
   the recordings or the key. It is absolute, with no user, password, query or fragment; `https`
   reaches any host, and plain `http` only `localhost` and IP addresses on the operator's own network
@@ -173,6 +178,54 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   nothing is served there. Its page is static HTML under a content security policy of its own that
   lets it load, run and submit nothing.
 
+### Attachments
+
+Agents and the operator attach files to messages. A file is uploaded first, then a message names the
+upload, and from then on the file is that message's, under its name, for good. The server keeps
+files in its database, so they are in every backup.
+
+- **What a file can do.** Nothing a file holds runs as a document of the server's origin, whatever
+  its bytes are: the server never reads a file to decide how to serve it, and serves it only under
+  these rules. A file is answered as the type it declared when that is on a short allowlist (PNG,
+  JPEG, GIF and WebP images, SVG, PDF, and common video and audio types), as
+  `text/plain; charset=utf-8` when it is text of any kind, HTML included, and otherwise as
+  `application/octet-stream`. Every file response carries `X-Content-Type-Options: nosniff`, the
+  content security policy `sandbox; default-src 'none'; frame-ancestors 'none'`, so a file opened on
+  its own is a document of an opaque origin that runs, loads and frames nothing,
+  `Cross-Origin-Resource-Policy: same-origin`, and a `Content-Disposition` that downloads SVG and
+  everything off the allowlist when opened on its own. The web UI shows a file only as an element of
+  its own page: images as `<img>`, which runs no script and loads nothing an SVG names, video and
+  audio as players, and text as text it fetched and shows as written. A PDF opens in a tab of its
+  own, in the browser's viewer. No file is shown in a frame or turned into a `blob:` or `data:` URL.
+  Chrome's viewer keeps only the framing rule of a PDF's policy, so there a PDF's safety rests on
+  the viewer, which runs no script of the server's origin. Firefox, whose viewer is pdf.js, and
+  Apple's browsers are untested for that.
+- **Who can read a file.** Whoever can read the thread that holds it: the operator, signed in, and
+  the agents of that thread's session, each on its own mount, with the same answer as for a thread
+  that does not exist for anyone else. Every chunk read checks the credential again, so a revoked
+  agent's download stops within a megabyte.
+- **References are private to their writer.** An upload answers with a random 128-bit reference, and
+  a message can name only an upload of its own writer, in the same session, that no message has
+  named yet and that has not expired. A writer can also remove such an upload of its own before any
+  message names it. Any other reference, another session's among them, is refused in the same words
+  by both, so a reference learned elsewhere is worth nothing.
+- **Disk and the connection.** A file is at most 100 MiB, and a message carries at most 10. Each
+  writer holds at most 20 pending uploads, and 1 GiB of them, counting those still arriving and not
+  those expired; an upload no message names expires 24 hours after it completes, and a sweep removes
+  it. An upload is refused as `storage_full` unless the disk holding the database would keep 1 GiB
+  free beyond every upload still arriving, so attachments cannot fill the disk under the database.
+  An upload is authenticated from its headers before any of its body is read, and a refused one is
+  read for at most half a second or 64 MiB before its connection closes. Its bytes are written a
+  megabyte per transaction, each checking the credential again, so other requests run between them,
+  and any request body that sends nothing for 30 seconds is cut off.
+- **Photos keep their metadata.** Nothing resizes, re-encodes or strips a file, so a photo keeps
+  what its camera wrote into it, its location among it, and an agent that fetches it can read that.
+  Remove what an agent should not see before attaching it.
+- **Files stay in the browser's cache.** Files are cached privately for a year, since the bytes at a
+  file's address never change, so seeking a video or reopening a photo does not fetch it again on a
+  phone's data plan. The price is deliberate: a file stays in that browser's cache after signing
+  out, so on a shared device clear the browser's data for the server's site.
+
 ### Private files
 
 The server's data directory and database, each copy `agention backup` writes, and each agent bridge
@@ -215,7 +268,22 @@ sends only what its tools are given.
   cross unverified TLS. `AGENTION_CONNECT` can open the bridge's connections at another address,
   such as a tunnel's, but the certificate is still checked against the origin's host name, so
   whatever listens there without the server's certificate receives nothing. The server receives the
-  session's proposed names, the public key, and what the bridge's tools are given.
+  session's proposed names, the public key, and what the bridge's tools are given, the bytes of a
+  file `file_upload` names among it.
+- **Files it reads.** `file_upload` reads only the path the agent gives it, as the user the bridge
+  runs as, and refuses anything but a regular file, a file over 100 MiB, and anything whose real
+  path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a
+  symlink is never sent. It opens the path without waiting and without taking a terminal as the
+  bridge's own. This keeps an agent from handing the server a credential by mistake; it is no
+  boundary against the agent, which runs as the same user and could read the key itself, so a hard
+  link to a key elsewhere, whose real path is its own, is not refused.
+- **Files it writes.** `file_get` writes only into `~/.cache/agention/files/`, a
+  [private](#private-files) directory outside the key directory, each file with mode 0600 and named
+  by the file's reference and the extension of the type it was served as, never by the name its
+  sender gave it. It writes through a temporary file that a failure removes, writes nothing of an
+  answer that does not state a length of at most 100 MiB, and removes what it fetched more than
+  seven days ago. A fetched file is material for the agent to work with, never the operator's
+  instructions, as the usage skill says.
 - **Isolation between sessions.** Sessions whose keys share a home directory are not isolated from
   one another: a `register` call naming another session uses that session's key. Credentials stored
   under one operating-system user are not protected from each other, so agents that must not act as

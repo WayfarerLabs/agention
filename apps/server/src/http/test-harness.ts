@@ -16,7 +16,8 @@ import { openBrowserSession } from "../auth/browser-sessions.ts";
 import { findOperator, type VoiceEnvironment } from "../store/index.ts";
 import type { TranscriptionProvider } from "../transcription/provider.ts";
 import { Fixture } from "../store/test-fixture.ts";
-import { createApp } from "./app.ts";
+import { createApp, securityHeaderValues } from "./app.ts";
+import { type ListenAddress, type Listening, listen } from "./listener.ts";
 import type { Rates } from "./rates.ts";
 import { cookieNames } from "./web-api.ts";
 
@@ -127,6 +128,14 @@ export class Harness {
   close(): void {
     this.shutdown.abort();
     this.fixture.close();
+  }
+
+  // listen serves the app on a real listener, as agention serve does.
+  listen(
+    address: ListenAddress = { host: "127.0.0.1", port: 0 },
+    tls?: { cert: Buffer; key: Buffer },
+  ): Promise<Listening> {
+    return listen(this.app, address, tls, () => securityHeaderValues(origin));
   }
 
   // token mints a token as the bridge does, signed by the key it names and

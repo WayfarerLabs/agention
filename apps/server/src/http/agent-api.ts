@@ -93,6 +93,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   addOperations(api, agentOperations, {
     store,
     shutdown: options.shutdown,
+    log,
     authenticate: (c) => c.var.identity,
   });
   return api;

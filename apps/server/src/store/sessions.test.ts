@@ -11,13 +11,7 @@ import { ApiError } from "../errors.ts";
 import { archiveThread, markRead } from "./marks.ts";
 import { seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
-import {
-  countUnreadUpdates,
-  listSessions,
-  readSessionLog,
-  sessionLog,
-  updateSession,
-} from "./sessions.ts";
+import { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
 import { defaultQuietAfter } from "./store.ts";
 import { type Agent, Fixture, hour, threadTarget } from "./test-fixture.ts";
 
@@ -461,24 +455,6 @@ describe("listSessions", () => {
     expect(
       failure(() => listSessions(fixture.store, agent.identity, sessionsQuery.parse({}))).code,
     ).toBe("not_found");
-    expect(failure(() => countUnreadUpdates(fixture.store, agent.identity)).code).toBe("not_found");
-  });
-
-  it("counts the sessions whose log holds entries the operator has not read", () => {
-    const side = fixture.registerAgent("builder", "side");
-    fixture.registerAgent("reviewer", "main");
-    const unread = () => countUnreadUpdates(fixture.store, fixture.operator).sessions;
-    expect(unread()).toBe(0);
-    report({ state: "working" });
-    report({ percent: 10 });
-    fixture.report(side, { state: "idle" });
-    expect(unread()).toBe(2);
-    readThrough(1);
-    expect(unread()).toBe(2);
-    readThrough(2);
-    expect(unread()).toBe(1);
-    fixture.report(agent, { note: "More." });
-    expect(unread()).toBe(2);
   });
 
   it(

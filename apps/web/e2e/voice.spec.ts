@@ -1,8 +1,8 @@
 // Settings and voice in Chromium against the real server, on a server of
 // these tests' own, with a local stub standing in for the transcription
 // provider and Chromium's fake microphone, which plays a tone: Settings'
-// sections, passkeys, voice and signing out, beside their navigation at a
-// desktop's width, and at a phone's the navigation alone, each section
+// sections, passkeys, voice, storage and signing out, beside their navigation
+// at a desktop's width, and at a phone's the navigation alone, each section
 // leading back to it; voice set up to the stub and tried there; dictation in
 // a thread, its text at the caret and nothing sent; typing while the
 // microphone opens; and reading a message aloud, then stopping it.
@@ -172,6 +172,7 @@ test("Settings at a phone's width lists the sections alone, and a section leads 
       ["Passkeys", page.getByRole("article", { name: "Passkey Laptop" })],
       ["API keys", page.getByRole("button", { name: "Create an API key" })],
       ["Voice", page.getByRole("button", { name: "Set up" })],
+      ["Storage", page.getByText("No files are attached yet.")],
       ["Sign out", page.getByRole("main").getByRole("button", { name: "Sign out" })],
     ] as const) {
       await settings().getByRole("link", { name: title }).click();

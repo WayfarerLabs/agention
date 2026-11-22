@@ -55,6 +55,10 @@ const shapes = {
       <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
     </>
   ),
+  // A paper clip, for attaching files.
+  attach: (
+    <path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" />
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof shapes;

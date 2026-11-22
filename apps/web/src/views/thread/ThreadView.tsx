@@ -9,7 +9,16 @@ import type {
   ThreadsView,
   UnreadInput,
 } from "@wayfarerlabs/agention-api";
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { describeFailure, query, request, threadPath } from "../../api.ts";
 import {
   Loadable,
@@ -40,6 +49,8 @@ import { Icon, Mark } from "../../icons.tsx";
 import { leaveNotice } from "../../notice.ts";
 import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
 import { Composer } from "./Composer.tsx";
+import { useDraftFiles } from "./files/attach.ts";
+import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine } from "./Messages.tsx";
 import {
   blank,
@@ -345,6 +356,7 @@ function ThreadPage({
   // or not, until a write empties it or the change or edit is removed.
   const [detailsShown, setDetailsShown] = useState(false);
   const [staged, setStaged] = useState<Staged | undefined>(undefined);
+  const files = useDraftFiles(target);
   // A refusal of an answer's own words belongs to the answers sent: it shows
   // while they stay staged as they were sent, and goes once they change.
   const [sentStaged, setSentStaged] = useState<Staged>();
@@ -452,7 +464,7 @@ function ThreadPage({
   // The messages archived fold into one line at the top, once the earliest
   // message loaded is one of them or follows them.
   const folding = archivedThrough > 0 && (messages[0]?.seq ?? 1) <= archivedThrough + 1;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (toFold && folding) {
       fold.current?.focus();
       setToFold(false);
@@ -476,7 +488,7 @@ function ThreadPage({
     },
     [show, loaded.failure],
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusing === undefined) {
       return;
     }
@@ -539,11 +551,11 @@ function ThreadPage({
     [messages],
   );
   // A change or an edit is a whole message, so it starts only from an empty
-  // composer, loading the text and detail of the message it replaces, before
-  // anything is staged. A change also needs the asks its message answered,
-  // from the page or from the server; a message that fails to load stages
-  // nothing.
-  const drafting = staged !== undefined || !blank(text) || !blank(detail);
+  // composer, loading the text, detail and files of the message it replaces,
+  // before anything is staged. A change also needs the asks its message
+  // answered, from the page or from the server; a message that fails to load
+  // stages nothing.
+  const drafting = staged !== undefined || !blank(text) || !blank(detail) || files.files.length > 0;
   const loading = useAction();
   const messagesAt = async (seqs: number[]): Promise<Message[] | undefined> => {
     const onPage = seqs.flatMap((seq) => find(seq) ?? []);
@@ -574,6 +586,7 @@ function ThreadPage({
     if (message.detail !== undefined) {
       setDetailsShown(true);
     }
+    files.keep(message);
     setStaged(staging);
   };
   // changeAnswers turns the card of every live ask a message answered back
@@ -627,13 +640,15 @@ function ThreadPage({
     }
     focusOn({ seq: first.seq, ask: first.ask });
   };
-  // unstage drops what is staged; a change or an edit takes the text and
-  // detail it loaded with it, and folds the Details box.
+  // unstage drops what is staged; a change or an edit takes the text,
+  // detail and files it loaded with it, and folds the Details box. Files
+  // added meanwhile stay.
   const unstage = () => {
     if (staged?.replaces !== undefined) {
       setText("");
       setDetail("");
       setDetailsShown(false);
+      files.dropKept();
     }
     setStaged(undefined);
   };
@@ -731,6 +746,8 @@ function ThreadPage({
         <HeadFailure action="Reading this thread" failure={reading.failure} />
       </header>
 
+      <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
+
       {!thread.credential_active && (
         <p className="notice">
           {thread.agent}/{thread.session} has no active credential, so the agent cannot read what
@@ -788,6 +805,7 @@ function ThreadPage({
         unstage={unstage}
         loading={loading.pending}
         context={{ target, find }}
+        files={files}
       />
       <div className="thread-foot">
         <BackToThreads origin={origin} />

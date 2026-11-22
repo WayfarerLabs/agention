@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
-import type { OwnHeaders } from "./app.ts";
 import { apiDocument, apiDocumentText } from "./openapi.ts";
+import { ownHeaders } from "./own-headers.ts";
 import { escapeHtml } from "./web-ui.ts";
 
 // The API's documentation, which agention serve --api-docs serves without
@@ -78,20 +78,41 @@ function operationSection(
     ),
   );
   const parameters = (operation.parameters ?? []) as unknown[];
-  const body = (operation.requestBody as JsonObject | undefined)?.content as
-    Record<string, JsonObject> | undefined;
+  const body = operation.requestBody as JsonObject | undefined;
   const responses = operation.responses as Record<string, unknown>;
-  const answer = refOf(document, responses["200"]).content as Record<string, JsonObject>;
+  // Every answer but the shared error, by status.
+  const answers = Object.entries(responses)
+    .filter(([status]) => status !== "default")
+    .map(([status, each]) => {
+      const answer = refOf(document, each);
+      const heading = status === "200" ? "Response" : `Response ${text(status)}`;
+      return `<h4>${heading}</h4>${content(answer, status !== "200")}`;
+    });
   return [
     `<section id="${text(operation.operationId)}">`,
     `<h3><code>${text(method.toUpperCase())} ${text(path)}</code></h3>`,
     `<p>${text(operation.summary)}</p>`,
     `<p>Authentication: ${schemes.length === 0 ? "none" : schemes.join("; ")}</p>`,
     parameters.length === 0 ? "" : parametersTable(document, parameters),
-    body === undefined ? "" : `<h4>Request body</h4>${json(body["application/json"]?.schema)}`,
-    `<h4>Response</h4>${json(answer["application/json"]?.schema)}`,
+    body === undefined ? "" : `<h4>Request body</h4>${content(body, false)}`,
+    ...answers,
     "</section>",
   ].join("\n");
+}
+
+// content shows a body or an answer: JSON by its schema, after its
+// description when asked to, or bytes by their description and the types
+// they come as.
+function content(described: JsonObject, describe: boolean): string {
+  const types = (described.content ?? {}) as Record<string, JsonObject>;
+  const schema = types["application/json"]?.schema;
+  if (schema !== undefined) {
+    return (describe ? `<p>${text(described.description)}</p>` : "") + json(schema);
+  }
+  const listed = Object.keys(types)
+    .map((type) => `<code>${text(type)}</code>`)
+    .join(", ");
+  return `<p>${text(described.description)}</p><p>As: ${listed}</p>`;
 }
 
 // apiDocsPage renders the page from the document.
@@ -153,9 +174,9 @@ export function apiDocsPage(document: JsonObject): string {
 }
 
 // serveApiDocs adds the documentation's routes, built once as the server
-// starts, and says which security headers the page sets for itself. The
-// page's address without its trailing slash leads to it.
-export function serveApiDocs(app: Hono): OwnHeaders {
+// starts. The page sets its own policy. The page's address without its
+// trailing slash leads to it.
+export function serveApiDocs(app: Hono): void {
   const document = apiDocument();
   const documentText = apiDocumentText(document);
   const page = apiDocsPage(document);
@@ -164,8 +185,8 @@ export function serveApiDocs(app: Hono): OwnHeaders {
   );
   app.get(apiDocsPath, (c) => {
     c.header("Content-Security-Policy", apiDocsPolicy);
+    ownHeaders(c.req.raw, ["content-security-policy"]);
     return c.html(page);
   });
   app.get(apiDocsPath.slice(0, -1), (c) => c.redirect(apiDocsPath, 301));
-  return new Map([[apiDocsPath, ["content-security-policy"]]]);
 }

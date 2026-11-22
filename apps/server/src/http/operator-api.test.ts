@@ -11,6 +11,7 @@ import { authenticateApiKey } from "../auth/api-keys.ts";
 import { listThreads } from "../store/index.ts";
 import { hour } from "../store/test-fixture.ts";
 import { operatorOperations } from "./operator-operations.ts";
+import { uploaded } from "./file-test-support.ts";
 import { defaultRates } from "./rates.ts";
 import {
   type AgentKey,
@@ -35,10 +36,14 @@ afterEach(() => {
   harness.close();
 });
 
-// A request to every operator operation, with valid input, keyed by the
-// operation's name. Decisions on registrations use a pending one of their
-// own, submitted first.
-async function requests(): Promise<Record<string, [string, string, unknown]>> {
+// A request to every operator operation, with valid input and any headers
+// it needs, keyed by the operation's name. Decisions on registrations use a
+// pending one of their own, submitted first. The agent's thread 2 starts
+// with a file, which a file read reads, and the operator holds a pending
+// upload, which removing one removes.
+type Call = [string, string, unknown, Record<string, string>?];
+
+async function requests(): Promise<Record<string, Call>> {
   const pending = async (session: string) => {
     const key = newAgentKey();
     await harness.register(key, "builder", session);
@@ -46,7 +51,24 @@ async function requests(): Promise<Record<string, [string, string, unknown]>> {
   };
   const approving = await pending("approved");
   const rejecting = await pending("rejected");
+  const attached = await uploaded(harness, "agent", agent, Buffer.from("notes"));
+  await harness.agent(
+    agent,
+    "POST",
+    "/s/builder/main/threads",
+    newThread("r-f", { text: "The notes.", attachments: [{ upload: attached.upload }] }),
+  );
+  const staged = await uploaded(harness, "web", agent, Buffer.from("draft"));
   return {
+    uploadFile: [
+      "POST",
+      "/s/builder/main/uploads?name=notes.txt",
+      Buffer.from("notes"),
+      { "content-type": "text/plain", "content-length": "5" },
+    ],
+    removeUpload: ["POST", `/s/builder/main/uploads/${staged.upload}/remove`, undefined],
+    listThreadFiles: ["GET", "/s/builder/main/threads/2/files", undefined],
+    readFile: ["GET", "/s/builder/main/threads/2/messages/1/files/notes.txt", undefined],
     listThreads: ["GET", "/threads", undefined],
     countThreads: ["GET", "/threads/counts", undefined],
     waitForThreads: ["GET", "/wait", undefined],
@@ -71,7 +93,6 @@ async function requests(): Promise<Record<string, [string, string, unknown]>> {
       { threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
     ],
     listSessions: ["GET", "/sessions", undefined],
-    countUnreadUpdates: ["GET", "/sessions/unread-updates", undefined],
     readSessionLog: ["GET", "/s/builder/main/updates", undefined],
     markSessionLogRead: ["POST", "/s/builder/main/updates/read", { through: 0 }],
     listGroupsAndTags: ["GET", "/groups-and-tags", undefined],
@@ -130,8 +151,8 @@ describe("the operator mount", () => {
     expect(Object.keys(all).sort()).toEqual(operatorOperations.map((each) => each.name).sort());
     const { secret } = await harness.createKey([...scopes]);
     for (const each of operatorOperations) {
-      const [method, path, body] = all[each.name] ?? ["GET", "/", undefined];
-      const response = await harness.operator(secret, method, path, body);
+      const [method, path, body, headers] = all[each.name] ?? ["GET", "/", undefined];
+      const response = await harness.operator(secret, method, path, body, headers);
       expect([each.name, codeOf(response)]).toEqual([each.name, "ok"]);
     }
   });
@@ -140,8 +161,8 @@ describe("the operator mount", () => {
     const all = await requests();
     const { secret } = await harness.createKey([held]);
     for (const each of operatorOperations) {
-      const [method, path, body] = all[each.name] ?? ["GET", "/", undefined];
-      const response = await harness.operator(secret, method, path, body);
+      const [method, path, body, headers] = all[each.name] ?? ["GET", "/", undefined];
+      const response = await harness.operator(secret, method, path, body, headers);
       const expected = granting[each.scope].includes(held) ? "ok" : "not_found";
       expect([each.name, codeOf(response)]).toEqual([each.name, expected]);
     }

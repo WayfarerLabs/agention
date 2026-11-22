@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { invalidInputBody } from "./errors.ts";
 import { namePattern } from "./names.ts";
 import { sessionThreadsQuery } from "./thread-lists.ts";
-import { messageSendInput, threadCreateInput, unreadInput } from "./threads.ts";
+import { messageSendInput, threadCreateInput, threadStartInput, unreadInput } from "./threads.ts";
 
 const ask = {
   question: "Which database?",
@@ -11,6 +11,8 @@ const ask = {
 
 const create = { request_id: "r-1", title: "Pick a database" };
 const send = { request_id: "s-1", seen_through: 1 };
+const upload = "AbCdEfGhIjKlMnOpQr_-09";
+const otherUpload = "ZyXwVuTsRqPoNmLkJi_-87";
 
 function fieldOf(result: { error?: Parameters<typeof invalidInputBody>[0] | undefined }) {
   return result.error === undefined ? undefined : invalidInputBody(result.error).error.field;
@@ -232,6 +234,60 @@ describe("messageSendInput", () => {
   });
 });
 
+describe("attachments", () => {
+  it.each([
+    ["an upload", [{ upload }]],
+    ["an upload under a name", [{ upload, name: "build log.txt" }]],
+    ["a kept file", [{ keep: "photo.jpg" }]],
+    [
+      "uploads and kept files together",
+      [{ keep: "photo.jpg" }, { upload, name: "notes.md" }, { upload: otherUpload }],
+    ],
+  ])("are taken as %s, and a message may carry files alone", (_, attachments) => {
+    expect(messageSendInput.parse({ ...send, attachments })).toEqual({ ...send, attachments });
+    expect(threadCreateInput.parse({ ...create, attachments })).toEqual({
+      ...create,
+      attachments,
+    });
+  });
+
+  it("are no part of the operator's start of a thread", () => {
+    const start = { request_id: "r-1", title: "t", text: "Hello." };
+    expect(threadStartInput.parse({ ...start, attachments: [{ upload }] })).toEqual(start);
+  });
+
+  it.each([
+    ["an empty list", [], "attachments"],
+    ["eleven files", Array.from({ length: 11 }, (_, i) => ({ keep: `f${i}` })), "attachments"],
+    ["neither an upload nor a kept file", [{ name: "a.txt" }], "attachments.0"],
+    ["both an upload and a kept file", [{ upload, keep: "a.txt" }], "attachments.0.keep"],
+    ["a name for a kept file", [{ keep: "a.txt", name: "b.txt" }], "attachments.0.name"],
+    ["an invalid reference", [{ upload: "short" }], "attachments.0.upload"],
+    ["an invalid name", [{ upload, name: "a/b" }], "attachments.0.name"],
+    ["an invalid kept name", [{ keep: ".." }], "attachments.0.keep"],
+    ["one upload named twice", [{ upload }, { upload, name: "b" }], "attachments.1.upload"],
+    ["two files kept under one name", [{ keep: "a" }, { keep: "a" }], "attachments.1.keep"],
+    [
+      "an upload named as a kept file",
+      [{ keep: "a.txt" }, { upload, name: "a.txt" }],
+      "attachments.1.name",
+    ],
+    [
+      "names equal once normalized",
+      [{ upload, name: "\u00e9" }, { keep: `e${String.fromCharCode(0x301)}` }],
+      "attachments.1.keep",
+    ],
+  ])("refuse %s", (_, attachments, field) => {
+    expect(fieldOf(messageSendInput.safeParse({ ...send, attachments }))).toBe(field);
+    expect(fieldOf(threadCreateInput.safeParse({ ...create, attachments }))).toBe(field);
+  });
+
+  it("tell names apart by case", () => {
+    const attachments = [{ keep: "A.txt" }, { upload, name: "a.txt" }];
+    expect(messageSendInput.safeParse({ ...send, attachments }).success).toBe(true);
+  });
+});
+
 describe("a topic", () => {
   it.each(["auth", "billing-api", "v2_rollout", "7", "t".repeat(63)])(
     "is taken as a name, such as %j",
@@ -386,6 +442,27 @@ describe("bounds", () => {
       (n: number) => ({ references: Array(n).fill({ label: "l", thread: 1 }) }),
       20,
     ],
+    [
+      "attachments",
+      messageSendInput,
+      send,
+      (n: number) => ({ attachments: Array.from({ length: n }, (_, i) => ({ keep: `f${i}` })) }),
+      10,
+    ],
+    [
+      "an attachment's name",
+      threadCreateInput,
+      create,
+      (n: number) => ({ attachments: [{ upload, name: astral.repeat(n) }] }),
+      200,
+    ],
+    [
+      "a kept file's name",
+      messageSendInput,
+      send,
+      (n: number) => ({ attachments: [{ keep: astral.repeat(n) }] }),
+      200,
+    ],
     ["request id", threadCreateInput, create, (n: number) => ({ request_id: "r".repeat(n) }), 64],
     [
       "seen_through",
@@ -407,6 +484,17 @@ describe("bounds", () => {
       detail: { minLength: 1, maxLength: 20_000 },
       topic: { pattern: namePattern.source },
       references: { minItems: 1, maxItems: 20 },
+      attachments: {
+        minItems: 1,
+        maxItems: 10,
+        items: {
+          properties: {
+            upload: { pattern: "^[A-Za-z0-9_-]{22}$" },
+            name: { minLength: 1, maxLength: 200 },
+            keep: { minLength: 1, maxLength: 200 },
+          },
+        },
+      },
       asks: {
         minItems: 1,
         maxItems: 10,

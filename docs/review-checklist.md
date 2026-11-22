@@ -15,8 +15,8 @@ Agention is a standalone, self-hosted attention inbox on an honor system. It enf
 honor system cannot provide (identity and provenance, isolation, append-only attributed history,
 role checks, inert content) and makes everything else easy and visible (`SECURITY.md` "Security
 model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes to both halves:
-enforcement must not be missing where the trust model requires it (A2 to A9), and must not be built
-where the trust model says it does not belong (A6).
+enforcement must not be missing where the trust model requires it (A2 to A9, A17, A18), and must not
+be built where the trust model says it does not belong (A6).
 
 ## A1. Standalone and runtime-neutral
 
@@ -67,15 +67,16 @@ polls, and only the registration route accepts a key the operator has not approv
 origin, and `Host` must equal the origin's host. Adding or removing a passkey, and every voice
 change, needs a recent sign-in; the last passkey is never removed; removing one ends the browser
 sessions it signed in (the **Separate authentication** invariant in `SECURITY.md` "Security model").
-The transcription provider's key is never answered or logged, and goes only to the base URL it was
-entered for (`SECURITY.md` "Voice"). An API key is stored only as its hash, never logged or answered
-after its creation; creating and revoking one needs a recent sign-in; its revocation and expiry are
-checked inside each operation's transaction and end the waits it holds; and every refusal of a key
-is the same (`SECURITY.md` "API keys"). Look for identity-header bypasses, an insecure TLS fallback,
-a first-user-wins bootstrap instead of the one-time `passkey-link`, recovery paths that skip
-ceremony checks, a credential's end that leaves a wait it holds running to its bound, and a bridge
-that sends tokens or message text anywhere but its configured HTTPS origin, a followed redirect
-included (`SECURITY.md` "The agent bridge").
+The transcription provider's key is never logged, no answer carries more of it than its last four
+characters, and it goes only to the base URL it was entered for (`SECURITY.md` "Voice"). An API key
+is stored only as its hash, never logged or answered after its creation; creating and revoking one
+needs a recent sign-in; its revocation and expiry are checked inside each operation's transaction,
+and on every chunk of a file it uploads or reads, and end the waits it holds; and every refusal of a
+key is the same (`SECURITY.md` "API keys"). Look for identity-header bypasses, an insecure TLS
+fallback, a first-user-wins bootstrap instead of the one-time `passkey-link`, recovery paths that
+skip ceremony checks, a credential's end that leaves a wait it holds running to its bound, and a
+bridge that sends tokens or message text anywhere but its configured HTTPS origin, a followed
+redirect included (`SECURITY.md` "The agent bridge").
 
 ## A5. Roles follow the direction of attention
 
@@ -139,15 +140,18 @@ rendered inert"). A message's text and its detail are Markdown rendered inert, e
 field is plain, and text is stored and returned exactly as written. A reference is a label plus at
 least one of an identifier, an HTTPS URL, and a thread of the same session
 (`packages/api/src/references.ts`), and `isLinkableUrl` is the one rule for what shows as a link
-(`docs/architecture.md` "API contract"). No image loads: an image shows as a link. A diagram drawn
-from message text is drawn in isolation, so drawing it can neither run anything in the app's page
-nor fetch anything, and shows as an image, with the content security policy kept strict: it gains
-only the diagram frame's route as a frame source and `blob:` images, and the frame's own policy
-sandboxes it. Look for content-driven fetches or previews, raw HTML or images other than such a
-diagram reaching the DOM, a diagram drawn outside its isolation, classes or styles taken from text,
-live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as query syntax,
-and message content treated as the operator's direction anywhere, the usage skill included, unless
-the operator wrote it (its author is the person).
+(`docs/architecture.md` "API contract"). No image written in message text loads: it shows as a link.
+Files attached to messages are not message text, and load only as A17 holds them (ADR 0004); message
+text reaches a file only through a link to one of its own message's files. A diagram drawn from
+message text is drawn in isolation, so drawing it can neither run anything in the app's page nor
+fetch anything, and shows as an image, with the content security policy kept strict: it gains only
+the diagram frame's route as a frame source, `blob:` images, and media from its own origin for
+attachments, and the frame's own policy sandboxes it. Look for content-driven fetches or previews,
+raw HTML or images other than such a diagram or an attached file reaching the DOM, a link from text
+to a file another message carries, a diagram drawn outside its isolation, classes or styles taken
+from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as
+query syntax, and message content treated as the operator's direction anywhere, the usage skill
+included, unless the operator wrote it (its author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 
@@ -229,13 +233,41 @@ stays concise and teaches use, never development.
 Refines the shared **Declared environment matrix** check and the evidence-kind rule in **Tests
 police behavior, never our own prose**. Agention's evidence kinds are store and HTTP tests,
 component tests, a browser drive with a virtual WebAuthn authenticator and Chromium's fake
-microphone against a stub transcription provider, real-phone passkey and dictation acceptance with a
-real provider, installed plugin metadata, an authenticated Claude Code or Codex install, and a live
-run behind `tailscale serve` from another machine. None stands in for another; report uncovered
-dimensions explicitly, and do not re-report the known acceptance gaps in the development context's
-"Testing" as new findings.
+microphone against a stub transcription provider, hostile files served to Chromium, PDFs opened in
+the operator's own browsers, real-phone passkey and dictation acceptance with a real provider,
+installed plugin metadata, an authenticated Claude Code or Codex install, and a live run behind
+`tailscale serve` from another machine. None stands in for another; report uncovered dimensions
+explicitly, and do not re-report the known acceptance gaps in the development context's "Testing" as
+new findings.
 
-## A17. Operator operations and their scopes
+## A17. Attachments
+
+Files are kept in the database in chunks and served without the app's authority (ADR 0004;
+`SECURITY.md` "Attachments"; `docs/architecture.md` "Database", "Store" and "HTTP API"). A file
+loads only through the file routes, with their headers: a type from the allowlist, else
+`application/octet-stream`; `nosniff`; the `sandbox` policy that allows nothing; same-origin
+resource policy; and an attachment disposition for SVG and everything off the allowlist. The web UI
+shows a file only as an `<img>`, `<video>` or `<audio>` of its own page, as text it fetched, or as a
+PDF in a tab of its own: never in a frame, and never as a `blob:` or `data:` URL. Nothing detects a
+type from a file's bytes, parses one, or processes an image. Who can read a file is who can read its
+thread, and every chunk read or written checks the credential again; a message names only its
+writer's own pending uploads in its session, and every other reference is refused alike. Attached
+files and their bytes are never changed or removed, a replacement carries a file only by keeping it,
+and attachments are inside the write's digest, after its replay. Uploads keep their limits: the file
+and message bounds, the pending limits counting uploads still arriving, the free-space floor, the
+sweep, and the listener's deadlines, under which only an upload has no total deadline and every body
+is cut off when idle. The bridge's `file_upload` refuses anything but a regular file, its key
+directory and an oversized file, and `file_get` writes only into its own directory, under names it
+makes from a reference. Look for a served type a file's declaration or bytes can steer outside the
+allowlist, a route answering a file that does not declare its own policy and caching with
+`ownHeaders`, a file shown in a frame or through a `blob:` or `data:` URL, content sniffing or
+parsing, a reference that crosses writers or sessions, a chunk read or written without the
+credential check, a file held whole in memory, a route other than the upload given the larger body
+bound or no total deadline, a refused upload whose body is read beyond the adapter's bounded drain,
+a fetched file named from the sender's name or written outside its directory, and a file's contents
+treated as the operator's direction.
+
+## A18. Operator operations and their scopes
 
 Every operation an API key may call is declared once, with the one scope it requires, in the
 operator operations list (`apps/server/src/http/operator-operations.ts`). Being in that list is what
@@ -254,7 +286,7 @@ with a scope wider or narrower than what it does, a read-scoped operation that w
 body, a store operation that leaves its scope to the mount, a key-reachable route that manages
 credentials or Settings, and a scope whose meaning changes.
 
-## A18. The operator API contract and its document
+## A19. The operator API contract and its document
 
 The operator API's version is in its path, and a version changes only additively: a new operation, a
 new optional request field, a new response field. A change that would break a client, such as a

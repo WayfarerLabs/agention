@@ -31,6 +31,8 @@ export interface OperatorApiOptions {
   budgets: RateBudgets;
   // Aborts when the server shuts down.
   shutdown: AbortSignal;
+  // Where a failure the call carries on past is written.
+  log: (message: string) => void;
 }
 
 // operatorApi is version 1 of the operator API, mounted at operatorApiPrefix:
@@ -40,7 +42,7 @@ export interface OperatorApiOptions {
 // sign-in never works here, and no CSRF token or Origin is needed, since a
 // browser never sends a bearer key on its own.
 export function operatorApi(options: OperatorApiOptions): Hono<IdentityEnv> {
-  const { store, budgets, shutdown } = options;
+  const { store, budgets, shutdown, log } = options;
   const api = new Hono<IdentityEnv>();
   api.use(async (c, next) => {
     if (c.req.header("cookie") !== undefined) {
@@ -53,6 +55,7 @@ export function operatorApi(options: OperatorApiOptions): Hono<IdentityEnv> {
   addOperations(api, operatorOperations, {
     store,
     shutdown,
+    log,
     authenticate: async (c) => {
       const { identity, keyId } = await budgets.spendOnFailure("failedKeyAuth", async () =>
         authenticateApiKey(store, c.req.header("authorization")),

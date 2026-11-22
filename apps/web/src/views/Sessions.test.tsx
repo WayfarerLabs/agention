@@ -543,38 +543,6 @@ describe("folded by group", () => {
   });
 });
 
-describe("the Sessions tab", () => {
-  const tab = () =>
-    within(screen.getByRole("navigation", { name: "Views" })).getByRole("link", {
-      name: /^Sessions/,
-    });
-
-  it("counts the sessions with unread updates, and reading a log lowers it", async () => {
-    const unread = { sessions: 2 };
-    api.on("GET", "/sessions/unread-updates", () => ({ body: { ...unread } }));
-    serveLog([entry(1, { title: "Retire invoices" })], 0);
-    await open([
-      agent("builder", [
-        sessionSummary({
-          status: { state: "working", title: "Retire invoices" },
-          unread_updates: 1,
-        }),
-      ]),
-    ]);
-    await waitFor(() => expect(tab().querySelector(".badge")?.textContent).toMatch(/^2/));
-    expect(tab().textContent).toContain("2 sessions with new updates");
-    unread.sessions = 1;
-    fireEvent.click(fold("main"));
-    await waitFor(() =>
-      expect(api.callsTo("POST", "/s/builder/main/updates/read")).toHaveLength(1),
-    );
-    await waitFor(() => expect(tab().querySelector(".badge")?.textContent).toMatch(/^1/));
-    unread.sessions = 0;
-    window.dispatchEvent(new Event("focus"));
-    await waitFor(() => expect(tab().querySelector(".badge")).toBeNull());
-  });
-});
-
 describe("a session unfolded", () => {
   // A session's life: its first report, a goal and a percent, three updates
   // of progress alone, idle and back; read through the progress.
@@ -698,12 +666,20 @@ describe("a session unfolded", () => {
     expect(older.hasAttribute("aria-disabled")).toBe(false);
     expect(document.activeElement).toBe(older);
     // Once the first entry shows, Older goes, and focus moves to the oldest.
+    // Focus is judged the first time the last page shows, which is when a
+    // key could land: moving it any later leaves the page focused between.
+    // The probe sits inside waitFor because a late move has already run by
+    // the time waitFor resolves.
     fireEvent.click(older);
-    await waitFor(() => expect(within(log).getAllByRole("listitem")).toHaveLength(25));
+    let focusedAsShown: Element | null | undefined;
+    await waitFor(() => {
+      expect(within(log).getAllByRole("listitem")).toHaveLength(25);
+      focusedAsShown ??= document.activeElement;
+    });
     expect(screen.queryByRole("button", { name: "Older" })).toBeNull();
     const oldest = within(log).getAllByRole("listitem").at(-1);
     expect(oldest?.textContent).toContain("Step 1");
-    expect(document.activeElement).toBe(oldest);
+    expect(focusedAsShown).toBe(oldest);
   });
 
   it("loads and reads its log only while unfolded under an unfolded agent, starting folded on every visit", async () => {
@@ -799,7 +775,15 @@ describe("a session's options", () => {
 
     fireEvent.click(options("builder/main"));
     fireEvent.click(screen.getByRole("button", { name: "Revoke 7KQ2M-X9DPA" }));
+    // Focus is judged the first time the question is gone, after the revoke
+    // request resolves, inside waitFor, as the Older test explains.
     fireEvent.click(screen.getByRole("button", { name: "Revoke credential" }));
+    let focusedAsGone: Element | null | undefined;
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Revoke credential" })).toBeNull();
+      focusedAsGone ??= document.activeElement;
+    });
+    expect(focusedAsGone).toBe(options("builder/main"));
     await within(row("main")).findByText("No credential");
     expect(api.callsTo("POST", "/registrations/1/revoke")).toHaveLength(1);
     expect(document.activeElement).toBe(options("builder/main"));
