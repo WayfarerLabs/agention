@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@wayfarerlabs/agention-mcp@0.4.0"
+        "@wayfarerlabs/agention-mcp@0.5.0"
       ]
     }
   }
