@@ -34,8 +34,9 @@ checked when it is built, reviewed and green.
       ADR 0001's paid-services line marked superseded by it, `docs/review-checklist.md`'s rule on
       paid services, `docs/live-testing.md`, `README.md`, and `docs/development-context.md`'s active
       effort (E2) (agention#33).
-- [ ] Live run with a stub provider and Chromium's fake microphone, WebKit where it runs, and the
+- [x] Live run with a stub provider and Chromium's fake microphone, WebKit where it runs, and the
       operator's check on Android Chrome and Windows against the staging server with a real provider
-      (ruling 2).
+      (ruling 2) (agention#33; WebKit could not run on the test host, so dictation in Apple browsers
+      is a named gap; the operator's check passed, ruling 6).
 - [ ] The release carrying it, through release-please.
 - [ ] `locked.md` in this directory, with the final merge.

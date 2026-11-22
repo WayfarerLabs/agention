@@ -83,6 +83,8 @@ settings, voice, where audio goes, and how a provider key is kept; the live test
 - Reading messages aloud automatically, and server-side speech synthesis.
 - Running a speech model inside the Agention server.
 - Notifications (agention#30) and attachments (agention#28), which are their own efforts.
+- Better read aloud and an Audio Mode (agention#37), and provider-agnostic voice settings with voice
+  context (agention#38), which follow this effort (ruling 6).
 - Settings beyond those named here.
 
 ## Operator rulings, 2026-11-21 onward
@@ -114,6 +116,22 @@ settings, voice, where audio goes, and how a provider key is kept; the live test
    add other providers." Taken: the server reaches providers through one interface, implemented
    first for the OpenAI-compatible API, so a provider with its own API is a new implementation and
    preset; a dictation app such as Wispr Flow that types into any text field needs no integration.
+5. (2026-11-21) "I'm tempted to pull the voice support into 0.4.0. Does that screw you up?" Taken:
+   this effort merges before release-please's 0.4.0 pull request, so 0.4.0 carries it alongside
+   Agention v1's completion.
+6. (2026-11-22) After checking voice on the staging server with an OpenAI key, on Android and
+   Windows: "Dictation worked great. Playback was pretty robotic and slow. I'm sure that's a model
+   thing but it would be nice to see if we have better options. And then I'd ultimately like to make
+   playback more prominent (instead of buried in the menu) but that placement probably matches the
+   quality right now. So let's just file an issue for playback improvements. That should include
+   something like a "Audio Mode" where new stuff is read back automatically, perhaps with voice
+   controls to respond and take action." On using the thread as context: "Follow up. We really need
+   to improve the overall voice setting (and settings) layout. Ultimately this should be an option
+   for all of voice settings (provider-agnostic) along with "Additional voice context" for keywords,
+   etc. And then each provider just does its best with that information." And: "I think we're good
+   to merge. Let's just make sure the followups are clearly identified." Taken: the operator's
+   real-device check passed; better read aloud and an Audio Mode are agention#37, and
+   provider-agnostic voice settings, voice context and the Settings layout are agention#38.
 
 ## Definition of done
 
