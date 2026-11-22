@@ -65,6 +65,12 @@ describe("serving the documentation", () => {
     expect(page.body).toBe(apiDocsPage(apiDocument()));
   });
 
+  it("leads from /docs/api to the page with --api-docs", async () => {
+    harness = new Harness({ apiDocs: true });
+    const response = await harness.request("GET", "/docs/api");
+    expect([response.status, response.headers.get("location")]).toEqual([301, "/docs/api/"]);
+  });
+
   it("answers not_found there without the flag, not the web UI", async () => {
     harness = new Harness();
     for (const path of [...paths, "/docs/api", "/docs/api/other"]) {
