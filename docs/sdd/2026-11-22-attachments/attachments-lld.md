@@ -638,8 +638,8 @@ New tools in `apps/bridge/src/file-tools.ts`, registered with the others, annota
   `apps/agent-plugin/plugin.json`'s `mcpServer` gains `toolTimeoutSeconds: 600`, which the generator
   writes into the Codex plugin as `tool_timeout_sec`. It applies to every tool of the server;
   `message_wait` keeps its own 55-second budget. Claude Code's plugin format sets no such value, so
-  the operator guide names `MCP_TOOL_TIMEOUT` should a transfer outlast its default, and the live
-  run measures that default against a slow upload.
+  Claude Code's default limit is long enough, so the generated plugin sets nothing for it, and the
+  live run measures that default against a slow upload.
 - **What the agent is told** when a call cannot finish: an idle transfer fails with "the transfer
   stalled for 30 seconds; try again, and tell the operator if it keeps happening"; a host that kills
   the call cancels it, and the server removes the partial upload. The tools' descriptions say a

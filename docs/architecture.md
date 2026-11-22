@@ -812,8 +812,7 @@ its key file, its tokens and where its requests may go.
   30 seconds. The answer and transfer limits share one timer per request, which never keeps the
   process alive, so a bridge whose host has gone exits even while a call waits. A host also limits
   how long one tool call may take: the Codex plugin sets `tool_timeout_sec` to 600 seconds for every
-  tool, and Claude Code's plugin format sets none, so the operator guide names its
-  `MCP_TOOL_TIMEOUT`.
+  tool, and Claude Code's default limit, which `MCP_TOOL_TIMEOUT` changes, is long enough.
 - **`register`** submits the key to `POST /api/agent/registrations`, which for a key the server
   knows creates nothing and reports its state. It answers with that state, keeping its `expires_at`
   only while the registration is pending, so an agent never reads it as the credential's; `replaced`

@@ -901,10 +901,9 @@ fetched image of up to 3.5 MiB also reaches the agent's model as an image.
 
 An agent host limits how long one tool call may take, and a large file on a slow link can take
 longer than a host allows. The Codex plugin sets Codex's limit to 10 minutes for the bridge's tools,
-in place of its default of one minute. Claude Code's plugins cannot set one; Claude Code reads its
-limit from the `MCP_TOOL_TIMEOUT` environment variable, in milliseconds, so set it where you start
-Claude Code should an upload or a fetch be cut off, such as `export MCP_TOOL_TIMEOUT=600000` for 10
-minutes.
+in place of its default of one minute. Claude Code's own limit is long enough by default; it reads
+it from the `MCP_TOOL_TIMEOUT` environment variable, in milliseconds, should you have set a shorter
+one.
 
 ### Installing the plugins
 
