@@ -6,6 +6,7 @@ import {
   statusByErrorCode,
   unsizedBodyStatus,
 } from "@wayfarerlabs/agention-api";
+import { JsonSchemas } from "@wayfarerlabs/agention-api/json-schemas";
 import { maxTokenLifetime } from "../auth/agent-tokens.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
 import type { Declaration, DescribedSchema } from "./operations.ts";
@@ -60,27 +61,14 @@ const mounts: readonly Mount[] = [
   },
 ];
 
-// jsonSchema describes a zod schema as JSON Schema, of what a client sends
-// (input) or what the server answers (output). The dialect is OpenAPI 3.1's
-// own, so each schema's $schema is dropped. An answer may gain fields within
-// a version, so it never forbids properties it does not list.
-function jsonSchema(schema: DescribedSchema<unknown>, io: "input" | "output"): JsonObject {
-  const { $schema: _, ...described } = schema.toJSONSchema({ io }) as JsonObject;
-  return io === "output" ? allowingMore(described) : described;
-}
-
-function allowingMore(value: unknown): JsonObject {
-  return JSON.parse(
-    JSON.stringify(value, (key, each: unknown) =>
-      key === "additionalProperties" && each === false ? undefined : each,
-    ),
-  ) as JsonObject;
-}
-
 // parametersOf describes each property of a path or query schema as an
 // OpenAPI parameter, its description lifted from the property's schema.
-function parametersOf(schema: DescribedSchema<unknown>, where: "path" | "query"): JsonObject[] {
-  const described = jsonSchema(schema, "input");
+function parametersOf(
+  schemas: JsonSchemas,
+  schema: DescribedSchema<unknown>,
+  where: "path" | "query",
+): JsonObject[] {
+  const described = schemas.of(schema, "input");
   const properties = (described.properties ?? {}) as Record<string, JsonObject>;
   const required = new Set((described.required ?? []) as string[]);
   return Object.entries(properties).map(([name, property]) => {
@@ -101,12 +89,12 @@ function parametersOf(schema: DescribedSchema<unknown>, where: "path" | "query")
 const pathOf = (mount: Mount, declaration: Declaration) =>
   mount.prefix + declaration.path.replace(/:([a-z]+)/g, "{$1}");
 
-function operationOf(mount: Mount, declaration: Declaration): JsonObject {
+function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaration): JsonObject {
   const versionHeader = { $ref: "#/components/parameters/agentApiVersion" };
   const parameters = [
     ...(mount.versionHeader ? [versionHeader] : []),
-    ...(declaration.params === undefined ? [] : parametersOf(declaration.params, "path")),
-    ...(declaration.query === undefined ? [] : parametersOf(declaration.query, "query")),
+    ...(declaration.params === undefined ? [] : parametersOf(schemas, declaration.params, "path")),
+    ...(declaration.query === undefined ? [] : parametersOf(schemas, declaration.query, "query")),
   ];
   const name = declaration.name.charAt(0).toUpperCase() + declaration.name.slice(1);
   // A key's scope is listed; an agent's token always holds what its session's
@@ -124,7 +112,7 @@ function operationOf(mount: Mount, declaration: Declaration): JsonObject {
       : {
           requestBody: {
             required: true,
-            content: { "application/json": { schema: jsonSchema(declaration.body, "input") } },
+            content: { "application/json": { schema: schemas.of(declaration.body, "input") } },
           },
         }),
     responses: {
@@ -133,7 +121,7 @@ function operationOf(mount: Mount, declaration: Declaration): JsonObject {
         ...(mount.versionHeader
           ? { headers: { [agentApiHeader]: { $ref: "#/components/headers/agentApiVersion" } } }
           : {}),
-        content: { "application/json": { schema: jsonSchema(declaration.response, "output") } },
+        content: { "application/json": { schema: schemas.of(declaration.response, "output") } },
       },
       default: { $ref: "#/components/responses/error" },
     },
@@ -149,8 +137,10 @@ const statuses =
   `; a body over the server's size limit is invalid_input with ${oversizedBodyStatus}, and ` +
   `one sent without a Content-Length is invalid_input with ${unsizedBodyStatus}`;
 
-// apiDocument builds the OpenAPI document.
+// apiDocument builds the OpenAPI document. Each named schema is described
+// once, under components.schemas, and referenced wherever it appears.
 export function apiDocument(): JsonObject {
+  const schemas = new JsonSchemas();
   const paths: Record<string, JsonObject> = {
     "/api/operator": {
       get: {
@@ -162,7 +152,7 @@ export function apiDocument(): JsonObject {
           "200": {
             description: "Done",
             content: {
-              "application/json": { schema: jsonSchema(versionsDeclaration.response, "output") },
+              "application/json": { schema: schemas.of(versionsDeclaration.response, "output") },
             },
           },
           default: { $ref: "#/components/responses/error" },
@@ -175,10 +165,14 @@ export function apiDocument(): JsonObject {
       const path = pathOf(mount, declaration);
       paths[path] = {
         ...paths[path],
-        [declaration.method.toLowerCase()]: operationOf(mount, declaration),
+        [declaration.method.toLowerCase()]: operationOf(schemas, mount, declaration),
       };
     }
   }
+  const error = {
+    description: `Refused. The status follows error.code: ${statuses}.`,
+    content: { "application/json": { schema: schemas.of(errorBody, "output") } },
+  };
   return {
     openapi: "3.1.0",
     info: {
@@ -231,12 +225,9 @@ export function apiDocument(): JsonObject {
           schema: { type: "string", const: String(agentApi.version) },
         },
       },
-      responses: {
-        error: {
-          description: `Refused. The status follows error.code: ${statuses}.`,
-          content: { "application/json": { schema: jsonSchema(errorBody, "output") } },
-        },
-      },
+      responses: { error },
+      // Last, once every schema above has named the ones it references.
+      schemas: schemas.components(),
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { Scope } from "@wayfarerlabs/agention-api";
+import type { ApiSchema } from "@wayfarerlabs/agention-api/json-schemas";
 import type { Context, Hono } from "hono";
 import { notFound } from "../errors.ts";
 import { holds, type Identity } from "../identity.ts";
@@ -16,12 +17,9 @@ export interface IdentityEnv {
   Variables: { identity: Identity };
 }
 
-// The part of a zod schema an operation declares: it reads the input or
-// describes the answer, and describes itself as JSON Schema for the
-// documentation.
-export interface DescribedSchema<T> extends Schema<T> {
-  toJSONSchema(params?: { io?: "input" | "output"; unrepresentable?: "throw" | "any" }): object;
-}
+// The schema an operation declares: it reads the input or describes the
+// answer, and is one of the API's schemas, which the documentation describes.
+export type DescribedSchema<T> = Schema<T> & ApiSchema;
 
 // Declaration is what the documentation reads of a route: its name (unique
 // on its mount), method, path relative to its mount, with :name for each path

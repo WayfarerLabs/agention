@@ -35,7 +35,42 @@ describe("the OpenAPI document", () => {
   });
 });
 
+// The names of the schemas a value references under components.schemas.
+function schemaRefsIn(value: unknown): string[] {
+  const found: string[] = [];
+  JSON.stringify(value, (key, each: unknown) => {
+    if (key === "$ref" && typeof each === "string" && each.startsWith("#/components/schemas/")) {
+      found.push(each.slice("#/components/schemas/".length));
+    }
+    return each;
+  });
+  return found;
+}
+
+describe("the document's shared schemas", () => {
+  it("are each described once, and each referenced", () => {
+    const document = apiDocument();
+    const { schemas } = document.components as { schemas: Record<string, unknown> };
+    expect(Object.keys(schemas).length).toBeGreaterThan(0);
+    expect([...new Set(schemaRefsIn(document))].sort()).toEqual(Object.keys(schemas).sort());
+  });
+});
+
 describe("the documentation page", () => {
+  it("gives each shared schema a section, which each reference to it links to", () => {
+    const document = apiDocument();
+    const page = apiDocsPage(document);
+    const { schemas } = document.components as { schemas: Record<string, unknown> };
+    const sections = [...page.matchAll(/<section id="schema-([A-Za-z0-9]+)">/g)].map(
+      (match) => match[1],
+    );
+    const links = new Set(
+      [...page.matchAll(/<a href="#schema-([A-Za-z0-9]+)">/g)].map((match) => match[1]),
+    );
+    expect(sections.sort()).toEqual(Object.keys(schemas).sort());
+    expect([...links].sort()).toEqual(Object.keys(schemas).sort());
+  });
+
   it("carries no script and escapes what it shows", () => {
     const hostile = "<script>alert(1)</script>";
     const document = apiDocument();

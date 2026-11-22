@@ -15,7 +15,18 @@ type JsonObject = Record<string, unknown>;
 
 const methods = ["get", "post"] as const;
 
-const json = (value: unknown) => `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+// A schema's section on the page, by the name it has under
+// components.schemas, which are letters and digits only.
+const schemaAnchor = (name: string) => `schema-${name}`;
+
+// json writes a value as formatted JSON, each reference to a schema under
+// components.schemas a link to that schema's section.
+const json = (value: unknown) =>
+  `<pre>${escapeHtml(JSON.stringify(value, null, 2)).replace(
+    /&quot;\$ref&quot;: &quot;#\/components\/schemas\/([A-Za-z0-9]+)&quot;/g,
+    (_, name: string) =>
+      `&quot;$ref&quot;: &quot;<a href="#${schemaAnchor(name)}">#/components/schemas/${name}</a>&quot;`,
+  )}</pre>`;
 const text = (value: unknown) => escapeHtml(String(value ?? ""));
 
 // refOf resolves a local $ref, such as #/components/responses/error, in the
@@ -96,6 +107,13 @@ export function apiDocsPage(document: JsonObject): string {
     );
     return `<h2>${text(tag.name)}</h2>\n<p>${text(tag.description)}</p>\n${operations.join("\n")}`;
   });
+  // The schemas the operations reference, each in a section of its own that
+  // the references link to.
+  const named = Object.entries((components.schemas ?? {}) as Record<string, unknown>).map(
+    ([name, schema]) =>
+      `<section id="${text(schemaAnchor(name))}">\n<h3><code>${text(name)}</code></h3>\n` +
+      `${json(schema)}\n</section>`,
+  );
   return [
     "<!doctype html>",
     '<html lang="en">',
@@ -119,6 +137,9 @@ export function apiDocsPage(document: JsonObject): string {
     `<p>${text(error.description)}</p>`,
     json((error.content as Record<string, JsonObject>)["application/json"]?.schema),
     ...sections,
+    "<h2>Schemas</h2>",
+    "<p>The schemas the operations above reference, each described once.</p>",
+    ...named,
     "</body>",
     "</html>",
     "",
