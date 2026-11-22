@@ -106,6 +106,47 @@ describe("an upload", () => {
     await expect(call.promise).rejects.toBeInstanceOf(BridgeError);
   });
 
+  it("has no total deadline while its bytes keep moving", async () => {
+    let request: IncomingMessage | undefined;
+    let received = 0;
+    let readTo = 0;
+    // Reads the body only as far as the test says, then answers once it ends.
+    const api = await serve((incoming, response) => {
+      request = incoming;
+      incoming.pause();
+      incoming.on("data", (chunk: Buffer) => {
+        received += chunk.length;
+        if (received >= readTo) {
+          incoming.pause();
+        }
+      });
+      incoming.on("end", () => {
+        response.writeHead(200, { [agentApiHeader]: String(agentApi.version) });
+        response.end(JSON.stringify({ stored: received }));
+      });
+    });
+    // readSome reads 16 MiB, in real time, and lets the bridge send more in
+    // their place.
+    const { handle, size } = await sparseFile(maxFileBytes);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const call = tracked(upload(api, handle, size));
+    const readSome = async () => {
+      await until(() => request !== undefined);
+      readTo = received + 16 * 1024 * 1024;
+      request?.resume();
+      await until(() => received >= readTo || call.settled());
+      await delay(200);
+    };
+    for (let i = 0; i < 3; i++) {
+      await readSome();
+      await vi.advanceTimersByTimeAsync(transferIdle - 1000);
+    }
+    expect(call.settled()).toBe(false);
+    readTo = Infinity;
+    request?.resume();
+    expect(await call.promise).toEqual({ stored: size });
+  });
+
   it("is cut off by the server's listener with a 408 that reads as the server's own refusal", async () => {
     // The listener's own deadlines, here with an idle limit of a fifth of a
     // second, before a route that never reads the body.
