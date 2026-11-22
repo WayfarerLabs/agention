@@ -317,17 +317,17 @@ cross-device sign-in (it shows a QR code that your phone, holding the passkey, s
 device's own passkey in its Settings. A device that cannot is added by `agention passkey-link`,
 below, which replaces every passkey. You rename a passkey at any time, and remove any but your last;
 removing one signs out every browser it signed in. Adding a passkey and removing one need a sign-in
-within the last 10 minutes, and Settings offer to sign in again, above everything else, while yours
-is older.
+within the last 10 minutes, and the Passkeys and Voice sections of Settings offer to sign in again
+while yours is older.
 
 To replace your passkeys, after losing your devices for example, run `agention passkey-link` again.
 Using the new link replaces all your passkeys with the one it registers and signs out every browser.
 
 Passkeys must verify you, with a PIN or biometric, and be stored by the authenticator, so signing in
 asks for no name: open the origin and choose **Sign in with a passkey**. A browser session lasts 30
-days, and ends sooner after seven days without use or when you sign out, with **Sign out** at the
-foot of **Settings**. When it ends, the next page you open, or the one you have open, returns to
-sign-in and comes back to that page afterwards.
+days, and ends sooner after seven days without use or when you sign out, with **Sign out** in
+**Settings**. When it ends, the next page you open, or the one you have open, returns to sign-in and
+comes back to that page afterwards.
 
 ## Using the web UI
 
@@ -653,10 +653,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
 
-- **Settings** holds, in order, your **Passkeys**, as [Signing in](#signing-in) describes,
-  **Voice**, as [Voice](#voice) describes, and **Sign out**, which signs this browser out and leaves
-  your others signed in. `/passkeys` opens it too. While your sign-in is too old for a change to
-  passkeys or voice, **Sign in again** comes first.
+- **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
+  **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes; under **Features**,
+  **Voice** (`/settings/voice`), as [Voice](#voice) describes; and **Sign out**
+  (`/settings/sign-out`), which signs this browser out and leaves your others signed in. On a wide
+  screen the sections are listed beside the one open; on a phone Settings opens on the list, and
+  each section has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too old
+  for a change to passkeys or voice, those sections offer **Sign in again** first.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image shows as a link and never loads, and only absolute `https`
