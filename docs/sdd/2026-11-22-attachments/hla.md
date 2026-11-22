@@ -113,7 +113,9 @@ file's chunks and leaves its attachments, which is what A8's missing file is.
   behind the operator's sign-in.
 - **Agent:** the same read under the session, for the session's own threads only.
 
-The thread's files, for its head (A4), are a paged list in the thread's own answer.
+The thread's files, for its head (A4), are a paged list on a route of their own, read when the fold
+opens; the thread's answer carries only their count and size, so it stays within the agents' answer
+cap.
 
 ### Headers on every file response
 
@@ -131,8 +133,10 @@ The thread's files, for its head (A4), are a paged list in the thread's own answ
 - `Cache-Control: private` with a long lifetime, since a file never changes, so seeking a video does
   not refetch it.
 
-The security headers middleware today lets a route keep its own headers only at an exact path; it
-gains a rule for the file routes' prefix, so their policy is not replaced by the app's.
+The security headers middleware today lets a route keep its own headers only at an exact path, which
+cannot name a file route, whose varying part is mid-path. A response instead declares the headers it
+owns, and the diagram frame moves to the same mechanism, so their policy is not replaced by the
+app's.
 
 Serving relies on these headers, not on what a file contains: bytes that are not what their type
 says are harmless as an image, media or a download, and HTML is only ever text. A test drives HTML
