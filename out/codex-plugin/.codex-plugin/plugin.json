@@ -1,6 +1,6 @@
 {
   "name": "agention",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Connects agents to Agention, a self-hosted attention inbox: they start threads with their operator, ask what they need answered, and read the replies.",
   "skills": "./skills/",
   "author": {
