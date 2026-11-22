@@ -65,7 +65,7 @@ export async function receiveUpload(
   if (free - bytesArriving(store) - size < freeSpaceFloor) {
     throw new ApiError(
       "storage_full",
-      "the server's disk is too full to take this file; tell the operator",
+      "the server's disk is too full to take this file until space is freed on it",
     );
   }
   const upload = beginUpload(store, c.var.identity, target, { name, type, size });
