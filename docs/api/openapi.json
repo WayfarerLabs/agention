@@ -1951,7 +1951,7 @@
           "description": "The file's bytes, exactly as they are, with a Content-Length, which is required. Content-Type declares the file's type, any type at all: its essence, lowercased, is stored, and without one, or with one that is not a type, the file is application/octet-stream. The upload's answer gives the type it is served as.",
           "required": true,
           "content": {
-            "application/octet-stream": {}
+            "*/*": {}
           }
         },
         "responses": {
@@ -2228,7 +2228,7 @@
     "/api/operator/v1/s/{agent}/{session}/threads/{thread}/messages/{seq}/files/{name}": {
       "get": {
         "operationId": "operatorReadFile",
-        "summary": "Read a file a message carries, by the name it carries it under, whole or a range",
+        "summary": "Read a file a message carries, by the name it carries it under, whole or a range; HEAD answers as GET does, without the bytes",
         "tags": [
           "operator"
         ],
@@ -5107,7 +5107,7 @@
           "description": "The file's bytes, exactly as they are, with a Content-Length, which is required. Content-Type declares the file's type, any type at all: its essence, lowercased, is stored, and without one, or with one that is not a type, the file is application/octet-stream. The upload's answer gives the type it is served as.",
           "required": true,
           "content": {
-            "application/octet-stream": {}
+            "*/*": {}
           }
         },
         "responses": {
@@ -5401,7 +5401,7 @@
     "/api/agent/s/{agent}/{session}/threads/{thread}/messages/{seq}/files/{name}": {
       "get": {
         "operationId": "agentReadFile",
-        "summary": "Read a file a message carries, by the name it carries it under, whole or a range",
+        "summary": "Read a file a message carries, by the name it carries it under, whole or a range; HEAD answers as GET does, without the bytes",
         "tags": [
           "agent"
         ],

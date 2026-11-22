@@ -135,7 +135,9 @@ export const threadOperations = [
     name: "readFile",
     method: "GET",
     path: "/s/:agent/:session/threads/:thread/messages/:seq/files/:name",
-    summary: "Read a file a message carries, by the name it carries it under, whole or a range",
+    summary:
+      "Read a file a message carries, by the name it carries it under, whole or a range; " +
+      "HEAD answers as GET does, without the bytes",
     scope: "threads:read",
     params: fileParams,
     query: fileReadQuery,

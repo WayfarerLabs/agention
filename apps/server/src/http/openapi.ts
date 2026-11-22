@@ -113,7 +113,8 @@ function requestBodyOf(schemas: JsonSchemas, body: DescribedSchema<unknown> | By
     ? {
         description: body.description,
         required: true,
-        content: { "application/octet-stream": {} },
+        // Any type at all, which Content-Type declares.
+        content: { "*/*": {} },
       }
     : { required: true, content: { "application/json": { schema: schemas.of(body, "input") } } };
 }

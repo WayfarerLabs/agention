@@ -720,12 +720,12 @@ field or bound the server does not have. Each operation has its path, an `operat
 mount's name and its own, such as `operatorListThreads`, its summary, its parameters and body
 described as input and its answer as output, and its authentication: on the operator mount the
 `apiKey` bearer scheme with the scope the operation requires, and on the agent mount the
-`agentToken` scheme and the agent API's version header. An upload's body is described as
-`application/octet-stream`, with what its `Content-Type` declares, and a file read's answer as its
-served types, with the `Range` header, 206 and 416. `GET /api/operator` is in it too. Every refusal
-is one shared `error` response, whose description gives each error code's status. The schemas come
-from `@wayfarerlabs/agention-api/json-schemas` ([API contract](#api-contract)), so each named schema
-is described once under `components.schemas` and referenced wherever it appears. Rules a schema
+`agentToken` scheme and the agent API's version header. An upload's body is described as any media
+type, `*/*`, with what its `Content-Type` declares, and a file read's answer as its served types,
+with the `Range` header, 206 and 416. `GET /api/operator` is in it too. Every refusal is one shared
+`error` response, whose description gives each error code's status. The schemas come from
+`@wayfarerlabs/agention-api/json-schemas` ([API contract](#api-contract)), so each named schema is
+described once under `components.schemas` and referenced wherever it appears. Rules a schema
 enforces only in code, zod refinements such as a key's scopes never repeating, are absent from the
 JSON Schema, so the document may describe less than the server checks, never more; a request
 breaking such a rule answers `invalid_input`, naming the field when the rule concerns one.

@@ -7,10 +7,11 @@ import { z } from "zod";
 export const scope = z
   .enum(["threads:read", "threads:write", "sessions:read", "sessions:write", "sessions:approve"])
   .describe(
-    "threads:read reads the thread list, its counts, and any thread with its messages; " +
-      "threads:write also starts threads, writes in them, answers asks and marks threads " +
-      "read, unread and archived; sessions:read reads the sessions view, a session's log, " +
-      "the count of sessions with unread updates, groups and tags, and agents' registrations; " +
+    "threads:read reads the thread list, its counts, and any thread with its messages and " +
+      "its files; threads:write also starts threads, writes in them, answers asks, uploads " +
+      "files to attach and removes those not yet sent, and marks threads read, unread and " +
+      "archived; sessions:read reads the sessions view, a session's log, groups and tags, and " +
+      "agents' registrations; " +
       "sessions:write also marks a session's log read and manages groups and tags; " +
       "sessions:approve also approves, rejects and revokes agents' registrations",
   );
