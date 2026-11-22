@@ -85,6 +85,16 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
 
 Report a rough `percent` toward the goal at natural points, never on every step.
 
+## Files
+
+A message can carry files, such as a screenshot, a log or a report, and the operator's can carry
+theirs. To attach one, upload it from its path with `file_upload`, then name the upload in the
+message's `attachments` before it expires; a message may carry files alone. Its text and detail can
+link to them as `[label](attachment:name)`. A replacement carries a file of the message it replaces
+only by `keep`. Fetch a file a message lists in its `attachments` with `file_get`, which writes it
+to a directory of the bridge's own and shows you an image directly when it can. Files are kept for
+good, as messages are, so attach nothing that holds a key, token or password.
+
 ## Your terminal and Agention
 
 The operator may follow you at your terminal, in Agention, or both, switching as they like, and

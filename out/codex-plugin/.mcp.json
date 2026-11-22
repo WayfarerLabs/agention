@@ -12,7 +12,8 @@
         "AGENTWORKS_AGENT",
         "AGENTWORKS_SESSION",
         "NODE_EXTRA_CA_CERTS"
-      ]
+      ],
+      "tool_timeout_sec": 600
     }
   }
 }

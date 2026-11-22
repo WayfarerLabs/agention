@@ -59,9 +59,9 @@ function mustSymlink(target: string, name: string): void {
 }
 
 // newRepo builds a minimal repository with a valid definition and one skill.
-function newRepo(): string {
+function newRepo(definition = validDefinition): string {
   const root = tempDir();
-  mustWrite(join(root, definitionPath), validDefinition);
+  mustWrite(join(root, definitionPath), definition);
   mustWrite(join(root, skillsPath, "example", "SKILL.md"), "---\nname: example\n---\n");
   mustWrite(join(root, skillsPath, "example", "references", "more.md"), "more\n");
   return root;
@@ -276,6 +276,31 @@ describe("generation", () => {
       mcpServers: { "example-server": { ...launch, env_vars: ["EXAMPLE_URL", "EXAMPLE_NAME"] } },
     });
   });
+
+  // Codex reads a limit on each tool call's time from the plugin; Claude
+  // Code's plugin format has no such field.
+  it("gives Codex the tool timeout the definition sets", () => {
+    const root = newRepo(
+      validDefinition.replace(
+        `"environment": ["EXAMPLE_URL", "EXAMPLE_NAME"]`,
+        `"environment": ["EXAMPLE_URL", "EXAMPLE_NAME"], "toolTimeoutSeconds": 600`,
+      ),
+    );
+    write(root, generate(root));
+    const launch = { command: "npx", args: ["-y", "@example/server@1.2.3"] };
+    expect(readJSON(join(root, claudePluginDir, ".mcp.json"))).toEqual({
+      mcpServers: { "example-server": launch },
+    });
+    expect(readJSON(join(root, codexPluginDir, ".mcp.json"))).toEqual({
+      mcpServers: {
+        "example-server": {
+          ...launch,
+          env_vars: ["EXAMPLE_URL", "EXAMPLE_NAME"],
+          tool_timeout_sec: 600,
+        },
+      },
+    });
+  });
 });
 
 describe("sources", () => {
@@ -297,6 +322,10 @@ describe("sources", () => {
     [
       "an unknown MCP server field",
       validDefinition.replace(`"environment"`, `"env": {}, "environment"`),
+    ],
+    [
+      "a tool timeout that is not a positive whole number",
+      validDefinition.replace(`"environment"`, `"toolTimeoutSeconds": 0.5, "environment"`),
     ],
     ["a bad MCP server name", validDefinition.replace(`"example-server"`, `"Example Server"`)],
     [
