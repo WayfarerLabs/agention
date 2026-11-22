@@ -14,14 +14,15 @@ with each other or with what the product does, the disagreement is the finding.
 
 - **CLI**, run from the packed server package, never the source tree: installed from a tarball
   `npm pack` wrote for the head under test, such as those `scripts/check.sh --packages DIR` keeps.
-  `agention serve`, including its plain-HTTP guard; `agention passkey-link`; `agention backup`,
-  taken while agents and the operator write and while the server is stopped, the copy's mode and its
-  refusals of an existing file and of a directory others can read, a database it leaves unmigrated,
-  and a restore from the copy by the operator guide's steps, after which the server serves the
-  threads the copy holds and nothing written after it; `agention version`; `agention --help`
-  (`docs/operator-guide.md` "Commands" and "Backing up"); and the voice environment variables, each
-  value that breaks its rules, and a key without a base URL, refusing the start by naming the
-  variable and never printing the value (`docs/operator-guide.md` "Voice from the environment").
+  `agention serve`, including its plain-HTTP guard and `--api-docs`; `agention passkey-link`;
+  `agention backup`, taken while agents and the operator write and while the server is stopped, the
+  copy's mode and its refusals of an existing file and of a directory others can read, a database it
+  leaves unmigrated, and a restore from the copy by the operator guide's steps, after which the
+  server serves the threads the copy holds and nothing written after it; `agention version`;
+  `agention --help` (`docs/operator-guide.md` "Commands" and "Backing up"); and the voice
+  environment variables, each value that breaks its rules, and a key without a base URL, refusing
+  the start by naming the variable and never printing the value (`docs/operator-guide.md` "Voice
+  from the environment").
 - **HTTP API** through the real listener: the agent mount (key-signed tokens) and the web mount
   (passkey session and CSRF). The token cases: no token, a signature by another key than the one it
   names, an unknown key, another audience (refused naming the expected origin), an expiry past or
@@ -38,7 +39,21 @@ with each other or with what the product does, the disagreement is the finding.
   the agent mount; every voice change refused without a recent sign-in; a base URL the rule refuses
   in any spelling of a refused address; a changed base URL clearing the key; no answer or log
   carrying a key or a provider's body; and each provider failure, against a local stub provider
-  (`docs/architecture.md` "Voice").
+  (`docs/architecture.md` "Voice"). The operator mount (`/api/operator/v1`) with keys created in
+  Settings, driven with `curl` from the served documentation alone: a key of each scope reading and
+  writing what its scope grants, a write or an approval refused to a read key as `not_found`, a
+  cookie on the operator mount and a key on the web mount refused, a mistyped, revoked or expired
+  key refused with one and the same answer, the key, passkey, settings and transcription routes
+  unknown there, `GET /api/operator` listing the versions and an unknown version `not_found`, and
+  the API key budget; the operator's wait across sessions, answering at once, woken by a message in
+  another session, never woken twice for one message when its `since` is passed back, continuing a
+  full page, and ending at once with its refusal when its key is revoked or expires and when the
+  browser session holding it on the web mount signs out or loses its passkey; and `--api-docs`: the
+  page at `/docs/api/` and `/docs/api/openapi.json` without sign-in, `/docs/api` leading to the
+  page, the page running no script, the document equal to `docs/api/openapi.json` at the head, and
+  without the flag every path under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP
+  API", "API documentation" and "Authentication"; `docs/operator-guide.md` "Using the operator
+  API").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -75,15 +90,19 @@ with each other or with what the product does, the disagreement is the finding.
   registration approval, rejection, and revocation from past requests and a session's options;
   diagrams, drawn in light and dark, with their Source toggle, their fallback, and the viewer's
   gestures, buttons and keys, on a phone's width too; Settings in sections, listed beside the open
-  one on a wide screen and listed first on a phone, with `/passkeys` leading to Passkeys, and voice
-  set up, with the write-only key, what the environment supplies shown read-only, Turn off and Try
-  it; dictation through Chromium's fake microphone and a stub provider, its text at the caret with
-  nothing sent, the microphone and what it says beside Send on a short screen, its failures keeping
-  the recording for a retry, and a recording stopped when the page is hidden; and Read aloud and
-  Stop, in WebKit too where it installs (`docs/operator-guide.md` "Signing in", "Using the web UI",
-  "Voice" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while writing,
-  dictation with a real provider, and diagrams and their viewer in iOS Safari, are the operator's
-  acceptance, not the tester's.
+  one on a wide screen and listed first on a phone with each section's way back, with `/passkeys`
+  leading to Passkeys; API keys: one created with each expiry choice, the no-expiry warning and the
+  list's flag, a scope that a chosen one includes shown chosen with it, the secret shown once with
+  Copy and gone once dismissed, nowhere in storage or the address, the list's last use, Revoke asked
+  first, creating and revoking held back without a recent sign-in, and Create held back at 20 live
+  keys, at a phone's width too; and voice set up, with the write-only key, what the environment
+  supplies shown read-only, Turn off and Try it; dictation through Chromium's fake microphone and a
+  stub provider, its text at the caret with nothing sent, the microphone and what it says beside
+  Send on a short screen, its failures keeping the recording for a retry, and a recording stopped
+  when the page is hidden; and Read aloud and Stop, in WebKit too where it installs
+  (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice" and "Approving agents").
+  Real-phone passkeys, Send above a phone's keyboard while writing, dictation with a real provider,
+  and diagrams and their viewer in iOS Safari, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -92,7 +111,8 @@ Compare what a surface reports with:
 - the database, opened read-only beside the running server: what each thread's messages derive (live
   messages, open asks, status, topic) against the log, each session's latest entry in its log
   against the status `session_update` answered and the sessions view shows, registration rows and
-  states, browser sessions, used challenges (`docs/architecture.md` "Database");
+  states, browser sessions, used challenges, API keys holding only their secret's hash, and each
+  message's position (`docs/architecture.md` "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
   `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443 (`SECURITY.md`
@@ -105,7 +125,7 @@ Compare what a surface reports with:
 - host state: the plugin's files and MCP entry as each host loaded them, and the environment each
   host really passes the bridge (`docs/architecture.md` "Generated plugins");
 - logs: host MCP logs, bridge stderr, and `agention serve` output hold no token, key bytes, link
-  token, transcription key, recording or transcript;
+  token, API key, transcription key, recording or transcript;
 - the provider's side: what the stub provider received (the recording, the model, the prompt, the
   key) against the settings in effect, and nothing sent to it after its base URL changed.
 
@@ -128,7 +148,8 @@ On top of the method's failure classes, look for:
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them
-  in.
+  in, a wait that outlives the key or the browser session holding it, a key's secret left on the
+  page once dismissed.
 - **Non-idempotency**: a retried request id (same content replays, different content conflicts), a
   repeated `register` that creates anything, a reissued link that leaves earlier ones usable, a
   restart over the same data directory.

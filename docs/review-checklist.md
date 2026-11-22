@@ -38,9 +38,9 @@ invariant in `SECURITY.md` "Security model"). The default grant is one session; 
 sessions, or identity from an external issuer, needs no change to the API (ADR 0001 "Agents,
 sessions and threads"), and that seam stays a seam: no code depends on it. Look for a target
 inferred from a credential, an actor or session taken from a payload, grants widened by anything a
-client controls, and any way to write as the person other than the operator's own sign-in, a second
-person included: agents take the person's messages as the operator's direction (`SECURITY.md`
-"Security model").
+client controls, and any way to write as the person other than the operator's own sign-in and the
+API keys they create, a second person included: agents take the person's messages as the operator's
+direction (`SECURITY.md` "Security model" and "API keys").
 
 ## A3. Isolation, and unknown equals unauthorized
 
@@ -57,21 +57,25 @@ agent surface.
 
 ## A4. People and agents authenticate separately
 
-Passkey sessions work only on the web mount and agent tokens only on the agent mount: the agent
-mount refuses any request carrying a cookie, and the web mount any carrying an `Authorization`
-header (`docs/architecture.md` "HTTP API"). An agent token is verified against its registration's
-stored public key, bound to the origin and short-lived; approval and revocation are checked inside
-each operation's transaction and during long polls, and only the registration route accepts a key
-the operator has not approved (`docs/architecture.md` "Authentication"). Web mutations require the
-CSRF token and the exact origin, and `Host` must equal the origin's host. Adding or removing a
-passkey, and every voice change, needs a recent sign-in; the last passkey is never removed; removing
-one ends the browser sessions it signed in (the **Separate authentication** invariant in
-`SECURITY.md` "Security model"). The transcription provider's key is never answered or logged, and
-goes only to the base URL it was entered for (`SECURITY.md` "Voice"). Look for identity-header
-bypasses, an insecure TLS fallback, a first-user-wins bootstrap instead of the one-time
-`passkey-link`, recovery paths that skip ceremony checks, and a bridge that sends tokens or message
-text anywhere but its configured HTTPS origin, a followed redirect included (`SECURITY.md` "The
-agent bridge").
+Passkey sessions work only on the web mount, agent tokens only on the agent mount and API keys only
+on the operator mount: the agent mount and the operator mount refuse any request carrying a cookie,
+and the web mount any carrying an `Authorization` header (`docs/architecture.md` "HTTP API"). An
+agent token is verified against its registration's stored public key, bound to the origin and
+short-lived; approval and revocation are checked inside each operation's transaction and during long
+polls, and only the registration route accepts a key the operator has not approved
+(`docs/architecture.md` "Authentication"). Web mutations require the CSRF token and the exact
+origin, and `Host` must equal the origin's host. Adding or removing a passkey, and every voice
+change, needs a recent sign-in; the last passkey is never removed; removing one ends the browser
+sessions it signed in (the **Separate authentication** invariant in `SECURITY.md` "Security model").
+The transcription provider's key is never answered or logged, and goes only to the base URL it was
+entered for (`SECURITY.md` "Voice"). An API key is stored only as its hash, never logged or answered
+after its creation; creating and revoking one needs a recent sign-in; its revocation and expiry are
+checked inside each operation's transaction and end the waits it holds; and every refusal of a key
+is the same (`SECURITY.md` "API keys"). Look for identity-header bypasses, an insecure TLS fallback,
+a first-user-wins bootstrap instead of the one-time `passkey-link`, recovery paths that skip
+ceremony checks, a credential's end that leaves a wait it holds running to its bound, and a bridge
+that sends tokens or message text anywhere but its configured HTTPS origin, a followed redirect
+included (`SECURITY.md` "The agent bridge").
 
 ## A5. Roles follow the direction of attention
 
@@ -172,14 +176,14 @@ re-grants that hide their consequence, and revocation that deletes or orphans da
 
 Refines the shared **Service-layer authority and typed errors** and **Consistent interfaces**
 checks. The store owns thread, session, and registration rules for every adapter: the CLI, the HTTP
-API's agent and web mounts, and, through the agent mount, the bridge's tools (`docs/architecture.md`
-"Store" and "HTTP API"). Request and response shapes come from one shared schema package,
-`packages/api`. Once a bridge is released, agent routes only grow: each release's agent routes
-accept what earlier released bridges send and answer what they read, because agents run whatever
-bridge version their plugin pins; the agent compatibility gate holds this, and every agent contract
-change bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set (at
-least invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
-`packages/api/src/errors.ts`) is the same on both mounts and in the bridge's tool errors. Tool names
+API's agent, web and operator mounts, and, through the agent mount, the bridge's tools
+(`docs/architecture.md` "Store" and "HTTP API"). Request and response shapes come from one shared
+schema package, `packages/api`. Once a bridge is released, agent routes only grow: each release's
+agent routes accept what earlier released bridges send and answer what they read, because agents run
+whatever bridge version their plugin pins; the agent compatibility gate holds this, and every agent
+contract change bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set
+(at least invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
+`packages/api/src/errors.ts`) is the same on every mount and in the bridge's tool errors. Tool names
 use lowercase letters, digits, and underscores; tool annotations are true of the tools;
 `message_wait` stays well below the 60-second Codex tool timeout, worst case included; tool schemas
 are the payload reference (`docs/architecture.md` "Agent bridge").
@@ -204,9 +208,9 @@ Exact dependency and action pins with integrity checks, each the newest stable r
 seven days old when chosen unless a recorded security fix cannot wait, installs with lifecycle
 scripts disabled (no dependency may need one), `npm audit` and `npm audit signatures`, SHA-pinned
 actions, published bundles that declare no runtime dependencies and ship the license and notices,
-the generated-plugin drift check, and the SDD records check (`CONTRIBUTING.md` "Dependencies" and
-"Checks"; ADR 0001 "Repository and supply chain"). These are genuine contract tests, not prose
-policing; weakening one to get green is Blocking.
+the generated-plugin drift check, the OpenAPI document's parity test, and the SDD records check
+(`CONTRIBUTING.md` "Dependencies" and "Checks"; ADR 0001 "Repository and supply chain"). These are
+genuine contract tests, not prose policing; weakening one to get green is Blocking.
 
 ## A15. Public readiness and distribution boundaries
 
@@ -230,3 +234,36 @@ real provider, installed plugin metadata, an authenticated Claude Code or Codex 
 run behind `tailscale serve` from another machine. None stands in for another; report uncovered
 dimensions explicitly, and do not re-report the known acceptance gaps in the development context's
 "Testing" as new findings.
+
+## A17. Operator operations and their scopes
+
+Every operation an API key may call is declared once, with the one scope it requires, in the
+operator operations list (`apps/server/src/http/operator-operations.ts`). Being in that list is what
+puts an operation on the operator mount, so one left out stays off it and nothing fails open, and
+the web mount serves the same list, so no operation has a second handler (`docs/architecture.md`
+"HTTP API"). What no key may call, such as managing keys, passkeys or Settings, and transcription,
+stays a web-only route. Each operation requires the narrowest scope that covers it: an operation a
+read scope grants is a `GET` without a body whose store work writes nothing, which the test over the
+list in `apps/server/src/http/operations.test.ts` holds, and approving, rejecting or revoking a
+registration needs `sessions:approve`, which no other scope includes. A later resource adds scopes
+of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what an existing
+scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the list, an
+operation with a scope wider or narrower than what it does, a read-scoped operation that writes or
+takes a body, a key-reachable route that manages credentials or Settings, and a scope whose meaning
+changes.
+
+## A18. The operator API contract and its document
+
+The operator API's version is in its path, and a version changes only additively: a new operation, a
+new optional request field, a new response field. A change that would break a client, such as a
+field removed, renamed, narrowed or made required, is a new version beside the old, by a
+maintainer's decision (`docs/architecture.md` "HTTP API"). The OpenAPI document,
+`docs/api/openapi.json`, is generated from the declarations and never edited by hand: a change to an
+operator or agent operation, or to a schema one uses, regenerates it with
+`scripts/generate-api-docs.sh` in the same change, and its diff is reviewed as the contract change
+it is; the server's suite fails while the committed document differs from the code's
+(`CONTRIBUTING.md` "Generated API document"; `docs/architecture.md` "API documentation"). Look for a
+contract change whose document was not regenerated, a regenerated document whose diff removes or
+narrows anything a served version or the agent API (A12) carries, a rule the server enforces that no
+field's description states, and documentation served with anything beyond the contract or without
+`--api-docs`.
