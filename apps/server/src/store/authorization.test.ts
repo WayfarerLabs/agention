@@ -93,7 +93,7 @@ function sessionOperations(identity: Identity, target: { agent: string; session:
   };
 }
 
-function administrationOperations(identity: Identity) {
+function crossSessionOperations(identity: Identity) {
   const pending = () => {
     const publicKey = newPublicKey();
     submitRegistration(fixture.store, publicKey, { agent: "new", session: "one" });
@@ -178,19 +178,19 @@ describe("a foreign session", () => {
   });
 });
 
-describe("administration", () => {
-  it.each(Object.keys(administrationOperations({} as Identity)))(
+describe("an operation across sessions", () => {
+  it.each(Object.keys(crossSessionOperations({} as Identity)))(
     "is not_found to an agent for %s",
     async (name) => {
-      const operation = administrationOperations(mine.identity)[name as "listSessions"];
+      const operation = crossSessionOperations(mine.identity)[name as "listSessions"];
       expect(await codeOf(operation)).toBe("not_found");
     },
   );
 
-  it.each(Object.keys(administrationOperations({} as Identity)))(
+  it.each(Object.keys(crossSessionOperations({} as Identity)))(
     "is available to the operator for %s",
     async (name) => {
-      const operation = administrationOperations(fixture.operator)[name as "listSessions"];
+      const operation = crossSessionOperations(fixture.operator)[name as "listSessions"];
       expect(await codeOf(operation)).toBe("ok");
     },
   );
@@ -241,7 +241,7 @@ describe("an expired browser session", () => {
       for (const operation of Object.values(sessionOperations(fixture.operator, mine.target))) {
         expect(await codeOf(operation)).toBe("unauthenticated");
       }
-      for (const operation of Object.values(administrationOperations(fixture.operator))) {
+      for (const operation of Object.values(crossSessionOperations(fixture.operator))) {
         expect(await codeOf(operation)).toBe("unauthenticated");
       }
     },
