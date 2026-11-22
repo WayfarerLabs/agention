@@ -128,6 +128,10 @@ tests cover them.
    amending E1: a tool uploads a local file and answers with a reference, which `thread_create` and
    `message_send` name, and an upload no message names expires; fetching is a tool of its own.
 
+4. (2026-11-22) "Dope. Build it! Lmk if you encounter any major questions. Otherwise just make good
+   decisions and let 'er rip." Taken: the requirements stand as amended, and the effort lead
+   proceeds through design and build, bringing only major questions to the operator.
+
 ## Definition of done
 
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
