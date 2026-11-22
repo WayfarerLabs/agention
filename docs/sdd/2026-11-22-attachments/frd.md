@@ -1,6 +1,6 @@
 # Attachments: Functional Requirements
 
-- Status: Accepted by the operator with changes, 2026-11-22 (ruling 1)
+- Status: Accepted by the operator with changes, 2026-11-22 (ruling 1); A3 amended by ruling 2
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -36,17 +36,17 @@ message is written.
 included, within the same limits, said in the UI. The operator sees what is attached, and can remove
 it, before sending. Nothing is uploaded for good until the message is sent.
 
-**A3. Files belong to the thread.** A file arrives with a message but belongs to the thread, by its
-name. Attaching a file under a name the thread already has replaces it: the thread's file of that
-name is the new one from then on, and the message that brought the earlier one still shows it,
-marked as replaced. Either side can replace a file of either side's (ruling 1).
+**A3. A file is its message's.** A file belongs to the message that brought it, under its name, and
+a message carries at most one file of each name. The same name in another message is another file,
+and nothing replaces a file (ruling 2). A message that replaces another carries files of its own,
+and the replaced message keeps its files, as it keeps its content.
 
 ### Showing and opening
 
 **A4. Files show where they arrive and at the top of the thread.** A message lists the files it
 brought, each with its name, type and size. The thread's head lists all of the thread's files,
-folded, each as it now stands, with who attached it and when (ruling 1). A message's text and detail
-can link to a thread file by name.
+folded, each with who attached it, when, and the message that brought it (ruling 1). A message's
+text and detail can link to its own files by name.
 
 **A5. Files open with the browser's own viewer.** Opening a file shows it the way the browser shows
 that kind of file: images, PDFs, video and audio in place where the browser can; text and code as
@@ -59,15 +59,15 @@ operator's sign-in, and agents of the session the thread belongs to, can fetch a
 ### Reading
 
 **A7. Agents read the thread's files.** An agent can fetch any file of one of its session's threads,
-the operator's or its own: the thread's file of a name, or the one a message brought. It gets the
-file on its own machine, and an image in a form a model can look at where its host supports that.
+the operator's or its own, by its message and name. It gets the file on its own machine, and an
+image in a form a model can look at where its host supports that.
 
 ### Keeping
 
-**A8. Files accumulate.** Nothing removes a file: a file never changes once attached, a replaced one
-is kept, and archiving a thread covers its files (ruling 1). `agention backup` writes, and restoring
-brings back, every file with the database, as one consistent copy. A message or thread whose file is
-gone, as a later purge would leave it, still shows in full, with that file marked as missing.
+**A8. Files accumulate.** Nothing removes a file: a file never changes once attached, and archiving
+a thread covers its files (ruling 1). `agention backup` writes, and restoring brings back, every
+file with the database, as one consistent copy. A message or thread whose file is gone, as a later
+purge would leave it, still shows in full, with that file marked as missing.
 
 **A9. Storage is visible.** The operator can see how much space attachments use, in total and per
 thread.
@@ -111,6 +111,14 @@ tests cover them.
    the folded list at the thread's head; A8 keeps every file, and a missing file shows as missing;
    the limit is 100 MiB a file with no total limit; metadata stays as taken, and the server does no
    image processing.
+
+2. (2026-11-22) Asked whether a file replaced by one of the same name keeps its earlier version:
+   "Yeah, actually this overwrite without replace really doesn't fit out model. Files should be
+   keyed by message id so that even the same name doesn't technically conflict. One message clearly
+   can't have two files with the same name, which is right. A replaced message should keep its file
+   for now, just like it keeps its content." Taken, amending A3 and A7 and the replacement in ruling
+   1: a file is its message's, by name, unique within the message; nothing replaces a file; a
+   replaced message keeps its files; files are read by message and name.
 
 ## Definition of done
 
