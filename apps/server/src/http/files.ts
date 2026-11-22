@@ -2,21 +2,24 @@ import {
   dispositionOf,
   type Disposition,
   type ErrorBody,
-  fileReadQuery,
-  queryNumber,
-  sequence,
   servedTypeOf,
+  servedTypes,
   unsatisfiableRangeStatus,
 } from "@wayfarerlabs/agention-api";
-import type { Context } from "hono";
 import { ApiError } from "../errors.ts";
-import { chunkBytes, findCarriedFile, readFileChunk, type Store } from "../store/index.ts";
-import { parse, parseQuery, threadTarget } from "./input.ts";
+import type { Identity } from "../identity.ts";
+import {
+  chunkBytes,
+  findCarriedFile,
+  readFileChunk,
+  type Store,
+  type ThreadTarget,
+} from "../store/index.ts";
+import type { BytesAnswer } from "./operations.ts";
 import { ownHeaders } from "./own-headers.ts";
-import type { IdentityEnv } from "./thread-routes.ts";
 
-// Reading a file: GET and HEAD /threads/:n/messages/:seq/files/:name, on
-// both mounts. A file is served inert whatever its bytes are: as one of the
+// Reading a file: GET and HEAD /threads/:thread/messages/:seq/files/:name,
+// on every mount. A file is served inert whatever its bytes are: as one of the
 // allowlisted types, under a sandbox policy that lets it load and run
 // nothing, readable only by the server's own pages, and cached privately for
 // good, since the bytes at a URL never change.
@@ -84,33 +87,46 @@ export function wantedOf(header: string | undefined, size: number): Wanted {
   return { kind: "range", start, end: last === "" ? size - 1 : Math.min(Number(last), size - 1) };
 }
 
+// The answer a file read declares: the file's bytes.
+export const fileBytes: BytesAnswer = {
+  bytes: "answer",
+  description:
+    "The file's bytes, as the type it is served as, which follows from its declared type " +
+    "and is never a script or style. Content-Disposition names the file, inline or as an " +
+    "attachment to download. A file is served inert: its Content-Security-Policy sandboxes " +
+    "it and loads nothing, Cross-Origin-Resource-Policy is same-origin, and it may be " +
+    "cached privately for good, since the bytes at an address never change; ETag is the " +
+    "hex SHA-256 of its bytes. HEAD answers the same headers without the bytes.",
+  types: servedTypes,
+};
+
+// The file a read names: the thread's message, the name it carries the file
+// under, and the file's ref when the request gives it.
+export interface FileRead {
+  store: Store;
+  identity: Identity;
+  target: ThreadTarget & { seq: number; name: string; ref: string | undefined };
+  request: Request;
+  log: (message: string) => void;
+}
+
 // serveFile answers a file read: the file a message carries under a name,
 // and when the request gives its ref, only if the message carries that
 // file. Its bytes stream a chunk at a time, each read in its own
-// transaction, which checks the credential again.
-export function serveFile(
-  c: Context<IdentityEnv>,
-  store: Store,
-  log: (message: string) => void,
-): Response {
-  const target = threadTarget(c);
-  const seq = parse(queryNumber(sequence), c.req.param("seq"), "seq");
-  const { file: ref } = parseQuery(c, fileReadQuery);
-  const identity = c.var.identity;
-  const file = findCarriedFile(store, identity, {
-    ...target,
-    seq,
-    name: c.req.param("name") ?? "",
-    ref,
-  });
+// transaction, which confirms the scope and re-checks the credential.
+export function serveFile(read: FileRead): Response {
+  const { store, identity, target, request, log } = read;
+  const file = findCarriedFile(store, identity, target);
   const served = servedTypeOf(file.type);
-  const wanted = wantedOf(c.req.header("range"), file.size);
+  const wanted = wantedOf(request.headers.get("range") ?? undefined, file.size);
   if (wanted.kind === "unsatisfiable") {
-    c.header("Content-Range", `bytes */${file.size}`);
     const body: ErrorBody = {
       error: { code: "invalid_input", message: "the range is outside the file" },
     };
-    return c.json(body, unsatisfiableRangeStatus);
+    return Response.json(body, {
+      status: unsatisfiableRangeStatus,
+      headers: { "Content-Range": `bytes */${file.size}` },
+    });
   }
   const [start, end] = wanted.kind === "range" ? [wanted.start, wanted.end] : [0, file.size - 1];
   const headers: Record<string, string> = {
@@ -124,10 +140,10 @@ export function serveFile(
     "Cache-Control": fileCaching,
     ...(wanted.kind === "range" ? { "Content-Range": `bytes ${start}-${end}/${file.size}` } : {}),
   };
-  ownHeaders(c, ["content-security-policy", "cache-control"]);
+  ownHeaders(request, ["content-security-policy", "cache-control"]);
   const status = wanted.kind === "range" ? 206 : 200;
-  if (c.req.method === "HEAD" || end < start) {
-    return c.body(null, status, headers);
+  if (request.method === "HEAD" || end < start) {
+    return new Response(null, { status, headers });
   }
   let index = Math.floor(start / chunkBytes);
   const lastIndex = Math.floor(end / chunkBytes);
@@ -162,5 +178,5 @@ export function serveFile(
     // Nothing is read until the response is.
     { highWaterMark: 0 },
   );
-  return c.body(body, status, headers);
+  return new Response(body, { status, headers });
 }

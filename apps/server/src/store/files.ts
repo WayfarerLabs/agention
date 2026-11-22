@@ -10,16 +10,17 @@ import {
 import { randomBytes } from "node:crypto";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
-import { authorize, checkCredential, type Identity } from "../identity.ts";
+import { authorize, authorizeScope, type Identity } from "../identity.ts";
 import { resolveSession } from "./directory.ts";
 import type { Store } from "./store.ts";
 import type { SessionTarget } from "./threads.ts";
 
 // Uploads: a file's bytes arrive a chunk per transaction, so other requests
 // run between them and a revoked credential stops an upload within a chunk.
-// An upload is pending until a message names it, and is removed by Abort
-// when it fails, by its writer, or by the sweep once it expires or was left
-// incomplete.
+// Uploading is writing to a thread's session, so every step requires
+// threads:write. An upload is pending until a message names it, and is
+// removed by Abort when it fails, by its writer, or by the sweep once it
+// expires or was left incomplete.
 
 // Every file is stored in chunks of this many bytes, all full but its last.
 // A release that changes it adds a per-file column in a migration of its own,
@@ -53,6 +54,7 @@ export function beginUpload(
     const sessionId = authorize(
       db,
       identity,
+      "threads:write",
       resolveSession(db, target.agent, target.session),
       now,
     );
@@ -102,10 +104,10 @@ export function beginUpload(
 }
 
 // writeChunk stores one chunk of an upload's bytes, at its index, once the
-// credential is checked again.
+// scope is confirmed, as in every store call, and the credential re-checked.
 export function writeChunk(store: Store, upload: Upload, index: number, data: Uint8Array): void {
   store.db.transaction(() => {
-    checkCredential(store.db, upload.identity, store.clock());
+    authorizeScope(store.db, upload.identity, "threads:write", store.clock());
     store.db
       .prepare("INSERT INTO file_chunks (file_id, idx, data) VALUES (?, ?, ?)")
       .run(upload.id, index, data);
@@ -122,7 +124,7 @@ export function completeUpload(
 ): UploadResult {
   const completedAt = store.db.transaction(() => {
     const now = store.clock();
-    checkCredential(store.db, upload.identity, now);
+    authorizeScope(store.db, upload.identity, "threads:write", now);
     if (received !== upload.size) {
       throw invalidInput(
         undefined,
@@ -163,6 +165,7 @@ export function removeUpload(
     const sessionId = authorize(
       db,
       identity,
+      "threads:write",
       resolveSession(db, target.agent, target.session),
       store.clock(),
     );

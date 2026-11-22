@@ -1,14 +1,16 @@
 import type { Database } from "../database/database.ts";
 import { notAllowed, notFound } from "../errors.ts";
 import { checkCredential, type Identity, identityForBrowserSession } from "../identity.ts";
-import { findOperator } from "../store/index.ts";
-import type { Store } from "../store/index.ts";
+import { everySession, findOperator, type Store } from "../store/index.ts";
 import { hashOfSecret, newSecret } from "./secrets.ts";
 
 // A browser session is the operator's sign-in on one browser, with the passkey
 // that signed it in. It ends after seven days without use or thirty days after
-// it opened, whichever comes first, when the operator signs out, and when that
-// passkey is removed or replaced.
+// it opened, whichever comes first, when the operator signs out or signs in
+// again on that browser, and when that passkey is removed or replaced. Each
+// end but expiry wakes the waits across sessions once it commits, so a wait
+// the session holds ends at once with its refusal, as one a revoked API key
+// holds does; a wait polls again on its own when its credential expires.
 
 const day = 24 * 60 * 60 * 1000;
 export const browserSessionIdleLifetime = 7 * day;
@@ -60,12 +62,26 @@ export function openBrowserSession(
 }
 
 // closeBrowserSession ends the session a cookie names, if it exists, inside the
-// caller's transaction.
-export function closeBrowserSession(db: Database, cookie: string | undefined, now: number): void {
+// caller's transaction, and says whether it did, so the caller wakes the waits
+// across sessions once that transaction commits.
+export function closeBrowserSession(
+  db: Database,
+  cookie: string | undefined,
+  now: number,
+): boolean {
   deleteExpired(db, now);
   const hash = hashOfSecret(cookie);
-  if (hash !== undefined) {
-    db.prepare("DELETE FROM browser_sessions WHERE hash = ?").run(hash);
+  return (
+    hash !== undefined &&
+    db.prepare("DELETE FROM browser_sessions WHERE hash = ?").run(hash).changes === 1
+  );
+}
+
+// signOut ends the session a cookie names, if it exists.
+export function signOut(store: Store, cookie: string | undefined): void {
+  const closed = store.db.transaction(() => closeBrowserSession(store.db, cookie, store.clock()));
+  if (closed) {
+    store.notifier.notify(everySession);
   }
 }
 

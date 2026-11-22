@@ -1,10 +1,13 @@
 // An HTTP application over a fresh store, with an operator signed in on one
 // browser and helpers to sign agent requests, for the HTTP tests.
 import {
+  type ApiKeyCreated,
+  type ApiKeyExpiry,
   type ErrorBody,
   type PublicKey,
   publicKey,
   type RegistrationState,
+  type Scope,
 } from "@wayfarerlabs/agention-api";
 import type { Hono } from "hono";
 import { SignJWT } from "jose";
@@ -77,9 +80,11 @@ export class Harness {
       name?: string;
       voiceEnvironment?: VoiceEnvironment;
       transcription?: TranscriptionProvider;
+      apiDocs?: boolean;
     } = {},
   ) {
     this.app = createApp({
+      ...(options.apiDocs === undefined ? {} : { apiDocs: options.apiDocs }),
       ...(options.voiceEnvironment === undefined
         ? {}
         : { voiceEnvironment: options.voiceEnvironment }),
@@ -219,6 +224,35 @@ export class Harness {
       body,
       headers: { ...headers, ...options.headers },
     });
+  }
+
+  // operator makes a request on the operator mount with an API key's secret
+  // as its bearer token.
+  async operator(
+    secret: string,
+    method: string,
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<Response> {
+    return this.request(method, `/api/operator/v1${path}`, {
+      body,
+      headers: { authorization: `Bearer ${secret}`, ...headers },
+    });
+  }
+
+  // createKey creates an API key through the web mount, by default without
+  // an expiry, and answers it with its secret.
+  async createKey(
+    scopes: Scope[],
+    expiry: ApiKeyExpiry = { kind: "none" },
+    name = "status board",
+  ): Promise<ApiKeyCreated> {
+    const response = await this.web("POST", "/keys", { name, scopes, expiry });
+    if (response.status !== 200) {
+      throw new Error(`key creation failed: ${JSON.stringify(response.body)}`);
+    }
+    return response.body as ApiKeyCreated;
   }
 
   // register submits a key's registration through the agent mount.

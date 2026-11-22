@@ -1,0 +1,84 @@
+import {
+  registrationState,
+  registrationSubmitInput,
+  sessionParams,
+  sessionStatus,
+  sessionThreadsQuery,
+  sessionUpdateInput,
+  threadCreateInput,
+  threadPage,
+  waitQuery,
+  waitResult,
+  writeResult,
+} from "@wayfarerlabs/agention-api";
+import { createThread, listSessionThreads, updateSession, waitForThreads } from "../store/index.ts";
+import { type Declaration, operation } from "./operations.ts";
+import { threadOperations } from "./thread-operations.ts";
+
+// The agent mount's operations, each on the session the agent's token is
+// approved for. Each names its scope as every operation does, and each is
+// within the threads:write a registration holds; the store refuses any other
+// session as not_found.
+export const agentOperations = [
+  operation({
+    name: "updateSession",
+    method: "POST",
+    path: "/s/:agent/:session/status",
+    summary: "Report the session's status: its state, title, goal, progress and a note",
+    scope: "threads:write",
+    params: sessionParams,
+    body: sessionUpdateInput,
+    response: sessionStatus,
+    handler: ({ store, identity, params, body }) => updateSession(store, identity, params, body),
+  }),
+  operation({
+    name: "createThread",
+    method: "POST",
+    path: "/s/:agent/:session/threads",
+    summary: "Start a thread in the session, with its first message",
+    scope: "threads:write",
+    params: sessionParams,
+    body: threadCreateInput,
+    response: writeResult,
+    handler: ({ store, identity, params, body }) => createThread(store, identity, params, body),
+  }),
+  operation({
+    name: "listSessionThreads",
+    method: "GET",
+    path: "/s/:agent/:session/threads",
+    summary: "List the session's threads, filtered and in pages",
+    scope: "threads:read",
+    params: sessionParams,
+    query: sessionThreadsQuery,
+    response: threadPage,
+    handler: ({ store, identity, params, query }) =>
+      listSessionThreads(store, identity, params, query),
+  }),
+  // The long poll ends when a message it reports commits, the credential is
+  // revoked, the client disconnects, the server shuts down or the wait ends.
+  operation({
+    name: "waitForThreads",
+    method: "GET",
+    path: "/s/:agent/:session/wait",
+    summary: "Wait for messages from others on the session's threads since a cursor",
+    scope: "threads:read",
+    params: sessionParams,
+    query: waitQuery,
+    response: waitResult,
+    handler: ({ store, identity, params, query, signal }) =>
+      waitForThreads(store, identity, params, query, signal),
+  }),
+  ...threadOperations,
+];
+
+// Registration is the one agent route a key the operator has not approved may
+// call, so it authenticates in its own way, against the key its token
+// carries, and its route is built by hand from this declaration.
+export const registration = {
+  name: "register",
+  method: "POST",
+  path: "/registrations",
+  summary: "Submit the session key's registration, or read its state once submitted",
+  body: registrationSubmitInput,
+  response: registrationState,
+} as const satisfies Declaration;

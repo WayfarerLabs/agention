@@ -1,17 +1,17 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
-// Browser sessions and passkey links are 256 random bits. The holder gets the
-// secret in base64url; the database keeps only the SHA-256 of that text, so a
-// copy of the database opens nothing. The secret is random, so a fast hash is
-// enough.
+// Browser sessions, passkey links and API keys are 256 random bits. The holder
+// gets the secret in base64url, after a prefix naming what it is where it has
+// one; the database keeps only the SHA-256 of that text, so a copy of the
+// database opens nothing. The secret is random, so a fast hash is enough.
 
 export interface Secret {
   token: string;
   hash: Buffer;
 }
 
-export function newSecret(): Secret {
-  const token = randomBytes(32).toString("base64url");
+export function newSecret(prefix = ""): Secret {
+  const token = prefix + randomBytes(32).toString("base64url");
   return { token, hash: sha256(token) };
 }
 

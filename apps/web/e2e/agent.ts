@@ -42,9 +42,11 @@ export class Agent {
   }
 
   send<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<Answer<T>> {
-    return this.#exchange<T>(
+    return callServer(
+      this.#server,
       method,
-      path,
+      `/api/agent${path}`,
+      `Bearer ${this.token()}`,
       body === undefined
         ? undefined
         : { type: "application/json", bytes: Buffer.from(JSON.stringify(body)) },
@@ -54,44 +56,52 @@ export class Agent {
   // upload sends bytes as the body of a POST, declared as type, as the
   // bridge uploads a file.
   upload<T>(path: string, bytes: Buffer, type: string): Promise<Answer<T>> {
-    return this.#exchange<T>("POST", path, { type, bytes });
-  }
-
-  #exchange<T>(
-    method: "GET" | "POST",
-    path: string,
-    payload: { type: string; bytes: Buffer } | undefined,
-  ): Promise<Answer<T>> {
-    const { origin, port, certificate } = this.#server;
-    const url = new URL(origin);
-    return new Promise((resolve, reject) => {
-      const outgoing = httpsRequest(
-        {
-          host: "127.0.0.1",
-          port,
-          servername: url.hostname,
-          ca: certificate,
-          method,
-          path: `/api/agent${path}`,
-          headers: {
-            host: url.host,
-            authorization: `Bearer ${this.token()}`,
-            ...(payload === undefined
-              ? {}
-              : { "content-type": payload.type, "content-length": payload.bytes.length }),
-          },
-        },
-        (response) => {
-          let text = "";
-          response.setEncoding("utf8");
-          response.on("data", (chunk: string) => (text += chunk));
-          response.on("end", () =>
-            resolve({ status: response.statusCode ?? 0, body: JSON.parse(text) as T }),
-          );
-        },
-      );
-      outgoing.on("error", reject);
-      outgoing.end(payload?.bytes);
+    return callServer(this.#server, "POST", `/api/agent${path}`, `Bearer ${this.token()}`, {
+      type,
+      bytes,
     });
   }
+}
+
+// callServer sends one request to the server over TLS, trusting its test
+// certificate, with an Authorization header and no cookie, as a program
+// outside the browser does: the agent bridge, or a client holding an API key.
+export function callServer<T>(
+  server: AgentServer,
+  method: "GET" | "POST",
+  path: string,
+  authorization: string,
+  payload?: { type: string; bytes: Buffer },
+): Promise<Answer<T>> {
+  const { origin, port, certificate } = server;
+  const url = new URL(origin);
+  return new Promise((resolve, reject) => {
+    const outgoing = httpsRequest(
+      {
+        host: "127.0.0.1",
+        port,
+        servername: url.hostname,
+        ca: certificate,
+        method,
+        path,
+        headers: {
+          host: url.host,
+          authorization,
+          ...(payload === undefined
+            ? {}
+            : { "content-type": payload.type, "content-length": payload.bytes.length }),
+        },
+      },
+      (response) => {
+        let text = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => (text += chunk));
+        response.on("end", () =>
+          resolve({ status: response.statusCode ?? 0, body: JSON.parse(text) as T }),
+        );
+      },
+    );
+    outgoing.on("error", reject);
+    outgoing.end(payload?.bytes);
+  });
 }

@@ -28,7 +28,7 @@ afterEach(() => {
 
 const openAi = "https://api.openai.com/v1";
 
-// The passkey list says whether the sign-in is recent, for every section.
+// The passkey list says whether the sign-in is recent.
 function passkeysRecent(recent: boolean) {
   api.on("GET", "/passkeys", { body: { passkeys: [], recent } });
 }
@@ -70,11 +70,10 @@ const settingsOf = (answer: VoiceAnswer): SettingsResult => ({ ...noSettings, ..
 
 async function open(settings: VoiceAnswer) {
   api.on("GET", "/settings", { body: settingsOf(settings) });
-  renderAt("/settings");
+  renderAt("/settings/voice");
   await within(await screen.findByRole("region", { name: "Voice" })).findByRole("button", {
     name: /^(Set up|Save)$/,
   });
-  await screen.findByRole("region", { name: "Passkeys" });
 }
 
 // later answers as a server does, a little after the request, so focus that
@@ -93,32 +92,18 @@ function answerSaves(settings: VoiceAnswer) {
   return () => api.callsTo("POST", "/settings/voice").map((call) => call.body);
 }
 
-describe("the Settings view", () => {
-  it("is in the navigation, with passkeys, voice, storage and signing out in that order", async () => {
-    await open({ voice: null });
-    expect(screen.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe(
-      "page",
-    );
-    expect(
-      screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
-    ).toEqual(["Passkeys", "Voice", "Storage", "Sign out"]);
-    expect(
-      within(screen.getByRole("banner")).queryByRole("button", { name: "Sign out" }),
-    ).toBeNull();
-  });
-
+describe("voice in Settings", () => {
   it("offers to sign in again up front, holding back voice changes until then", async () => {
     installPasskeys({ id: "laptop", rawId: "laptop", type: "public-key", response: {} });
     passkeysRecent(false);
     await open({ voice: voice() });
-    const again = await screen.findByRole("button", { name: "Sign in again" });
+    const again = await within(section()).findByRole("button", { name: "Sign in again" });
     for (const control of [button("Save"), button("Turn off")]) {
       expect(control.disabled).toBe(true);
       expect(describer(control)).not.toBeNull();
     }
     expect(
-      again.compareDocumentPosition(screen.getByRole("region", { name: "Passkeys" })) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      again.compareDocumentPosition(button("Save")) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     api
       .on("POST", "/auth/signin/begin", { body: { options: { challenge: "xyz" } } })
@@ -126,14 +111,12 @@ describe("the Settings view", () => {
     passkeysRecent(true);
     fireEvent.click(again);
     await waitFor(() => expect(button("Save").disabled).toBe(false));
-    // Focus goes to the first section, not to nothing, as the offer goes.
+    // Focus goes to the section's heading, not to nothing, as the offer goes.
     await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Passkeys" })),
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Voice" })),
     );
   });
-});
 
-describe("voice in Settings", () => {
   it("is off until set up, then offers OpenAI first, which needs a key", async () => {
     await open({ voice: null });
     fireEvent.click(button("Set up"));

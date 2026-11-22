@@ -29,7 +29,7 @@ import {
   threadStatus,
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
-import { checkCredential, type Identity, sessionScope } from "../identity.ts";
+import { authorizeScope, type Identity, sessionScope } from "../identity.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
 import {
@@ -188,7 +188,7 @@ type Parameters = Record<string, string | number | null>;
 
 // The threads a list reaches, over threads as t: those of every session the
 // viewer reaches, bound by sessionScope; or those of one session.
-const reached =
+export const reached =
   "(:all_sessions = 1 OR t.session_id IN (SELECT value FROM json_each(:session_ids)))";
 const inSession = "t.session_id = :session_id";
 
@@ -448,7 +448,7 @@ export function listSessionThreads(
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    const sessionId = authorizeSession(db, identity, target, now);
+    const sessionId = authorizeSession(db, identity, "threads:read", target, now);
     // The filters a session's list does not take stay off, and its topic is
     // the session's own.
     const filters: ThreadFilters = {
@@ -519,7 +519,7 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    checkCredential(db, identity, now);
+    authorizeScope(db, identity, "threads:read", now);
     const reach = reachOf(store, identity, now);
     const page = pageThreads(db, now, {
       scope: reached,
@@ -571,7 +571,7 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    checkCredential(db, identity, now);
+    authorizeScope(db, identity, "threads:read", now);
     const reach = reachOf(store, identity, now);
     const parameters = {
       ...reach.scope,

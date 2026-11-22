@@ -16,7 +16,7 @@ import { randomBytes } from "node:crypto";
 import type { Database } from "../database/database.ts";
 import { invalidInput, unauthenticated } from "../errors.ts";
 import type { Identity } from "../identity.ts";
-import { findOperator, insertOperator, type Store } from "../store/index.ts";
+import { everySession, findOperator, insertOperator, type Store } from "../store/index.ts";
 import {
   closeBrowserSession,
   type OpenedBrowserSession,
@@ -132,7 +132,8 @@ export async function beginSignIn(store: Store, rp: RelyingParty): Promise<Cerem
 }
 
 // finishSignIn verifies a sign-in assertion and opens a browser session,
-// closing the one the browser held before, if any.
+// closing the one the browser held before, if any, which wakes the waits
+// across sessions so one that session holds ends now.
 export async function finishSignIn(
   store: Store,
   rp: RelyingParty,
@@ -179,7 +180,7 @@ export async function finishSignIn(
     throw notVerified();
   }
   const { newCounter, credentialBackedUp } = verification.authenticationInfo;
-  return db.transaction(() => {
+  const { signedIn, closed } = db.transaction(() => {
     const now = store.clock();
     if (!markChallengeUsed(db, challenge, now)) {
       throw challengeGone();
@@ -198,16 +199,23 @@ export async function finishSignIn(
     if (updated.changes !== 1) {
       throw notVerified();
     }
-    closeBrowserSession(db, previousSession, now);
+    const closed = closeBrowserSession(db, previousSession, now);
     const operator = findOperator(db);
     if (operator === undefined) {
       throw notVerified();
     }
     return {
-      session: openBrowserSession(db, stored.person_id, stored.id, now),
-      operatorName: operator.name,
+      signedIn: {
+        session: openBrowserSession(db, stored.person_id, stored.id, now),
+        operatorName: operator.name,
+      },
+      closed,
     };
   });
+  if (closed) {
+    store.notifier.notify(everySession);
+  }
+  return signedIn;
 }
 
 // The most passkeys the operator holds.
@@ -395,7 +403,8 @@ export async function beginLink(
 // finishLink verifies the new passkey and, in one transaction that also
 // consumes the link, stores it and opens a session for this browser. The link
 // creates the operator or replaces their passkeys, which ends every browser
-// session they signed in, this browser's included.
+// session they signed in, this browser's included, revokes every API key, and
+// wakes the waits across sessions so one those credentials hold ends now.
 export async function finishLink(
   store: Store,
   rp: RelyingParty,
@@ -414,7 +423,7 @@ export async function finishLink(
     throw challengeGone();
   }
   const passkey = await verifyNewPasskey(rp, challenge, input, userHandle);
-  return db.transaction(() => {
+  const { signedIn, replaced } = db.transaction(() => {
     const now = store.clock();
     if (!markChallengeUsed(db, challenge, now)) {
       throw challengeGone();
@@ -424,17 +433,32 @@ export async function finishLink(
       throw linkGone();
     }
     let operator = findOperator(db);
+    const replaced = operator !== undefined;
     if (operator === undefined) {
       operator = insertOperator(db, operatorName, now);
     } else {
       db.prepare("DELETE FROM passkeys WHERE person_id = ?").run(operator.personId);
+      // Recovery assumes the old passkeys' holder may be someone else, who
+      // could have created keys, so every live key is revoked with them; a key
+      // that already expired keeps its own end.
+      db.prepare(
+        `UPDATE api_keys SET revoked_at = ?
+         WHERE person_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`,
+      ).run(now, operator.personId, now);
     }
     const passkeyId = insertPasskey(db, operator.personId, passkey, name, now, now);
     return {
-      session: openBrowserSession(db, operator.personId, passkeyId, now),
-      operatorName: operator.name,
+      signedIn: {
+        session: openBrowserSession(db, operator.personId, passkeyId, now),
+        operatorName: operator.name,
+      },
+      replaced,
     };
   });
+  if (replaced) {
+    store.notifier.notify(everySession);
+  }
+  return signedIn;
 }
 
 // beginAdding starts adding a passkey, named name, on the device in hand. It

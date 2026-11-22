@@ -1,0 +1,34 @@
+import { z } from "zod";
+import { queryNumber, sequence, threadNumber } from "./bounds.ts";
+import { fileRef } from "./files.ts";
+import { groupId, tagName } from "./groups-and-tags.ts";
+import { name } from "./names.ts";
+import { registrationId } from "./registrations.ts";
+
+// What the routes share: the parameters their paths carry, each read from the
+// path's text, and the answer of a change that has nothing to report.
+
+export const sessionParams = z.object({ agent: name, session: name });
+export type SessionParams = z.infer<typeof sessionParams>;
+
+export const threadParams = sessionParams.extend({ thread: queryNumber(threadNumber) });
+export type ThreadParams = z.infer<typeof threadParams>;
+
+// An upload of a session, by its reference.
+export const uploadParams = sessionParams.extend({ upload: fileRef });
+
+// A file a thread's message carries, by the name it carries the file under,
+// compared as names are.
+export const fileParams = threadParams.extend({
+  seq: queryNumber(sequence),
+  name: z.string(),
+});
+
+export const agentParams = z.object({ agent: name });
+export const registrationParams = z.object({ id: queryNumber(registrationId) });
+export const groupParams = z.object({ id: queryNumber(groupId) });
+export const tagParams = z.object({ tag: tagName });
+
+// The answer of a change that has nothing to report beyond its success.
+export const done = z.object({});
+export type Done = z.infer<typeof done>;

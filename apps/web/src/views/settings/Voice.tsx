@@ -10,11 +10,12 @@ import {
   type VoiceSettings,
   type VoiceSettingsInput,
 } from "@wayfarerlabs/agention-api";
-import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, describeFailure, request } from "../../api.ts";
-import { ConfirmButton, Failure, focusLeftWith, Status } from "../../components.tsx";
-import { useAction } from "../../data.ts";
-import { needingRecent } from "./Passkeys.tsx";
+import { ConfirmButton, Failure, focusLeftWith, Loadable, Status } from "../../components.tsx";
+import { useAction, useResource } from "../../data.ts";
+import { needingRecent, RecentSignIn, useRecentSignIn } from "./RecentSignIn.tsx";
+import type { SectionProps } from "./sections.ts";
 import { Destination, Field, KeyField, TryIt } from "./VoiceParts.tsx";
 
 // Settings' voice: the transcription provider dictation sends recordings
@@ -24,12 +25,47 @@ import { Destination, Field, KeyField, TryIt } from "./VoiceParts.tsx";
 // field the server's environment supplies shows as set there and cannot be
 // changed here. Below the fields
 // the section says where recordings go, and once voice is on, Try it records
-// and transcribes through the composer's own dictation.
+// and transcribes through the composer's own dictation. Changing voice needs
+// a recent sign-in, which the section offers up front.
 
 // The choices of provider: the presets, then the operator's own server.
 const ownServer = "own";
 
-export function Voice({
+const loadSettings = () => request<SettingsResult>("GET", "/settings");
+
+// VoiceSection is Settings' section of voice: the offer to sign in again
+// while the sign-in is not recent, then the settings, once both are known.
+export function VoiceSection({ focusHeading }: SectionProps) {
+  const settings = useResource(loadSettings);
+  const recent = useRecentSignIn();
+  const recentHint = useId();
+  const { refresh: refreshSettings } = settings;
+  const { refresh: refreshRecent } = recent;
+  const refresh = useCallback(() => {
+    refreshSettings();
+    refreshRecent();
+  }, [refreshSettings, refreshRecent]);
+  const loaded =
+    settings.data === undefined || recent.data === undefined
+      ? undefined
+      : { settings: settings.data, recent: recent.data };
+  return (
+    <>
+      <RecentSignIn
+        recent={recent.data}
+        need="Changing voice"
+        hint={recentHint}
+        refresh={refreshRecent}
+        focusHeading={focusHeading}
+      />
+      <Loadable data={loaded} failure={settings.failure ?? recent.failure} retry={refresh}>
+        {(data) => <Voice {...data} refresh={refresh} recentHint={recentHint} />}
+      </Loadable>
+    </>
+  );
+}
+
+function Voice({
   settings,
   recent,
   refresh,

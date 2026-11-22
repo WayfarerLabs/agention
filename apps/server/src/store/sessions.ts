@@ -2,6 +2,7 @@ import {
   formatTimestamp,
   maxListed,
   type PublicKey,
+  type Scope,
   type SessionLog,
   type SessionLogMark,
   type SessionLogMarkInput,
@@ -18,7 +19,7 @@ import {
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notAllowed } from "../errors.ts";
-import { authorizeAdministration, type Identity } from "../identity.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import { findOperator, sessionActorId } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
@@ -116,7 +117,9 @@ export function updateSession(
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
-    const sessionId = authorizeSession(db, identity, target, now);
+    // A registration holds threads:write over its own session, the scope its
+    // status rides on; only a registration reports one.
+    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const { credential } = identity;
     if (identity.actor !== sessionActorId(db, sessionId) || credential.kind !== "registration") {
       throw notAllowed(undefined, "only a session reports its status, and only its own");
@@ -144,14 +147,16 @@ export function updateSession(
 }
 
 // authorizeLogReader authorizes the identity for the session's log, which
-// only the operator reads and marks, and resolves the session.
+// only the operator reads and marks, with the scope the operation requires,
+// and resolves the session.
 function authorizeLogReader(
   db: Database,
   identity: Identity,
+  scope: Scope,
   target: SessionTarget,
   now: number,
 ): number {
-  const sessionId = authorizeSession(db, identity, target, now);
+  const sessionId = authorizeSession(db, identity, scope, target, now);
   if (identity.actor !== findOperator(db)?.actorId) {
     throw notAllowed(undefined, "only the operator reads a session's log");
   }
@@ -176,7 +181,7 @@ export function sessionLog(
 ): SessionLog {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeLogReader(db, identity, target, store.clock());
+    const sessionId = authorizeLogReader(db, identity, "sessions:read", target, store.clock());
     const rows = db
       .prepare(
         `SELECT seq, state, outcome, title, goal, percent, note, created_at FROM session_updates
@@ -205,7 +210,7 @@ export function readSessionLog(
 ): SessionLogMark {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeLogReader(db, identity, target, store.clock());
+    const sessionId = authorizeLogReader(db, identity, "sessions:write", target, store.clock());
     if (input.through > (latestUpdate(db, sessionId)?.seq ?? 0)) {
       throw invalidInput("through", "is beyond the session's latest update");
     }
@@ -264,7 +269,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       : decodeCursor("sessions", query.cursor, ["string"], "cursor");
   return db.transaction(() => {
     const now = store.clock();
-    authorizeAdministration(db, identity, now);
+    authorizeScope(db, identity, "sessions:read", now);
     const viewing = viewerAndCutoff(store, identity.actor, now);
     const agents = db
       .prepare(

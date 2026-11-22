@@ -1,14 +1,16 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import { AttentionProvider, useAttention } from "./attention.tsx";
 import { ErrorBoundary } from "./boundary.tsx";
-import { Failure, PageHeading, usePageTitle } from "./components.tsx";
+import { Failure, PageHeading } from "./components.tsx";
 import { plural, Spoken } from "./format.tsx";
 import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
 import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
 import { LinkPage } from "./views/LinkPage.tsx";
+import { NotFound } from "./views/NotFound.tsx";
 import { Sessions } from "./views/Sessions.tsx";
 import { Settings } from "./views/Settings.tsx";
+import { sectionBySlug } from "./views/settings/sections.ts";
 import { SignIn } from "./views/SignIn.tsx";
 import { ThreadList } from "./views/ThreadList.tsx";
 import { ThreadView } from "./views/thread/ThreadView.tsx";
@@ -25,23 +27,36 @@ export function App() {
 // Routes anyone can open; every other route needs the operator signed in.
 const isPublic = (route: Route) => route.name === "sign-in" || route.name === "link";
 
+// routeAt reads the route at a path. The router reads a section of Settings
+// by its slug alone, so a slug no section has is resolved here, to the page
+// Agention does not have, as any other unknown path is.
+function routeAt(pathname: string): Route {
+  const route = matchRoute(pathname);
+  return route.name === "settings-section" && sectionBySlug(route.section) === undefined
+    ? { name: "not-found" }
+    : route;
+}
+
 function Shell() {
   const session = useSession();
   const location = useLocation();
-  const route = matchRoute(location.pathname);
+  const route = routeAt(location.pathname);
   const state = session.status.status === "ready" ? session.status.state : undefined;
   const here = location.pathname + location.search;
 
-  // Signed out, a private route goes to sign-in, keeping where it was so
-  // signing in comes back to it; signed in, the sign-in page goes there.
+  // A page that has moved goes where it is now, signed in or not. Signed
+  // out, a private route goes to sign-in, keeping where it was so signing in
+  // comes back to it; signed in, the sign-in page goes there.
   const redirect =
-    state === undefined
-      ? undefined
-      : !state.signed_in && !isPublic(route)
-        ? `/sign-in?next=${encodeURIComponent(here)}`
-        : state.signed_in && route.name === "sign-in"
-          ? safeReturnPath(location.searchParams.get("next"))
-          : undefined;
+    route.name === "moved"
+      ? route.to + location.search
+      : state === undefined
+        ? undefined
+        : !state.signed_in && !isPublic(route)
+          ? `/sign-in?next=${encodeURIComponent(here)}`
+          : state.signed_in && route.name === "sign-in"
+            ? safeReturnPath(location.searchParams.get("next"))
+            : undefined;
   useEffect(() => {
     if (redirect !== undefined) {
       navigate(redirect, { replace: true });
@@ -91,21 +106,11 @@ function View({ route }: { route: Route }) {
       return <Sessions />;
     case "settings":
       return <Settings />;
+    case "settings-section":
+      return <Settings section={route.section} />;
     default:
       return <NotFound />;
   }
-}
-
-function NotFound() {
-  usePageTitle("Not found");
-  return (
-    <>
-      <PageHeading>Not found</PageHeading>
-      <p>
-        Agention has no page here. <Link to="/">Go to your threads.</Link>
-      </p>
-    </>
-  );
 }
 
 // The sections the navigation has a tab for: each the page its tab opens,
@@ -115,7 +120,7 @@ function NotFound() {
 const sections: { to: string; label: string; route: Route["name"]; within?: Route["name"] }[] = [
   { to: "/", label: "Threads", route: "threads", within: "thread" },
   { to: "/sessions", label: "Sessions", route: "sessions" },
-  { to: "/settings", label: "Settings", route: "settings" },
+  { to: "/settings", label: "Settings", route: "settings", within: "settings-section" },
 ];
 
 function Navigation({ route }: { route: Route }) {

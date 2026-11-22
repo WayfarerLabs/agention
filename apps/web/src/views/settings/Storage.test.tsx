@@ -6,7 +6,6 @@ let api: FakeApi;
 
 beforeEach(() => {
   api = new FakeApi();
-  api.on("GET", "/passkeys", { body: { passkeys: [], recent: true } });
 });
 
 afterEach(() => {
@@ -16,7 +15,7 @@ afterEach(() => {
 
 async function storage(count: number, bytes: number) {
   api.on("GET", "/settings", { body: { ...noSettings, storage: { count, bytes } } });
-  renderAt("/settings");
+  renderAt("/settings/storage");
   const section = await screen.findByRole("region", { name: "Storage" });
   // The line that replaces Loading once the settings arrive.
   return waitFor(() => {
@@ -26,16 +25,20 @@ async function storage(count: number, bytes: number) {
   });
 }
 
-it("says how much space attached files take, after Voice, offering nothing to change", async () => {
+it("says how much space attached files take, listed after Voice, offering nothing to change", async () => {
   const line = await storage(340, 1.2 * 1024 ** 3);
   expect(line.textContent).toContain("1.2 GiB");
   expect(line.textContent).toContain("340 files");
-  const sections = screen
-    .getAllByRole("region")
-    .map((region) => region.getAttribute("aria-labelledby"));
-  const names = sections.map((id) => document.getElementById(id ?? "")?.textContent);
-  expect(names.indexOf("Storage")).toBe(names.indexOf("Voice") + 1);
+  const links = within(screen.getByRole("navigation", { name: "Settings" }))
+    .getAllByRole("link")
+    .map((link) => link.textContent);
+  expect(links.indexOf("Storage")).toBe(links.indexOf("Voice") + 1);
   const section = screen.getByRole("region", { name: "Storage" });
   expect(within(section).queryAllByRole("button")).toEqual([]);
   expect(within(section).queryAllByRole("textbox")).toEqual([]);
+});
+
+it("says when no files are attached", async () => {
+  const line = await storage(0, 0);
+  expect(line.textContent).toBe("No files are attached yet.");
 });

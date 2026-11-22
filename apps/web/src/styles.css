@@ -839,6 +839,7 @@ button.picker[aria-expanded="true"] .icon {
 .threads,
 .registrations,
 .passkeys,
+.api-keys,
 .references,
 .messages,
 .suggestions {
@@ -2081,10 +2082,11 @@ button.older[aria-disabled="true"] {
   opacity: 0.6;
 }
 
-/* Registrations and passkeys */
+/* Registrations, passkeys and API keys */
 
 .registration,
-.passkey {
+.passkey,
+.api-key {
   margin-bottom: var(--space-4);
   padding: var(--space-4);
   border: 1px solid var(--color-border);
@@ -2092,7 +2094,8 @@ button.older[aria-disabled="true"] {
   background: var(--color-surface);
 }
 
-.passkey h3 {
+.passkey h3,
+.api-key h3 {
   margin: 0 0 var(--space-1);
   font-size: 1.0625rem;
   overflow-wrap: anywhere;
@@ -2394,14 +2397,87 @@ button.diagram-open img {
   user-select: none;
 }
 
-/* Settings */
+/* Settings: the navigation of sections and the open section. On a phone,
+   /settings shows the navigation alone, as a full-width list, and a
+   section's page shows the section alone, under the way back to the list.
+   From the layout's own breakpoint up, the navigation is a column beside
+   the open section, which /settings opens on the first. */
 
-.settings-section {
-  margin: var(--space-5) 0;
+.settings-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.settings-section:first-of-type {
+.settings-group > p {
+  margin: var(--space-4) 0 var(--space-1);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.settings-apart {
+  margin-top: var(--space-4);
+}
+
+.settings-nav a {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.settings-nav a:hover {
+  background: var(--color-surface-2);
+}
+
+.settings-section {
   margin-top: var(--space-3);
+}
+
+.settings-back {
+  margin-bottom: var(--space-3);
+}
+
+.settings.listing > .settings-section,
+.settings.listing > .settings-back,
+.settings:not(.listing) > .settings-nav {
+  display: none;
+}
+
+@media (min-width: 40rem) {
+  .settings {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  .settings.listing > .settings-section,
+  .settings:not(.listing) > .settings-nav {
+    display: block;
+  }
+
+  .settings-back {
+    display: none;
+  }
+
+  .settings-nav a {
+    border-bottom: 0;
+    border-left: 3px solid transparent;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  /* The open section's entry. A border, unlike a background, still shows
+     when the system forces its own colors. */
+  .settings-nav a[aria-current] {
+    border-left-color: var(--color-accent);
+    background: var(--color-accent-bg);
+    font-weight: 600;
+  }
 }
 
 .setting {
@@ -2437,6 +2513,15 @@ button.diagram-open img {
 
 .masked-key button {
   flex: none;
+}
+
+/* A new API key's secret, shown once to copy, whole: in the code font, so
+   each character reads unambiguously, and wrapped anywhere, having no
+   spaces. */
+textarea.secret {
+  font-family: var(--font-mono);
+  word-break: break-all;
+  resize: none;
 }
 
 .heard {

@@ -4,20 +4,22 @@ import {
   type GroupsAndTags,
   maxGroups,
   maxListed,
+  type Scope,
   type SessionGroupInput,
   type TagNameInput,
   type TagsInput,
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notFound } from "../errors.ts";
-import { authorizeAdministration, type Identity } from "../identity.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import { findAgentId, resolveSession } from "./directory.ts";
 import type { Store } from "./store.ts";
 import type { SessionTarget } from "./threads.ts";
 
 // The operator's session groups and tags. Only the operator reaches them,
-// through the administration their identity grants; to anyone else they do
-// not exist. A group is a row of its own, so it can be empty and renamed, and
+// through the sessions scopes their identity holds: sessions:read to list
+// them, sessions:write to change them; to anyone else they do not exist. A
+// group is a row of its own, so it can be empty and renamed, and
 // a session sits in at most one, which a table keyed on the session holds. A
 // tag is only a name on an agent or a session, so it exists while something
 // carries it: renaming or removing one rewrites both tables in one
@@ -28,12 +30,12 @@ function conflict(what: string): ApiError {
   return new ApiError("conflict", `another ${what} already has this name`, { field: "name" });
 }
 
-// operate runs fn in a transaction once the identity is found to be the
-// operator's.
-function operate<T>(store: Store, identity: Identity, fn: (db: Database) => T): T {
+// operate runs fn in a transaction once the identity is found to hold the
+// scope.
+function operate<T>(store: Store, identity: Identity, scope: Scope, fn: (db: Database) => T): T {
   const { db } = store;
   return db.transaction(() => {
-    authorizeAdministration(db, identity, store.clock());
+    authorizeScope(db, identity, scope, store.clock());
     return fn(db);
   });
 }
@@ -42,7 +44,7 @@ function operate<T>(store: Store, identity: Identity, fn: (db: Database) => T): 
 // it holds, and every tag carried, in name order, with how many agents and
 // sessions carry it, at most maxListed of them, saying when it leaves any out.
 export function listGroupsAndTags(store: Store, identity: Identity): GroupsAndTags {
-  return operate(store, identity, (db) => {
+  return operate(store, identity, "sessions:read", (db) => {
     const groups = db
       .prepare(
         `SELECT g.id, g.name, count(m.session_id) AS sessions
@@ -78,7 +80,7 @@ function groupNamed(db: Database, name: string): number | undefined {
 // createGroup creates an empty group, while the instance holds fewer than
 // maxGroups.
 export function createGroup(store: Store, identity: Identity, input: GroupNameInput): GroupRef {
-  return operate(store, identity, (db) => {
+  return operate(store, identity, "sessions:write", (db) => {
     if (groupNamed(db, input.name) !== undefined) {
       throw conflict("group");
     }
@@ -103,7 +105,7 @@ export function renameGroup(
   id: number,
   input: GroupNameInput,
 ): GroupRef {
-  return operate(store, identity, (db) => {
+  return operate(store, identity, "sessions:write", (db) => {
     const holder = groupNamed(db, input.name);
     if (holder !== undefined && holder !== id) {
       throw conflict("group");
@@ -121,7 +123,7 @@ export function renameGroup(
 // removeGroup removes a group, which leaves its sessions in no group: the
 // cascade takes its memberships in the same statement.
 export function removeGroup(store: Store, identity: Identity, id: number): void {
-  operate(store, identity, (db) => {
+  operate(store, identity, "sessions:write", (db) => {
     if (db.prepare("DELETE FROM session_groups WHERE id = ?").run(id).changes !== 1) {
       throw notFound("id");
     }
@@ -147,7 +149,7 @@ export function renameTag(
   tag: string,
   input: TagNameInput,
 ): void {
-  operate(store, identity, (db) => {
+  operate(store, identity, "sessions:write", (db) => {
     if (!tagCarried(db, tag)) {
       throw notFound("tag");
     }
@@ -164,7 +166,7 @@ export function renameTag(
 
 // removeTag takes a tag off everything that carries it.
 export function removeTag(store: Store, identity: Identity, tag: string): void {
-  operate(store, identity, (db) => {
+  operate(store, identity, "sessions:write", (db) => {
     const removed = ["agent_tags", "session_tags"].map(
       (table) => db.prepare(`DELETE FROM ${table} WHERE name = ?`).run(tag).changes,
     );
@@ -191,7 +193,7 @@ export function setSessionGroup(
   target: SessionTarget,
   input: SessionGroupInput,
 ): void {
-  operate(store, identity, (db) => {
+  operate(store, identity, "sessions:write", (db) => {
     const sessionId = sessionOf(db, target);
     if (input.group === null) {
       db.prepare("DELETE FROM session_group_members WHERE session_id = ?").run(sessionId);
@@ -233,7 +235,7 @@ export function setSessionTags(
   target: SessionTarget,
   input: TagsInput,
 ): void {
-  operate(store, identity, (db) => {
+  operate(store, identity, "sessions:write", (db) => {
     replaceTags(db, "session_tags", "session_id", sessionOf(db, target), input.tags);
   });
 }
@@ -246,7 +248,7 @@ export function setAgentTags(
   agent: string,
   input: TagsInput,
 ): void {
-  operate(store, identity, (db) => {
+  operate(store, identity, "sessions:write", (db) => {
     const agentId = findAgentId(db, agent);
     if (agentId === undefined) {
       throw notFound();

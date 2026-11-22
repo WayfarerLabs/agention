@@ -7,15 +7,17 @@ Date: 2026-10-25
 Accepted. [docs/architecture.md](../architecture.md) describes what exists. Until v1 is released
 this ADR is edited in place to state each decision as it stands; later decisions get ADRs of their
 own. Its "no paid services" is superseded by [ADR 0002](0002-voice-through-the-server.md): none by
-default, with voice's transcription provider one the operator may opt into. Its "never executed or
-fetched", in its trust model, and "so no content makes the browser fetch anything", in "Text is
-Markdown, rendered inert", are superseded for files by [ADR 0004](0004-attachments.md): message text
-stays inert, and files load only as attachments, under that ADR's rules. Its sessions view's tab
-counting the sessions with unread updates is superseded: a navigation badge counts only what its own
-tab lets the operator clear, so the Sessions tab counts the registrations waiting for approval and
-the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web UI" and the
-[operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row still marks its
-unread updates.
+default, with voice's transcription provider one the operator may opt into. Its "no way to ... let
+people or integrations act for them" is superseded by [ADR 0003](0003-operator-api-keys.md):
+integrations may act for the operator within the scopes of a key the operator creates. Its "never
+executed or fetched", in its trust model, and "so no content makes the browser fetch anything", in
+"Text is Markdown, rendered inert", are superseded for files by [ADR 0004](0004-attachments.md):
+message text stays inert, and files load only as attachments, under that ADR's rules. Its sessions
+view's tab counting the sessions with unread updates is superseded: a navigation badge counts only
+what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
+approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
+UI" and the [operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row
+still marks its unread updates.
 
 ## Context
 
@@ -330,8 +332,9 @@ These are deliberate limits, not gaps to fill later without a new decision:
   the bridge, over the plain HTTP API, with keys the operator approved. Serving MCP or running OAuth
   on the server would need the machinery the bridge avoids.
 - **One person, who never asks.** There is one operator, the audience of every thread, and no way to
-  share their account or to let people or integrations act for them. The operator answers and writes
-  but makes no asks, so they are never a requester.
+  share their account or to let people or integrations act for them (integrations superseded by
+  [ADR 0003](0003-operator-api-keys.md): they may act for the operator within an API key's scopes).
+  The operator answers and writes but makes no asks, so they are never a requester.
 - **One topic, one level of groups, tags by hand.** A thread has at most one topic and no other
   labels; session groups do not nest; tags are assigned, never matched to names by pattern.
 - **No agent secret on the server.** The server keeps agents' public keys and nothing an attacker

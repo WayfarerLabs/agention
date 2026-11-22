@@ -17,11 +17,16 @@ export type Route =
   | { name: "thread"; agent: string; session: string; thread: number }
   | { name: "sessions" }
   | { name: "settings" }
+  | { name: "settings-section"; section: string }
   | { name: "sign-in" }
   | { name: "link" }
+  // A page that has moved, which the shell replaces with where it is now.
+  | { name: "moved"; to: string }
   | { name: "not-found" };
 
 const threadRoute = /^\/s\/([^/]+)\/([^/]+)\/threads\/([1-9]\d{0,15})$/;
+// A section of Settings, by its slug, which the Settings view looks up.
+const settingsSectionRoute = /^\/settings\/([^/]+)$/;
 
 export function matchRoute(pathname: string): Route {
   switch (pathname) {
@@ -32,15 +37,19 @@ export function matchRoute(pathname: string): Route {
     case "/sessions":
     case "/registrations":
       return { name: "sessions" };
-    // The Settings view, which holds the passkeys that had a page of their
-    // own at /passkeys.
     case "/settings":
-    case "/passkeys":
       return { name: "settings" };
+    // The passkeys' page of old, now Settings' passkeys section.
+    case "/passkeys":
+      return { name: "moved", to: "/settings/passkeys" };
     case "/sign-in":
       return { name: "sign-in" };
     case "/link":
       return { name: "link" };
+  }
+  const [, section] = settingsSectionRoute.exec(pathname) ?? [];
+  if (section !== undefined) {
+    return { name: "settings-section", section };
   }
   const [, agent = "", session = "", thread = ""] = threadRoute.exec(pathname) ?? [];
   const number = Number(thread);

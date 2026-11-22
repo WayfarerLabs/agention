@@ -36,8 +36,11 @@ describe("routes", () => {
     // The page agents' registrations name, which shows the sessions view.
     ["/registrations", { name: "sessions" }],
     ["/settings", { name: "settings" }],
+    // A section of Settings by its slug, which the Settings view looks up.
+    ["/settings/voice", { name: "settings-section", section: "voice" }],
+    ["/settings/voice/more", { name: "not-found" }],
     // The page passkeys had before Settings held them.
-    ["/passkeys", { name: "settings" }],
+    ["/passkeys", { name: "moved", to: "/settings/passkeys" }],
     ["/sign-in", { name: "sign-in" }],
     ["/link", { name: "link" }],
     [
@@ -187,8 +190,7 @@ describe("signing in", () => {
 
   it("signs out from Settings to the sign-in page", async () => {
     api.on("POST", "/auth/signout", { body: signedOut });
-    api.on("GET", "/passkeys", { body: { passkeys: [], recent: true } });
-    renderAt("/settings");
+    renderAt("/settings/sign-out");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await screen.findByRole("heading", { name: "Sign in" });
     expect(window.location.pathname + window.location.search).toBe("/sign-in");
@@ -197,11 +199,10 @@ describe("signing in", () => {
 
   it("says when signing out failed, and stays", async () => {
     api.on("POST", "/auth/signout", failure("internal", "internal error"));
-    api.on("GET", "/passkeys", { body: { passkeys: [], recent: true } });
-    renderAt("/settings");
+    renderAt("/settings/sign-out");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await screen.findByRole("alert");
-    expect(window.location.pathname).toBe("/settings");
+    expect(window.location.pathname).toBe("/settings/sign-out");
   });
 });
 
@@ -368,7 +369,7 @@ describe("the shell", () => {
     await waitFor(() => expect(document.title).toBe("Threads · Agention"));
   });
 
-  it.each(["/", "/sessions", "/registrations", "/settings", "/passkeys"])(
+  it.each(["/", "/sessions", "/registrations", "/settings"])(
     "names %s on screen by its current tab, keeping its heading for assistive technology",
     async (path) => {
       api.on("GET", "/registrations", { body: { registrations: [] } });

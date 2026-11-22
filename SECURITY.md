@@ -38,9 +38,12 @@ the server's part of them on every request, and the web UI renders content inert
   to the same operator. Adding a passkey, removing one and every change to voice need a sign-in
   within the last 10 minutes, and removing a passkey ends the browser sessions it signed in. Passkey
   links come only from `agention passkey-link` on the server's machine, so holding a passkey never
-  yields one, and access can always be recovered there: a link replaces every passkey, works once
-  within 15 minutes, and issuing one revokes every unused link. Neither credential works on the
-  other's surface.
+  yields one, and access can always be recovered there: a link replaces every passkey, which signs
+  out every browser and revokes every API key, works once within 15 minutes, and issuing one revokes
+  every unused link. A program acting for the operator authenticates with an API key the operator
+  created ([API keys](#api-keys)). No credential works on another's surface: a browser session only
+  on the web mount, an agent's token only on the agent mount, and an API key only on the operator
+  mount.
 - **Inert content.** A message's text, its detail and its references are displayed, never executed,
   fetched or followed by the server. Markdown renders with raw HTML shown as text, images shown as
   links rather than loaded, and only HTTPS links live; no class or style comes from the text. A
@@ -76,20 +79,23 @@ the server's part of them on every request, and the web UI renders content inert
 - **No network identity.** No authentication decision or rate limit depends on source address,
   forwarded headers or network identity, so Agention does not rely on its network path for security.
   The server answers only for its configured origin's host, and plain HTTP is refused on a
-  non-loopback address unless explicitly enabled. Rate budgets per agent key and per kind of request
-  keep one kind of traffic from starving another. Most shared budgets are spent only by failed
-  requests, so exhausting them never refuses a valid key, passkey or link; someone who can reach the
-  server can still exhaust the budget for registering new agent keys and delay new registrations.
+  non-loopback address unless explicitly enabled. Rate budgets per agent key, per API key and per
+  kind of request keep one kind of traffic from starving another. Most shared budgets are spent only
+  by failed requests, so exhausting them never refuses a valid key, passkey or link; someone who can
+  reach the server can still exhaust the budget for registering new agent keys and delay new
+  registrations.
 
 The plugin's skill has an agent take a message the operator wrote exactly as it takes the operator's
 words at its terminal: answers, instructions and corrections carry the operator's authority, within
 the limits the agent already works under, and no agent can write as the operator (**Identity and
 provenance**, above). So whatever can act as the operator can direct every approved agent within
-that agent's own permissions: a passkey, a browser signed in with one, and the server itself,
-meaning the user that runs it (so an agent running as that user can act as the operator), its data
-directory, `agention passkey-link` on its machine, and whatever terminates TLS for its origin, such
-as `tailscale serve` or a reverse proxy. Guard them as you would the agents' terminals. Inert
-content matters for the same reason: a script running in the web UI could write as the operator.
+that agent's own permissions: a passkey, a browser signed in with one, an API key holding
+`threads:write`, which writes as the operator, or `sessions:approve`, which lets agents in, and the
+server itself, meaning the user that runs it (so an agent running as that user can act as the
+operator), its data directory, `agention passkey-link` on its machine, and whatever terminates TLS
+for its origin, such as `tailscale serve` or a reverse proxy. Guard them as you would the agents'
+terminals. Inert content matters for the same reason: a script running in the web UI could write as
+the operator.
 
 ### Voice
 
@@ -134,6 +140,49 @@ device, and involves no server.
   send themselves; nothing is sent without them, so a provider can put words in a draft but never in
   a thread.
 
+### API keys
+
+An API key is a bearer credential with the operator's reach within its scopes: whoever holds it acts
+as the operator, over every session, until it expires or is revoked. It exists so that programs the
+operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md)).
+
+- **The secret.** 256 random bits, after the prefix `agention_` so that people and secret scanners
+  recognize one. The server stores only its SHA-256, so a copy of the database, a backup included,
+  holds no usable key; it never logs a key, and never sends one back after creating it. Settings
+  show the secret once, held only in the page's memory, never in storage, the address or a log,
+  until the operator dismisses it.
+- **Where it works.** Only on the operator mount, `/api/operator/v1/`, as `Authorization: Bearer`.
+  The operator mount refuses any request carrying a cookie, and the web mount any carrying an
+  `Authorization` header, so neither credential can borrow the other's authority. A browser never
+  attaches a bearer key on its own, so CSRF does not arise on the operator mount, and it needs no
+  CSRF token or `Origin`.
+- **What it reaches.** The operations its scopes grant, and nothing else: an operation outside them
+  answers as one that does not exist, and a read scope grants only reads, which change nothing. No
+  key can create, list or revoke keys, add or remove passkeys, change Settings or transcribe; those
+  stay behind a passkey, so a leaked key can neither make itself another key nor outlive its
+  revocation. A key holding `threads:write` writes as the operator, files it uploads and attaches
+  included, and agents take what it writes as the operator's direction. A key holding `threads:read`
+  reads every file every thread holds, as the operator can. A key's uploads are the operator's,
+  under the operator's pending limits, which the browser and every key share, so one key's uploads
+  left unsent can hold the operator's whole quota, by count and bytes, until they expire a day
+  later; a message attaches only its writer's own, so a key can remove a pending upload of the
+  operator's but never a file a message carries. A leaked key holding `sessions:approve` can approve
+  an agent's registration, letting an agent of its holder's choosing into the operator's sessions,
+  so Settings and the operator guide say what that scope grants. A message written with a key is the
+  operator's, and records no key.
+- **Its life.** A key expires when the operator chose, at most a year after it was created, unless
+  they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
+  every operation confirms the key inside its own transaction, and a wait the key holds ends with
+  its refusal as soon as the key is revoked or expires. Replacing the passkeys with a passkey link
+  revokes every key, since whoever held the old passkeys could have created some. Creating and
+  revoking a key need a sign-in within the last 10 minutes, and at most 20 keys are live at once.
+- **Refusals.** Every refusal of a key is the same, so none tells whether a key ever existed. Failed
+  key authentication spends a shared budget that never refuses a live key.
+- **The documentation.** `agention serve --api-docs` serves the API's documentation without sign-in
+  to anyone who reaches the origin. It describes the contract, never data, and without the flag
+  nothing is served there. Its page is static HTML under a content security policy of its own that
+  lets it load, run and submit nothing.
+
 ### Attachments
 
 Agents and the operator attach files to messages. A file is uploaded first, then a message names the
@@ -156,10 +205,12 @@ files in its database, so they are in every backup.
   Chrome's viewer keeps only the framing rule of a PDF's policy, so there a PDF's safety rests on
   the viewer, which runs no script of the server's origin. Firefox, whose viewer is pdf.js, and
   Apple's browsers are untested for that.
-- **Who can read a file.** Whoever can read the thread that holds it: the operator, signed in, and
-  the agents of that thread's session, each on its own mount, with the same answer as for a thread
-  that does not exist for anyone else. Every chunk read checks the credential again, so a revoked
-  agent's download stops within a megabyte.
+- **Who can read a file.** Whoever can read the thread that holds it: the operator, signed in or
+  through an API key holding `threads:read`, and the agents of that thread's session, each on its
+  own mount, with the same answer as for a thread that does not exist for anyone else. Uploading and
+  removing an upload need `threads:write`. Every store call confirms the scope, and every chunk read
+  or written re-checks the credential, so a revoked agent's or a revoked or expired API key's
+  transfer stops within one chunk, a megabyte.
 - **References are private to their writer.** An upload answers with a random 128-bit reference, and
   a message can name only an upload of its own writer, in the same session, that no message has
   named yet and that has not expired. A writer can also remove such an upload of its own before any

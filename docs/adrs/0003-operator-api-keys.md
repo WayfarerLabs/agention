@@ -1,0 +1,77 @@
+# 3. Operator API keys, and integrations that act for the operator
+
+Date: 2026-11-21
+
+## Status
+
+Accepted. Supersedes, in [ADR 0001](0001-agention-v1-architecture.md) "Not doing", the clause of
+"One person, who never asks" that allows "no way to ... let people or integrations act for them":
+integrations may now act for the operator, within the scopes of a key the operator creates. The rest
+of that line stands: there is one operator, nobody shares their account, and the operator makes no
+asks.
+
+## Context
+
+The operator watches their agents in more than one place. A tool that already shows those agents,
+such as a terminal multiplexer for coding agents, could show which of them need the operator, and in
+time let the operator answer them there, if it could read Agention. Until now only the web UI,
+signed in with a passkey, and approved agents, each reaching only its own session, could call the
+server. A passkey cannot be held by a program, and an agent's registration reaches one session, so
+no credential fit such a tool, and no API was documented for it to build against.
+
+The web UI's API was already a JSON API whose every request and response is a schema in
+`packages/api`, so the operations a tool needs existed; what was missing was a credential, a stable
+contract, and documentation.
+
+## Decision
+
+- **API keys, created in Settings.** The operator creates a key with a name, an expiry (7, 30, 60 or
+  90 days, a date up to a year away, or none, which Settings warns against) and one or more scopes.
+  Its secret, `agention_` and 256 random bits in base64url, is shown once; the server keeps only its
+  SHA-256. Creating or revoking a key needs the recent sign-in that passkey changes need. At most 20
+  keys are live at once.
+- **Recovery revokes keys.** Replacing the operator's passkeys with `agention passkey-link` revokes
+  every live key in the same transaction, as it ends every browser session, since whoever held the
+  old passkeys may have created keys. A key that had already expired is left expired, not revoked.
+- **Scopes, `<resource>:<access>`.** `threads:read`, `threads:write`, `sessions:read`,
+  `sessions:write` and `sessions:approve`. A write or approve scope includes its resource's read,
+  and neither includes the other. Approving, rejecting or revoking an agent's registration needs
+  `sessions:approve`, a scope of its own, since it decides who may write to the operator;
+  `sessions:write` covers only groups, tags and a session log's read mark. Files are a thread's, as
+  the messages that carry them are: uploading one and removing a pending upload need
+  `threads:write`, and listing a thread's files and reading one need `threads:read`. No key may
+  manage keys, passkeys or Settings, Storage among them, or transcribe. Later resources add scopes
+  of the same form.
+- **A third mount, the same operations.** `/api/operator/v1/` accepts only a bearer key and refuses
+  cookies. It serves the operator operations the web UI uses, declared once with their schemas,
+  scope and handler, so the web mount and the operator mount run the same code. An operation whose
+  body or answer is a file's bytes, an upload or a file read, declares them as bytes, and its
+  handler reads or answers them itself. The web mount keeps its cookie credential, its CSRF and
+  `Origin` checks, its refusal of `Authorization`, and the routes no key may call.
+- **Every identity has scopes.** A browser session holds every scope, a key its own, and an agent's
+  registration `threads:write` over its own session, which is what an agent could already do. The
+  mount refuses an identity without the operation's scope before reading any input, and the store
+  confirms the scope again inside every store call, so every mount and every adapter is held to the
+  same scopes; this replaces the separate administration grant. Each chunk of a file written or read
+  re-checks the credential, so a revoked or expired key stops a transfer within one chunk.
+- **The version is in the path.** A version changes only additively; a change that would break a
+  client is a new version beside the old. `GET /api/operator` lists the versions served.
+- **Documentation generated from the declarations.** The operator and agent operations produce one
+  OpenAPI 3.1 document with zod's own JSON Schema output. `agention serve --api-docs` serves it and
+  a static page rendered from it under `/docs/api/`; without the flag nothing is served there. The
+  document is committed in the repository, and a check fails when the code's document differs from
+  it, so every contract change is reviewed as a diff.
+
+## Consequences
+
+- A key is a bearer credential with the operator's reach within its scopes. Whoever holds it acts as
+  the operator until it expires or is revoked, so a leaked `sessions:approve` key can approve an
+  agent. Keys cannot make more keys, add passkeys, or change Settings, so a leaked key cannot
+  outlive its revocation.
+- A copy of the database holds no usable key, as it holds no usable browser session.
+- The operator API is a stable contract the web UI shares: a change to an operator operation is a
+  change to every client's API, which the committed document makes visible in review.
+- Agents are unaffected: the agent mount's routes, answers and version are unchanged, and they are
+  now documented too.
+- A client waits for what is new with a long poll across every session, as agents wait on their own;
+  push to clients, keys limited to some sessions, and OAuth remain out.

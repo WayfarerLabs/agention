@@ -27,7 +27,7 @@ export {
   setSessionTags,
 } from "./groups-and-tags.ts";
 export { archiveThread, bulkArchive, bulkRead, markRead, markUnread } from "./marks.ts";
-export { SessionNotifier, type WaitOutcome } from "./notifier.ts";
+export { type Channel, everySession, SessionNotifier, type WaitOutcome } from "./notifier.ts";
 export { markSeen } from "./presence.ts";
 export {
   approveRegistration,
@@ -58,4 +58,4 @@ export {
   transcriptionConfig,
   type VoiceEnvironment,
 } from "./voice-settings.ts";
-export { waitForThreads } from "./wait.ts";
+export { waitForEverySession, waitForThreads } from "./wait.ts";

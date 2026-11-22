@@ -148,23 +148,38 @@ describe("the listener's deadlines, on a fake clock", () => {
     expect(deadlines.tracking).toBe(0);
   });
 
-  it("let an upload trickling a byte a second finish long past 30 seconds", async () => {
-    const size = 45;
-    const connection = open(
-      port,
-      await agentHead("/s/builder/main/uploads?name=slow.txt", size, "text/plain"),
-    );
-    for (let sent = 0; sent < size; sent++) {
-      const before = connection.socket.bytesWritten;
-      connection.socket.write("x");
-      await until(() => connection.socket.bytesWritten > before, "the byte to go");
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      advance(1000);
+  // The head of an upload of size bytes, on the agent mount or, with an API
+  // key, the operator mount.
+  const uploadHead = async (mount: "agent" | "operator", size: number) => {
+    const path = "/s/builder/main/uploads?name=slow.txt";
+    if (mount === "agent") {
+      return agentHead(path, size, "text/plain");
     }
-    await until(() => connection.received().includes("\r\n\r\n{"), "the answer");
-    expect(headersOf(connection.received()).status).toBe(200);
-    expect(count("files")).toBe(1);
-  });
+    const { secret } = await harness.createKey(["threads:write"]);
+    return headOf("POST", `/api/operator/v1${path}`, {
+      authorization: `Bearer ${secret}`,
+      "content-type": "text/plain",
+      "content-length": String(size),
+    });
+  };
+
+  it.each(["agent", "operator"] as const)(
+    "let an upload on the %s mount trickling a byte a second finish long past 30 seconds",
+    async (mount) => {
+      const size = 45;
+      const connection = open(port, await uploadHead(mount, size));
+      for (let sent = 0; sent < size; sent++) {
+        const before = connection.socket.bytesWritten;
+        connection.socket.write("x");
+        await until(() => connection.socket.bytesWritten > before, "the byte to go");
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        advance(1000);
+      }
+      await until(() => connection.received().includes("\r\n\r\n{"), "the answer");
+      expect(headersOf(connection.received()).status).toBe(200);
+      expect(count("files")).toBe(1);
+    },
+  );
 
   it("cut any other request still arriving 30 seconds after its headers, however it trickles", async () => {
     await harness.agent(agent, "POST", "/s/builder/main/threads", newThread("r-1"));

@@ -57,6 +57,15 @@ export function unapprovedKey(status: string | undefined): string {
     : `the key's registration is ${status}, not approved`;
 }
 
+// apiKeyUnauthenticated refuses an API key, whatever is wrong with it: missing,
+// malformed, unknown, revoked or expired. It never says which, so the refusal
+// tells no one whether a key ever existed.
+export function apiKeyUnauthenticated(): ApiError {
+  return unauthenticated(
+    "the API key is not valid: check it, or create a new one in Agention's Settings",
+  );
+}
+
 // agentUnauthenticated refuses an agent's credential, telling the agent to
 // call register, which reports what the operator still has to do.
 export function agentUnauthenticated(reason: string): ApiError {

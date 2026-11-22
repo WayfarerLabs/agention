@@ -13,7 +13,8 @@ To set up an instance:
 4. [Register your first passkey](#signing-in) and sign in.
 5. [Install the plugins](#installing-the-plugins) where your agents run, and
    [approve each agent](#approving-agents) as it registers.
-6. If you like, [set up voice](#voice), to dictate your replies.
+6. If you like, [set up voice](#voice), to dictate your replies, and [create API keys](#api-keys)
+   for programs of yours that read or answer Agention as you.
 
 ## Commands
 
@@ -76,10 +77,10 @@ Each device you sign in from, your phone included, and each machine where your a
 the origin. An agent's machine that can't connect to it can be reached through a tunnel from the
 server's machine instead, as
 [Reaching the server through a tunnel](#reaching-the-server-through-a-tunnel) describes. Anything
-else that reaches the origin reaches the sign-in page and the agents' API as well: passkeys and
-approved keys keep it from acting, but it can still delay new agent registrations, as
-[SECURITY.md](../SECURITY.md#security-model) says. A private network, such as a VPN or a tailnet,
-keeps the server to your own devices.
+else that reaches the origin reaches the sign-in page, the agents' API and the operator API as well:
+passkeys, approved agent keys and API keys keep it from acting, but it can still delay new agent
+registrations, as [SECURITY.md](../SECURITY.md#security-model) says. A private network, such as a
+VPN or a tailnet, keeps the server to your own devices.
 
 ### Publishing it with `tailscale serve`
 
@@ -113,16 +114,17 @@ rules allow. Tailscale Funnel would publish it to the whole internet; Agention d
 agention serve --data ~/.local/share/agention --origin https://agention.example.com --name Work
 ```
 
-| Option               | Meaning                                                                      |
-| -------------------- | ---------------------------------------------------------------------------- |
-| `--data DIR`         | The data directory, which holds the database, `agention.db`; required        |
-| `--origin URL`       | The HTTPS origin people and agents reach the server at; required             |
-| `--listen ADDR`      | The IP address and port to listen on, by default `127.0.0.1:8080`            |
-| `--tls-cert FILE`    | The TLS certificate chain, in PEM, for the server to terminate TLS itself    |
-| `--tls-key FILE`     | The certificate's private key, in PEM; give both TLS options or neither      |
-| `--allow-plain-http` | Allow plain HTTP on an address other than loopback                           |
-| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session not seen is quiet; 15 by default |
-| `--name NAME`        | The server's name, 1 to 40 characters on one line, set by its first start    |
+| Option               | Meaning                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `--data DIR`         | The data directory, which holds the database, `agention.db`; required                                                |
+| `--origin URL`       | The HTTPS origin people and agents reach the server at; required                                                     |
+| `--listen ADDR`      | The IP address and port to listen on, by default `127.0.0.1:8080`                                                    |
+| `--tls-cert FILE`    | The TLS certificate chain, in PEM, for the server to terminate TLS itself                                            |
+| `--tls-key FILE`     | The certificate's private key, in PEM; give both TLS options or neither                                              |
+| `--allow-plain-http` | Allow plain HTTP on an address other than loopback                                                                   |
+| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session not seen is quiet; 15 by default                                         |
+| `--name NAME`        | The server's name, 1 to 40 characters on one line, set by its first start                                            |
+| `--api-docs`         | Serve the API's documentation, without sign-in, at `/docs/api/` and its OpenAPI document at `/docs/api/openapi.json` |
 
 The first start that serves sets the server's name for good, `Agention` unless `--name` gives
 another, and stores it with its data; a start that fails before it serves, on a port already in use
@@ -140,8 +142,10 @@ same database would remove them as abandoned.
 
 `--listen` takes an IP address, not a name, with an IPv6 address in brackets: `[::1]:8080`.
 [Giving it an HTTPS origin](#giving-it-an-https-origin) says what the origin is, and when to use
-`--listen`, `--tls-cert`, `--tls-key` and `--allow-plain-http`. The server also reads three
-environment variables, each optional, which supply voice's settings: [Voice](#voice) says how.
+`--listen`, `--tls-cert`, `--tls-key` and `--allow-plain-http`. `--api-docs` is for writing a
+program against the operator API, as [Using the operator API](#using-the-operator-api) describes;
+without it, nothing is served under `/docs/api/`. The server also reads three environment variables,
+each optional, which supply voice's settings: [Voice](#voice) says how.
 
 An agent session is seen each time it calls the server, kept to the minute. One not seen within
 `--quiet-minutes` and the minute that may take to show, or never, is quiet: it has stopped, or is
@@ -319,17 +323,19 @@ cross-device sign-in (it shows a QR code that your phone, holding the passkey, s
 device's own passkey in its Settings. A device that cannot is added by `agention passkey-link`,
 below, which replaces every passkey. You rename a passkey at any time, and remove any but your last;
 removing one signs out every browser it signed in. Adding a passkey and removing one need a sign-in
-within the last 10 minutes, and Settings offer to sign in again, above everything else, while yours
-is older.
+within the last 10 minutes, and the Passkeys, API keys and Voice sections of Settings offer to sign
+in again while yours is older.
 
 To replace your passkeys, after losing your devices for example, run `agention passkey-link` again.
-Using the new link replaces all your passkeys with the one it registers and signs out every browser.
+Using the new link replaces all your passkeys with the one it registers, signs out every browser and
+revokes every API key, since whoever held the old passkeys could have created keys; create again the
+ones your programs still need ([API keys](#api-keys)).
 
 Passkeys must verify you, with a PIN or biometric, and be stored by the authenticator, so signing in
 asks for no name: open the origin and choose **Sign in with a passkey**. A browser session lasts 30
-days, and ends sooner after seven days without use or when you sign out, with **Sign out** at the
-foot of **Settings**. When it ends, the next page you open, or the one you have open, returns to
-sign-in and comes back to that page afterwards.
+days, and ends sooner after seven days without use or when you sign out, with **Sign out** in
+**Settings**. When it ends, the next page you open, or the one you have open, returns to sign-in and
+comes back to that page afterwards.
 
 ## Using the web UI
 
@@ -661,11 +667,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
 
-- **Settings** holds, in order, your **Passkeys**, as [Signing in](#signing-in) describes,
-  **Voice**, as [Voice](#voice) describes, **Storage**, as [Attachments](#attachments) describes,
-  and **Sign out**, which signs this browser out and leaves your others signed in. `/passkeys` opens
-  it too. While your sign-in is too old for a change to passkeys or voice, **Sign in again** comes
-  first.
+- **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
+  **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
+  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Voice**
+  (`/settings/voice`), as [Voice](#voice) describes, and **Storage** (`/settings/storage`), as
+  [Attachments](#attachments) describes; and **Sign out** (`/settings/sign-out`), which signs this
+  browser out and leaves your others signed in. On a wide screen the sections are listed beside the
+  one open; on a phone Settings opens on the list, and each section has a link back to it.
+  `/passkeys` leads to Passkeys. While your sign-in is too old for a change to passkeys, API keys or
+  voice, those sections offer **Sign in again** first.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image written in Markdown shows as a link and never loads, unlike
@@ -843,13 +853,15 @@ carries its files to the new version unless you remove them, and the earlier ver
   sign-in, so play it in the page or download it.
 - **The thread's files.** **Files** in the thread's head, folded on every visit, lists every file
   the thread holds, newest first, each with who attached it, when, and a link to its message.
-- **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, and each agent
-  session, can hold at most 20 files, and 1 GiB, uploaded and not yet sent; a file you remove before
-  sending stops counting at once, unless you remove it the instant its last bytes leave or the
-  connection fails as you remove it, when it counts until it is removed a day later. The server
-  refuses an upload, saying its disk is too full, unless the disk holding its data directory keeps 1
-  GiB free beyond the files arriving. An upload has no time limit as long as its bytes keep moving,
-  but stops after 30 seconds without any, so a slow link finishes and a dead one fails.
+- **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, with whatever your
+  API keys upload, and each agent session, can hold at most 20 files, and 1 GiB, uploaded and not
+  yet sent, so a program of yours that uploads files and never sends them can use up your share
+  until they expire a day later; a file you remove before sending stops counting at once, unless you
+  remove it the instant its last bytes leave or the connection fails as you remove it, when it
+  counts until it is removed a day later. The server refuses an upload, saying its disk is too full,
+  unless the disk holding its data directory keeps 1 GiB free beyond the files arriving. An upload
+  has no time limit as long as its bytes keep moving, but stops after 30 seconds without any, so a
+  slow link finishes and a dead one fails.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.
@@ -861,6 +873,116 @@ carries its files to the new version unless you remove them, and the earlier ver
 
 Agents attach and fetch files with the bridge's `file_upload` and `file_get` tools, as
 [Agents](#agents) describes.
+
+## API keys
+
+An API key lets a program you run, such as a tool that already shows your agents, call Agention's
+operator API as you, within the scopes you give it. You create and revoke keys in **Settings**,
+under **API keys**. **Create an API key** asks for:
+
+- **Name**: up to 50 characters on one line, such as the program that will hold the key.
+- **Scopes**: what the key may do, as you, at least one of them:
+
+  | Scope              | What it grants                                                                                                                                                                                        |
+  | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                       |
+  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk             |
+  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                             |
+  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming and removing groups, renaming and removing tags, and setting a session's group and an agent's or a session's tags |
+  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations                                                                                                                                          |
+
+  A write or approve scope includes its resource's read, so choosing `threads:write` chooses
+  `threads:read` with it; `sessions:write` and `sessions:approve` include neither the other.
+  `sessions:approve` lets whoever holds the key let an agent into your sessions, where it writes to
+  you as any agent does, so give it only to a program that decides registrations for you. Whatever
+  its scopes, no key can manage keys, passkeys or Settings, Storage among them, or dictate: those
+  need your passkey.
+
+- **Expiry**: 7, 30 (the default), 60 or 90 days; a date you choose, up to a year away, through
+  whose end the key works; or no expiry. A key without an expiry works until you revoke it, so if it
+  leaks, whoever holds it can act as you, within its scopes, until you notice: Settings warn when
+  you choose it, and the list marks such a key **No expiry**. Choose an expiry unless the program
+  truly needs a key that lasts.
+
+**Create key** then shows the key, `agention_` and 43 more letters, digits, `-` and `_`, once:
+**Copy** copies it, or selects it where the browser will not copy, and **Done** puts it away. The
+server keeps only a hash of the key, so Agention can never show it again: keep it as you would a
+password, in your password manager or the program's own secret store, and if you lose it, revoke it
+and create another.
+
+The list shows each key's name and scopes, when it was created, when it expires and when it was last
+used, to within an hour. **Revoke**, which asks first, ends a key at once: the program's next
+request is refused, and so is a wait it holds. Replacing your passkeys with `agention passkey-link`
+revokes every key ([Signing in](#signing-in)). A revoked or expired key stays listed, marked so,
+until you next create or revoke a key. Creating and revoking a key need a sign-in within the last 10
+minutes, and the section offers **Sign in again** while yours is older. You can hold up to 20 keys
+that are neither revoked nor expired.
+
+### Using the operator API
+
+The operator API is at your origin under `/api/operator/v1/`. Every request carries an API key as a
+bearer token, `Authorization: Bearer agention_...`, and no cookie, since a request carrying one is
+refused. A key that is mistyped, revoked or expired is refused as `unauthenticated`, status 401, and
+an operation outside the key's scopes answers `not_found`, status 404, as if it did not exist.
+`GET /api/operator` lists the versions the server serves. A version changes only by additions, so a
+program written against version 1 keeps working while the server serves it, as long as it ignores
+fields it does not know.
+
+To see every operation, with its scope, parameters and answer, start the server with `--api-docs`:
+it then serves the documentation at `/docs/api/`, and the OpenAPI document that client generators
+read at `/docs/api/openapi.json`, both without sign-in, so anyone who reaches the origin can read
+them; they describe the API, never your data. The same document is in Agention's repository, at
+`docs/api/openapi.json`.
+
+For example, in bash, with your origin in `origin` and a key holding `sessions:read` and
+`threads:read` read into `key` from a file only you can read, so it stays out of your shell's
+history:
+
+```bash
+origin=https://agention.example.com
+key="$(cat ~/.config/my-tool/agention-key)"
+auth() { printf 'Authorization: Bearer %s\n' "$key"; }
+curl -sS -H @<(auth) "$origin/api/operator/v1/sessions"
+curl -sS -H @<(auth) "$origin/api/operator/v1/wait?wait=25"
+```
+
+`-H @<(auth)` has curl read the header from a file that bash's own `printf` writes, so the key is
+never among a command's arguments, which anyone on the machine can read in its process list for as
+long as the command runs.
+
+The first lists your agents with their sessions. The second answers at once with the threads, in any
+session, holding messages you have not read, each naming its agent and session; with none, it waits
+up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
+`wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
+waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
+a rate budget of its own ([Rate budgets](#rate-budgets)).
+
+Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
+uploads a file to a session, then names the upload in a message, and a key holding `threads:read`
+lists a thread's files and reads them. An upload is yours, as the key's messages are, so it counts
+against your own pending uploads, and you can name it in a message from the web UI too. Continuing
+the example, with a key holding `threads:write`:
+
+```bash
+s="$origin/api/operator/v1/s/builder/main"
+curl -sS -H @<(auth) -H 'Content-Type: text/plain' --data-binary @build.log \
+  "$s/uploads?name=build.log"
+curl -sS -H @<(auth) -H 'Content-Type: application/json' \
+  -d '{"request_id":"log-1","seen_through":4,"attachments":[{"upload":"<upload>"}]}' \
+  "$s/threads/12/messages"
+curl -sS -H @<(auth) "$s/threads/12/files"
+curl -sS -H @<(auth) -o fetched.log "$s/threads/12/messages/5/files/build.log"
+curl -sS -H @<(auth) -H 'Range: bytes=-4096' "$s/threads/12/messages/5/files/build.log"
+```
+
+The first uploads `build.log`, its bytes as they are, declaring its type in `Content-Type`, and
+answers with its reference, `upload`, which the second names in a message to thread 12 of
+`builder/main`, with `seen_through` the latest message you have seen there. Until a message names
+it, `POST $s/uploads/<upload>/remove` removes it; once a message carries a file it stays with that
+message for good, and removing it is refused. The third lists the thread's files, each with the
+message that carries it, and the fourth reads one by that message and its name there, here message
+5, into `fetched.log`. The last reads only its final 4 KiB, answered `206`; the server answers one
+range as asked, a range outside the file `416`, and any other `Range` with the whole file.
 
 ## Agents
 
@@ -1129,14 +1251,16 @@ answered `rate_limited` with a `Retry-After` header.
 | Agent requests that fail authentication                | Shared      | 60    | 1 per second       |
 | Passkey sign-ins that fail                             | Shared      | 20    | 1 every 6 seconds  |
 | Passkey links that fail, at the link or at the passkey | Shared      | 20    | 1 every 6 seconds  |
+| Operator API requests with a live API key              | One per key | 60    | 1 per second       |
+| Operator API requests that fail authentication         | Shared      | 60    | 1 per second       |
 
 A key's budget counts every request its session makes, each upload, each file fetched and each read
 a tool makes on the way included: a message of ten files is at least eleven requests.
 
 The shared budgets other than registrations are spent only by requests that fail, after they have
-been checked, so exhausting one never refuses a valid agent key, passkey or link; only further
-failures are refused. Starting a sign-in or a link costs nothing. Someone who can reach the server
-can still exhaust the registration budget and delay registering new agents; agents already
+been checked, so exhausting one never refuses a valid agent key, API key, passkey or link; only
+further failures are refused. Starting a sign-in or a link costs nothing. Someone who can reach the
+server can still exhaust the registration budget and delay registering new agents; agents already
 registered are not affected.
 
 ## Upgrading

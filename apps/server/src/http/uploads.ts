@@ -1,9 +1,9 @@
-import { declaredTypeOf, uploadQuery } from "@wayfarerlabs/agention-api";
-import type { Context } from "hono";
+import { declaredTypeOf, type UploadResult } from "@wayfarerlabs/agention-api";
 import { createHash } from "node:crypto";
 import { statfs } from "node:fs/promises";
 import path from "node:path";
 import { ApiError, invalidInput } from "../errors.ts";
+import type { Identity } from "../identity.ts";
 import {
   abortUpload,
   beginUpload,
@@ -11,12 +11,12 @@ import {
   chunkBytes,
   completeUpload,
   type Store,
+  type SessionTarget,
   writeChunk,
 } from "../store/index.ts";
-import { parseQuery, sessionTarget } from "./input.ts";
-import type { IdentityEnv } from "./thread-routes.ts";
+import type { BytesBody } from "./operations.ts";
 
-// Uploads: POST /s/:agent/:session/uploads?name=, on both mounts, whose body
+// Uploads: POST /s/:agent/:session/uploads?name=, on every mount, whose body
 // is the file's bytes, with its length and declared type. The bytes are
 // stored a chunk at a time as they arrive; a failure at any point after the
 // upload begins removes what arrived.
@@ -25,7 +25,9 @@ import type { IdentityEnv } from "./thread-routes.ts";
 // arriving, for the database and its log.
 export const freeSpaceFloor = 1024 ** 3;
 
-const uploadPath = /^\/api\/(agent|web)\/s\/[^/?#]+\/[^/?#]+\/uploads$/;
+// The path of an upload on each mount: the agent's, the web UI's and each
+// version of the operator API's.
+const uploadPath = /^\/api\/(agent|web|operator\/v\d+)\/s\/[^/?#]+\/[^/?#]+\/uploads$/;
 
 // isUploadRequest says whether a request is an upload, from its method and
 // its URL as the adapter hands it to Hono, by the path Hono routes: dot
@@ -42,25 +44,34 @@ async function freeBytes(directory: string): Promise<number> {
   return stats.bavail * stats.bsize;
 }
 
-export interface UploadOptions {
+// The body an upload declares: the file's bytes.
+export const uploadBytes: BytesBody = {
+  bytes: "body",
+  description:
+    "The file's bytes, exactly as they are, with a Content-Length, which is required. " +
+    "Content-Type declares the file's type, any type at all: its essence, lowercased, is " +
+    "stored, and without one, or with one that is not a type, the file is " +
+    "application/octet-stream. The upload's answer gives the type it is served as.",
+};
+
+export interface UploadRequest {
   store: Store;
+  identity: Identity;
+  target: SessionTarget;
+  // The name the file is attached under unless a message names another.
+  name: string;
+  request: Request;
   log: (message: string) => void;
 }
 
-// receiveUpload takes an upload: its name, then the free-space floor, which
-// counts every writer's uploads still arriving, then the upload's limits as
-// it begins, then its bytes, a chunk at a time, and its completion. Its
-// length is its Content-Length, which the app requires and bounds before
-// authentication.
-export async function receiveUpload(
-  c: Context<IdentityEnv>,
-  options: UploadOptions,
-): Promise<Response> {
-  const { store } = options;
-  const target = sessionTarget(c);
-  const { name } = parseQuery(c, uploadQuery);
-  const size = Number(c.req.header("content-length") ?? "0");
-  const type = declaredTypeOf(c.req.header("content-type"));
+// receiveUpload takes an upload: the free-space floor, which counts every
+// writer's uploads still arriving, then the upload's limits as it begins,
+// then its bytes, a chunk at a time, and its completion. Its length is its
+// Content-Length, which the app requires and bounds before authentication.
+export async function receiveUpload(upload: UploadRequest): Promise<UploadResult> {
+  const { store, identity, target, name, request } = upload;
+  const size = Number(request.headers.get("content-length") ?? "0");
+  const type = declaredTypeOf(request.headers.get("content-type") ?? undefined);
   const free = await freeBytes(path.dirname(store.db.file));
   if (free - bytesArriving(store) - size < freeSpaceFloor) {
     throw new ApiError(
@@ -68,14 +79,14 @@ export async function receiveUpload(
       "the server's disk is too full to take this file until space is freed on it",
     );
   }
-  const upload = beginUpload(store, c.var.identity, target, { name, type, size });
+  const begun = beginUpload(store, identity, target, { name, type, size });
   try {
     const hash = createHash("sha256");
     const chunk = new Uint8Array(Math.min(chunkBytes, size));
     let filled = 0;
     let index = 0;
     let received = 0;
-    const reader = c.req.raw.body?.getReader();
+    const reader = request.body?.getReader();
     for (;;) {
       const next = await readBody(reader);
       if (next === undefined) {
@@ -92,17 +103,17 @@ export async function receiveUpload(
         filled += taken;
         at += taken;
         if (filled === chunkBytes) {
-          writeChunk(store, upload, index++, chunk);
+          writeChunk(store, begun, index++, chunk);
           filled = 0;
         }
       }
     }
     if (filled > 0) {
-      writeChunk(store, upload, index++, chunk.subarray(0, filled));
+      writeChunk(store, begun, index++, chunk.subarray(0, filled));
     }
-    return c.json(completeUpload(store, upload, received, hash.digest()));
+    return completeUpload(store, begun, received, hash.digest());
   } catch (error) {
-    abortUpload(store, upload, options.log);
+    abortUpload(store, begun, upload.log);
     throw error;
   }
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { defaultRates, RateBudgets, TokenBucket } from "./rates.ts";
+import { defaultRates, KeyedBudgets, RateBudgets, TokenBucket } from "./rates.ts";
 import { type AgentKey, codeOf, Harness, newAgentKey, type Response } from "./test-harness.ts";
 
 describe("TokenBucket", () => {
@@ -13,6 +13,24 @@ describe("TokenBucket", () => {
       0, 0, 0,
     ]);
     expect(bucket.take(1_000_000)).toBe(1000);
+  });
+});
+
+describe("KeyedBudgets", () => {
+  it("holds a bucket only for keys that spent until it refilled", () => {
+    const rate = { burst: 2, interval: 1000 };
+    const budgets = new KeyedBudgets<number>(rate);
+    for (let id = 1; id <= 100; id++) {
+      budgets.spend(id, 0);
+    }
+    expect(budgets.size).toBe(100);
+    budgets.spend(1, 0);
+    expect(() => budgets.spend(1, 0)).toThrow(expect.objectContaining({ code: "rate_limited" }));
+    // Every bucket but key 1's has refilled after one interval; key 1's, emptied, needs two.
+    budgets.spend(101, 1000);
+    expect(budgets.size).toBe(2);
+    expect(() => budgets.spend(1, 1000)).not.toThrow();
+    expect(() => budgets.spend(1, 1000)).toThrow(expect.objectContaining({ code: "rate_limited" }));
   });
 });
 

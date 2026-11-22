@@ -83,13 +83,13 @@ export function serveDiagramFrame(app: Hono, root: string | undefined, origin: s
   app.get(diagramFramePath, (c) => {
     c.header("Content-Security-Policy", policy);
     c.header("X-Frame-Options", "SAMEORIGIN");
-    ownHeaders(c, ["content-security-policy", "x-frame-options"]);
+    ownHeaders(c.req.raw, ["content-security-policy", "x-frame-options"]);
     return c.html(page);
   });
   app.get(`/${script}`, (c) => {
     c.header("Content-Type", "text/javascript; charset=utf-8");
     c.header("Cache-Control", scriptCaching);
-    ownHeaders(c, ["cache-control"]);
+    ownHeaders(c.req.raw, ["cache-control"]);
     return c.body(content);
   });
 }

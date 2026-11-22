@@ -334,6 +334,17 @@ describe("agention serve and passkey-link", () => {
     expect(storedNameOf()).toBe(named);
   });
 
+  it.each([
+    ["with --api-docs", ["--api-docs"], 200],
+    ["without --api-docs", [], 404],
+  ])("serves the API's documentation only %s", async (_, flags, status) => {
+    const stop = new AbortController();
+    const { running, port } = await serving(stop.signal, ...flags);
+    expect((await getJson(port, "/docs/api/openapi.json")).status).toBe(status);
+    stop.abort();
+    expect(await running).toBe(0);
+  });
+
   // start serves with the flags given until it is listening, then stops.
   async function start(...flags: string[]) {
     const stop = new AbortController();

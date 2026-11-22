@@ -5,16 +5,16 @@ considered, are recorded in [ADR 0001](adrs/0001-agention-v1-architecture.md).
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, and the error codes.                                                              |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes. |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                        |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent and passkey authentication, over the database, identity and store; `backup` copies the database.                             |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                         |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                     |
-| `scripts/`               | The checks CI runs, file linting, and plugin generation.                                                                                                                               |
+| Component                | State                                                                                                                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
+| `scripts/`               | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                  |
 
 ## Source and packages
 
@@ -53,7 +53,8 @@ server is also started on loopback, and must serve the web UI its package ships 
 `packages/api` defines, as zod schemas, the requests and responses of every route, and exports the
 inferred types the server, the bridge and the web UI share:
 
-- starting a thread, sending a message, reading a thread, a session's thread list and the long poll;
+- starting a thread, sending a message, reading a thread, a session's thread list and its long poll,
+  and the operator's wait across sessions;
 - read, unread and archive marks; the operator's thread list with its total and, grouped, its
   groups' roll-ups; the counts of what each filter value keeps; and bulk read and archive;
 - registration submit and state, the registrations list and approval;
@@ -73,6 +74,9 @@ inferred types the server, the bridge and the web UI share:
   thread's file list and file totals, and the types: the type an upload declares (`declaredTypeOf`),
   the type a name's extension suggests (`typeOfName`), and the type a file is served as and its
   disposition (`servedTypeOf`, `dispositionOf`), which the server serves by and the web UI shows by;
+- the scopes, `<resource>:<access>`, and which each includes (`holdsScope`); an API key's secret,
+  name, scopes and expiry, the key list, a new key with its secret, a revoked key, and the bound of
+  20 keys; and the operator API's versions;
 - the claims of an agent's token, and the error shape.
 
 The schemas are the bounds: text lengths count Unicode code points, required text needs a character
@@ -92,6 +96,19 @@ field at fault as a dotted path.
 The registration code, which the bridge and the server both derive from a session key, has its own
 entry point, `@wayfarerlabs/agention-api/registration-code`, because it uses `node:crypto` and must
 stay out of the web bundle. It takes a key the `publicKey` schema has accepted.
+
+The schemas' JSON Schema, for the API's documentation, has its own entry point too,
+`@wayfarerlabs/agention-api/json-schemas`, which only the server imports, so the web bundle never
+carries it. `JsonSchemas` describes a schema in one direction, what a client sends or what the
+server answers, with zod's own `z.toJSONSchema`, which carries each field's description. The named
+schemas it lists, such as `Message` and `ThreadSummary`, are described once each, as components that
+every description holding one references by `$ref`: each component is the body zod gives the named
+schema under the `$defs` of a description that holds it, and the descriptions name it by its plain
+id. A schema reads the same both ways unless it has defaults or reads text into values, or holds one
+that does, so such a named schema is described in one direction only, as `Ask` is only sent and
+`AskRead` only answered; a component its descriptions would give two bodies, or a cycle no named
+schema breaks, throws. An answer's description never forbids properties it does not list, since a
+version may add response fields.
 
 `canonicalOrigin` reads the HTTPS origin a person configures, the server's `--origin` and the
 bridge's `AGENTION_URL` alike, into its one spelling, and refuses anything that is not exactly an
@@ -190,11 +207,25 @@ URL and model in effect when it was saved, the environment's included, so the ro
 address its key was entered for, an optional prompt, and an optional key. Turning voice off deletes
 the row. Which provider it means is worked out from its base URL, never stored apart from it.
 
+`api_keys` holds the operator's API keys: each one's name, its scopes as a JSON array, the SHA-256
+of its secret, which is unique, and when it was created, when it expires (null for a key without an
+expiry, and otherwise after its creation), when it was last used, kept to the hour, and when it was
+revoked. A revoked or expired key keeps its row, so the operator's list can show it, until the
+operator next creates or revokes a key. Ids never repeat, so an id names one key for good.
+
+`message_positions` gives every message a position among all messages, in the order they are
+written, which the operator's wait across sessions counts from. A message has no stable integer key
+of its own: it is keyed by its thread and sequence, and its table's rowid is no column's alias, so
+`VACUUM` may renumber it. A position is an `INTEGER PRIMARY KEY AUTOINCREMENT`, which keeps its
+value and is never reused, so positions never go backwards. A trigger gives each message its
+position as it is written, triggers refuse every update and delete of a position, and the migration
+that added the table numbered the messages already written in the order they were stored.
+
 A test freezes the text of every migration a release has shipped, by its SHA-256, so a schema change
 is always a new migration. Others open a database the first migration alone wrote, and those the
-first two and the first three wrote, under every later one: the tables they had keep their rows, the
-new ones start empty, and a message written before the full-text index of messages existed is found
-by it.
+first two, three and four wrote, under every later one: the tables they had keep their rows, the new
+ones start empty but for the positions of the messages written before, in the order they were
+written, and a message written before the full-text index of messages existed is found by it.
 
 `agention backup` (`apps/server/src/database/backup.ts`) copies the database without the `Database`
 class, so it never migrates it: it checks the database file as opening does, refusing a missing one,
@@ -212,43 +243,53 @@ created.
 ## Store
 
 Every operation (`apps/server/src/store/`) takes the caller's identity, the target the request
-names, and input its schema has already parsed. Inside the operation's transaction, `authorize`
-confirms the credential is still live (the registration approved, the browser session unexpired) and
-that it grants the target session; an unknown session and someone else's both fail as `not_found`. A
-write then checks, in order, request-id replay, roles (only the requester asks, withdraws asks or
-sets a topic, only the audience answers), staleness, and the rules that depend on the thread's
-messages: a replacement names a live message of the writer's own; each answer names an open ask and
-fits it, and a message answers an ask at most once; a replacement answers again every ask the
-message it replaces answered that is still live, and none its requester since revised or retracted,
-an answer to such an ask going with the replaced message, and may answer open asks besides; each
-withdrawal names an open ask, the replaced message's own included, and a message withdraws an ask at
-most once; a replacement withdraws again every ask the message it replaces withdrew, with the same
-reason or a new one, whether or not the ask's own message is still live, so a withdrawal is never
-undone; a replacement of a message holding open asks asks each again or withdraws it by name, its
-asks and its withdrawals of those asks numbering at least as many as it holds open, since a
-replacement's asks are numbered anew and the count is what can be checked; and a thread reference
-names a thread in the same session. Refusals name asks by their numbers. An answer is a decline, or
-distinct picks among the ask's suggested answers and the answerer's own words, at least one of them:
-an ask without suggested answers takes own words alone, and one that allows a single answer takes
-one pick or own words, never both. The own words are the answer's, plain text apart from the
-message's Markdown text and detail, which are any additional information. It appends the message
-with its asks and answers and raises the writer's read mark through it in the same transaction,
-where a writer for whom the thread is archived keeps it archived, its archive mark moving to its own
-message. A later message carries some part unless it replaces another, a rule the request's schema
-holds, since no constraint on a message's row sees the rows of its own; a thread's first message may
-carry nothing, since its title speaks for it, and a replacement carrying nothing retracts the
-message it replaces, which the rules above allow only while that message holds no open ask. A
-replacement is a whole message: what it leaves out, its detail included, is gone with the message it
-replaces. A write answers with the thread number and the message's sequence, and a retry of the same
-request id gets that same answer, while a retry with any part changed, its detail included, is a
-request-id conflict. A stale write appends nothing, so its retry may reuse the id. Everything a
-thread shows beyond its title, roles and latest sequence, such as its topic, open asks, status,
-unread count and count of live messages, is derived in queries over the two views, never stored. A
-thread's status rolls up the asks on its live messages and those a live message withdraws, so an ask
-its own message's replacement withdrew counts and a revised ask does not: `open` while any is open;
-otherwise `withdrawn` when every one is withdrawn, with the latest such withdrawal, and `answered`
-when there are any; `none` when there are none. It is the same whoever views it. After a write or a
-revocation commits, an in-process notifier wakes the long polls waiting on the session.
+names, and input its schema has already parsed. An identity holds scopes, `<resource>:<access>`
+([HTTP API](#http-api)): a browser session holds every one, an API key those the operator gave it,
+and an agent's registration `threads:write` over its own session. Inside the operation's
+transaction, `authorizeScope` confirms the credential is still live (the registration approved, the
+browser session unexpired, the API key neither revoked nor expired) and that it holds the scope the
+operation requires, and to an identity without it the operation does not exist; an operation on one
+session uses `authorize`, which does the same and confirms the credential grants the target session,
+an unknown session and someone else's both failing as `not_found`. The mounts refuse a missing scope
+too, before reading any input, but every operation confirms its own, so each adapter over the store
+is held to the same scopes. A write then checks, in order, request-id replay, roles (only the
+requester asks, withdraws asks or sets a topic, only the audience answers), staleness, and the rules
+that depend on the thread's messages: a replacement names a live message of the writer's own; each
+answer names an open ask and fits it, and a message answers an ask at most once; a replacement
+answers again every ask the message it replaces answered that is still live, and none its requester
+since revised or retracted, an answer to such an ask going with the replaced message, and may answer
+open asks besides; each withdrawal names an open ask, the replaced message's own included, and a
+message withdraws an ask at most once; a replacement withdraws again every ask the message it
+replaces withdrew, with the same reason or a new one, whether or not the ask's own message is still
+live, so a withdrawal is never undone; a replacement of a message holding open asks asks each again
+or withdraws it by name, its asks and its withdrawals of those asks numbering at least as many as it
+holds open, since a replacement's asks are numbered anew and the count is what can be checked; and a
+thread reference names a thread in the same session. Refusals name asks by their numbers. An answer
+is a decline, or distinct picks among the ask's suggested answers and the answerer's own words, at
+least one of them: an ask without suggested answers takes own words alone, and one that allows a
+single answer takes one pick or own words, never both. The own words are the answer's, plain text
+apart from the message's Markdown text and detail, which are any additional information. It appends
+the message with its asks and answers and raises the writer's read mark through it in the same
+transaction, where a writer for whom the thread is archived keeps it archived, its archive mark
+moving to its own message. A later message carries some part unless it replaces another, a rule the
+request's schema holds, since no constraint on a message's row sees the rows of its own; a thread's
+first message may carry nothing, since its title speaks for it, and a replacement carrying nothing
+retracts the message it replaces, which the rules above allow only while that message holds no open
+ask. A replacement is a whole message: what it leaves out, its detail included, is gone with the
+message it replaces. A write answers with the thread number and the message's sequence, and a retry
+of the same request id gets that same answer, while a retry with any part changed, its detail
+included, is a request-id conflict. A stale write appends nothing, so its retry may reuse the id.
+Everything a thread shows beyond its title, roles and latest sequence, such as its topic, open asks,
+status, unread count and count of live messages, is derived in queries over the two views, never
+stored. A thread's status rolls up the asks on its live messages and those a live message withdraws,
+so an ask its own message's replacement withdrew counts and a revised ask does not: `open` while any
+is open; otherwise `withdrawn` when every one is withdrawn, with the latest such withdrawal, and
+`answered` when there are any; `none` when there are none. It is the same whoever views it. After a
+write or a registration's revocation commits, an in-process notifier wakes the long polls waiting on
+the session, and with them the waits across every session. Revoking an API key and ending a browser
+session, by signing out, signing in again on that browser, removing the passkey that signed it in or
+replacing the passkeys through a link, wake the waits across every session alone once they commit,
+since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
 every conversation, marks its session seen before its own work, in a transaction of its own, so a
@@ -290,19 +331,19 @@ statement grouped over the open asks. The operator can never archive a thread ho
 them, so their thread list shows every thread counted. A separate read counts the sessions whose log
 holds entries the operator has not read, which the web UI's navigation shows.
 
-The operator sorts sessions into groups and tags agents and sessions, and nothing else does: every
-operation on them authorizes the administration only the operator's identity grants, so to an agent
-none exists. A group's name is plain text on one line, trimmed, 1 to 100 code points, unique
-ignoring the case of ASCII letters; a tag's is a name, as a topic's is. An instance holds at most
-200 groups, and an agent or a session carries at most 20 tags; past either bound a write is
-`invalid_input`. A name another group or tag already has is refused as `conflict`, naming `name`,
-whether a group is created or either is renamed. A group's rename changes its name only, so a filter
-by its id keeps working, and removing it leaves its sessions in no group. Renaming a tag rewrites it
-on every agent and session carrying it, and removing one takes it off all of them, each in one
-transaction. Setting a session's group names it by id, or none; setting an agent's or a session's
-tags gives the whole set. The list of them gives every group in name order, with how many sessions
-each holds, and every tag carried, at most 500, in name order, with how many agents and how many
-sessions carry it, saying when it leaves any out. The sessions view's page carries each agent's
+The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
+them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration
+holds, so to an agent none exists. A group's name is plain text on one line, trimmed, 1 to 100 code
+points, unique ignoring the case of ASCII letters; a tag's is a name, as a topic's is. An instance
+holds at most 200 groups, and an agent or a session carries at most 20 tags; past either bound a
+write is `invalid_input`. A name another group or tag already has is refused as `conflict`, naming
+`name`, whether a group is created or either is renamed. A group's rename changes its name only, so
+a filter by its id keeps working, and removing it leaves its sessions in no group. Renaming a tag
+rewrites it on every agent and session carrying it, and removing one takes it off all of them, each
+in one transaction. Setting a session's group names it by id, or none; setting an agent's or a
+session's tags gives the whole set. The list of them gives every group in name order, with how many
+sessions each holds, and every tag carried, at most 500, in name order, with how many agents and how
+many sessions carry it, saying when it leaves any out. The sessions view's page carries each agent's
 tags, and each session's group and tags.
 
 The operator starts a thread on a session with a title and a first message of text, with its detail.
@@ -316,16 +357,17 @@ answered as the first was, and one with other content is a request-id conflict, 
 own thread, which a session still starts only in itself.
 
 An upload (`apps/server/src/store/files.ts`) begins in one transaction, which authorizes the session
-and refuses it while its writer holds 20 pending uploads, or would hold more than 1 GiB of them by
-their declared sizes with this one, counting those still arriving and not those expired; then it
-inserts the file's row with a reference of 16 random bytes in base64url, and adds the file to the
-process's set of uploads in flight. A writer may run several uploads at once. Each chunk is written
-in a transaction of its own, which checks the credential again, so a revoked agent's upload stops
-within a chunk. Completing checks that the bytes received number the declared size, and records the
-hash and the time. Any failure after the upload begins, a body cut off, a revoked credential or a
-length that does not match among them, removes the file and its chunks in one transaction; a removal
-that itself fails is logged and left to the sweep. A completed upload no message names expires 24
-hours after it completed.
+under `threads:write` and refuses it while its writer holds 20 pending uploads, or would hold more
+than 1 GiB of them by their declared sizes with this one, counting those still arriving and not
+those expired; then it inserts the file's row with a reference of 16 random bytes in base64url, and
+adds the file to the process's set of uploads in flight. A writer may run several uploads at once.
+Each chunk is written in a transaction of its own, which confirms the scope as every store call does
+and re-checks the credential, so the upload of a revoked agent's registration or a revoked or
+expired API key stops within one chunk. Completing checks that the bytes received number the
+declared size, and records the hash and the time. Any failure after the upload begins, a body cut
+off, a revoked credential or a length that does not match among them, removes the file and its
+chunks in one transaction; a removal that itself fails is logged and left to the sweep. A completed
+upload no message names expires 24 hours after it completed.
 
 A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
 `store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
@@ -453,24 +495,82 @@ or in the list's, and say when they leave any out; the sessions view's page page
 at most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
 its open asks, the most pressing, beside their count and the earliest.
 
+A session's long poll (`waitForThreads`, in `apps/server/src/store/wait.ts`) and the operator's wait
+across sessions (`waitForEverySession`) share one loop: poll in a transaction that authorizes, wait
+on the notifier, poll again. A session's long poll counts from a position among the session's own
+messages. The operator's needs `threads:read` and counts from a position in `message_positions`, in
+an opaque cursor of a kind no session's wait gives out, so neither takes the other's. It answers the
+threads of every session the identity reaches that hold messages the viewer has not read and whose
+latest message is past `since`, oldest activity first, each naming its session, with the position
+its answer covers: the last thread's latest message when the page is full, and otherwise the latest
+message's. Passing that back as `since` wakes the client for no message it was already told of, and
+a full page continues with the threads it left out; a `since` past the latest position counts as
+none, as a session's own does. It waits on the notifier's channel across every session, which every
+session's notification wakes, and the end of an API key or a browser session too, and it polls again
+when its credential expires, so an expiry ends the wait with the credential's refusal, as a
+revocation does.
+
 ## HTTP API
 
-`apps/server/src/http/` serves one Hono application on `@hono/node-server`, with two mounts:
-`/api/agent/` for the agent bridge and `/api/web/` for the web UI. The routes on one thread are one
-sub-application mounted on both under `/s/:agent/:session`, so the role and message checks are the
-same for both kinds of caller. Each mount authenticates its own credential and refuses the other's:
-the agent mount refuses any request carrying a cookie, and the web mount any request carrying an
-`Authorization` header. The operator's own routes are on the web mount alone: the sessions view, the
-counts of what waits on the operator that the navigation's tabs show (`GET /attention`: the unread
-threads, the thread list's total with Unread the only filter on, and the registrations waiting for
-approval), a session's log, and the session groups and tags, whose reads are `GET /groups-and-tags`
-and whose writes are each a POST naming its action, as the passkey routes' are (`/groups`,
-`/groups/:id/name`, `/groups/:id/remove`, `/tags/:tag/name`, `/tags/:tag/remove`,
-`/s/:agent/:session/group`, `/s/:agent/:session/tags` and `/agents/:agent/tags`), and the settings:
-`GET /settings`, `POST /settings/voice`, `POST /settings/voice/clear`, and `POST /transcriptions`,
-whose body is a recording sent as `audio/webm`, `audio/mp4` or `audio/ogg`, at least 1,000 bytes,
-under the same body cap as every other ([Voice](#voice)). `provider_failed` comes only from the web
-mount, and transcriptions spend no rate budget.
+`apps/server/src/http/` serves one Hono application on `@hono/node-server`, with three mounts:
+`/api/agent/` for the agent bridge, `/api/web/` for the web UI, and `/api/operator/v1/` for a client
+acting as the operator with an API key. Each mount authenticates its own credential and refuses the
+others': the agent mount and the operator mount refuse any request carrying a cookie, so a browser's
+sign-in never reaches them, and the web mount refuses any request carrying an `Authorization`
+header, so no token or key rides a cookie's authority. The operator mount takes only an API key, as
+`Authorization: Bearer`, and needs no CSRF token or `Origin`, since a browser never sends a bearer
+key on its own.
+
+Most routes are operations (`operations.ts`), each declared once: its name, method and path, a
+one-line summary, the scope it requires, its path, query and body schemas and its response schema
+from `packages/api`, and its handler, which the compiler holds to those schemas. A mount builds its
+routes from a list of operations: each route authenticates, refuses an identity without the
+operation's scope as `not_found`, as if the operation did not exist, before reading any input, reads
+the path, the query and a JSON body through their schemas, and answers what the handler returns, as
+JSON; the store confirms the scope again inside the operation's transaction ([Store](#store)). An
+operation whose body or answer is a file's bytes declares it as bytes (`BytesBody`, `BytesAnswer`),
+with what the documentation says of it: the mount reads no such body, the handler reads the bytes
+from the request, and it answers a response it built, its bytes streamed. The API's documentation is
+built from the same lists ([API documentation](#api-documentation)).
+
+- **Operator operations** (`operator-operations.ts`) are every operation an API key may call, each
+  with the one scope it requires. Being in the list is what puts an operation on the operator mount,
+  so one left out is not there. The web mount serves the same list to the browser session, which
+  holds every scope, so both mounts run the same handlers. `threads:read` grants the thread list
+  (`GET /threads`), its counts (`GET /threads/counts`), the wait across sessions (`GET /wait`) and a
+  thread with its messages, a thread's files and the file a message carries; `threads:write`
+  starting a thread on a session, sending a message, marking a thread read or unread and archiving
+  it, bulk read and archive (`POST /reads` and `POST /archives`), and uploading a file and removing
+  a pending upload; `sessions:read` the sessions view (`GET /sessions`), a session's log
+  (`GET /s/:agent/:session/updates`), the groups and tags (`GET /groups-and-tags`) and the
+  registrations (`GET /registrations`); `sessions:write` the log's read mark and the groups' and
+  tags' writes, each a POST naming its action (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
+  `/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
+  `/agents/:agent/tags`); and `sessions:approve` approving, rejecting and revoking a registration. A
+  write or approve scope includes its resource's read, and neither includes the other. A test over
+  the list holds every operation a read scope grants to a `GET` without a body whose store work
+  writes nothing.
+- **Agent operations** (`agent-operations.ts`) are the agent mount's: a session's status, starting a
+  thread in it, its thread list and its long poll, and the operations on one thread and on its
+  session's uploads (`thread-operations.ts`), which every mount shares under `/s/:agent/:session`,
+  so the role, message and file checks have one handler each: a thread (`/threads/:thread`), a
+  message, its read and unread marks and archiving, a thread's files (`GET /threads/:thread/files`),
+  a file a message carries (`GET /threads/:thread/messages/:seq/files/:name`), an upload
+  (`POST /uploads`) and removing one (`POST /uploads/:upload/remove`). Each names its scope, and an
+  agent's registration holds `threads:write` over its own session, which covers every one. One path
+  can name different operations on different mounts: `POST /s/:agent/:session/threads` is an agent's
+  `createThread` on the agent mount and the operator's `startThread` on the others. Registration,
+  the one agent route a key not yet approved may call, authenticates against the key its token
+  carries, so its route is built by hand from its declaration.
+- **Web-only routes** are plain routes on the web mount, which no key can call: the browser session,
+  the passkey ceremonies and signing out; the passkeys; the counts of what waits on the operator
+  that the navigation's tabs show (`GET /attention`: the unread threads, the thread list's total
+  with Unread the only filter on, and the registrations waiting for approval); the settings,
+  `GET /settings`, which includes the space attachments take, `POST /settings/voice` and
+  `POST /settings/voice/clear`; `POST /transcriptions`, whose body is a recording sent as
+  `audio/webm`, `audio/mp4` or `audio/ogg`, at least 1,000 bytes, under the same body cap as every
+  other ([Voice](#voice)); and the API keys, `GET /keys`, `POST /keys` and `POST /keys/:id/revoke`.
+  `provider_failed` comes only from the web mount, and transcriptions spend no rate budget.
 
 Every route reads its path, query and body through the shared schemas, so input outside a bound
 fails as `invalid_input` before any operation runs, and maps failures to the shared error shape and
@@ -479,9 +579,9 @@ details. A request body on an API route must declare its length, so its size is 
 anything is read or authenticated: a chunked body is answered with status 411, and one over its
 bound with status 413. An upload's bound is 100 MiB, the largest file; every other body's is 2 MiB,
 which holds a message with every field at its bound. The bound is chosen by `isUploadRequest`
-(`apps/server/src/http/uploads.ts`), from the path Hono routes, with dot segments resolved and the
-query ignored, which the listener's deadlines read too, so both always agree; with a
-`Content-Length` the bound compares the header alone and reads nothing. A JSON body that is not
+(`apps/server/src/http/uploads.ts`), from the path Hono routes on any mount, with dot segments
+resolved and the query ignored, which the listener's deadlines read too, so both always agree; with
+a `Content-Length` the bound compares the header alone and reads nothing. A JSON body that is not
 valid UTF-8 is refused, never repaired. Every request's `Host` must be the origin's host, so a page
 on another name that resolves to the server cannot reach it, and no forwarded header is read. Every
 response carries the security headers: a content security policy that allows only the server's own
@@ -490,11 +590,14 @@ frame, and no framing of its own pages, HSTS, `nosniff`, `DENY` framing, no refe
 `no-store`. The security headers middleware sets every one of them after the route has run,
 replacing what the route set, except those the route declared its own for its response with
 `ownHeaders` (`apps/server/src/http/own-headers.ts`): the diagram frame's page and script declare
-their policy, framing and caching, and a file's response its policy and caching, as described below.
+their policy, framing and caching, a file's response its policy and caching, and the API
+documentation's page its policy, as described below.
 
 The long poll answers at once while a thread in the session has unread messages newer than its
 `since`, and otherwise ends when such a message commits, when its credential is revoked, when the
-client disconnects, when the server shuts down, or when its wait runs out.
+client disconnects, when the server shuts down, or when its wait runs out. The operator's wait
+across sessions, `GET /wait`, answers and ends the same way across every session, and also when its
+API key or browser session ends or expires ([Store](#store)).
 
 The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 3 in this release,
 serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
@@ -511,12 +614,20 @@ never its release. A version is read whole, however many digits it has, and a he
 positive integer written without leading zeros is `invalid_input`, naming it. The web mount is not
 versioned: the server serves its own web UI, always in step.
 
-Unknown API routes answer `not_found`. Every other path serves the web UI: a file of the Vite build,
-or the UI's index page for any other path, whose router shows the route. The server prepares the
-index page once, as it starts, writing its name, HTML-escaped, into the page's title and its
-`application-name` and `apple-mobile-web-app-title` metadata, and never serves the page's file as it
-is; a build whose page lacks one of those stops the server from starting. A server built without the
-UI serves a placeholder page instead.
+The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
+with new operations, new optional request fields and new response fields, so a client ignores
+response fields it does not know; a change that would break a client is a new version beside the
+old, by a maintainer's decision. `GET /api/operator`, which needs no credential, answers the
+versions the server serves, `{"versions":[1]}`, and a version it does not serve is unknown, as any
+unknown API route is.
+
+Unknown API routes answer `not_found`, and so does every path under `/docs/api` while the API's
+documentation is not served. Every other path serves the web UI: a file of the Vite build, or the
+UI's index page for any other path, whose router shows the route. The server prepares the index page
+once, as it starts, writing its name, HTML-escaped, into the page's title and its `application-name`
+and `apple-mobile-web-app-title` metadata, and never serves the page's file as it is; a build whose
+page lacks one of those stops the server from starting. A server built without the UI serves a
+placeholder page instead.
 
 `/diagram-frame` (`apps/server/src/http/diagram-frame.ts`) serves the page the web UI frames to draw
 diagrams, which loads one script, the one `diagram-frame.json` in the build names; a manifest that
@@ -528,8 +639,11 @@ cached for good. Both routes declare those headers their own with `ownHeaders`.
 
 ### Files
 
-The routes on files are thread routes, so they are the same on both mounts under
-`/s/:agent/:session`, behind each mount's own authentication.
+The routes on files are operations on one thread and its session's uploads (`thread-operations.ts`),
+so they are the same on every mount under `/s/:agent/:session`, behind each mount's own
+authentication: uploading and removing an upload require `threads:write`, and a thread's files and
+reading a file `threads:read`. An API key's uploads are the operator's, as its messages are, so they
+share the operator's pending limits, and the web UI can name one in a message.
 
 - **Uploading.** `POST /s/:agent/:session/uploads?name=<name>` takes the file's bytes as the raw
   body, with its `Content-Length` and a `Content-Type` read as its declared type: the type's
@@ -542,22 +656,22 @@ The routes on files are thread routes, so they are the same on both mounts under
   database, by `statfs`'s blocks available to an unprivileged user, would keep 1 GiB free beyond
   this file and every byte still to arrive across all incomplete uploads. The answer is the upload's
   reference, name, size, declared type, the type it is served as, and when it expires. An agent's
-  upload spends one request of its key's budget, as any call does; the operator's spends none. A
-  refused upload leaves its body unread, and `@hono/node-server` then reads it for at most 500 ms or
-  64 MiB before closing the connection, so a refusal goes out first and no refused upload holds the
-  server longer.
-- **Removing an upload.** `POST /s/:agent/:session/uploads/:ref/remove` removes one of the writer's
-  own completed uploads that no message names, uploaded in that session, with its bytes, so it stops
-  counting against the writer's pending limits at once. Any other reference, another writer's,
-  another session's, one attached or one still arriving, is `not_found`, as for a reference that
-  names nothing. An upload still arriving has not yet answered with its reference; ending its
-  request stops it, and the server removes what arrived. The web UI's **Remove** calls it for an
-  uploaded file; the bridge has no tool for it.
-- **A thread's files.** `GET /threads/:n/files?cursor=&limit=` lists a thread's files, each once
-  with the message that brought it, its author and its time, newest first, up to 50 a page by
+  upload spends one request of its key's budget, as any call does, and so does an API key's; the
+  browser session's spends none. A refused upload leaves its body unread, and `@hono/node-server`
+  then reads it for at most 500 ms or 64 MiB before closing the connection, so a refusal goes out
+  first and no refused upload holds the server longer.
+- **Removing an upload.** `POST /s/:agent/:session/uploads/:upload/remove` removes one of the
+  writer's own completed uploads that no message names, uploaded in that session, with its bytes, so
+  it stops counting against the writer's pending limits at once. Any other reference, another
+  writer's, another session's, one attached or one still arriving, is `not_found`, as for a
+  reference that names nothing. An upload still arriving has not yet answered with its reference;
+  ending its request stops it, and the server removes what arrived. The web UI's **Remove** calls it
+  for an uploaded file; the bridge has no tool for it.
+- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists a thread's files, each
+  once with the message that brought it, its author and its time, newest first, up to 50 a page by
   default.
-- **Reading a file.** `GET` and `HEAD /threads/:n/messages/:seq/files/:name?file=<reference>` read
-  the file a message carries under a name, percent-encoded in the path and compared after NFC
+- **Reading a file.** `GET` and `HEAD /threads/:thread/messages/:seq/files/:name?file=<reference>`
+  read the file a message carries under a name, percent-encoded in the path and compared after NFC
   normalization (`apps/server/src/http/files.ts`). The thread must be the session's, the message the
   thread's and the name the message's, and `file`, when given, the reference of that file, or the
   read is `not_found`; the web UI always gives it, so a URL always names the same bytes, and a copy
@@ -568,9 +682,11 @@ The routes on files are thread routes, so they are the same on both mounts under
   at or beyond the end, any range of an empty file included, is 416 `invalid_input` with
   `Content-Range: bytes */<size>`. `If-None-Match` and `If-Range` are ignored, since the bytes at a
   URL never change. `HEAD` reads no chunk. The body streams a chunk at a time, each read in its own
-  transaction, which checks the credential again; the first chunk is read before the answer starts,
-  so a credential revoked meanwhile or a chunk that is gone is answered as any refusal is, and a
-  chunk missing later cuts the body short, which is logged.
+  transaction, which confirms the scope as every store call does and re-checks the credential, so a
+  revoked or expired agent's registration, browser session or API key stops it within one chunk; the
+  first chunk is read before the answer starts, so a credential revoked meanwhile or a chunk that is
+  gone is answered as any refusal is, and a chunk missing later cuts the body short, which is
+  logged.
 - **A file's headers.** `Content-Type` is the served type: the declared type when it is PNG, JPEG,
   GIF, WebP or SVG (`image/svg+xml`), PDF, `video/mp4`, `video/webm` or `video/ogg`, or
   `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/webm`, `audio/wav` or `audio/flac`;
@@ -596,6 +712,39 @@ The routes on files are thread routes, so they are the same on both mounts under
 | An unknown thread, message or name, or a file's missing bytes | `not_found`     | 404    |
 | An upload to remove that is not the writer's pending one      | `not_found`     | 404    |
 | A range outside the file                                      | `invalid_input` | 416    |
+
+## API documentation
+
+`apps/server/src/http/openapi.ts` builds one OpenAPI 3.1 document of the operator API and the agent
+API from the operation lists the mounts build their routes from, so it cannot describe a route,
+field or bound the server does not have. Each operation has its path, an `operationId` of its
+mount's name and its own, such as `operatorListThreads`, its summary, its parameters and body
+described as input and its answer as output, and its authentication: on the operator mount the
+`apiKey` bearer scheme with the scope the operation requires, and on the agent mount the
+`agentToken` scheme and the agent API's version header. An upload's body is described as any media
+type, `*/*`, with what its `Content-Type` declares, and a file read's answer as its served types,
+with the `Range` header, 206 and 416. `GET /api/operator` is in it too. Every refusal is one shared
+`error` response, whose description gives each error code's status. The schemas come from
+`@wayfarerlabs/agention-api/json-schemas` ([API contract](#api-contract)), so each named schema is
+described once under `components.schemas` and referenced wherever it appears. Rules a schema
+enforces only in code, zod refinements such as a key's scopes never repeating, are absent from the
+JSON Schema, so the document may describe less than the server checks, never more; a request
+breaking such a rule answers `invalid_input`, naming the field when the rule concerns one.
+
+The document is committed at `docs/api/openapi.json`, written by `scripts/generate-api-docs.sh`, and
+a test in the server's suite fails while the committed document differs from what the code
+generates, so every change to the contract is reviewed as a change to that file.
+
+`agention serve --api-docs` serves the document at `/docs/api/openapi.json` and, at `/docs/api/`, a
+page the server renders from it once, as it starts (`api-docs.ts`): the API's description, the
+authentication schemes and the error response, each mount's operations with their method, path,
+summary, authentication and scope, parameters, body and answer, and a section for each shared
+schema, which every reference to it links to. The page is static HTML with no script or style, and
+everything it shows from the document is escaped; it is served under a content security policy of
+its own, `default-src 'none'` with no base, form action or framing allowed, so it loads, runs and
+submits nothing, whatever it holds. `/docs/api` leads to the page with a permanent redirect. Both
+are served without sign-in, since they describe the contract and no data. Without the flag, every
+path under `/docs/api` answers the JSON `not_found`, never the web UI's page.
 
 ## Authentication
 
@@ -635,18 +784,34 @@ The routes on files are thread routes, so they are the same on both mounts under
 - **Passkey links.** Links come only from `agention passkey-link`, on the server's machine, so
   holding a passkey never yields one. A link is valid for 15 minutes, and issuing one revokes every
   unused link. Finishing it, in one transaction that also consumes it, creates the operator the
-  first time, and afterwards replaces their passkeys, which ends every browser session. A
-  replacement keeps the WebAuthn user id, so an authenticator overwrites the old passkey instead of
-  keeping it.
+  first time, and afterwards replaces their passkeys, which ends every browser session and revokes
+  every API key that has not already ended, waking any wait they hold. A replacement keeps the
+  WebAuthn user id, so an authenticator overwrites the old passkey instead of keeping it.
 - **Browser sessions.** A finished sign-in or link opens a session in the
   `__Host-agention-<port>-session` cookie (`Secure`, `HttpOnly`, `SameSite=Strict`), closing the one
   the browser held before. The session ends after seven days without use or thirty days after it
   opened. Every web mutation also needs the session's CSRF token in `X-CSRF-Token` and an `Origin`
   equal to the origin.
+- **API keys.** The operator creates a key on the web mount, with a name, one or more scopes and an
+  expiry: 7, 30, 60 or 90 days, a time after now and at most 365 days away, or none. Its secret,
+  `agention_` and 256 random bits in unpadded base64url, so people and secret scanners recognize
+  one, is answered once, as the key is created. Creating and revoking a key need a session opened
+  within the last 10 minutes, as passkey changes do; listing them does not, and the list says
+  whether the sign-in is recent, as the passkey list does. The operator holds at most 20 keys that
+  are neither revoked nor expired, counted in the creating transaction. The list holds every key,
+  newest first, with its scopes, its status and its times, a revoked or expired one until the
+  operator next creates or revokes a key. On the operator mount, the key must exist, unrevoked and
+  unexpired, and each operation's transaction confirms it again, so a revoked key is refused from
+  its next request, a wait it holds ends at once, and a file it is uploading or reading stops within
+  a chunk. Every refusal of a key is the same `unauthenticated`, telling the client to check the key
+  or create a new one in Settings, so it never says whether a key existed. A key's use is recorded
+  at most hourly. A key acts as the operator over every session, within its scopes; the API keys,
+  passkeys, settings and transcription are web-only routes, so no key reaches them.
 
-Browser sessions and links are 256 random bits, stored only as their SHA-256. Expired sessions,
-links and used challenges are deleted whenever their table is next written, and so are registrations
-that expired while pending, so no timer runs.
+Browser sessions, links and API keys are 256 random bits, stored only as their SHA-256. Expired
+sessions, links and used challenges are deleted whenever their table is next written, and so are
+registrations that expired while pending, and revoked and expired API keys are deleted when a key is
+next created or revoked, so no timer runs.
 
 ## An external issuer
 
@@ -654,8 +819,8 @@ An issuer of agent credentials other than Agention's own registrations, such as 
 identity provider, would change Agention in these places:
 
 - **The credential.** `Credential` in `apps/server/src/identity.ts` is a closed union of a
-  registration and a browser session; an issuer's credential would be a third kind, and every check
-  that branches on the kind, such as `checkCredential`, would take it.
+  registration, a browser session and an API key; an issuer's credential would be a fourth kind, and
+  every check that branches on the kind, such as `checkCredential`, would take it.
 - **The status call.** A session's status update accepts only a registration's credential
   (`updateSession` in `apps/server/src/store/sessions.ts`).
 - **The session log.** Each entry in `session_updates` names the registration that wrote it, in a
@@ -712,11 +877,14 @@ upload the browser abandons before it arrives whole is logged as cancelled too.
 Token buckets in `apps/server/src/http/rates.ts` keep one kind of traffic from starving another, and
 none is keyed on the source address. A request signed by a key the server has a registration for
 spends that key's own budget, whether it is a pending agent checking its registration or an approved
-agent's session call. Everything else spends one budget per class: registrations of new keys, failed
-agent authentication, failed passkey sign-ins and failed passkey links. Every class but new
-registrations is charged only for a request that failed, after it was checked, so draining one never
-refuses a valid key, passkey or link, and beginning a ceremony costs nothing. An exhausted budget
-answers `rate_limited`, with a `Retry-After` header. The
+agent's session call, and a request on the operator mount carrying a live API key spends that key's
+own (`apiKey`). A key's bucket that has refilled is dropped when another key's is added, so the
+server holds buckets only for keys that spent recently, however many it has ever seen. Everything
+else spends one budget per class: registrations of new keys, failed agent authentication, failed API
+key authentication (`failedKeyAuth`), failed passkey sign-ins and failed passkey links. Every class
+but new registrations is charged only for a request that failed, after it was checked, so draining
+one never refuses a valid key, passkey or link, and beginning a ceremony costs nothing. An exhausted
+budget answers `rate_limited`, with a `Retry-After` header. The
 [operator guide](operator-guide.md#rate-budgets) lists the rates.
 
 ## Serving
@@ -916,19 +1084,19 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                     |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                  |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                    |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                 |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                  |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                     |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                      |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                   |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings view's passkeys and voice |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                         |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                    |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                      |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                       |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                        |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                     |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -1013,6 +1181,39 @@ so the keyboard does not hide Send. The composer measures the row as it changes 
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
 
+Settings is a list of sections, declared once in `src/views/settings/sections.ts`, each with a slug,
+a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice
+and Storage under Features, and Sign out after the groups. The navigation and `/settings/<slug>` are
+built from that list, so a new section is one entry and one component, and a slug no section has is
+Not found. `/passkeys`, where passkeys had a page of their own, redirects to `/settings/passkeys`,
+replacing the history entry. The layout is decided in CSS alone: below the layout's `40rem`
+breakpoint `/settings` shows the navigation as a list and a section's page shows a back link to it;
+above it the navigation is a column beside the open section, and `/settings` opens the first
+section, which it mounts, and so loads, on every width, hidden below the breakpoint. Each section
+loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice, offers
+to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads `recent` from
+the key list, and Passkeys and Voice from the passkey list. The voice form starts afresh from what
+the server holds whenever that changes, and normalizes a base URL with the API's own reader; which
+hosts it may reach is the server's to judge, when it is saved. After a save or a clear, focus waits
+for the settings the server then holds before moving to the control that shows them, and moves only
+from the control pressed. Signing in again moves focus to the open section's heading.
+
+The API keys section (`src/views/settings/ApiKeys.tsx`) lists the keys as the server does, each with
+its scopes and when it was created, expires and was last used, flagged while it is live with no
+expiry, and marked revoked or expired while the server still lists it. Its form (`ApiKeyForm.tsx`)
+takes a name, the scopes, each with what it grants, and an expiry, 30 days unless another is chosen;
+a scope that a chosen one includes, by the API's own `holdsScope`, shows chosen with it and
+unavailable, and is not sent. Choosing no expiry shows a warning, and a date is the operator's local
+date, through whose end the key works. A new key's secret shows once, alone, with Copy, which
+selects the secret instead where the browser will not copy it; it lives only in the page's memory,
+never in storage, the address or a log, until Done dismisses it, and focus then moves to the new
+key. Revoke asks first. Create an API key is unavailable while 20 keys are live, and creating and
+revoking while the sign-in is not recent, each saying why.
+
+The Storage section (`src/views/settings/Storage.tsx`) says from the settings' `storage` how much
+space attachments take, in how many files, and that every backup copies them; nothing there changes
+it.
+
 A message's files (`src/views/thread/files/`) come in two halves. In the composer, **Attach**, an
 icon beside Send, opens a hidden file input that takes several files, with no `accept` and no
 `capture`, so a phone offers its camera among its sources. A paste into the message or Details box
@@ -1056,16 +1257,6 @@ holds a fold, **Files** with their count and size, folded on every visit, which 
 file list a page at a time while it is open, each entry with who attached it, when, and a link to
 its message. Sizes are written in binary units, KiB, MiB and GiB.
 
-The Settings view answers `/settings`, and `/passkeys`, where passkeys had a page of their own. It
-loads the settings and the passkeys, and while the passkey list says the sign-in is not recent it
-offers to sign in again above every section. Its Storage section, after Voice, says from the
-settings' `storage` how much space attachments take, in how many files, and that every backup copies
-them. Its voice form starts afresh from what the server holds whenever that changes, and normalizes
-a base URL with the API's own reader; which hosts it may reach is the server's to judge, when it is
-saved. After a save or a clear, focus waits for the settings the server then holds before moving to
-the control that shows them, and moves only from the control pressed. Signing in again moves focus
-to the first section's heading.
-
 Dictation (`src/voice/Dictation.tsx`) shows in the composer, and in Settings' Try it, while the
 settings the page read when it opened say voice is on and the browser has a `MediaRecorder` for
 `audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`, tried in that order. It records at
@@ -1107,7 +1298,8 @@ own, and drive the frame under the server's real policies. The voice tests start
 local stub of a transcription provider, and record through Chromium's fake microphone. The
 attachment tests attach a file and paste an image, show images, video, audio and text in place and
 open a PDF's tab, download every file, and serve HTML and script bytes declared as each served type,
-which run nothing in the page or opened on their own.
+which run nothing in the page or opened on their own. The API keys tests start one as well, create a
+key in Settings, and call the operator mount with its secret from outside the browser.
 
 ## Generated plugins
 

@@ -1,27 +1,13 @@
-import {
-  registrationSubmitInput,
-  sessionThreadsQuery,
-  sessionUpdateInput,
-  threadCreateInput,
-  waitQuery,
-} from "@wayfarerlabs/agention-api";
+import type { RegistrationState } from "@wayfarerlabs/agention-api";
 import { Hono, type MiddlewareHandler } from "hono";
 import { authenticateAgent, verifyRegistrationToken } from "../auth/agent-tokens.ts";
 import { unauthenticated } from "../errors.ts";
-import {
-  createThread,
-  findRegistrationByKey,
-  listSessionThreads,
-  markSeen,
-  type Store,
-  submitRegistration,
-  updateSession,
-  waitForThreads,
-} from "../store/index.ts";
+import { findRegistrationByKey, markSeen, type Store, submitRegistration } from "../store/index.ts";
+import { agentOperations, registration } from "./agent-operations.ts";
 import { requireServedAgentApiVersion } from "./agent-api-version.ts";
-import { parseBody, parseQuery, sessionTarget } from "./input.ts";
+import { parseBody } from "./input.ts";
+import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
-import { type IdentityEnv, threadRoutes } from "./thread-routes.ts";
 
 export interface AgentApiOptions {
   store: Store;
@@ -73,7 +59,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   // call: the token must be signed by the key it registers. It is the first
   // call of every conversation, so an approved key's call marks its session
   // seen.
-  api.post("/registrations", async (c) => {
+  api.on(registration.method, registration.path, async (c) => {
     const key = await budgets.spendOnFailure("failedAgentAuth", () =>
       verifyRegistrationToken(c.req.header("authorization"), origin, store.clock()),
     );
@@ -84,8 +70,9 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
       budgets.spendForKey(key);
       seen(known.id);
     }
-    const input = await parseBody(c, registrationSubmitInput);
-    return c.json(submitRegistration(store, key, input));
+    const input = await parseBody(c, registration.body);
+    const state: RegistrationState = submitRegistration(store, key, input);
+    return c.json(state);
   });
 
   // A failed authentication spends the shared failed-authentication budget;
@@ -103,35 +90,11 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
     await next();
   };
   api.use("/s/*", authenticate);
-
-  api.post("/s/:agent/:session/status", async (c) => {
-    const target = sessionTarget(c);
-    const input = await parseBody(c, sessionUpdateInput);
-    return c.json(updateSession(store, c.var.identity, target, input));
+  addOperations(api, agentOperations, {
+    store,
+    shutdown: options.shutdown,
+    log,
+    authenticate: (c) => c.var.identity,
   });
-  api.post("/s/:agent/:session/threads", async (c) => {
-    const target = sessionTarget(c);
-    const input = await parseBody(c, threadCreateInput);
-    return c.json(createThread(store, c.var.identity, target, input));
-  });
-  api.get("/s/:agent/:session/threads", (c) =>
-    c.json(
-      listSessionThreads(
-        store,
-        c.var.identity,
-        sessionTarget(c),
-        parseQuery(c, sessionThreadsQuery),
-      ),
-    ),
-  );
-  // The long poll ends when a message it reports commits, the credential is
-  // revoked, the client disconnects, the server shuts down or the wait ends.
-  api.get("/s/:agent/:session/wait", async (c) => {
-    const target = sessionTarget(c);
-    const query = parseQuery(c, waitQuery);
-    const signal = AbortSignal.any([c.req.raw.signal, options.shutdown]);
-    return c.json(await waitForThreads(store, c.var.identity, target, query, signal));
-  });
-  api.route("/s/:agent/:session", threadRoutes({ store, log }));
   return api;
 }

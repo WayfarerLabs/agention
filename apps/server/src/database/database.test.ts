@@ -753,6 +753,12 @@ describe("a database an earlier release wrote", () => {
           .all(text);
       expect(found("postgres*")).toEqual([{ thread_id: 1, seq: 1 }]);
       expect(found("kubernetes*")).toEqual([{ thread_id: 1, seq: 2 }]);
+      // Each message written before has its position, in the order written.
+      expect(after.message_positions?.map((row) => JSON.parse(row) as unknown)).toEqual([
+        { pos: 1, thread_id: 1, seq: 1 },
+        { pos: 2, thread_id: 1, seq: 2 },
+        { pos: 3, thread_id: 1, seq: 3 },
+      ]);
     } finally {
       database.close();
     }
@@ -792,14 +798,14 @@ describe("a database an earlier release wrote", () => {
     }
   });
 
-  it("opens with every earlier row intact and no files", () => {
+  it("opens with every earlier row intact, no files and no API keys", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
       connection.exec(`PRAGMA application_id = ${applicationId}`);
-      for (const migration of migrations.slice(0, -1)) {
+      for (const migration of migrations.slice(0, 4)) {
         connection.exec(migration);
       }
-      connection.exec(`PRAGMA user_version = ${migrations.length - 1}`);
+      connection.exec("PRAGMA user_version = 4");
       connection.exec(`
         INSERT INTO people (name, created_at) VALUES ('operator', 1);
         INSERT INTO agents (name, created_at) VALUES ('builder', 1);
@@ -812,7 +818,8 @@ describe("a database an earlier release wrote", () => {
         INSERT INTO messages (thread_id, seq, session_id, session_pos, actor_id, created_at,
             request_id, digest, text)
           VALUES (1, 1, 1, 1, 2, 1, 'r-1', zeroblob(32), 'See the log.');
-        INSERT INTO voice_settings (id, base_url, model) VALUES (1, 'https://stt.test/v1', 'm');
+        INSERT INTO voice_settings (id, base_url, model, prompt, api_key)
+          VALUES (1, 'https://stt.test/v1', 'm', NULL, 'sk-test');
       `);
       return rowsOf(connection);
     });
@@ -822,10 +829,22 @@ describe("a database an earlier release wrote", () => {
     try {
       const after = rowsOf(database);
       expect(Object.keys(after).sort()).toEqual(
-        [...Object.keys(before), "attachments", "file_chunks", "files"].sort(),
+        [
+          ...Object.keys(before),
+          "attachments",
+          "file_chunks",
+          "files",
+          "api_keys",
+          "message_positions",
+        ].sort(),
       );
       expect(earlier(after, before)).toEqual(before);
-      expect([after.files, after.file_chunks, after.attachments]).toEqual([[], [], []]);
+      expect([after.files, after.file_chunks, after.attachments, after.api_keys]).toEqual([
+        [],
+        [],
+        [],
+        [],
+      ]);
     } finally {
       database.close();
     }

@@ -12,7 +12,14 @@ import type { Store, VoiceEnvironment } from "../store/index.ts";
 import { openAiCompatible, type TranscriptionProvider } from "../transcription/provider.ts";
 import { agentApi } from "./agent-api.ts";
 import { stateAgentApiVersion } from "./agent-api-version.ts";
+import { serveApiDocs } from "./api-docs.ts";
 import { diagramFramePath, serveDiagramFrame } from "./diagram-frame.ts";
+import {
+  operatorApi,
+  operatorApiPrefix,
+  servedVersions,
+  versionsDeclaration,
+} from "./operator-api.ts";
 import { declaredOwn } from "./own-headers.ts";
 import { defaultRates, RateBudgets, RateLimitedError, type Rates } from "./rates.ts";
 import { isUploadRequest } from "./uploads.ts";
@@ -87,6 +94,8 @@ export interface AppOptions {
   // The transcription provider's client; the OpenAI-compatible one unless
   // given another.
   transcription?: TranscriptionProvider;
+  // Whether to serve the API's documentation under /docs/api/.
+  apiDocs?: boolean;
 }
 
 const notFoundBody: ErrorBody = { error: { code: "not_found", message: "not found" } };
@@ -96,8 +105,9 @@ function invalidBody(message: string): ErrorBody {
 }
 
 // createApp builds the server's one Hono application: the agent API at
-// /api/agent, the web API at /api/web, the diagram frame at /diagram-frame,
-// and the web UI on every other path.
+// /api/agent, the web API at /api/web, the operator API's versions at
+// /api/operator, the API's documentation under /docs/api/ when asked for,
+// the diagram frame at /diagram-frame, and the web UI on every other path.
 export function createApp(options: AppOptions): Hono {
   const { store, origin, name } = options;
   const host = new URL(origin).host;
@@ -165,10 +175,18 @@ export function createApp(options: AppOptions): Hono {
       voiceEnvironment: options.voiceEnvironment ?? {},
       transcription: options.transcription ?? openAiCompatible(),
       log,
+      shutdown,
     }),
   );
+  app.on(versionsDeclaration.method, "/api/operator", (c) => c.json(servedVersions));
+  app.route(operatorApiPrefix, operatorApi({ store, budgets, shutdown, log }));
   app.all("/api", (c) => c.json(notFoundBody, 404));
   app.all("/api/*", (c) => c.json(notFoundBody, 404));
+  if (options.apiDocs === true) {
+    serveApiDocs(app);
+  }
+  app.all("/docs/api", (c) => c.json(notFoundBody, 404));
+  app.all("/docs/api/*", (c) => c.json(notFoundBody, 404));
   serveDiagramFrame(app, options.webRoot, origin);
   serveWebUi(app, options.webRoot, name);
   app.notFound((c) => c.json(notFoundBody, 404));

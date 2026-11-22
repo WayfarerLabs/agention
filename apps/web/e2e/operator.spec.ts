@@ -13,10 +13,10 @@
 // to stranded threads and a tag as tall in a header as in a row, at a phone's
 // width too, the last session's options menu over the folds below it, grouped
 // or not, signing out from Settings and in again, a second passkey that takes
-// over from the first in Settings, which /passkeys leads to, and a second
-// server on another port of the host signed in beside the first. CDP virtual
-// authenticators stand in for the operator's devices; one page carries through
-// the steps, in order.
+// over from the first in Settings' passkeys, which /passkeys leads to, and a
+// second server on another port of the host signed in beside the first. CDP
+// virtual authenticators stand in for the operator's devices; one page carries
+// through the steps, in order.
 import type {
   BrowserContext,
   CDPSession,
@@ -116,6 +116,8 @@ const tab = (label: string) =>
   });
 
 const showList = () => tab("Threads").click();
+// Settings' navigation of its sections.
+const settings = () => page.getByRole("navigation", { name: "Settings" });
 
 test("a passkey link registers the first operator", async ({ agention }) => {
   const link = agention.passkeyLink();
@@ -865,6 +867,7 @@ test("the last session's options menu lies over the folds below it, grouped or n
 
 test("signing in with the passkey returns to the page that needed it", async () => {
   await page.getByRole("link", { name: "Settings" }).click();
+  await settings().getByRole("link", { name: "Sign out" }).click();
   // Signing out reads the tabs' counts no more, and nothing answers the page
   // unauthenticated.
   const strays: string[] = [];
@@ -905,14 +908,13 @@ test("a passkey added on a second device signs in, and the first is removed", as
   await page.getByRole("button", { name: "Add a passkey" }).click();
   await expect(page.getByRole("article", { name: "Passkey Phone" })).toBeVisible();
 
+  await settings().getByRole("link", { name: "Sign out" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  // The passkeys' own page of old leads to Settings.
+  // The passkeys' own page of old leads to Settings' passkeys.
   await page.goto("/passkeys");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-  await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(page.getByRole("heading", { level: 2 })).toHaveText("Passkeys");
+  expect(new URL(page.url()).pathname).toBe("/settings/passkeys");
   const phone = page.getByRole("article", { name: "Passkey Phone" });
   await expect(phone.getByText("Signed in this browser")).toBeVisible();
 

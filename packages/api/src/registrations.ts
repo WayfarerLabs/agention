@@ -82,8 +82,26 @@ export type RegistrationsPage = z.infer<typeof registrationsPage>;
 // proposed ones, and says whether each already exists, so granting an existing
 // session's history is always deliberate.
 export const approveInput = z.object({
-  agent: z.object({ name, existing: z.boolean() }),
-  session: z.object({ name, existing: z.boolean() }),
+  agent: z.object({
+    name,
+    existing: z
+      .boolean()
+      .describe(
+        "whether the agent named already exists: true grants that agent, false creates " +
+          "it; a mismatch is refused as invalid_input on agent.name",
+      ),
+  }),
+  session: z.object({
+    name,
+    existing: z
+      .boolean()
+      .describe(
+        "whether the agent's session named already exists: true grants that session, " +
+          "false creates it; a mismatch is refused as invalid_input on session.name. " +
+          "Approving onto an existing session grants the new key that session's whole " +
+          "history, every thread and message in it",
+      ),
+  }),
 });
 export type ApproveInput = z.infer<typeof approveInput>;
 

@@ -5,7 +5,7 @@ import {
   type ThreadFilesQuery,
 } from "@wayfarerlabs/agention-api";
 import { ApiError, notFound } from "../errors.ts";
-import { checkCredential, type Identity } from "../identity.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import { attachmentOfRow, missingFile } from "./attachments.ts";
 import { authorOf } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
@@ -27,7 +27,7 @@ export function listThreadFiles(
 ): ThreadFilesPage {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, target, store.clock());
+    const sessionId = authorizeSession(db, identity, "threads:read", target, store.clock());
     const thread = requireThread(db, sessionId, target.thread);
     const [seq, position] =
       query.cursor === undefined
@@ -97,7 +97,7 @@ export function findCarriedFile(
 ): CarriedFile {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, target, store.clock());
+    const sessionId = authorizeSession(db, identity, "threads:read", target, store.clock());
     const thread = requireThread(db, sessionId, target.thread);
     const carried = (
       db
@@ -122,8 +122,9 @@ export function findCarriedFile(
   });
 }
 
-// readFileChunk reads one chunk of a file, at its index, once the credential
-// is checked again, or undefined when that chunk is gone.
+// readFileChunk reads one chunk of a file, at its index, once the scope is
+// confirmed, as in every store call, and the credential re-checked, or
+// undefined when that chunk is gone.
 export function readFileChunk(
   store: Store,
   identity: Identity,
@@ -131,7 +132,7 @@ export function readFileChunk(
   index: number,
 ): Uint8Array | undefined {
   return store.db.transaction(() => {
-    checkCredential(store.db, identity, store.clock());
+    authorizeScope(store.db, identity, "threads:read", store.clock());
     const row = store.db
       .prepare("SELECT data FROM file_chunks WHERE file_id = ? AND idx = ?")
       .get(fileId, index) as { data: Uint8Array } | undefined;

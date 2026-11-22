@@ -194,6 +194,9 @@ describe("the body bounds", () => {
   it.each([
     ["POST", "/api/agent/s/builder/main/uploads", true],
     ["POST", "/api/web/s/builder/main/uploads?name=a.txt", true],
+    ["POST", "/api/operator/v1/s/builder/main/uploads?name=a.txt", true],
+    ["POST", "/api/operator/v2/s/builder/main/uploads", true],
+    ["POST", "/api/operator/s/builder/main/uploads", false],
     ["POST", "/api/web/s/b%20x/m/uploads", true],
     ["POST", "/api/web/s/builder/main/x/../uploads", true],
     ["POST", "/api/web/s/builder/%2e%2e/uploads", false],

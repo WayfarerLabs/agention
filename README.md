@@ -20,20 +20,26 @@ plugin marketplace, and the [operator guide](docs/operator-guide.md) takes you f
 server to agents asking and you answering. The repository contains:
 
 - the `agention` command, the server and operator CLI: `agention serve` runs the HTTP API, with
-  passkey sign-in for the person and key authentication for agents, over the server's database and
-  store, and `agention passkey-link` issues the link that registers the person's passkeys;
+  passkey sign-in for the person, key authentication for agents and API keys for the person's own
+  programs, over the server's database and store, and `agention passkey-link` issues the link that
+  registers the person's passkeys;
 - the web UI, which the server serves: the person signs in with a passkey, works through one thread
   list, filtered, grouped and searched down to what messages say, reads and answers threads, opens
   the files agents attach and attaches their own, archives threads, follows every session's status
   and updates in one view, where they approve agents' registrations, start threads on a session, and
-  sort sessions into groups and tag agents and sessions, and in Settings manages their passkeys and
-  voice, which dictates replies through a transcription provider they choose and reads messages
-  aloud on their device;
+  sort sessions into groups and tag agents and sessions, and in Settings, in sections, manages their
+  passkeys, their API keys and voice, which dictates replies through a transcription provider they
+  choose and reads messages aloud on their device, and sees the space files take;
+- the operator API, a versioned API through which a program the person runs, such as a tool that
+  already shows their agents, reads and answers Agention as them, files included, with an API key
+  they created in Settings and within the scopes they gave it, and its OpenAPI document, which the
+  server serves with its documentation when asked;
 - the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
   starts threads, writes and reads their messages, uploads files for them to carry and fetches those
   they carry, withdraws the asks it no longer needs answered, checks for new messages, and reports
   its state, such as working or stopped;
-- the API contract, which the server, the bridge and the web UI share;
+- the API contract, which the server, the bridge and the web UI share, and the OpenAPI document
+  generated from it;
 - the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
   run the bridge at the version they pin.
 
@@ -51,8 +57,10 @@ as a reverse proxy or `tailscale serve`, as the operator guide describes.
 [ADR 0001](docs/adrs/0001-agention-v1-architecture.md) records the design and the alternatives
 considered. Voice is optional and off until the person chooses a transcription provider: the server
 relays their recordings to it with a key it holds, and keeps none of them, as
-[ADR 0002](docs/adrs/0002-voice-through-the-server.md) records. Files attached to messages live in
-the same database, and are served under rules that keep them from acting as the person, as
+[ADR 0002](docs/adrs/0002-voice-through-the-server.md) records. Integrations act for the person only
+through API keys they create, each limited to its scopes and revocable at once, as
+[ADR 0003](docs/adrs/0003-operator-api-keys.md) records. Files attached to messages live in the same
+database, and are served under rules that keep them from acting as the person, as
 [ADR 0004](docs/adrs/0004-attachments.md) records.
 
 Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
@@ -67,18 +75,18 @@ process and releasing. The [operator guide](docs/operator-guide.md) lists the co
 
 Each component is an npm workspace, and one lockfile covers them all.
 
-| Path                                          | Contents                                                                                                                                       |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api/`                               | The API contract shared by the server, the bridge and the web UI                                                                               |
-| `packages/build/`                             | The bundle build for the published packages, with their license notices                                                                        |
-| `packages/private-files/`                     | The private-file rule the server and the bridge share                                                                                          |
-| `apps/server/`                                | The server and operator CLI, npm package `@wayfarerlabs/agention`                                                                              |
-| `apps/bridge/`                                | The agent bridge, npm package `@wayfarerlabs/agention-mcp`                                                                                     |
-| `apps/web/`                                   | The React web UI                                                                                                                               |
-| `apps/agent-plugin/`                          | The canonical agent plugin definition and its generator                                                                                        |
-| `out/`, `.claude-plugin/`, `.agents/plugins/` | Generated Claude Code and Codex plugins and catalogs (committed)                                                                               |
-| `scripts/`                                    | Check, lint and plugin generation scripts                                                                                                      |
-| `docs/`                                       | Architecture, operator guide, decision records (`docs/adrs/`), the development contract and its checklists, and design documents (`docs/sdd/`) |
+| Path                                          | Contents                                                                                                                                                                                     |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api/`                               | The API contract shared by the server, the bridge and the web UI                                                                                                                             |
+| `packages/build/`                             | The bundle build for the published packages, with their license notices                                                                                                                      |
+| `packages/private-files/`                     | The private-file rule the server and the bridge share                                                                                                                                        |
+| `apps/server/`                                | The server and operator CLI, npm package `@wayfarerlabs/agention`                                                                                                                            |
+| `apps/bridge/`                                | The agent bridge, npm package `@wayfarerlabs/agention-mcp`                                                                                                                                   |
+| `apps/web/`                                   | The React web UI                                                                                                                                                                             |
+| `apps/agent-plugin/`                          | The canonical agent plugin definition and its generator                                                                                                                                      |
+| `out/`, `.claude-plugin/`, `.agents/plugins/` | Generated Claude Code and Codex plugins and catalogs (committed)                                                                                                                             |
+| `scripts/`                                    | Check, lint, plugin generation and API document generation scripts                                                                                                                           |
+| `docs/`                                       | Architecture, operator guide, decision records (`docs/adrs/`), the generated OpenAPI document (`docs/api/`), the development contract and its checklists, and design documents (`docs/sdd/`) |
 
 ## License
 

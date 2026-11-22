@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./json-schemas": "./src/json-schemas.ts",
     "./registration-code": "./src/registration-code.ts"
   },
   "scripts": {

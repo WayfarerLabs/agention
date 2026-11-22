@@ -9,14 +9,14 @@ import type { Context } from "hono";
 // The headers each request's route declared its own, by name in lower case.
 const declared = new WeakMap<Request, Set<string>>();
 
-// ownHeaders declares that the route answering c sets the named security
-// headers for itself, so the middleware keeps the route's values.
-export function ownHeaders(c: Context, names: readonly string[]): void {
-  const own = declared.get(c.req.raw) ?? new Set<string>();
+// ownHeaders declares that the route answering a request sets the named
+// security headers for itself, so the middleware keeps the route's values.
+export function ownHeaders(request: Request, names: readonly string[]): void {
+  const own = declared.get(request) ?? new Set<string>();
   for (const name of names) {
     own.add(name.toLowerCase());
   }
-  declared.set(c.req.raw, own);
+  declared.set(request, own);
 }
 
 // declaredOwn says whether the route answering c declared a header its own.

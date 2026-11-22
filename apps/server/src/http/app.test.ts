@@ -368,7 +368,7 @@ describe("the diagram frame", () => {
       for (const [header, value] of Object.entries(own)) {
         c.header(header, value);
       }
-      ownHeaders(c, declaring.get(c.req.path) ?? []);
+      ownHeaders(c.req.raw, declaring.get(c.req.path) ?? []);
       return c.text("");
     });
     const headersOf = async (target: string) => {

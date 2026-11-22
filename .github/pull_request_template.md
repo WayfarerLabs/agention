@@ -12,6 +12,8 @@
 
 - [ ] `scripts/check.sh` passes locally
 - [ ] Generated plugin outputs regenerated and committed, if their sources changed
+- [ ] `docs/api/openapi.json` regenerated with `scripts/generate-api-docs.sh` and committed, if an
+      operation or a schema it uses changed
 - [ ] Documentation and ADRs updated for any change in behavior or decisions
 - [ ] Other verification (describe below)
 

@@ -1,10 +1,11 @@
 // Settings and voice in Chromium against the real server, on a server of
 // these tests' own, with a local stub standing in for the transcription
-// provider and Chromium's fake microphone, which plays a tone: Settings with
-// passkeys, voice, storage and signing out, at a desktop's width and a
-// phone's; voice set up to the stub and tried there; dictation in a thread,
-// its text at the caret and nothing sent; typing while the microphone opens;
-// and reading a message aloud, then stopping it.
+// provider and Chromium's fake microphone, which plays a tone: Settings'
+// sections, passkeys, voice, storage and signing out, beside their navigation
+// at a desktop's width, and at a phone's the navigation alone, each section
+// leading back to it; voice set up to the stub and tried there; dictation in
+// a thread, its text at the caret and nothing sent; typing while the
+// microphone opens; and reading a message aloud, then stopping it.
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
@@ -115,29 +116,82 @@ test.afterAll(async () => {
   await stub.close();
 });
 
-test("Settings hold passkeys, voice, storage and signing out, at a desktop's width and a phone's", async () => {
-  for (const size of [wide, phone]) {
-    await page.setViewportSize(size);
-    await page.getByRole("link", { name: "Settings" }).click();
-    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
-      "Passkeys",
-      "Voice",
-      "Storage",
-      "Sign out",
-    ]);
-    await expect(page.getByRole("article", { name: "Passkey Laptop" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Set up" })).toBeVisible();
+// Settings' navigation of its sections, the open section's heading, and the
+// way back to the navigation.
+const settings = () => page.getByRole("navigation", { name: "Settings" });
+const sectionHeading = () => page.getByRole("heading", { level: 2 });
+const backToSettings = () => page.getByRole("link", { name: "Back to settings" });
+const settingsTab = () => page.getByRole("banner").getByRole("link", { name: "Settings" });
+
+// expectNoOverflow says nothing runs off the side of the page.
+async function expectNoOverflow() {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+}
+
+test("Settings at a desktop's width opens the first section beside the navigation, which stays", async () => {
+  await settingsTab().click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(sectionHeading()).toHaveText("Passkeys");
+  await expect(page.getByRole("article", { name: "Passkey Laptop" })).toBeVisible();
+  await expect(settings().getByRole("link", { name: "Passkeys" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(backToSettings()).toBeHidden();
+
+  await settings().getByRole("link", { name: "Voice" }).click();
+  await expect(page).toHaveURL(/\/settings\/voice$/);
+  await expect(sectionHeading()).toHaveText("Voice");
+  await expect(page.getByRole("button", { name: "Set up" })).toBeVisible();
+  await expect(settings().getByRole("link", { name: "Voice" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(backToSettings()).toBeHidden();
+  // The navigation is a column beside the section, not above it.
+  const column = await settings().boundingBox();
+  const section = await page.getByRole("region", { name: "Voice" }).boundingBox();
+  expect(column !== null && section !== null && column.x + column.width <= section.x).toBe(true);
+  await expectNoOverflow();
+});
+
+test("Settings at a phone's width lists the sections alone, and a section leads back to them", async () => {
+  await page.setViewportSize(phone);
+  try {
+    await settingsTab().click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(settings()).toBeVisible();
+    await expect(sectionHeading()).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Passkeys" })).toBeHidden();
+    await expectNoOverflow();
+
+    for (const [title, shows] of [
+      ["Passkeys", page.getByRole("article", { name: "Passkey Laptop" })],
+      ["API keys", page.getByRole("button", { name: "Create an API key" })],
+      ["Voice", page.getByRole("button", { name: "Set up" })],
+      ["Storage", page.getByText("No files are attached yet.")],
+      ["Sign out", page.getByRole("main").getByRole("button", { name: "Sign out" })],
+    ] as const) {
+      await settings().getByRole("link", { name: title }).click();
+      await expect(sectionHeading()).toHaveText(title);
+      await expect(shows).toBeVisible();
+      await expect(settings()).toBeHidden();
+      await expectNoOverflow();
+      await backToSettings().click();
+      await expect(page).toHaveURL(/\/settings$/);
+      await expect(settings()).toBeVisible();
+    }
     await expect(page.getByRole("banner").getByRole("button")).toHaveCount(0);
-    // Nothing runs off the side of a phone.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+  } finally {
+    await page.setViewportSize(wide);
   }
-  await page.setViewportSize(wide);
 });
 
 test("voice set up to the operator's own server transcribes through Try it", async () => {
+  await settings().getByRole("link", { name: "Voice" }).click();
   const voice = page.getByRole("region", { name: "Voice" });
   await voice.getByRole("button", { name: "Set up" }).click();
   await voice.getByLabel("Provider").selectOption({ label: "Your own server" });

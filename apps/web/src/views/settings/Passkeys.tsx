@@ -5,20 +5,20 @@ import type {
   SessionState,
 } from "@wayfarerlabs/agention-api";
 import { type FormEvent, useId, useState } from "react";
-import { ApiFailure, request } from "../../api.ts";
-import { ConfirmButton, Failure, Status, Tags } from "../../components.tsx";
-import { useAction } from "../../data.ts";
+import { request } from "../../api.ts";
+import { ConfirmButton, Failure, Loadable, Status, Tags } from "../../components.tsx";
+import { useAction, useResource } from "../../data.ts";
 import { Time } from "../../format.tsx";
-import { addPasskey, passkeysSupported, signIn } from "../../passkeys.ts";
+import { addPasskey, passkeysSupported } from "../../passkeys.ts";
 import { useSession } from "../../session.tsx";
+import { loadPasskeys, needingRecent, RecentSignIn, unsupported } from "./RecentSignIn.tsx";
+import type { SectionProps } from "./sections.ts";
 
 // Settings' passkeys: the operator's passkeys, each named, with the one that
 // signed this browser in marked. They add one on this device, rename any, and
 // remove any but the last. Another device signs in with a passkey they hold
 // and adds its own there. Adding and removing need a recent sign-in, which
-// the Settings view offers up front.
-
-export const loadPasskeys = () => request<PasskeyList>("GET", "/passkeys");
+// the section offers up front; the list says whether the sign-in is recent.
 
 // nameProblem says why a passkey name cannot be sent: a blank one.
 export const nameProblem = (name: string) =>
@@ -60,25 +60,30 @@ export function PasskeyNameField({
   );
 }
 
-// needingRecent runs a change that needs a recent sign-in. When the server
-// finds the sign-in too old, though the page last saw it recent, the page
-// reads its settings again, so it offers to sign in again.
-export async function needingRecent<T>(change: Promise<T>, refresh: () => void): Promise<T> {
-  try {
-    return await change;
-  } catch (failure) {
-    if (failure instanceof ApiFailure && failure.code === "not_allowed") {
-      refresh();
-    }
-    throw failure;
-  }
+// PasskeysSection is Settings' section of passkeys: the offer to sign in
+// again while the list says the sign-in is not recent, then the list.
+export function PasskeysSection({ focusHeading }: SectionProps) {
+  const passkeys = useResource(loadPasskeys);
+  const recentHint = useId();
+  return (
+    <>
+      <RecentSignIn
+        recent={passkeys.data?.recent}
+        need="Adding or removing a passkey"
+        hint={recentHint}
+        refresh={passkeys.refresh}
+        focusHeading={focusHeading}
+      />
+      <Loadable data={passkeys.data} failure={passkeys.failure} retry={passkeys.refresh}>
+        {(data) => <Passkeys data={data} refresh={passkeys.refresh} recentHint={recentHint} />}
+      </Loadable>
+    </>
+  );
 }
-
-const unsupported = "This browser lacks the passkey support Agention needs, so it cannot do this.";
 
 // Passkeys lists the operator's passkeys. recentHint names what says a
 // recent sign-in is needed, while one is.
-export function Passkeys({
+function Passkeys({
   data,
   refresh,
   recentHint,
@@ -110,37 +115,6 @@ export function Passkeys({
       )}
       <AddHere recent={data.recent} describedBy={recent} refresh={refresh} />
     </>
-  );
-}
-
-// SignInAgain says why changing passkeys and voice is unavailable, and signs
-// in again, which replaces this browser's session with a recent one.
-export function SignInAgain({ hint, onSignedIn }: { hint: string; onSignedIn: () => void }) {
-  const session = useSession();
-  const action = useAction();
-  const again = async () => {
-    const state = await action.run(signIn);
-    if (state !== undefined) {
-      session.update(state);
-      onSignedIn();
-    }
-  };
-  return (
-    <div className="notice">
-      <p id={hint}>
-        Adding or removing a passkey, and changing voice, need a sign-in within the last 10 minutes.
-      </p>
-      <Failure failure={action.failure} />
-      {passkeysSupported() ? (
-        <div className="actions">
-          <button type="button" disabled={action.pending} onClick={() => void again()}>
-            Sign in again
-          </button>
-        </div>
-      ) : (
-        <p>{unsupported}</p>
-      )}
-    </div>
   );
 }
 
