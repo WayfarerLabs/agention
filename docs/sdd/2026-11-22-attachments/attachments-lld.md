@@ -403,8 +403,9 @@ answer is `{}`.
 
 An upload still arriving cannot be removed by reference: its writer learns the reference only from
 the upload's answer, once every byte has arrived. Ending the request is how its writer stops it, and
-Abort removes what arrived, as the web UI's Remove does by aborting its request. The bridge has no
-tool for it.
+Abort removes what arrived, as the web UI's Remove does by aborting its request while bytes remain.
+Once every byte has gone the server may already have completed it, so Remove waits for the answer
+and removes it by its reference. The bridge has no tool for it.
 
 ### Writing: the `attachments` field
 
@@ -718,13 +719,16 @@ display); `api.ts` gains `uploadFile`.
   again.
 - **Limits in the browser:** a file over 100 MiB, or an eleventh, is refused in the list with the
   limit named, without uploading.
-- **Remove** aborts an upload in progress, which the server then removes, and removes a finished one
-  from the server through its remove route as it drops it from the draft, so a removed file stops
-  counting against the operator's pending limits at once. The draft keeps each finished upload's
-  reference by the file's id as the upload answers, so Remove finds it whatever the list last
-  rendered. A removal that fails leaves the upload to expire; the next refusal at the limit says so.
-  An upload the server completes as the operator removes it, its answer lost to the abort, is left
-  to expire, since its reference never reached the page.
+- **Remove** aborts an upload in progress while bytes remain, which the server then removes. Once
+  the last progress event says every byte has gone (`sent` equals the file's size), it does not
+  abort, since the server may already have completed the upload: the file leaves the list and the
+  queue moves on, and when the upload answers, the draft calls the remove route with its reference.
+  A finished one it removes through the route as it drops it from the draft, reading its reference
+  from the file's state. So a removed file stops counting against the operator's pending limits at
+  once. Two cases leave an upload to expire, the next refusal at the limit saying so: a removal that
+  fails, and a Remove in the moment before the list shows what the upload last did, which aborts an
+  upload whose last byte has gone unreported, or drops one whose answer the list has not yet
+  rendered.
 - **Send waits:** Send is unavailable while any file is waiting, uploading, failed or expired, with
   the Send row saying which ("Uploading 2 of 3 files", "A file did not upload: retry or remove it").
   A message may be files alone. `contentOf` (`writer.ts:197-213`) adds `attachments`: kept files as
@@ -906,7 +910,8 @@ section (not yet on `main` at this branch's base; this effort follows it either 
 - **Web units:**
   - paste: images attach, text pastes, mixed clipboards;
   - the queue: one at a time, progress, idle abort, Retry, Remove of each state, a finished one
-    removed from the server, expiry on refusal;
+    removed from the server, one whose every byte has gone removed once it answers, one with bytes
+    remaining aborted, expiry on refusal;
   - Send unavailable until uploads finish, and a message of files alone;
   - `contentOf` with kept and new files; edit and answer changes loading kept files;
   - display by served type and size threshold, missing files, the text preview's range;

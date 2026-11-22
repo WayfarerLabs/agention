@@ -172,9 +172,10 @@ export interface DraftFiles {
   // add adds files, each under the name given, made unique in the draft,
   // and uploads them in turn; one that breaks a limit is refused.
   add(added: { file: File; name: string }[]): void;
-  // remove drops a file, stopping its upload under way, which the server
-  // then removes, or removing its finished upload from the server, so it no
-  // longer counts against the operator's pending uploads.
+  // remove drops a file and its upload: it stops an upload with bytes still
+  // to send, which the server then removes, and removes one the server may
+  // have completed through its remove route, once it answers if it is still
+  // under way, so it no longer counts against the operator's pending uploads.
   remove(id: number): void;
   // retry sends a failed or expired upload again.
   retry(id: number): void;
@@ -196,11 +197,18 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   const onFailure = useUnauthenticatedCheck();
   const [files, setFiles] = useState<DraftFile[]>([]);
   const nextId = useRef(1);
-  // The upload under way, if any.
-  const running = useRef<{ id: number; controller: AbortController }>(undefined);
-  // The upload reference of each file whose upload finished, by its id, as
-  // the upload answered, so Remove finds it whatever the list last rendered.
-  const finished = useRef(new Map<number, string>());
+  // The upload under way, if any. Removed once every byte has gone, it is
+  // left to answer, and its upload is then removed from the server.
+  const running = useRef<{ id: number; controller: AbortController; removed: boolean }>(undefined);
+
+  const removeUpload = useCallback(
+    (upload: string) => {
+      request("POST", sessionPath(target.agent, target.session, `/uploads/${upload}/remove`), {
+        csrf,
+      }).catch(onFailure);
+    },
+    [target.agent, target.session, csrf, onFailure],
+  );
 
   const update = useCallback((id: number, state: UploadState) => {
     setFiles((current) =>
@@ -218,9 +226,10 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
       return;
     }
     const controller = new AbortController();
-    running.current = { id: next.id, controller };
+    const under = { id: next.id, controller, removed: false };
+    running.current = under;
     const done = () => {
-      if (running.current?.id === next.id) {
+      if (running.current === under) {
         running.current = undefined;
       }
     };
@@ -234,20 +243,24 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
     }).then(
       (result) => {
         done();
-        finished.current.set(next.id, result.upload);
+        if (under.removed) {
+          removeUpload(result.upload);
+          return;
+        }
         update(next.id, { kind: "uploaded", upload: result.upload });
       },
       (failure: unknown) => {
         done();
-        // A removed file's upload was stopped, and is gone from the list.
-        if (controller.signal.aborted) {
+        // A removed file is gone from the list, its upload stopped or left
+        // to answer.
+        if (controller.signal.aborted || under.removed) {
           return;
         }
         onFailure(failure);
         update(next.id, { kind: "failed", failure });
       },
     );
-  }, [files, target.agent, target.session, csrf, update, onFailure]);
+  }, [files, target.agent, target.session, csrf, update, removeUpload, onFailure]);
 
   // Leaving the page stops what is under way.
   useEffect(
@@ -288,35 +301,32 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   }, []);
 
   // Removing the file under way frees the queue at once, so the next starts
-  // as the list changes. A finished upload is removed from the server as the
-  // file leaves the list; should that fail, it counts until it expires, as
-  // the server's refusal of another upload then says.
+  // as the list changes. While bytes remain its upload is stopped, so the
+  // server never completes it; once every byte has gone the server may have,
+  // so it is left to answer and then removed, as a finished upload is when
+  // its file leaves the list. Should a removal fail, the upload counts until
+  // it expires, as the server's refusal of another upload then says.
   const remove = useCallback(
     (id: number) => {
+      const found = files.find((each) => each.id === id);
+      const file = found?.kind === "added" ? found : undefined;
       if (running.current?.id === id) {
-        running.current.controller.abort();
+        if (file?.state.kind === "uploading" && file.state.sent >= file.size) {
+          running.current.removed = true;
+        } else {
+          running.current.controller.abort();
+        }
         running.current = undefined;
+      } else if (file?.state.kind === "uploaded") {
+        removeUpload(file.state.upload);
       }
-      const upload = finished.current.get(id);
-      if (upload !== undefined) {
-        finished.current.delete(id);
-        request("POST", sessionPath(target.agent, target.session, `/uploads/${upload}/remove`), {
-          csrf,
-        }).catch(onFailure);
-      }
-      setFiles((current) => current.filter((file) => file.id !== id));
+      setFiles((current) => current.filter((each) => each.id !== id));
     },
-    [target.agent, target.session, csrf, onFailure],
+    [files, removeUpload],
   );
 
   const retry = useCallback((id: number) => update(id, { kind: "waiting" }), [update]);
-  const expire = useCallback(
-    (id: number) => {
-      finished.current.delete(id);
-      update(id, { kind: "expired" });
-    },
-    [update],
-  );
+  const expire = useCallback((id: number) => update(id, { kind: "expired" }), [update]);
 
   const keep = useCallback((message: Message) => {
     setFiles(
@@ -334,9 +344,6 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   }, []);
 
   const sent = useCallback((ids: readonly number[]) => {
-    for (const id of ids) {
-      finished.current.delete(id);
-    }
     setFiles((current) => current.filter((file) => !ids.includes(file.id)));
   }, []);
 

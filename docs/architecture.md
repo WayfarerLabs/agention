@@ -1029,12 +1029,15 @@ progress for 60 seconds aborts it, longer than the server's own idle limit so th
 comes first, and there is no total deadline. `request` announces each change that lands, but an
 upload alone changes none of the navigation's counts, so it announces none. The list shows each
 file's name, size and state, with a progress bar while it uploads, **Retry** for one that failed,
-**Upload again** for one that expired, and **Remove**, which stops an upload under way and removes a
+**Upload again** for one that expired, and **Remove**, which stops an upload under way while bytes
+remain, lets one whose every byte has gone answer and then removes it from the server, and removes a
 finished one from the server, so it stops counting against the operator's pending uploads at once.
-Send waits until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`,
-then uploads as `{upload, name}`; a refusal naming an upload marks that file expired. A stale write
-keeps the files with the draft. Editing a message, or changing its answers, loads its files as kept,
-which **Remove** drops from the replacement.
+Only a Remove in the instant before the list shows the last byte gone or the upload's answer, or a
+removal the connection loses, leaves the upload counting until it expires. Send waits until every
+file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then uploads as
+`{upload, name}`; a refusal naming an upload marks that file expired. A stale write keeps the files
+with the draft. Editing a message, or changing its answers, loads its files as kept, which
+**Remove** drops from the replacement.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with

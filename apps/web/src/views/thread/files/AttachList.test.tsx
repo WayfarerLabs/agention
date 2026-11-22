@@ -277,6 +277,41 @@ describe("Remove", () => {
     ).toHaveLength(1);
   });
 
+  it("lets an upload whose every byte has gone finish, then removes it from the server", async () => {
+    await opened();
+    const removal = `/s/builder/main/uploads/${ref(1)}/remove`;
+    page.api.on("POST", removal, { body: {} });
+    choose(file("a.png"), file("b.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploads[0]?.progress(1000);
+    const bar = await within(entry("a.png")).findByRole<HTMLProgressElement>("progressbar");
+    await waitFor(() => expect(bar.value).toBe(1000));
+    fireEvent.click(control("Remove a.png"));
+    expect(uploads[0]?.aborted).toBe(false);
+    expect(listed()).toEqual(["b.png"]);
+    // The next upload need not wait for the answer.
+    await waitFor(() => expect(uploads).toHaveLength(2));
+    uploaded(0, 1);
+    await waitFor(() => expect(page.api.callsTo("POST", removal)).toHaveLength(1));
+    expect(page.api.callsTo("POST", removal)[0]?.headers["x-csrf-token"]).toBe(csrf);
+    expect(listed()).toEqual(["b.png"]);
+  });
+
+  it("stops an upload while bytes remain, so the server keeps none of it", async () => {
+    await opened();
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploads[0]?.progress(999);
+    const bar = await within(entry("a.png")).findByRole<HTMLProgressElement>("progressbar");
+    await waitFor(() => expect(bar.value).toBe(999));
+    fireEvent.click(control("Remove a.png"));
+    expect(uploads[0]?.aborted).toBe(true);
+    expect(fileList()).toBeNull();
+    expect(
+      page.api.calls.filter((call) => /\/uploads\/[^/]+\/remove$/.test(call.url.pathname)),
+    ).toEqual([]);
+  });
+
   it("moves focus to the next file's Remove, else the previous one's, else Attach", async () => {
     await opened();
     choose(file("a.png"), file("b.png"), file("c.png"));

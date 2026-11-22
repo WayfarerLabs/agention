@@ -844,10 +844,11 @@ carries its files to the new version unless you remove them, and the earlier ver
   the thread holds, newest first, each with who attached it, when, and a link to its message.
 - **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, and each agent
   session, can hold at most 20 files, and 1 GiB, uploaded and not yet sent; a file you remove before
-  sending stops counting at once. The server refuses an upload, saying its disk is too full, unless
-  the disk holding its data directory keeps 1 GiB free beyond the files arriving. An upload has no
-  time limit as long as its bytes keep moving, but stops after 30 seconds without any, so a slow
-  link finishes and a dead one fails.
+  sending stops counting at once, unless you remove it the instant its last bytes leave or the
+  connection fails as you remove it, when it counts until it is removed a day later. The server
+  refuses an upload, saying its disk is too full, unless the disk holding its data directory keeps 1
+  GiB free beyond the files arriving. An upload has no time limit as long as its bytes keep moving,
+  but stops after 30 seconds without any, so a slow link finishes and a dead one fails.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.
