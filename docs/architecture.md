@@ -357,16 +357,17 @@ answered as the first was, and one with other content is a request-id conflict, 
 own thread, which a session still starts only in itself.
 
 An upload (`apps/server/src/store/files.ts`) begins in one transaction, which authorizes the session
-and refuses it while its writer holds 20 pending uploads, or would hold more than 1 GiB of them by
-their declared sizes with this one, counting those still arriving and not those expired; then it
-inserts the file's row with a reference of 16 random bytes in base64url, and adds the file to the
-process's set of uploads in flight. A writer may run several uploads at once. Each chunk is written
-in a transaction of its own, which checks the credential again, so a revoked agent's upload stops
-within a chunk. Completing checks that the bytes received number the declared size, and records the
-hash and the time. Any failure after the upload begins, a body cut off, a revoked credential or a
-length that does not match among them, removes the file and its chunks in one transaction; a removal
-that itself fails is logged and left to the sweep. A completed upload no message names expires 24
-hours after it completed.
+under `threads:write` and refuses it while its writer holds 20 pending uploads, or would hold more
+than 1 GiB of them by their declared sizes with this one, counting those still arriving and not
+those expired; then it inserts the file's row with a reference of 16 random bytes in base64url, and
+adds the file to the process's set of uploads in flight. A writer may run several uploads at once.
+Each chunk is written in a transaction of its own, which checks the credential and its scope again,
+so the upload of a revoked agent's registration or a revoked or expired API key stops within a
+chunk. Completing checks that the bytes received number the declared size, and records the hash and
+the time. Any failure after the upload begins, a body cut off, a revoked credential or a length that
+does not match among them, removes the file and its chunks in one transaction; a removal that itself
+fails is logged and left to the sweep. A completed upload no message names expires 24 hours after it
+completed.
 
 A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
 `store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
@@ -638,8 +639,11 @@ cached for good. Both routes declare those headers their own with `ownHeaders`.
 
 ### Files
 
-The routes on files are thread routes, so they are the same on both mounts under
-`/s/:agent/:session`, behind each mount's own authentication.
+The routes on files are operations on one thread and its session's uploads (`thread-operations.ts`),
+so they are the same on every mount under `/s/:agent/:session`, behind each mount's own
+authentication: uploading and removing an upload require `threads:write`, and a thread's files and
+reading a file `threads:read`. An API key's uploads are the operator's, as its messages are, so they
+share the operator's pending limits, and the web UI can name one in a message.
 
 - **Uploading.** `POST /s/:agent/:session/uploads?name=<name>` takes the file's bytes as the raw
   body, with its `Content-Length` and a `Content-Type` read as its declared type: the type's
@@ -652,22 +656,22 @@ The routes on files are thread routes, so they are the same on both mounts under
   database, by `statfs`'s blocks available to an unprivileged user, would keep 1 GiB free beyond
   this file and every byte still to arrive across all incomplete uploads. The answer is the upload's
   reference, name, size, declared type, the type it is served as, and when it expires. An agent's
-  upload spends one request of its key's budget, as any call does; the operator's spends none. A
-  refused upload leaves its body unread, and `@hono/node-server` then reads it for at most 500 ms or
-  64 MiB before closing the connection, so a refusal goes out first and no refused upload holds the
-  server longer.
-- **Removing an upload.** `POST /s/:agent/:session/uploads/:ref/remove` removes one of the writer's
-  own completed uploads that no message names, uploaded in that session, with its bytes, so it stops
-  counting against the writer's pending limits at once. Any other reference, another writer's,
-  another session's, one attached or one still arriving, is `not_found`, as for a reference that
-  names nothing. An upload still arriving has not yet answered with its reference; ending its
-  request stops it, and the server removes what arrived. The web UI's **Remove** calls it for an
-  uploaded file; the bridge has no tool for it.
-- **A thread's files.** `GET /threads/:n/files?cursor=&limit=` lists a thread's files, each once
-  with the message that brought it, its author and its time, newest first, up to 50 a page by
+  upload spends one request of its key's budget, as any call does, and so does an API key's; the
+  browser session's spends none. A refused upload leaves its body unread, and `@hono/node-server`
+  then reads it for at most 500 ms or 64 MiB before closing the connection, so a refusal goes out
+  first and no refused upload holds the server longer.
+- **Removing an upload.** `POST /s/:agent/:session/uploads/:upload/remove` removes one of the
+  writer's own completed uploads that no message names, uploaded in that session, with its bytes, so
+  it stops counting against the writer's pending limits at once. Any other reference, another
+  writer's, another session's, one attached or one still arriving, is `not_found`, as for a
+  reference that names nothing. An upload still arriving has not yet answered with its reference;
+  ending its request stops it, and the server removes what arrived. The web UI's **Remove** calls it
+  for an uploaded file; the bridge has no tool for it.
+- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists a thread's files, each
+  once with the message that brought it, its author and its time, newest first, up to 50 a page by
   default.
-- **Reading a file.** `GET` and `HEAD /threads/:n/messages/:seq/files/:name?file=<reference>` read
-  the file a message carries under a name, percent-encoded in the path and compared after NFC
+- **Reading a file.** `GET` and `HEAD /threads/:thread/messages/:seq/files/:name?file=<reference>`
+  read the file a message carries under a name, percent-encoded in the path and compared after NFC
   normalization (`apps/server/src/http/files.ts`). The thread must be the session's, the message the
   thread's and the name the message's, and `file`, when given, the reference of that file, or the
   read is `not_found`; the web UI always gives it, so a URL always names the same bytes, and a copy
@@ -678,9 +682,10 @@ The routes on files are thread routes, so they are the same on both mounts under
   at or beyond the end, any range of an empty file included, is 416 `invalid_input` with
   `Content-Range: bytes */<size>`. `If-None-Match` and `If-Range` are ignored, since the bytes at a
   URL never change. `HEAD` reads no chunk. The body streams a chunk at a time, each read in its own
-  transaction, which checks the credential again; the first chunk is read before the answer starts,
-  so a credential revoked meanwhile or a chunk that is gone is answered as any refusal is, and a
-  chunk missing later cuts the body short, which is logged.
+  transaction, which checks the credential and its scope again, so a revoked or expired agent's
+  registration, browser session or API key stops it within a chunk; the first chunk is read before
+  the answer starts, so a credential revoked meanwhile or a chunk that is gone is answered as any
+  refusal is, and a chunk missing later cuts the body short, which is logged.
 - **A file's headers.** `Content-Type` is the served type: the declared type when it is PNG, JPEG,
   GIF, WebP or SVG (`image/svg+xml`), PDF, `video/mp4`, `video/webm` or `video/ogg`, or
   `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/webm`, `audio/wav` or `audio/flac`;
@@ -715,13 +720,15 @@ field or bound the server does not have. Each operation has its path, an `operat
 mount's name and its own, such as `operatorListThreads`, its summary, its parameters and body
 described as input and its answer as output, and its authentication: on the operator mount the
 `apiKey` bearer scheme with the scope the operation requires, and on the agent mount the
-`agentToken` scheme and the agent API's version header. `GET /api/operator` is in it too. Every
-refusal is one shared `error` response, whose description gives each error code's status. The
-schemas come from `@wayfarerlabs/agention-api/json-schemas` ([API contract](#api-contract)), so each
-named schema is described once under `components.schemas` and referenced wherever it appears. Rules
-a schema enforces only in code, zod refinements such as a key's scopes never repeating, are absent
-from the JSON Schema, so the document may describe less than the server checks, never more; a
-request breaking such a rule answers `invalid_input`, naming the field when the rule concerns one.
+`agentToken` scheme and the agent API's version header. An upload's body is described as
+`application/octet-stream`, with what its `Content-Type` declares, and a file read's answer as its
+served types, with the `Range` header, 206 and 416. `GET /api/operator` is in it too. Every refusal
+is one shared `error` response, whose description gives each error code's status. The schemas come
+from `@wayfarerlabs/agention-api/json-schemas` ([API contract](#api-contract)), so each named schema
+is described once under `components.schemas` and referenced wherever it appears. Rules a schema
+enforces only in code, zod refinements such as a key's scopes never repeating, are absent from the
+JSON Schema, so the document may describe less than the server checks, never more; a request
+breaking such a rule answers `invalid_input`, naming the field when the rule concerns one.
 
 The document is committed at `docs/api/openapi.json`, written by `scripts/generate-api-docs.sh`, and
 a test in the server's suite fails while the committed document differs from what the code
@@ -794,11 +801,11 @@ path under `/docs/api` answers the JSON `not_found`, never the web UI's page.
   newest first, with its scopes, its status and its times, a revoked or expired one until the
   operator next creates or revokes a key. On the operator mount, the key must exist, unrevoked and
   unexpired, and each operation's transaction confirms it again, so a revoked key is refused from
-  its next request and a wait it holds ends at once. Every refusal of a key is the same
-  `unauthenticated`, telling the client to check the key or create a new one in Settings, so it
-  never says whether a key existed. A key's use is recorded at most hourly. A key acts as the
-  operator over every session, within its scopes; the API keys, passkeys, settings and transcription
-  are web-only routes, so no key reaches them.
+  its next request, a wait it holds ends at once, and a file it is uploading or reading stops within
+  a chunk. Every refusal of a key is the same `unauthenticated`, telling the client to check the key
+  or create a new one in Settings, so it never says whether a key existed. A key's use is recorded
+  at most hourly. A key acts as the operator over every session, within its scopes; the API keys,
+  passkeys, settings and transcription are web-only routes, so no key reaches them.
 
 Browser sessions, links and API keys are 256 random bits, stored only as their SHA-256. Expired
 sessions, links and used challenges are deleted whenever their table is next written, and so are

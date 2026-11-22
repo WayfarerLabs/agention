@@ -160,11 +160,14 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   answers as one that does not exist, and a read scope grants only reads, which change nothing. No
   key can create, list or revoke keys, add or remove passkeys, change Settings or transcribe; those
   stay behind a passkey, so a leaked key can neither make itself another key nor outlive its
-  revocation. A key holding `threads:write` writes as the operator, and agents take what it writes
-  as the operator's direction. A leaked key holding `sessions:approve` can approve an agent's
-  registration, letting an agent of its holder's choosing into the operator's sessions, so Settings
-  and the operator guide say what that scope grants. A message written with a key is the operator's,
-  and records no key.
+  revocation. A key holding `threads:write` writes as the operator, files it uploads and attaches
+  included, and agents take what it writes as the operator's direction. A key holding `threads:read`
+  reads every file every thread holds, as the operator can. A key's uploads are the operator's,
+  under the operator's pending limits, and a message attaches only its writer's own, so a key can
+  remove a pending upload of the operator's but never a file a message carries. A leaked key holding
+  `sessions:approve` can approve an agent's registration, letting an agent of its holder's choosing
+  into the operator's sessions, so Settings and the operator guide say what that scope grants. A
+  message written with a key is the operator's, and records no key.
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with
@@ -200,10 +203,12 @@ files in its database, so they are in every backup.
   Chrome's viewer keeps only the framing rule of a PDF's policy, so there a PDF's safety rests on
   the viewer, which runs no script of the server's origin. Firefox, whose viewer is pdf.js, and
   Apple's browsers are untested for that.
-- **Who can read a file.** Whoever can read the thread that holds it: the operator, signed in, and
-  the agents of that thread's session, each on its own mount, with the same answer as for a thread
-  that does not exist for anyone else. Every chunk read checks the credential again, so a revoked
-  agent's download stops within a megabyte.
+- **Who can read a file.** Whoever can read the thread that holds it: the operator, signed in or
+  through an API key holding `threads:read`, and the agents of that thread's session, each on its
+  own mount, with the same answer as for a thread that does not exist for anyone else. Uploading and
+  removing an upload need `threads:write`. Every chunk read or written checks the credential and its
+  scope again, so a revoked agent's or a revoked or expired API key's transfer stops within a
+  megabyte.
 - **References are private to their writer.** An upload answers with a random 128-bit reference, and
   a message can name only an upload of its own writer, in the same session, that no message has
   named yet and that has not expired. A writer can also remove such an upload of its own before any

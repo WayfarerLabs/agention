@@ -852,13 +852,14 @@ carries its files to the new version unless you remove them, and the earlier ver
   sign-in, so play it in the page or download it.
 - **The thread's files.** **Files** in the thread's head, folded on every visit, lists every file
   the thread holds, newest first, each with who attached it, when, and a link to its message.
-- **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, and each agent
-  session, can hold at most 20 files, and 1 GiB, uploaded and not yet sent; a file you remove before
-  sending stops counting at once, unless you remove it the instant its last bytes leave or the
-  connection fails as you remove it, when it counts until it is removed a day later. The server
-  refuses an upload, saying its disk is too full, unless the disk holding its data directory keeps 1
-  GiB free beyond the files arriving. An upload has no time limit as long as its bytes keep moving,
-  but stops after 30 seconds without any, so a slow link finishes and a dead one fails.
+- **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, with whatever your
+  API keys upload, and each agent session, can hold at most 20 files, and 1 GiB, uploaded and not
+  yet sent; a file you remove before sending stops counting at once, unless you remove it the
+  instant its last bytes leave or the connection fails as you remove it, when it counts until it is
+  removed a day later. The server refuses an upload, saying its disk is too full, unless the disk
+  holding its data directory keeps 1 GiB free beyond the files arriving. An upload has no time limit
+  as long as its bytes keep moving, but stops after 30 seconds without any, so a slow link finishes
+  and a dead one fails.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.
@@ -882,9 +883,9 @@ under **API keys**. **Create an API key** asks for:
 
   | Scope              | What it grants                                                                                                                                                                                        |
   | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, any thread with its messages, and waiting for new messages in any session                                                                                     |
-  | `threads:write`    | Also starting threads, writing in them, answering asks, and marking threads read, unread or archived, one at a time or in bulk                                                                        |
-  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, the count of sessions with unread updates, and agents' registrations                                                  |
+  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                       |
+  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk             |
+  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                             |
   | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming and removing groups, renaming and removing tags, and setting a session's group and an agent's or a session's tags |
   | `sessions:approve` | Also approving, rejecting and revoking agents' registrations                                                                                                                                          |
 
@@ -892,7 +893,8 @@ under **API keys**. **Create an API key** asks for:
   `threads:read` with it; `sessions:write` and `sessions:approve` include neither the other.
   `sessions:approve` lets whoever holds the key let an agent into your sessions, where it writes to
   you as any agent does, so give it only to a program that decides registrations for you. Whatever
-  its scopes, no key can manage keys, passkeys or Settings, or dictate: those need your passkey.
+  its scopes, no key can manage keys, passkeys or Settings, Storage among them, or dictate: those
+  need your passkey.
 
 - **Expiry**: 7, 30 (the default), 60 or 90 days; a date you choose, up to a year away, through
   whose end the key works; or no expiry. A key without an expiry works until you revoke it, so if it
@@ -952,6 +954,33 @@ up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
 `wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
 waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
 a rate budget of its own ([Rate budgets](#rate-budgets)).
+
+Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
+uploads a file to a session, then names the upload in a message, and a key holding `threads:read`
+lists a thread's files and reads them. An upload is yours, as the key's messages are, so it counts
+against your own pending uploads, and you can name it in a message from the web UI too. Continuing
+the example, with a key holding `threads:write`:
+
+```bash
+s="$origin/api/operator/v1/s/builder/main"
+curl -sS -H @<(auth) -H 'Content-Type: text/plain' --data-binary @build.log \
+  "$s/uploads?name=build.log"
+curl -sS -H @<(auth) -H 'Content-Type: application/json' \
+  -d '{"request_id":"log-1","seen_through":4,"attachments":[{"upload":"<upload>"}]}' \
+  "$s/threads/12/messages"
+curl -sS -H @<(auth) "$s/threads/12/files"
+curl -sS -H @<(auth) -o fetched.log "$s/threads/12/messages/5/files/build.log"
+curl -sS -H @<(auth) -H 'Range: bytes=-4096' "$s/threads/12/messages/5/files/build.log"
+```
+
+The first uploads `build.log`, its bytes as they are, declaring its type in `Content-Type`, and
+answers with its reference, `upload`, which the second names in a message to thread 12 of
+`builder/main`, with `seen_through` the latest message you have seen there. Until a message names
+it, `POST $s/uploads/<upload>/remove` removes it; once a message carries a file it stays with that
+message for good, and removing it is refused. The third lists the thread's files, each with the
+message that carries it, and the fourth reads one by that message and its name there, here message
+5, into `fetched.log`. The last reads only its final 4 KiB, answered `206`; the server answers one
+range as asked, a range outside the file `416`, and any other `Range` with the whole file.
 
 ## Agents
 

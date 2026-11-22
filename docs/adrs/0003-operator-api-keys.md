@@ -37,18 +37,23 @@ contract, and documentation.
   `sessions:write` and `sessions:approve`. A write or approve scope includes its resource's read,
   and neither includes the other. Approving, rejecting or revoking an agent's registration needs
   `sessions:approve`, a scope of its own, since it decides who may write to the operator;
-  `sessions:write` covers only groups, tags and a session log's read mark. No key may manage keys,
-  passkeys or Settings, or transcribe. Later resources add scopes of the same form.
+  `sessions:write` covers only groups, tags and a session log's read mark. Files are a thread's, as
+  the messages that carry them are: uploading one and removing a pending upload need
+  `threads:write`, and listing a thread's files and reading one need `threads:read`. No key may
+  manage keys, passkeys or Settings, Storage among them, or transcribe. Later resources add scopes
+  of the same form.
 - **A third mount, the same operations.** `/api/operator/v1/` accepts only a bearer key and refuses
   cookies. It serves the operator operations the web UI uses, declared once with their schemas,
-  scope and handler, so the web mount and the operator mount run the same code. The web mount keeps
-  its cookie credential, its CSRF and `Origin` checks, its refusal of `Authorization`, and the
-  routes no key may call.
+  scope and handler, so the web mount and the operator mount run the same code. An operation whose
+  body or answer is a file's bytes, an upload or a file read, declares them as bytes, and its
+  handler reads or answers them itself. The web mount keeps its cookie credential, its CSRF and
+  `Origin` checks, its refusal of `Authorization`, and the routes no key may call.
 - **Every identity has scopes.** A browser session holds every scope, a key its own, and an agent's
   registration `threads:write` over its own session, which is what an agent could already do. The
   mount refuses an identity without the operation's scope before reading any input, and the store
-  confirms the scope again inside the operation's transaction, so every mount and every adapter is
-  held to the same scopes; this replaces the separate administration grant.
+  confirms the scope again inside the operation's transaction, and on every chunk of a file it
+  writes or reads, so every mount and every adapter is held to the same scopes; this replaces the
+  separate administration grant.
 - **The version is in the path.** A version changes only additively; a change that would break a
   client is a new version beside the old. `GET /api/operator` lists the versions served.
 - **Documentation generated from the declarations.** The operator and agent operations produce one

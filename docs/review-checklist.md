@@ -250,22 +250,23 @@ resource policy; and an attachment disposition for SVG and everything off the al
 shows a file only as an `<img>`, `<video>` or `<audio>` of its own page, as text it fetched, or as a
 PDF in a tab of its own: never in a frame, and never as a `blob:` or `data:` URL. Nothing detects a
 type from a file's bytes, parses one, or processes an image. Who can read a file is who can read its
-thread, and every chunk read or written checks the credential again; a message names only its
-writer's own pending uploads in its session, and every other reference is refused alike. Attached
-files and their bytes are never changed or removed, a replacement carries a file only by keeping it,
-and attachments are inside the write's digest, after its replay. Uploads keep their limits: the file
-and message bounds, the pending limits counting uploads still arriving, the free-space floor, the
-sweep, and the listener's deadlines, under which only an upload has no total deadline and every body
-is cut off when idle. The bridge's `file_upload` refuses anything but a regular file, its key
-directory and an oversized file, and `file_get` writes only into its own directory, under names it
-makes from a reference. Look for a served type a file's declaration or bytes can steer outside the
-allowlist, a route answering a file that does not declare its own policy and caching with
-`ownHeaders`, a file shown in a frame or through a `blob:` or `data:` URL, content sniffing or
-parsing, a reference that crosses writers or sessions, a chunk read or written without the
-credential check, a file held whole in memory, a route other than the upload given the larger body
-bound or no total deadline, a refused upload whose body is read beyond the adapter's bounded drain,
-a fetched file named from the sender's name or written outside its directory, and a file's contents
-treated as the operator's direction.
+thread, under `threads:read` on every mount, uploading needs `threads:write`, and every chunk read
+or written checks the credential and its scope again; a message names only its writer's own pending
+uploads in its session, and every other reference is refused alike. Attached files and their bytes
+are never changed or removed, a replacement carries a file only by keeping it, and attachments are
+inside the write's digest, after its replay. Uploads keep their limits: the file and message bounds,
+the pending limits counting uploads still arriving, the free-space floor, the sweep, and the
+listener's deadlines, under which only an upload has no total deadline and every body is cut off
+when idle. The bridge's `file_upload` refuses anything but a regular file, its key directory and an
+oversized file, and `file_get` writes only into its own directory, under names it makes from a
+reference. Look for a served type a file's declaration or bytes can steer outside the allowlist, a
+route answering a file that does not declare its own policy and caching with `ownHeaders`, a file
+shown in a frame or through a `blob:` or `data:` URL, content sniffing or parsing, a reference that
+crosses writers or sessions, a chunk read or written without the credential and scope check, a file
+route outside the declared thread operations, a file held whole in memory, a route other than the
+upload given the larger body bound or no total deadline, a refused upload whose body is read beyond
+the adapter's bounded drain, a fetched file named from the sender's name or written outside its
+directory, and a file's contents treated as the operator's direction.
 
 ## A18. Operator operations and their scopes
 
@@ -277,13 +278,16 @@ the web mount serves the same list, so no operation has a second handler (`docs/
 stays a web-only route. Each operation requires the narrowest scope that covers it: an operation a
 read scope grants is a `GET` without a body whose store work writes nothing, which the test over the
 list in `apps/server/src/http/operations.test.ts` holds, and approving, rejecting or revoking a
-registration needs `sessions:approve`, which no other scope includes. The mount refuses a missing
-scope before reading input, and the store operation confirms the same scope inside its transaction,
+registration needs `sessions:approve`, which no other scope includes. Files are their threads':
+uploading and removing a pending upload need `threads:write`, and a thread's files and reading one
+`threads:read`. The mount refuses a missing scope before reading input, and the store operation
+confirms the same scope inside its transaction, and on each chunk of a file it writes or reads,
 which a test over every operation in the same file holds. A later resource adds scopes of the form
 `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what an existing scope
 grants (`SECURITY.md` "API keys"). Look for an operator route added outside the list, an operation
 with a scope wider or narrower than what it does, a read-scoped operation that writes or takes a
-body, a store operation that leaves its scope to the mount, a key-reachable route that manages
+body, a store operation or a file's chunk read or write that leaves its scope to the mount, an
+operation whose body or answer is bytes but not declared so, a key-reachable route that manages
 credentials or Settings, and a scope whose meaning changes.
 
 ## A19. The operator API contract and its document
