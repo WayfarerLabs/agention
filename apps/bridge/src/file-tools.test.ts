@@ -8,6 +8,7 @@ import { host, sessionCookie } from "@wayfarerlabs/agention/src/http/test-harnes
 import { execFileSync } from "node:child_process";
 import {
   appendFileSync,
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -424,7 +425,37 @@ describe("file_get", () => {
     expect(await bridge.error("file_get", { thread: 9, seq, name: "here.txt" })).toMatchObject({
       code: "not_found",
     });
-    expect(existsSync(path.join(fetchedFilesDirectory(harness.home), "here.txt"))).toBe(false);
+    const directory = fetchedFilesDirectory(harness.home);
+    expect(existsSync(directory) ? readdirSync(directory) : []).toEqual([]);
+  });
+
+  it("removes its partial file when the server refuses the file", async () => {
+    const seq = await operatorAttaches(Buffer.from("x"), "gone.txt", "text/plain");
+    harness.beforeRequest = (request) =>
+      new URL(request.url).pathname.includes("/files/")
+        ? serverJson({ error: { code: "not_found", message: "not found" } }, 404)
+        : undefined;
+    expect(await bridge.error("file_get", { thread: 1, seq, name: "gone.txt" })).toMatchObject({
+      code: "not_found",
+    });
+    expect(readdirSync(fetchedFilesDirectory(harness.home))).toEqual([]);
+  });
+
+  it("removes its partial file when it cannot put the file in place, answering in its own words", async () => {
+    const seq = await operatorAttaches(Buffer.from("x"), "blocked.txt", "text/plain");
+    const read = await bridge.ok("thread_get", { thread: 1, after: seq - 1, limit: 1 });
+    const { file } = (read.messages as { attachments: { file: string }[] }[])[0]
+      ?.attachments[0] ?? { file: "" };
+    // A directory where the fetched file goes, which no file can be renamed over.
+    const directory = fetchedFilesDirectory(harness.home);
+    mkdirSync(path.join(directory, `${file}.txt`), { recursive: true });
+    chmodSync(directory, 0o700);
+    const answer = await bridge.call("file_get", { thread: 1, seq, name: "blocked.txt" });
+    expect([answer.isError, answer.json]).toEqual([true, undefined]);
+    // It names the directory to fix, and never the partial file it removed.
+    expect(answer.text).toContain(directory);
+    expect(answer.text).not.toContain(".part");
+    expect(readdirSync(directory)).toEqual([`${file}.txt`]);
   });
 
   it("refuses a message whose file is not a reference, writing nothing", async () => {

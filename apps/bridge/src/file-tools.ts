@@ -6,6 +6,7 @@ import {
   maxFileBytes,
   message,
   sequence,
+  type ServedType,
   servedType,
   threadNumber,
   typeOfName,
@@ -30,6 +31,7 @@ import {
 import { type FileHandle, open } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import type { Downloaded } from "./agent-api.ts";
 import { ApiFailure, BridgeError, settingProblem } from "./errors.ts";
 import type { Connected, DefineTool, InSession } from "./tools.ts";
 
@@ -192,7 +194,11 @@ export function registerFileTools(
       prune(directory, Date.now());
       const part = path.join(directory, `.${randomBytes(8).toString("hex")}.part`);
       const into = createWriteStream(part, { fd: createdPart(part) });
-      let downloaded;
+      // The file goes into place only once it is whole; until then, and if it
+      // never is, the partial file is all there is, and a failure removes it.
+      let downloaded: Downloaded;
+      let served: ServedType | undefined;
+      let fetched: string;
       try {
         downloaded = await api.download(
           key,
@@ -203,6 +209,12 @@ export function registerFileTools(
           },
           into,
         );
+        served = servedType.safeParse(downloaded.servedType).data;
+        fetched = path.join(
+          directory,
+          `${carried.file}.${(served && extensions[served]) ?? "bin"}`,
+        );
+        renameSync(part, fetched);
       } catch (error) {
         into.destroy();
         rmSync(part, { force: true });
@@ -214,12 +226,6 @@ export function registerFileTools(
             `(${errorCode(error)}).`,
         );
       }
-      const served = servedType.safeParse(downloaded.servedType).data;
-      const fetched = path.join(
-        directory,
-        `${carried.file}.${(served && extensions[served]) ?? "bin"}`,
-      );
-      renameSync(part, fetched);
       const answer = {
         path: fetched,
         name: carried.name,
