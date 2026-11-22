@@ -64,5 +64,5 @@ contract, and documentation.
   change to every client's API, which the committed document makes visible in review.
 - Agents are unaffected: the agent mount's routes, answers and version are unchanged, and they are
   now documented too.
-- Push to clients, keys limited to some sessions, and OAuth remain out; a client polls, as the web
-  UI does.
+- A client waits for what is new with a long poll across every session, as agents wait on their own;
+  push to clients, keys limited to some sessions, and OAuth remain out.

@@ -129,6 +129,27 @@ read key cannot change anything.
 - **Errors** are the shared error shape. A refused key is told to check it or create a new one in
   Settings, with nothing that says whether the key ever existed.
 
+## Waiting for what is new (A3)
+
+`GET /api/operator/v1/wait`, an operator operation under `threads:read`, is the agent long poll's
+counterpart across every session: it answers at once when a thread has a message newer than the
+client's `since` that the operator has not read, and otherwise when one commits, when the key is
+revoked, when the client disconnects, when the server shuts down, or when its wait (up to the agent
+wait's bound) runs out. Its answer is a page of thread summaries, each naming its session, and the
+next `since`, an opaque cursor, so a client is never woken twice for one message.
+
+- **Cursor.** Positions today count within a session (`sessions.last_pos`), so a cross-session
+  cursor is the message's position in the whole database: the row order messages are inserted in,
+  which never goes backwards. A `since` past the latest counts as none, as the agent wait's does.
+- **Wake-up.** `SessionNotifier` gains one more channel, woken on every session's notification, so
+  the operator's waiters wake on any commit and on any revocation, including their own key's. The
+  revocation path notifies that channel too, so a revoked key's wait ends at once (K5).
+- **Reuse.** The loop is `waitForThreads`'s: poll in a transaction with authorization, wait on the
+  notifier, poll again. The shared part moves into one function both waits call, so the agent wait
+  keeps its behavior (E1).
+- On the web mount it is available too, as every operator operation is; the web UI keeps polling,
+  and moving it to the wait is not part of this effort.
+
 ## Documentation
 
 - `apps/server/src/http/openapi.ts` builds one OpenAPI 3.1 document from the operator and agent
@@ -195,5 +216,4 @@ prompt the passkey section uses.
 
 ## Out of scope here
 
-As the FRD says: push and long polling for clients, keys limited to some sessions, OAuth, and anyone
-but the operator.
+As the FRD says: push to clients, keys limited to some sessions, OAuth, and anyone but the operator.

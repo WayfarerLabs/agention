@@ -1,6 +1,6 @@
 # Operator API: Functional Requirements
 
-- Status: Accepted by the operator 2026-11-21 with changes (ruling 5)
+- Status: Accepted by the operator 2026-11-21 with changes (ruling 5); A3 added by ruling 7
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -82,6 +82,11 @@ implemented twice.
 working across server releases while the server serves that version, and the server says which
 versions it serves.
 
+**A3. A client waits for what is new.** A client can ask to be answered as soon as something new
+reaches the operator in any session, such as a message or an ask from an agent, instead of polling
+rapidly, and be told only of what it has not been told before (ruling 7). Revoking or expiring the
+key ends a wait it holds.
+
 ### Documentation
 
 **D1. Live documentation.** Started with `--api-docs`, the server serves documentation under
@@ -108,8 +113,9 @@ operator, which ADR 0001 ruled out.
 
 - Keys for anyone but the operator, and sharing the operator's account with other people.
 - OAuth, and any sign-in flow for a client other than pasting a key.
-- Push to clients, and a long poll for the operator: webhooks, server-sent events and notifications
-  (agention#30). A client polls, as the web UI does.
+- Push to clients: webhooks, server-sent events and notifications (agention#30). A3 is met by
+  waiting on a request, as agents already do.
+- Recording which key wrote a message, which an audit log (agention#42) will capture (ruling 6).
 - Keys limited to some sessions or agents.
 - A pitwall integration itself, which belongs to pitwall.
 
@@ -136,6 +142,13 @@ operator, which ADR 0001 ruled out.
    Taken: Passkeys is the Settings section at `/settings/passkeys`, and `/passkeys` redirects there
    (S1); K4 gains `sessions:approve`, which alone covers approving, rejecting and revoking
    registrations.
+6. (2026-11-21) Asked whether to mark messages written with a key by the key's name, the operator
+   chose "Not now, file it": "So my thinking is taht we eventually offer an audit log feature, which
+   is where this would be captured. Future work, though. Please create a placeholder github issue
+   for it." Taken: agention#42; a message written with a key is the operator's, with no new field.
+7. (2026-11-21) Asked whether to file a change feed as a follow-up: "I mean, what would it take to
+   do this write? SSE?" Offered a long poll as a follow-up, a long poll in this effort, or
+   server-sent events, the operator chose "Long poll, in this PR". Taken: A3.
 
 ## Definition of done
 
