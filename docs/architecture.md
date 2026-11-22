@@ -96,12 +96,13 @@ The schemas' JSON Schema, for the API's documentation, has its own entry point t
 carries it. `JsonSchemas` describes a schema in one direction, what a client sends or what the
 server answers, with zod's own `z.toJSONSchema`, which carries each field's description. The named
 schemas it lists, such as `Message` and `ThreadSummary`, are described once each, as components that
-every description holding one references by `$ref`. A schema reads the same both ways unless it has
-defaults or reads text into values, or holds one that does; such a schema has a second component for
-its input, named with `Input` after it, such as `AskInput`. An answer's description never forbids
-properties it does not list, since a version may add response fields. A named schema whose inline
-form would differ from its component, or a cycle no name breaks, throws, so a reference always says
-exactly what the schema would say inline.
+every description holding one references by `$ref`: each component is the body zod gives the named
+schema under the `$defs` of a description that holds it, and the descriptions name it by its plain
+id. A schema reads the same both ways unless it has defaults or reads text into values, or holds one
+that does, so such a named schema is described in one direction only, as `Ask` is only sent and
+`AskRead` only answered; a component its descriptions would give two bodies, or a cycle no named
+schema breaks, throws. An answer's description never forbids properties it does not list, since a
+version may add response fields.
 
 `canonicalOrigin` reads the HTTPS origin a person configures, the server's `--origin` and the
 bridge's `AGENTION_URL` alike, into its one spelling, and refuses anything that is not exactly an

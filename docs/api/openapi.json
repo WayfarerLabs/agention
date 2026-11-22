@@ -1527,7 +1527,7 @@
                     "maxItems": 10,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/AskInput"
+                      "$ref": "#/components/schemas/Ask"
                     },
                     "description": "Up to ten asks, each numbered within the thread as it is written, in the order given. Put asks that belong together in one message; the audience may answer them together or apart."
                   },
@@ -1541,7 +1541,7 @@
                     "maxItems": 10,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/AnswerInput"
+                      "$ref": "#/components/schemas/Answer"
                     }
                   },
                   "withdrawals": {
@@ -1554,10 +1554,10 @@
                     "description": "Up to ten of your open asks that you no longer need answered, each with why, those of the message a replacement replaces included. A withdrawal is never undone."
                   },
                   "replaces": {
-                    "description": "An earlier message of your own that this one replaces, which is ignored from then on.",
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 9007199254740991
+                    "maximum": 9007199254740991,
+                    "description": "An earlier message of your own that this one replaces, which is ignored from then on."
                   }
                 },
                 "required": [
@@ -3658,7 +3658,7 @@
                     "maxItems": 10,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/AskInput"
+                      "$ref": "#/components/schemas/Ask"
                     },
                     "description": "Up to ten asks, each numbered within the thread as it is written, in the order given. Put asks that belong together in one message; the audience may answer them together or apart."
                   },
@@ -4145,7 +4145,7 @@
                     "maxItems": 10,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/AskInput"
+                      "$ref": "#/components/schemas/Ask"
                     },
                     "description": "Up to ten asks, each numbered within the thread as it is written, in the order given. Put asks that belong together in one message; the audience may answer them together or apart."
                   },
@@ -4159,7 +4159,7 @@
                     "maxItems": 10,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/AnswerInput"
+                      "$ref": "#/components/schemas/Answer"
                     }
                   },
                   "withdrawals": {
@@ -4172,10 +4172,10 @@
                     "description": "Up to ten of your open asks that you no longer need answered, each with why, those of the message a replacement replaces included. A withdrawal is never undone."
                   },
                   "replaces": {
-                    "description": "An earlier message of your own that this one replaces, which is ignored from then on.",
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 9007199254740991
+                    "maximum": 9007199254740991,
+                    "description": "An earlier message of your own that this one replaces, which is ignored from then on."
                   }
                 },
                 "required": [
@@ -4545,7 +4545,7 @@
       }
     },
     "schemas": {
-      "AnswerInput": {
+      "Answer": {
         "type": "object",
         "properties": {
           "ask": {
@@ -4556,11 +4556,10 @@
           },
           "declined": {
             "default": false,
-            "description": "The audience will not answer; a decline carries no picks and no text.",
-            "type": "boolean"
+            "type": "boolean",
+            "description": "The audience will not answer; a decline carries no picks and no text."
           },
           "picks": {
-            "description": "The picked suggested answers' indexes, counting from 0.",
             "minItems": 1,
             "maxItems": 10,
             "type": "array",
@@ -4568,7 +4567,8 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9
-            }
+            },
+            "description": "The picked suggested answers' indexes, counting from 0."
           },
           "text": {
             "type": "string",
@@ -4629,7 +4629,7 @@
           "declined"
         ]
       },
-      "AskInput": {
+      "Ask": {
         "type": "object",
         "properties": {
           "question": {
@@ -4639,17 +4639,17 @@
           },
           "suggestions": {
             "default": [],
-            "description": "Suggested answers the audience may pick; it may always answer in its own words instead, or beside its picks where several are allowed.",
             "maxItems": 10,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SuggestionInput"
-            }
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "description": "Suggested answers the audience may pick; it may always answer in its own words instead, or beside its picks where several are allowed."
           },
           "multiple": {
             "default": false,
-            "description": "Whether the audience may pick several suggested answers.",
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the audience may pick several suggested answers."
           },
           "impact": {
             "default": "none",
@@ -5179,10 +5179,10 @@
             "maxLength": 2048
           },
           "thread": {
-            "description": "A thread of the same session, by its number.",
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "description": "A thread of the same session, by its number."
           }
         },
         "required": [
@@ -5460,7 +5460,7 @@
           "created_at"
         ]
       },
-      "SuggestionInput": {
+      "Suggestion": {
         "type": "object",
         "properties": {
           "label": {
@@ -5470,10 +5470,10 @@
           },
           "description": {
             "default": "",
-            "description": "What picking it means, when the label alone does not say.",
             "type": "string",
             "minLength": 0,
-            "maxLength": 300
+            "maxLength": 300,
+            "description": "What picking it means, when the label alone does not say."
           }
         },
         "required": [

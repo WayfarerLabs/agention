@@ -172,12 +172,13 @@ the next `since`, an opaque cursor, so a client is never woken twice for one mes
   such a rule answers `invalid_input`, naming the field when the rule concerns one.
 - **Shared schemas.** The schemas that recur across operations, such as `Message` and
   `ThreadSummary`, are described once each under `components.schemas` and referenced by `$ref`
-  wherever they appear, so the document reads, and changes, in one place for each. A schema that
-  reads differently as input than as output (one with defaults, or that reads text into values, or
-  that holds such a schema) has a second component for its input, named with `Input` after it. The
-  descriptions come from `@wayfarerlabs/agention-api/json-schemas`, an entry point of its own so the
-  web bundle never carries them; it refuses a reference that would say more or less than the schema
-  inline.
+  wherever they appear, so the document reads, and changes, in one place for each. Each component is
+  the body zod gives the named schema under a description's `$defs`, referenced by its plain id. A
+  named schema that reads differently as input than as output (one with defaults, or that reads text
+  into values, or that holds such a schema) is described in one direction only, as `Ask` is only
+  sent and `AskRead` only answered, and one whose id would need two bodies throws. The descriptions
+  come from `@wayfarerlabs/agention-api/json-schemas`, an entry point of its own so the web bundle
+  never carries them; it also refuses a cycle that no named schema breaks.
 - `agention serve --api-docs` serves `GET /docs/api/openapi.json` and `GET /docs/api/`, a page the
   server renders from the same document: each operation's method, path, summary, scope and
   parameters, and its schemas as formatted JSON, then a section for each shared schema, which every

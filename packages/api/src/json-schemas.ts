@@ -80,27 +80,22 @@ const named: Record<string, ApiSchema> = {
   writeResult,
 };
 
-// The registry the descriptions read: each named schema's id, beside what
-// zod's global registry holds for every schema, the descriptions given with
-// describe among it, which a registry of its own would otherwise hide. The
-// global registry carries no ids, so the agent bridge's tool schemas, which
-// zod describes from it, stay whole.
-class NamedSchemas extends z.core.$ZodRegistry<z.core.JSONSchemaMeta> {
-  override get<S extends ApiSchema>(schema: S): z.core.JSONSchemaMeta | undefined {
-    const own = super.get(schema);
-    const merged = {
-      ...own,
-      ...z.globalRegistry.get(schema),
-      ...(own?.id === undefined ? {} : { id: own.id }),
-    };
-    return Object.keys(merged).length === 0 ? undefined : merged;
-  }
-}
-
-const registry = new NamedSchemas();
+// The registry the descriptions read each named schema's id from. zod reads
+// one registry's metadata, so the descriptions given with describe, which
+// zod's global registry holds, are added back as each schema is described.
+// The global registry carries no ids, so the agent bridge's tool schemas,
+// which zod describes from it, stay whole.
+const registry = new z.core.$ZodRegistry<z.core.JSONSchemaMeta>();
 for (const [name, schema] of Object.entries(named)) {
   registry.add(schema, { id: name.charAt(0).toUpperCase() + name.slice(1) });
 }
+
+type Override = NonNullable<NonNullable<Parameters<typeof z.toJSONSchema>[1]>["override"]>;
+
+const withDescriptions: Override = ({ zodSchema, jsonSchema }) => {
+  const { id: _, ...meta } = z.globalRegistry.get(zodSchema) ?? {};
+  Object.assign(jsonSchema, meta);
+};
 
 // Where the components are, in the document that holds them.
 const componentsAt = "#/components/schemas/";
@@ -115,143 +110,71 @@ function allowingMore(value: JsonSchema): JsonSchema {
   ) as JsonSchema;
 }
 
-// Each description is in the dialect of the document that holds it, and is
-// found by where it is there, so its own $schema and $id are dropped.
-function bodyOf(described: object, direction: Direction): JsonSchema {
-  const { $schema: _, $id: __, ...body } = described as JsonSchema;
-  return direction === "output" ? allowingMore(body) : body;
-}
-
-// rewritingRefs rewrites every $ref in a description through rename.
-function rewritingRefs(value: JsonSchema, rename: (ref: string) => string): JsonSchema {
+// inDirection describes a schema as the direction reads it, pointing each
+// reference to a named schema at its component. zod references the schema
+// it describes as "#" when that schema holds itself, which in the document
+// would be the document, so that throws.
+function inDirection(value: JsonSchema, direction: Direction): JsonSchema {
   return JSON.parse(
-    JSON.stringify(value, (key, each: unknown) =>
-      key === "$ref" && typeof each === "string" ? rename(each) : each,
-    ),
-  ) as JsonSchema;
-}
-
-function refsOf(value: JsonSchema): string[] {
-  const found: string[] = [];
-  rewritingRefs(value, (ref) => {
-    found.push(ref);
-    return ref;
-  });
-  return found;
-}
-
-// Every named schema's description, in each direction, by its id, with the
-// references between them written as direction:id. A schema reads the same
-// both ways unless it has defaults or reads text into values, or names one
-// that does; one that reads differently has a component of its own for its
-// input, its id with Input after it.
-interface Named {
-  output: Map<string, JsonSchema>;
-  input: Map<string, JsonSchema>;
-  // The ids whose input reads differently.
-  differing: Set<string>;
-}
-
-let described: Named | undefined;
-
-function namedSchemas(): Named {
-  if (described !== undefined) {
-    return described;
-  }
-  const each = (direction: Direction) => {
-    const { schemas } = z.toJSONSchema(registry, {
-      io: direction,
-      metadata: registry,
-      uri: (id) => `${direction}:${id}`,
-    });
-    if ("__shared" in schemas) {
-      throw new Error("a named schema holds a cycle the documentation cannot name");
-    }
-    return new Map(Object.entries(schemas).map(([id, schema]) => [id, bodyOf(schema, direction)]));
-  };
-  const output = each("output");
-  const input = each("input");
-  const neutral = (body: JsonSchema | undefined) =>
-    JSON.stringify(rewritingRefs(body ?? {}, (ref) => ref.replace(/^(input|output):/, "")));
-  const differing = new Set(
-    [...output.keys()].filter((id) => neutral(input.get(id)) !== neutral(output.get(id))),
-  );
-  // One that names a differing schema reads differently too, since its input
-  // names that schema's input.
-  for (let grown = true; grown;) {
-    grown = false;
-    for (const [id, body] of input) {
-      const names = refsOf(body).map((ref) => ref.slice("input:".length));
-      if (!differing.has(id) && names.some((each) => differing.has(each))) {
-        differing.add(id);
-        grown = true;
+    JSON.stringify(direction === "output" ? allowingMore(value) : value, (key, each: unknown) => {
+      if (key !== "$ref" || typeof each !== "string") {
+        return each;
       }
-    }
-  }
-  described = { output, input, differing };
-  return described;
-}
-
-// A component: the named schema it describes, by its id, in a direction.
-interface Component {
-  id: string;
-  direction: Direction;
-}
-
-// nameOf names the component describing a named schema in a direction.
-function nameOf({ id, direction }: Component): string {
-  return direction === "input" && namedSchemas().differing.has(id) ? `${id}Input` : id;
+      if (!each.startsWith("#/$defs/")) {
+        throw new Error(`a cycle that no named schema breaks references ${each}`);
+      }
+      return each.replace("#/$defs/", componentsAt);
+    }),
+  ) as JsonSchema;
 }
 
 // JsonSchemas describes the schemas of one document: each one as JSON Schema
 // that references the named schemas it holds, and then those named schemas
-// as the document's components.
+// as the document's components. zod describes the named schemas a schema
+// holds under its $defs, by id, and those are the components. A component
+// reads the same wherever it is referenced, so a named schema that reads
+// differently as input than as output, such as one with defaults, may be
+// described in only one direction; describing it in both throws, as does a
+// schema holding a cycle that no named schema breaks.
 export class JsonSchemas {
-  readonly #referenced = new Map<string, Component>();
+  // Each component by its id, as JSON text, so another description of it
+  // compares as text.
+  readonly #components = new Map<string, string>();
 
   // of describes a schema, in a direction, referencing the components of the
   // named schemas it holds, itself among them when it is one.
   of(schema: ApiSchema, direction: Direction): JsonSchema {
-    const { $defs: defs, ...body } = bodyOf(
-      z.toJSONSchema(schema, { io: direction, metadata: registry }),
-      direction,
-    ) as JsonSchema & { $defs?: Record<string, unknown> };
-    // Each named schema it holds must read as its component does, so the
-    // reference says no more and no less than the schema would inline.
-    const bare = (body: unknown) =>
-      JSON.stringify(rewritingRefs(body as JsonSchema, (ref) => ref.replace(/^.*[:/]/, "")));
-    for (const [id, inlined] of Object.entries(defs ?? {})) {
-      const component = namedSchemas()[direction].get(id);
-      if (component === undefined || bare(inlined) !== bare(component)) {
-        throw new Error(`${id} reads unlike its component, or holds a cycle no name breaks`);
+    const {
+      $schema: _,
+      $id: __,
+      $defs: defs,
+      ...body
+    } = z.toJSONSchema(schema, {
+      io: direction,
+      metadata: registry,
+      override: withDescriptions,
+    }) as JsonSchema & { $defs?: Record<string, JsonSchema> };
+    for (const [id, def] of Object.entries(defs ?? {})) {
+      if (!(id.charAt(0).toLowerCase() + id.slice(1) in named)) {
+        throw new Error(`${id} is a cycle that no named schema breaks`);
       }
+      const text = JSON.stringify(inDirection(def, direction));
+      const known = this.#components.get(id);
+      if (known !== undefined && known !== text) {
+        throw new Error(`${id} reads differently as input than as output`);
+      }
+      this.#components.set(id, text);
     }
-    return rewritingRefs(body, (ref) => {
-      const component = { id: ref.slice("#/$defs/".length), direction };
-      this.#referenced.set(nameOf(component), component);
-      return componentsAt + nameOf(component);
-    });
+    return inDirection(body, direction);
   }
 
-  // components describes every named schema the descriptions so far
-  // reference, directly or through another, each once, by name, in name
-  // order.
+  // components describes every named schema the descriptions so far hold,
+  // directly or through another, each once, by id, in id order.
   components(): Record<string, JsonSchema> {
-    const known = namedSchemas();
-    const bodies = new Map<string, JsonSchema>();
-    const pending = [...this.#referenced];
-    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-      const [name, { id, direction }] = next;
-      if (bodies.has(name)) {
-        continue;
-      }
-      const body = rewritingRefs(known[direction].get(id) ?? {}, (ref) => {
-        const target = { id: ref.slice(`${direction}:`.length), direction };
-        pending.push([nameOf(target), target]);
-        return componentsAt + nameOf(target);
-      });
-      bodies.set(name, body);
-    }
-    return Object.fromEntries([...bodies].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    return Object.fromEntries(
+      [...this.#components]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([id, text]) => [id, JSON.parse(text) as JsonSchema]),
+    );
   }
 }

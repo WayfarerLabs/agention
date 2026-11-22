@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type JsonSchema, JsonSchemas } from "./json-schemas.ts";
-import { message, messageSendInput, threadGetResult, threadSummary } from "./threads.ts";
+import { ask, message, messageSendInput, threadGetResult, threadSummary } from "./threads.ts";
 
 // refsIn lists every $ref a description holds.
 function refsIn(value: unknown): string[] {
@@ -42,16 +42,26 @@ describe("JsonSchemas", () => {
     expect(Object.keys(components).sort()).toEqual([...referenced].sort());
   });
 
-  it("names an input that reads unlike its answer apart, and one that reads alike once", () => {
+  it("names a schema that reads alike both ways once, for input and output", () => {
     const schemas = new JsonSchemas();
     const sent = refsIn(schemas.of(messageSendInput, "input"));
     schemas.of(message, "output");
     const read = refsIn(schemas.components().Message);
-    expect(sent).toContain("#/components/schemas/AskInput");
-    expect(read).toContain("#/components/schemas/AskRead");
-    // A reference reads the same both ways, so both name the one component.
     expect(sent).toContain("#/components/schemas/Reference");
     expect(read).toContain("#/components/schemas/Reference");
+  });
+
+  it("refuses a named schema whose one id would need two bodies", () => {
+    const schemas = new JsonSchemas();
+    schemas.of(ask, "input");
+    expect(() => schemas.of(ask, "output")).toThrow(/Ask reads differently/);
+  });
+
+  it("refuses a cycle that no named schema breaks, at the top or within", () => {
+    const node: z.ZodType = z.object({ children: z.array(z.lazy(() => node)) });
+    expect(() => new JsonSchemas().of(node, "output")).toThrow(/no named schema breaks/);
+    const holding = z.object({ tree: node });
+    expect(() => new JsonSchemas().of(holding, "output")).toThrow(/no named schema breaks/);
   });
 
   it("keeps the ids out of zod's global registry, which the bridge's tool schemas read", () => {
