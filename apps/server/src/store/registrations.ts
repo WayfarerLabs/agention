@@ -199,6 +199,16 @@ export function listRegistrations(
   });
 }
 
+// countPendingRegistrations counts the registrations waiting for approval:
+// pending as shown, so not expired. The caller runs it in its transaction,
+// having authorized the operator.
+export function countPendingRegistrations(db: Database, now: number): number {
+  const { pending } = db
+    .prepare(`${registrationsShown} SELECT count(*) AS pending FROM shown WHERE status = 'pending'`)
+    .get({ now }) as { pending: number };
+  return pending;
+}
+
 // decide runs one registration decision for the operator: it loads the
 // registration, requires the status shown to be the one the decision starts
 // from, and applies it.

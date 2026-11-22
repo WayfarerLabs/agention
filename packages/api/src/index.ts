@@ -1,4 +1,5 @@
 export * from "./agent-api.ts";
+export * from "./attention.ts";
 export * from "./bounds.ts";
 export * from "./errors.ts";
 export * from "./groups-and-tags.ts";

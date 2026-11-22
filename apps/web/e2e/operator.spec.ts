@@ -1,22 +1,30 @@
 // The web UI in Chromium against the real server: the server's name in the
-// banner and titles, linking the first passkey, approving an agent, answering
-// its asks, a message's detail folded under its text and the composer's Details
-// box, a stale write, Send kept on a short phone's screen, text written to take
-// the page down, reading and marking unread from a message, archiving, the
-// list's filters, their counts, its order, the order's direction and grouping,
-// an ask the agent withdraws and the way back under the composer, the sessions
-// view with a session's status and log, at a phone's width too, a thread the
-// operator starts there and stranded's reason, a session's options menu over
-// the next agent's header, the sessions view folded by group with a group's
-// link to its threads, the links to stranded threads and a tag as tall in a
-// header as in a row, at a phone's width too, the last session's options menu
-// over the folds below it, grouped or not, the Sessions tab's count of sessions
-// with unread updates, signing out from Settings and in again, a second passkey
-// that takes over from the first in Settings, which /passkeys leads to, and a
-// second server on another port of the host signed in beside the first. CDP
-// virtual authenticators stand in for the operator's devices; one page carries
-// through the steps, in order.
-import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
+// banner and titles, linking the first passkey, approving an agent and the
+// Sessions tab's count of registrations waiting, answering its asks, a
+// message's detail folded under its text and the composer's Details box, a
+// stale write, Send kept on a short phone's screen, text written to take the
+// page down, reading and marking unread from a message and the Threads tab's
+// count of unread threads, archiving, the list's filters, their counts, its
+// order, the order's direction and grouping, an ask the agent withdraws and the
+// way back under the composer, the sessions view with a session's status and
+// log, at a phone's width too, a thread the operator starts there and
+// stranded's reason, a session's options menu over the next agent's header, the
+// sessions view folded by group with a group's link to its threads, the links
+// to stranded threads and a tag as tall in a header as in a row, at a phone's
+// width too, the last session's options menu over the folds below it, grouped
+// or not, signing out from Settings and in again, a second passkey that takes
+// over from the first in Settings, which /passkeys leads to, and a second
+// server on another port of the host signed in beside the first. CDP virtual
+// authenticators stand in for the operator's devices; one page carries through
+// the steps, in order.
+import type {
+  BrowserContext,
+  CDPSession,
+  Locator,
+  Page,
+  Request,
+  Response,
+} from "@playwright/test";
 import type {
   PublicKey,
   RegistrationState,
@@ -100,7 +108,14 @@ const detail = ["## Rollback plan", "", "Revert the tag and redeploy the previou
 
 const threads = "/s/builder/main/threads";
 
-const showList = () => page.getByRole("link", { name: "Threads", exact: true }).click();
+// The navigation's tabs, each named by its label and then its count, while
+// it shows one, such as "Threads 1 unread thread".
+const tab = (label: string) =>
+  page.getByRole("navigation", { name: "Views" }).getByRole("link", {
+    name: new RegExp(`^${label}`),
+  });
+
+const showList = () => tab("Threads").click();
 
 test("a passkey link registers the first operator", async ({ agention }) => {
   const link = agention.passkeyLink();
@@ -131,7 +146,10 @@ test("the operator approves an agent's registration by its code", async () => {
   const code = registrationCode(agent.publicKey as PublicKey);
   expect(submitted.body.code).toBe(code);
 
-  await page.getByRole("link", { name: "Sessions" }).click();
+  // Going to the sessions view, its tab counts the registration waiting,
+  // until it is approved.
+  await tab("Sessions").click();
+  await expect(tab("Sessions")).toHaveAccessibleName(/^Sessions\s*1\b/);
   const card = page.getByRole("article", { name: `Registration ${code}` });
   await expect(card.getByText(code, { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "Approve" }).click();
@@ -142,6 +160,7 @@ test("the operator approves an agent's registration by its code", async () => {
   ).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^main( |$)/ })).toBeVisible();
+  await expect(tab("Sessions")).toHaveAccessibleName("Sessions");
   await page.getByRole("button", { name: "Credentials and past requests" }).click();
   await expect(card.locator(".state")).toHaveText("approved");
 
@@ -370,7 +389,7 @@ test("text written to take the page down shows as text, and the page stays up", 
   await page.getByRole("button", { name: "Details of message 2" }).click();
   await expect(page.getByText("emphasized too deep")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Reply" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Threads", exact: true })).toBeVisible();
+  await expect(tab("Threads")).toBeVisible();
 });
 
 test("opening a thread reads it, and marking it unread from a message returns it to the list", async () => {
@@ -381,12 +400,15 @@ test("opening a thread reads it, and marking it unread from a message returns it
   });
   expect(created.body).toEqual({ number: 3, seq: 1 });
 
+  // The Threads tab counts the one thread unread, until it is read.
   await showList();
+  await expect(tab("Threads")).toHaveAccessibleName(/^Threads\s*1\b/);
   await page.getByRole("heading", { name: "Release notes are up" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("#3 Release notes are up");
   await expect
     .poll(async () => (await agent.send<ThreadGetResult>("GET", `${threads}/3`)).body.cursors)
     .toEqual({ requester: 1, audience: 1 });
+  await expect(tab("Threads")).toHaveAccessibleName("Threads");
 
   // The message's options open below their button; a tap on the text beside
   // them closes them, and Escape does too, each returning focus to the
@@ -409,6 +431,7 @@ test("opening a thread reads it, and marking it unread from a message returns it
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   const row = page.getByRole("link", { name: /Release notes are up/ });
   await expect(row.getByTitle("1 of 1 message unread")).toBeVisible();
+  await expect(tab("Threads")).toHaveAccessibleName(/^Threads\s*1\b/);
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/3`);
   expect(read.body.cursors.audience).toBe(0);
 });
@@ -419,6 +442,7 @@ test("archiving a thread takes it off the list until archived threads are includ
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   await expect(page.getByRole("heading", { name: "Deep text" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
+  await expect(tab("Threads")).toHaveAccessibleName("Threads");
 
   // The filter sheet opens over the list, which follows its filters, and
   // Escape closes it, returning focus to the Filters button.
@@ -583,13 +607,7 @@ test("the sessions view shows a session's status and log, and starts a thread th
     expect(reported.status).toBe(200);
   }
 
-  // Going to the sessions view, its tab counts the one session with updates
-  // unread.
-  const tab = page.getByRole("navigation", { name: "Views" }).getByRole("link", {
-    name: /^Sessions/,
-  });
-  await tab.click();
-  await expect(tab).toHaveAccessibleName(/^Sessions\s+1 session with new updates$/);
+  await tab("Sessions").click();
   const fold = page.getByRole("button", { name: /^main Retire invoices 60%/ });
   const row = page.getByRole("listitem").filter({ has: fold });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
@@ -607,7 +625,6 @@ test("the sessions view shows a session's status and log, and starts a thread th
   await expect(log.getByRole("listitem")).toHaveCount(3);
   await expect(log.getByRole("listitem").nth(1)).toContainText(/20%.*60%/);
   await expect(row.getByText("4 new updates")).toHaveCount(0);
-  await expect(tab).toHaveAccessibleName("Sessions");
 
   // At a phone's width, the view and its sheet scroll only up and down.
   const wide = page.viewportSize();
@@ -848,8 +865,26 @@ test("the last session's options menu lies over the folds below it, grouped or n
 
 test("signing in with the passkey returns to the page that needed it", async () => {
   await page.getByRole("link", { name: "Settings" }).click();
+  // Signing out reads the tabs' counts no more, and nothing answers the page
+  // unauthenticated.
+  const strays: string[] = [];
+  const counted = (request: Request) => {
+    if (new URL(request.url()).pathname === "/api/web/attention") {
+      strays.push(`read ${request.url()}`);
+    }
+  };
+  const refused = (response: Response) => {
+    if (response.status() === 401) {
+      strays.push(`401 ${response.url()}`);
+    }
+  };
+  page.on("request", counted);
+  page.on("response", refused);
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  page.off("request", counted);
+  page.off("response", refused);
+  expect(strays).toEqual([]);
 
   await page.goto(`${threads}/1`);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();

@@ -70,10 +70,16 @@ async function failureOf(response: Response): Promise<ApiFailure> {
 // like one that got no answer, and refreshes and retries carry on.
 export const requestTimeout = 30_000;
 
+// The event request dispatches on the window once a change lands, so what
+// counts the operator's data, such as the navigation's counts, reloads at
+// once. Signing in and out change the browser's session, not the data, and
+// the page reloads its views after either, so they dispatch none.
+export const changeLanded = "agention:change-landed";
+
 // request sends one request to the web API and returns its JSON answer, or
 // throws an ApiFailure. The answer's type is the API contract's; the server
 // that serves this page is the one that answers it.
-export function request<T>(
+export async function request<T>(
   method: "GET" | "POST",
   path: string,
   options: RequestOptions = {},
@@ -82,7 +88,7 @@ export function request<T>(
   if (options.body !== undefined) {
     headers["content-type"] = "application/json";
   }
-  return exchange<T>(
+  const answer = await exchange<T>(
     path,
     {
       method,
@@ -92,6 +98,10 @@ export function request<T>(
     options.csrf,
     requestTimeout,
   );
+  if (method !== "GET" && !path.startsWith("/auth/")) {
+    window.dispatchEvent(new Event(changeLanded));
+  }
+  return answer;
 }
 
 // upload sends bytes, such as a recording, as the body of a change, declared

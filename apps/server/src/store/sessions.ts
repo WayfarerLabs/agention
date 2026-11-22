@@ -12,7 +12,6 @@ import {
   type SessionSummary,
   type SessionUpdate,
   type SessionUpdateInput,
-  type UnreadUpdates,
   type WorkOutcome,
   type WorkState,
 } from "@wayfarerlabs/agention-api";
@@ -399,23 +398,6 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       }),
       ...(page.more && last !== undefined ? { next: encodeCursor("sessions", [last.name]) } : {}),
     };
-  });
-}
-
-// countUnreadUpdates counts the sessions whose log holds entries the
-// operator has not read.
-export function countUnreadUpdates(store: Store, identity: Identity): UnreadUpdates {
-  const { db } = store;
-  return db.transaction(() => {
-    authorizeAdministration(db, identity, store.clock());
-    return db
-      .prepare(
-        `SELECT count(*) AS sessions
-         FROM (SELECT session_id, max(seq) AS latest FROM session_updates GROUP BY session_id) u
-         LEFT JOIN session_marks k ON k.actor_id = ? AND k.session_id = u.session_id
-         WHERE u.latest > COALESCE(k.read_seq, 0)`,
-      )
-      .get(identity.actor) as unknown as UnreadUpdates;
   });
 }
 

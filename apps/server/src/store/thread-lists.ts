@@ -504,6 +504,13 @@ function totalOf(reach: Reach, query: ThreadFilters): number {
   return total;
 }
 
+// countUnreadThreads counts the threads the operator's list holds with only
+// Unread on: those not archived for the viewer that hold an unread message.
+// The caller runs it in its transaction, having authorized the identity.
+export function countUnreadThreads(store: Store, identity: Identity, now: number): number {
+  return totalOf(reachOf(store, identity, now), { ...unfiltered, unread: true });
+}
+
 // listThreads pages through the threads of every session the identity
 // reaches that the filters keep, in the order the query names, reversed when
 // it says so, and grouped when it names a grouping. Beside the page it counts
