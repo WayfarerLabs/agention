@@ -816,11 +816,13 @@ its key file, its tokens and where its requests may go.
   that is set, since the tunnel or forward there is the operator's.
 - **Time limits.** A request has 30 seconds to be answered, beyond any wait it asks for. A transfer
   has no total deadline: it fails once its bytes, sent or received, stop moving for 30 seconds,
-  telling the agent the transfer stalled, and once an upload's body is sent its answer has the usual
-  30 seconds. The answer and transfer limits share one timer per request, which never keeps the
-  process alive, so a bridge whose host has gone exits even while a call waits. A host also limits
-  how long one tool call may take: the Codex plugin sets `tool_timeout_sec` to 600 seconds for every
-  tool, and Claude Code's default limit, which `MCP_TOOL_TIMEOUT` changes, is long enough.
+  telling the agent the transfer stalled. Once an upload's body is written its answer has 30 seconds
+  and the file's size at 64 KiB a second, since buffers on the way, the socket's own, a proxy's or a
+  tunnel's, can hold megabytes the server has yet to receive. The answer and transfer limits share
+  one timer per request, which never keeps the process alive, so a bridge whose host has gone exits
+  even while a call waits. A host also limits how long one tool call may take: the Codex plugin sets
+  `tool_timeout_sec` to 600 seconds for every tool, and Claude Code's default limit, which
+  `MCP_TOOL_TIMEOUT` changes, is long enough.
 - **`register`** submits the key to `POST /api/agent/registrations`, which for a key the server
   knows creates nothing and reports its state. It answers with that state, keeping its `expires_at`
   only while the registration is pending, so an agent never reads it as the credential's; `replaced`

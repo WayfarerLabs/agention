@@ -35,6 +35,19 @@ export const connectTimeout = 10_000;
 // so a large file on a slow link finishes.
 export const transferIdle = 30_000;
 
+// The slowest rate, in bytes a second, at which the bytes of an upload the
+// bridge has written are taken to reach the server. Writing ends once the
+// local socket's buffers and those on the way, a proxy's or a tunnel's, have
+// taken the bytes, which may be megabytes the server has still to receive.
+// So an upload's answer has answerTimeout and the file's size at this rate.
+export const uploadDrainFloor = 64 * 1024;
+
+// uploadAnswerTimeout is how long an upload's answer has to arrive once its
+// bytes are written.
+function uploadAnswerTimeout(size: number): number {
+  return answerTimeout + Math.ceil((size / uploadDrainFloor) * 1000);
+}
+
 // agentToken mints the token for one request: a compact JWS signed with the
 // session's key, naming the key and bound to the server's origin for two
 // minutes.
@@ -149,7 +162,7 @@ export class AgentApi {
 
   // upload sends a file's bytes and returns the body of a successful answer,
   // failing as request does. The bytes stream under the transfer's idle
-  // limit, and its answer then has the usual time to arrive.
+  // limit, and its answer then has uploadAnswerTimeout to arrive.
   async upload(key: SessionKey, upload: UploadRequest): Promise<unknown> {
     const url = this.#url(upload.path, upload.query);
     const headers = await this.#headers(key, {
@@ -159,7 +172,7 @@ export class AgentApi {
     const watchdog = new Watchdog();
     const signals = [watchdog.signal, ...(upload.signal === undefined ? [] : [upload.signal])];
     let changed = false;
-    const sent = (): void => watchdog.arm(answerTimeout, "answer");
+    const sent = (): void => watchdog.arm(uploadAnswerTimeout(upload.size), "answer");
     const send = (outgoing: ClientRequest): void => {
       watchdog.arm(transferIdle, "stalled");
       if (upload.size === 0) {

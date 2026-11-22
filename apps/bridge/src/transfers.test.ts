@@ -10,15 +10,16 @@ import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentApi, answerTimeout, transferIdle } from "./agent-api.ts";
+import { AgentApi, answerTimeout, transferIdle, uploadDrainFloor } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 import { certificate } from "./test-harness.ts";
 
 // Requests and transfers against servers that stand in for Agention's, as
 // far as an answer or a file's body goes: one that never answers, one that
-// stops reading an upload, one that stops sending a download, and one whose
-// listener cuts off an upload with its 408.
+// stops reading an upload, one that takes an upload's bytes long before it
+// answers, one that stops sending a download, and one whose listener cuts off
+// an upload with its 408.
 
 const { privateKey } = generateKeyPairSync("ed25519");
 const key: SessionKey = { privateKey, publicKey: "unused" as SessionKey["publicKey"] };
@@ -162,6 +163,30 @@ describe("an upload", () => {
     readTo = Infinity;
     request?.resume();
     expect(await call.promise).toEqual({ stored: size });
+  });
+
+  it("has its answer's time and the file's size at the drain floor once its bytes are written", async () => {
+    let received = 0;
+    let ended = false;
+    // Takes the body as fast as it comes, as the buffers on a slow link do
+    // before the server behind them has read it, and never answers.
+    const api = await serve((request) => {
+      request.on("data", (chunk: Buffer) => (received += chunk.length));
+      request.on("end", () => (ended = true));
+    });
+    const { handle, size } = await sparseFile(4 * 1024 * 1024);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const call = tracked(upload(api, handle, size));
+    // In real time, until every byte is written and taken.
+    await until(() => ended);
+    await delay(200);
+    expect(received).toBe(size);
+    // 30 seconds, and 64 more for 4 MiB at 64 KiB a second.
+    const limit = answerTimeout + (size / uploadDrainFloor) * 1000;
+    await vi.advanceTimersByTimeAsync(limit - 1);
+    expect(call.settled()).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(call.promise).rejects.toBeInstanceOf(BridgeError);
   });
 
   it("is cut off by the server's listener with a 408 that reads as the server's own refusal", async () => {
