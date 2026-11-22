@@ -115,6 +115,8 @@ describe("creating a key", () => {
     });
     expect(codeOf(created)).toBe("not_allowed");
     expect(codeOf(await revoke(key.id))).toBe("not_allowed");
+    // Without a recent sign-in, revoking tells nothing of which keys exist.
+    expect(codeOf(await revoke(key.id + 1))).toBe("not_allowed");
     expect(await list()).toEqual({ keys: [key], recent: false });
     harness.signIn();
     expect(codeOf(await revoke(key.id))).toBe("ok");

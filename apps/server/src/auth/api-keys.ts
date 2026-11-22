@@ -166,6 +166,7 @@ export function revokeApiKey(store: Store, identity: Identity, id: number): ApiK
   const revoked = db.transaction(() => {
     const now = store.clock();
     const session = signedInSession(db, identity, now);
+    requireRecentSignIn(session);
     deleteDead(db, now);
     const found = db
       .prepare("SELECT 1 FROM api_keys WHERE id = ? AND person_id = ?")
@@ -173,7 +174,6 @@ export function revokeApiKey(store: Store, identity: Identity, id: number): ApiK
     if (found === undefined) {
       throw notFound("id");
     }
-    requireRecentSignIn(session);
     const row = db
       .prepare(
         `UPDATE api_keys SET revoked_at = ? WHERE id = ?
