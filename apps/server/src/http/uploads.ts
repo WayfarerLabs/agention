@@ -25,11 +25,9 @@ import type { BytesBody } from "./operations.ts";
 // arriving, for the database and its log.
 export const freeSpaceFloor = 1024 ** 3;
 
-// The path of an upload on each mount: the agent's, the web UI's and the
-// operator API's version, operatorApiPrefix, which operator-api.ts cannot
-// lend here without a cycle; the test names the prefix, so a new version
-// fails it until this follows.
-const uploadPath = /^\/api\/(agent|web|operator\/v1)\/s\/[^/?#]+\/[^/?#]+\/uploads$/;
+// The path of an upload on each mount: the agent's, the web UI's and each
+// version of the operator API's.
+const uploadPath = /^\/api\/(agent|web|operator\/v\d+)\/s\/[^/?#]+\/[^/?#]+\/uploads$/;
 
 // isUploadRequest says whether a request is an upload, from its method and
 // its URL as the adapter hands it to Hono, by the path Hono routes: dot
