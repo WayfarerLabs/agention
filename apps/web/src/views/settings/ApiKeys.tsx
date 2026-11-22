@@ -236,6 +236,9 @@ function ApiKeyItem({
             </>
           )}
         </p>
+        {state === "active" && apiKey.expires_at === undefined && (
+          <Tags tags={[{ label: "No expiry", tone: "warning" }]} />
+        )}
         {state !== "active" && (
           <Tags
             tags={[

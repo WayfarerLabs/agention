@@ -119,6 +119,12 @@ describe("the API keys in Settings", () => {
     within(article("live")).getByRole("button", { name: "Revoke" });
   });
 
+  it("flags a live key that never expires, and no live key that does", async () => {
+    await open(two);
+    expect(article("forever").querySelector(".tags .warning")).not.toBeNull();
+    expect(article("dashboard").querySelector(".tags .warning")).toBeNull();
+  });
+
   it("creates a key with the scopes chosen, sending a write without the read it includes", async () => {
     await open(two);
     startCreating();
