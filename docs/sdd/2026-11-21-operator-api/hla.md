@@ -168,8 +168,8 @@ the next `since`, an opaque cursor, so a client is never woken twice for one mes
   operations: `z.toJSONSchema` for every schema, the bearer scheme for the operator mount and the
   signed token for the agent mount, the agent version header, and the error shape with its codes and
   statuses. Rules a schema enforces only in code (zod refinements) are absent from the generated
-  schema, so the document can describe less than the server checks, never more; each such rule is
-  stated in its field's description, which zod carries into the document.
+  schema, so the document may describe less than the server checks, never more; a request breaking
+  such a rule answers `invalid_input`, naming the field when the rule concerns one.
 - **Shared schemas.** The schemas that recur across operations, such as `Message` and
   `ThreadSummary`, are described once each under `components.schemas` and referenced by `$ref`
   wherever they appear, so the document reads, and changes, in one place for each. A schema that

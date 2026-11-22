@@ -17,10 +17,10 @@ import { operatorApiPrefix, operatorApiVersion, versionsDeclaration } from "./op
 // the agent API, built from the same declarations the mounts build their
 // routes from, so it cannot describe a route, field or bound the server does
 // not have. Rules a schema enforces only in code (zod refinements) are absent
-// from the JSON Schema; the document can describe less than the server
-// checks, never more, and each such rule is stated in its field's
-// description. docs/api/openapi.json holds the document as committed, which a
-// test keeps equal to what this builds.
+// from the JSON Schema, so the document may describe less than the server
+// checks, never more; a request breaking such a rule answers invalid_input,
+// naming the field when the rule concerns one. docs/api/openapi.json holds
+// the document as committed, which a test keeps equal to what this builds.
 
 type JsonObject = Record<string, unknown>;
 

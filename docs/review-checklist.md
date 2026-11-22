@@ -266,6 +266,7 @@ operator or agent operation, or to a schema one uses, regenerates it with
 it is; the server's suite fails while the committed document differs from the code's
 (`CONTRIBUTING.md` "Generated API document"; `docs/architecture.md` "API documentation"). Look for a
 contract change whose document was not regenerated, a regenerated document whose diff removes or
-narrows anything a served version or the agent API (A12) carries, a rule the server enforces that no
-field's description states, and documentation served with anything beyond the contract or without
-`--api-docs`.
+narrows anything a served version or the agent API (A12) carries, a document that describes more
+than the server checks (it may describe less: a rule enforced only in code answers `invalid_input`,
+naming the field when the rule concerns one), and documentation served with anything beyond the
+contract or without `--api-docs`.

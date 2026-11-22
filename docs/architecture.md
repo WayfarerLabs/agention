@@ -559,8 +559,8 @@ refusal is one shared `error` response, whose description gives each error code'
 schemas come from `@wayfarerlabs/agention-api/json-schemas` ([API contract](#api-contract)), so each
 named schema is described once under `components.schemas` and referenced wherever it appears. Rules
 a schema enforces only in code, zod refinements such as a key's scopes never repeating, are absent
-from the JSON Schema, so the document can describe less than the server checks, never more; each
-such rule is stated in its field's description.
+from the JSON Schema, so the document may describe less than the server checks, never more; a
+request breaking such a rule answers `invalid_input`, naming the field when the rule concerns one.
 
 The document is committed at `docs/api/openapi.json`, written by `scripts/generate-api-docs.sh`, and
 a test in the server's suite fails while the committed document differs from what the code
