@@ -11,6 +11,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -214,7 +215,7 @@ export function Confirmation({
   onCancel: () => void;
 }) {
   const confirm = useRef<HTMLButtonElement>(null);
-  useEffect(() => confirm.current?.focus(), []);
+  useLayoutEffect(() => confirm.current?.focus(), []);
   return (
     <div className="confirm" role="group" aria-label={question}>
       <p>{question}</p>
@@ -257,7 +258,7 @@ export function ConfirmButton({
   const [asking, setAsking] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
   const asked = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (asking) {
       asked.current = true;
     } else if (asked.current) {
@@ -423,7 +424,7 @@ export function Sheet({
 }) {
   const id = useId();
   const title = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     sheet.current?.showModal();
     title.current?.focus();
   }, [sheet]);

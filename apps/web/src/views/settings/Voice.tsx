@@ -10,7 +10,7 @@ import {
   type VoiceSettings,
   type VoiceSettingsInput,
 } from "@wayfarerlabs/agention-api";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, describeFailure, request } from "../../api.ts";
 import { ConfirmButton, Failure, focusLeftWith, Status } from "../../components.tsx";
 import { useAction } from "../../data.ts";
@@ -59,7 +59,7 @@ export function Voice({
   const setUp = useRef<HTMLButtonElement>(null);
   // This runs after every render, since Set up may show later than the
   // request to focus it.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusTarget === "set-up" && setUp.current !== null) {
       setFocusNext(undefined);
       if (focusLeftWith(focusNext?.from)) {
@@ -179,7 +179,7 @@ function VoiceForm({
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const target =
       focus === "save"
         ? saveButton.current

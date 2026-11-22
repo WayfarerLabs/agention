@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type SetStateAction,
   useEffect,
+  useLayoutEffect,
   useId,
   useRef,
   useState,
@@ -284,7 +285,7 @@ function AskCard({
     words: useRef<HTMLTextAreaElement>(null),
   };
   const focusNext = useRef<keyof typeof targets>(undefined);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const next = focusNext.current;
     focusNext.current = undefined;
     if (next !== undefined) {

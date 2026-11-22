@@ -735,6 +735,12 @@ The UI reads the server's name from the `application-name` metadata the server w
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
 title.
 
+A component that moves focus does it in a layout effect, never a passive one. A passive effect runs
+after the browser paints, so when the change that calls for the move came from an awaited request,
+the control that had focus is already gone and focus rests on the page's body until the effect runs.
+Tests judge focus the first time the change shows, inside `waitFor`, since a late move has already
+run by the time `waitFor` resolves.
+
 The sessions view answers `/sessions`, and `/registrations`, the path released bridges send the
 operator to. It loads the agents whole, at most 500 in pages of 100, since the approval form chooses
 among them, and a session's log only while its row is unfolded under an unfolded agent, since what a
