@@ -226,7 +226,8 @@ export function apiDocument(): JsonObject {
   };
 }
 
-// apiDocumentText writes the document as docs/api/openapi.json holds it.
-export function apiDocumentText(): string {
-  return `${JSON.stringify(apiDocument(), null, 2)}\n`;
+// apiDocumentText writes the document, by default the one apiDocument builds,
+// as docs/api/openapi.json holds it.
+export function apiDocumentText(document: JsonObject = apiDocument()): string {
+  return `${JSON.stringify(document, null, 2)}\n`;
 }

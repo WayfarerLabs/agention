@@ -149,10 +149,11 @@ export function apiDocsPage(document: JsonObject): string {
 // serveApiDocs adds the documentation's routes, built once as the server
 // starts. The page's address without its trailing slash leads to it.
 export function serveApiDocs(app: Hono): void {
-  const document = apiDocumentText();
-  const page = apiDocsPage(apiDocument());
+  const document = apiDocument();
+  const documentText = apiDocumentText(document);
+  const page = apiDocsPage(document);
   app.get(`${apiDocsPath}openapi.json`, (c) =>
-    c.body(document, 200, { "content-type": "application/json; charset=utf-8" }),
+    c.body(documentText, 200, { "content-type": "application/json; charset=utf-8" }),
   );
   app.get(apiDocsPath, (c) => c.html(page));
   app.get(apiDocsPath.slice(0, -1), (c) => c.redirect(apiDocsPath, 301));
