@@ -90,7 +90,7 @@ describe("a message's files", () => {
   });
 
   it("plays video and audio in their own players, loading nothing until played", async () => {
-    await openWith([attached("clip.webm", "video/webm"), attached("note.m4a", "audio/x-m4a")]);
+    await openWith([attached("clip.webm", "video/webm"), attached("note.m4a", "audio/mp4")]);
     const video = entryOf("clip.webm").querySelector("video");
     expect(video?.getAttribute("src")).toBe(`/api/web${served("clip.webm", ref(9))}`);
     expect([video?.hasAttribute("controls"), video?.getAttribute("preload")]).toEqual([
