@@ -208,9 +208,9 @@ files in its database, so they are in every backup.
 - **Who can read a file.** Whoever can read the thread that holds it: the operator, signed in or
   through an API key holding `threads:read`, and the agents of that thread's session, each on its
   own mount, with the same answer as for a thread that does not exist for anyone else. Uploading and
-  removing an upload need `threads:write`. Every chunk read or written checks the credential and its
-  scope again, so a revoked agent's or a revoked or expired API key's transfer stops within a
-  megabyte.
+  removing an upload need `threads:write`. Every store call confirms the scope, and every chunk read
+  or written re-checks the credential, so a revoked agent's or a revoked or expired API key's
+  transfer stops within one chunk, a megabyte.
 - **References are private to their writer.** An upload answers with a random 128-bit reference, and
   a message can name only an upload of its own writer, in the same session, that no message has
   named yet and that has not expired. A writer can also remove such an upload of its own before any

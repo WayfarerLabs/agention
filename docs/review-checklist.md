@@ -71,12 +71,12 @@ The transcription provider's key is never logged, no answer carries more of it t
 characters, and it goes only to the base URL it was entered for (`SECURITY.md` "Voice"). An API key
 is stored only as its hash, never logged or answered after its creation; creating and revoking one
 needs a recent sign-in; its revocation and expiry are checked inside each operation's transaction,
-and on every chunk of a file it uploads or reads, and end the waits it holds; and every refusal of a
-key is the same (`SECURITY.md` "API keys"). Look for identity-header bypasses, an insecure TLS
-fallback, a first-user-wins bootstrap instead of the one-time `passkey-link`, recovery paths that
-skip ceremony checks, a credential's end that leaves a wait it holds running to its bound, and a
-bridge that sends tokens or message text anywhere but its configured HTTPS origin, a followed
-redirect included (`SECURITY.md` "The agent bridge").
+and again on every chunk of a file it uploads or reads, and end the waits it holds; and every
+refusal of a key is the same (`SECURITY.md` "API keys"). Look for identity-header bypasses, an
+insecure TLS fallback, a first-user-wins bootstrap instead of the one-time `passkey-link`, recovery
+paths that skip ceremony checks, a credential's end that leaves a wait it holds running to its
+bound, and a bridge that sends tokens or message text anywhere but its configured HTTPS origin, a
+followed redirect included (`SECURITY.md` "The agent bridge").
 
 ## A5. Roles follow the direction of attention
 
@@ -251,22 +251,22 @@ shows a file only as an `<img>`, `<video>` or `<audio>` of its own page, as text
 PDF in a tab of its own: never in a frame, and never as a `blob:` or `data:` URL. Nothing detects a
 type from a file's bytes, parses one, or processes an image. Who can read a file is who can read its
 thread, under `threads:read` on every mount, uploading needs `threads:write`, and every chunk read
-or written checks the credential and its scope again; a message names only its writer's own pending
-uploads in its session, and every other reference is refused alike. Attached files and their bytes
-are never changed or removed, a replacement carries a file only by keeping it, and attachments are
-inside the write's digest, after its replay. Uploads keep their limits: the file and message bounds,
-the pending limits counting uploads still arriving, the free-space floor, the sweep, and the
-listener's deadlines, under which only an upload has no total deadline and every body is cut off
-when idle. The bridge's `file_upload` refuses anything but a regular file, its key directory and an
-oversized file, and `file_get` writes only into its own directory, under names it makes from a
-reference. Look for a served type a file's declaration or bytes can steer outside the allowlist, a
-route answering a file that does not declare its own policy and caching with `ownHeaders`, a file
-shown in a frame or through a `blob:` or `data:` URL, content sniffing or parsing, a reference that
-crosses writers or sessions, a chunk read or written without the credential and scope check, a file
-route outside the declared thread operations, a file held whole in memory, a route other than the
-upload given the larger body bound or no total deadline, a refused upload whose body is read beyond
-the adapter's bounded drain, a fetched file named from the sender's name or written outside its
-directory, and a file's contents treated as the operator's direction.
+or written checks the credential again; a message names only its writer's own pending uploads in its
+session, and every other reference is refused alike. Attached files and their bytes are never
+changed or removed, a replacement carries a file only by keeping it, and attachments are inside the
+write's digest, after its replay. Uploads keep their limits: the file and message bounds, the
+pending limits counting uploads still arriving, the free-space floor, the sweep, and the listener's
+deadlines, under which only an upload has no total deadline and every body is cut off when idle. The
+bridge's `file_upload` refuses anything but a regular file, its key directory and an oversized file,
+and `file_get` writes only into its own directory, under names it makes from a reference. Look for a
+served type a file's declaration or bytes can steer outside the allowlist, a route answering a file
+that does not declare its own policy and caching with `ownHeaders`, a file shown in a frame or
+through a `blob:` or `data:` URL, content sniffing or parsing, a reference that crosses writers or
+sessions, a chunk read or written without the credential and scope check, a file route outside the
+declared thread operations, a file held whole in memory, a route other than the upload given the
+larger body bound or no total deadline, a refused upload whose body is read beyond the adapter's
+bounded drain, a fetched file named from the sender's name or written outside its directory, and a
+file's contents treated as the operator's direction.
 
 ## A18. Operator operations and their scopes
 
@@ -282,10 +282,11 @@ registration needs `sessions:approve`, which no other scope includes. Files are 
 uploading and removing a pending upload need `threads:write`, and a thread's files and reading one
 `threads:read`. The mount refuses a missing scope before reading input, and the store operation
 confirms the same scope inside its transaction, which a test over every operation in the same file
-holds. Each chunk of a file written or read confirms the credential and the scope again, in its own
-transaction, so a transfer stops within a chunk once its credential ends, which the store's
-`apps/server/src/store/files.test.ts` ("stops within a chunk once its credential is revoked") and
-the HTTP tests in `apps/server/src/http/files.test.ts` (the same, for a read) and
+holds; a file's chunk reads and writes are store calls too, and confirm it as every other does. Each
+chunk also re-checks the credential, in its own transaction, so a transfer stops within one chunk
+once its credential is revoked or expires, which the store's `apps/server/src/store/files.test.ts`
+("stops within a chunk once its credential is revoked") and the HTTP tests in
+`apps/server/src/http/files.test.ts` (the same, for a read) and
 `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
 adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
 an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the

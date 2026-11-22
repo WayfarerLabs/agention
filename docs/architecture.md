@@ -361,13 +361,13 @@ under `threads:write` and refuses it while its writer holds 20 pending uploads, 
 than 1 GiB of them by their declared sizes with this one, counting those still arriving and not
 those expired; then it inserts the file's row with a reference of 16 random bytes in base64url, and
 adds the file to the process's set of uploads in flight. A writer may run several uploads at once.
-Each chunk is written in a transaction of its own, which checks the credential and its scope again,
-so the upload of a revoked agent's registration or a revoked or expired API key stops within a
-chunk. Completing checks that the bytes received number the declared size, and records the hash and
-the time. Any failure after the upload begins, a body cut off, a revoked credential or a length that
-does not match among them, removes the file and its chunks in one transaction; a removal that itself
-fails is logged and left to the sweep. A completed upload no message names expires 24 hours after it
-completed.
+Each chunk is written in a transaction of its own, which confirms the scope as every store call does
+and re-checks the credential, so the upload of a revoked agent's registration or a revoked or
+expired API key stops within one chunk. Completing checks that the bytes received number the
+declared size, and records the hash and the time. Any failure after the upload begins, a body cut
+off, a revoked credential or a length that does not match among them, removes the file and its
+chunks in one transaction; a removal that itself fails is logged and left to the sweep. A completed
+upload no message names expires 24 hours after it completed.
 
 A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
 `store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
@@ -682,10 +682,11 @@ share the operator's pending limits, and the web UI can name one in a message.
   at or beyond the end, any range of an empty file included, is 416 `invalid_input` with
   `Content-Range: bytes */<size>`. `If-None-Match` and `If-Range` are ignored, since the bytes at a
   URL never change. `HEAD` reads no chunk. The body streams a chunk at a time, each read in its own
-  transaction, which checks the credential and its scope again, so a revoked or expired agent's
-  registration, browser session or API key stops it within a chunk; the first chunk is read before
-  the answer starts, so a credential revoked meanwhile or a chunk that is gone is answered as any
-  refusal is, and a chunk missing later cuts the body short, which is logged.
+  transaction, which confirms the scope as every store call does and re-checks the credential, so a
+  revoked or expired agent's registration, browser session or API key stops it within one chunk; the
+  first chunk is read before the answer starts, so a credential revoked meanwhile or a chunk that is
+  gone is answered as any refusal is, and a chunk missing later cuts the body short, which is
+  logged.
 - **A file's headers.** `Content-Type` is the served type: the declared type when it is PNG, JPEG,
   GIF, WebP or SVG (`image/svg+xml`), PDF, `video/mp4`, `video/webm` or `video/ogg`, or
   `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/webm`, `audio/wav` or `audio/flac`;

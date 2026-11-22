@@ -104,7 +104,7 @@ export function beginUpload(
 }
 
 // writeChunk stores one chunk of an upload's bytes, at its index, once the
-// credential and its scope are checked again.
+// scope is confirmed, as in every store call, and the credential re-checked.
 export function writeChunk(store: Store, upload: Upload, index: number, data: Uint8Array): void {
   store.db.transaction(() => {
     authorizeScope(store.db, upload.identity, "threads:write", store.clock());

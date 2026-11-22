@@ -122,8 +122,9 @@ export function findCarriedFile(
   });
 }
 
-// readFileChunk reads one chunk of a file, at its index, once the credential
-// and its scope are checked again, or undefined when that chunk is gone.
+// readFileChunk reads one chunk of a file, at its index, once the scope is
+// confirmed, as in every store call, and the credential re-checked, or
+// undefined when that chunk is gone.
 export function readFileChunk(
   store: Store,
   identity: Identity,
