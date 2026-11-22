@@ -98,7 +98,6 @@ export const fileBytes: BytesAnswer = {
     "cached privately for good, since the bytes at an address never change; ETag is the " +
     "hex SHA-256 of its bytes. HEAD answers the same headers without the bytes.",
   types: servedTypes,
-  ranges: true,
 };
 
 // The file a read names: the thread's message, the name it carries the file
@@ -114,7 +113,7 @@ export interface FileRead {
 // serveFile answers a file read: the file a message carries under a name,
 // and when the request gives its ref, only if the message carries that
 // file. Its bytes stream a chunk at a time, each read in its own
-// transaction, which checks the credential and its scope again.
+// transaction, which confirms the scope and re-checks the credential.
 export function serveFile(read: FileRead): Response {
   const { store, identity, target, request, log } = read;
   const file = findCarriedFile(store, identity, target);

@@ -120,9 +120,9 @@ function requestBodyOf(schemas: JsonSchemas, body: DescribedSchema<unknown> | By
 }
 
 // answersOf describes an operation's answers: JSON its schema reads, or
-// bytes in any of their types, and when a range of them may be asked for,
-// that range, 206, or 416 for one outside them, which carries the bytes'
-// length in Content-Range and an error.
+// bytes in any of their types, a range of them, 206, or 416 for a range
+// outside them, which carries the bytes' length in Content-Range and an
+// error.
 function answersOf(
   schemas: JsonSchemas,
   response: DescribedSchema<unknown> | BytesAnswer,
@@ -147,20 +147,16 @@ function answersOf(
       ...(headers === undefined ? {} : { headers }),
       content,
     },
-    ...(response.ranges
-      ? {
-          "206": {
-            description: "The range asked for, of the same bytes, with the same headers.",
-            headers: { ...headers, ...contentRange("bytes first-last/length") },
-            content,
-          },
-          [unsatisfiableRangeStatus]: {
-            description: "The range lies outside the bytes, or the bytes are empty; invalid_input.",
-            headers: { ...headers, ...contentRange("bytes */length") },
-            content: { "application/json": { schema: schemas.of(errorBody, "output") } },
-          },
-        }
-      : {}),
+    "206": {
+      description: "The range asked for, of the same bytes, with the same headers.",
+      headers: { ...headers, ...contentRange("bytes first-last/length") },
+      content,
+    },
+    [unsatisfiableRangeStatus]: {
+      description: "The range lies outside the bytes, or the bytes are empty; invalid_input.",
+      headers: { ...headers, ...contentRange("bytes */length") },
+      content: { "application/json": { schema: schemas.of(errorBody, "output") } },
+    },
   };
 }
 
@@ -178,12 +174,11 @@ const rangeHeader = {
 
 function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaration): JsonObject {
   const versionHeader = { $ref: "#/components/parameters/agentApiVersion" };
-  const ranges = isBytes(declaration.response) && declaration.response.ranges;
   const parameters = [
     ...(mount.versionHeader ? [versionHeader] : []),
     ...(declaration.params === undefined ? [] : parametersOf(schemas, declaration.params, "path")),
     ...(declaration.query === undefined ? [] : parametersOf(schemas, declaration.query, "query")),
-    ...(ranges ? [rangeHeader] : []),
+    ...(isBytes(declaration.response) ? [rangeHeader] : []),
   ];
   const name = declaration.name.charAt(0).toUpperCase() + declaration.name.slice(1);
   // A key's scope is listed; an agent's token always holds what every agent

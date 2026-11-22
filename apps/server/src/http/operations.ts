@@ -24,27 +24,24 @@ export type DescribedSchema<T> = Schema<T> & ApiSchema;
 // A body or an answer that is a file's bytes as they are, rather than JSON,
 // which the documentation describes as binary. The mount reads no such body
 // and writes no such answer: the handler reads a body of bytes from the
-// request, and answers an answer of bytes as a Response it built. value is
-// never set: it carries what the handler sees of the bytes, nothing for a
-// body and a Response for an answer, so the compiler holds the handler to
-// them as it does to a schema.
+// request, and answers an answer of bytes as a Response it built.
 export interface BytesBody {
   bytes: "body";
   // What the request's bytes and headers are, for the documentation.
   description: string;
-  readonly value?: undefined;
 }
 
-export interface BytesAnswer {
+// An answer of bytes, which a request may ask for one range of, with Range,
+// answered 206, or 416 when it lies outside them. T is what the handler
+// answers, so the compiler holds it to a Response as it does to a schema:
+// value is never set, and only carries T.
+export interface BytesAnswer<T extends Response = Response> {
   bytes: "answer";
   // What the answer's bytes and headers are, for the documentation.
   description: string;
   // The types the bytes are answered as.
   types: readonly string[];
-  // Whether a request may ask for one range of the bytes, with Range, which
-  // is answered 206, or 416 when it lies outside them.
-  ranges: boolean;
-  readonly value?: Response;
+  readonly value?: T;
 }
 
 // isBytes says whether a declared body or answer is bytes rather than a
@@ -100,8 +97,8 @@ interface Definition<P, Q, B, R> {
   summary: string;
   params?: DescribedSchema<P>;
   query?: DescribedSchema<Q>;
-  // A body or an answer of bytes gives B or R as its value's type.
-  body?: DescribedSchema<B> | (BytesBody & { readonly value?: B });
+  body?: DescribedSchema<B> | BytesBody;
+  // An answer of bytes gives R as its value's type, which is a Response.
   response: DescribedSchema<R> | (BytesAnswer & { readonly value?: R });
   handler(input: OperationInput<P, Q, B>): NoInfer<R> | Promise<NoInfer<R>>;
 }
