@@ -40,6 +40,7 @@
 - [x] Main merged in, with attachments' four file routes declared as operations on every mount,
       bytes bodies and answers in the declaration and the API document, file scopes confirmed in
       every store call, and the credential on every chunk (K4, rulings 10 and 11) (agention#41).
-- [ ] Live run: a key uploads, attaches, lists and reads a file, whole and by range; a read key is
-      refused an upload; removing an attached file is refused.
-- [ ] `locked.md` updated for files.
+- [x] Live run: a key uploads, attaches, lists and reads a file, whole and by range; a read key is
+      refused an upload; removing an attached file is refused (agention#41; on a loopback bed at
+      64d2f14, with revocation mid-transfer and the bridge's fetch too).
+- [x] `locked.md` updated for files (agention#41).

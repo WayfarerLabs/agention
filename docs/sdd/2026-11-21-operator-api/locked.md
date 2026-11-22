@@ -14,6 +14,11 @@
   registration `threads:write` over its own session. The mount and the store both check them.
 - The operator API at `/api/operator/v1/`, bearer keys only, serving the web UI's operations from
   one declaration each, with a long poll across every session (ruling 7, confirmed by ruling 9).
+- Files on every mount, after attachments (agention#46): uploading, removing a staged upload,
+  listing a thread's files and reading one by range, declared once with bodies and answers of bytes.
+  Uploads and removal need `threads:write`, and listing and reading `threads:read`; an attached file
+  is never removed (ruling 10). The count of sessions with unread updates left the operator API with
+  the web UI's move to `/attention`, which stays web-only (ruling 11).
 - An OpenAPI 3.1 document of the operator and agent APIs, generated from those declarations,
   committed at `docs/api/openapi.json` with a parity test, and served with a static page under
   `/docs/api/` by `agention serve --api-docs`.
@@ -24,7 +29,10 @@
 The live run passed on a loopback bed at the reviewed head: a key created in Settings read sessions
 and threads with `curl` from the served docs, a read key was refused a write, a revoked key was
 refused and its wait ended, and the web UI and an agent bridge, approved and answered through keys,
-worked unchanged.
+worked unchanged. After files, a second run at the reviewed head: keys uploaded and attached files,
+read them whole, by range and past the end, and were refused an upload without `threads:write` and
+the removal of an attached file; a key revoked mid-transfer stopped its upload and its read within a
+chunk; and the bridge fetched the files a key attached.
 
 ## Where it lives now
 
@@ -36,5 +44,5 @@ here is needed to understand or work on the system.
 ## What follows
 
 An audit log recording which key wrote what (agention#42), and a bound on concurrent waits per key
-(agention#45), are their own efforts. Push to clients, such as notifications (agention#30), is not
-planned here.
+(agention#45), are their own efforts, as is logging a read cut short in one line rather than a stack
+trace (agention#52). Push to clients, such as notifications (agention#30), is not planned here.
