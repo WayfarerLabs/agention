@@ -76,6 +76,7 @@ export class Harness {
       name?: string;
       voiceEnvironment?: VoiceEnvironment;
       transcription?: TranscriptionProvider;
+      freeBytes?: (directory: string) => Promise<number>;
     } = {},
   ) {
     this.app = createApp({
@@ -83,6 +84,7 @@ export class Harness {
         ? {}
         : { voiceEnvironment: options.voiceEnvironment }),
       ...(options.transcription === undefined ? {} : { transcription: options.transcription }),
+      ...(options.freeBytes === undefined ? {} : { freeBytes: options.freeBytes }),
       store: this.fixture.store,
       origin,
       name: options.name ?? "Agention",

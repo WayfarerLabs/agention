@@ -112,6 +112,8 @@ export interface WebApiOptions {
   voiceEnvironment: VoiceEnvironment;
   transcription: TranscriptionProvider;
   log: (message: string) => void;
+  // The bytes free where the database lives, which uploads leave room in.
+  freeBytes: (directory: string) => Promise<number>;
 }
 
 const isMutation = (c: Context) => !["GET", "HEAD", "OPTIONS"].includes(c.req.method);
@@ -267,7 +269,10 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   );
 
   api.use("/s/*", requireSession);
-  api.route("/s/:agent/:session", threadRoutes(store));
+  api.route(
+    "/s/:agent/:session",
+    threadRoutes({ store, freeBytes: options.freeBytes, log: options.log }),
+  );
   api.post("/s/:agent/:session/threads", async (c) => {
     const target = sessionTarget(c);
     const input = await parseBody(c, threadStartInput);

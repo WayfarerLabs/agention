@@ -11,7 +11,14 @@ import { BackupError, backupDatabase } from "./database/backup.ts";
 import { Database, DatabaseOpenError } from "./database/database.ts";
 import { createApp } from "./http/app.ts";
 import { ListenerConfigError, listen, planListener } from "./http/listener.ts";
-import { createStore, findOperator, serverName, storedName, storeName } from "./store/index.ts";
+import {
+  createStore,
+  findOperator,
+  serverName,
+  storedName,
+  storeName,
+  sweepFilesRegularly,
+} from "./store/index.ts";
 import { readVoiceEnvironment, VoiceEnvironmentError } from "./transcription/environment.ts";
 
 const usage = `Usage: agention <command> [options]
@@ -291,10 +298,10 @@ async function serve(args: string[], io: Io): Promise<number> {
     }
   }
 
-  const db = Database.open(databaseFile(data), {
-    log: (message) => io.stderr.write(`${message}\n`),
-  });
+  const log = (message: string) => io.stderr.write(`${message}\n`);
+  const db = Database.open(databaseFile(data), { log });
   const shutdown = new AbortController();
+  let sweeps: ReturnType<typeof sweepFilesRegularly> | undefined;
   try {
     // The server's name is the stored one or, on a new database, the one
     // given, Agention without one. A later start may repeat it but never
@@ -304,14 +311,19 @@ async function serve(args: string[], io: Io): Promise<number> {
       throw renamed(stored);
     }
     const name = stored ?? givenName ?? "Agention";
+    const store = createStore(db, quietAfter === undefined ? {} : { quietAfter });
+    // Before the server listens, no upload is arriving, so the first sweep
+    // removes every one a crash or a failed abort left unfinished.
+    sweeps = sweepFilesRegularly(store, log);
+    await sweeps.first;
     const app = createApp({
-      store: createStore(db, quietAfter === undefined ? {} : { quietAfter }),
+      store,
       origin,
       name,
       webRoot: webDirectory,
       voiceEnvironment,
       shutdown: shutdown.signal,
-      log: (message) => io.stderr.write(`${message}\n`),
+      log,
     });
     let listening;
     try {
@@ -355,6 +367,7 @@ async function serve(args: string[], io: Io): Promise<number> {
     }
     return exitOK;
   } finally {
+    await sweeps?.stop();
     db.close();
   }
 }
