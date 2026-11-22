@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { beginUpload } from "../store/index.ts";
 import { maxBodyBytes } from "./app.ts";
 import { codeOf, json, type Mount, mountHeaders, send, upload } from "./file-test-support.ts";
+import { operatorApiPrefix } from "./operator-api.ts";
 import { type AgentKey, Harness, host, newThread } from "./test-harness.ts";
 import { freeSpaceFloor, isUploadRequest } from "./uploads.ts";
 
@@ -194,7 +195,8 @@ describe("the body bounds", () => {
   it.each([
     ["POST", "/api/agent/s/builder/main/uploads", true],
     ["POST", "/api/web/s/builder/main/uploads?name=a.txt", true],
-    ["POST", "/api/operator/v1/s/builder/main/uploads?name=a.txt", true],
+    // The operator mount's version, so the pattern follows a change to it.
+    ["POST", `${operatorApiPrefix}/s/builder/main/uploads?name=a.txt`, true],
     ["POST", "/api/operator/s/builder/main/uploads", false],
     ["POST", "/api/web/s/b%20x/m/uploads", true],
     ["POST", "/api/web/s/builder/main/x/../uploads", true],
