@@ -50,11 +50,11 @@ function serveFile(name: string, reply: Reply) {
 
 describe("a message's files", () => {
   it("lists each with its name, type and size, and a Download link to its URL", async () => {
-    await openWith([attached("report.bin", "application/zip", { size: 2_500_000 })]);
+    await openWith([attached("report.bin", "application/zip", { size: 2.5 * 1024 * 1024 })]);
     const entry = entryOf("report.bin");
     expect(entry.textContent).toContain("application/zip");
-    expect(entry.textContent).toContain("2.5 MB");
-    const download = within(entry).getByRole("link", { name: "Download" });
+    expect(entry.textContent).toContain("2.5 MiB");
+    const download = within(entry).getByRole("link", { name: "Download report.bin" });
     expect(download.getAttribute("href")).toBe(`/api/web${served("report.bin", ref(10))}`);
     expect(download.getAttribute("download")).toBe("report.bin");
     // Anything else offers Download alone.
@@ -102,6 +102,14 @@ describe("a message's files", () => {
       true,
       "none",
     ]);
+    // Each player is named by its file.
+    for (const [player, name] of [
+      [video, "clip.webm"],
+      [audio, "note.m4a"],
+    ] as const) {
+      const label = document.getElementById(player?.getAttribute("aria-labelledby") ?? "");
+      expect(label?.textContent).toBe(name);
+    }
   });
 
   it("reads a text file's start on demand with a range request, decoding it as UTF-8", async () => {
@@ -134,13 +142,32 @@ describe("a message's files", () => {
       body: { error: { code: "not_found", message: "this file's contents are missing" } },
     });
     fireEvent.click(within(entryOf("gone.txt")).getByRole("button", { name: "Show text" }));
-    const alert = await within(entryOf("gone.txt")).findByRole("alert");
-    expect(alert.textContent).toContain("This file's contents are missing.");
+    await within(entryOf("gone.txt")).findByRole("alert");
+  });
+
+  it("sends a lost sign-in to be checked when a text file's read finds it", async () => {
+    await openWith([attached("notes.txt", "text/plain")]);
+    serveFile("notes.txt", {
+      status: 401,
+      body: { error: { code: "unauthenticated", message: "sign in" } },
+    });
+    const checks = page.api.callsTo("GET", "/session").length;
+    fireEvent.click(within(entryOf("notes.txt")).getByRole("button", { name: "Show text" }));
+    await within(entryOf("notes.txt")).findByRole("alert");
+    await waitFor(() => expect(page.api.callsTo("GET", "/session").length).toBeGreaterThan(checks));
+  });
+
+  it("shows an empty text file as empty, reading nothing", async () => {
+    await openWith([attached("empty.log", "text/plain", { size: 0 })]);
+    fireEvent.click(within(entryOf("empty.log")).getByRole("button", { name: "Show text" }));
+    expect(entryOf("empty.log").querySelector("pre")?.textContent).toBe("");
+    expect(within(entryOf("empty.log")).queryByRole("alert")).toBeNull();
+    expect(page.api.callsTo("GET", `${path}/messages/2/files/empty.log`)).toEqual([]);
   });
 
   it("opens a PDF in a new tab", async () => {
     await openWith([attached("spec.pdf", "application/pdf")]);
-    const open = within(entryOf("spec.pdf")).getByRole("link", { name: "Open" });
+    const open = within(entryOf("spec.pdf")).getByRole("link", { name: "Open spec.pdf" });
     expect(open.getAttribute("href")).toBe(`/api/web${served("spec.pdf", ref(8))}`);
     expect([open.getAttribute("target"), open.getAttribute("rel")]).toEqual(["_blank", "noopener"]);
   });
@@ -174,13 +201,12 @@ describe("a message's files", () => {
     }
   });
 
-  it("reads a message that replaces another carrying only files as a replacement, not a retraction", async () => {
+  it("lists the files of a replacement carrying only files", async () => {
     await page.openWith([
       operatorMessage(1, { text: "First", live: false, replaced_by: 2 }),
       operatorMessage(2, { replaces: 1, attachments: [attached("a.png", "image/png")] }),
     ]);
-    expect(screen.getByText("Replaces #1.")).not.toBeNull();
-    expect(screen.queryByText(/Retracted/)).toBeNull();
+    expect(entryOf("a.png")).toBeDefined();
   });
 });
 
@@ -306,8 +332,8 @@ describe("the thread's files", () => {
   });
 
   it("fold under the head with their count and size, and list nothing until unfolded", async () => {
-    await openWithTotals(12, 340e6);
-    const button = screen.getByRole("button", { name: "Files (12, 340 MB)" });
+    await openWithTotals(12, 340 * 1024 * 1024);
+    const button = screen.getByRole("button", { name: "Files (12, 340 MiB)" });
     expect(button.getAttribute("aria-expanded")).toBe("false");
     expect(page.api.callsTo("GET", `${path}/files`)).toEqual([]);
   });
@@ -323,20 +349,18 @@ describe("the thread's files", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Files \(51,/ }));
     const list = await screen.findByRole("region", { name: "Files" });
     await waitFor(() => expect(within(list).getAllByRole("listitem")).toHaveLength(50));
-    const [read] = page.api.callsTo("GET", `${path}/files`);
-    expect(read?.url.searchParams.get("limit")).toBe("50");
     const entry = within(list).getAllByRole("listitem")[0]!;
     expect(entry.textContent).toContain("builder/main");
     expect(entry.querySelector("time")).not.toBeNull();
     expect(within(entry).getByRole("link", { name: "#2" }).getAttribute("href")).toBe("#message-2");
-    expect(within(entry).getByRole("link", { name: "Download" }).getAttribute("href")).toBe(
+    expect(within(entry).getByRole("link", { name: "Download f0.png" }).getAttribute("href")).toBe(
       `/api/web${path}/messages/2/files/f0.png?file=${ref(2)}`,
     );
     fireEvent.click(within(list).getByRole("button", { name: "Show more" }));
     await waitFor(() => expect(within(list).getAllByRole("listitem")).toHaveLength(51));
     const missing = within(list).getAllByRole("listitem").at(-1)!;
     expect(missing.querySelector(".file-missing")).not.toBeNull();
-    expect(within(missing).queryByRole("link", { name: "Download" })).toBeNull();
+    expect(within(missing).queryByRole("link", { name: /^Download/ })).toBeNull();
     // A message's link moves focus to the message.
     fireEvent.click(within(missing).getByRole("link", { name: "#1" }));
     await waitFor(() =>

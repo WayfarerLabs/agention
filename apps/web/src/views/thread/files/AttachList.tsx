@@ -1,26 +1,32 @@
-import { maxAttachments } from "@wayfarerlabs/agention-api";
+import { maxAttachments, maxFileBytes } from "@wayfarerlabs/agention-api";
 import { type RefObject, useId, useLayoutEffect, useRef } from "react";
 import { describeFailure } from "../../../api.ts";
 import { byteSize } from "../../../format.tsx";
-import { type DraftFile, type DraftFiles, maxFileMiB, stateOf } from "./attach.ts";
+import { Icon } from "../../../icons.tsx";
+import type { DraftFile, DraftFiles } from "./attach.ts";
 
 // The composer's files, above its Send row: each with its name, size and how
 // it stands, waiting, uploading with its progress, uploaded, failed with why
 // and Retry, expired with Upload again, refused with why, or kept from the
 // message a replacement replaces; and each with Remove. The list says the
-// limits once.
+// limits once. A failure, an expiry and a refusal are announced as they
+// show. Attach, in the Send row, adds files to it.
 
 // Where focus goes once the list changes: a file's Remove, or Attach.
 type FocusTarget = { id: number } | "attach";
 
-function FileState({ file, now }: { file: DraftFile; now: number }) {
+function FileState({ file }: { file: DraftFile }) {
   if (file.kind === "kept") {
     return <span className="muted">Kept</span>;
   }
   if (file.kind === "refused") {
-    return <span className="field-error">{file.why}</span>;
+    return (
+      <span className="field-error" role="alert">
+        {file.why}
+      </span>
+    );
   }
-  const state = stateOf(file.state, now);
+  const { state } = file;
   switch (state.kind) {
     case "waiting":
       return <span className="muted">Waiting</span>;
@@ -29,9 +35,17 @@ function FileState({ file, now }: { file: DraftFile; now: number }) {
     case "uploaded":
       return <span className="muted">Uploaded</span>;
     case "failed":
-      return <span className="field-error">Did not upload: {describeFailure(state.failure)}</span>;
+      return (
+        <span className="field-error" role="alert">
+          Did not upload: {describeFailure(state.failure)}
+        </span>
+      );
     case "expired":
-      return <span className="field-error">Expired: upload it again.</span>;
+      return (
+        <span className="field-error" role="alert">
+          Expired: upload it again.
+        </span>
+      );
   }
 }
 
@@ -62,7 +76,6 @@ export function AttachList({
   if (files.length === 0) {
     return null;
   }
-  const now = Date.now();
   // Remove moves focus to the next file's Remove, else the previous one's,
   // else Attach.
   const remove = (index: number) => {
@@ -79,11 +92,11 @@ export function AttachList({
   return (
     <div className="attached">
       <p className="hint" id={`${id}-limits`}>
-        Up to {maxAttachments} files, {maxFileMiB} MiB each.
+        Up to {maxAttachments} files, {byteSize(maxFileBytes)} each.
       </p>
       <ul aria-label="Files to send" aria-describedby={`${id}-limits`}>
         {files.map((file, index) => {
-          const state = file.kind === "added" ? stateOf(file.state, now).kind : undefined;
+          const state = file.kind === "added" ? file.state.kind : undefined;
           return (
             <li key={file.id}>
               <p className="attached-file">
@@ -91,7 +104,7 @@ export function AttachList({
                 <span className="muted">{byteSize(file.size)}</span>
               </p>
               <div className="attached-state">
-                <FileState file={file} now={now} />
+                <FileState file={file} />
                 {(state === "failed" || state === "expired") && (
                   <button
                     type="button"
@@ -125,5 +138,47 @@ export function AttachList({
         })}
       </ul>
     </div>
+  );
+}
+
+// AttachButton is Attach, its paper clip alone, and the file picker it
+// opens. The picker takes no accept and no capture, so a phone offers its
+// camera among the places to choose from. Choosing leaves focus on Attach,
+// where the picker returns it.
+export function AttachButton({
+  draft,
+  attach,
+  disabled,
+}: {
+  draft: DraftFiles;
+  attach: RefObject<HTMLButtonElement | null>;
+  disabled: boolean;
+}) {
+  const picker = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={picker}
+        type="file"
+        multiple
+        hidden
+        onChange={(event) => {
+          const chosen = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          draft.add(chosen.map((file) => ({ file, name: file.name })));
+        }}
+      />
+      <button
+        ref={attach}
+        type="button"
+        className="secondary attach"
+        aria-label="Attach files"
+        title="Attach files"
+        disabled={disabled}
+        onClick={() => picker.current?.click()}
+      >
+        <Icon name="attach" />
+      </button>
+    </>
   );
 }

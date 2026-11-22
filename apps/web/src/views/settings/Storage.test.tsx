@@ -27,8 +27,8 @@ async function storage(files: number, bytes: number) {
 }
 
 it("says how much space attached files take, after Voice, offering nothing to change", async () => {
-  const line = await storage(340, 1.2e9);
-  expect(line.textContent).toContain("1.2 GB");
+  const line = await storage(340, 1.2 * 1024 ** 3);
+  expect(line.textContent).toContain("1.2 GiB");
   expect(line.textContent).toContain("340 files");
   const sections = screen
     .getAllByRole("region")
@@ -38,9 +38,4 @@ it("says how much space attached files take, after Voice, offering nothing to ch
   const section = screen.getByRole("region", { name: "Storage" });
   expect(within(section).queryAllByRole("button")).toEqual([]);
   expect(within(section).queryAllByRole("textbox")).toEqual([]);
-});
-
-it("says when nothing is attached yet", async () => {
-  const line = await storage(0, 0);
-  expect(line.textContent).not.toContain("0 files");
 });

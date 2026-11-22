@@ -1,6 +1,8 @@
 import { type AttachmentRead, type ServedType, servedTypeOf } from "@wayfarerlabs/agention-api";
 import { type ReactNode, useEffect, useId, useState } from "react";
 import { describeFailure, readTextStart } from "../../../api.ts";
+import { useUnauthenticatedCheck } from "../../../data.ts";
+import { byteSize } from "../../../format.tsx";
 
 // How a file of a message shows in place, by the type it is served as. No
 // file's bytes ever become a blob: or data: URL: every element loads the
@@ -42,19 +44,32 @@ export const opensOnDemand = (file: AttachmentRead): boolean => {
   return display === "text" || (display === "image" && file.size > inlineImageBytes);
 };
 
-// TextStart shows the start of a text file, read once as it shows.
+// TextStart shows the start of a text file, read once as it shows. An empty
+// file has nothing to read: a range of it is outside it.
 function TextStart({ url, size }: { url: string; size: number }) {
+  const onFailure = useUnauthenticatedCheck();
   const [read, setRead] = useState<{ text: string } | { failure: unknown }>();
   useEffect(() => {
+    if (size === 0) {
+      return;
+    }
     let current = true;
     readTextStart(url, textPreviewBytes).then(
       (text) => current && setRead({ text }),
-      (failure: unknown) => current && setRead({ failure }),
+      (failure: unknown) => {
+        if (current) {
+          onFailure(failure);
+          setRead({ failure });
+        }
+      },
     );
     return () => {
       current = false;
     };
-  }, [url]);
+  }, [url, size, onFailure]);
+  if (size === 0) {
+    return <pre className="file-text" />;
+  }
   if (read === undefined) {
     return <p className="muted">Loading…</p>;
   }
@@ -69,7 +84,9 @@ function TextStart({ url, size }: { url: string; size: number }) {
     <>
       <pre className="file-text">{read.text}</pre>
       {size > textPreviewBytes && (
-        <p className="hint">Showing the first 256 KiB; download it for the rest.</p>
+        <p className="hint">
+          Showing the first {byteSize(textPreviewBytes)}; download it for the rest.
+        </p>
       )}
     </>
   );
@@ -92,7 +109,8 @@ export function FileView({
   url: string;
   shown: boolean;
   toggle: () => void;
-  // The element naming the file, which its controls are described by.
+  // The element naming the file, which names its players and describes its
+  // controls.
   describedBy: string;
   actions: ReactNode;
 }) {
@@ -108,7 +126,7 @@ export function FileView({
         src={url}
         controls
         preload="none"
-        aria-describedby={describedBy}
+        aria-labelledby={describedBy}
       />
     ) : display === "audio" ? (
       <audio
@@ -116,7 +134,7 @@ export function FileView({
         src={url}
         controls
         preload="none"
-        aria-describedby={describedBy}
+        aria-labelledby={describedBy}
       />
     ) : display === "text" ? (
       <TextStart url={url} size={file.size} />

@@ -189,7 +189,7 @@ describe("attaching", () => {
     await waitFor(() => expect(uploads).toHaveLength(1));
     uploads[0]?.respond(failure("storage_full", "the server's disk is too full"));
     const retry = await within(composer()).findByRole("button", { name: "Retry one.png" });
-    expect(entry("one.png").textContent).toContain("The server's disk is too full.");
+    within(entry("one.png")).getByRole("alert");
     expect(sendButton().disabled).toBe(true);
     expect(textBox().value).toBe("See this");
     retry.focus();
@@ -223,6 +223,25 @@ describe("attaching", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("an upload under way", () => {
+  it("stops when the page is left", async () => {
+    await opened();
+    choose(file("one.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    cleanup();
+    expect(uploads[0]?.aborted).toBe(true);
+  });
+
+  it("sends a lost sign-in to be checked when it fails for one", async () => {
+    await opened();
+    const checks = page.api.callsTo("GET", "/session").length;
+    choose(file("one.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploads[0]?.respond(failure("unauthenticated", "sign in"));
+    await waitFor(() => expect(page.api.callsTo("GET", "/session").length).toBeGreaterThan(checks));
   });
 });
 
@@ -278,7 +297,7 @@ describe("pasting", () => {
       await opened();
       const images = [file("image.png"), file("image.png", "image/jpeg")];
       const inserted = fireEvent.paste(textBox(), {
-        clipboardData: { files: images, types: ["Files", "text/plain"] },
+        clipboardData: { files: images, types: ["Files"] },
       });
       expect(inserted).toBe(false);
       expect(listed()).toEqual(["pasted-20261122-090507.png", "pasted-20261122-090507.jpg"]);
@@ -293,6 +312,12 @@ describe("pasting", () => {
 
   it("leaves a paste of text, or of files other than images, to the browser", async () => {
     await opened();
+    // Text beside a picture of it, as a spreadsheet's cells paste, stays text.
+    expect(
+      fireEvent.paste(textBox(), {
+        clipboardData: { files: [file("image.png")], types: ["Files", "text/plain", "text/html"] },
+      }),
+    ).toBe(true);
     expect(
       fireEvent.paste(textBox(), { clipboardData: { files: [], types: ["text/plain"] } }),
     ).toBe(true);
@@ -308,7 +333,9 @@ describe("pasting", () => {
     await opened();
     fireEvent.click(within(composer()).getByRole("button", { name: "Details" }));
     const details = within(composer()).getByRole("textbox", { name: "Details" });
-    fireEvent.paste(details, { clipboardData: { files: [file("a.webp", "image/webp")] } });
+    fireEvent.paste(details, {
+      clipboardData: { files: [file("a.webp", "image/webp")], types: ["Files"] },
+    });
     expect(listed()).toHaveLength(1);
   });
 });
@@ -435,6 +462,31 @@ describe("editing", () => {
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
     expect(page.bodies()[0]).toMatchObject({ replaces: 2, attachments: [{ keep: "why.md" }] });
+  });
+
+  it("drops the kept files when a stale write finds the message it replaces replaced", async () => {
+    const state = await withFiles();
+    page.serveWrites(state);
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    // Another device replaced message 2 meanwhile.
+    state.messages = [
+      ...state.messages.map((each) =>
+        each.seq === 2 ? { ...each, live: false, replaced_by: 3 } : each,
+      ),
+      operatorMessage(3, { text: "Elsewhere", replaces: 2 }),
+    ];
+    state.thread = { ...state.thread, last_seq: 3, message_count: 3 };
+    fireEvent.click(sendButton());
+    await within(composer()).findByRole("alert");
+    expect(fileList()).toBeNull();
+    // What is left sends on its own, keeping nothing.
+    fireEvent.click(within(composer()).getByRole("button", { name: "Mark these read" }));
+    await waitFor(() => expect(within(composer()).queryByRole("alert")).toBeNull());
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).not.toHaveProperty("attachments");
+    expect(page.bodies()[1]).not.toHaveProperty("replaces");
   });
 
   it("waits while files are attached, as for any draft", async () => {

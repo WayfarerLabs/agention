@@ -27,10 +27,10 @@ function Missing() {
   return <span className="file-missing">Missing</span>;
 }
 
-// Download downloads a file under its name.
-function Download({ url, name, describedBy }: { url: string; name: string; describedBy: string }) {
+// Download downloads a file under its name, and is named by it.
+function Download({ url, name }: { url: string; name: string }) {
   return (
-    <a href={url} download={name} aria-describedby={describedBy}>
+    <a href={url} download={name} aria-label={`Download ${name}`}>
       Download
     </a>
   );
@@ -38,9 +38,9 @@ function Download({ url, name, describedBy }: { url: string; name: string; descr
 
 // Open opens a PDF in a tab of its own, in the browser's viewer, since a
 // browser may show no PDF in a frame.
-function Open({ url, describedBy }: { url: string; describedBy: string }) {
+function Open({ url, name }: { url: string; name: string }) {
   return (
-    <a href={url} target="_blank" rel="noopener" aria-describedby={describedBy}>
+    <a href={url} target="_blank" rel="noopener" aria-label={`Open ${name}`}>
       Open
     </a>
   );
@@ -83,8 +83,8 @@ function FileEntry({
           describedBy={id}
           actions={
             <>
-              {displayOfFile(file) === "pdf" && <Open url={url} describedBy={id} />}
-              <Download url={url} name={file.name} describedBy={id} />
+              {displayOfFile(file) === "pdf" && <Open url={url} name={file.name} />}
+              <Download url={url} name={file.name} />
             </>
           }
         />
@@ -171,9 +171,6 @@ export function useMessageFiles(
   return { links, list };
 }
 
-// How many of a thread's files its head lists at a time.
-const filesPage = 50;
-
 // ThreadFiles is the thread's files, folded under its head on every visit,
 // saying how many there are and the space they take. Unfolded, it lists
 // them, newest first, a page at a time, each with who attached it, when, and
@@ -228,10 +225,7 @@ function ThreadFileList({
 }) {
   const path = threadPath(target.agent, target.session, target.number, "/files");
   const pages = usePages(async (cursor) => {
-    const page = await request<ThreadFilesPage>(
-      "GET",
-      `${path}${query({ cursor, limit: filesPage })}`,
-    );
+    const page = await request<ThreadFilesPage>("GET", `${path}${query({ cursor })}`);
     return { rows: page.files, next: page.next };
   });
   return (
@@ -268,14 +262,10 @@ function ThreadFileEntry({
   url: string;
   go: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
-  const id = useId();
   return (
     <>
       <p className="file-head">
-        <span id={id} className="file-name">
-          {file.name}
-        </span>{" "}
-        <span className="muted">{facts(file)}</span>
+        <span className="file-name">{file.name}</span> <span className="muted">{facts(file)}</span>
         {file.missing === true && (
           <>
             {" "}
@@ -291,7 +281,7 @@ function ThreadFileEntry({
       </p>
       {file.missing !== true && (
         <div className="file-actions">
-          <Download url={url} name={file.name} describedBy={id} />
+          <Download url={url} name={file.name} />
         </div>
       )}
     </>

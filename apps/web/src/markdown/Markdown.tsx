@@ -17,6 +17,7 @@ import {
   useMemo,
 } from "react";
 import { ErrorBoundary } from "../boundary.tsx";
+import { plainClick } from "../router.tsx";
 import { Diagram } from "./Diagram.tsx";
 
 // Agention's Markdown: CommonMark with GitHub's tables, task lists and
@@ -151,7 +152,7 @@ function AttachmentLink({ url, children }: { url: string; children: ReactNode })
     // A plain click opens the file in place; any other, as in a new tab, is
     // the browser's own.
     const open = (event: MouseEvent<HTMLAnchorElement>) => {
-      if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      if (plainClick(event)) {
         event.preventDefault();
         link.open();
       }

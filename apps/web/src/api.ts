@@ -182,8 +182,8 @@ async function exchange<T>(
   }
 }
 
-// An upload of a file gives up once this long passes with no progress, either
-// way: longer than the server's own idle cut, so the server's answer arrives
+// An upload of a file gives up once this long passes with no progress:
+// longer than the server's own idle cut, so the server's answer arrives
 // first. Nothing bounds an upload's whole length, so a slow uplink finishes.
 export const uploadIdle = 60_000;
 
@@ -191,7 +191,8 @@ export const uploadIdle = 60_000;
 // returns the upload's answer, or throws an ApiFailure as request does. fetch
 // reports no upload progress, so it goes by XMLHttpRequest, with the File as
 // the body, so the browser sends its length; onProgress hears how many bytes
-// have gone. Aborting signal, as Remove does, ends it as a network failure.
+// have gone. Aborting signal, as Remove does, ends it as a network failure
+// the caller drops.
 export function uploadFile(
   path: string,
   file: Blob,
@@ -221,9 +222,7 @@ export function uploadFile(
     const noAnswer = () =>
       stalled
         ? new ApiFailure("network", "The upload stopped making progress. Check the connection.")
-        : options.signal.aborted
-          ? new ApiFailure("network", "Cancelled.")
-          : new ApiFailure("network", "Agention could not be reached. Check the connection.");
+        : new ApiFailure("network", "Agention could not be reached. Check the connection.");
     xhr.open("POST", `/api/web${path}`);
     xhr.setRequestHeader("accept", "application/json");
     xhr.setRequestHeader("content-type", options.type);
@@ -234,7 +233,6 @@ export function uploadFile(
       rearm();
       options.onProgress(event.loaded);
     };
-    xhr.onprogress = rearm;
     xhr.onload = () => {
       settle();
       if (xhr.status < 200 || xhr.status >= 300) {
@@ -251,11 +249,6 @@ export function uploadFile(
       settle();
       reject(noAnswer());
     };
-    if (options.signal.aborted) {
-      settle();
-      reject(noAnswer());
-      return;
-    }
     options.signal.addEventListener("abort", abort);
     rearm();
     xhr.send(file);
@@ -277,29 +270,56 @@ export function fileUrl(
 
 // readTextStart reads up to the first bytes of a file at url, by a range
 // request, as UTF-8 with replacement. A cut through a character at the end
-// leaves that character out. It throws an ApiFailure as request does.
+// leaves that character out. It reads no more than bytes, even from a server
+// that ignores the range, and gives up after requestTimeout, as request does.
+// It throws an ApiFailure as request does. It leaves the browser's cache on,
+// since the bytes at a file's URL never change.
 export async function readTextStart(url: string, bytes: number): Promise<string> {
-  let response: Response;
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), requestTimeout);
+  const noAnswer = () =>
+    timeout.signal.aborted
+      ? new ApiFailure("network", "Agention did not answer in time. Check the connection.")
+      : new ApiFailure("network", "Agention could not be reached. Check the connection.");
   try {
-    response = await fetch(url, {
-      headers: { range: `bytes=0-${bytes - 1}` },
-      credentials: "same-origin",
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: { range: `bytes=0-${bytes - 1}` },
+        credentials: "same-origin",
+        signal: timeout.signal,
+      });
+    } catch {
+      throw noAnswer();
+    }
+    if (!response.ok) {
+      throw await failureOf(response);
+    }
+    const start = new Uint8Array(bytes);
+    let length = 0;
+    const reader = response.body?.getReader();
+    try {
+      while (reader !== undefined && length < bytes) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        const taken = value.subarray(0, bytes - length);
+        start.set(taken, length);
+        length += taken.length;
+      }
+    } catch {
+      throw noAnswer();
+    }
+    if (length === bytes) {
+      void reader?.cancel().catch(() => undefined);
+    }
+    return new TextDecoder("utf-8").decode(start.subarray(0, length), {
+      stream: length === bytes,
     });
-  } catch {
-    throw new ApiFailure("network", "Agention could not be reached. Check the connection.");
+  } finally {
+    clearTimeout(timer);
   }
-  if (!response.ok) {
-    throw await failureOf(response);
-  }
-  let body: ArrayBuffer;
-  try {
-    body = await response.arrayBuffer();
-  } catch {
-    throw new ApiFailure("network", "The file stopped arriving. Check the connection.");
-  }
-  // A server that ignored the range answers the whole file.
-  const start = new Uint8Array(body, 0, Math.min(body.byteLength, bytes));
-  return new TextDecoder("utf-8").decode(start, { stream: start.length === bytes });
 }
 
 export type QueryValues = Record<

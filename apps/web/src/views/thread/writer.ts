@@ -98,7 +98,7 @@ function complete(staged: StagedAnswer): boolean {
 export interface Draft {
   text: string;
   detail: string;
-  attachments?: Attachment[] | undefined;
+  attachments: Attachment[];
 }
 
 // Why each of the composer's boxes cannot be sent as it stands, if it cannot.
@@ -122,7 +122,7 @@ function overBy(text: string, max: number): string | undefined {
 // detail without text, which it goes under. Neither box cuts what is typed or
 // pasted into it, so the operator sees what is over and moves it; the
 // message box, a summary, says where the rest belongs.
-export function draftProblems({ text, detail }: Draft): DraftProblems {
+export function draftProblems({ text, detail }: Pick<Draft, "text" | "detail">): DraftProblems {
   const textOver = overBy(text, maxMessageText);
   const detailOver = overBy(detail, maxMessageDetail);
   return {
@@ -151,7 +151,7 @@ export function sendable(draft: Draft, staged: Staged | undefined): boolean {
   if (staged?.kind === "answers") {
     return staged.answers.length > 0 && staged.answers.every(complete);
   }
-  return !blank(draft.text) || (draft.attachments?.length ?? 0) > 0;
+  return !blank(draft.text) || draft.attachments.length > 0;
 }
 
 // withAnswer stages the answer on one ask's card, beside the others staged.
@@ -205,7 +205,7 @@ export function contentOf(
   const written = {
     ...(blank(text) ? {} : { text }),
     ...(blank(detail) ? {} : { detail }),
-    ...(attachments === undefined || attachments.length === 0 ? {} : { attachments }),
+    ...(attachments.length === 0 ? {} : { attachments }),
   };
   if (staged === undefined) {
     return written;
@@ -324,10 +324,10 @@ export function staleChange(
 }
 
 // How a write ended: the message written, the messages it missed when it was
-// stale, why the server refused it, or undefined when it failed before it
-// was sent.
-export type Outcome =
-  { written: number } | { missed: Message[] } | { refused: unknown } | undefined;
+// stale, why it failed otherwise, as a refusal, no answer or a lost sign-in,
+// or undefined when it was not sent: marking the missed messages read first
+// failed, or there were none to mark.
+export type Outcome = { written: number } | { missed: Message[] } | { failed: unknown } | undefined;
 
 export interface Writer {
   pending: boolean;
@@ -435,7 +435,7 @@ export function useWriter(target: ThreadTarget, onWritten: (reached?: number) =>
         if (readFirst || result.failed === "stale") {
           onWritten(readFirst ? seenThrough : undefined);
         }
-        return result.failed === "stale" ? { missed: result.missed } : { refused: result.failure };
+        return result.failed === "stale" ? { missed: result.missed } : { failed: result.failure };
       }
       attempt.current = undefined;
       setMissed(undefined);

@@ -8,25 +8,30 @@ import {
   typeOfName,
 } from "@wayfarerlabs/agention-api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sessionPath, uploadFile, query } from "../../../api.ts";
+import { query, sessionPath, uploadFile } from "../../../api.ts";
 import { useUnauthenticatedCheck } from "../../../data.ts";
+import { byteSize } from "../../../format.tsx";
 import { useSession } from "../../../session.tsx";
 import type { ThreadTarget } from "../writer.ts";
 
 // The files of the composer's draft: those the operator chose or pasted,
-// each uploaded as soon as it is added, one at a time in the order added, so
-// one file fills the link at once; and, on a replacement, the files of the
-// message it replaces, kept unless removed. The draft keeps each File, so a
-// failed or expired upload can be sent again. Nothing is uploaded for good
+// each uploaded as soon as it is added, and, on a replacement, the files of
+// the message it replaces, kept unless removed. The draft keeps each File, so
+// a failed or expired upload can be sent again. Nothing is uploaded for good
 // until the message is sent: an upload no message names expires on the
-// server.
+// server, which says so when a write names it.
+//
+// Uploads run one at a time, in the order added. A browser opens only a few
+// connections to one host, and the page's long poll and every read share
+// them, so several uploads at once would hold the rest of the page up behind
+// them; one at a time also leaves a file still waiting free to remove.
 
 // How an added file's upload stands. An uploaded file waits on the server
-// until expiresAt, in milliseconds, and expires there after it.
+// until a message names it; expired, the server no longer holds it.
 export type UploadState =
   | { kind: "waiting" }
   | { kind: "uploading"; sent: number }
-  | { kind: "uploaded"; upload: string; expiresAt: number }
+  | { kind: "uploaded"; upload: string }
   | { kind: "failed"; failure: unknown }
   | { kind: "expired" };
 
@@ -34,7 +39,7 @@ export type UploadState =
 // name there; added, with its upload; or refused as it was added, saying
 // why, without uploading.
 export type DraftFile =
-  | { id: number; kind: "kept"; name: string; size: number; type: string }
+  | { id: number; kind: "kept"; name: string; size: number }
   | {
       id: number;
       kind: "added";
@@ -46,12 +51,6 @@ export type DraftFile =
     }
   | { id: number; kind: "refused"; name: string; size: number; why: string };
 
-// stateOf says how an added file's upload stands now: an upload past its
-// expiry has expired, though the draft last heard it uploaded.
-export function stateOf(state: UploadState, now = Date.now()): UploadState {
-  return state.kind === "uploaded" && state.expiresAt <= now ? { kind: "expired" } : state;
-}
-
 // The types a pasted image is attached as, with the extension its name takes.
 const pastedTypes: Readonly<Record<string, string>> = {
   "image/png": "png",
@@ -60,10 +59,15 @@ const pastedTypes: Readonly<Record<string, string>> = {
   "image/webp": "webp",
 };
 
-// pastedImages gives the image files a paste holds, which it attaches in
-// place of inserting anything.
+// pastedImages gives the image files a paste of images alone holds, such as
+// a screenshot's, which it attaches in place of inserting anything. A paste
+// that carries text as well stays text, since some programs, such as a
+// spreadsheet's cells, put a picture of what was copied beside its text.
 export function pastedImages(data: DataTransfer | null): File[] {
-  return Array.from(data?.files ?? []).filter((file) => Object.hasOwn(pastedTypes, file.type));
+  if (data === null || Array.from(data.types).includes("text/plain")) {
+    return [];
+  }
+  return Array.from(data.files).filter((file) => Object.hasOwn(pastedTypes, file.type));
 }
 
 const twoDigits = (value: number) => String(value).padStart(2, "0");
@@ -115,28 +119,38 @@ export function attachmentsOf(files: readonly DraftFile[]): {
   };
 }
 
-// What keeps the draft's files from being sent: uploads still to finish, the
-// first of those under way counted among them, or a file that did not
-// upload, which the operator retries or removes.
+// What keeps the draft's files from being sent: a file refused, which the
+// operator removes; one that did not upload, which they retry or remove; or
+// uploads still to finish, the first of those under way counted among them.
 export type FilesHold =
-  { kind: "uploading"; at: number; of: number } | { kind: "problem" } | undefined;
+  | { kind: "refused" }
+  | { kind: "failed" }
+  | { kind: "uploading"; at: number; of: number }
+  | undefined;
 
-export function filesHold(files: readonly DraftFile[], now = Date.now()): FilesHold {
-  const added = files.flatMap((file) =>
-    file.kind === "added" ? [stateOf(file.state, now).kind] : [],
-  );
-  if (
-    files.some((file) => file.kind === "refused") ||
-    added.some((kind) => kind === "failed" || kind === "expired")
-  ) {
-    return { kind: "problem" };
+export function filesHold(files: readonly DraftFile[]): FilesHold {
+  if (files.some((file) => file.kind === "refused")) {
+    return { kind: "refused" };
+  }
+  const added = files.flatMap((file) => (file.kind === "added" ? [file.state.kind] : []));
+  if (added.some((kind) => kind === "failed" || kind === "expired")) {
+    return { kind: "failed" };
   }
   const done = added.filter((kind) => kind === "uploaded").length;
   return done === added.length ? undefined : { kind: "uploading", at: done + 1, of: added.length };
 }
 
-// The largest file, in MiB, as the limits are said.
-export const maxFileMiB = maxFileBytes / 1024 / 1024;
+// holdWords says what keeps Send waiting on the draft's files.
+export function holdWords(hold: NonNullable<FilesHold>): string {
+  switch (hold.kind) {
+    case "refused":
+      return "A file cannot be attached: remove it.";
+    case "failed":
+      return "A file did not upload: retry or remove it.";
+    case "uploading":
+      return hold.of === 1 ? "Uploading the file." : `Uploading ${hold.at} of ${hold.of} files.`;
+  }
+}
 
 // Why a file is refused as it is added, without uploading, if it is.
 function refusal(name: string, size: number, count: number): string | undefined {
@@ -144,7 +158,7 @@ function refusal(name: string, size: number, count: number): string | undefined 
     return "Its name cannot be used: rename the file and choose it again.";
   }
   if (size > maxFileBytes) {
-    return `Over the ${maxFileMiB} MiB a file may be.`;
+    return `Over the ${byteSize(maxFileBytes)} a file may be.`;
   }
   if (count >= maxAttachments) {
     return `Over the ${maxAttachments} files a message carries.`;
@@ -162,7 +176,8 @@ export interface DraftFiles {
   remove(id: number): void;
   // retry sends a failed or expired upload again.
   retry(id: number): void;
-  // keep loads a message's files as kept, in place of any kept before.
+  // keep loads a message's files as kept: the whole list, since a
+  // replacement starts only from an empty composer.
   keep(message: Message): void;
   // dropKept drops every kept file, leaving those added.
   dropKept(): void;
@@ -179,7 +194,8 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   const onFailure = useUnauthenticatedCheck();
   const [files, setFiles] = useState<DraftFile[]>([]);
   const nextId = useRef(1);
-  const uploads = useRef(new Map<number, AbortController>());
+  // The upload under way, if any.
+  const running = useRef<{ id: number; controller: AbortController }>(undefined);
 
   const update = useCallback((id: number, state: UploadState) => {
     setFiles((current) =>
@@ -189,7 +205,7 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
 
   // The next upload starts once none is under way: the first waiting.
   useEffect(() => {
-    if (uploads.current.size > 0) {
+    if (running.current !== undefined) {
       return;
     }
     const next = files.find((file) => file.kind === "added" && file.state.kind === "waiting");
@@ -197,7 +213,12 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
       return;
     }
     const controller = new AbortController();
-    uploads.current.set(next.id, controller);
+    running.current = { id: next.id, controller };
+    const done = () => {
+      if (running.current?.id === next.id) {
+        running.current = undefined;
+      }
+    };
     update(next.id, { kind: "uploading", sent: 0 });
     const path = sessionPath(target.agent, target.session, `/uploads${query({ name: next.name })}`);
     uploadFile(path, next.file, {
@@ -207,15 +228,12 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
       onProgress: (sent) => update(next.id, { kind: "uploading", sent }),
     }).then(
       (result) => {
-        uploads.current.delete(next.id);
-        update(next.id, {
-          kind: "uploaded",
-          upload: result.upload,
-          expiresAt: Date.parse(result.expires_at),
-        });
+        done();
+        update(next.id, { kind: "uploaded", upload: result.upload });
       },
       (failure: unknown) => {
-        uploads.current.delete(next.id);
+        done();
+        // A removed file's upload was stopped, and is gone from the list.
         if (controller.signal.aborted) {
           return;
         }
@@ -226,15 +244,13 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   }, [files, target.agent, target.session, csrf, update, onFailure]);
 
   // Leaving the page stops what is under way.
-  useEffect(() => {
-    const running = uploads.current;
-    return () => {
-      for (const controller of running.values()) {
-        controller.abort();
-      }
-      running.clear();
-    };
-  }, []);
+  useEffect(
+    () => () => {
+      running.current?.controller.abort();
+      running.current = undefined;
+    },
+    [],
+  );
 
   const add = useCallback((added: { file: File; name: string }[]) => {
     setFiles((current) => {
@@ -268,8 +284,10 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   // Removing the file under way frees the queue at once, so the next starts
   // as the list changes.
   const remove = useCallback((id: number) => {
-    uploads.current.get(id)?.abort();
-    uploads.current.delete(id);
+    if (running.current?.id === id) {
+      running.current.controller.abort();
+      running.current = undefined;
+    }
     setFiles((current) => current.filter((file) => file.id !== id));
   }, []);
 
@@ -277,16 +295,14 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
   const expire = useCallback((id: number) => update(id, { kind: "expired" }), [update]);
 
   const keep = useCallback((message: Message) => {
-    setFiles((current) => [
-      ...(message.attachments ?? []).map((each): DraftFile => ({
+    setFiles(
+      (message.attachments ?? []).map((each) => ({
         id: nextId.current++,
         kind: "kept",
         name: each.name,
         size: each.size,
-        type: each.type,
       })),
-      ...current.filter((file) => file.kind !== "kept"),
-    ]);
+    );
   }, []);
 
   const dropKept = useCallback(() => {

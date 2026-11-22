@@ -19,12 +19,12 @@ import { useDictation, useVoiceOn } from "../../voice/Dictation.tsx";
 import {
   attachmentsOf,
   type DraftFiles,
-  type FilesHold,
   filesHold,
+  holdWords,
   pastedImages,
   pastedName,
 } from "./files/attach.ts";
-import { AttachList } from "./files/AttachList.tsx";
+import { AttachButton, AttachList } from "./files/AttachList.tsx";
 import { type MessageContext, MessageView } from "./Messages.tsx";
 import {
   blank,
@@ -116,17 +116,6 @@ function sentStatus(staged: Staged | undefined): string {
           : "Answer sent.";
   }
   return "Message sent.";
-}
-
-// holdWords says what keeps Send waiting on the draft's files.
-function holdWords(hold: FilesHold): string | undefined {
-  if (hold === undefined) {
-    return undefined;
-  }
-  if (hold.kind === "problem") {
-    return "A file did not upload: retry or remove it.";
-  }
-  return hold.of === 1 ? "Uploading the file." : `Uploading ${hold.at} of ${hold.of} files.`;
 }
 
 // The place of the file a refusal of a write names as not uploaded, among
@@ -260,7 +249,6 @@ export function Composer({
   const hold = filesHold(files.files);
   const ready = sendable(draft, staged) && hold === undefined;
   const attach = useRef<HTMLButtonElement>(null);
-  const picker = useRef<HTMLInputElement>(null);
   // The detail as it stands, for a write that lands after the operator
   // typed on.
   const detailNow = useRef(detail);
@@ -290,9 +278,9 @@ export function Composer({
     if (outcome === undefined) {
       return;
     }
-    if ("refused" in outcome) {
+    if ("failed" in outcome) {
       // An upload the server no longer holds has expired, to upload again.
-      const place = refusedUpload(outcome.refused);
+      const place = refusedUpload(outcome.failed);
       const id = place === undefined ? undefined : sentFiles[place];
       if (id !== undefined) {
         files.expire(id);
@@ -591,31 +579,7 @@ export function Composer({
           >
             Send
           </button>
-          {/* No accept and no capture, so a phone offers its camera among the
-              places to choose from. Choosing leaves focus on Attach, where
-              the picker returns it. */}
-          <input
-            ref={picker}
-            type="file"
-            multiple
-            hidden
-            onChange={(event) => {
-              const chosen = Array.from(event.target.files ?? []);
-              event.target.value = "";
-              files.add(chosen.map((file) => ({ file, name: file.name })));
-            }}
-          />
-          <button
-            ref={attach}
-            type="button"
-            className="secondary attach"
-            aria-label="Attach files"
-            title="Attach files"
-            disabled={loading}
-            onClick={() => picker.current?.click()}
-          >
-            <Icon name="attach" />
-          </button>
+          <AttachButton draft={files} attach={attach} disabled={loading} />
           {voiceOn && dictation.controls}
           {!dictating && goBackOption}
           {hold !== undefined && (
