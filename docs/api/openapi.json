@@ -3188,7 +3188,7 @@
     "/api/operator/v1/registrations/{id}/approve": {
       "post": {
         "operationId": "operatorApproveRegistration",
-        "summary": "Approve a pending registration for a session, which its key then acts for",
+        "summary": "Approve a pending registration for a new or existing session, which its key then acts for; approving onto an existing session grants the key that session's whole history",
         "tags": [
           "operator"
         ],
@@ -3226,7 +3226,8 @@
                         "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
                       },
                       "existing": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "whether the agent named already exists: true grants that agent, false creates it; a mismatch is refused as invalid_input on agent.name"
                       }
                     },
                     "required": [
@@ -3242,7 +3243,8 @@
                         "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
                       },
                       "existing": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "whether the agent's session named already exists: true grants that session, false creates it; a mismatch is refused as invalid_input on session.name. Approving onto an existing session grants the new key that session's whole history, every thread and message in it"
                       }
                     },
                     "required": [

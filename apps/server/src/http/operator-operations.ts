@@ -311,7 +311,9 @@ export const operatorOperations: readonly OperatorOperation[] = [
     name: "approveRegistration",
     method: "POST",
     path: "/registrations/:id/approve",
-    summary: "Approve a pending registration for a session, which its key then acts for",
+    summary:
+      "Approve a pending registration for a new or existing session, which its key then acts " +
+      "for; approving onto an existing session grants the key that session's whole history",
     scope: "sessions:approve",
     params: registrationParams,
     body: approveInput,
