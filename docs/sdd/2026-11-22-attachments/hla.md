@@ -1,10 +1,10 @@
 # Attachments: High-Level Architecture
 
-<!-- cspell:ignore Forgejo Gitea Immich checkpointed -->
+<!-- cspell:ignore Forgejo Gitea Immich -->
 
-- Status: Draft
+- Status: Draft, revised after review
 - Date: 2026-11-22
-- Requirements: [FRD](frd.md), A1 to A9, E1, E2, and its rulings 1 to 4
+- Requirements: [FRD](frd.md), A1 to A9, E1, E2, and its rulings 1 to 5
 - Research: [prior-art research](prior-art-research.md)
 
 This effort lets agents and the operator hand each other files inside a thread. A file is uploaded
@@ -14,190 +14,213 @@ the operator, and the bridge moves them between the agent's disk and the server.
 
 ## Decisions at a glance
 
-- **Upload first, then the message names it.** A file goes up as one raw request body to an upload
-  route, which answers with its SHA-256 and size. A message then carries `attachments`, each a name
-  and an uploaded file's hash. The message's write stays one synchronous transaction, as every write
-  is today, and a retried write names the same hashes, so the request-id replay still holds.
-- **Files live in the database, in chunks.** A file's bytes are rows of about 1 MiB in a new table,
-  keyed by the file's hash, so the database stays the whole of the instance's state: one backup
-  file, one restore, no second store to keep consistent and no sweep of orphaned files. Reading and
-  writing go a chunk at a time, so no file is ever held whole in memory, and a range request reads
-  only the chunks it needs.
-- **A file is its message's, by name** (ruling 2). An attachment is a row naming the message, the
-  name and the hash, unique by message and name. Nothing replaces a file, a replaced message keeps
-  its files, and every read names the message and the file.
-- **Served without the app's authority.** Every file response carries a forced type, `nosniff`, a
-  `sandbox` content security policy with nothing allowed,
-  `Cross-Origin-Resource-Policy: same-origin`, and `Content-Disposition`. Only an allowlist of
-  types, recognized by their leading bytes rather than by what the uploader declared, is ever served
-  inline; everything else is `application/octet-stream` and a download.
+- **Upload first, then the message names it** (ruling 3). A file goes up as one raw request body to
+  an upload route, which answers with an upload reference, a random id. A message then carries
+  `attachments`, each naming one of its writer's own pending uploads, or a file of the message it
+  replaces. The message's write stays one synchronous transaction, as every write is today.
+- **Files live in the database, in chunks.** A file's bytes are rows of about 1 MiB, so the database
+  stays the whole of the instance's state, as ADR 0001 has it: one backup file, one restore. No file
+  is ever held whole in memory, and a range request reads only the chunks it needs.
+- **A file is its message's, by name** (ruling 2), unique within the message. Nothing replaces a
+  file, a replaced message keeps its files, and every read names the message and the file.
+- **Served without the app's authority.** Every file response carries a type the server chooses from
+  a short allowlist, `nosniff`, a `sandbox` content security policy allowing nothing, and
+  `Content-Disposition`. Everything off the allowlist is `application/octet-stream` and a download.
 - **Shown in the page where it can be.** Images, video, audio and text show inside the thread page,
-  which is a document the app wrote. A PDF opens in its own tab in the browser's viewer. Nothing a
-  file contains runs as a document of the app's origin.
-- **The bridge reads and writes local files** (ruling 3). A `file_upload` tool uploads a local file
-  and answers with its reference, which the writing tools' `attachments` name. A `file_get` tool
-  fetches a file to a directory the bridge owns, and answers with its path, and with the image
-  itself when it is a small enough photo or screenshot.
-- **Agent API version 3** adds the routes and fields. Bridges at versions 1 and 2 keep working for
+  as elements of a document the app wrote; a PDF opens in its own tab in the browser's viewer.
+  Nothing a file contains runs as a document of the app's origin.
+- **Agents upload and fetch with tools of their own** (ruling 3): `file_upload` takes a local path
+  and answers with the reference, and `file_get` writes a file to a directory the bridge owns.
+- **The next agent API version** adds the routes, tools and fields; earlier bridges keep working for
   everything else.
-- **No image processing anywhere** (ruling 1): no resizing, no re-encoding, no metadata stripping.
-  The server reads only the few leading bytes that identify a type.
+- **No image processing anywhere** (ruling 1): no resizing, re-encoding or metadata stripping, and
+  no library parses a file's content.
+- **A new ADR** records storage in the database, the serving rules, and the restated inert-content
+  rule: message text stays inert, and files load only as described here.
 
 ## Storage
 
-|                     | Chunks in the database (chosen)            | Files beside the database                              |
-| ------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| Backup and restore  | Unchanged: one file, already consistent    | A database and a directory, copied in order            |
-| Consistency         | Transactional, like every other row        | Sync the file, then write the row; sweep orphans       |
-| Reading             | A chunk at a time on the one connection    | Streamed by the filesystem                             |
-| Space after a purge | Reused; returned to the disk by a vacuum   | Returned at once                                       |
-| Write-ahead log     | Grows with an upload; checkpointed, capped | Unaffected                                             |
-| Who does it         | Memos, as an option                        | Gitea, Forgejo, Mattermost, Synapse, Immich, Paperless |
+|                    | Chunks in the database (chosen)             | Files beside the database                              |
+| ------------------ | ------------------------------------------- | ------------------------------------------------------ |
+| Backup and restore | Unchanged: one file, already consistent     | A database and a directory, copied in order            |
+| An upload          | A chunk committed at a time, then finalized | A temporary file, synced, linked, then the row         |
+| Left by a crash    | Unfinished uploads' chunks, swept           | Unlinked temporary files, swept                        |
+| Reading            | A chunk at a time on the one connection     | Streamed by the filesystem                             |
+| Each backup copies | Every file, every time                      | New files only, if the copy is incremental             |
+| A future purge     | Deleting rows, then an incremental vacuum   | Unlinking files                                        |
+| Who does it        | Memos, as an option                         | Gitea, Forgejo, Mattermost, Synapse, Immich, Paperless |
 
-The research leans to files on disk, mostly for throughput at scale and for reclaiming space. One
-operator's attachments, read a chunk at a time, do not need the throughput, and purging is a later
-effort (ruling 1). What the chunks buy is the property the server's design rests on today: the
-database is the whole state, every write is a transaction, and a backup is one consistent copy.
-Files on disk would need their own write ordering, an orphan sweep, a two-part backup and a two-part
-restore, each a new way to lose a file.
+Most self-hosted products keep files on disk, for throughput at scale and cheap purging. One
+operator's attachments need neither, and purging is a later effort (ruling 1). Keeping files in the
+database keeps the property the server is built on: one file is the whole state, a backup is one
+consistent copy, and a restore is one move. Files on disk would amend ADR 0001 and change
+`agention backup` and restoring for every operator, for gains this effort does not need.
 
-The costs are bounded in the LLD:
+What the chunks cost, and how each is bounded:
 
-- **Chunk size** of about 1 MiB keeps each read and write of the one connection to a few
-  milliseconds.
-- **The write-ahead log** is checkpointed after an upload completes and capped with
-  `journal_size_limit`, so a 100 MiB upload does not leave a 100 MiB log behind.
-- **A free-space floor:** an upload is refused, saying why, when the disk holding the data directory
-  has less than a set margin free, so attachments cannot fill the disk under the database.
+- **The event loop.** Each chunk is a synchronous write or read on the server's one connection:
+  about 2 ms at the median, measured, with an occasional commit of up to about 150 ms while a large
+  upload runs. An upload writes its chunks one transaction each, so other requests run between them.
+- **Crash leftovers.** An upload's chunks commit as they arrive, so a dropped or crashed upload
+  leaves some behind. The same sweep that expires unnamed uploads removes them, at start and on a
+  timer.
+- **Space.** This effort's migration turns on incremental vacuuming, so a later purge can return
+  space to the disk without rewriting the whole database. SQLite's own checkpoints keep the
+  write-ahead log small during an upload, since each chunk commits on its own.
+- **Disk.** An upload is refused, saying why, when the disk holding the data directory has less than
+  a set margin free, so attachments cannot fill the disk under the database.
 
 ### Tables
 
-- **Blobs:** one row per distinct file, by SHA-256, with its size, and its chunks in a table of
-  their own. Two attachments of the same bytes share a blob.
-- **Uploads:** a blob uploaded but not yet named by a message, with who uploaded it and when. A
-  message's write turns its uploads into attachments in its transaction. An upload no message names
-  within a set time is removed, with its blob when nothing else holds it.
-- **Attachments:** the message (thread and sequence), the name, the blob's hash, the type the server
-  recognized and the type the uploader declared. Append-only, like messages.
+- **Files:** one row per uploaded file: its id, size, SHA-256, declared type, who uploaded it and
+  when, and whether it is still pending; its bytes in a chunks table by file id and index. A file is
+  pending from its upload until a message names it; a pending file no message names within a day is
+  removed with its chunks.
+- **Attachments:** the message (thread and sequence), the name, and the file. Unique by message and
+  name; append-only, like messages. A replacement that carries a file forward names the same file
+  again under its own message.
 
-A future purge removes blobs and leaves attachments in place, which is what A8's missing file is: an
-attachment whose blob is gone. Nothing in this effort removes a blob that an attachment names.
+There is no sharing of bytes between uploads: each upload is its own file. A future purge removes a
+file's chunks and leaves its attachments, which is what A8's missing file is.
 
 ## Uploading
 
 - **Routes:** an upload route on each mount: the agent mount's under the session, signed like any
   session call, and the web mount's behind the operator's sign-in, Origin and CSRF checks. Each
-  takes a raw body with `Content-Length`, a declared `Content-Type`, and answers with the hash, size
-  and recognized type.
+  takes a raw body with `Content-Length` and a declared `Content-Type`, and answers with the
+  reference, size and the type the server will serve it as.
+- **Authentication comes first.** Both mounts authenticate from headers alone, so no unauthenticated
+  body is ever read past the 2 MiB cap.
 - **Limits:** 100 MiB a file (ruling 1), checked against `Content-Length` before any byte is read
-  and again while reading. The API's 2 MiB body cap stays on every other route.
-- **Deadline:** the server's 30-second request deadline would refuse a large upload on a phone's
-  uplink, so upload routes run under an idle timeout instead: an upload that sends nothing for a set
-  time is cut off, however long it takes in all. Every other route keeps its deadline.
-- **Budgets:** an upload spends the uploader's rate budget like any write.
-- **Count:** a message names at most a set number of files, in the LLD.
-
-An agent uploads each file with `file_upload` and then writes the message; the web composer uploads
-each file as it is chosen, so a long upload runs while the operator types, and sends the message
-once every upload has finished.
+  and again while reading; at most a set number of pending files and pending bytes for each writer,
+  and one upload at a time for each, on both mounts. The 2 MiB body cap stays on every other route.
+- **Deadlines.** The 30-second deadline is Node's server-wide `requestTimeout`, which no route can
+  lift. The listener enforces deadlines itself instead: every request's body is cut off once it
+  sends nothing for a set time, and every request but an upload keeps a total deadline, now exact
+  rather than checked every 30 seconds. An upload has no total deadline, so a slow phone uplink can
+  finish.
+- **Naming it.** A message may name only its writer's own pending files, so a reference learned from
+  another session's answers is worth nothing; naming the same file twice, or an unknown or expired
+  reference, refuses the message whole. Attachments are part of the write's digest, and the
+  request-id replay runs before the check, so a retried write answers as the first did.
+- **A message names at most a set number of files,** in the LLD.
 
 ## Serving
 
 ### Routes
 
-- **Web:** a file by its message and name, with `Range` support, behind the operator's sign-in.
-  `?download` serves it as a download whatever its type.
+- **Web:** a file by its thread, message sequence and name, with single-range `Range` support,
+  behind the operator's sign-in.
 - **Agent:** the same read under the session, for the session's own threads only.
+
+The thread's files, for its head (A4), are a paged list in the thread's own answer.
 
 ### Headers on every file response
 
-- `Content-Type`: the recognized type when it is on the inline allowlist;
-  `text/plain; charset=utf-8` for text; otherwise `application/octet-stream`.
-- `Content-Disposition`: `inline` for the allowlist, `attachment` for everything else, with the
-  file's name.
-- `Content-Security-Policy: sandbox; default-src 'none'`, so a file opened on its own is an opaque
-  origin that runs nothing and loads nothing. Chrome's PDF viewer keeps only `frame-ancestors` of a
-  PDF's policy and renders it regardless; the viewer runs no page script of the app's.
+- `Content-Type`: the declared type when it is on the allowlist, otherwise
+  `application/octet-stream`. The allowlist is the raster images (PNG, JPEG, GIF, WebP), PDF, the
+  common video and audio types, and SVG as `image/svg+xml`; text of any kind is
+  `text/plain; charset=utf-8`.
+- `Content-Disposition`: `inline` for raster images, PDF, video, audio and text; `attachment` for
+  SVG and everything else, with the file's name, encoded safely.
+- `Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'`. A file opened on
+  its own is an opaque origin that runs and loads nothing. Chrome's PDF viewer keeps only
+  `frame-ancestors` of a PDF's policy and renders it; the viewer runs no script of the app's.
 - `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: same-origin`, and the server's
   other security headers.
+- `Cache-Control: private` with a long lifetime, since a file never changes, so seeking a video does
+  not refetch it.
 
-### Recognizing types
+The security headers middleware today lets a route keep its own headers only at an exact path; it
+gains a rule for the file routes' prefix, so their policy is not replaced by the app's.
 
-The uploader's declared type is kept and shown, never trusted for serving. The server reads a file's
-leading bytes against a short table of signatures for the allowlist (PNG, JPEG, GIF, WebP, PDF, MP4,
-WebM, Ogg, MP3, WAV) and recognizes text by its declared type or name together with valid UTF-8. SVG
-and HTML are never inline: SVG is served as a download and shown in the page as an image, where
-script never runs; HTML and every other text is text. No library parses a file's content.
+Serving relies on these headers, not on what a file contains: bytes that are not what their type
+says are harmless as an image, media or a download, and HTML is only ever text. A test drives HTML
+and script bytes declared as each allowlisted type and checks that nothing runs.
 
 ### In the page
 
-The thread page shows images with `<img>`, video and audio with `<video>` and `<audio>`, and text by
-fetching it into a `<pre>` up to a size the LLD sets. The app's policy gains `media-src 'self'`. All
-of these are elements of the app's own document, so a file is data in them, never a document, and
-the session cookie, `SameSite=Strict`, goes with their requests. Media opened in a tab of its own
-would be a sandboxed document whose range requests drop that cookie, so the UI offers media in the
-page and as a download, never as a tab of its own.
+The thread page shows images with `<img>`, video and audio with `<video>` and `<audio>`, and text
+fetched into a `<pre>` up to a size the LLD sets. The app's policy gains `media-src 'self'`. These
+are elements of the app's own document, so a file is data in them, and the `SameSite=Strict` session
+cookie goes with their requests. File bytes never become `blob:` URLs, which the app's policy allows
+for images. Media opened in a tab of its own would be a sandboxed document whose range requests drop
+that cookie, so the UI plays media in the page, and offers a download.
 
-A PDF opens in a new tab from a link in the thread page; the browser's viewer shows it. On a phone
-whose Chrome has no viewer for it, it downloads. Every file offers Download.
+A PDF opens in a new tab from a link in the thread page. On a browser whose viewer cannot show it,
+the tab offers it as a download, and every file has a download link (`<a download>`). The operator's
+devices are checked early, on the staging server, for Edge's viewer and Android Chrome.
 
 ## The web UI
 
 - **The composer** gains an attach control in its sticky row beside Send, and a list of the chosen
-  files with their upload progress and a remove control. Choosing a file uploads it; Send waits for
-  every upload, and a failed upload says why and keeps the draft.
-- **A message** lists the files it brought: name, type and size, marked when its file is missing.
-- **The thread's head** gains a folded list of all the thread's files, each with who attached it,
-  when, and a link to the message that brought it, and the space the thread's files take (A9).
+  files with their upload progress and a remove control. Choosing a file, or pasting an image into
+  the text box (ruling 5), uploads it; Send waits for every upload, and a failed upload says why and
+  keeps the draft. Editing a message carries its files forward unless the operator removes them.
+- **A message** lists the files it brought: name, type and size, with images, media and text shown
+  in place, and marked when its file is missing.
+- **The thread's head** gains a folded list of the thread's files, each with who attached it, when,
+  and a link to the message that brought it, and the space the thread's files take (A9).
 - **Settings** gains a read-only Storage line: the space all attachments take.
 - **Links:** a message's Markdown can link to one of its own files by name, with a link the renderer
-  recognizes, in the LLD, which opens the file in the page as the list does.
+  recognizes, in the LLD, which opens the file as the message's list does.
 
 ## Agents
 
-- **Uploading:** `file_upload` takes a local path and an optional name. The bridge opens the path,
-  refuses anything that is not a regular file, its own key directory, or a file over the limit by
-  the open file's size, uploads it, and answers with the reference, name, size and recognized type.
+- **`file_upload`** takes a local path and an optional name. The bridge opens the path, refuses
+  anything that is not a regular file, anything under its own key directory, and a file over the
+  limit by the open file's size, then streams it up and answers with the reference, name, size and
+  served type.
 - **Writing:** `thread_create` and `message_send` gain `attachments`: up to the message's count of
-  `{upload, name?}`, each naming an upload of the session's. A message naming an upload that is not
-  the session's, or has expired, is refused whole.
-- **Reading:** a new tool, `file_get`, fetches a file by its message's sequence and its name, into a
-  directory the bridge owns under the session, and answers with the path, size, recognized type and
-  hash. When the file is a PNG, JPEG, GIF or WebP under a size the LLD sets from a live test with
-  both hosts, the answer also carries it as an `image` block, which both Claude Code and Codex show
-  to the model. The answer is always text plus that block: no `resource_link`, which Claude Code
+  `{upload, name?}`, or, on a replacement, `{keep}` naming a file of the message it replaces.
+- **`file_get`** fetches a file by its message's sequence and its name into a directory the bridge
+  owns, outside its key directory, under a name the bridge makes from the file's id rather than the
+  sender's name, and answers with the path, name, size and served type. When the file is a PNG,
+  JPEG, GIF or WebP, whose leading bytes the bridge checks, under a size the LLD sets from a live
+  test with both hosts, the answer also carries it as an `image` block, which both Claude Code and
+  Codex show to the model. Answers are text plus that block: no `resource_link`, which Claude Code
   ignores, and no `structuredContent`, beside which Codex drops other content.
-- **Reading messages:** a message's shape gains its attachments: name, hash, size, types, and
-  whether its blob is missing.
-- **Version:** agent API version 3. Its routes and fields are added, nothing changes for versions 1
-  and 2, and the compatibility suite drives the released bridges against it. A bridge at 3 against
-  an older server already refuses the server's older answer, and says so.
+- **Transfers stream.** The bridge sends and receives file bodies as streams rather than whole
+  strings, under an idle timeout rather than its 30-second answer timeout. A host's own limit on a
+  tool call's time, such as Codex's, is set long enough in the generated plugin where the host
+  allows it, and named in the operator guide where it does not.
+- **Reading messages:** a message's shape gains its attachments: name, file id, size, type, and
+  whether the file is missing. The answer cap's trimming counts them.
 
 ## Backup and restore
 
 Unchanged: `agention backup` copies the database, which holds every file. The operator guide says
-how much larger backups grow with attachments, and the Storage line shows it.
+that backups grow with attachments, and the Storage line shows by how much.
 
 ## Security model additions
 
-- **A file cannot act as the operator** (A6): forced types, an inline allowlist recognized by
-  content, a sandbox policy on every file response, `nosniff`, and in-page display only as elements
-  of the app's document.
+- **A file cannot act as the operator** (A6): allowlisted types, a sandbox policy on every file
+  response, `nosniff`, in-page display only as elements of the app's document, and no `blob:` URLs.
 - **Who can read a file:** the operator's sign-in, and the agents of the session whose thread holds
-  it. File routes are under the same authentication as the thread routes on each mount.
+  it, on the same authentication as the thread routes of each mount.
+- **References are random and private to their writer,** so one session cannot attach, or learn of,
+  another's uploads.
 - **The bridge reads only what the agent names,** as the user the bridge runs as, and refuses its
-  own key directory and anything but a regular file. It is not a boundary against the agent: the
-  agent already runs as that user.
-- **Disk:** the free-space floor keeps attachments from filling the disk the database lives on.
+  own key directory and anything but a regular file. It is not a boundary against the agent, which
+  already runs as that user.
+- **Disk and the event loop:** the free-space floor and the limits on pending uploads keep one
+  writer from filling the disk or monopolizing the connection.
 - **Photos keep their metadata** (ruling 1); the operator guide says so, so the operator knows
   location data reaches agents.
+- **Restated rules:** `SECURITY.md`'s inert-content invariant, the review checklist's rule that
+  images never load, and ADR 0001's matching guardrail are restated by the new ADR: message text
+  stays inert, and files load only as attachments, under these rules.
 
 ## Testing
 
-- The store, routes and serving headers against each type on the allowlist and off it, HTML and SVG
-  included, and the range requests.
-- The bridge's path checks, `file_upload`, `file_get`, and the compatibility suite.
-- Chromium browser tests for attaching, the files list, images, video, text and PDF links.
-- A live run with both hosts for the image block's size, and the operator's check on Android Chrome
-  and Windows Edge and Chrome: a photo from the phone read by an agent, and an image, a PDF, a video
-  and a text file opened.
+- The store, the sweep, the routes and the serving headers against each allowlisted type and others,
+  HTML, SVG and mislabeled bytes included, range requests, and a missing file.
+- The deadlines: an idle body cut off, an upload outliving the old deadline, other routes keeping
+  theirs.
+- The bridge's path checks, `file_upload`, `file_get` and its image block, and the compatibility
+  suite.
+- Chromium browser tests for attaching, pasting, the files list, images, video, text and PDF links.
+- A live run with both hosts for the image block's size and tool-call times, an early check of PDFs
+  on the operator's devices against the staging server, and the operator's final check on Android
+  Chrome and Windows Edge or Chrome: a photo from the phone read by an agent, and an image, a PDF, a
+  video and a text file opened.
