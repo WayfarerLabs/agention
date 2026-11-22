@@ -49,6 +49,7 @@ async function requests(): Promise<Record<string, [string, string, unknown]>> {
   return {
     listThreads: ["GET", "/threads", undefined],
     countThreads: ["GET", "/threads/counts", undefined],
+    waitForThreads: ["GET", "/wait", undefined],
     getThread: ["GET", "/s/builder/main/threads/1", undefined],
     sendMessage: [
       "POST",

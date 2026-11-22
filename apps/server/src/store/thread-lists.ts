@@ -188,7 +188,7 @@ type Parameters = Record<string, string | number | null>;
 
 // The threads a list reaches, over threads as t: those of every session the
 // viewer reaches, bound by sessionScope; or those of one session.
-const reached =
+export const reached =
   "(:all_sessions = 1 OR t.session_id IN (SELECT value FROM json_each(:session_ids)))";
 const inSession = "t.session_id = :session_id";
 

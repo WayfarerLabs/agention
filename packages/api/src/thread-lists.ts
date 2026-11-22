@@ -416,6 +416,37 @@ export type ThreadList = z.infer<typeof threadList>;
 export const waitResult = z.object({ threads: z.array(threadSummary), since: cursor });
 export type WaitResult = z.infer<typeof waitResult>;
 
+// The operator's wait, across every session: since is a position in every
+// session's messages at once, which no session's own wait gives out.
+export const operatorWaitQuery = z.object({
+  since: cursor
+    .optional()
+    .describe(
+      "The since of the last answer, to be told only of messages newer than those it covered. " +
+        "Without it, or with one past every message, every thread with unread messages counts.",
+    ),
+  wait: queryNumber(waitSeconds).describe(
+    "How many seconds to wait for an unread message when none is there yet, 0 to answer at once.",
+  ),
+  limit: queryNumber(pageLimit).describe("The most threads one answer holds."),
+});
+export type OperatorWaitQuery = z.infer<typeof operatorWaitQuery>;
+
+export const operatorWaitResult = z.object({
+  threads: z
+    .array(threadSummary)
+    .describe(
+      "The threads, in any session, whose latest message is newer than since and that hold " +
+        "messages from the agent you have neither read nor archived, oldest activity first. " +
+        "Empty when the wait ended with none.",
+    ),
+  since: cursor.describe(
+    "The position to wait from next: pass it as since, and no message this answer covered " +
+      "wakes you again. When the answer holds limit threads, it continues with those left out.",
+  ),
+});
+export type OperatorWaitResult = z.infer<typeof operatorWaitResult>;
+
 const threadTarget = z.object({ agent: name, session: name, thread: threadNumber });
 
 // Many threads marked at once, each through the message the list showed, so a

@@ -9,6 +9,8 @@ import {
   groupParams,
   groupRef,
   groupsAndTags,
+  operatorWaitQuery,
+  operatorWaitResult,
   registrationParams,
   registrationResult,
   registrationsPage,
@@ -56,6 +58,7 @@ import {
   setSessionGroup,
   setSessionTags,
   startThread,
+  waitForEverySession,
 } from "../store/index.ts";
 import { type Operation, operation } from "./operations.ts";
 import { threadOperations } from "./thread-operations.ts";
@@ -89,6 +92,21 @@ export const operatorOperations: readonly OperatorOperation[] = [
     query: threadFilters,
     response: threadCounts,
     handler: ({ store, identity, query }) => countThreads(store, identity, query),
+  }),
+  // The operator's long poll, the agent's waitForThreads across every
+  // session. It ends when a message it reports commits, the credential is
+  // revoked or expires, the client disconnects, the server shuts down or the
+  // wait ends.
+  operation({
+    name: "waitForThreads",
+    method: "GET",
+    path: "/wait",
+    summary: "Wait for messages you have not read, in any session, since a cursor",
+    scope: "threads:read",
+    query: operatorWaitQuery,
+    response: operatorWaitResult,
+    handler: ({ store, identity, query, signal }) =>
+      waitForEverySession(store, identity, query, signal),
   }),
   ...threadOperations,
   operation({

@@ -453,4 +453,34 @@ export const migrations: readonly string[] = [
     revoked_at INTEGER
   ) STRICT;
   `,
+  `
+  -- Each message's position in the whole database, in the order messages are
+  -- written, which the operator's wait across sessions counts from. A message
+  -- table's rowid will not do: it is no column's alias, so VACUUM may renumber
+  -- it. pos is an INTEGER PRIMARY KEY, which keeps its values, and
+  -- AUTOINCREMENT never reuses one, so a position never goes backwards. A
+  -- message takes its position as it is written; the migration numbers those
+  -- before it in the order they are stored.
+  CREATE TABLE message_positions (
+    pos INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL,
+    UNIQUE (thread_id, seq),
+    FOREIGN KEY (thread_id, seq) REFERENCES messages (thread_id, seq)
+  ) STRICT;
+  CREATE TRIGGER messages_position AFTER INSERT ON messages
+  BEGIN
+    INSERT INTO message_positions (thread_id, seq) VALUES (new.thread_id, new.seq);
+  END;
+  CREATE TRIGGER message_positions_no_update BEFORE UPDATE ON message_positions
+  BEGIN
+    SELECT RAISE(ABORT, 'message positions are append-only');
+  END;
+  CREATE TRIGGER message_positions_no_delete BEFORE DELETE ON message_positions
+  BEGIN
+    SELECT RAISE(ABORT, 'message positions are append-only');
+  END;
+  INSERT INTO message_positions (thread_id, seq)
+    SELECT thread_id, seq FROM messages ORDER BY rowid;
+  `,
 ];

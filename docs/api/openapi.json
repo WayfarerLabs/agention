@@ -1483,6 +1483,372 @@
         }
       }
     },
+    "/api/operator/v1/wait": {
+      "get": {
+        "operationId": "operatorWaitForThreads",
+        "summary": "Wait for messages you have not read, in any session, since a cursor",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "The since of the last answer, to be told only of messages newer than those it covered. Without it, or with one past every message, every thread with unread messages counts.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "description": "How many seconds to wait for an unread message when none is there yet, 0 to answer at once.",
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "The most threads one answer holds.",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "number": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "last_seq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "topic": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "read_through": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "unread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "message_count": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "open_asks": {
+                            "type": "object",
+                            "properties": {
+                              "asks": {
+                                "maxItems": 50,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "number": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "seq": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "number",
+                                    "seq"
+                                  ]
+                                }
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "earliest": {
+                                "type": "object",
+                                "properties": {
+                                  "number": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "seq": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "number",
+                                  "seq"
+                                ]
+                              },
+                              "lead": {
+                                "type": "object",
+                                "properties": {
+                                  "number": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "seq": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "question": {
+                                    "type": "string"
+                                  },
+                                  "impact": {
+                                    "type": "string",
+                                    "enum": [
+                                      "blocking",
+                                      "assuming",
+                                      "none"
+                                    ],
+                                    "description": "How the ask affects the requester's work while it is open: blocking (the work the ask is for stops until it is answered, while the requester carries on with other work), assuming (that work goes on under an assumption the message states) or none."
+                                  },
+                                  "priority": {
+                                    "type": "string",
+                                    "enum": [
+                                      "urgent",
+                                      "high",
+                                      "normal",
+                                      "low"
+                                    ],
+                                    "description": "Where the audience should focus, by what delay costs, independent of impact. urgent: something is breaking, costing money or about to miss a real deadline now. high: delay costs real work or time. normal, the default: waiting costs little. low: whenever convenient."
+                                  },
+                                  "effort": {
+                                    "type": "string",
+                                    "enum": [
+                                      "quick",
+                                      "under_15m",
+                                      "under_1h",
+                                      "longer"
+                                    ],
+                                    "description": "How long answering takes the audience, when you can judge it: quick (a glance or a short check, about two minutes), under_15m, under_1h, or longer (an hour or more). Leave it out when you cannot judge it."
+                                  },
+                                  "answer_by": {
+                                    "type": "string"
+                                  },
+                                  "overdue": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "number",
+                                  "seq",
+                                  "question",
+                                  "impact",
+                                  "priority",
+                                  "overdue"
+                                ]
+                              },
+                              "priority": {
+                                "type": "string",
+                                "enum": [
+                                  "urgent",
+                                  "high",
+                                  "normal",
+                                  "low"
+                                ],
+                                "description": "Where the audience should focus, by what delay costs, independent of impact. urgent: something is breaking, costing money or about to miss a real deadline now. high: delay costs real work or time. normal, the default: waiting costs little. low: whenever convenient."
+                              },
+                              "answer_by": {
+                                "type": "string"
+                              },
+                              "blocking": {
+                                "type": "boolean"
+                              },
+                              "overdue": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "asks",
+                              "count",
+                              "blocking",
+                              "overdue"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "answered",
+                              "withdrawn",
+                              "none"
+                            ]
+                          },
+                          "withdrawal": {
+                            "type": "object",
+                            "properties": {
+                              "ask": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991,
+                                "description": "The number of the open ask this withdraws."
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 300,
+                                "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                              },
+                              "seq": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "ask",
+                              "reason",
+                              "seq"
+                            ]
+                          },
+                          "credential_active": {
+                            "type": "boolean"
+                          },
+                          "presence": {
+                            "type": "object",
+                            "properties": {
+                              "last_seen_at": {
+                                "type": "string"
+                              },
+                              "quiet": {
+                                "type": "boolean"
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "working",
+                                  "idle",
+                                  "stopped"
+                                ],
+                                "description": "working while you are doing something now, checking Agention as you go; idle while you have nothing left to do but wait, for the operator's answers, CI or a review, and you still check Agention; stopped once you stop checking Agention, so you will not see new messages until something starts you again. stopped needs an outcome."
+                              },
+                              "outcome": {
+                                "type": "string",
+                                "enum": [
+                                  "completed",
+                                  "withdrawn",
+                                  "stalled"
+                                ],
+                                "description": "Why you stopped, given only with state stopped: completed when the work is done, withdrawn when the operator called it off, stalled when you cannot go on."
+                              }
+                            },
+                            "required": [
+                              "quiet"
+                            ]
+                          },
+                          "stranded": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "number",
+                          "title",
+                          "created_at",
+                          "updated_at",
+                          "last_seq",
+                          "read_through",
+                          "unread",
+                          "message_count",
+                          "archived",
+                          "open_asks",
+                          "status",
+                          "credential_active"
+                        ]
+                      },
+                      "description": "The threads, in any session, whose latest message is newer than since and that hold messages from the agent you have neither read nor archived, oldest activity first. Empty when the wait ended with none."
+                    },
+                    "since": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "description": "The position to wait from next: pass it as since, and no message this answer covered wakes you again. When the answer holds limit threads, it continues with those left out."
+                    }
+                  },
+                  "required": [
+                    "threads",
+                    "since"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
     "/api/operator/v1/s/{agent}/{session}/threads/{thread}": {
       "get": {
         "operationId": "operatorGetThread",

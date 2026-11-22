@@ -78,12 +78,14 @@ export function identityForBrowserSession(db: Database, hash: Uint8Array): Ident
 
 // checkCredential confirms the identity's credential is still live: the
 // registration still approved, the browser session unexpired, the API key
-// neither revoked nor expired. Operations call it inside their transaction, so
-// a revocation and the data it protects are read in one snapshot and no layer
-// above re-checks. An agent whose registration stopped being approved during
-// the request, as when a revocation ends its long poll, is refused as
-// authentication would refuse it, and told to call register.
-export function checkCredential(db: Database, identity: Identity, now: number): void {
+// neither revoked nor expired. It answers when the credential will expire,
+// undefined for one that lives until it is revoked, so an operation that
+// waits ends when its credential does. Operations call it inside their
+// transaction, so a revocation and the data it protects are read in one
+// snapshot and no layer above re-checks. An agent whose registration stopped
+// being approved during the request, as when a revocation ends its long poll,
+// is refused as authentication would refuse it, and told to call register.
+export function checkCredential(db: Database, identity: Identity, now: number): number | undefined {
   const { credential } = identity;
   if (credential.kind === "registration") {
     const registration = db
@@ -92,29 +94,30 @@ export function checkCredential(db: Database, identity: Identity, now: number): 
     if (registration?.status !== "approved") {
       throw agentUnauthenticated(unapprovedKey(registration?.status));
     }
-    return;
+    return undefined;
   }
   if (credential.kind === "api_key") {
     const live = db
       .prepare(
-        `SELECT 1 FROM api_keys
+        `SELECT expires_at FROM api_keys
          WHERE id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`,
       )
-      .get(credential.id, now);
+      .get(credential.id, now) as { expires_at: number | null } | undefined;
     if (live === undefined) {
       throw apiKeyUnauthenticated();
     }
-    return;
+    return live.expires_at ?? undefined;
   }
   const live = db
     .prepare(
-      `SELECT 1 FROM browser_sessions
+      `SELECT min(idle_expires_at, absolute_expires_at) AS expires_at FROM browser_sessions
        WHERE hash = ? AND idle_expires_at > ? AND absolute_expires_at > ?`,
     )
-    .get(credential.hash, now, now);
+    .get(credential.hash, now, now) as { expires_at: number } | undefined;
   if (live === undefined) {
     throw unauthenticated();
   }
+  return live.expires_at;
 }
 
 // authorize confirms the credential is live and grants the session, which is
@@ -143,13 +146,20 @@ export function holds(identity: Identity, scope: Scope): boolean {
 
 // authorizeScope confirms the credential is live and holds the scope, for an
 // operation that reaches across sessions, such as listing them or deciding a
-// registration. To an identity without the scope the operation does not
-// exist, as the mounts also answer before running it.
-export function authorizeScope(db: Database, identity: Identity, scope: Scope, now: number): void {
-  checkCredential(db, identity, now);
+// registration, and answers when the credential will expire, as
+// checkCredential does. To an identity without the scope the operation does
+// not exist, as the mounts also answer before running it.
+export function authorizeScope(
+  db: Database,
+  identity: Identity,
+  scope: Scope,
+  now: number,
+): number | undefined {
+  const expiresAt = checkCredential(db, identity, now);
   if (!holds(identity, scope)) {
     throw notFound();
   }
+  return expiresAt;
 }
 
 // sessionScope binds the sessions an identity reaches into queries that read

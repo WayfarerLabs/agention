@@ -749,6 +749,12 @@ describe("a database an earlier release wrote", () => {
           .all(text);
       expect(found("postgres*")).toEqual([{ thread_id: 1, seq: 1 }]);
       expect(found("kubernetes*")).toEqual([{ thread_id: 1, seq: 2 }]);
+      // Each message written before has its position, in the order written.
+      expect(after.message_positions?.map((row) => JSON.parse(row) as unknown)).toEqual([
+        { pos: 1, thread_id: 1, seq: 1 },
+        { pos: 2, thread_id: 1, seq: 2 },
+        { pos: 3, thread_id: 1, seq: 3 },
+      ]);
     } finally {
       database.close();
     }
@@ -779,7 +785,7 @@ describe("a database an earlier release wrote", () => {
     try {
       const after = rowsOf(database);
       expect(Object.keys(after).sort()).toEqual(
-        [...Object.keys(before), "voice_settings", "api_keys"].sort(),
+        [...Object.keys(before), "voice_settings", "api_keys", "message_positions"].sort(),
       );
       expect(earlier(after, before)).toEqual(before);
       expect(after.voice_settings).toEqual([]);
@@ -808,7 +814,9 @@ describe("a database an earlier release wrote", () => {
     const database = Database.open(file);
     try {
       const after = rowsOf(database);
-      expect(Object.keys(after).sort()).toEqual([...Object.keys(before), "api_keys"].sort());
+      expect(Object.keys(after).sort()).toEqual(
+        [...Object.keys(before), "api_keys", "message_positions"].sort(),
+      );
       expect(earlier(after, before)).toEqual(before);
       expect(after.api_keys).toEqual([]);
     } finally {

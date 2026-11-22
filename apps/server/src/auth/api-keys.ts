@@ -17,7 +17,7 @@ import {
 import type { Database } from "../database/database.ts";
 import { apiKeyUnauthenticated, invalidInput, notFound } from "../errors.ts";
 import type { Identity } from "../identity.ts";
-import type { Store } from "../store/index.ts";
+import { everySession, type Store } from "../store/index.ts";
 import { requireRecentSignIn, signedInSession } from "./browser-sessions.ts";
 import { hashOfSecret, newSecret } from "./secrets.ts";
 
@@ -157,11 +157,12 @@ export function createApiKey(
 }
 
 // revokeApiKey revokes one of the operator's live keys, which stops working
-// at once. A key already revoked or expired is gone by then, so revoking it
-// again is not_found.
+// at once: the waits across sessions wake, so one the key holds ends now. A
+// key already revoked or expired is gone by then, so revoking it again is
+// not_found.
 export function revokeApiKey(store: Store, identity: Identity, id: number): ApiKeyRevoked {
   const { db } = store;
-  return db.transaction(() => {
+  const revoked = db.transaction(() => {
     const now = store.clock();
     const session = signedInSession(db, identity, now);
     deleteDead(db, now);
@@ -180,6 +181,8 @@ export function revokeApiKey(store: Store, identity: Identity, id: number): ApiK
       .get(now, id) as unknown as KeyRow;
     return { key: summaryOf(row, now) };
   });
+  store.notifier.notify(everySession);
+  return revoked;
 }
 
 // authenticateApiKey authenticates an Authorization header carrying a key as

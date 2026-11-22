@@ -30,7 +30,7 @@ import {
 } from "./test-fixture.ts";
 import { listSessionThreads, listThreads } from "./thread-lists.ts";
 import { createThread, getThread, sendMessage } from "./threads.ts";
-import { pollThreads, waitForThreads } from "./wait.ts";
+import { pollEverySession, pollThreads, waitForThreads } from "./wait.ts";
 
 let fixture: Fixture;
 let mine: Agent;
@@ -146,6 +146,17 @@ describe("a foreign session", () => {
       (thread) => thread.agent,
     );
     expect(sessions.sort()).toEqual(["builder", "reviewer"]);
+  });
+
+  it("is absent from the wait across sessions of an identity that does not reach it", () => {
+    fixture.write(fixture.operator, threadTarget(theirs, 1), { text: "for them" });
+    fixture.write(fixture.operator, threadTarget(mine, 1), { text: "for me" });
+    const agents = (identity: Identity) =>
+      pollEverySession(fixture.store, identity, 0, 50).result.threads.map((each) => each.agent);
+    expect(agents(mine.identity)).toEqual(["builder"]);
+    fixture.write(theirs.identity, threadTarget(theirs, 1), { text: "for the operator" });
+    expect(agents(mine.identity)).toEqual(["builder"]);
+    expect(agents(fixture.operator)).toEqual(["reviewer"]);
   });
 
   it("is never found by another identity's search, nor counted for it", () => {
