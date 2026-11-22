@@ -193,13 +193,11 @@ const textTypes = new Set([
   "application/toml",
 ]);
 
-// servedTypeOf maps a declared type onto the served types: an allowlisted
-// image, document or media type as itself, text as plain UTF-8 text, and
-// anything else, HEIC and HTML's lookalikes included, as bytes to download.
-// It reads its argument as declaredTypeOf does, so any text maps to a served
-// type.
-export function servedTypeOf(type: string): ServedType {
-  const declared = declaredTypeOf(type);
+// servedTypeOf maps a declared type, as declaredTypeOf gives it, onto the
+// served types: an allowlisted image, document or media type as itself, text
+// as plain UTF-8 text, and anything else, HEIC and HTML's lookalikes
+// included, as bytes to download.
+export function servedTypeOf(declared: string): ServedType {
   if ((servedTypes as readonly string[]).includes(declared)) {
     return declared as ServedType;
   }

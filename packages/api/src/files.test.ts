@@ -128,11 +128,10 @@ describe("servedTypeOf", () => {
     ["application/pdf", "application/pdf", "inline"],
     ["video/mp4", "video/mp4", "inline"],
     ["audio/flac", "audio/flac", "inline"],
-    ["image/jpg", "image/jpeg", "inline"],
     ["text/plain", "text/plain; charset=utf-8", "inline"],
     ["text/html", "text/plain; charset=utf-8", "inline"],
     ["text/javascript", "text/plain; charset=utf-8", "inline"],
-    ["text/css; charset=utf-8", "text/plain; charset=utf-8", "inline"],
+    ["text/css", "text/plain; charset=utf-8", "inline"],
     ["application/json", "text/plain; charset=utf-8", "inline"],
     ["application/x-ndjson", "text/plain; charset=utf-8", "inline"],
     ["application/xhtml+xml", "application/octet-stream", "attachment"],
@@ -146,14 +145,14 @@ describe("servedTypeOf", () => {
     expect(dispositionOf(servedTypeOf(declared))).toBe(disposition);
   });
 
-  it("serves every declared type as one of the served types", () => {
+  it("serves whatever a client declares as one of the served types", () => {
     const pieces = ["text", "image", "application", "audio", "video", "x", "svg+xml", "html", ""];
     const extras = ["", ";charset=utf-8", " ", "/x", "\u0000", "\n"];
     for (const top of pieces) {
       for (const sub of pieces) {
         for (const extra of extras) {
           for (const value of [`${top}/${sub}${extra}`, `${top.toUpperCase()}/${sub}${extra}`]) {
-            expect(servedTypes).toContain(servedTypeOf(value));
+            expect(servedTypes).toContain(servedTypeOf(declaredTypeOf(value)));
           }
         }
       }
