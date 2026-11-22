@@ -82,7 +82,7 @@ operator operation names the one scope it requires:
 | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | `threads:read`     | thread list, counts, the wait across sessions, a thread, a thread's files, a file                                  |
 | `threads:write`    | start a thread, send a message, read, unread, archive, bulk read and archive, upload, remove an upload             |
-| `sessions:read`    | sessions, unread updates, a session's log, groups and tags, registrations                                          |
+| `sessions:read`    | sessions, a session's log, groups and tags, registrations                                                          |
 | `sessions:write`   | the log's read mark, group create, rename, remove, tag rename, remove, a session's group and tags, an agent's tags |
 | `sessions:approve` | registration approve, reject, revoke                                                                               |
 

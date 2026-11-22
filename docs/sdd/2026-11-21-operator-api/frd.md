@@ -3,7 +3,8 @@
 <!-- cspell:ignore taht -->
 
 - Status: Accepted by the operator 2026-11-21 with changes (ruling 5); A3 added by ruling 7 and
-  confirmed by ruling 9; K5 extended by ruling 8; K4 extended to files by ruling 10
+  confirmed by ruling 9; K5 extended by ruling 8; K4 extended to files by ruling 10 and amended by
+  ruling 11
 - Date: 2026-11-21
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -64,8 +65,8 @@ resource and an access (ruling 1):
 - **`threads:write`**: also starting threads, writing in them and answering asks, and marking
   threads read, unread and archived, one at a time or in bulk; uploading files, attaching them to a
   message, and removing an upload no message carries yet (ruling 10).
-- **`sessions:read`**: the sessions view with its agents, tags and groups, a session's log, the
-  count of sessions with unread updates, and agents' registrations.
+- **`sessions:read`**: the sessions view with its agents, tags and groups, each session's unread
+  updates, a session's log, and agents' registrations (ruling 11).
 - **`sessions:write`**: also marking a session's log read, managing groups and tags and setting a
   session's group and an agent's or a session's tags.
 - **`sessions:approve`**: also approving, rejecting and revoking agents' registrations (ruling 5).
@@ -168,6 +169,11 @@ operator, which ADR 0001 ruled out.
     message. Once attached to a sent message, they are immutable just like the message itself. And
     this should be true for both this API as well as the feature as a whole." Taken: K4's file
     clauses; attachments' own rules already hold an attached file immutable on every mount.
+11. (2026-11-22) Attachments' follow-up (agention#47) removed the web UI's count of sessions with
+    unread updates and added a web-only count of what needs the operator. Asked "#47 removed the
+    unread-updates count that FRD K4 promises keys. Drop it from K4, or keep it?", the operator
+    chose "Drop it, /attention web-only". Taken: K4's `sessions:read` no longer names the count; a
+    key reads each session's unread updates in the sessions view, and `/attention` stays web-only.
 
 ## Definition of done
 
