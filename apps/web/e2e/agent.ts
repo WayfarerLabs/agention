@@ -42,9 +42,28 @@ export class Agent {
   }
 
   send<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<Answer<T>> {
+    return this.#exchange<T>(
+      method,
+      path,
+      body === undefined
+        ? undefined
+        : { type: "application/json", bytes: Buffer.from(JSON.stringify(body)) },
+    );
+  }
+
+  // upload sends bytes as the body of a POST, declared as type, as the
+  // bridge uploads a file.
+  upload<T>(path: string, bytes: Buffer, type: string): Promise<Answer<T>> {
+    return this.#exchange<T>("POST", path, { type, bytes });
+  }
+
+  #exchange<T>(
+    method: "GET" | "POST",
+    path: string,
+    payload: { type: string; bytes: Buffer } | undefined,
+  ): Promise<Answer<T>> {
     const { origin, port, certificate } = this.#server;
     const url = new URL(origin);
-    const payload = body === undefined ? undefined : JSON.stringify(body);
     return new Promise((resolve, reject) => {
       const outgoing = httpsRequest(
         {
@@ -59,10 +78,7 @@ export class Agent {
             authorization: `Bearer ${this.token()}`,
             ...(payload === undefined
               ? {}
-              : {
-                  "content-type": "application/json",
-                  "content-length": Buffer.byteLength(payload),
-                }),
+              : { "content-type": payload.type, "content-length": payload.bytes.length }),
           },
         },
         (response) => {
@@ -75,7 +91,7 @@ export class Agent {
         },
       );
       outgoing.on("error", reject);
-      outgoing.end(payload);
+      outgoing.end(payload?.bytes);
     });
   }
 }

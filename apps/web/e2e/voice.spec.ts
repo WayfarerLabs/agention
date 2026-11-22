@@ -1,10 +1,10 @@
 // Settings and voice in Chromium against the real server, on a server of
 // these tests' own, with a local stub standing in for the transcription
 // provider and Chromium's fake microphone, which plays a tone: Settings with
-// passkeys, voice and signing out, at a desktop's width and a phone's; voice
-// set up to the stub and tried there; dictation in a thread, its text at the
-// caret and nothing sent; typing while the microphone opens; and reading a
-// message aloud, then stopping it.
+// passkeys, voice, storage and signing out, at a desktop's width and a
+// phone's; voice set up to the stub and tried there; dictation in a thread,
+// its text at the caret and nothing sent; typing while the microphone opens;
+// and reading a message aloud, then stopping it.
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
@@ -115,13 +115,14 @@ test.afterAll(async () => {
   await stub.close();
 });
 
-test("Settings hold passkeys, voice and signing out, at a desktop's width and a phone's", async () => {
+test("Settings hold passkeys, voice, storage and signing out, at a desktop's width and a phone's", async () => {
   for (const size of [wide, phone]) {
     await page.setViewportSize(size);
     await page.getByRole("link", { name: "Settings" }).click();
     await expect(page.getByRole("heading", { level: 2 })).toHaveText([
       "Passkeys",
       "Voice",
+      "Storage",
       "Sign out",
     ]);
     await expect(page.getByRole("article", { name: "Passkey Laptop" })).toBeVisible();
