@@ -1,6 +1,6 @@
 # Attachments: Functional Requirements
 
-- Status: Draft, for the operator's acceptance
+- Status: Accepted by the operator with changes, 2026-11-22 (ruling 1)
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -28,41 +28,49 @@ able to open it on a phone without leaving Agention.
 ### Attaching
 
 **A1. Agents attach files.** An agent can attach files to a message it writes, naming each by its
-path on the agent's machine, within limits on each file's size and on how many a message carries. A
-file that breaks a limit is refused with the limit named, and nothing of the message is written.
+path on the agent's machine. A file may be up to 100 MiB (ruling 1), and a message carries a limited
+number of files. A file that breaks a limit is refused with the limit named, and nothing of the
+message is written.
 
 **A2. The operator attaches files.** The composer can attach files from the device, a phone's camera
 included, within the same limits, said in the UI. The operator sees what is attached, and can remove
 it, before sending. Nothing is uploaded for good until the message is sent.
 
+**A3. Files belong to the thread.** A file arrives with a message but belongs to the thread, by its
+name. Attaching a file under a name the thread already has replaces it: the thread's file of that
+name is the new one from then on, and the message that brought the earlier one still shows it,
+marked as replaced. Either side can replace a file of either side's (ruling 1).
+
 ### Showing and opening
 
-**A3. A message shows its files.** A message lists the files it carries, each with its name, type
-and size, and its text and detail can link to them by name.
+**A4. Files show where they arrive and at the top of the thread.** A message lists the files it
+brought, each with its name, type and size. The thread's head lists all of the thread's files,
+folded, each as it now stands, with who attached it and when (ruling 1). A message's text and detail
+can link to a thread file by name.
 
-**A4. Files open with the browser's own viewer.** Opening a file shows it the way the browser shows
+**A5. Files open with the browser's own viewer.** Opening a file shows it the way the browser shows
 that kind of file: images, PDFs, video and audio in place where the browser can; text and code as
 text; anything else as a download. Download is always offered.
 
-**A5. A file never acts as the operator.** Whatever an attached file contains, opening it cannot run
+**A6. A file never acts as the operator.** Whatever an attached file contains, opening it cannot run
 code with the operator's sign-in, read Agention's pages, or reach Agention's API. Only the
 operator's sign-in, and agents of the session the thread belongs to, can fetch a file.
 
 ### Reading
 
-**A6. Agents read the operator's files.** An agent can fetch a file attached to a message in one of
-its session's threads, the operator's or its own, within the same limits. It gets the file on its
-own machine, and an image in a form a model can look at where its host supports that.
+**A7. Agents read the thread's files.** An agent can fetch any file of one of its session's threads,
+the operator's or its own: the thread's file of a name, or the one a message brought. It gets the
+file on its own machine, and an image in a form a model can look at where its host supports that.
 
 ### Keeping
 
-**A7. A file stays with its message.** A file is part of the message that carries it: it never
-changes, a message that replaces it carries files of its own, and archiving a thread covers its
-files. `agention backup` writes, and restoring brings back, every file with the database, as one
-consistent copy.
+**A8. Files accumulate.** Nothing removes a file: a file never changes once attached, a replaced one
+is kept, and archiving a thread covers its files (ruling 1). `agention backup` writes, and restoring
+brings back, every file with the database, as one consistent copy. A message or thread whose file is
+gone, as a later purge would leave it, still shows in full, with that file marked as missing.
 
-**A8. Storage is visible.** The operator can see how much space attachments use, in total and per
-thread, and the server refuses a new file, saying why, once a total limit is reached.
+**A9. Storage is visible.** The operator can see how much space attachments use, in total and per
+thread.
 
 ### Engineering
 
@@ -76,25 +84,33 @@ tests cover them.
 
 ## Out of scope
 
+- Purging files, such as those of threads archived longer than a set time, which a later effort may
+  offer in Settings (ruling 1).
+- Taking location and camera details out of photos, which a later effort may offer as an option
+  (ruling 1), and any image processing on the server.
 - Previews or conversions made on the server (thumbnails, transcoding, Office documents rendered).
-- Editing a file once attached, and files shared across threads.
+- Editing a file in place, and files shared across threads.
 - Settings for attachments (the operator's sequencing note).
 - Notifications (agention#30).
 
-## Open questions for the operator
-
-1. **Removing files.** Nothing in Agention is ever deleted today, so storage only grows. Should the
-   operator be able to remove an attached file to reclaim space, leaving the message saying a file
-   was there?
-2. **Sizes.** What is the largest file either side should be able to attach (screen recordings are
-   the large case), and is a total limit wanted, or only visibility?
-3. **Photo location.** Should location and camera details be taken out of photos the operator
-   attaches before they are kept?
-4. **Accepting.** Do these requirements say what you want?
-
 ## Operator rulings, 2026-11-22 onward
 
-None yet.
+1. (2026-11-22) Asked whether to accept the draft, the operator chose "Accept with changes": "So my
+   thinking is that files ultimately belong to the thread, although they are uploaded along with a
+   specific message. I think we can use that to allow replacing of files (by uploading a new one
+   with the same name). The UI should show the files in the messages that they arrive it but it
+   should also show all files (folded) at the top of the thread." Asked whether the operator can
+   remove files, they chose "No, keep everything": "And then I think we can just accumulate files
+   for now. In the future we can offer a settings-based way to purge files from archived threads
+   older than X, but that can be a future thing. Threads/messages should not break if their files
+   are deleted, only show that the link is broken." Asked the largest file, they chose "100 MiB".
+   Asked about photo location, they chose "Keep photos as taken": "And then if we want to add a
+   convenient checkbox (or setting?) to strip photo metadata, I'm all for it. That would be really
+   cool. But I'm also ok just not worrying about it for now. Note that Imagemagick just had a huge
+   security issue today." Taken: A3 and A4 make files the thread's, by name, with replacement and
+   the folded list at the thread's head; A8 keeps every file, and a missing file shows as missing;
+   the limit is 100 MiB a file with no total limit; metadata stays as taken, and the server does no
+   image processing.
 
 ## Definition of done
 
