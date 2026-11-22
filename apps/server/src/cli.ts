@@ -218,6 +218,11 @@ function originFlag(value: string | undefined): string {
 
 const databaseFile = (data: string) => path.join(data, "agention.db");
 
+// serverLog writes what the server logs, the database's open and the routes'
+// failures among it, to stderr, a line each, under the prefix every line of
+// the server's own carries.
+const serverLog = (io: Io) => (message: string) => io.stderr.write(`agention: ${message}\n`);
+
 // The bounds of --quiet-minutes: a minute, since last seen is kept to the
 // minute, up to a week.
 const quietMinutes = { min: 1, max: 10_080 };
@@ -298,7 +303,7 @@ async function serve(args: string[], io: Io): Promise<number> {
     }
   }
 
-  const log = (message: string) => io.stderr.write(`${message}\n`);
+  const log = serverLog(io);
   const db = Database.open(databaseFile(data), { log });
   const shutdown = new AbortController();
   let sweeps: ReturnType<typeof sweepFilesRegularly> | undefined;
@@ -394,9 +399,7 @@ async function passkeyLink(args: string[], io: Io): Promise<number> {
     );
     return exitFailure;
   }
-  const db = Database.open(databaseFile(data), {
-    log: (message) => io.stderr.write(`${message}\n`),
-  });
+  const db = Database.open(databaseFile(data), { log: serverLog(io) });
   try {
     const operator = findOperator(db);
     if (operator !== undefined && flags["operator-name"] !== undefined) {

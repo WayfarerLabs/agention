@@ -74,9 +74,10 @@ function countVacuums(): { count: number } {
 }
 
 describe("incremental vacuuming", () => {
-  it("is switched on for a new database just after its migrations", () => {
+  it("is switched on for a new database just after its migrations, without a word", () => {
     const vacuums = countVacuums();
-    const database = Database.open(file, { log: () => undefined });
+    const logged: string[] = [];
+    const database = Database.open(file, { log: (message) => logged.push(message) });
     try {
       expect(database.incrementalVacuum).toBe(true);
       expect(database.prepare("PRAGMA user_version").get()).toEqual({
@@ -86,9 +87,10 @@ describe("incremental vacuuming", () => {
       database.close();
     }
     expect(vacuums.count).toBe(1);
+    expect(logged).toEqual([]);
   });
 
-  it("converts a database an earlier release wrote once, its data unchanged", () => {
+  it("converts a database an earlier release wrote once, its data unchanged, and logs it", () => {
     earlierDatabase();
     expect(modeOf()).toBe(0);
     const vacuums = countVacuums();
@@ -108,7 +110,7 @@ describe("incremental vacuuming", () => {
       }
     }
     expect(vacuums.count).toBe(1);
-    expect(logged).toEqual([]);
+    expect(logged).toHaveLength(1);
     expect(modeOf()).toBe(2);
   });
 
@@ -145,7 +147,8 @@ describe("incremental vacuuming", () => {
     } finally {
       database.close();
     }
-    expect(logged).toHaveLength(1);
+    // The failure, then the switch.
+    expect(logged).toHaveLength(2);
   });
 
   it("returns freed pages to the disk a step at a time", () => {

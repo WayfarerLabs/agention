@@ -176,12 +176,14 @@ vacuuming, after its migrations, with `PRAGMA auto_vacuum = INCREMENTAL`, `VACUU
 checkpoint. Reading the header rather than the migration number means a backup restored from an
 older release switches too. `VACUUM` builds its copy in SQLite's temporary directory
 (`SQLITE_TMPDIR`, else `TMPDIR`, else `/var/tmp`, else `/tmp`), needing about the database's size
-free there, then writes the database whole through the log beside it. A switch that fails logs why
-and the space it needs, and the open carries on without it, since the migrations have committed and
-an older release refuses the migrated database; freed pages then stay in the file for reuse, and the
-next open tries again. `Database` gains `vacuumStep(pages)`, which runs `PRAGMA incremental_vacuum`
-outside any transaction, and `freePages()`. Every open also sets `journal_size_limit` to 16 MiB, so
-a log that a backup's long read let grow is truncated.
+free there, then writes the database whole through the log beside it. A switch of a database that
+held data before the open is logged once it is done, and one of a new database is not. A switch that
+fails logs why and the space it needs, and the open carries on without it, since the migrations have
+committed and an older release refuses the migrated database; freed pages then stay in the file for
+reuse, and the next open tries again. `Database` has `vacuumStep(pages)`, which runs
+`PRAGMA incremental_vacuum` outside any transaction, `freePages()`, and `incrementalVacuum`, which
+says whether the database is in that mode, for the sweep to skip the vacuum until it is. Every open
+also sets `journal_size_limit` to 16 MiB, so a log that a backup's long read let grow is truncated.
 
 `voice_settings` holds at most one row, what the operator's Settings last saved for voice: the base
 URL and model in effect when it was saved, the environment's included, so the row always records the

@@ -36,11 +36,12 @@ export class Database {
   // open opens the database file, creating it and its directory when missing,
   // applies any migrations this release has that the file lacks, and then
   // switches a database not yet vacuumed incrementally to that mode, logging
-  // and carrying on when it cannot. It refuses an unsafe data directory or
+  // the switch, or why it could not and carrying on. It refuses an unsafe data directory or
   // file, a file that is not an Agention database, and a database written by
   // a newer release.
   static open(file: string, options: { log?: (message: string) => void } = {}): Database {
-    const log = options.log ?? ((message: string) => process.stderr.write(`${message}\n`));
+    const log =
+      options.log ?? ((message: string) => process.stderr.write(`agention: ${message}\n`));
     const real = prepareDatabaseFile(path.resolve(file), applicationId);
     const database = new Database(new DatabaseSync(real), real);
     try {
@@ -55,11 +56,11 @@ export class Database {
         PRAGMA synchronous = FULL;
         PRAGMA journal_size_limit = ${journalSizeLimit};
       `);
-      database.#migrate();
+      const found = database.#migrate();
       // After the migrations, so a new database's first header, with its
       // application id, is written to the main file rather than the log.
       database.#connection.exec("PRAGMA journal_mode = WAL");
-      enableIncrementalVacuum(database.#connection, log);
+      enableIncrementalVacuum(database.#connection, log, { created: found === 0 });
     } catch (error) {
       database.close();
       throw error;
@@ -126,13 +127,15 @@ export class Database {
 
   // Each migration runs in its own transaction, which reads the version under
   // the write lock, so two processes opening a new database at once apply each
-  // migration exactly once.
-  #migrate(): void {
+  // migration exactly once. It returns the version the database had before.
+  #migrate(): number {
+    let found: number | undefined;
     for (;;) {
       const done = this.transaction(() => {
         const { user_version: version } = this.prepare("PRAGMA user_version").get() as {
           user_version: number;
         };
+        found ??= version;
         if (version > migrations.length) {
           throw new DatabaseOpenError(
             "newer_schema",
@@ -152,7 +155,7 @@ export class Database {
         return false;
       });
       if (done) {
-        return;
+        return found ?? 0;
       }
     }
   }

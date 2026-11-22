@@ -1153,14 +1153,14 @@ systemctl --user start agention
 ```
 
 The first start after upgrading from a release without attachments rewrites the database once,
-before the server listens, so that space removed uploads free can go back to the disk. It takes
-longer the larger the database is, and needs free space of about the database's size in SQLite's
-temporary directory, `SQLITE_TMPDIR`, else `TMPDIR`, else `/var/tmp`, else `/tmp`, and as much again
-on the disk holding the data directory. Should it fail, for lack of space or because another process
-holds the database, the server logs why and how much space it needs and starts anyway, nothing lost:
-until it succeeds, space that removed uploads free stays in the database file for reuse rather than
-going back to the disk, and each start tries again. A database restored from an older release's
-backup is rewritten the same way.
+before the server listens, so that space removed uploads free can go back to the disk, and logs that
+it did. It takes longer the larger the database is, and needs free space of about the database's
+size in SQLite's temporary directory, `SQLITE_TMPDIR`, else `TMPDIR`, else `/var/tmp`, else `/tmp`,
+and as much again on the disk holding the data directory. Should it fail, for lack of space or
+because another process holds the database, the server logs why and how much space it needs and
+starts anyway, nothing lost: until it succeeds, space that removed uploads free stays in the
+database file for reuse rather than going back to the disk, and each start tries again. A database
+restored from an older release's backup is rewritten the same way.
 
 `@latest` installs the newest release; a version, such as `@0.2.0`, installs that one. On macOS,
 stop the server with `launchctl bootout gui/$UID/com.wayfarerlabs.agention` and start it with
