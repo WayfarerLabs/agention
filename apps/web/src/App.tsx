@@ -3,6 +3,7 @@ import { AttentionProvider, useAttention } from "./attention.tsx";
 import { ErrorBoundary } from "./boundary.tsx";
 import { Failure, PageHeading } from "./components.tsx";
 import { plural, Spoken } from "./format.tsx";
+import { KeyboardProvider } from "./keyboard.tsx";
 import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
 import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
@@ -93,7 +94,13 @@ function Shell() {
       )}
     </Frame>
   );
-  return state.signed_in ? <AttentionProvider>{frame}</AttentionProvider> : frame;
+  return state.signed_in ? (
+    <AttentionProvider>
+      <KeyboardProvider>{frame}</KeyboardProvider>
+    </AttentionProvider>
+  ) : (
+    frame
+  );
 }
 
 function View({ route }: { route: Route }) {

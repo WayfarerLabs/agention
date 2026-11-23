@@ -47,12 +47,13 @@ import {
   Time,
 } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
+import { useShortcuts } from "../../keyboard.tsx";
 import { leaveNotice } from "../../notice.ts";
 import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
 import { Composer } from "./Composer.tsx";
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
-import { type MessageContext, MessageList, mine } from "./Messages.tsx";
+import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
 import {
   blank,
   type Staged,
@@ -701,6 +702,31 @@ function ThreadPage({
     agentRead: cursors.requester,
   };
 
+  // The thread page's shortcuts each do what a control on it does, and only
+  // while that control could; choosing a suggestion picks it as a press of
+  // its control does, and moves focus there.
+  const canArchiveAll = !leaving && openCount === 0;
+  const composerBox = useRef<HTMLTextAreaElement>(null);
+  useShortcuts("Thread", {
+    backToList: () => navigate(listHref(origin)),
+    reply: () => composerBox.current?.focus(),
+    archive: () => {
+      if (canArchiveAll) {
+        archiveAll();
+      }
+    },
+    jump: () => {
+      if (jumpTo !== undefined) {
+        setSeeking({ failedBefore: loaded.failure });
+      }
+    },
+    choose: (key) => {
+      const choice = suggestionChoices()[Number(key) - 1];
+      choice?.click();
+      choice?.focus();
+    },
+  });
+
   const tags = thread.credential_active ? [] : [{ label: "No active credential" }];
   return (
     <article>
@@ -712,7 +738,7 @@ function ThreadPage({
             <button
               type="button"
               className="secondary"
-              disabled={leaving || openCount > 0}
+              disabled={!canArchiveAll}
               aria-describedby={openCount > 0 ? archiveAllHint : undefined}
               onClick={archiveAll}
             >
@@ -821,6 +847,7 @@ function ThreadPage({
         context={{ target, find }}
         files={files}
         restored={restored}
+        box={composerBox}
       />
       <div className="thread-foot">
         <BackToThreads origin={origin} />

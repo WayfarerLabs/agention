@@ -6,7 +6,8 @@
 // Send kept on a short phone's screen, text written to take the page down,
 // reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
-// order, the order's direction and grouping, an ask the agent withdraws and the
+// order, the order's direction and grouping, moving through the list, opening
+// a thread and returning from the keyboard, an ask the agent withdraws and the
 // way back under the composer, the sessions view with a session's status and
 // log, at a phone's width too, a thread the operator starts there and
 // stranded's reason, a session's options menu over the next agent's header, the
@@ -596,6 +597,33 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await page.getByRole("combobox", { name: "Group" }).selectOption("Flat");
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);
+});
+
+test("the keyboard moves through the list with j and k, its focus ring showing, opens a thread with Enter, closes a menu alone with Escape and returns with u", async () => {
+  await showList();
+  const rows = page.locator("ul.threads").getByRole("link");
+  await page.keyboard.press("j");
+  await expect(rows.nth(0)).toBeFocused();
+  await page.keyboard.press("j");
+  await expect(rows.nth(1)).toBeFocused();
+  await page.keyboard.press("k");
+  await expect(rows.nth(0)).toBeFocused();
+  await page.keyboard.press("j");
+  await expect(rows.nth(1)).toBeFocused();
+  await expect(rows.nth(1)).toHaveCSS("outline-style", "solid");
+  const title = (await rows.nth(1).getByRole("heading").textContent()) ?? "";
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+  // Escape closing a message's options menu closes only the menu.
+  const options = page.getByRole("button", { name: /^Options for message / }).first();
+  await options.click();
+  await expect(options).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(options).toHaveAttribute("aria-expanded", "false");
+  await expect(options).toBeFocused();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+  await page.keyboard.press("u");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
 });
 
 test("an ask the agent withdraws reads as withdrawn with its reason, on the list and its thread", async () => {

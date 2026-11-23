@@ -691,6 +691,42 @@ button.chip {
   }
 }
 
+/* The keyboard shortcuts' overlay: each place's shortcuts, the keys beside
+   what they do, the keys wrapping above it on a narrow screen. */
+.shortcut-place h3 {
+  margin-bottom: var(--space-2);
+}
+
+.shortcut-list {
+  margin: 0;
+}
+
+.shortcut-list div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.shortcut-list dt {
+  flex: 0 0 9rem;
+}
+
+.shortcut-list dd {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+
+kbd {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
 /* A filter's values as one row of segments, each a radio button, the
    checked one filled. Segments share the row's width, each at least as wide
    as its longest word, and wrap onto another row rather than clip a word. */

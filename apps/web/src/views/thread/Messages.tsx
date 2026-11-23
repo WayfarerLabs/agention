@@ -273,6 +273,21 @@ function Suggestions({ ask }: { ask: Ask }) {
 
 const emptyDraft: AnswerDraft = { picks: [], other: false, words: "", declined: false };
 
+// suggestionChoices gives the controls choosing an ask's suggested answers,
+// in order: on the ask card that holds focus, alone, whatever it offers; or,
+// while focus is on no card, on the first card of an open ask where answers
+// can be chosen.
+export function suggestionChoices(): HTMLInputElement[] {
+  const choices = (card: Element | null | undefined) =>
+    Array.from(card?.querySelectorAll<HTMLInputElement>("input[data-suggestion]") ?? []);
+  const focused = document.activeElement?.closest("section.ask");
+  if (focused !== null && focused !== undefined) {
+    return choices(focused);
+  }
+  const open = Array.from(document.querySelectorAll("section.ask.open"));
+  return choices(open.find((card) => choices(card).length > 0));
+}
+
 function AskCard({
   message,
   ask,
@@ -515,6 +530,7 @@ function AskCard({
                       <input
                         type={ask.multiple ? "checkbox" : "radio"}
                         name={`${id}-answer`}
+                        data-suggestion=""
                         checked={draft.picks.includes(index)}
                         disabled={held}
                         onChange={() => pick(index)}
