@@ -40,10 +40,10 @@ export function detailOf(error: unknown): string {
 // working.
 
 // The operator guide's section on the bridge's settings, at this bridge's
-// release.
+// release, which the agent line tags agention-mcp-vX.Y.Z.
 const settingsGuide =
   "https://github.com/WayfarerLabs/agention/blob/" +
-  `v${packageJson.version}/docs/operator-guide.md#agents`;
+  `agention-mcp-v${packageJson.version}/docs/operator-guide.md#agents`;
 
 // settingProblem is a problem with a setting the agent host gave the bridge
 // as the session started, which changes only once the session restarts.
