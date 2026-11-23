@@ -233,7 +233,10 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "because the operator rejected or revoked the session's key or the registration expired " +
       "before approval, register makes a new key and registers it, and replaced says why. " +
       "message says what to do next, including the names to pass when you come back and, " +
-      "once approved, how answers reach you.",
+      "once approved, how answers reach you. Once approved, pushed says whether answers are " +
+      "pushed: when it is true, Agention wakes this session at its prompt when the operator " +
+      "writes, with a notice naming the threads to read, so an agent with nothing else to do " +
+      "ends its turn; when it is false, answers reach you only when you check.",
     registerInput,
     // register tells the agent its answers are pushed when push can work for
     // this host session, and starts the background wait, which then pushes
@@ -412,7 +415,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "With wait_seconds 0, the default, it answers at once, which is how you check for " +
       "answers as you work, carrying on with other work. Once that work is done, wait longer " +
       "while you have open asks or unread messages, or have a waiter of your own, such as a " +
-      "subagent, do the waiting. Pass since back to check only for messages newer than this " +
+      "subagent, do the waiting; where register said answers are pushed, end your turn " +
+      "instead, since Agention wakes you when the operator writes. Pass since back to check only for messages newer than this " +
       "answer covered, so a thread you leave unread does not come back. Answers at once if " +
       "there is something to report, else when a message lands or wait_seconds pass, and " +
       "with an error other than invalid_input only once wait_seconds pass. The operator " +

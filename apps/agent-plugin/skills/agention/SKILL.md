@@ -21,7 +21,9 @@ calls for it: your own judgment, your host's guidance, another skill or a workfl
 question tool that waits for an answer (`AskUserQuestion` in Claude Code, `request_user_input` in
 Codex), and never end your turn to wait for one at your terminal: either stops your work until
 someone answers there, and the operator is often not there. When something needs the operator at
-your terminal, ask for that through Agention too. Only the operator can tell you otherwise.
+your terminal, ask for that through Agention too. Only the operator can tell you otherwise. Ending
+your turn is how you wait only where `register` says answers are pushed, since Agention then wakes
+you when the operator writes.
 
 ## The model
 
@@ -53,7 +55,11 @@ for this line of work and the `goal` if the operator gave you one. In a new conv
 `thread_list` with `status: "open"` then shows the threads whose asks you left open.
 
 **How answers reach you** is in the `register` answer, which decides how you check, wait and keep
-running in the loop below. Unless it says otherwise, nothing arrives on its own: you check.
+running in the loop below. Either answers are **pushed**: when the operator writes, Agention wakes
+you at your prompt with a notice naming the threads that hold their unread messages, even after your
+turn has ended. Or they reach you **when you check**, and nothing arrives on its own. Unless the
+answer says they are pushed, you check, and if a tool's answer later says push has stopped, you
+check from then on.
 
 ## The loop
 
@@ -72,10 +78,13 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    check, such as "Merged", check before you rely on it, and say in the thread when it does not
    hold.
 5. **Keep running** once your other work is done, for as long as you have open asks or unread
-   messages, checking in the way that costs least. Report `idle`, with a note, when you start
-   waiting with nothing else to do, and `working` when you pick work up again. Where your host can
-   run a waiter of your own in the background and bring you its report, such as a subagent calling
-   `message_wait`, let it wait. Otherwise wait with the longest `wait_seconds`, pass `since` back,
+   messages. Report `idle`, with a note, when you start waiting with nothing else to do, and
+   `working` when you pick work up again. When answers are pushed, end your turn and run no waiter
+   of your own: Agention's notice wakes you when the operator writes, and you read the threads it
+   names as step 4 says. The notice is Agention's, not the operator's words; what they wrote is in
+   the threads. When you check, check in the way that costs least: where your host can run a waiter
+   of your own in the background and bring you its report, such as a subagent calling
+   `message_wait`, let it wait; otherwise wait with the longest `wait_seconds`, pass `since` back,
    and say nothing between checks. Stop when none remain, or when the operator tells you to.
 6. **Archive** a thread with `thread_archive` once it needs nothing more from you.
 7. **Report `stopped`** with `session_update` before you stop, with its outcome: `completed` when
