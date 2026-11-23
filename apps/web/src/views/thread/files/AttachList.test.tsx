@@ -584,6 +584,74 @@ describe("editing", () => {
     expect(page.bodies()[1]).toMatchObject({ replaces: 2, attachments: [{ keep: "b.png" }] });
   });
 
+  it("drops the files of an edit staged while a replacement was under way, when both messages were replaced", async () => {
+    const state = await page.openWith([
+      operatorMessage(1, {
+        text: "First",
+        attachments: [{ name: "a.log", file: ref(1), size: 10, type: "text/plain" }],
+      }),
+      operatorMessage(2, {
+        text: "Second",
+        attachments: [{ name: "b.png", file: ref(2), size: 10, type: "image/png" }],
+      }),
+    ]);
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(state.thread.last_seq + 1),
+    );
+    fireEvent.click(option(1, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log"]));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(within(composer()).getByRole("button", { name: "Remove" }));
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["b.png"]));
+    // Another device replaced both messages meanwhile.
+    const elsewhere = [
+      operatorMessage(3, { text: "Elsewhere", replaces: 1 }),
+      operatorMessage(4, { text: "Elsewhere too", replaces: 2 }),
+    ];
+    state.messages = [...state.messages, ...elsewhere];
+    state.thread = { ...state.thread, last_seq: 4, message_count: 4 };
+    answer(
+      failure("stale", "other messages landed after the latest one you saw", {
+        missed: elsewhere,
+      }),
+    );
+    await within(composer()).findByRole("alert");
+    expect(listed()).toEqual([]);
+    fireEvent.click(within(composer()).getByRole("button", { name: "Mark these read" }));
+    await waitFor(() => expect(within(composer()).queryByRole("alert")).toBeNull());
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({ text: "Second", seen_through: 4 });
+    expect(page.bodies()[1]).not.toHaveProperty("replaces");
+    expect(page.bodies()[1]).not.toHaveProperty("attachments");
+  });
+
+  it("drops the files of an edit of the message a landed write replaced, staged again while it was under way", async () => {
+    await withFiles();
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise<Reply>((resolve) => (answer = resolve)),
+    );
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    // The operator sets the edit aside and starts it again.
+    fireEvent.click(within(composer()).getByRole("button", { name: "Remove" }));
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    answer(written(3));
+    await within(composer()).findByRole("status");
+    expect(listed()).toEqual([]);
+  });
+
   it("waits while files are attached, as for any draft", async () => {
     await withFiles();
     choose(file("c.png"));

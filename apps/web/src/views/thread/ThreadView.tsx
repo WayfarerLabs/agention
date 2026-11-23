@@ -357,6 +357,15 @@ function ThreadPage({
   const [detailsShown, setDetailsShown] = useState(false);
   const [staged, setStaged] = useState<Staged | undefined>(undefined);
   const files = useDraftFiles(target);
+  // Kept files belong to the replacement staged, which loaded them, so they
+  // go once none is staged: removed, sent, or dropped by what landed since.
+  // They go before the page paints, so it never shows them unstaged.
+  const { dropKept } = files;
+  useLayoutEffect(() => {
+    if (staged?.replaces === undefined) {
+      dropKept();
+    }
+  }, [staged, dropKept]);
   // A refusal of an answer's own words belongs to the answers sent: it shows
   // while they stay staged as they were sent, and goes once they change.
   const [sentStaged, setSentStaged] = useState<Staged>();
@@ -648,7 +657,6 @@ function ThreadPage({
       setText("");
       setDetail("");
       setDetailsShown(false);
-      files.dropKept(files.files.map((file) => file.id));
     }
     setStaged(undefined);
   };

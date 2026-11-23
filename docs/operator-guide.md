@@ -603,6 +603,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   your change held to an ask they revised or retracted stays with the message you are changing. When
   they replaced the message you were changing or editing, it drops the whole change or edit. Either
   way your text and details stay, and **Mark these read** leaves the rest for you to choose again.
+  Once a message is sent, what you staged since that it made impossible to send goes the same way,
+  without a word: an answer you changed meanwhile to an ask it answered, or a change or edit of the
+  message it replaced.
 
 - **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
   what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
