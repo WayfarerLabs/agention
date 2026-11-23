@@ -15,7 +15,7 @@ handling, the release order gate, the reworded refusals, the dry run that tried 
 and the commit rules contributors follow. The configuration files are the only copy of their values;
 this document gives the rules behind them.
 
-## One finding against the HLA
+## Root files: a finding against the HLA, and the rule it takes
 
 The HLA's "Neither" row lists the root's Markdown and its lint and editor configuration among the
 paths that ship nothing, to be excluded from both lines. release-please 17.6.0 cannot exclude a file
@@ -25,16 +25,13 @@ excluded path `p` only when the file starts with `p/`, after `normalizePaths`
 directory, and no entry matches `CONTRIBUTING.md` or `.cspell.json`. A releasing commit that touches
 a root file therefore releases both lines, which the dry run shows (fixtures F7 and F11 below).
 
-Three ways to meet R2 for root files, none taken without the lead's ruling:
-
-1. **A commit rule, as for dependencies** (what this delivery documents, pending that ruling): a
-   change to a root file that ships nothing goes in a commit of its own whose type releases nothing,
-   such as `docs:`, so the feature or fix it accompanies touches only its line's paths. A missed
-   split over-releases, the safe failure, as the HLA's dependency rule already accepts.
-2. **Moving what moves often into a directory.** `.cspell.json`, which features change for new
-   words, could move to a directory both lines exclude, if cspell reads it there; the root Markdown
-   (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`) stays where GitHub looks for it.
-3. **Accepting the over-release** without a rule, which R2 does not allow.
+The design meets R2 for root files with a commit rule, as it does for dependencies (the effort
+lead's ruling as design owner): a change to a root file that ships nothing goes in a commit of its
+own whose type releases nothing, such as `docs:` or `chore:`, so the feature or fix it accompanies
+touches only its line's paths. CONTRIBUTING "Commits and pull requests" and ADR 0005 state it.
+Nothing enforces it, so the limit it leaves on R2 is that a missed split releases both lines, a line
+that did not change among them: the safe failure, and one reported to the operator. Moving files
+such as `.cspell.json` into an excluded directory was weighed and not taken.
 
 F2 and F3 hold as stated: a commit reaches a root package unless every file it changes is excluded,
 and two root packages in two configurations route shared and root changes to both.
@@ -68,14 +65,16 @@ read every option used:
 | ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `release-type`           | package               | `node` for the server line, which writes the root `package.json` and the lockfile's root entries (`src/strategies/node.ts`, `src/updaters/node/package-lock-json.ts`); `simple` for the agent line, whose only own file, `version.txt`, is written only if it exists (`src/strategies/simple.ts`) |
 | `component`              | package               | The tag `<component>-v<version>` (`src/util/tag-name.ts`, `include-component-in-tag` defaulting to true in `src/strategies/base.ts`), the release branch `release-please--branches--main--components--<component>`, and the release pull request's title                                          |
-| `package-name`           | package, server line  | Kept as it was; the component no longer falls back to it                                                                                                                                                                                                                                          |
 | `changelog-path`         | package, agent line   | `apps/bridge/CHANGELOG.md`; the server line keeps the default, `CHANGELOG.md`                                                                                                                                                                                                                     |
 | `exclude-paths`          | package               | Above                                                                                                                                                                                                                                                                                             |
 | `extra-files`            | package               | Every other place the line's version appears: the server's `package.json` and lockfile entry; the bridge's `package.json` and lockfile entry, the plugin definition, both generated manifests, and the bridge's package spec in both generated `.mcp.json` files                                  |
 | `label`, `release-label` | top level, agent line | `autorelease-agent: pending` and `autorelease-agent: tagged`; the server line keeps the defaults, `autorelease: pending` and `autorelease: tagged` (`DEFAULT_LABELS` and `DEFAULT_RELEASE_LABELS` in `src/manifest.ts`)                                                                           |
 | `bump-minor-pre-major`   | package               | As before, both lines                                                                                                                                                                                                                                                                             |
 
-`include-component-in-tag: false` goes, so tags carry the component. The server line's component,
+`include-component-in-tag: false` goes, so tags carry the component, and so does `package-name`:
+once `component` is set, the component, tag, branch and title no longer read it, and the `node`
+strategy's only other use of it is for `samples/package.json` and `changelog.json`, which this
+repository does not have (`buildUpdates` in `src/strategies/node.ts`). The server line's component,
 `agention`, matches the branch name its open release pull request already has, since a package's
 branch component was its package name before (`getBranchComponent` in `src/strategies/base.ts`), so
 an open release pull request is taken over, as the HLA says.
@@ -106,24 +105,18 @@ A workflow-level `env` maps the tag's prefix to the line's prefix and package, f
 `github.ref_name` alone, so the publish job, which runs no repository code, reads them without
 trusting the build job.
 
-- The build job runs `scripts/check-release-tag.sh "$GITHUB_REF_NAME"`. The script finds the line
-  whose configuration's component, followed by `-v`, starts the tag; the version is the rest. It
-  checks the manifest's `"."`, the files the release type writes (for `node`: `package.json`
-  `$.version`, and the lockfile's `$.version` and `$.packages[''].version`; for `simple`: none, and
-  any other type fails), and every `extra-files` entry, by evaluating its jsonpath (the forms `$`,
-  `.name`, `['name']` and `[n]`; any other fails). A place holds the version when the first version
-  in its string is the version, as release-please's JSON updater replaces the first one
-  (`src/updaters/generic-json.ts`). Every mismatch is named, then it fails.
+- The build job refuses a tag that is not the version of what its line ships: the line's package's
+  `package.json` (`apps/server` or `apps/bridge`), and for the agent line the plugin definition,
+  `apps/agent-plugin/plugin.json`, whose version is the bridge version the committed plugins pin.
+  The rest of what a release pull request writes is not checked at tag time: the manifests, the root
+  `package.json` and the lockfile ship nothing, and the generated plugins under `out/` are held to
+  the plugin definition by the Plugin drift gate, which every pull request, release pull requests
+  included, must pass.
 - `scripts/check.sh --packages` builds and checks both packages, as before, into a scratch
   directory, and only the tag's package's tarball moves to the uploaded artifact.
 - The publish job checks the tarball's `name@version` against the tag's package and version, skips
   it if npm has that version, and publishes it otherwise. The bridge-first order goes, since one run
   publishes one package.
-
-`scripts/check-release-tag.test.sh` copies the script, both configurations and every file they write
-into a scratch directory, sets the lines to versions of its own, and checks that each line's tag
-passes, the other line's version and a legacy `v` tag fail, and a single place out of step fails its
-own line and not the other.
 
 ## The agent compatibility gate
 
@@ -139,14 +132,15 @@ those on HEAD, instead of `v*`, and installs each version, as before.
    exists, HEAD is no agent release; it passes. That is every pull request but the agent line's
    release pull request, and `main` once its tag exists.
 2. The server release is the newest `agention-v*` tag by version
-   (`git tag --sort=-version:refname`), among every fetched tag, reachable from HEAD or not: a
-   re-run checks the same merge commit, which predates the server's release, while CI's checkout
-   fetches every tag anew, and the tag rulesets let only the release App create these tags. None
-   fails, asking for `git fetch --tags`.
-3. `agentApi` is read at HEAD and at that tag from `packages/api/src/agent-api.ts`, compiled with
-   the repository's esbuild and run with its imports resolved from the contract's directory, so the
-   value read is the one built, however the source is written. The repository's TypeScript, 7, has
-   no JavaScript compiler API to read it with.
+   (`git -c versionsort.suffix=- tag --sort=-v:refname`, so a prerelease sorts below its release),
+   among every fetched tag, reachable from HEAD or not: a re-run checks the same merge commit, which
+   predates the server's release, while CI's checkout fetches every tag anew, and the tag rulesets
+   let only the release App create these tags. None fails, asking for `git fetch --tags`.
+3. `agentApi` is read at HEAD and at that tag from `packages/api/src/agent-api.ts`, by matching the
+   one line that declares it, `export const agentApi = { version: N, oldest: M } as const;`, with
+   `sed`. A line written any other way reads as nothing, and the gate then fails, naming the file
+   and where it read it, rather than reading a wrong version: the safe failure, fixed by updating
+   the match with the contract.
 4. It fails unless the server's `oldest` to `version` includes HEAD's `version`, naming both and
    asking for the server line's release to be merged and published first and the check run again.
 5. It fails unless `npm view @wayfarerlabs/agention@<server version> version` prints that version,
@@ -158,8 +152,9 @@ the gate and the agent manifest and contract, tags commits as the lines would, a
 stub first on `PATH` that knows only the versions a case publishes. The cases: an agent version
 already tagged passes whatever the servers; an untagged one passes only when the newest server
 serves it and npm has it; a server without the version, or no longer serving it, fails; the newest
-by version wins over a later-created lower one; a tag HEAD does not reach counts; a legacy `v` tag
-is no server release. Both fixture tests run in a "Release scripts" step that needs no network.
+by version order wins over the newest by name order; a release sorts above its own prerelease; a
+contract line written another way fails; a tag HEAD does not reach counts; a legacy `v` tag is no
+server release. The fixture test runs in a "Release order tests" step that needs no network.
 
 Until the operator creates the seed tags, `agention-mcp-v0.6.0` does not exist, so on this
 delivery's own pull request the gate acts and fails for want of an `agention-v*` tag, as the agent
@@ -230,13 +225,14 @@ lockfile's root and server entries, `CHANGELOG.md` and its manifest; the agent's
 `package.json` and lockfile entry, the plugin definition, both generated manifests and `.mcp.json`
 files, `apps/bridge/CHANGELOG.md`, above its earlier-releases heading, and its manifest, and no
 `version.txt`. Both skipped the `v*` releases as having no component. The branch was deleted from
-the repository afterwards.
+the repository afterwards. The server configuration then still held `package-name`, which was
+removed after the run; as above, nothing the run read depends on it.
 
 ## The commit rules
 
 CONTRIBUTING "Commits and pull requests" states which line a commit releases and three rules: a
 feature or fix keeps to its line's paths, with any docs under `docs/`, and a change to a root file
-that ships nothing goes in a commit of its own that releases nothing (pending the lead's ruling
-above); a dependency a feature or fix needs goes in its own `build(deps)` commit, while one that is
-itself the fix is `fix(deps)` and releases both lines; a new top-level directory that ships nothing
-joins both configurations' exclusions.
+that ships nothing goes in a commit of its own that releases nothing (above); a dependency a feature
+or fix needs goes in its own `build(deps)` commit, while one that is itself the fix is `fix(deps)`
+and releases both lines; a new top-level directory that ships nothing joins both configurations'
+exclusions.
