@@ -10,23 +10,32 @@ export const claudeCommand = "claude";
 // which bounds the walk on any system whatever the chain.
 export const maxAncestors = 16;
 
-interface ProcessInfo {
+export interface ProcessInfo {
   parent: number | undefined;
   command: string | undefined;
 }
 
 // nearestClaude returns the nearest ancestor of the process given whose
-// command is claude, looking at most maxAncestors up, or undefined when there
-// is none, so a Claude Code process that started another one, which started
+// command is claude, looking at most maxAncestors up, pid 1 included, as in a
+// container whose entry point is Claude Code, or undefined when there is
+// none, so a Claude Code process that started another one, which started
 // the bridge, is never taken for the bridge's own. On Linux it reads /proc;
 // elsewhere, as on macOS, it asks ps. A process it cannot read ends the walk.
 export function nearestClaude(
   pid: number,
   platform: NodeJS.Platform = process.platform,
 ): number | undefined {
-  const read = platform === "linux" ? fromProc : fromPs;
+  return nearestClaudeBy(pid, platform === "linux" ? fromProc : fromPs);
+}
+
+// nearestClaudeBy walks up from the process given, reading each process
+// with read.
+export function nearestClaudeBy(
+  pid: number,
+  read: (pid: number) => ProcessInfo,
+): number | undefined {
   let parent = read(pid).parent;
-  for (let looked = 0; looked < maxAncestors && parent !== undefined && parent > 1; looked++) {
+  for (let looked = 0; looked < maxAncestors && parent !== undefined; looked++) {
     const info = read(parent);
     if (info.command === claudeCommand) {
       return parent;

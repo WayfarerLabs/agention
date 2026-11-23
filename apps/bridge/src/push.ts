@@ -5,6 +5,7 @@ import type { AgentApi } from "./agent-api.ts";
 import { ApiFailure, BridgeError, OlderServer } from "./errors.ts";
 import {
   HostDirectory,
+  hostNamePart,
   pruneHostDirectories,
   type SessionAt,
   type WaitPosition,
@@ -47,6 +48,11 @@ export const pushTiming: PushTiming = {
 // server or a proxy that answers at once with nothing is not asked in a
 // tight loop.
 export const waitFloor = 1_000;
+
+// How long before a pending registration's expiry, by the bridge's clock,
+// the loop reads it last, in milliseconds, so it never reads one at its
+// expiry, which the server may have pruned.
+const expiryMargin = 1_000;
 
 // The most threads one wait answer lists, which bounds a notice.
 const waitLimit = 50;
@@ -105,6 +111,8 @@ export interface PushOptions {
   clientName: () => string | undefined;
   // The Claude Code process the bridge runs under, if any.
   host: () => number | undefined;
+  // The machine's host name, which the host directory's path holds.
+  hostName: string;
   timing: PushTiming;
 }
 
@@ -113,8 +121,10 @@ class HostDirectoryFailure extends Error {
   override name = "HostDirectoryFailure";
 }
 
-// What reading the registration found for the loop.
-type Registration = "approved" | "pending" | "ended";
+// What reading the registration found for the loop: approved, ended, or
+// pending, with the key it read and when that key's registration expires.
+type Registration =
+  { state: "approved" | "ended" } | { state: "pending"; key: PublicKey; expires: number };
 
 // Push is the bridge's background wait for one session. register starts it
 // where push can work, as does a tool call in a bridge started again, and it
@@ -126,6 +136,7 @@ export class Push {
   readonly #clock: () => number;
   readonly #clientName: () => string | undefined;
   readonly #findHost: () => number | undefined;
+  readonly #hostName: string | undefined;
   readonly #timing: PushTiming;
   readonly #closed = new AbortController();
   // The Claude Code process's pid once looked for, null when there is none.
@@ -133,6 +144,9 @@ export class Push {
   #host: HostDirectory | undefined;
   #started = false;
   #running = false;
+  // Whether start was called while the loop ran, since the loop last read
+  // the registration, so a loop about to end reads it again instead.
+  #restart = false;
   // Ends the pause the loop is in, so it reads the registration at once.
   #nudge: (() => void) | undefined;
   // Whether the agent has been told its answers are pushed, whether push has
@@ -140,10 +154,9 @@ export class Push {
   #told = false;
   #gaveUp = false;
   #lapseDue = false;
-  // Whether a round saved a position but has yet to write the notice.
-  #owesNotice = false;
-  // The pending key last read, and when its registration expires.
-  #pending: { key: PublicKey; expires: number } | undefined;
+  // The threads a round found, while it has saved its position but has yet
+  // to write the notice.
+  #owed: NoticeThread[] | undefined;
 
   constructor(options: PushOptions) {
     this.#api = options.api;
@@ -152,6 +165,7 @@ export class Push {
     this.#clock = options.clock;
     this.#clientName = options.clientName;
     this.#findHost = options.host;
+    this.#hostName = hostNamePart(options.hostName);
     this.#timing = options.timing;
   }
 
@@ -160,12 +174,13 @@ export class Push {
   // bridge runs under has the watcher's mark. The first look for that process
   // also removes the directories of host processes that have ended.
   available(): boolean {
-    if (this.#clientName() !== claudeCodeClient) {
+    const hostName = this.#hostName;
+    if (this.#clientName() !== claudeCodeClient || hostName === undefined) {
       return false;
     }
     if (this.#hostPid === undefined) {
       try {
-        pruneHostDirectories(this.#home);
+        pruneHostDirectories(this.#home, hostName);
       } catch {
         // Pruning tidies; a directory it cannot reach is no reason to stop.
       }
@@ -175,7 +190,7 @@ export class Push {
       return false;
     }
     if (this.#host === undefined) {
-      const host = new HostDirectory(this.#home, this.#hostPid);
+      const host = new HostDirectory(this.#home, hostName, this.#hostPid);
       try {
         if (!host.hooked()) {
           return false;
@@ -189,18 +204,20 @@ export class Push {
   }
 
   // start runs the background wait, once available has found the host
-  // directory, or has it read the registration at once if it runs already.
+  // directory, or has it read the registration at once if it runs already,
+  // as it is, without the expiry of a pending one it read before.
   start(): void {
     if (this.#host === undefined || this.#closed.signal.aborted) {
       return;
     }
     this.#started = true;
     if (this.#running) {
+      this.#restart = true;
       this.#nudge?.();
       return;
     }
     this.#running = true;
-    void this.#run(this.#host, this.#closed.signal).finally(() => (this.#running = false));
+    this.#run(this.#host, this.#closed.signal).catch(() => (this.#running = false));
   }
 
   // resume starts push, where it can work, the first time a tool acts in the
@@ -239,21 +256,50 @@ export class Push {
   // version or a host directory it cannot use, is said as a lapse meanwhile.
   // The loop ends once the registration can never be approved, or a pending
   // one expires: only register, or a bridge started again, starts it anew.
+  //
+  // The loop decides to end and clears #running in one step, with nothing
+  // awaited between, so a start that comes while it runs is never lost: it
+  // either sets #restart before that step, which the step sees, or finds the
+  // loop no longer running and runs a new one.
   async #run(host: HostDirectory, signal: AbortSignal): Promise<void> {
     let retry = this.#timing.retryFirst;
     let approved = false;
-    while (!signal.aborted) {
+    // The pending registration the loop last read, while the last reading
+    // was pending.
+    let pending: { key: PublicKey; expires: number } | undefined;
+    for (;;) {
+      if (signal.aborted) {
+        this.#running = false;
+        return;
+      }
       try {
         if (!approved) {
-          const registration = await this.#registration(signal);
-          if (registration === "ended") {
+          if (this.#restart) {
+            pending = undefined;
+          }
+          this.#restart = false;
+          const registration = await this.#registration(signal, pending);
+          if (registration.state === "ended") {
+            if (this.#restart || signal.aborted) {
+              continue;
+            }
+            this.#running = false;
             return;
           }
-          if (registration === "pending") {
-            await this.#pause(this.#timing.stateEvery, signal);
+          if (registration.state === "pending") {
+            // The last reading comes just before the expiry, so an approval
+            // given then is still seen.
+            pending = registration;
+            const left = registration.expires - expiryMargin - this.#clock();
+            await this.#pause(Math.min(this.#timing.stateEvery, left), signal);
             continue;
           }
+          // An approval is push working again: a lapse from before it is
+          // not said, and a new one would be.
+          pending = undefined;
           approved = true;
+          this.#gaveUp = false;
+          this.#lapseDue = false;
         }
         const started = performance.now();
         const found = await this.#round(host, signal);
@@ -265,7 +311,7 @@ export class Push {
         }
       } catch (error) {
         if (signal.aborted) {
-          return;
+          continue;
         }
         if (error instanceof HostDirectoryFailure || cannotOutlast(error)) {
           this.#giveUp();
@@ -282,66 +328,92 @@ export class Push {
 
   // registration reads the state of the key on disk with the request
   // register makes. It never creates a key, and never submits one that is not
-  // on disk, or a pending one past the expiry its last reading gave, which
-  // the server may have pruned and would register afresh: the loop ends
-  // there. A registration that can never be approved ends it with a lapse.
-  async #registration(signal: AbortSignal): Promise<Registration> {
+  // on disk, or one whose last reading was pending, given, once past the
+  // expiry it gave, since the server may have pruned it and would register
+  // it afresh: the loop ends there. A registration that can never be
+  // approved ends it with a lapse.
+  async #registration(
+    signal: AbortSignal,
+    pending: { key: PublicKey; expires: number } | undefined,
+  ): Promise<Registration> {
     const key = this.#session.storedKey();
     if (key === undefined) {
-      return "ended";
+      return { state: "ended" };
     }
-    const pending = this.#pending;
-    if (pending?.key === key.publicKey && !(this.#clock() < pending.expires)) {
-      return "ended";
+    if (pending?.key === key.publicKey && !(this.#clock() < pending.expires - expiryMargin)) {
+      return { state: "ended" };
     }
     const state = await this.#session.stateOf(key, signal);
     if (state.status === "approved") {
-      return "approved";
+      return { state: "approved" };
     }
     if (state.status === "pending") {
-      this.#pending = { key: key.publicKey, expires: Date.parse(state.expires_at) };
-      return "pending";
+      return { state: "pending", key: key.publicKey, expires: Date.parse(state.expires_at) };
     }
     this.#giveUp();
-    return "ended";
+    return { state: "ended" };
   }
 
   // round makes one wait request from the saved position. When it finds
   // threads, it saves the new position first, so no message is pushed twice,
-  // even across a restart, and then writes a notice naming every thread with
-  // unread messages as a fresh read finds them. It says whether it found any.
+  // even across a restart, and then writes a notice naming them and every
+  // other thread with unread messages. It says whether it found any. A saved
+  // position the server refuses, from another release or cut short, is
+  // dropped, and the round waits from none.
   async #round(host: HostDirectory, signal: AbortSignal): Promise<boolean> {
     const { key, granted } = await this.#session.credential(signal);
     const at: SessionAt = { origin: this.#api.origin, ...granted };
-    if (this.#owesNotice) {
-      await this.#notify(host, at, signal);
+    if (this.#owed !== undefined) {
+      await this.#notify(host, at, this.#owed, signal);
       return true;
     }
     const saved = this.#hostDo(() => host.readCursor(at));
-    const answer = await this.#wait(at, {
-      since: belongs(saved, at) ? saved.since : undefined,
-      wait: this.#timing.waitSeconds,
-      signal,
-      key,
-    });
+    const since = belongs(saved, at) ? saved.since : undefined;
+    const request = { wait: this.#timing.waitSeconds, signal, key };
+    let answer: WaitAnswer;
+    try {
+      answer = await this.#wait(at, { ...request, since });
+    } catch (error) {
+      if (since === undefined || !refusesSince(error)) {
+        throw error;
+      }
+      this.#hostDo(() => host.dropCursor(at));
+      answer = await this.#wait(at, { ...request, since: undefined });
+    }
     if (answer.threads.length === 0) {
       return false;
     }
     this.#hostDo(() => host.saveCursor({ ...at, since: answer.since }));
-    this.#owesNotice = true;
-    await this.#notify(host, at, signal);
+    this.#owed = answer.threads;
+    await this.#notify(host, at, answer.threads, signal);
     return true;
   }
 
   // notify reads every thread with unread messages, from the start and at
-  // once, and writes the notice naming them.
-  async #notify(host: HostDirectory, at: SessionAt, signal: AbortSignal): Promise<void> {
+  // once, and writes the notice naming them and the round's own threads,
+  // which a full page of older ones could leave out. When that read's page
+  // is not full, its position covers every message the notice names, so it
+  // is saved too, and a message that landed after the round's wait answered
+  // is not pushed again.
+  async #notify(
+    host: HostDirectory,
+    at: SessionAt,
+    found: readonly NoticeThread[],
+    signal: AbortSignal,
+  ): Promise<void> {
     const { key } = await this.#session.credential(signal);
     const unread = await this.#wait(at, { since: undefined, wait: 0, signal, key });
-    if (unread.threads.length > 0) {
-      this.#hostDo(() => host.writeWake(at, pushNotice(unread.threads)));
+    const threads = new Map(found.map((thread) => [thread.number, thread]));
+    for (const thread of unread.threads) {
+      threads.set(thread.number, thread);
     }
-    this.#owesNotice = false;
+    this.#hostDo(() => {
+      host.writeWake(at, pushNotice([...threads.values()]));
+      if (unread.threads.length < waitLimit) {
+        host.saveCursor({ ...at, since: unread.since });
+      }
+    });
+    this.#owed = undefined;
   }
 
   async #wait(
@@ -410,6 +482,16 @@ function belongs(saved: WaitPosition | undefined, at: SessionAt): saved is WaitP
     saved.origin === at.origin &&
     saved.agent === at.agent &&
     saved.session === at.session
+  );
+}
+
+// refusesSince says whether a wait failed because the server does not take
+// its since as a position it gave out.
+function refusesSince(error: unknown): boolean {
+  return (
+    error instanceof ApiFailure &&
+    error.body.error.code === "invalid_input" &&
+    error.body.error.field === "since"
   );
 }
 

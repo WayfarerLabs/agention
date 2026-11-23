@@ -21,8 +21,9 @@ import { keyDirectory } from "./key-file.ts";
 import type { SessionNames } from "./session.ts";
 
 // A host directory is where bridges and the Claude Code plugin's watcher
-// meet: ~/.config/agention/_hosts/claude/<pid>/, named for the Claude Code
-// process that runs them. No server's host is named _hosts, since an
+// meet: ~/.config/agention/_hosts/claude/<host name>/<pid>/, named for the
+// machine and the Claude Code process that runs them, so machines or pid
+// namespaces sharing a home never meet. No server's host is named _hosts, since an
 // origin's host admits no underscore, so it never meets a session's key
 // directory. It holds, under the private-file rule:
 //
@@ -40,10 +41,20 @@ import type { SessionNames } from "./session.ts";
 
 const markName = "hooked";
 
-// The directory below the home directory that holds every Claude Code host
-// process's directory.
-export function claudeHostsDirectory(home: string): string {
-  return path.join(keyDirectory(home), "_hosts", "claude");
+// The directory below the home directory that holds the directory of every
+// Claude Code process on the machine with the host name given.
+export function claudeHostsDirectory(home: string, hostName: string): string {
+  return path.join(keyDirectory(home), "_hosts", "claude", hostName);
+}
+
+// hostNamePart returns the machine's host name when it is a path component
+// the watcher takes too: letters, digits, dots, hyphens and underscores, at
+// most 255 of them, and neither . nor ..; otherwise undefined, and there is
+// no push.
+export function hostNamePart(hostName: string): string | undefined {
+  return /^[A-Za-z0-9._-]{1,255}$/.test(hostName) && hostName !== "." && hostName !== ".."
+    ? hostName
+    : undefined;
 }
 
 // Where a session's wait is: on which server, under which granted names.
@@ -73,8 +84,8 @@ function sessionPart(at: SessionAt): string {
 export class HostDirectory {
   readonly path: string;
 
-  constructor(home: string, pid: number) {
-    this.path = path.join(claudeHostsDirectory(home), String(pid));
+  constructor(home: string, hostName: string, pid: number) {
+    this.path = path.join(claudeHostsDirectory(home, hostName), String(pid));
   }
 
   // hooked says whether the watcher has marked this directory, which counts
@@ -119,6 +130,12 @@ export class HostDirectory {
     }
   }
 
+  dropCursor(at: SessionAt): void {
+    rmSync(path.join(ensurePrivateDirectory(this.path), `cursor-${sessionPart(at)}`), {
+      force: true,
+    });
+  }
+
   saveCursor(position: WaitPosition): void {
     this.#write(`cursor-${sessionPart(position)}`, `${JSON.stringify(position)}\n`);
   }
@@ -159,12 +176,13 @@ export class HostDirectory {
   }
 }
 
-// pruneHostDirectories removes the directory of every host process that is
-// no longer running, so ended host sessions leave nothing behind. Only
-// directories named for a pid are touched, and only in the real path of a
-// directory that obeys the private-file rule.
-export function pruneHostDirectories(home: string): void {
-  const hosts = ensurePrivateDirectory(claudeHostsDirectory(home));
+// pruneHostDirectories removes the directory of every host process on this
+// machine that is no longer running, so ended host sessions leave nothing
+// behind. Only directories named for a pid are touched, only under this
+// machine's host name, and only in the real path of a directory that obeys
+// the private-file rule.
+export function pruneHostDirectories(home: string, hostName: string): void {
+  const hosts = ensurePrivateDirectory(claudeHostsDirectory(home, hostName));
   for (const entry of readdirSync(hosts)) {
     if (!/^[1-9][0-9]{0,9}$/.test(entry) || processAlive(Number(entry))) {
       continue;

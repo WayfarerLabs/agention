@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { canonicalOrigin } from "@wayfarerlabs/agention-api";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import path from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
@@ -33,6 +33,9 @@ export interface BridgeOptions {
   // The Claude Code process the bridge runs under, for push; by default its
   // nearest ancestor named claude.
   host?: () => number | undefined;
+  // The machine's host name, for push's host directory; by default the
+  // operating system's.
+  hostName?: string;
   // How push paces its background wait; by default pushTiming.
   pushTiming?: PushTiming;
 }
@@ -142,6 +145,7 @@ function connect(options: BridgeOptions, clientName: () => string | undefined): 
       clock,
       clientName,
       host: options.host ?? (() => nearestClaude(process.pid)),
+      hostName: options.hostName ?? hostname(),
       timing: options.pushTiming ?? pushTiming,
     }),
   };

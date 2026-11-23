@@ -272,7 +272,7 @@ function readDir(dir: string): Dirent[] {
   try {
     return readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1));
   } catch (error) {
-    throw new Error(`read skills: ${(error as Error).message}`);
+    throw new Error(`read ${dir}: ${(error as Error).message}`);
   }
 }
 

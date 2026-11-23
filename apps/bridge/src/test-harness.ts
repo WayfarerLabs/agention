@@ -61,7 +61,10 @@ export interface Answer {
 
 // What a test bridge is started with beyond its environment: the name its
 // client gives, and the bridge's own options for push.
-export type BridgeTestOptions = { client?: string } & Pick<BridgeOptions, "host" | "pushTiming">;
+export type BridgeTestOptions = { client?: string } & Pick<
+  BridgeOptions,
+  "host" | "hostName" | "pushTiming"
+>;
 
 export class TestBridge {
   readonly client: Client;
@@ -177,8 +180,8 @@ export class BridgeHarness {
 
   // bridge starts a bridge with the environment an agent host would give it,
   // signing with the server's clock, and connects a client to it, by the
-  // client name given, as an agent host would. Options give push its Claude Code process
-  // and pacing.
+  // client name given, as an agent host would. Options give push its
+  // Claude Code process, host name and pacing.
   async bridge(
     environment: BridgeEnvironment = {},
     home = this.home,

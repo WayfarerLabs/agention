@@ -5,8 +5,9 @@
 # Claude Code runs it in the background (asyncRewake) on SessionStart, on
 # UserPromptSubmit, and at every turn's end, Stop or StopFailure. It waits in
 # the host directory it shares with the bridge,
-# ~/.config/agention/_hosts/claude/<pid>/, named for the Claude Code process
-# in CLAUDE_PID, for the wake files the bridge writes, one per session. It
+# ~/.config/agention/_hosts/claude/<host name>/<pid>/, named for the machine
+# and the Claude Code process in CLAUDE_PID, for the wake files the bridge
+# writes, one per session. It
 # takes them, prints their notices to stderr and exits 2, which wakes the
 # agent. Every other outcome exits 0 or 1, and nothing else ever reaches
 # stderr, so nothing but a taken wake file wakes the agent, and a broken
@@ -27,9 +28,13 @@ exec 3>&2 2>/dev/null
 # for.
 [ -t 0 ] || cat >/dev/null
 
-# A session that does not use Agention, or a host that gives no pid, keeps
-# nothing running. The pid becomes a path component, so it is digits only.
+# A session that does not use Agention, one that is not an interactive
+# session in the terminal, such as claude -p or an SDK run, which no one
+# waits on at a prompt, and a host that gives no pid keep nothing running,
+# and so are never told they are pushed. The pid and the host name become
+# path components, so they are checked as the bridge checks them.
 [ -n "${AGENTION_URL:-}" ] || exit 0
+[ "${CLAUDE_CODE_ENTRYPOINT:-}" = cli ] || exit 0
 host=${CLAUDE_PID:-}
 case $host in
     '' | 0* | *[!0-9]*) exit 0 ;;
@@ -39,6 +44,11 @@ case ${HOME:-} in
     /*) ;;
     *) exit 0 ;;
 esac
+name=$(uname -n) || exit 0
+case $name in
+    '' | . | .. | *[!A-Za-z0-9._-]*) exit 0 ;;
+esac
+[ "${#name}" -le 255 ] || exit 0
 
 # alive says whether a process of this user runs with the pid given.
 alive() {
@@ -49,8 +59,8 @@ alive "$host" || exit 0
 
 umask 077
 uid=$(id -u) || exit 1
-mkdir -p "$HOME/.config/agention/_hosts/claude/$host" || exit 1
-dir=$(cd -P -- "$HOME/.config/agention/_hosts/claude/$host" && pwd -P) || exit 1
+mkdir -p "$HOME/.config/agention/_hosts/claude/$name/$host" || exit 1
+dir=$(cd -P -- "$HOME/.config/agention/_hosts/claude/$name/$host" && pwd -P) || exit 1
 
 # The private-file rule, as the bridge applies it: the host directory belongs
 # to this user, with no group or other permissions, and every directory
@@ -104,12 +114,23 @@ while :; do
         '' | "$$") ;;
         *) exit 0 ;;
     esac
-    # Renaming takes a file, so the bridge's next one is never lost.
+    # Renaming takes a file, so the bridge's next one is never lost. A
+    # notice that cannot be printed goes back for the next watcher, unless
+    # the bridge has written a newer one, which supersedes it.
     taken=0
     for wake in "$dir"/wake-*; do
         mine=$dir/taken.$$
         if [ -f "$wake" ] && mv -f -- "$wake" "$mine"; then
-            cat -- "$mine" >&3 && taken=1
+            if ! cat -- "$mine" >&3; then
+                if [ -e "$wake" ]; then
+                    rm -f -- "$mine"
+                else
+                    mv -f -- "$mine" "$wake"
+                fi
+                release
+                exit 1
+            fi
+            taken=1
             rm -f -- "$mine"
         fi
     done

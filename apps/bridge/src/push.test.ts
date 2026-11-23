@@ -1,5 +1,6 @@
 import { agentApi, agentApiHeader } from "@wayfarerlabs/agention-api";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -196,7 +197,7 @@ describe("push", () => {
     const { since } = await bridge.ok("message_wait");
     harness.markHost();
     const at = { origin: harness.origin, agent: "builder", session: "main" };
-    new HostDirectory(harness.home, host).saveCursor({ ...at, since: since as string });
+    new HostDirectory(harness.home, hostname(), host).saveCursor({ ...at, since: since as string });
     const [file] = harness.filesOf("cursor");
     writeFileSync(file ?? "", JSON.stringify({ ...at, session: savedSession, since }));
     await bridge.ok("register");
@@ -206,6 +207,93 @@ describe("push", () => {
       await delay(1500);
       expect(harness.takeWakes()).toBeUndefined();
     }
+  });
+
+  it("still writes the notice when its read of the unread threads fails once", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    const thread = await threadWith(bridge);
+    let failed = 0;
+    harness.beforeRequest = (request) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/wait") && url.searchParams.get("wait") === "0" && failed === 0) {
+        failed++;
+        return new Response("Bad gateway", { status: 502 });
+      }
+      return undefined;
+    };
+    await harness.operatorWrites(thread, { text: "Go ahead." });
+    expect(integersOf(await harness.takeWake())).toEqual([thread, 1]);
+    expect(failed).toBe(1);
+  });
+
+  it("drops a saved position the server refuses, and waits from none", async () => {
+    harness.markHost();
+    const bridge = await harness.claudeBridge();
+    await bridge.ok("register");
+    const at = { origin: harness.origin, agent: "builder", session: "main" };
+    new HostDirectory(harness.home, hostname(), host).saveCursor({ ...at, since: "not-a-cursor" });
+    await harness.approve(harness.keyOnDisk());
+    await bridge.ok("register");
+    const thread = await threadWith(bridge);
+    await harness.operatorWrites(thread, { text: "Go ahead." });
+    expect(integersOf(await harness.takeWake())).toEqual([thread, 1]);
+  });
+
+  it("names the thread it found even past a full page of older unread ones", async () => {
+    // Fifty threads hold unread messages from before push started, and the
+    // saved position is past them.
+    const bridge = await harness.claudeBridge();
+    await bridge.ok("register");
+    await harness.approve(harness.keyOnDisk());
+    const threads: number[] = [];
+    for (let index = 0; index < 51; index++) {
+      threads.push(await threadWith(bridge, `Thread ${index}`));
+    }
+    const [newest = 0, ...older] = threads;
+    for (const thread of older) {
+      await harness.operatorWrites(thread, { text: "Earlier." });
+    }
+    const { since } = await bridge.ok("message_wait");
+    const at = { origin: harness.origin, agent: "builder", session: "main" };
+    harness.markHost();
+    new HostDirectory(harness.home, hostname(), host).saveCursor({ ...at, since: since as string });
+    await bridge.ok("register");
+    await harness.operatorWrites(newest, { text: "Now." });
+    expect(integersOf(await harness.takeWake()).slice(0, 2)).toEqual([newest, 1]);
+  });
+
+  it("does not push again a message that lands while it writes the notice", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    const thread = await threadWith(bridge);
+    let landed = false;
+    // Once the wait that finds the operator's first message has answered,
+    // and before its answer reaches the bridge, a second message lands.
+    harness.afterAnswer = async (request) => {
+      const url = new URL(request.url);
+      if (landed || !url.pathname.endsWith("/wait") || url.searchParams.get("wait") !== "1") {
+        return;
+      }
+      const read = await harness.server.web("GET", `/s/builder/main/threads/${thread}`);
+      if ((read.body as { thread: { last_seq: number } }).thread.last_seq === 2) {
+        landed = true;
+        await harness.operatorWrites(thread, { text: "And meanwhile.", request_id: "meanwhile" });
+      }
+    };
+    // A round that finds threads is the one that reads them all at once.
+    let notices = 0;
+    harness.beforeRequest = (request) => {
+      if (new URL(request.url).searchParams.get("wait") === "0") {
+        notices++;
+      }
+    };
+    await harness.operatorWrites(thread, { text: "Go ahead." });
+    expect(integersOf(await harness.takeWake())).toEqual([thread, 2]);
+    expect(landed).toBe(true);
+    await delay(1500);
+    expect(harness.takeWakes()).toBeUndefined();
+    expect(notices).toBe(1);
   });
 
   it("writes only fixed words and integers, never what the server holds", async () => {

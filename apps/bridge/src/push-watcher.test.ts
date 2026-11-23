@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,7 @@ it("wakes the host through the watcher when the operator writes", async () => {
       HOME: harness.home,
       AGENTION_URL: harness.origin,
       CLAUDE_PID: String(host),
+      CLAUDE_CODE_ENTRYPOINT: "cli",
     },
     stdio: ["ignore", "ignore", "pipe"],
   });
@@ -48,7 +50,7 @@ it("wakes the host through the watcher when the operator writes", async () => {
   watcher.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
   const exited = new Promise<number | null>((resolve) => watcher.on("close", resolve));
   try {
-    const mark = path.join(claudeHostsDirectory(harness.home), String(host), "hooked");
+    const mark = path.join(claudeHostsDirectory(harness.home, hostname()), String(host), "hooked");
     for (let tries = 0; !existsSync(mark); tries++) {
       expect(tries).toBeLessThan(400);
       await delay(25);

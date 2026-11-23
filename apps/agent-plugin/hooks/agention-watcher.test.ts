@@ -12,7 +12,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -70,7 +70,7 @@ function endedPid(): number {
 }
 
 function hostDirectory(home: string, pid: number): string {
-  return join(home, ".config", "agention", "_hosts", "claude", String(pid));
+  return join(home, ".config", "agention", "_hosts", "claude", hostname(), String(pid));
 }
 
 async function eventually<T>(read: () => T | undefined, what: string): Promise<T> {
@@ -93,12 +93,16 @@ function lockHolder(home: string, pid: number): number | undefined {
 }
 
 describe.each(shells)("the watcher under %s", (_, shell) => {
+  // start runs the watcher as an interactive Claude Code session's hook,
+  // unless the environment given says otherwise; a variable given as
+  // undefined is left out.
   const start = (environment: Record<string, string | undefined>): Watcher => {
     const [command = "sh", ...args] = shell;
-    const child = spawn(command, [...args, script], {
-      env: { PATH: process.env.PATH ?? "", ...environment },
-      stdio: ["ignore", "ignore", "pipe"],
-    });
+    const given = { PATH: process.env.PATH ?? "", CLAUDE_CODE_ENTRYPOINT: "cli", ...environment };
+    const env = Object.fromEntries(
+      Object.entries(given).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    );
+    const child = spawn(command, [...args, script], { env, stdio: ["ignore", "ignore", "pipe"] });
     onTestFinished(() => {
       child.kill();
     });
@@ -125,10 +129,20 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     return watcher;
   };
 
-  it.each<[string, Record<string, string>]>([
+  it.each<[string, Record<string, string | undefined>]>([
     ["without AGENTION_URL", { CLAUDE_PID: String(process.pid) }],
     ["with an empty AGENTION_URL", { AGENTION_URL: "", CLAUDE_PID: String(process.pid) }],
     ["without CLAUDE_PID", { AGENTION_URL: "https://agention.example" }],
+    ...[undefined, "", "sdk-cli", "sdk-ts", "CLI"].map(
+      (entrypoint): [string, Record<string, string | undefined>] => [
+        `with CLAUDE_CODE_ENTRYPOINT ${entrypoint === undefined ? "unset" : JSON.stringify(entrypoint)}`,
+        {
+          AGENTION_URL: "https://agention.example",
+          CLAUDE_PID: String(process.pid),
+          CLAUDE_CODE_ENTRYPOINT: entrypoint,
+        },
+      ],
+    ),
     ...["0", "-1", "012", "1.5", "../1", "1/2", "12a", " 12", "12345678901"].map(
       (pid): [string, Record<string, string>] => [
         `with CLAUDE_PID ${JSON.stringify(pid)}`,
@@ -232,6 +246,35 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
         .filter((line) => line !== "")
         .sort(),
     ).toEqual(["first", "second"]);
+  });
+
+  it("puts back a notice it cannot print, and exits 1", async () => {
+    const home = tempHome();
+    const host = hostProcess().pid ?? 0;
+    const watcher = await watching(home, host);
+    // Its stderr, Claude Code's end of it, goes away.
+    watcher.child.stderr?.destroy();
+    const wake = join(hostDirectory(home, host), "wake-a");
+    writeFileSync(wake, "notice\n", { mode: 0o600 });
+    expect((await watcher.exited).code).toBe(1);
+    expect(readFileSync(wake, "utf8")).toBe("notice\n");
+  });
+
+  it.each(["../x", "a/b", "", "."])("exits 0, writing nothing, for host name %j", async (name) => {
+    const home = tempHome();
+    const bin = join(home, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "uname"), `#!/bin/sh\nprintf '%s\\n' ${JSON.stringify(name)}\n`, {
+      mode: 0o755,
+    });
+    const exit = await start({
+      HOME: home,
+      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      AGENTION_URL: "https://agention.example",
+      CLAUDE_PID: String(hostProcess().pid),
+    }).exited;
+    expect(exit).toEqual({ code: 0, stderr: "" });
+    expect(readdirSync(home)).toEqual(["bin"]);
   });
 
   it("exits 1, printing nothing, when it cannot write its mark", async () => {

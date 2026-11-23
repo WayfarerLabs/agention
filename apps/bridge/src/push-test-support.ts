@@ -12,7 +12,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { claudeCommand } from "./claude-ancestor.ts";
@@ -75,7 +75,7 @@ export async function threadWith(bridge: TestBridge, title = "A question"): Prom
 
 export class PushHarness extends BridgeHarness {
   hostDirectory(pid = host): string {
-    return path.join(claudeHostsDirectory(this.home), String(pid));
+    return path.join(claudeHostsDirectory(this.home, hostname()), String(pid));
   }
 
   // markHost makes a host directory with the watcher's mark, as the watcher
@@ -121,8 +121,12 @@ export class PushHarness extends BridgeHarness {
     return notices[0] ?? "";
   }
 
-  claudeBridge(client = claudeCodeClient, names: Record<string, string> = {}): Promise<TestBridge> {
-    return this.bridge(names, this.home, { client, host: () => host, pushTiming: timing });
+  claudeBridge(
+    client = claudeCodeClient,
+    names: Record<string, string> = {},
+    pushTiming = timing,
+  ): Promise<TestBridge> {
+    return this.bridge(names, this.home, { client, host: () => host, pushTiming });
   }
 
   // registered starts a Claude Code bridge whose session the operator has
@@ -134,6 +138,18 @@ export class PushHarness extends BridgeHarness {
     await bridge.ok("register");
     await this.approve(this.keyOnDisk());
     return { bridge, answer: await bridge.ok("register") };
+  }
+
+  // approveWhileWaiting has the operator approve the bridge's session once
+  // push has read its registration pending, as while the agent waits at its
+  // prompt with no further register, and returns once push waits.
+  async approveWhileWaiting(bridge: TestBridge): Promise<void> {
+    await bridge.ok("register");
+    const reads = this.counting("/registrations");
+    await eventually(() => (reads() >= 1 ? true : undefined), "push reading the registration");
+    const waits = this.counting("/wait");
+    await this.approve(this.keyOnDisk());
+    await eventually(() => (waits() > 0 ? true : undefined), "push waiting");
   }
 
   // counting counts the requests whose path ends with the one given, from
@@ -157,7 +173,7 @@ export class PushHarness extends BridgeHarness {
 // its parent. Its directory is removed when the test calls remove.
 export function claudeLauncher(): {
   command: string;
-  args: (pidFile: string) => string[];
+  args: (pidFile: string, program?: string[]) => string[];
   remove: () => void;
 } {
   const directory = mkdtempSync(path.join(tmpdir(), "agention-claude-"));
@@ -166,7 +182,7 @@ export function claudeLauncher(): {
   const script = 'echo $$ >"$0"; "$@"; exit $?';
   return {
     command,
-    args: (pidFile) => ["-c", script, pidFile, process.execPath],
+    args: (pidFile, program = [process.execPath]) => ["-c", script, pidFile, ...program],
     remove: () => rmSync(directory, { recursive: true, force: true }),
   };
 }
