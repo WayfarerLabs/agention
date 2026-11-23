@@ -73,7 +73,8 @@ with each other or with what the product does, the disagreement is the finding.
   expired, revoked), each of the thread tools: `thread_create`, `message_send`, `thread_get`,
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update` through a
   session's life: working once registered, idle, stopped with each outcome, working again on
-  resuming, a goal changed without a percent, and a note alone (`docs/architecture.md` "Agent
+  resuming, a goal changed without a percent, and a note alone, and the status reminder a host's
+  model sees once the status goes unreported past its threshold (`docs/architecture.md` "Agent
   bridge" and "Store"). `file_upload` with a file, an empty one, one at 100 MiB, and each refusal: a
   relative path, a directory, a FIFO, which must not hang, a file over 100 MiB, and a key file named
   directly and through a symlink; `file_get` of each served type, its file's name and mode, and its
