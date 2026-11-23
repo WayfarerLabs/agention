@@ -1,20 +1,22 @@
 # Agent push: Prior art and host research
 
-- Date: 2026-11-22, from the hosts' documentation and source as published then
-- Status: a desk survey. A hands-on spike on each host confirms what wakes an idle session before
-  the HLA chooses a mechanism.
+- Date: 2026-11-22, from the hosts' documentation and source as published then, and a hands-on spike
+  on Claude Code 2.1.330 and Codex 0.171.0 the same day
+- Status: the desk survey below, then the spike's results, which settle the mechanism the HLA starts
+  from
 
 ## Summary
 
 Neither host offers a plugin a documented, setup-free way to wake an idle session from an MCP
-server. Claude Code comes closest twice over: channels push events into a session, but a custom
-channel needs a development flag each session during their research preview; and a plugin's hook can
-run in the background and wake Claude when it exits. Codex shows MCP notifications to no one, its
-background hooks start no turn, and the one outside wake is `codex queue`, which arrives as if the
-operator typed it. MCP's own answer, the events extension, is final as a specification, and how a
-host turns an event into a turn is left to the host. The one third-party design described in detail
-sends a short, content-free notice and lets the agent read the messages through its tools, which is
-P2.
+server, but the spike found one on Claude Code: a plugin's background hook wakes an idle session and
+re-arms after each wake. On Codex nothing a plugin can reach does. Claude Code comes closest twice
+over: channels push events into a session, but a custom channel needs a development flag each
+session during their research preview; and a plugin's hook can run in the background and wake Claude
+when it exits. Codex shows MCP notifications to no one, its background hooks start no turn, and the
+one outside wake is `codex queue`, which arrives as if the operator typed it. MCP's own answer, the
+events extension, is final as a specification, and how a host turns an event into a turn is left to
+the host. The one third-party design described in detail sends a short, content-free notice and lets
+the agent read the messages through its tools, which is P2.
 
 ## Claude Code
 
@@ -82,12 +84,32 @@ P2.
   ATalk's wake is a fixed note saying how many messages arrived and from whom, and the agent reads
   them from its inbox, so no peer's text is injected as a prompt: the same shape as P2.
 
+## Spike results
+
+Each host ran interactively in tmux on the development VM, in a scratch folder, with Agention's
+variables removed from its environment so it could not reach Agention.
+
+- **Claude Code wakes from a plugin's hook.** A plugin loaded with `--plugin-dir` declared one
+  command hook, with `asyncRewake: true` and `timeout: 86400`, on `SessionStart` and on `Stop`. The
+  hook kept one watcher per session (a later one exited 0 while one was running), waited for a
+  trigger file, and on it wrote a notice to stderr and exited 2.
+  - At its prompt, the session woke about 4 seconds after each trigger and answered the notice,
+    shown as "Stop hook feedback". It did so three times, the last after 12 minutes idle.
+  - `SessionStart` armed the first watcher, and the `Stop` that ended each woken turn armed the
+    next, so the hook re-arms itself with no other help.
+  - A watcher was still running after 11 minutes, so a hook's own `timeout` holds past the
+    600-second default.
+  - On `/exit` the running watcher received a termination signal, leaving nothing behind.
+  - The workspace trust prompt came first; hooks run only once a folder is trusted.
+- **`codex queue` neither wakes nor delivers to an open session.** With a Codex session at its
+  prompt, `codex queue --thread <id> --message <text>` exited 0 and stored the message in
+  `~/.codex/queue_1.sqlite`, but the session did not wake within 60 seconds and did not take the
+  message on its next turn either. With `--resume` it warned "thread ... already has an active
+  writer" and resumed nothing. A queued message waits for the thread to be resumed elsewhere, so on
+  Codex 0.171.0 nothing a plugin can reach wakes an open session.
+
 ## Open questions
 
-- Does a Claude Code channel event wake an idle interactive session, and does an `asyncRewake` hook
-  run for a session's lifetime, wake it, and start again after a wake? The spike answers both.
-- Does `codex queue` wake an idle interactive Codex session, and can the bridge find its session's
-  id or name to address it?
 - Can the bridge tell whether push is live in its host session (a hook that is running, a channel
   loaded with its flag, and neither under `--bare` or admin-managed hooks)? H3 and H4 depend on it.
 - Will either host adopt MCP's events extension, and when?
