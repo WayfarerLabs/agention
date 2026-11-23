@@ -205,10 +205,9 @@ if [[ $mode != packages ]]; then
     scripts/check-sdd.test.sh
     scripts/check-sdd.sh ${SDD_BASE:+"$SDD_BASE"}
 
-    step "Release scripts"
-    # The release workflow's tag check and the release order gate, on
-    # fixtures of their own.
-    scripts/check-release-tag.test.sh
+    step "Release order tests"
+    # The release order gate's decisions, on fixtures of their own, which
+    # need neither the network nor the release tags.
     scripts/check-release-order.test.sh
 fi
 

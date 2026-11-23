@@ -48,11 +48,23 @@ jobs:
         id: node-pin
         run: echo "node-version=$(tr -d '[:space:]' <.node-version)" >>"$GITHUB_OUTPUT"
 
-      # Every place the line's release pull request writes its version, its
-      # package.json among them, and for the agent line the bridge version the
-      # committed plugins pin, holds the tag's version.
-      - name: scripts/check-release-tag.sh
-        run: scripts/check-release-tag.sh "$GITHUB_REF_NAME"
+      # The tag's line ships its package at the tag's version, and the agent
+      # line its plugins too, whose definition's version is the bridge version
+      # the committed plugins pin; the Plugin drift gate holds the generated
+      # plugins to that definition. Files that ship nothing are not checked.
+      - name: Refuse a tag the line's versions do not match
+        run: |
+          case "$LINE_PREFIX" in
+            agention-mcp-v) manifests=(apps/bridge/package.json apps/agent-plugin/plugin.json) ;;
+            *) manifests=(apps/server/package.json) ;;
+          esac
+          for manifest in "${manifests[@]}"; do
+            version="$(node -p 'require(process.argv[1]).version' "$PWD/$manifest")"
+            if [[ "$version" != "${GITHUB_REF_NAME#"$LINE_PREFIX"}" ]]; then
+              echo "::error::$manifest is version $version, which is not the tag $GITHUB_REF_NAME."
+              exit 1
+            fi
+          done
 
       # Installs the locked dependencies, builds both packages, proves each
       # packed package's command prints its package.json version, which the
