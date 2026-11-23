@@ -1312,12 +1312,13 @@ oldest it still serves, and the agent tells you to update the plugin to its newe
 session runs the bridge its plugin pinned when it started, so after updating a plugin, restart its
 sessions, resuming each to keep its conversation.
 
-Servers before 0.3.0 state no agent API version, so they act on a call before a newer bridge can
-refuse their answer. A new session's registration waits there for approval, though its agent never
-gives you its code, and expires unapproved within the hour; a session already approved there has its
-call carried out, without the fields that server does not know, and its agent told it failed.
-Upgrade such a server before updating its plugins. From 0.3.0 on, a server refuses a newer bridge's
-call before it records or does anything.
+Servers before 0.3.0 state no agent API version, so they answer a newer bridge's registration check
+before the bridge can refuse the answer. A new session's registration then waits there for approval,
+though its agent never gives you its code, and expires unapproved within the hour; no tool call is
+carried out. Only a session whose server is replaced by a release before 0.3.0 while it runs, such
+as by going back to one, can have a call carried out there, without the fields that server does not
+know, and its agent told it failed. Upgrade such a server before updating its plugins. From 0.3.0
+on, a server refuses a newer bridge's call before it records or does anything.
 
 To upgrade the server, stop it, install the release, and start it again. On Linux:
 

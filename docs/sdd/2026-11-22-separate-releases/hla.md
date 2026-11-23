@@ -196,13 +196,17 @@ server's release.
 Servers from 0.3.0 check the agent API version before any route, the registration route included, so
 a newer bridge's call is refused before anything is recorded or done (proved at HEAD by the server's
 agent API tests). Servers before 0.3.0, current for two days, state no version, so they act on a
-call before the bridge refuses their answer: a new key's registration is recorded pending, and
-expires unapproved within the hour; a session already approved there has its call carried out,
-without the fields that server does not know, and then reported as failed. The bridge could prevent
-both by checking the server's version once when it starts, but the operator chose to accept and
-document it as a known limit of those three releases (FRD ruling 3), so the bridge does not change;
-the operator guide says so, narrowing its statement that any older server leaves a registration
-waiting to servers before 0.3.0.
+request before the bridge refuses their answer. The bridge learns its session's grant only from a
+registration answer it accepts, so a bridge that starts against such a server sends only
+registration checks: a new key's registration is recorded pending, and expires unapproved within the
+hour, and no tool call is carried out. Only a bridge that learned its grant before its server was
+replaced by such a release has a call carried out there, without the fields that server does not
+know, and then reported as failed. (The FRD's ruling 3 was asked on the broader reading, that any
+approved session's call is carried out; delivery 4's design found the narrower behavior.) The bridge
+could prevent both by checking the server's version once when it starts, but the operator chose to
+accept and document it as a known limit of those three releases (FRD ruling 3), so the bridge does
+not change; the operator guide says so, narrowing its statement that any older server leaves a
+registration waiting to servers before 0.3.0.
 
 ### The server compatibility gate (C5)
 
@@ -217,8 +221,9 @@ with C3's refusal, and for servers from 0.3.0 the database holds no registration
 server that serves the bridge's version is skipped: the agent compatibility gate already covers
 bridges against the server at HEAD, and a server at the same version serves the same contract, which
 is also why one server per older version suffices (FRD ruling 4). The gate drives only unapproved
-sessions, since released servers approve only through a passkey; the low-level design measures its
-run time against CI's limit for the `check` job.
+sessions: approval changes nothing a starting bridge sends to a server before 0.3.0, and from 0.3.0
+the server refuses the version before authenticating. The low-level design measures its run time
+against CI's limit for the `check` job.
 
 ## 3. The plugin-is-behind signal
 
@@ -258,9 +263,9 @@ as 1, so this covers them all (U2).
   unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
   catalog's ref becomes one more thing each release stamps. Not needed for this effort's
   requirements; a later change can adopt it.
-- **A version check when the bridge starts**: it would spare servers before 0.3.0 both their pending
-  registrations and their carried-out calls, at a request per bridge start; the operator chose to
-  document the limit instead (FRD ruling 3).
+- **A version check when the bridge starts**: it would spare servers before 0.3.0 their pending
+  registrations, and the calls a bridge running across a downgrade has carried out, at a request per
+  bridge start; the operator chose to document the limit instead (FRD ruling 3).
 - **A separate plugin version**: the FRD excludes it.
 
 ## Documentation
