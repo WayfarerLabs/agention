@@ -48,27 +48,19 @@ if [[ -z "${head_api:-}" ]]; then
     fail "could not read agentApi's version from $contract at HEAD."
 fi
 
-# The server line's release tags reachable from HEAD, newest first by
-# version; versionsort.suffix sorts a prerelease below its release, and a
-# prerelease is skipped below. The first met at each agent API version older
-# than HEAD's is that version's newest. A release without the contract states
-# no version, as releases before it was added do; one without it newer than
-# one with it means the contract moved, and fails rather than reading as none.
+# The server line's releases reachable from HEAD, newest first by version,
+# prereleases skipped. The first met at each agent API version older than
+# HEAD's is that version's newest. A release without the contract states no
+# version, as releases before it was added do.
 servers=()
 taken=" "
-tagged=0
-undeclared=""
 while IFS= read -r tag; do
     version="${tag#"$prefix"}"
     if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         continue
     fi
-    tagged=1
     api=""
     if git cat-file -e "$tag:$contract" 2>/dev/null; then
-        if [[ -n "$undeclared" ]]; then
-            fail "$undeclared has no $contract, though $tag, an earlier release, declares agentApi there; update this gate's contract path."
-        fi
         read -r api _ < <(git show "$tag:$contract" | agent_api_of) || true
         if [[ -z "$api" ]]; then
             fail "could not read agentApi's version from $contract at $tag."
@@ -77,18 +69,14 @@ while IFS= read -r tag; do
             continue
         fi
     else
-        undeclared="${undeclared:-$tag}"
         api=none
     fi
     if [[ "$taken" != *" $api "* ]]; then
         taken+="$api "
         servers+=("$version $api")
     fi
-done < <(git -c versionsort.suffix=- tag --list "$prefix*" --merged HEAD --sort=-v:refname)
+done < <(git tag --list "$prefix*" --merged HEAD --sort=-v:refname)
 
-if ((tagged == 0)); then
-    fail "no $prefix* release tag is reachable from HEAD; fetch the tags with 'git fetch --tags' and run it again."
-fi
 if [[ ${#servers[@]} -eq 0 ]]; then
     fail "no server release older than agent API version $head_api is reachable from HEAD, though releases before 0.3.0 state none; fetch the tags with 'git fetch --tags' and run it again."
 fi

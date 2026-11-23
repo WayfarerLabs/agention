@@ -83,6 +83,15 @@ expect "the newest of each older version, a release stating none among them" "$r
 git -C "$repo" tag agention-v0.4.1-rc.1 agention-v0.4.0
 expect "a prerelease is skipped" "$repo" "$(printf '0.4.0 2\n0.2.0 none')"
 
+repo="$(new_repo by-version)"
+git -C "$repo" tag agention-v0.1.0
+contract "$repo" 2
+git -C "$repo" tag agention-v0.9.0
+git -C "$repo" commit -q --allow-empty -m "a later release at the same version"
+git -C "$repo" tag agention-v0.10.0
+contract "$repo" 3
+expect "the newest by version order, not name order" "$repo" "$(printf '0.10.0 2\n0.1.0 none')"
+
 echo "=== failures ==="
 
 repo="$(new_repo current)"
