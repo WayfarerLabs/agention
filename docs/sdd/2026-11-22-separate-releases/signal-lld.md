@@ -166,16 +166,23 @@ The tests, at their boundaries, asserting fields, statuses and the notice's pres
   new column null. The upgrade tests compared whole rows
   (`apps/server/src/database/database.test.ts:638-645`), which a migration adding a column breaks
   for every earlier test, so `earlier` compares each table on the columns its rows had before.
-- **HTTP** (`web-api.test.ts`): the sessions read on the web mount and on the operator mount, read
-  with an API key, marks a session after a call stating an older version or none, and not after one
-  stating the current, nor a session with no call recorded.
+- **HTTP** (`web-api.test.ts`): the sessions read marks a session after a thread call stating an
+  older version or none, and not after one stating the current, nor a session with no call recorded;
+  and an approved key's registration stating an older version marks it, and one stating the current
+  clears it, since `register` is the call that clears the notice after a plugin update. The web
+  mount is read alone: both mounts serve the one declaration
+  (`apps/server/src/http/operator-operations.ts:143-151`), and `operator-api.test.ts` proves the
+  operator mount serves every operator operation.
 - **Browser** (`apps/web/e2e/operator.spec.ts`): a session whose calls state an older version shows
   the notice on its row, another session none, and once its calls state the current version, the
   notice is gone.
 - **Bridge** (`tools.test.ts`, beside the other version tests): the same register body answered
   stating the bridge's version and a newer one, pending, approved and rejected, succeeds both times
-  with the same fields, and the newer answer's message is the other's with a sentence added; from
-  the real server at HEAD, the message carries no addition.
+  with the same fields, and the newer answer's message is the other's with a sentence added, which
+  also fails if the sentence appears at the bridge's own version.
+- **Agent compatibility** (`apps/bridge/src/released-bridges.compat.ts`): after each released
+  bridge's calls, its session's `plugin_behind` is whether the version its last request stated, none
+  reading as 1, is below the server's, proving U2 for every released bridge.
 
 ## Permanent docs
 
