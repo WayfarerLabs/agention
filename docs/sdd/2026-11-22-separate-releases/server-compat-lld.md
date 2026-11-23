@@ -61,9 +61,10 @@ counting as one version below every other (FRD C5, ruling 4):
    `packages/api/src/agent-api.ts` states none, as every release before 0.3.0 does: the file and the
    header arrived together in 96c481b, first released in 0.3.0, and no tag before it mentions
    `Agention-Agent-API` anywhere under `apps/` or `packages/`. A tag that has the file but no
-   matching line fails, as in the release order gate. A tag without the file that is newer than one
-   with it also fails, since that means the declaration moved and the match needs updating: a moved
-   file would otherwise read every later release as stating none.
+   matching line fails, as in the release order gate. A tag with the file that is older than one
+   without it also fails, since that means the declaration moved and the match needs updating: a
+   moved file would otherwise read every later release as stating none. That check is two lines of
+   the script and has no fixture case.
 4. The first tag met at each version below `N` is that version's newest. A version at `N` or above
    is skipped: the agent compatibility gate covers bridges against the server at HEAD, and a server
    at HEAD's version serves the same contract (HLA). No server below `N` fails too: this
@@ -250,11 +251,10 @@ none, and neither held an agent or a session.
   `src/released-bridges.compat.ts`, beside `test:server-compat`, so each name says which gate runs
   it. `scripts/check-agent-compatibility.sh:52` follows.
 - `scripts/check-server-compatibility.test.sh`, a fixture test in the shape of
-  `scripts/check-release-order.test.sh`, runs `--list` in throwaway repositories: the newest release
-  of each older version, one stating none among them; HEAD's version and above skipped; version
-  order over name order; a prerelease skipped; a tag HEAD does not reach not counted; a legacy `v`
-  tag no server release; and failures for a contract line written another way, a contract missing
-  after a tag that had it, no tag, and no older release.
+  `scripts/check-release-order.test.sh`, runs `--list` in throwaway repositories, and keeps to the
+  decisions that can regress (the effort lead's ruling): the newest release of each older version,
+  one stating none among them and HEAD's version skipped; a prerelease skipped; and failures for no
+  older release reachable and for a contract line written another way.
 - `scripts/check.sh`: a "Server compatibility tests" step after "Release order tests", which needs
   neither the network nor the tags, and a "Server compatibility" step after "Agent compatibility",
   in the block `--fast` skips (`check.sh:214-224`), so `--fast` skips the gate.
@@ -272,7 +272,8 @@ The server gate's share, from the probe and those figures: two installs and sign
 about 0.6 s each in CI (0.5 s locally, cached); and per release in the suite, a start of about 0.1
 s, a bridge process, eleven calls in 0.35 s, a stop and two reads. With Vitest's own start, about 5
 s in all. It grows by one release per agent API version, a few times a year at most, so it stays
-seconds against minutes of headroom.
+seconds against minutes of headroom. Built, the gate ran locally in 12 s end to end, its suite in
+1.5 s to 3.8 s.
 
 ## Proving it can fail
 
@@ -305,7 +306,9 @@ The plan box's, with what each gains:
   lines 136-137), "Integration test selection" (the suite runs only in its gate, which `--fast`
   skips, lines 142-146), and "Test environment setup" (the release tags, lines 140-141).
 
-And, since the change outdates them: the header comments of `scripts/check.sh` (lines 7-15) and of
-`scripts/check-agent-compatibility.sh`, the `fetch-depth` comment in `.github/workflows/ci.yml`
-(lines 29-31), and the comment on `BridgeHarness.process` once its transport moves. The finding
-above changed no docs of this delivery's: delivery 3 carries it.
+And, since the change outdates them: the header comment of `scripts/check.sh` (lines 7-15), the
+`fetch-depth` comment in `.github/workflows/ci.yml` (lines 29-31), the comments of
+`apps/bridge/vitest.compat.config.ts` and of `apps/bridge/src/test-harness.ts`, whose bridge process
+start moves into `startBridgeProcess`, and the agent compatibility gate's call of the renamed
+`test:agent-compat`. The agent compatibility gate's header stays true. The finding above changed no
+docs of this delivery's: delivery 3 carries it.
