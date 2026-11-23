@@ -33,7 +33,7 @@ split release.
       repository layout, CONTRIBUTING where it names the contract package,
       `docs/development-context.md` and `docs/review-checklist.md` where they name a moved module
       (agention#73).
-- [ ] Reviewed (project review, complexity pass, correctness lane) and CI green.
+- [x] Reviewed (project review, complexity pass, correctness lane) and CI green (agention#73).
 
 Done when `docs/api/openapi.json` is unchanged byte for byte, the bridge's bundle is unchanged by an
 edit to any moved module, and `scripts/check.sh` passes.
