@@ -176,19 +176,15 @@ export class Push {
 
   // available says whether push can work for this host session: the MCP
   // client is Claude Code, and the directory of the Claude Code process the
-  // bridge runs under has the watcher's mark. The first look for that process
-  // also removes the directories of host processes that have ended.
+  // bridge runs under has the watcher's mark. Its first look for that
+  // process is when the bridge prunes.
   available(): boolean {
     const hostName = hostNamePart(this.#hostName());
     if (this.#clientName() !== claudeCodeClient || hostName === undefined) {
       return false;
     }
     if (this.#hostPid === undefined) {
-      try {
-        pruneHostDirectories(this.#home, hostName);
-      } catch {
-        // Pruning tidies; a directory it cannot reach is no reason to stop.
-      }
+      this.#prune(hostName);
       this.#hostPid = this.#findHost() ?? null;
     }
     if (this.#hostPid === null) {
@@ -202,6 +198,16 @@ export class Push {
       }
     }
     return this.#found;
+  }
+
+  // prune removes the directories of this machine's host processes that have
+  // ended, so ended host sessions leave nothing behind.
+  #prune(hostName: string): void {
+    try {
+      pruneHostDirectories(this.#home, hostName);
+    } catch {
+      // Pruning tidies; a directory it cannot reach is no reason to stop.
+    }
   }
 
   // hostDirectory is the host directory as the machine's host name now
