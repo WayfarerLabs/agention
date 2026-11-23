@@ -1,4 +1,5 @@
 import {
+  agentApi,
   name,
   type PublicKey,
   quoted,
@@ -50,6 +51,22 @@ function isRefused(status: RegistrationStatus): status is RefusedStatus {
   return status in refusals;
 }
 
+// What register adds to its message when the server states a newer agent API
+// version than the bridge's: the server offers what this plugin cannot use,
+// which only the operator can change.
+const pluginBehind =
+  "The Agention server offers features this session's Agention plugin cannot use, so tell " +
+  "the operator at your terminal to update the Agention plugin on this host to its newest " +
+  "release and restart this session, resuming it to keep this conversation; carry on " +
+  "meanwhile.";
+
+// A registration's state as the server answered it, with the agent API
+// version the server stated.
+interface Submitted {
+  state: RegistrationState;
+  serverVersion: bigint;
+}
+
 // Session is the one agent session a bridge serves. Its names come from the
 // first register call that names them, else from the environment, and
 // whichever the bridge uses first fixes them for the life of the process.
@@ -76,25 +93,29 @@ export class Session {
   // registration if the server knows the key already, and answers with that
   // state and what the agent should do next. It creates the key if there is
   // none, and replaces it once the server says its registration can never be
-  // approved. It is the only call that creates or replaces a key.
+  // approved. It is the only call that creates or replaces a key. When the
+  // server states a newer agent API version than the bridge's, the message
+  // asks the agent to have the operator update the plugin, whatever the
+  // registration's state.
   async register(given: GivenNames, signal?: AbortSignal): Promise<object> {
     const { names, keyFile } = this.#fix(given);
     let key = keyFile.read() ?? keyFile.create();
-    let state = await this.#submit(key, names, signal);
+    let submitted = await this.#submit(key, names, signal);
     let replaced: RefusedStatus | undefined;
-    if (isRefused(state.status)) {
-      replaced = state.status;
+    if (isRefused(submitted.state.status)) {
+      replaced = submitted.state.status;
       key = keyFile.replace(key.publicKey);
-      state = await this.#submit(key, names, signal);
+      submitted = await this.#submit(key, names, signal);
       // Another bridge sharing the session may have replaced the key since,
       // in which case its key is the one bridges now sign with, and the code
       // to relay is that key's.
       const onDisk = keyFile.read();
       if (onDisk !== undefined && onDisk.publicKey !== key.publicKey) {
         key = onDisk;
-        state = await this.#submit(key, names, signal);
+        submitted = await this.#submit(key, names, signal);
       }
     }
+    const { state, serverVersion } = submitted;
     this.#learn(key, state);
     // The expiry is the pending registration's. Passed on once the
     // registration is decided, it could be read as the credential's.
@@ -105,7 +126,9 @@ export class Session {
     return {
       ...answer,
       ...(replaced === undefined ? {} : { replaced }),
-      message: this.#nextStep(names, state, replaced),
+      message:
+        this.#nextStep(names, state, replaced) +
+        (serverVersion > BigInt(agentApi.version) ? ` ${pluginBehind}` : ""),
     };
   }
 
@@ -123,7 +146,7 @@ export class Session {
     if (this.#granted?.key === key.publicKey) {
       return { key, granted: this.#granted.names };
     }
-    const state = await this.#submit(key, names, signal);
+    const { state } = await this.#submit(key, names, signal);
     const granted = this.#learn(key, state);
     if (granted === undefined) {
       throw ApiFailure.of("unauthenticated", this.#notApproved(names, state));
@@ -183,18 +206,14 @@ export class Session {
     return parsed.data;
   }
 
-  async #submit(
-    key: SessionKey,
-    names: SessionNames,
-    signal?: AbortSignal,
-  ): Promise<RegistrationState> {
-    const answer = await this.#api.request(key, {
+  async #submit(key: SessionKey, names: SessionNames, signal?: AbortSignal): Promise<Submitted> {
+    const { body, serverVersion } = await this.#api.answered(key, {
       method: "POST",
       path: "/registrations",
       body: names,
       ...(signal === undefined ? {} : { signal }),
     });
-    const parsed = registrationState.safeParse(answer);
+    const parsed = registrationState.safeParse(body);
     if (!parsed.success) {
       throw settingProblem(
         `The server at ${this.#api.origin} answered the registration with something other ` +
@@ -202,7 +221,7 @@ export class Session {
         "set AGENTION_URL to the Agention server's origin",
       );
     }
-    return parsed.data;
+    return { state: parsed.data, serverVersion };
   }
 
   // learn records the names granted to a key once its registration is
