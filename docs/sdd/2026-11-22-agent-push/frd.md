@@ -142,6 +142,11 @@ are tested against the bridge and plugin as each host runs them.
    Taken: this FRD as accepted, H2, the Codex line of the definition of done, the widened Codex
    bound, and the spike.
 
+3. (2026-11-22) After the spike showed a hook's watcher ends at its timeout, set to a day, the
+   operator was asked whether it is OK that a Claude Code session sitting at its prompt for over a
+   day stops being pushed until its next turn, with the operator guide stating the limit; they chose
+   "Yes, state the limit". Taken: H4 holds within that limit, which the operator guide states.
+
 ## Definition of done
 
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
