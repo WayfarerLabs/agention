@@ -55,7 +55,7 @@ it("wakes the host through the watcher when the operator writes", async () => {
     }
     const bridge = await harness.bridge({}, harness.home, {
       client: claudeCodeClient,
-      ancestors: () => [host],
+      host: () => host,
       pushTiming: { waitSeconds: 1, stateEvery: 50, retryFirst: 20, retryMost: 100 },
     });
     await bridge.ok("register");

@@ -203,15 +203,13 @@ export function registerTools(server: McpServer, connection: Connection): void {
 
   // inSession gives what a request in the session needs: the names the
   // operator granted, and the key now on disk to sign it.
-  // A bridge that learns its approved grant this way, such as one started
-  // again under a session whose register said answers are pushed, resumes
-  // push without a word to the agent.
+  // A bridge started again under a session whose register said answers are
+  // pushed resumes push at its first call in the session, without a word to
+  // the agent.
   const inSession = async (signal: AbortSignal): Promise<InSession> => {
     const { api, session, push } = connected();
-    const { key, granted, learned } = await session.credential(signal);
-    if (learned) {
-      push.resume();
-    }
+    const { key, granted } = await session.credential(signal);
+    push.resume();
     return { api, key, sessionPath: `/s/${granted.agent}/${granted.session}` };
   };
 

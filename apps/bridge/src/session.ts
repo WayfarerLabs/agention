@@ -31,15 +31,6 @@ export type RegisterAnswer = Partial<RegistrationState> & {
   message: string;
 };
 
-// What a request in the session signs with and acts in: the key on disk and
-// the names the operator granted it, and whether they were learned just now,
-// by the request register makes, rather than known already.
-export interface Credential {
-  key: SessionKey;
-  granted: SessionNames;
-  learned: boolean;
-}
-
 // The variables an agent host may set to name the session it runs.
 export interface SessionEnvironment {
   AGENTWORKS_AGENT?: string | undefined;
@@ -155,21 +146,21 @@ export class Session {
   // bridge does not know the names granted to the key on disk, it asks with
   // the request register makes, which for a key the server knows creates
   // nothing. It never creates or replaces a key.
-  async credential(signal?: AbortSignal): Promise<Credential> {
+  async credential(signal?: AbortSignal): Promise<{ key: SessionKey; granted: SessionNames }> {
     const { names, keyFile } = this.#fix({});
     const key = keyFile.read();
     if (key === undefined) {
       throw ApiFailure.of("unauthenticated", "This session has no key yet; call register.");
     }
     if (this.#granted?.key === key.publicKey) {
-      return { key, granted: this.#granted.names, learned: false };
+      return { key, granted: this.#granted.names };
     }
     const state = await this.#submit(key, names, signal);
     const granted = this.#learn(key, state);
     if (granted === undefined) {
       throw ApiFailure.of("unauthenticated", this.#notApproved(names, state));
     }
-    return { key, granted, learned: true };
+    return { key, granted };
   }
 
   // fix returns the session's names, fixing them on first use from the names

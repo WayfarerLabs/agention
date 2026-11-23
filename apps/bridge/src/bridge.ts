@@ -7,7 +7,7 @@ import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
 import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
-import { processAncestors } from "./process-ancestors.ts";
+import { nearestClaude } from "./claude-ancestor.ts";
 import { Push, type PushTiming, pushTiming } from "./push.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
 import { StatusReminder } from "./status-reminder.ts";
@@ -30,9 +30,9 @@ export interface BridgeOptions {
   // The clock tokens are minted and the status reminder is timed by, in Unix
   // milliseconds.
   clock?: () => number;
-  // The bridge's ancestor processes, its parent first, among which push
-  // looks for the agent host's; by default this process's.
-  ancestors?: () => number[];
+  // The Claude Code process the bridge runs under, for push; by default its
+  // nearest ancestor named claude.
+  host?: () => number | undefined;
   // How push paces its background wait; by default pushTiming.
   pushTiming?: PushTiming;
 }
@@ -139,8 +139,9 @@ function connect(options: BridgeOptions, clientName: () => string | undefined): 
       api,
       session,
       home,
+      clock,
       clientName,
-      ancestors: options.ancestors ?? (() => processAncestors(process.pid)),
+      host: options.host ?? (() => nearestClaude(process.pid)),
       timing: options.pushTiming ?? pushTiming,
     }),
   };

@@ -61,10 +61,7 @@ export interface Answer {
 
 // What a test bridge is started with beyond its environment: the name its
 // client gives, and the bridge's own options for push.
-export type BridgeTestOptions = { client?: string } & Pick<
-  BridgeOptions,
-  "ancestors" | "pushTiming"
->;
+export type BridgeTestOptions = { client?: string } & Pick<BridgeOptions, "host" | "pushTiming">;
 
 export class TestBridge {
   readonly client: Client;
@@ -180,7 +177,7 @@ export class BridgeHarness {
 
   // bridge starts a bridge with the environment an agent host would give it,
   // signing with the server's clock, and connects a client to it, by the
-  // client name given, as an agent host would. Options give push's ancestors
+  // client name given, as an agent host would. Options give push its Claude Code process
   // and pacing.
   async bridge(
     environment: BridgeEnvironment = {},
@@ -215,20 +212,28 @@ export class BridgeHarness {
   // with the real clock, so the server's clock is set to it, and the operator
   // signs in again as it stands.
   async process(
-    options: { entry?: string; trust?: boolean; client?: string } = {},
+    options: {
+      entry?: string;
+      trust?: boolean;
+      client?: string;
+      // A program that starts the bridge in turn, given its arguments, then
+      // the bridge's entry, as an agent host starts it through npx.
+      launcher?: { command: string; args: string[] };
+    } = {},
   ): Promise<{ bridge: TestBridge; stderr: () => string }> {
     const {
       entry = sourceEntry,
       trust = true,
       client: clientName = "agention-process-test",
+      launcher = { command: process.execPath, args: [] },
     } = options;
     this.server.fixture.now = Date.now();
     this.server.signIn();
     const authority = path.join(this.home, "authority.pem");
     writeFileSync(authority, certificate.cert);
     const transport = new StdioClientTransport({
-      command: process.execPath,
-      args: [entry],
+      command: launcher.command,
+      args: [...launcher.args, entry],
       env: {
         PATH: process.env.PATH ?? "",
         HOME: this.home,
