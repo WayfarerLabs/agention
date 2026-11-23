@@ -17,6 +17,7 @@
     "Descr",
     "elkjs",
     "errcode",
+    "esbuild",
     "fastdom",
     "freelist",
     "gast",
