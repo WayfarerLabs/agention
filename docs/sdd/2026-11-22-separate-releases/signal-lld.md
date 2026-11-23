@@ -1,6 +1,6 @@
 # Separate releases: the plugin-is-behind signal LLD
 
-- Status: Draft, for delivery 2
+- Status: Built in delivery 2 (agention#80)
 - Date: 2026-11-22
 - Requirements: [FRD](frd.md) U2, U3 and ruling 2; [HLA](hla.md) "The plugin-is-behind signal";
   [plan](plan.md) delivery 2

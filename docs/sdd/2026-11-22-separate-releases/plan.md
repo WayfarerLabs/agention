@@ -41,23 +41,23 @@ edit to any moved module, and `scripts/check.sh` passes.
 
 ## Delivery 2: the plugin-is-behind signal
 
-- [ ] `signal-lld.md`: the session column and its migration, when it is written, the sessions read's
-      new field and its name, the web UI's notice, and the bridge's register sentence.
-- [ ] The store: an append-only migration adding the recorded agent API version, written on the seen
+- [x] `signal-lld.md`: the session column and its migration, when it is written, the sessions read's
+      new field and its name, the web UI's notice, and the bridge's register sentence (agention#80).
+- [x] The store: an append-only migration adding the recorded agent API version, written on the seen
       path only when it changes, with tests across a missing header, an older and the current
-      version (U2).
-- [ ] The sessions read on the web and operator mounts carrying the behind status, and the
-      regenerated OpenAPI document (U2).
-- [ ] The web UI: the notice on a behind session's row, with its fix, and nothing on a current one,
-      in the browser tests (U2).
-- [ ] The bridge: a register answer from a newer server carrying the sentence for the operator,
-      without failing (U3).
-- [ ] Permanent docs: `docs/architecture.md` "Store", "HTTP API", "Web UI" and "Agent bridge"; the
-      operator guide's sessions view; `docs/live-testing.md` where it lists surfaces.
-- [ ] Reviewed (project review, complexity pass, correctness lane) and CI green.
-- [ ] Live run on Claude Code: a session on a plugin speaking an older agent API version (0.4.0's)
+      version (U2) (agention#80).
+- [x] The sessions read on the web and operator mounts carrying the behind status, and the
+      regenerated OpenAPI document (U2) (agention#80).
+- [x] The web UI: the notice on a behind session's row, with its fix, and nothing on a current one,
+      in the browser tests (U2) (agention#80).
+- [x] The bridge: a register answer from a newer server carrying the sentence for the operator,
+      without failing (U3) (agention#80).
+- [x] Permanent docs: `docs/architecture.md` "Store", "HTTP API", "Web UI" and "Agent bridge"; the
+      operator guide's sessions view; `docs/live-testing.md` where it lists surfaces (agention#80).
+- [x] Reviewed (project review, complexity pass, correctness lane) and CI green (agention#80).
+- [x] Live run on Claude Code: a session on a plugin speaking an older agent API version (0.4.0's)
       marked in the sessions view, and the notice gone once the plugin is updated and the session
-      restarted.
+      restarted (agention#80).
 
 Done when the browser tests show the notice for a behind session and none for a current one, the
 operator API's sessions read carries the status, and the live run passes.
