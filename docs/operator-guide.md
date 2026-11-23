@@ -530,14 +530,16 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     past the list's end. Unlike `j`, it opens threads under folded groups too. "After this thread"
     is where it stood when you opened it, so answering, replying or reading here does not move what
     comes next; what the list holds is the list as it stands when you press **Next**, so a thread
-    archived on another device since is passed over, and a thread new to the list since is taken
-    where it stands now, so it can come first. In a grouped list kept to the unread, reading this
-    thread can now and then take it out of the list before **Next** has found where it stood, and
-    then the list's first thread comes next. **Next** looks through up to 10,000 threads of the
-    list; in a longer one, if it finds none there, it says it could not find the next rather than
-    that none is left. With no other thread in the list, **Next** goes back to the list, which says
-    so. **Back** returns to this thread. Side by side, the next thread opens beside the list, which
-    keeps its scroll, the next thread's row outlined.
+    archived on another device since is passed over. A thread that was not ahead of this one when
+    you opened it is taken where it stands now, so it can come first: one new to the list since, or
+    one that was after this one and has since moved above it, such as one an agent wrote to under
+    **Latest message**. In a grouped list kept to the unread, reading this thread can now and then
+    take it out of the list before **Next** has found where it stood, and then the list's first
+    thread comes next. **Next** looks through up to 10,000 threads of the list; in a longer one, if
+    it finds none there, it says it could not find the next rather than that none is left. With no
+    other thread in the list, **Next** goes back to the list, which says so. **Back** returns to
+    this thread. Side by side, the next thread opens beside the list, which keeps its scroll, the
+    next thread's row outlined.
   - **Archive & next** does what **Archive all** does, then opens the next thread in the list in its
     place, as **Next** would have, or, with none, goes back to the list, which says so; **Back**
     does not return to the thread archived. If you change the list beside the thread while it
@@ -631,15 +633,23 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it, keeps the latest 50, and forgets them all when you sign out here or remove the passkey it
     signed in with. A browser that refuses storage, as a private window may, keeps none, and the
     composer works as before.
-  - Beside **Send**, **Go back after sending** returns you to the list, as **Threads** does, once a
-    message is sent, and the list says what was sent; a message that fails to send stays on the page
-    with your draft. It is checked until you uncheck it, and this browser keeps your choice. While
-    you write, **Send** and its option stay at the foot of the screen, above a phone's keyboard,
-    with what answers **Send** beside it: why a message failed to send above it, and what was sent
-    after it. While voice is on, **Dictate** sits there too, and what it says goes in the same
-    places: why dictation failed above, and anything else after. While a recording, its
-    transcription or its **Retry** is there, **Go back after sending** moves just below the row, so
-    the row stays short above a phone's keyboard.
+  - Beside **Send**, **After sending** chooses where sending takes you once a message is sent:
+    **Back to the list**, as **Threads** does, where the list says what was sent; **Stay here**;
+    **Next thread**, as **Next** does; or **Archive & next**, which archives this thread once the
+    message lands and then opens the next, as **Archive & next** does, so a reply that answers the
+    last ask open to you can archive the thread too. Either way, the next thread says beside its
+    **Send** what you sent, or, with no other thread in the list, the list says so too. If an ask is
+    still open to you, the archive is refused and you stay on the thread, and beside **Send**, after
+    what was sent, the page says which ask to answer or decline first; when the next thread cannot
+    be found, it says that there instead. While a message that will take you somewhere is on its
+    way, **Next**, **Archive all** and **Archive & next** wait for it. A message that fails to send
+    stays on the page with your draft. It is **Back to the list** until you choose otherwise, and
+    this browser keeps your choice. While you write, **Send** and its option stay at the foot of the
+    screen, above a phone's keyboard, with what answers **Send** beside it: why a message failed to
+    send above it, and what was sent after it. While voice is on, **Dictate** sits there too, and
+    what it says goes in the same places: why dictation failed above, and anything else after. While
+    a recording, its transcription or its **Retry** is there, **After sending** moves just below the
+    row, so the row stays short above a phone's keyboard.
   - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
     thread you read without replying, and without scrolling back up.
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It

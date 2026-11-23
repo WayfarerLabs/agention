@@ -1065,7 +1065,7 @@ describe("a message's options", () => {
     for (const control of [
       screen.getByRole("textbox"),
       optionsButton(2),
-      screen.getByText("Go back after sending"),
+      screen.getByRole("combobox", { name: "After sending" }),
     ]) {
       optionsMenu(4);
       focus.mockClear();

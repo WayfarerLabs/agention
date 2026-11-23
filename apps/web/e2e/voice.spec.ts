@@ -229,12 +229,12 @@ test("dictation puts its text at the caret, and sends nothing, at a desktop's wi
     await reply.getByRole("button", { name: "Dictate" }).click();
     await expect(reply.getByText(/^Recording /)).toBeVisible();
     // Send and the recording's controls stay in the row at the foot of the
-    // screen, which stays short: at most two lines, with Go back after
-    // sending below it while dictation is there.
+    // screen, which stays short: at most two lines, with After sending
+    // below it while dictation is there.
     const row = reply.locator(".actions");
     await expect(reply.getByRole("button", { name: "Send" })).toBeInViewport();
     await expect(reply.getByRole("button", { name: "Stop" })).toBeInViewport();
-    await expect(row.getByRole("checkbox")).toHaveCount(0);
+    await expect(row.getByRole("combobox", { name: "After sending" })).toHaveCount(0);
     expect(await linesOf(row)).toBeLessThanOrEqual(2);
     await page.waitForTimeout(1500);
     await reply.getByRole("button", { name: "Stop" }).click();

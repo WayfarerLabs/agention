@@ -255,8 +255,8 @@ test("the operator answers two asks in one message, and the agent reads the answ
   // The Details box folds under the message box until opened.
   await reply.getByRole("button", { name: "Details", exact: true }).click();
   await reply.getByRole("textbox", { name: "Details" }).fill("The changelog is in **review**.");
-  // Sending goes back to the list unless the operator chooses to stay.
-  await expect(reply.getByRole("checkbox", { name: "Go back after sending" })).toBeChecked();
+  // Sending goes back to the list unless the operator chooses otherwise.
+  await expect(reply.getByRole("combobox", { name: "After sending" })).toHaveValue("list");
   await send.click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   // The list says what was sent.
@@ -284,12 +284,12 @@ test("the operator answers two asks in one message, and the agent reads the answ
 
 test("a write the agent overtakes keeps the draft and sends after one action", async () => {
   // Staying on the page after sending is a choice this browser keeps.
-  const goBack = page
+  const after = page
     .getByRole("region", { name: "Reply" })
-    .getByRole("checkbox", { name: "Go back after sending" });
-  await goBack.uncheck();
+    .getByRole("combobox", { name: "After sending" });
+  await after.selectOption("Stay here");
   await page.reload();
-  await expect(goBack).not.toBeChecked();
+  await expect(after).toHaveValue("stay");
   const draft = "Thanks; holding until Monday.";
   await page.getByLabel("Message", { exact: true }).fill(draft);
 
@@ -1313,11 +1313,23 @@ test("Next opens the next thread in the list and Archive & next archives the thr
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[2] ?? "");
   expect(await page.evaluate(() => window.history.length)).toBe(entries);
 
-  // From the last row, E archives this one and goes round to the first; from
-  // there, with no other thread left in the list, it goes back to the list,
-  // which says so, empty.
-  await page.keyboard.press("E");
+  // From the last row, a reply sent with After sending at Archive & next
+  // archives this thread once it lands and goes round to the first, in its
+  // place; the choice fits the phone's width beside Send.
+  const reply = page.getByRole("region", { name: "Reply" });
+  const after = reply.getByRole("combobox", { name: "After sending" });
+  const chosenBefore = await after.inputValue();
+  await after.selectOption("Archive & next");
+  const afterBox = await after.boundingBox();
+  expect((afterBox?.x ?? 0) + (afterBox?.width ?? 0)).toBeLessThanOrEqual(390);
+  await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
+  await reply.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
+  expect(await page.evaluate(() => window.history.length)).toBe(entries);
+  await after.selectOption(chosenBefore);
+
+  // From there, with no other thread left in the list, E archives it and
+  // goes back to the list, which says so, empty.
   await page.keyboard.press("E");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   await expect(page).toHaveURL(/\/\?search=Hopscotch&sort=created$/);

@@ -236,7 +236,7 @@ describe("Next", () => {
     const length = window.history.length;
     press("]");
     await waitFor(() => expect(held.asked()).toBe(1));
-    expect(nextButton().getAttribute("aria-busy")).toBe("true");
+    expect(nextButton().disabled).toBe(true);
     press("]");
     fireEvent.click(nextButton());
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -324,6 +324,20 @@ describe("Next", () => {
         .slice(0, 2)
         .map((query) => query.has("unread")),
     ).toEqual([false, true]);
+  });
+
+  it("starts once for two presses before the page has rendered the first", async () => {
+    const list = serveList([read(1), unread(2), unread(3)]);
+    await openThread();
+    const held = holdList(list);
+    act(() => {
+      press("]");
+      press("]");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(held.asked()).toBe(1);
+    held.release();
+    await landedOn(2);
   });
 
   it("archives nothing with e while it is finding the next thread", async () => {

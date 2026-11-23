@@ -12,7 +12,7 @@ import {
 import { ApiFailure, describeFailure } from "../../api.ts";
 import { ConfirmButton, Status } from "../../components.tsx";
 import { useStillOpen } from "../../data.ts";
-import { type KeptDraft, useDeviceChoice } from "../../device.ts";
+import type { KeptDraft } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { useFieldShortcuts } from "../../keyboard.tsx";
@@ -99,7 +99,24 @@ function describeDropped(dropped: number[]): string {
     : `Your answers to ${named} stay with that message: the agent since revised or retracted those asks.`;
 }
 
-// Where this device keeps whether to go back after sending.
+// Where Send takes the operator once the server accepts the message: nowhere,
+// staying on the thread; back to the list; on to the next thread; or on to
+// the next thread once this one is archived.
+export const afterSendingOptions = ["stay", "list", "next", "archive-next"] as const;
+export type AfterSending = (typeof afterSendingOptions)[number];
+
+const afterSendingLabels: Record<AfterSending, string> = {
+  stay: "Stay here",
+  list: "Back to the list",
+  next: "Next thread",
+  "archive-next": "Archive & next",
+};
+
+// Where this device keeps where to go after sending.
+export const afterSendingChoice = "agention.after-sending";
+
+// Where an earlier release kept whether to go back after sending, which this
+// device's choice carries on from: back to the list, or staying.
 export const goBackChoice = "agention.go-back-after-sending";
 
 function sentStatus(staged: Staged | undefined): string {
@@ -159,7 +176,11 @@ export function Composer({
   writer,
   sending,
   wrote,
-  back,
+  onward,
+  onwardFailure,
+  after,
+  setAfter,
+  arrived,
   shown,
   text,
   setText,
@@ -183,9 +204,25 @@ export function Composer({
   sending: (staged: Staged | undefined) => void;
   // Told the sequence of each message the server accepts.
   wrote: (seq: number) => void;
-  // Returns to the list the page came from, in place of the page in history
-  // as Archive does, and has the list say what was sent.
-  back: (notice: string) => void;
+  // Goes where the operator chose to go after sending, once a message
+  // lands: back to the list the page came from, in place of the page in
+  // history as Archive does, having the list say what was sent; on to the
+  // next thread, as Next does; or on to it once this thread is archived, as
+  // Archive & next does.
+  // written is the message the server accepted, which an archive after
+  // sending goes through at least.
+  onward: (where: Exclude<AfterSending, "stay">, sent: string, written: number) => void;
+  // Why the way on a send started failed, which it says beside Send after
+  // what was sent, as the page's head does out of sight above a phone's
+  // keyboard.
+  onwardFailure: string | undefined;
+  // Where a message the server accepts takes the operator, which this
+  // device keeps, and a way to choose it.
+  after: AfterSending;
+  setAfter: (after: AfterSending) => void;
+  // What the thread page that opened this one after sending sent, which it
+  // says beside Send, where its own would be.
+  arrived: string | undefined;
   // The last message the operator has seen: on screen, or read or written
   // since the page last loaded.
   shown: number;
@@ -271,19 +308,23 @@ export function Composer({
   // Where to put the caret once a transcript is in, and in which box.
   const caret = useRef<{ box: "text" | "detail"; at: number }>(undefined);
   const [changed, setChanged] = useState<string>();
-  const [status, setStatus] = useState("");
+  // What it says beside Send: what was sent, here or, on arriving from the
+  // thread a send left, there. The page takes what that thread left before
+  // the thread loads, so it is there when the composer first shows.
+  const [status, setStatus] = useState(arrived ?? "");
+  const said = onwardFailure === undefined ? status : `${status} ${onwardFailure}`.trim();
   const actions = useRef<HTMLDivElement>(null);
   useScrollClearOf(actions);
-  // Whether a message the server accepts returns to the list: most operators
-  // want to, so it does unless they choose otherwise on this device. A write
-  // goes back by the choice as it stands when the write lands, and only
-  // while the page that sent it is still open.
-  const [goBack, setGoBack] = useDeviceChoice(goBackChoice, true);
-  const goBackNow = useRef(goBack);
+  // Where a message the server accepts takes the operator. A write goes by
+  // the choice as it stands when the write lands, and only while the page
+  // that sent it is still open.
+  // Whether After sending had focus as dictation moved it.
+  const afterHadFocus = useRef(false);
+  const afterNow = useRef(after);
   const stillOpen = useStillOpen();
   useEffect(() => {
-    goBackNow.current = goBack;
-  }, [goBack]);
+    afterNow.current = after;
+  }, [after]);
   const id = useId();
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
   const draft = { text, detail, attachments };
@@ -399,8 +440,9 @@ export function Composer({
     setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
     setStatus(sent);
-    if (stillOpen() && goBackNow.current) {
-      back(sent);
+    const where = afterNow.current;
+    if (stillOpen() && where !== "stay") {
+      onward(where, sent, outcome.written);
     }
   };
 
@@ -527,18 +569,11 @@ export function Composer({
       setDictating(active);
     },
   });
-  // Go back after sending sits beside Send, and drops below the row while
-  // dictation has controls there, so the row stays short at the foot of a
-  // phone's screen.
-  const goBackOption = (
-    <label className="check">
-      <input
-        type="checkbox"
-        checked={goBack}
-        onChange={(event) => setGoBack(event.target.checked)}
-      />
-      Go back after sending
-    </label>
+  // After sending sits beside Send, and drops below the row while dictation
+  // has controls there, so the row stays short at the foot of a phone's
+  // screen.
+  const afterOption = (
+    <AfterSendingOption value={after} onChange={setAfter} hadFocus={afterHadFocus} />
   );
   return (
     <section className="composer" aria-labelledby={`${id}-heading`}>
@@ -708,17 +743,68 @@ export function Composer({
           </button>
           <AttachButton draft={files} attach={attach} disabled={loading} />
           {voiceOn && dictation.controls}
-          {!dictating && goBackOption}
+          {!dictating && afterOption}
           {hold !== undefined && (
             <p id={`${id}-hold`} className="hint hold">
               {holdWords(hold)}
             </p>
           )}
-          {status !== "" && <Status>{status}</Status>}
+          {said !== "" && <Status>{said}</Status>}
           {voiceOn && dictation.said}
         </div>
-        {dictating && goBackOption}
+        {dictating && afterOption}
       </form>
     </section>
+  );
+}
+
+// AfterSendingOption is After sending, a select of where Send takes the
+// operator, compact enough for the Send row at a phone's width. It sits in
+// that row, which stays at the foot of the screen, and below it while
+// dictating; no style can move a control out of that row, so moving it mounts
+// it afresh. The one leaving records, in its layout cleanup, whether it had
+// focus, before React removes it from the page; the one arriving takes focus
+// back in the same commit's layout effects, before dictation's own focus
+// moves run.
+function AfterSendingOption({
+  value,
+  onChange,
+  hadFocus,
+}: {
+  value: AfterSending;
+  onChange: (value: AfterSending) => void;
+  hadFocus: RefObject<boolean>;
+}) {
+  const select = useRef<HTMLSelectElement>(null);
+  useLayoutEffect(() => {
+    if (hadFocus.current) {
+      hadFocus.current = false;
+      select.current?.focus();
+    }
+    const element = select.current;
+    return () => {
+      hadFocus.current = element !== null && document.activeElement === element;
+    };
+  }, [hadFocus]);
+  return (
+    <label className="after-sending">
+      After sending
+      <select
+        ref={select}
+        value={value}
+        onChange={(event) => {
+          const chosen = afterSendingOptions.find((option) => option === event.target.value);
+          if (chosen !== undefined) {
+            onChange(chosen);
+          }
+        }}
+      >
+        {afterSendingOptions.map((option) => (
+          <option key={option} value={option}>
+            {afterSendingLabels[option]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

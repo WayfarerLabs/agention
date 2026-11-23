@@ -1483,6 +1483,20 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: 0;
 }
 
+/* After sending: its word beside its select, both on one line, the select
+   as wide as its longest option. */
+.after-sending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: 400;
+}
+
+.after-sending select {
+  width: auto;
+}
+
 /* What the page scrolls into view, as the caret while typing or a control
    focused from the keyboard, stops a little above the Send row stuck at the
    foot of the screen, whose height the composer measures as it changes. */

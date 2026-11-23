@@ -18,7 +18,7 @@ import {
   type Reply,
   threadSummary,
 } from "../../test-support.tsx";
-import { goBackChoice } from "./Composer.tsx";
+import { afterSendingChoice } from "./Composer.tsx";
 import { useKeptDraft } from "./kept-draft.ts";
 import {
   detailsBox,
@@ -153,7 +153,7 @@ describe("a draft kept in the browser", () => {
   });
 
   it("keeps only what was typed while a write was under way, when the page goes back as it lands", async () => {
-    window.localStorage.setItem(goBackChoice, "true");
+    window.localStorage.setItem(afterSendingChoice, "list");
     await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: "/" },
@@ -174,7 +174,7 @@ describe("a draft kept in the browser", () => {
   });
 
   it("is forgotten when the page goes back as the write sending it lands", async () => {
-    window.localStorage.setItem(goBackChoice, "true");
+    window.localStorage.setItem(afterSendingChoice, "list");
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: "/" },
@@ -220,7 +220,7 @@ describe("a draft kept in the browser", () => {
     "starts afresh, leaving nothing behind, with what was typed while a restored draft was sent, as the page %s",
     async (_, goBack) => {
       keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
-      window.localStorage.setItem(goBackChoice, String(goBack));
+      window.localStorage.setItem(afterSendingChoice, goBack ? "list" : "stay");
       const state = await page.open(
         { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
         { from: "/" },
@@ -280,7 +280,7 @@ describe("a draft kept in the browser", () => {
       keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
       // Going back as the write lands, the page never shows what is left, so
       // only what the landing keeps is kept.
-      window.localStorage.setItem(goBackChoice, "true");
+      window.localStorage.setItem(afterSendingChoice, "list");
       await page.open(
         { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
         { from: "/" },

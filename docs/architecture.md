@@ -1214,8 +1214,8 @@ with telling the page: a listener of its own would run only once the page had re
 uncorrected. A row's link records the list on screen as it is followed. The open thread's row is
 `aria-current="page"`, and opening it again moves focus to the thread's pane. The page keeps one
 title and one level-one heading, the thread's while one is open, and a change that leaves a thread,
-such as Archive all or a send that goes back, returns to the list as it stands once the change
-lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
+such as Archive all or a send that goes back to the list, returns to the list as it stands once the
+change lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
 `src/components.tsx`), the place a view marks with `data-landing`, its heading or else the place
 itself: the thread's pane, as a phone lands on the page's content while a thread loads, or on
 returning to the list, the row of the thread just left (`src/views/list/beside.ts`). A row that goes
@@ -1410,6 +1410,24 @@ so the keyboard does not hide Send. The composer measures the row as it changes 
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
 
+The composer's After sending is where a message the server accepts takes the operator, a choice the
+browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
+release kept, going back or staying, stands in its place. A message that lands while the page is
+still open goes by the choice as it stands then (the composer's `onward`): back to the list, which
+says what was sent; to the next thread, as Next goes; or to Archive & next's own path, run without
+the page's check for asks open to the operator, since the message may have answered them, so the
+server's refusal, naming the ask, shows instead and the page stays. What was sent goes with the
+operator: the next thread's composer says it beside Send (`leaveNotice` for the thread, in
+`src/notice.ts`), and a list gone back to for want of another thread says it before saying so. When
+a send's way on fails, its composer says so beside Send, after what was sent, in the head's own
+words, which a phone's keyboard can hide. An archive after sending goes through the message sent at
+least, which a stale send's retry can place past the latest the page has loaded. One rule holds for
+leaving the page: while a way on is under way, or a message that will take the page somewhere is on
+its way, no other way on starts, Next, Archive all, Archive & next or a send's; a send's own way on,
+once it lands, waits only for the others. Each way on checks and marks it as it stands when it
+starts (`start`), not as the render that set it up saw it, and Next is disabled meanwhile, as the
+archives are.
+
 The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
 `src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
 separating servers. The thread list marks a thread with a kept draft from the same storage.
@@ -1537,10 +1555,10 @@ keeps the recording for Retry until it is discarded. `useDictation` gives its ca
 what went wrong and what it says otherwise apart, and the composer puts all three in its Send row, a
 failure before Send and anything else after it. The row stays short on a phone whatever its fonts:
 the microphone is its icon alone, the recording's time and a failure drop the words the rest says,
-and Go back after sending moves below the row while dictation has controls in it. Each control that
-replaces another moves focus to the next state's own control, unless the operator has put focus
-somewhere else meanwhile, as into the message box while the microphone opens, and starting a
-recording is announced once.
+and After sending moves below the row while dictation has controls in it, keeping focus as it moves.
+Each control that replaces another moves focus to the next state's own control, unless the operator
+has put focus somewhere else meanwhile, as into the message box while the microphone opens, and
+starting a recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a

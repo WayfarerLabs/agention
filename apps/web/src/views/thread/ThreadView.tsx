@@ -36,7 +36,7 @@ import {
   useResource,
   useStillOpen,
 } from "../../data.ts";
-import { readDraft } from "../../device.ts";
+import { readDraft, useDeviceChoice, useDeviceOption } from "../../device.ts";
 import {
   AbsenceReason,
   absenceOf,
@@ -48,7 +48,7 @@ import {
 } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import { useShortcuts } from "../../keyboard.tsx";
-import { leaveNotice } from "../../notice.ts";
+import { leaveNotice, takeNotice } from "../../notice.ts";
 import {
   currentListView,
   Link,
@@ -58,7 +58,7 @@ import {
   threadPathParts,
   useListView,
 } from "../../router.tsx";
-import { Composer } from "./Composer.tsx";
+import { afterSendingChoice, afterSendingOptions, Composer, goBackChoice } from "./Composer.tsx";
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
@@ -272,6 +272,16 @@ export function ThreadView({
   // The list the page returns to, which the list beside it side by side can
   // change while it is open.
   const origin = useListView();
+  // What the thread page that opened this one after sending left to say: what
+  // it sent, which the composer says beside Send. It is taken at once, before
+  // the thread loads, so none is left for a later page.
+  const [arrived, setArrived] = useState<string>();
+  useEffect(() => {
+    const notice = takeNotice("thread");
+    if (notice !== undefined) {
+      setArrived(notice);
+    }
+  }, []);
   const loaded = useThread(target);
   // Whether the messages the operator archived are unfolded.
   const [unfolded, setUnfolded] = useState(false);
@@ -320,6 +330,7 @@ export function ThreadView({
           loaded={loaded}
           unfolded={unfolded}
           setUnfolded={setUnfolded}
+          arrived={arrived}
         />
       )}
     </Loadable>
@@ -336,6 +347,7 @@ function ThreadPage({
   loaded,
   unfolded,
   setUnfolded,
+  arrived,
 }: {
   data: LoadedThread;
   target: ThreadTarget;
@@ -346,6 +358,7 @@ function ThreadPage({
   loaded: ReturnType<typeof useThread>;
   unfolded: boolean;
   setUnfolded: (unfolded: boolean) => void;
+  arrived: string | undefined;
 }) {
   const { thread, messages, cursors, marks } = data;
   const { reach, refresh, show } = loaded;
@@ -359,6 +372,15 @@ function ThreadPage({
     [reach, refresh],
   );
   const writer = useWriter(target, written);
+  // Where a message the server accepts takes the operator, a choice this
+  // device keeps: back to the list unless they choose otherwise, or, with
+  // none kept, as an earlier release's choice to go back or stay was.
+  const [wentBack] = useDeviceChoice(goBackChoice, true);
+  const [after, setAfter] = useDeviceOption(
+    afterSendingChoice,
+    afterSendingOptions,
+    wentBack ? "list" : "stay",
+  );
   // The messages the page shows as they stand, which a change judges once its
   // asks load, with those a stale write missed, which the writer gives exactly
   // (missedNow). Unlike the composer's refs, this one is set in a layout
@@ -461,19 +483,59 @@ function ThreadPage({
   // and says so, and Next finds it again. archivingAll is where the one
   // under way goes.
   const [archivingAll, setArchivingAll] = useState<"list" | "next">();
+  // The message an archive after sending archives through at least: the one
+  // just sent, which a stale send's retry can place past the latest the page
+  // has loaded.
+  const archiveAtLeast = useRef(0);
   const [showingFailure, setShowingFailure] = useState<unknown>();
   // The failure the thread's last load had when Archive all was chosen.
   const failedBefore = useRef<unknown>(undefined);
-  // Whether the page is on its way to another, or finding where to go: no
-  // other way on starts meanwhile.
-  const busy = unread.pending || archive.pending || finding.pending || archivingAll !== undefined;
+  // Whether the way on under way, or the last one, came from a send, whose
+  // failure the composer says beside Send too, where the operator is, since
+  // a phone's keyboard can hide the head.
+  const [fromSend, setFromSend] = useState(false);
+  // One rule for leaving the page: while a way on is under way, or a send
+  // that will take the page somewhere is on its way, no other way on starts.
+  // A send's own way on, once it lands, waits only for the others.
+  const goingOn =
+    unread.pending || archive.pending || finding.pending || archivingAll !== undefined;
+  const sendGoing = writer.pending && after !== "stay";
+  const busy = goingOn || sendGoing;
   const leaving = busy || reading.pending;
-  const archiveAll = (onward: "list" | "next") => {
-    setMarkedFrom(undefined);
+  // goingOn and sendGoing as they stand now, not as this render saw them,
+  // for a way on started from an action held since, as a send's once it
+  // lands: each way on that starts marks goingOn at once, before the page
+  // renders it.
+  const goingOnNow = useRef(goingOn);
+  goingOnNow.current = goingOn;
+  const sendGoingNow = useRef(sendGoing);
+  sendGoingNow.current = sendGoing;
+  // What the send whose way on is under way sent, which goes with the
+  // operator to where it takes them.
+  const sentNow = useRef<string>(undefined);
+  // start starts a way on, unless another holds it back, from a send when it
+  // says what the send sent.
+  const start = (sent?: string) => {
+    if (goingOnNow.current || (sent === undefined && sendGoingNow.current)) {
+      return false;
+    }
+    goingOnNow.current = true;
+    sentNow.current = sent;
+    setFromSend(sent !== undefined);
+    finding.clear();
+    archive.clear();
     setShowingFailure(undefined);
+    return true;
+  };
+  const archiveAll = (onward: "list" | "next", sent?: string, atLeast = 0) => {
+    if (!start(sent)) {
+      return;
+    }
+    archiveAtLeast.current = atLeast;
+    setMarkedFrom(undefined);
     failedBefore.current = loaded.failure;
     setArchivingAll(onward);
-    show(thread.last_seq);
+    show(Math.max(thread.last_seq, atLeast));
   };
   const archiveAndNext = async (through: number) => {
     const found = await findNext();
@@ -484,16 +546,16 @@ function ThreadPage({
   const moveOnFrom = async (found: NextFound) => {
     const now = found.from === listHref(currentListView()) ? found : await findNext();
     if (now !== undefined && stillOpen()) {
-      goToNext(now, true);
+      goToNext(now, true, sentNow.current);
     }
   };
-  const openNext = async () => {
-    if (busy) {
+  const openNext = async (sent?: string) => {
+    if (!start(sent)) {
       return;
     }
     const found = await findNext();
     if (found !== undefined && stillOpen()) {
-      goToNext(found, false);
+      goToNext(found, false, sentNow.current);
     }
   };
   useEffect(() => {
@@ -505,7 +567,7 @@ function ThreadPage({
       setShowingFailure(loaded.failure);
     } else if (!data.later) {
       setArchivingAll(undefined);
-      const through = data.thread.last_seq;
+      const through = Math.max(data.thread.last_seq, archiveAtLeast.current);
       void (archivingAll === "list"
         ? leaveWith(archive, "/archive", { through })
         : archiveAndNext(through));
@@ -794,6 +856,15 @@ function ThreadPage({
   // while that control could; choosing a suggestion picks it as a press of
   // its control does, and moves focus there.
   const canArchiveAll = !leaving && openCount === 0;
+  // Why archiving all, or finding the next thread, last failed, in the head's
+  // words, which the composer says too after a send whose way on failed.
+  const archiveFailure = markedFrom === undefined ? (archive.failure ?? showingFailure) : undefined;
+  const onwardFailure =
+    finding.failure !== undefined
+      ? failedWords(findingNext, finding.failure)
+      : archiveFailure !== undefined
+        ? failedWords(archiving, archiveFailure)
+        : undefined;
   const composerBox = useRef<HTMLTextAreaElement>(null);
   useShortcuts("Thread", {
     backToList: () => navigate(listHref(origin)),
@@ -832,7 +903,7 @@ function ThreadPage({
               type="button"
               className="secondary"
               aria-label="Next thread"
-              aria-busy={busy}
+              disabled={busy}
               onClick={() => void openNext()}
             >
               Next
@@ -894,12 +965,9 @@ function ThreadPage({
             </button>
           </div>
         )}
-        <HeadFailure
-          action="Archiving this thread"
-          failure={markedFrom === undefined ? (archive.failure ?? showingFailure) : undefined}
-        />
+        <HeadFailure action={archiving} failure={archiveFailure} />
         <HeadFailure action="Reading this thread" failure={reading.failure} />
-        <HeadFailure action="Finding the next thread" failure={finding.failure} />
+        <HeadFailure action={findingNext} failure={finding.failure} />
       </header>
 
       <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
@@ -943,12 +1011,35 @@ function ThreadPage({
 
       <Composer
         writer={writer}
-        sending={setSentStaged}
-        wrote={(seq) => setWrittenHere((current) => new Set([...current, seq]))}
-        back={(notice) => {
-          leaveNotice(notice);
-          returnToList();
+        sending={(sending) => {
+          setSentStaged(sending);
+          // A new send leaves a settled failure behind, but not the way on
+          // still under way, whose failure, if it comes, is said beside Send.
+          if (!goingOnNow.current) {
+            setFromSend(false);
+          }
         }}
+        wrote={(seq) => setWrittenHere((current) => new Set([...current, seq]))}
+        arrived={arrived}
+        after={after}
+        setAfter={setAfter}
+        onward={(where, sent, written) => {
+          if (where === "list") {
+            if (start(sent)) {
+              leaveNotice(sent);
+              returnToList();
+            }
+          } else if (where === "next") {
+            void openNext(sent);
+          } else {
+            // Run as Archive & next is, through the message sent at least,
+            // but left to the server to refuse while an ask is open, since
+            // what was just sent may have answered it; a refusal shows,
+            // naming the ask.
+            archiveAll("next", sent, written);
+          }
+        }}
+        onwardFailure={fromSend ? onwardFailure : undefined}
         shown={shown}
         text={text}
         setText={setText}
@@ -983,14 +1074,17 @@ function returnToList(): void {
 // another thread in it.
 export const noOtherThread = "No other thread in this list.";
 
-// goToNext leaves the thread page for the next thread,
-// carrying on the list it was found in, or, with none, for that list, which
-// says so.
-function goToNext({ next, from }: NextFound, replace: boolean): void {
+// goToNext leaves the thread page for the next thread, carrying on the list
+// it was found in, or, with none, for that list, which says so. What a send
+// that goes on so sent is said where it goes.
+function goToNext({ next, from }: NextFound, replace: boolean, sent?: string): void {
   if (next === undefined) {
-    leaveNotice(noOtherThread);
+    leaveNotice(sent === undefined ? noOtherThread : `${sent} ${noOtherThread}`);
     navigate(from, { replace });
   } else {
+    if (sent !== undefined) {
+      leaveNotice(sent, "thread");
+    }
     navigate(threadHref(next.agent, next.session, next.number), { replace, state: { from } });
   }
 }
@@ -1029,9 +1123,15 @@ function Stranded({ thread }: { thread: ThreadSummary }) {
 function HeadFailure({ action, failure }: { action: string; failure: unknown }) {
   return failure === undefined ? null : (
     <div className="notice danger" role="alert">
-      <p>
-        {action} failed: {describeFailure(failure)}
-      </p>
+      <p>{failedWords(action, failure)}</p>
     </div>
   );
 }
+
+// The actions on the thread whose failures a send's way on can meet.
+const archiving = "Archiving this thread";
+const findingNext = "Finding the next thread";
+
+// failedWords says which action on the thread failed, and why.
+const failedWords = (action: string, failure: unknown) =>
+  `${action} failed: ${describeFailure(failure)}`;

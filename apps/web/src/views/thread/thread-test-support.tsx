@@ -13,7 +13,7 @@ import {
   threadAnswer,
   threadSummary,
 } from "../../test-support.tsx";
-import { goBackChoice } from "./Composer.tsx";
+import { afterSendingChoice } from "./Composer.tsx";
 import { mine } from "./Messages.tsx";
 
 export const path = "/s/builder/main/threads/1";
@@ -108,7 +108,7 @@ export class ThreadPageTest {
   readonly api = new FakeApi();
 
   constructor() {
-    window.localStorage.setItem(goBackChoice, "false");
+    window.localStorage.setItem(afterSendingChoice, "stay");
   }
 
   // serve answers the thread's GET from state, paging the messages as the
