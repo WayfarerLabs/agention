@@ -56,7 +56,9 @@ export const waitFloor = 1_000;
 // may have pruned and would register afresh.
 const expiryMargin = tokenLifetimeSeconds * 1000;
 
-// The most threads one wait answer lists, which bounds a notice.
+// The most threads one wait answer of a round lists, and the most a notice
+// names. The read behind a notice asks for one more, so it can tell a
+// complete answer from a truncated one.
 const waitLimit = 50;
 
 // A thread a notice names, with how many messages in it are unread.
@@ -405,22 +407,50 @@ export class Push {
   }
 
   // notify reads every thread with unread messages, from the start and at
-  // once, and writes the notice naming them and the round's own threads,
-  // which a full page of older ones could leave out. When that read's page
-  // is not full, its position covers every message the notice names, so it
-  // is saved too, and a message that landed after the round's wait answered
-  // is not pushed again.
+  // once, asking for one more than a notice names, and writes the notice.
+  //
+  // A complete read, of no more than a notice names, is the notice: a thread
+  // the agent read or archived since the round's wait is not named, and
+  // when none is left unread no wake file is written. Its position covers
+  // every message it found, so it is saved too, and a message that landed
+  // after the round's wait answered is not pushed again.
+  //
+  // A truncated read is no proof that a thread is read, so the round's own
+  // threads are named first, then the read's, as many as a notice names. Its
+  // position may lag the round's, so the round's stays saved, and a message
+  // that landed meanwhile may be pushed once more.
   async #notify(at: SessionAt, found: readonly NoticeThread[], signal: AbortSignal): Promise<void> {
     const { key } = await this.#session.credential(signal);
-    const unread = await this.#wait(at, { since: undefined, wait: 0, signal, key });
-    const threads = new Map(found.map((thread) => [thread.number, thread]));
-    for (const thread of unread.threads) {
-      threads.set(thread.number, thread);
+    const unread = await this.#wait(at, {
+      since: undefined,
+      wait: 0,
+      limit: waitLimit + 1,
+      signal,
+      key,
+    });
+    const complete = unread.threads.length <= waitLimit;
+    let named: NoticeThread[];
+    if (complete) {
+      named = unread.threads;
+    } else {
+      const read = new Map(unread.threads.map((thread) => [thread.number, thread]));
+      const threads = new Map(
+        found.map((thread) => [thread.number, read.get(thread.number) ?? thread]),
+      );
+      for (const thread of unread.threads) {
+        if (threads.size >= waitLimit) {
+          break;
+        }
+        threads.set(thread.number, thread);
+      }
+      named = [...threads.values()].slice(0, waitLimit);
     }
     const host = this.#hostDirectory();
     this.#hostDo(() => {
-      host.writeWake(at, pushNotice([...threads.values()]));
-      if (unread.threads.length < waitLimit) {
+      if (named.length > 0) {
+        host.writeWake(at, pushNotice(named));
+      }
+      if (complete) {
         host.saveCursor({ ...at, since: unread.since });
       }
     });
@@ -432,6 +462,7 @@ export class Push {
     request: {
       since: string | undefined;
       wait: number;
+      limit?: number;
       signal: AbortSignal;
       key: SessionKey;
     },
@@ -439,7 +470,7 @@ export class Push {
     const answer = await this.#api.request(request.key, {
       method: "GET",
       path: `/s/${at.agent}/${at.session}/wait`,
-      query: { since: request.since, wait: request.wait, limit: waitLimit },
+      query: { since: request.since, wait: request.wait, limit: request.limit ?? waitLimit },
       wait: request.wait * 1000,
       signal: request.signal,
     });

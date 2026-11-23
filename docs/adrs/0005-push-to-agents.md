@@ -49,8 +49,10 @@ extension leaves to each host how an event becomes a turn, and neither host has 
   was read. Agention still grants no permission and acts on no message's content.
 - **Once per message.** The wait's position is saved in the host directory, per session, before the
   wake file is written, so a message is pushed at most once to a host session, whether or not the
-  agent reads it, and across a restart of the bridge. The notice itself comes from a fresh read of
-  every thread with unread messages, so it names what is unread when it is sent.
+  agent reads it, and across a restart of the bridge; only while more than fifty threads hold unread
+  messages at once can a message that lands as a notice is written be pushed once more. The notice
+  itself comes from a fresh read of every thread with unread messages, so it names what is unread
+  when it is sent, and a push whose threads the agent has read since wakes no one.
 - **The agent is told the truth.** `register` says answers are pushed only where the bridge can tell
   push works for its host session: Claude Code, with the watcher's mark in its host directory. When
   push gives up, on a server that does not serve its version, a host directory it cannot use or a

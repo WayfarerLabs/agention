@@ -1111,18 +1111,23 @@ its tokens and where its requests may go.
   files are named by a hash of its origin and granted names, so two bridges of different sessions
   under one Claude Code keep apart, and a position counts only for the origin and names it holds. A
   round with threads saves the new position, then reads every thread with unread messages at once,
-  from the start, and writes the session's `wake-<session>` file, replacing one not yet taken: the
-  notice one formatter composes from fixed words and the number and unread count of each of those
-  threads and the round's own, integers the answers' schema checks, in thread order, so no title or
-  message text reaches the agent this way. When that read's page is not full, its position is saved
-  too, so a message that landed after the round's wait answered is not pushed again. A notice whose
-  read fails is written on the next pass. Each file is written to a hidden temporary private file
-  and renamed into place, without waiting for the disk: a cursor lost to a crash of the machine only
-  pushes again what is unread. Every failure is retried after a pause that doubles from 1 second to
-  a minute. A server that does not serve the bridge's agent API version, or a host directory the
-  bridge cannot use, is also a lapse while it lasts. A registration that can never be approved,
-  rejected or revoked, or one that expired pending, ends the loop, with a lapse, and only a
-  `register`, which replaces the key, starts it again; an approval clears a lapse. After a lapse,
+  from the start, asking for 51, one more than a notice names, and writes the session's
+  `wake-<session>` file, replacing one not yet taken: the notice one formatter composes from fixed
+  words and threads' numbers and unread counts, integers the answers' schema checks, in thread
+  order, so no title or message text reaches the agent this way. A read of at most 50 threads is
+  complete, and its threads alone are the notice, so a thread the agent read or archived since the
+  round's wait is not named, and when none is left unread no wake file is written; its position is
+  saved too, so a message that landed after the round's wait answered is not pushed again. A read of
+  51 is truncated, and absence from it is no proof of a read: the notice names the round's own
+  threads first, then the read's, 50 in all, and the round's position stays saved, since the
+  truncated read's may lag it, so only then can a message that landed meanwhile be pushed once more.
+  A notice whose read fails is written on the next pass. Each file is written to a hidden temporary
+  private file and renamed into place, without waiting for the disk: a cursor lost to a crash of the
+  machine only pushes again what is unread. Every failure is retried after a pause that doubles from
+  1 second to a minute. A server that does not serve the bridge's agent API version, or a host
+  directory the bridge cannot use, is also a lapse while it lasts. A registration that can never be
+  approved, rejected or revoked, or one that expired pending, ends the loop, with a lapse, and only
+  a `register`, which replaces the key, starts it again; an approval clears a lapse. After a lapse,
   once `register` has said answers are pushed, the next answer of any tool but `register`, an error
   included, ends with one line saying answers now reach the agent only when it checks; a lapse the
   loop recovers from before an answer says it is not said. The loop stops when the host closes the

@@ -260,7 +260,105 @@ describe("push", () => {
     new HostDirectory(harness.home, hostname(), host).saveCursor({ ...at, since: since as string });
     await bridge.ok("register");
     await harness.operatorWrites(newest, { text: "Now." });
-    expect(integersOf(await harness.takeWake()).slice(0, 2)).toEqual([newest, 1]);
+    const notice = integersOf(await harness.takeWake());
+    expect(notice.slice(0, 2)).toEqual([newest, 1]);
+    // A truncated read names no more threads than a notice names.
+    expect(notice).toHaveLength(100);
+  });
+
+  // readBeforeNotice has the agent read a thread through the operator's
+  // message once the round's wait that found it has answered, before the
+  // notice is written.
+  function readBeforeNotice(thread: number): () => boolean {
+    let done = false;
+    harness.afterAnswer = async (request) => {
+      const url = new URL(request.url);
+      if (done || !url.pathname.endsWith("/wait") || url.searchParams.get("wait") !== "1") {
+        return;
+      }
+      const read = await harness.server.web("GET", `/s/builder/main/threads/${thread}`);
+      if ((read.body as { thread: { last_seq: number } }).thread.last_seq === 2) {
+        done = true;
+        const { api, key } = harness.asAgent();
+        await api.request(key, {
+          method: "POST",
+          path: `/s/builder/main/threads/${thread}/read`,
+          body: { through: 2 },
+        });
+      }
+    };
+    return () => done;
+  }
+
+  it("names no thread the agent read before the notice was written", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    const first = await threadWith(bridge, "First");
+    const second = await threadWith(bridge, "Second");
+    await harness.operatorWrites(second, { text: "Unread." });
+    await harness.takeWake();
+    const read = readBeforeNotice(first);
+    await harness.operatorWrites(first, { text: "Read at once." });
+    expect(integersOf(await harness.takeWake())).toEqual([second, 1]);
+    expect(read()).toBe(true);
+  });
+
+  it("wakes no one when the agent has read everything before the notice", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    const thread = await threadWith(bridge);
+    const read = readBeforeNotice(thread);
+    await harness.operatorWrites(thread, { text: "Read at once." });
+    await eventually(() => (read() ? true : undefined), "the agent's read");
+    await delay(1500);
+    expect(harness.takeWakes()).toBeUndefined();
+  });
+
+  it("does not push again a message that lands meanwhile among fifty unread", async () => {
+    // Forty-eight threads hold unread messages from before push started;
+    // the operator's message to one more is found, and one to another lands
+    // before the notice's read, which then holds exactly fifty threads.
+    const bridge = await harness.claudeBridge();
+    await bridge.ok("register");
+    await harness.approve(harness.keyOnDisk());
+    const threads: number[] = [];
+    for (let index = 0; index < 50; index++) {
+      threads.push(await threadWith(bridge, `Thread ${index}`));
+    }
+    const [found = 0, landing = 0, ...older] = threads;
+    for (const thread of older) {
+      await harness.operatorWrites(thread, { text: "Earlier." });
+    }
+    const { since } = await bridge.ok("message_wait");
+    const at = { origin: harness.origin, agent: "builder", session: "main" };
+    harness.markHost();
+    new HostDirectory(harness.home, hostname(), host).saveCursor({ ...at, since: since as string });
+    let landed = false;
+    harness.afterAnswer = async (request) => {
+      const url = new URL(request.url);
+      if (landed || !url.pathname.endsWith("/wait") || url.searchParams.get("wait") !== "1") {
+        return;
+      }
+      const read = await harness.server.web("GET", `/s/builder/main/threads/${found}`);
+      if ((read.body as { thread: { last_seq: number } }).thread.last_seq === 2) {
+        landed = true;
+        await harness.operatorWrites(landing, { text: "Meanwhile.", request_id: "meanwhile" });
+      }
+    };
+    let notices = 0;
+    harness.beforeRequest = (request) => {
+      if (new URL(request.url).searchParams.get("wait") === "0") {
+        notices++;
+      }
+    };
+    await bridge.ok("register");
+    await harness.operatorWrites(found, { text: "Now." });
+    const notice = integersOf(await harness.takeWake());
+    expect(notice).toContain(landing);
+    expect(notice).toHaveLength(100);
+    await delay(1500);
+    expect(harness.takeWakes()).toBeUndefined();
+    expect(notices).toBe(1);
   });
 
   it("does not push again a message that lands while it writes the notice", async () => {
