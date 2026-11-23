@@ -143,10 +143,11 @@ Code shows it as hook feedback.
 
 ### Telling the agent
 
-- **`register`** says answers are pushed when the bridge's wait runs or will run once approved: the
-  client is Claude Code and its host has the `hooked` mark. Otherwise, as today, answers reach the
-  agent when it checks (H3). The mark exists from the first hook, long before the agent registers,
-  so there is nothing to wait for.
+- **`register`**, once the registration is approved, says answers are pushed when the client is
+  Claude Code and its host has the `hooked` mark, and otherwise, as today, that answers reach the
+  agent when it checks (H3); a pending answer says nothing of push, and the agent woken after its
+  approval learns from the notice and its next `register`. The mark exists from the first hook, long
+  before the agent registers, so there is nothing to wait for.
 - **Lapse.** When the wait fails or ends, the next tool answer ends with one line saying answers now
   reach the agent only when it checks, as the status reminder's line does (H4); a recovered wait, or
   a later approved `register`, makes it pushed again. `toolMeta`'s declared size counts the line.
@@ -174,11 +175,13 @@ Code shows it as hook feedback.
   told they check: safe, and the live run catches it. The same holds for `CLAUDE_CODE_ENTRYPOINT`.
 - **The process name.** The bridge finds Claude Code by its command name, `claude`, as 2.1.330 shows
   it; a host that runs under another name gets no push, and the live run checks it.
-- **Turn endings.** Whether `StopFailure` and `UserPromptSubmit` start a watcher as `Stop` does is
-  for the live run.
-- **A notice mid-turn.** A watcher started at `SessionStart`, or after a typed turn, runs while the
-  agent works; a message arriving then is shown at the agent's next opportunity. The live run
-  records exactly when, and the guide says it.
+- **Turn endings and mid-turn notices,** settled by the live run on 2.1.330: `UserPromptSubmit`
+  starts a watcher for every turn, woken ones included; an interrupted turn fires no end hook, but
+  that watcher keeps running; a turn the API fails fires `StopFailure`, which starts one too. A
+  notice arriving during a turn shows when the running tool call returns, inside the turn.
+- **Two Agention bridges under one Claude Code** each push their own session, but the notice names
+  threads by number alone, so the agent cannot tell whose they are; the operator guide says to run
+  one.
 - **Codex** gains push when it offers a plugin a way to wake an open session, or adopts MCP's events
   extension, which the bridge, already holding the wait, would serve.
 
