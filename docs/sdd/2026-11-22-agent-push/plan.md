@@ -15,11 +15,12 @@
 - [x] The bridge's wait: started only for a Claude Code client whose host has the mark, reading a
       pending registration's state every 15 seconds without submitting, the 25-second loop with the
       cursor saved before the wake file, the cursor discarded for other granted names, backoff on an
-      unreachable server, and giving up only on what it cannot outlast. Done when tests against the
-      bridge's test server show a message pushed once whether or not it is read and across a bridge
-      restart, push starting after approval with no tool call, recovery after the server restarts,
-      nothing running for a client that is not Claude Code, and the notice holding only fixed words
-      and integers (P1 to P4, H4, C2). (agention#67)
+      unreachable server, and the lapse line, with backoff, on a host directory it cannot use,
+      ending only on what it cannot outlast. Done when tests against the bridge's test server show a
+      message pushed once whether or not it is read and across a bridge restart, push starting after
+      approval with no tool call, recovery after the server restarts, nothing running for a client
+      that is not Claude Code, and the notice holding only fixed words and integers (P1 to P4, H4,
+      C2). (agention#67)
 - [x] Telling the agent: `register` says answers are pushed exactly when the HLA says, the lapse
       line appears once on the next tool answer after the wait gives up, and `toolMeta` counts it.
       Done when tests show both answers, the lapse line and a Codex client never told push (H3, H4).
