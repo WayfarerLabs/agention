@@ -631,6 +631,27 @@ describe("editing", () => {
     expect(page.bodies()[1]).not.toHaveProperty("attachments");
   });
 
+  it("drops the files of an edit of the message a landed write replaced, staged again while it was under way", async () => {
+    await withFiles();
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise<Reply>((resolve) => (answer = resolve)),
+    );
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    // The operator sets the edit aside and starts it again.
+    fireEvent.click(within(composer()).getByRole("button", { name: "Remove" }));
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    answer(written(3));
+    await within(composer()).findByRole("status");
+    expect(listed()).toEqual([]);
+  });
+
   it("waits while files are attached, as for any draft", async () => {
     await withFiles();
     choose(file("c.png"));

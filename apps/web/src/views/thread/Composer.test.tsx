@@ -1017,6 +1017,100 @@ describe("retries", () => {
   });
 });
 
+describe("a write that lands", () => {
+  // holdingFirst holds the first write until the test answers it, and
+  // answers a later one as landed at seq next.
+  function holdingFirst(next: number): (reply: Reply) => void {
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(next),
+    );
+    return (reply) => answer(reply);
+  }
+
+  it("drops a change of answers picked again while it was under way", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+    ]);
+    const land = holdingFirst(4);
+    fireEvent.click(option(2, "Change answer"));
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(choice(/^Postgres/));
+    land(written(3));
+    await screen.findByRole("status");
+    expect(stagedLine()).toBeNull();
+    fireEvent.change(textBox(), { target: { value: "One more thing." } });
+    expect(await send()).not.toHaveProperty("replaces");
+  });
+
+  it("drops the answers to the asks it answered, keeping one staged while it was under way", async () => {
+    await page.openWith(
+      [message(1, { asks: [ask(), ask({ number: 2 })] })],
+      openAsks([1, 1], [2, 1]),
+    );
+    const land = holdingFirst(3);
+    fireEvent.click(choice(/^SQLite/, 1));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(choice(/^Postgres/, 1));
+    fireEvent.click(choice(/^Postgres/, 2));
+    land(written(2));
+    await screen.findByRole("status");
+    expect(stagedAnswers()).toHaveLength(1);
+    expect((await send())?.answers).toEqual([{ ask: 2, picks: [1] }]);
+  });
+
+  it("keeps an edit of another message staged while it was under way", async () => {
+    await page.openWith([
+      operatorMessage(1, { text: "First" }),
+      operatorMessage(2, { text: "Second" }),
+    ]);
+    const land = holdingFirst(4);
+    fireEvent.click(option(1, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "First, edited." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Reply" })).getByRole("button", { name: "Remove" }),
+    );
+    fireEvent.click(option(2, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "Second, edited." } });
+    land(written(3));
+    await screen.findByRole("status");
+    expect(await send()).toMatchObject({ text: "Second, edited.", replaces: 2 });
+  });
+
+  it("keeps a change of answers staged as the write lands, before the page shows it", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+      operatorMessage(3, { text: "Third" }),
+    ]);
+    const land = holdingFirst(5);
+    fireEvent.click(option(3, "Edit"));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Reply" })).getByRole("button", { name: "Remove" }),
+    );
+    // The change loads after a wait of its own, so the write's answer comes
+    // before the page shows what it staged.
+    fireEvent.click(option(2, "Change answer"));
+    land(written(4));
+    await screen.findByRole("status");
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    expect(stagedLine()).not.toBeNull();
+    expect(await send()).toMatchObject({ text: "Small data.", replaces: 2 });
+  });
+});
+
 describe("the draft's starting point", () => {
   it("ends when the composer is emptied, so a message seen since is not missed", async () => {
     const state = await page.openWith([message(1)]);
