@@ -33,14 +33,22 @@ import { registerFileTools } from "./file-tools.ts";
 import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
 import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
+import { lapseLine, maxLapseBytes, type Push } from "./push.ts";
 import type { Session } from "./session.ts";
 import { maxReminderBytes, type StatusReminder } from "./status-reminder.ts";
 
 // What the tools act through: the server's API, the session, the home
-// directory the bridge keeps its files under and what reminds the agent to
-// report the session's status, or why the bridge cannot reach them.
+// directory the bridge keeps its files under, what reminds the agent to
+// report the session's status and the background wait that pushes answers,
+// or why the bridge cannot reach them.
 export type Connection =
-  | { api: AgentApi; session: Session; home: string; statusReminder: StatusReminder }
+  | {
+      api: AgentApi;
+      session: Session;
+      home: string;
+      statusReminder: StatusReminder;
+      push: Push;
+    }
   | { problem: BridgeError };
 export type Connected = Exclude<Connection, { problem: BridgeError }>;
 
@@ -85,11 +93,11 @@ export const toolAnnotations: ToolAnnotations = {
 };
 
 // Every tool declares the most its result takes, so Claude Code passes it to
-// the model whole: its JSON, within the cap, and the status reminder that
-// may follow it. How Claude Code measures a result of several blocks against
-// the declaration is not documented, so it counts both.
+// the model whole: its JSON, within the cap, and the status reminder and the
+// lapse line that may follow it. How Claude Code measures a result of several
+// blocks against the declaration is not documented, so it counts each.
 export const toolMeta = {
-  "anthropic/maxResultSizeChars": maxResultBytes + maxReminderBytes,
+  "anthropic/maxResultSizeChars": maxResultBytes + maxReminderBytes + maxLapseBytes,
 };
 
 // Inputs several tools share, in the API's own bounds.
@@ -132,10 +140,47 @@ export function registerTools(server: McpServer, connection: Connection): void {
     return text === undefined ? [] : [{ type: "text", text }];
   };
 
+  // withLapse ends an answer, failed or not, with the lapse line once the
+  // background wait has given up after register said answers are pushed. It
+  // comes once, on the next answer of any tool but register, whose own
+  // answer says how answers reach the agent.
+  const withLapse = (toolName: string, result: CallToolResult): CallToolResult => {
+    if ("problem" in connection || toolName === "register" || !connection.push.takeLapse()) {
+      return result;
+    }
+    return { ...result, content: [...result.content, { type: "text", text: lapseLine }] };
+  };
+
   // tool registers one tool. The SDK advertises the input's JSON Schema; the
   // tool parses the arguments itself, so input outside a bound is answered
   // as the server would answer it, and refuses a field it does not know.
   const tool: DefineTool = (toolName, description, input, run) => {
+    const call = async (args: unknown, signal: AbortSignal): Promise<CallToolResult> => {
+      const unknown = unknownField(input, args);
+      if (unknown !== undefined) {
+        return failed(JSON.stringify(unknownFieldBody(unknown)));
+      }
+      const parsed = input.safeParse(args);
+      if (!parsed.success) {
+        return failed(JSON.stringify(invalidInputBody(parsed.error)));
+      }
+      try {
+        const answer = await run(parsed.data, signal);
+        const content: ContentBlock[] =
+          answer instanceof WithContent
+            ? [{ type: "text", text: JSON.stringify(answer.answer) }, ...answer.content]
+            : [{ type: "text", text: JSON.stringify(answer) }];
+        return { content: [...content, ...reminderBlocks(toolName)] };
+      } catch (error) {
+        if (error instanceof ApiFailure) {
+          return failed(JSON.stringify(trimMissed(error.body)));
+        }
+        if (error instanceof BridgeError) {
+          return failed(error.message);
+        }
+        throw error;
+      }
+    };
     server.registerTool(
       toolName,
       {
@@ -144,32 +189,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
         annotations: toolAnnotations,
         _meta: toolMeta,
       },
-      async (args: unknown, context): Promise<CallToolResult> => {
-        const unknown = unknownField(input, args);
-        if (unknown !== undefined) {
-          return failed(JSON.stringify(unknownFieldBody(unknown)));
-        }
-        const parsed = input.safeParse(args);
-        if (!parsed.success) {
-          return failed(JSON.stringify(invalidInputBody(parsed.error)));
-        }
-        try {
-          const answer = await run(parsed.data, context.mcpReq.signal);
-          const content: ContentBlock[] =
-            answer instanceof WithContent
-              ? [{ type: "text", text: JSON.stringify(answer.answer) }, ...answer.content]
-              : [{ type: "text", text: JSON.stringify(answer) }];
-          return { content: [...content, ...reminderBlocks(toolName)] };
-        } catch (error) {
-          if (error instanceof ApiFailure) {
-            return failed(JSON.stringify(trimMissed(error.body)));
-          }
-          if (error instanceof BridgeError) {
-            return failed(error.message);
-          }
-          throw error;
-        }
-      },
+      async (args: unknown, context): Promise<CallToolResult> =>
+        withLapse(toolName, await call(args, context.mcpReq.signal)),
     );
   };
 
@@ -214,7 +235,21 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "message says what to do next, including the names to pass when you come back and, " +
       "once approved, how answers reach you.",
     registerInput,
-    (input, signal) => connected().session.register(input, signal),
+    // register tells the agent its answers are pushed when push can work for
+    // this host session, and starts the background wait, which then pushes
+    // once the operator approves.
+    async (input, signal) => {
+      const { session, push } = connected();
+      const pushed = push.available();
+      const answer = await session.register(input, signal, pushed);
+      if (pushed) {
+        push.start();
+        if (answer.status === "approved") {
+          push.told();
+        }
+      }
+      return answer;
+    },
   );
 
   tool(

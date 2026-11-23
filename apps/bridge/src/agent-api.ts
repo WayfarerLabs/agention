@@ -15,7 +15,14 @@ import { text as readText } from "node:stream/consumers";
 import { pipeline } from "node:stream/promises";
 import type { TLSSocket } from "node:tls";
 import { type ConnectAddress, formatAddress } from "./connect-address.ts";
-import { ApiFailure, BridgeError, detailOf, operatorProblem, settingProblem } from "./errors.ts";
+import {
+  ApiFailure,
+  BridgeError,
+  detailOf,
+  OlderServer,
+  operatorProblem,
+  settingProblem,
+} from "./errors.ts";
 import type { SessionKey } from "./key-file.ts";
 
 // How long a token the bridge mints stays valid. The server accepts tokens
@@ -382,7 +389,7 @@ export class AgentApi {
     if (stated.success && stated.data >= agentApi.version) {
       return;
     }
-    throw operatorProblem(
+    throw new OlderServer(
       `The Agention server at ${this.origin} is older than this bridge, ` +
         `${packageJson.version}, and does not speak its version of the agent API`,
       `upgrade the server to ${packageJson.version} or later, or pin the Agention plugin to ` +

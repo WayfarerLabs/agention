@@ -7,6 +7,8 @@ import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
 import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
+import { processAncestors } from "./process-ancestors.ts";
+import { Push, type PushTiming, pushTiming } from "./push.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
 import { StatusReminder } from "./status-reminder.ts";
 import { type Connection, registerTools } from "./tools.ts";
@@ -28,6 +30,11 @@ export interface BridgeOptions {
   // The clock tokens are minted and the status reminder is timed by, in Unix
   // milliseconds.
   clock?: () => number;
+  // The bridge's ancestor processes, its parent first, among which push
+  // looks for the agent host's; by default this process's.
+  ancestors?: () => number[];
+  // How push paces its background wait; by default pushTiming.
+  pushTiming?: PushTiming;
 }
 
 // The skill's first rule, which the bridge gives every agent host when it
@@ -47,11 +54,20 @@ export function createBridge(options: BridgeOptions): McpServer {
     { name: "agention", version: packageJson.version },
     { capabilities: { tools: {} }, instructions },
   );
-  registerTools(server, connect(options));
+  const connection = connect(options, () => server.server.getClientVersion()?.name);
+  registerTools(server, connection);
+  // A bridge whose host has gone leaves nothing waiting in the background.
+  server.server.onclose = () => {
+    if (!("problem" in connection)) {
+      connection.push.close();
+    }
+  };
   return server;
 }
 
-function connect(options: BridgeOptions): Connection {
+// connect checks the bridge's settings and makes what the tools act through.
+// clientName gives the name the MCP client initialized with.
+function connect(options: BridgeOptions, clientName: () => string | undefined): Connection {
   const { environment, home } = options;
   // Tokens and message text never cross TLS the bridge has not verified.
   if (environment.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
@@ -113,11 +129,20 @@ function connect(options: BridgeOptions): Connection {
   }
   const clock = options.clock ?? Date.now;
   const api = new AgentApi({ origin, connectAddress, clock });
+  const session = new Session({ api, home, environment });
   return {
     api,
-    session: new Session({ api, home, environment }),
+    session,
     home,
     statusReminder: new StatusReminder(clock),
+    push: new Push({
+      api,
+      session,
+      home,
+      clientName,
+      ancestors: options.ancestors ?? (() => processAncestors(process.pid)),
+      timing: options.pushTiming ?? pushTiming,
+    }),
   };
 }
 
@@ -127,7 +152,11 @@ function connect(options: BridgeOptions): Connection {
 export async function serveStdio(): Promise<void> {
   const server = createBridge({ environment: process.env, home: homedir() });
   const closed = new Promise<void>((resolve) => {
-    server.server.onclose = resolve;
+    const onclose = server.server.onclose;
+    server.server.onclose = () => {
+      onclose?.();
+      resolve();
+    };
   });
   await server.connect(new StdioServerTransport());
   await closed;

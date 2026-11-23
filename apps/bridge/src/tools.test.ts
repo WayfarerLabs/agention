@@ -84,7 +84,7 @@ describe("the tool list", () => {
     for (const tool of listed) {
       expect([tool.name, tool._meta]).toEqual([
         tool.name,
-        { "anthropic/maxResultSizeChars": 40_500 },
+        { "anthropic/maxResultSizeChars": 40_900 },
       ]);
     }
   });

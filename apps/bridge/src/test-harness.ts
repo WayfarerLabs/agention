@@ -26,7 +26,7 @@ import path from "node:path";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import { fileURLToPath } from "node:url";
 import { AgentApi } from "./agent-api.ts";
-import { type BridgeEnvironment, createBridge } from "./bridge.ts";
+import { type BridgeEnvironment, type BridgeOptions, createBridge } from "./bridge.ts";
 import { KeyFile, type SessionKey } from "./key-file.ts";
 
 // The server's certificate, made once for the test file, which this process
@@ -58,6 +58,13 @@ export interface Answer {
   json: unknown;
   content: Record<string, unknown>[];
 }
+
+// What a test bridge is started with beyond its environment: the name its
+// client gives, and the bridge's own options for push.
+export type BridgeTestOptions = { client?: string } & Pick<
+  BridgeOptions,
+  "ancestors" | "pushTiming"
+>;
 
 export class TestBridge {
   readonly client: Client;
@@ -172,8 +179,15 @@ export class BridgeHarness {
   }
 
   // bridge starts a bridge with the environment an agent host would give it,
-  // signing with the server's clock, and connects a client to it.
-  async bridge(environment: BridgeEnvironment = {}, home = this.home): Promise<TestBridge> {
+  // signing with the server's clock, and connects a client to it, by the
+  // client name given, as an agent host would. Options give push's ancestors
+  // and pacing.
+  async bridge(
+    environment: BridgeEnvironment = {},
+    home = this.home,
+    options: BridgeTestOptions = {},
+  ): Promise<TestBridge> {
+    const { client: clientName = "agention-bridge-test", ...bridgeOptions } = options;
     const server = createBridge({
       environment: {
         AGENTION_URL: this.#origin,
@@ -183,10 +197,11 @@ export class BridgeHarness {
       },
       home,
       clock: () => this.server.fixture.now,
+      ...bridgeOptions,
     });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
-    const client = new Client({ name: "agention-bridge-test", version: "0.0.0" });
+    const client = new Client({ name: clientName, version: "0.0.0" });
     await client.connect(clientTransport);
     const bridge = new TestBridge(client);
     this.bridges.push(bridge);
@@ -200,9 +215,13 @@ export class BridgeHarness {
   // with the real clock, so the server's clock is set to it, and the operator
   // signs in again as it stands.
   async process(
-    options: { entry?: string; trust?: boolean } = {},
+    options: { entry?: string; trust?: boolean; client?: string } = {},
   ): Promise<{ bridge: TestBridge; stderr: () => string }> {
-    const { entry = sourceEntry, trust = true } = options;
+    const {
+      entry = sourceEntry,
+      trust = true,
+      client: clientName = "agention-process-test",
+    } = options;
     this.server.fixture.now = Date.now();
     this.server.signIn();
     const authority = path.join(this.home, "authority.pem");
@@ -222,7 +241,7 @@ export class BridgeHarness {
     });
     let stderr = "";
     transport.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
-    const client = new Client({ name: "agention-process-test", version: "0.0.0" });
+    const client = new Client({ name: clientName, version: "0.0.0" });
     await client.connect(transport);
     const bridge = new TestBridge(client);
     this.bridges.push(bridge);

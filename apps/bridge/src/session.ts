@@ -22,6 +22,15 @@ export interface GivenNames {
   session?: string | undefined;
 }
 
+// What register answers: the registration's state, with what the agent
+// should do next.
+export type RegisterAnswer = Partial<RegistrationState> & {
+  status: RegistrationStatus;
+  replaced?: RegistrationStatus;
+  pushed?: boolean;
+  message: string;
+};
+
 // The variables an agent host may set to name the session it runs.
 export interface SessionEnvironment {
   AGENTWORKS_AGENT?: string | undefined;
@@ -76,8 +85,10 @@ export class Session {
   // registration if the server knows the key already, and answers with that
   // state and what the agent should do next. It creates the key if there is
   // none, and replaces it once the server says its registration can never be
-  // approved. It is the only call that creates or replaces a key.
-  async register(given: GivenNames, signal?: AbortSignal): Promise<object> {
+  // approved. It is the only call that creates or replaces a key. pushed says
+  // whether the bridge pushes answers to this host session once approved,
+  // which an approved answer tells the agent.
+  async register(given: GivenNames, signal?: AbortSignal, pushed = false): Promise<RegisterAnswer> {
     const { names, keyFile } = this.#fix(given);
     let key = keyFile.read() ?? keyFile.create();
     let state = await this.#submit(key, names, signal);
@@ -104,9 +115,30 @@ export class Session {
     }
     return {
       ...answer,
+      status: state.status,
       ...(replaced === undefined ? {} : { replaced }),
-      message: this.#nextStep(names, state, replaced),
+      ...(state.status === "approved" ? { pushed } : {}),
+      message: this.#nextStep(names, state, pushed, replaced),
     };
+  }
+
+  // storedKey returns the key on disk once the session's names are fixed,
+  // or undefined before then or while there is none. It never creates one.
+  storedKey(): SessionKey | undefined {
+    return this.#proposed?.keyFile.read();
+  }
+
+  // stateOf reads the state of a key's registration with the request
+  // register makes, which for a key the server knows creates nothing, and
+  // learns the names granted to it. Only a key on disk, from storedKey, is
+  // given, once the names are fixed.
+  async stateOf(key: SessionKey, signal?: AbortSignal): Promise<RegistrationState> {
+    if (this.#proposed === undefined) {
+      throw new Error("the session's names are not fixed");
+    }
+    const state = await this.#submit(key, this.#proposed.names, signal);
+    this.#learn(key, state);
+    return state;
   }
 
   // credential returns the key to sign a thread request with and the names of
@@ -227,18 +259,33 @@ export class Session {
   // nextStep tells the agent what to do next, including the names that select
   // this session's key when it calls register again, which are the proposed
   // ones even when the operator granted others.
-  #nextStep(names: SessionNames, state: RegistrationState, replaced?: RefusedStatus): string {
+  #nextStep(
+    names: SessionNames,
+    state: RegistrationState,
+    pushed: boolean,
+    replaced?: RefusedStatus,
+  ): string {
     const again = `call register with agent "${names.agent}" and session "${names.session}"`;
     const why =
       replaced === undefined
         ? ""
         : `${refusals[replaced]}, so the bridge made a new key and registered it. `;
     if (state.status === "approved") {
-      return (
+      const registered =
         `${why}Registered as ${state.agent}/${state.session}, where every Agention tool now ` +
-        `acts; to come back to this session later, ${again}. Answers reach you only when you ` +
-        "check: check with message_wait as you work, and once your other work is done, keep " +
-        "checking while you have open asks or unread messages."
+        `acts; to come back to this session later, ${again}.`;
+      if (pushed) {
+        return (
+          `${registered} Answers are pushed: when the operator writes, Agention wakes this ` +
+          "session at its prompt with a notice naming the threads to read. Check with " +
+          "message_wait as you work, and once your other work is done, report idle and end " +
+          "your turn, with no waiter of your own."
+        );
+      }
+      return (
+        `${registered} Answers reach you only when you check: check with message_wait as you ` +
+        "work, and once your other work is done, keep checking while you have open asks or " +
+        "unread messages."
       );
     }
     if (state.status === "pending") {

@@ -60,9 +60,23 @@ export function settingProblem(problem: string, fix: string): BridgeError {
 // the server, the way to it or this machine. problem is a sentence without
 // its period, and fix says what the operator does.
 export function operatorProblem(problem: string, fix: string, options?: ErrorOptions): BridgeError {
-  return new BridgeError(
+  return new BridgeError(operatorProblemText(problem, fix), options);
+}
+
+function operatorProblemText(problem: string, fix: string): string {
+  return (
     `${problem}. Only the operator can fix that, so tell them at your terminal to ${fix}. ` +
-      "Carry on meanwhile, and try again at natural points.",
-    options,
+    "Carry on meanwhile, and try again at natural points."
   );
+}
+
+// OlderServer is the operator problem of a server that does not speak the
+// bridge's version of the agent API, which nothing the bridge does can
+// outlast: the bridge's background wait gives up on it.
+export class OlderServer extends BridgeError {
+  override name = "OlderServer";
+
+  constructor(problem: string, fix: string) {
+    super(operatorProblemText(problem, fix));
+  }
 }
