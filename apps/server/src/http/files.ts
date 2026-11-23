@@ -108,14 +108,18 @@ export interface FileRead {
   target: ThreadTarget & { seq: number; name: string; ref: string | undefined };
   request: Request;
   log: (message: string) => void;
+  dropConnection: (() => void) | undefined;
 }
 
 // serveFile answers a file read: the file a message carries under a name,
 // and when the request gives its ref, only if the message carries that
 // file. Its bytes stream a chunk at a time, each read in its own
-// transaction, which confirms the scope and re-checks the credential.
+// transaction, which confirms the scope and re-checks the credential. A
+// read that fails partway, at a refusal, a missing chunk or anything else,
+// is logged and its connection dropped, so the client sees the body cut
+// short; in process, with no connection, the body errors instead.
 export function serveFile(read: FileRead): Response {
-  const { store, identity, target, request, log } = read;
+  const { store, identity, target, request, log, dropConnection } = read;
   const file = findCarriedFile(store, identity, target);
   const served = servedTypeOf(file.type);
   const wanted = wantedOf(request.headers.get("range") ?? undefined, file.size);
@@ -155,14 +159,40 @@ export function serveFile(read: FileRead): Response {
     log(`file ${file.id} is missing its chunk ${index}, so its read was refused`);
     throw new ApiError("not_found", "this file's contents are missing");
   }
+  // The adapter writes a body that errors to the server's stderr with its
+  // stack, and ends one that closes early as if it were whole, so a read cut
+  // short drops its connection instead, neither erroring nor closing the
+  // body: the adapter cancels it once the connection closes, which settles
+  // it.
+  const cutShort = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    why: string,
+    error: unknown,
+  ) => {
+    log(`file ${file.id}'s read was cut short at its chunk ${index}: ${why}`);
+    if (dropConnection === undefined) {
+      controller.error(error);
+    } else {
+      dropConnection();
+    }
+  };
   const body = new ReadableStream<Uint8Array>(
     {
       pull(controller) {
-        const data = first ?? readFileChunk(store, identity, file.id, index);
+        let data: Uint8Array | undefined;
+        try {
+          data = first ?? readFileChunk(store, identity, file.id, index);
+        } catch (error) {
+          // A refusal says why in its message; anything else is internal,
+          // logged with its stack as the app logs every internal error.
+          const why =
+            error instanceof ApiError ? error.message : ((error as Error).stack ?? String(error));
+          cutShort(controller, why, error);
+          return;
+        }
         first = undefined;
         if (data === undefined) {
-          log(`file ${file.id} is missing its chunk ${index}, so its read was cut short`);
-          controller.error(new Error("a chunk of the file is missing"));
+          cutShort(controller, "the chunk is missing", new Error("a chunk of the file is missing"));
           return;
         }
         const offset = index * chunkBytes;
