@@ -10,6 +10,7 @@ import {
   installUploads,
   message,
   operatorMessage,
+  type Reply,
   uploadAnswer,
 } from "../../../test-support.tsx";
 import { option, path, textBox, ThreadPageTest, written } from "../thread-test-support.tsx";
@@ -507,11 +508,15 @@ describe("editing", () => {
     expect(page.bodies()[0]).toMatchObject({ replaces: 2, attachments: [{ keep: "why.md" }] });
   });
 
-  it("drops the kept files when a stale write finds the message it replaces replaced", async () => {
+  it("drops the kept files when a stale write finds the message it replaces replaced, keeping new uploads", async () => {
     const state = await withFiles();
     page.serveWrites(state);
     fireEvent.click(option(2, "Edit"));
     await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    choose(file("c.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 3);
+    await waitFor(() => expect(sendButton().disabled).toBe(false));
     // Another device replaced message 2 meanwhile.
     state.messages = [
       ...state.messages.map((each) =>
@@ -522,14 +527,61 @@ describe("editing", () => {
     state.thread = { ...state.thread, last_seq: 3, message_count: 3 };
     fireEvent.click(sendButton());
     await within(composer()).findByRole("alert");
-    expect(fileList()).toBeNull();
+    expect(listed()).toEqual(["c.png"]);
     // What is left sends on its own, keeping nothing.
     fireEvent.click(within(composer()).getByRole("button", { name: "Mark these read" }));
     await waitFor(() => expect(within(composer()).queryByRole("alert")).toBeNull());
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(2));
-    expect(page.bodies()[1]).not.toHaveProperty("attachments");
+    expect(page.bodies()[1]).toMatchObject({ attachments: [{ upload: ref(3), name: "c.png" }] });
     expect(page.bodies()[1]).not.toHaveProperty("replaces");
+  });
+
+  it("keeps the files of an edit staged while a replacement found stale was under way", async () => {
+    const state = await page.openWith([
+      operatorMessage(1, {
+        text: "First",
+        attachments: [{ name: "a.log", file: ref(1), size: 10, type: "text/plain" }],
+      }),
+      operatorMessage(2, {
+        text: "Second",
+        attachments: [{ name: "b.png", file: ref(2), size: 10, type: "image/png" }],
+      }),
+    ]);
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(state.thread.last_seq + 1),
+    );
+    fireEvent.click(option(1, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log"]));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    // The operator sets that edit aside while it is under way, and edits
+    // message 2 instead.
+    fireEvent.click(within(composer()).getByRole("button", { name: "Remove" }));
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["b.png"]));
+    // Another device replaced message 1 meanwhile, so the first edit is stale.
+    const elsewhere = operatorMessage(3, { text: "Elsewhere", replaces: 1 });
+    state.messages = [
+      ...state.messages.map((each) =>
+        each.seq === 1 ? { ...each, live: false, replaced_by: 3 } : each,
+      ),
+      elsewhere,
+    ];
+    state.thread = { ...state.thread, last_seq: 3, message_count: 3 };
+    answer(
+      failure("stale", "other messages landed after the latest one you saw", {
+        missed: [elsewhere],
+      }),
+    );
+    await within(composer()).findByRole("alert");
+    expect(listed()).toEqual(["b.png"]);
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({ replaces: 2, attachments: [{ keep: "b.png" }] });
   });
 
   it("waits while files are attached, as for any draft", async () => {

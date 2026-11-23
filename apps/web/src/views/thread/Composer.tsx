@@ -291,13 +291,14 @@ export function Composer({
     if ("missed" in outcome) {
       // What the missed messages made impossible to send goes; the rest, the
       // text, the detail and the files stay. A replacement that goes takes
-      // the files it kept with it.
+      // the files it kept with it, and only those: one staged since keeps its
+      // own.
       const stale = staleChange(sentStaged, outcome.missed);
       if (stale !== undefined) {
         setChanged(stale.change);
         stage((current) => (current === sentStaged ? stale.left : current));
         if (stale.left === undefined) {
-          files.dropKept();
+          files.dropKept(sentFiles);
         }
       }
       return;
