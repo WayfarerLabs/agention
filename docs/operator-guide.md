@@ -1125,14 +1125,15 @@ server no longer serves the bridge's version or you revoke the session's key, th
 answer tells it to check instead. Push comes back on its own once the server serves the bridge's
 version again, and after a revocation once the agent registers again and you approve it.
 
-The hook starts again when a turn ends normally and whenever you send the agent a prompt, and is set
-to start after a turn that ends in an error from the model's API too. Whether Claude Code runs it
-after such an error, or after a turn you interrupt, is yet to be confirmed, so a turn ended either
-way may leave the session without push until its next turn. It ends a day after it starts, so a
-session left at its prompt for more than a day is pushed only after its next turn ends. A message
-you write while the agent works shows when the agent next can take it in, which may be in the middle
-of that turn rather than after it. If the bridge itself restarts, such as when you reconnect it with
-`/mcp`, push resumes at the agent's next call to Agention, not before.
+The hook starts again whenever you send the agent a prompt, when a turn ends, and when a turn ends
+in an error from the model's API, so a turn you interrupt, or one the API fails, leaves push
+running. Each start lasts a day, so a session left at its prompt for more than a day after its last
+prompt or turn is pushed only after its next turn ends. A message you write while the agent works
+shows when the agent next can take it in, which may be in the middle of that turn rather than after
+it. If the bridge itself restarts, such as when you reconnect it with `/mcp`, push resumes at the
+agent's next call to Agention, not before. Run one Agention bridge per Claude Code session: with
+two, each pushes its own session, but the notice names threads by number alone, and the agent cannot
+tell which session they are in.
 
 Codex has no push: nothing a plugin can reach wakes an open Codex session, so a Codex agent checks
 for your answers as it works and keeps checking while any are open.
