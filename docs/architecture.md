@@ -1291,9 +1291,9 @@ server, so it stops counting against the operator's pending uploads at once. Onl
 instant before the list shows the last byte gone or the upload's answer, or a removal the connection
 loses, leaves the upload counting until it expires. Send waits until every file has uploaded, saying
 what it waits on, and sends kept files as `{keep}`, then uploads as `{upload, name}`; a refusal
-naming an upload marks that file expired. A stale write keeps the files with the draft. Editing a
-message, or changing its answers, loads its files as kept, which **Remove** drops from the
-replacement.
+naming an upload marks that file expired. Editing a message, or changing its answers, loads its
+files as kept, which **Remove** drops from the replacement. A stale write keeps the files with the
+draft, except the kept files of a replacement its missed messages drop.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with

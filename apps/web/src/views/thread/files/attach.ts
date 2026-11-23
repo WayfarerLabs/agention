@@ -182,9 +182,9 @@ export interface DraftFiles {
   // keep loads a message's files as kept: the whole list, since a
   // replacement starts only from an empty composer.
   keep(message: Message): void;
-  // dropKept drops the kept files among ids, leaving those added and any
-  // other kept files: a replacement drops only the files it loaded.
-  dropKept(ids: readonly number[]): void;
+  // dropKept drops the kept files, which only the replacement staged
+  // loaded, leaving those added.
+  dropKept(): void;
   // expire marks an upload the server no longer holds as expired.
   expire(id: number): void;
   // sent drops the files a message that landed sent.
@@ -340,8 +340,8 @@ export function useDraftFiles(target: ThreadTarget): DraftFiles {
     );
   }, []);
 
-  const dropKept = useCallback((ids: readonly number[]) => {
-    setFiles((current) => current.filter((file) => file.kind !== "kept" || !ids.includes(file.id)));
+  const dropKept = useCallback(() => {
+    setFiles((current) => current.filter((file) => file.kind !== "kept"));
   }, []);
 
   const sent = useCallback((ids: readonly number[]) => {
