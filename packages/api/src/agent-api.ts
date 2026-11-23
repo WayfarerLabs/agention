@@ -9,7 +9,7 @@ import { z } from "zod";
 // before a field goes missing unnoticed. Every change to the agent contract,
 // a new route or a new field on one, bumps version by one; oldest moves only
 // by the operator's decision.
-export const agentApi = { version: 3, oldest: 1 } as const;
+export const agentApi = { version: 4, oldest: 1 } as const;
 
 export const agentApiHeader = "Agention-Agent-API";
 

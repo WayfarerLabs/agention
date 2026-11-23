@@ -76,17 +76,19 @@ with each other or with what the product does, the disagreement is the finding.
   expired, revoked), each of the thread tools: `thread_create`, `message_send`, `thread_get`,
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update` through a
   session's life: working once registered, idle, stopped with each outcome, working again on
-  resuming, a goal changed without a percent, and a note alone, and the status reminder a host's
-  model sees once the status goes unreported past its threshold, and `register` against a server
-  stating a newer agent API version than the bridge's, whose answer asks the agent to have the
-  plugin updated without failing (`docs/architecture.md` "Agent bridge" and "Store"). `file_upload`
-  with a file, an empty one, one at 100 MiB, and each refusal: a relative path, a directory, a FIFO,
-  which must not hang, a file over 100 MiB, and a key file named directly and through a symlink;
-  `file_get` of each served type, its file's name and mode, and its image block; attachments on
-  `thread_create` and `message_send`, and a replacement keeping a file. The bridge at the head
-  against a server of an earlier release, which it refuses, naming both agent API versions and the
-  server's newest release as the fix, and a bridge an earlier release published against the server
-  at the head, which it still serves, where the charter names those releases; the server
+  resuming, a goal changed without a percent, and a note alone; a state and note beside
+  `thread_create` and `message_send`, an idle session's write without one marking it working, and
+  reads and waits changing nothing; and the status reminder a host's model sees once the status goes
+  unreported past its threshold, a write that ended an idle status included, and `register` against
+  a server stating a newer agent API version than the bridge's, whose answer asks the agent to have
+  the plugin updated without failing (`docs/architecture.md` "Agent bridge" and "Store").
+  `file_upload` with a file, an empty one, one at 100 MiB, and each refusal: a relative path, a
+  directory, a FIFO, which must not hang, a file over 100 MiB, and a key file named directly and
+  through a symlink; `file_get` of each served type, its file's name and mode, and its image block;
+  attachments on `thread_create` and `message_send`, and a replacement keeping a file. The bridge at
+  the head against a server of an earlier release, which it refuses, naming both agent API versions
+  and the server's newest release as the fix, and a bridge an earlier release published against the
+  server at the head, which it still serves, where the charter names those releases; the server
   compatibility gate covers the former against the newest server of each earlier agent API version,
   and the agent compatibility gate the latter, on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
@@ -144,12 +146,12 @@ with each other or with what the product does, the disagreement is the finding.
 Compare what a surface reports with:
 
 - the database, opened read-only beside the running server: what each thread's messages derive (live
-  messages, open asks, status, topic) against the log, each session's latest entry in its log
-  against the status `session_update` answered and the sessions view shows, with its age,
-  registration rows and states, browser sessions, used challenges, API keys holding only their
-  secret's hash, each message's position, files, their chunks and the attachments naming them,
-  pending uploads against the limits, and the database's vacuum mode and free pages after a sweep
-  (`docs/architecture.md` "Database");
+  messages, open asks, status, topic) against the log, each session's latest entry in its log, and
+  whether it was inferred, against the status `session_update` answered and the sessions view shows,
+  with its age and its note, registration rows and states, browser sessions, used challenges, API
+  keys holding only their secret's hash, each message's position, files, their chunks and the
+  attachments naming them, pending uploads against the limits, and the database's vacuum mode and
+  free pages after a sweep (`docs/architecture.md` "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
   `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443, and the

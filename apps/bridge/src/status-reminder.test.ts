@@ -128,6 +128,102 @@ describe("the status reminder", () => {
     expect(await remindsPastThreshold(bridge)).toBe(true);
   });
 
+  it("records a write overlapping an update in the order the server commits them", async () => {
+    const bridge = await approvedBridge();
+    await bridge.ok("thread_create", { request_id: "r1", title: "Release", text: "Started." });
+    // The server answers the update at once, and its answer is held until
+    // released.
+    const committed: string[] = [];
+    let release = (): void => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let updateAnswered = (): void => {};
+    const answered = new Promise<void>((resolve) => (updateAnswered = resolve));
+    harness.afterAnswer = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (request.method === "POST" && /\/(status|messages)$/.test(path)) {
+        committed.push(path.slice(path.lastIndexOf("/") + 1));
+        if (committed.length === 1) {
+          updateAnswered();
+          await held;
+        }
+      }
+    };
+    const idle = bridge.call("session_update", { state: "idle" });
+    await answered;
+    const sent = bridge.call("message_send", {
+      thread: 1,
+      request_id: "r2",
+      seen_through: 1,
+      text: "Picked it up again.",
+    });
+    // The message waits for the update's answer before it is sent.
+    await delay(100);
+    expect(committed).toEqual(["status"]);
+    release();
+    expect((await idle).isError).toBe(false);
+    expect((await sent).isError).toBe(false);
+    expect(committed).toEqual(["status", "messages"]);
+    // The message, written while idle, marked the session working, and the
+    // reminder follows it.
+    const sessions = await harness.server.web("GET", "/sessions");
+    expect(sessions.body).toMatchObject({
+      agents: [{ sessions: [{ status: { state: "working" } }] }],
+    });
+    expect(await remindsPastThreshold(bridge)).toBe(true);
+  });
+
+  it("starts again from a write that reports a note or a new state", async () => {
+    const bridge = await approvedBridge();
+    advance(statusReminderAfter + 1);
+    // The write's own answer carries none, since it reported the status.
+    const created = await bridge.call("thread_create", {
+      request_id: "r1",
+      title: "Release",
+      note: "Release under way.",
+    });
+    expect(reminded(created)).toBe(false);
+    expect(await remindsPastThreshold(bridge)).toBe(true);
+    await bridge.ok("message_send", {
+      thread: 1,
+      request_id: "r2",
+      seen_through: 1,
+      text: "Ok.",
+      state: "idle",
+    });
+    expect(await remindsPastThreshold(bridge)).toBe(false);
+  });
+
+  it("comes again once a write while idle marks the session working", async () => {
+    const bridge = await approvedBridge();
+    await bridge.ok("thread_create", { request_id: "r1", title: "Release", state: "idle" });
+    advance(statusReminderAfter * 3);
+    expect(reminded(await bridge.call("thread_list"))).toBe(false);
+    // Marking read is a write, which the server takes as working.
+    expect(reminded(await bridge.call("thread_read", { thread: 1, through: 1 }))).toBe(false);
+    const sessions = await harness.server.web("GET", "/sessions");
+    expect(sessions.body).toMatchObject({
+      agents: [{ sessions: [{ status: { state: "working" } }] }],
+    });
+    expect(await remindsPastThreshold(bridge)).toBe(true);
+  });
+
+  it("stays idle through a write that reports only a note", async () => {
+    const bridge = await approvedBridge();
+    await bridge.ok("session_update", { state: "idle" });
+    await bridge.ok("thread_create", { request_id: "r1", title: "Release", note: "Still on CI." });
+    expect(await remindsPastThreshold(bridge)).toBe(false);
+  });
+
+  it("keeps counting through a write that reports nothing while working", async () => {
+    const bridge = await approvedBridge();
+    await bridge.ok("session_update", { state: "working" });
+    await bridge.ok("thread_create", { request_id: "r1", title: "Release" });
+    advance(statusReminderAfter - 1000);
+    await bridge.ok("thread_archive", { thread: 1, through: 1 });
+    advance(1001);
+    expect(reminded(await bridge.call("thread_list"))).toBe(true);
+  });
+
   it("is never on an error, which neither gives nor records one", async () => {
     const bridge = await approvedBridge();
     advance(statusReminderAfter + 1);

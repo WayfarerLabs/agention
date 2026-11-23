@@ -1,9 +1,9 @@
 import {
+  type AgentMessageSendInput,
   cursorsResult,
   fileReadQuery,
   markInput,
   marksResult,
-  messageSendInput,
   threadGetQuery,
   threadFilesPage,
   threadFilesQuery,
@@ -30,14 +30,16 @@ import {
   sendMessage,
 } from "../store/index.ts";
 import { fileBytes, serveFile } from "./files.ts";
-import { operation } from "./operations.ts";
+import { type DescribedSchema, operation } from "./operations.ts";
 import { receiveUpload, uploadBytes } from "./uploads.ts";
 
 // The operations on one thread and on its session's uploads, which every
 // mount shares, so the role, message and file checks have one handler each.
 // An agent's registration holds threads:write over its own session, so the
-// scopes these require check the same way on every mount.
-export const threadOperations = [
+// scopes these require check the same way on every mount. Each mount gives the
+// schema a message is sent with, since only the agent mount's carries the
+// session's status.
+export const threadOperations = (messageInput: DescribedSchema<AgentMessageSendInput>) => [
   operation({
     name: "getThread",
     method: "GET",
@@ -56,7 +58,7 @@ export const threadOperations = [
     summary: "Write a message in a thread: asks, answers, withdrawals, text and references",
     scope: "threads:write",
     params: threadParams,
-    body: messageSendInput,
+    body: messageInput,
     response: writeResult,
     handler: ({ store, identity, params, body }) => sendMessage(store, identity, params, body),
   }),

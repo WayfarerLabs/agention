@@ -65,10 +65,32 @@ export const sessionNote = singleLineText({ min: 1, max: 300 }).describe(
   "One line on what just happened, kept with this update alone.",
 );
 
+// outcomeGoesWithStopped refuses stopped without an outcome, and an outcome
+// beside any other state or none, so an outcome given alone is refused for
+// that rule alone.
+export function outcomeGoesWithStopped(
+  value: { state?: WorkState | undefined; outcome?: WorkOutcome | undefined },
+  context: z.RefinementCtx,
+): void {
+  if (value.state === "stopped" && value.outcome === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["outcome"],
+      message: "a session that stops gives its outcome",
+    });
+  }
+  if (value.outcome !== undefined && value.state !== "stopped") {
+    context.addIssue({
+      code: "custom",
+      path: ["outcome"],
+      message: "goes only with state stopped",
+    });
+  }
+}
+
 // A session's update of its status. A field left out is unchanged; the note
 // belongs to this update alone. An update gives at least one field, and an
-// outcome goes with stopped and only with it, so an outcome given alone is
-// refused for that rule alone.
+// outcome goes with stopped and only with it.
 export const sessionUpdateInput = z
   .object({
     state: workState.optional(),
@@ -93,22 +115,29 @@ export const sessionUpdateInput = z
         message: "an update needs a state, a title, a goal, a percent or a note",
       });
     }
-    if (value.state === "stopped" && value.outcome === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["outcome"],
-        message: "a session that stops gives its outcome",
-      });
-    }
-    if (value.outcome !== undefined && value.state !== "stopped") {
-      context.addIssue({
-        code: "custom",
-        path: ["outcome"],
-        message: "goes only with state stopped",
-      });
-    }
-  });
+  })
+  .superRefine(outcomeGoesWithStopped);
 export type SessionUpdateInput = z.infer<typeof sessionUpdateInput>;
+
+// What a session's write to a thread may report of its status beside it: a
+// state, with the outcome beside stopped, and a note, applied as an update
+// with them would be, with the write and only if it lands. A write that
+// reports none of them marks an idle session working, since a session that
+// writes is doing something; a stopped one stays stopped. The schemas that
+// take these fields add outcomeGoesWithStopped.
+export const writeStatusFields = {
+  state: workState
+    .optional()
+    .describe(
+      "Your session's state from this write on, as session_update reports it, such as idle " +
+        "on the last message before you wait. A write that reports no status at all marks an " +
+        "idle session working and leaves any other state as it was.",
+    ),
+  outcome: workOutcome.optional(),
+  note: sessionNote.optional(),
+};
+const writeStatus = z.object(writeStatusFields);
+export type WriteStatus = z.infer<typeof writeStatus>;
 
 // A session's status: its state, the outcome it stopped with while stopped,
 // and its title, goal and percent, each absent until the session gives it.

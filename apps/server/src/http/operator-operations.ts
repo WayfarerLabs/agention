@@ -1,4 +1,4 @@
-import { writeResult } from "@wayfarerlabs/agention-api";
+import { messageSendInput, writeResult } from "@wayfarerlabs/agention-api";
 import {
   agentParams,
   approveInput,
@@ -106,7 +106,7 @@ export const operatorOperations: readonly OperatorOperation[] = [
     handler: ({ store, identity, query, signal }) =>
       waitForEverySession(store, identity, query, signal),
   }),
-  ...threadOperations,
+  ...threadOperations(messageSendInput),
   operation({
     name: "startThread",
     method: "POST",

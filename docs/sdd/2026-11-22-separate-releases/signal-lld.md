@@ -13,7 +13,7 @@ contract does not change: no agent route or field is added, and `agentApi.versio
 
 ## The column
 
-Migration 8 adds `sessions.agent_api_version INTEGER CHECK (agent_api_version >= 1)`: the agent API
+Migration 9 adds `sessions.agent_api_version INTEGER CHECK (agent_api_version >= 1)`: the agent API
 version stated on the session's latest approved call, null until its first one. It is appended to
 `migrations` (`apps/server/src/database/migrations.ts:12`), never an edit of migration 1, where the
 table is created (`migrations.ts:26-38`). An `ADD COLUMN` keeps every row and gives each null, so a

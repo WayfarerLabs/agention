@@ -336,6 +336,9 @@ export interface Writer {
   failure: unknown;
   // The messages the last write missed, while it is stale.
   missed: Message[] | undefined;
+  // missedNow gives them as they stand, for a caller that reads them after a
+  // wait of its own, before the page shows them.
+  missedNow(): Message[] | undefined;
   // write sends content as seen through seenThrough, the message the draft
   // was started from; shown is the last message on screen now. Stale, the
   // missed messages are kept; the draft is the composer's, so it is never
@@ -367,7 +370,12 @@ export function useWriter(target: ThreadTarget, onWritten: (reached?: number) =>
   const onFailure = useUnauthenticatedCheck();
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<unknown>(undefined);
-  const [missed, setMissed] = useState<Message[] | undefined>(undefined);
+  const [missed, setMissedState] = useState<Message[] | undefined>(undefined);
+  const missedNow = useRef<Message[] | undefined>(undefined);
+  const setMissed = useCallback((value: Message[] | undefined) => {
+    missedNow.current = value;
+    setMissedState(value);
+  }, []);
   const attempt = useRef<{ content: string; requestId: string; seenThrough: number }>(undefined);
   const { agent, session, number } = target;
 
@@ -475,5 +483,13 @@ export function useWriter(target: ThreadTarget, onWritten: (reached?: number) =>
     onWritten(through);
     return through;
   }, [missed, markRead, onWritten]);
-  return { pending, failure, missed, write, readAndWrite, readMissed };
+  return {
+    pending,
+    failure,
+    missed,
+    missedNow: () => missedNow.current,
+    write,
+    readAndWrite,
+    readMissed,
+  };
 }

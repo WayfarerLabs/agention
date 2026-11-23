@@ -2,8 +2,8 @@
 // agents and write to threads, for the store's tests.
 import {
   agentApi,
-  type MessageSendInput,
-  messageSendInput,
+  type AgentMessageSendInput,
+  agentMessageSendInput,
   type PublicKey,
   publicKey,
   type SessionUpdateInput,
@@ -225,13 +225,14 @@ export class Fixture {
     return row?.last_seq ?? 0;
   }
 
-  // write sends a message, by default having seen the thread's latest message.
+  // write sends a message, by default having seen the thread's latest message,
+  // with the agent mount's schema, which also takes a report of the status.
   write(
     identity: Identity,
     target: ThreadTarget,
-    fields: Partial<Record<keyof MessageSendInput, unknown>>,
+    fields: Partial<Record<keyof AgentMessageSendInput, unknown>>,
   ) {
-    const input = messageSendInput.parse({
+    const input = agentMessageSendInput.parse({
       request_id: requestId(),
       ...fields,
       seen_through: fields.seen_through ?? this.lastSeq(target),

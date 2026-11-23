@@ -1,10 +1,8 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { testDirectory } from "../test-directory.ts";
 import { Database } from "./database.ts";
 
-let root: string;
 let database: Database;
 
 const run = (sql: string, ...params: (string | number | Buffer | null)[]) =>
@@ -28,8 +26,9 @@ function insertFile(ref: string, options: { complete?: boolean } = {}): number {
 const ref = (n: number) => String(n).padStart(22, "r");
 
 beforeEach(() => {
-  root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-files-schema-")));
-  database = Database.open(path.join(root, "agention.db"), { log: () => undefined });
+  database = Database.open(path.join(testDirectory("files-schema"), "agention.db"), {
+    log: () => undefined,
+  });
   database.prepare("INSERT INTO people (name, created_at) VALUES ('operator', 1)").run();
   database.prepare("INSERT INTO agents (name, created_at) VALUES ('agent', 1)").run();
   database.prepare("INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 's', 1)").run();
@@ -49,7 +48,6 @@ beforeEach(() => {
 
 afterEach(() => {
   database.close();
-  rmSync(root, { recursive: true, force: true });
 });
 
 describe("files, their chunks and attachments", () => {
