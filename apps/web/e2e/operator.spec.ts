@@ -9,9 +9,10 @@
 // way back under the composer, the sessions view with a session's status and
 // log, at a phone's width too, a thread the operator starts there and
 // stranded's reason, a session's options menu over the next agent's header, the
-// sessions view folded by group with a group's link to its threads, the links
-// to stranded threads and a tag as tall in a header as in a row, at a phone's
-// width too, the last session's options menu over the folds below it, grouped
+// sessions view folded by group, its headers folding by a click on their bars
+// but for their chips, which link to their threads, as a group's, a tag's and
+// the stranded threads' do, and a tag as tall in a header as in a row, at a
+// phone's width too, the last session's options menu over the folds below it, grouped
 // or not, signing out from Settings and in again, a second passkey that takes
 // over from the first in Settings' passkeys, which /passkeys leads to, and a
 // second server on another port of the host signed in beside the first. CDP
@@ -162,7 +163,7 @@ test("the operator approves an agent's registration by its code", async () => {
     page.getByRole("region", { name: "Waiting for approval" }).getByRole("article"),
   ).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^main( |$)/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session main" })).toBeVisible();
   await expect(tab("Sessions")).toHaveAccessibleName("Sessions");
   await page.getByRole("button", { name: "Credentials and past requests" }).click();
   await expect(card.locator(".state")).toHaveText("approved");
@@ -541,16 +542,41 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
 
   // Grouped by session, the list folds under each session's header, which
-  // collapses what it holds.
+  // collapses what it holds, by its chevron or a click on the rest of its
+  // bar.
   await page.getByRole("combobox", { name: "Group" }).selectOption("Session");
   await expect(page).toHaveURL(/\/\?sort=latest&group=session$/);
-  const session = page.getByRole("button", { name: /^Agent builder Session main, \d+ threads?/ });
+  const session = page.getByRole("button", { name: "Agent builder Session main" });
+  const sessionBar = page.locator(".group-head").filter({ has: session });
   await expect(session).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
   await session.click();
   await expect(session).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeHidden();
-  await session.click();
+  await sessionBar.click({ position: { x: 2, y: 2 } });
+  await expect(session).toHaveAttribute("aria-expanded", "true");
+  // Its label is a link that adds the session to the list's filters,
+  // keeping its order and grouping, and folds nothing. The link reaches
+  // across the bar's height, so a tap at its edge, clear of its text, lands
+  // on it rather than on the fold beneath.
+  const label = await sessionBar
+    .getByRole("link", { name: "Threads of Agent builder Session main", exact: true })
+    .boundingBox();
+  const labelText = await sessionBar.locator(".group-label .path-name").first().boundingBox();
+  expect(label).not.toBeNull();
+  expect(labelText).not.toBeNull();
+  if (label !== null && labelText !== null) {
+    expect(label.y + 2).toBeLessThan(labelText.y);
+    await page.mouse.click(labelText.x + labelText.width / 2, label.y + 2);
+  }
+  await expect(page).toHaveURL(/\/\?session=builder\/main&sort=latest&group=session$/);
+  await expect(
+    page.getByRole("button", { name: "Remove filter: Session builder/main" }),
+  ).toBeVisible();
+  await expect(session).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Remove filter: Session builder/main" }).click();
+  await expect(page).toHaveURL(/\/\?sort=latest&group=session$/);
   await page.getByRole("combobox", { name: "Group" }).selectOption("Flat");
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);
@@ -611,7 +637,7 @@ test("the sessions view shows a session's status and log, and starts a thread th
   }
 
   await tab("Sessions").click();
-  const fold = page.getByRole("button", { name: /^main Retire invoices 60%/ });
+  const fold = page.getByRole("button", { name: "Session main" });
   const row = page.getByRole("listitem").filter({ has: fold });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(row.getByText("Idle", { exact: true })).toBeVisible();
@@ -622,9 +648,14 @@ test("the sessions view shows a session's status and log, and starts a thread th
   await expect(row.getByText("4 new updates")).toBeVisible();
   await expect(row.getByText("Waiting on CI")).toBeVisible();
 
-  // Unfolded, the log shows newest first, the two updates of progress alone
-  // in one line, and reads it.
-  await fold.click();
+  // Unfolded by a click on its title, as anywhere on the row but its links
+  // and controls, the log shows newest first, the two updates of progress
+  // alone in one line, and reads it.
+  const titled = await row.getByText("Retire invoices", { exact: true }).boundingBox();
+  expect(titled).not.toBeNull();
+  if (titled !== null) {
+    await page.mouse.click(titled.x + titled.width / 2, titled.y + titled.height / 2);
+  }
   await expect(fold).toHaveAttribute("aria-expanded", "true");
   const log = row.getByRole("list", { name: "Updates" });
   await expect(log.getByRole("listitem")).toHaveCount(3);
@@ -725,8 +756,8 @@ test("the sessions view folds by group, each group's head linking to its threads
   await sheet.getByLabel("New group's name").fill("Work");
   await sheet.getByRole("button", { name: "Save" }).click();
   await expect(sheet).toBeHidden();
-  const work = page.getByRole("button", { name: /^Group Work, \d+ threads?/ });
-  const none = page.getByRole("button", { name: /^No group, \d+ threads?/ });
+  const work = page.getByRole("button", { name: "Group Work" });
+  const none = page.getByRole("button", { name: "No group" });
   await expect(work).toBeVisible();
   await expect(none).toBeVisible();
   const builder = page.getByRole("button", { name: /^Agent builder/ });
@@ -761,12 +792,55 @@ test("the sessions view folds by group, each group's head linking to its threads
     // A tag is one chip, as tall in its agent's header as in its session's
     // row.
     expect(await height(".fold-head .tag-chip")).toBe(await height(".session-facts .tag-chip"));
-    // The group's head folds what it holds, and unfolds it again.
+    // The agent's options keep the right end of its header's first row,
+    // however its marks wrap, and no two links on a header reach over each
+    // other, so a tap lands on the one it is nearest.
+    const layout = await page
+      .locator(".subgroup-head")
+      .filter({ has: builder })
+      .evaluate((bar) => {
+        const box = bar.getBoundingClientRect();
+        const options = bar.querySelector(".options-button")?.getBoundingClientRect();
+        const links = Array.from(bar.querySelectorAll("a"), (link) => link.getBoundingClientRect());
+        const overlapping = links.some((one, index) =>
+          links.slice(index + 1).some(
+            (other) =>
+              // Boxes that only meet, to within rounding, do not overlap.
+              one.left < other.right - 0.5 &&
+              other.left < one.right - 0.5 &&
+              one.top < other.bottom - 0.5 &&
+              other.top < one.bottom - 0.5,
+          ),
+        );
+        return {
+          right: box.right - (options?.right ?? 0),
+          top: (options?.top ?? 0) - box.top,
+          overlapping,
+        };
+      });
+    expect(layout.right).toBeLessThan(16);
+    expect(layout.top).toBeLessThan(8);
+    expect(layout.overlapping).toBe(false);
+    // The group's head folds what it holds, and unfolds it again, by its
+    // chevron or a click on the rest of its bar, but for its links.
+    const workBar = page.locator(".group-head").filter({ has: work });
     await work.click();
     await expect(work).toHaveAttribute("aria-expanded", "false");
     await expect(builder).toBeHidden();
-    await work.click();
+    await workBar.click({ position: { x: 2, y: 2 } });
     await expect(builder).toBeVisible();
+    // Its name links to its threads alone, as its count does, folding
+    // nothing.
+    await workBar.getByRole("link", { name: "Threads in group Work", exact: true }).click();
+    await expect(page).toHaveURL(/\/\?session_group=\d+$/);
+    await page.getByRole("link", { name: /^Sessions/ }).click();
+    await expect(work).toHaveAttribute("aria-expanded", "true");
+    // A tag on the agent's header links to the threads carrying it.
+    await page.locator(".fold-head .tag-chip", { hasText: "example" }).click();
+    await expect(page).toHaveURL(/\/\?tag=example$/);
+    await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
+    await page.getByRole("link", { name: /^Sessions/ }).click();
+    await expect(builder).toHaveAttribute("aria-expanded", "true");
     // Its link lands on the thread list filtered to the group alone.
     await page.getByRole("link", { name: /^\d+ threads? of Work$/ }).click();
     await expect(page).toHaveURL(/\/\?session_group=\d+$/);

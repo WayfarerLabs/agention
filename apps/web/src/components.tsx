@@ -340,61 +340,72 @@ const foldClasses: Record<FoldDepth, [section: string, head: string]> = {
   innermost: ["subgroup innermost", "subgroup-head"],
 };
 
-// Fold is what a header folds: a heading wrapping a disclosure button, its
-// chevron turned while folded, and beneath it what it holds, shown only while
-// unfolded, so nothing folded away loads or reads. Its depth sets its
-// header's style. Its button shows its label and any marks beside it, and is
-// named spoken where the marks say more than the label. actions, when given,
-// sit beside the heading rather than in it, such as an options menu.
+// What a fold's header is labelled: a plain label, which sits in the
+// fold's button and names it; or, given the name the button goes by, as in
+// "Agent builder", a label beside the button, which can be a link, such as to
+// the threads it heads.
+type FoldLabel = { name?: undefined; label: string } | { name: string; label: ReactNode };
+
+// Fold is what a header folds: a bar holding a heading, then any marks,
+// wrapping where the width ends, and any actions, kept together at the
+// bar's right end, and beneath it what it holds, shown only while unfolded,
+// so nothing folded away loads or reads. Its depth sets the bar's style. The
+// heading leads with the fold's disclosure button, its chevron turned while
+// folded, and goes by the button's name alone, so a linked label beside the
+// button does not say it twice. The marks can hold links, and the actions
+// controls, such as an options menu. The button stretches under the bar, so
+// a click anywhere on it but on a link or a control folds or unfolds it, as
+// on a plain label or a plain mark; keyboards and assistive technology use
+// the button.
 export function Fold({
   level,
   depth,
-  label,
   marks,
-  spoken,
   actions,
   folded,
   toggle,
   children,
-}: {
+  ...labelled
+}: FoldLabel & {
   level: FoldLevel;
   depth: FoldDepth;
-  label: ReactNode;
   marks?: ReactNode;
-  spoken?: string | undefined;
   actions?: ReactNode;
   folded: boolean;
   toggle: () => void;
   children: ReactNode;
 }) {
   const body = useId();
+  const button = useId();
   const Heading = `h${level}` as const;
   const [section, head] = foldClasses[depth];
-  const heading = (
-    <Heading className={head}>
-      <button
-        type="button"
-        aria-expanded={!folded}
-        aria-controls={body}
-        aria-label={spoken}
-        onClick={toggle}
-      >
-        <Icon name="expand" />
-        <span className="group-label">{label}</span>
-        {marks}
-      </button>
-    </Heading>
-  );
+  const shown = <span className="group-label">{labelled.label}</span>;
+  const plain = labelled.name === undefined;
   return (
     <section className={section}>
-      {actions === undefined ? (
-        heading
-      ) : (
-        <div className="fold-head">
-          {heading}
-          {actions}
+      <div className="fold-head">
+        <div className={head}>
+          <div className="fold-main">
+            <Heading className="fold-title" aria-labelledby={plain ? undefined : button}>
+              <button
+                type="button"
+                id={button}
+                className="fold-toggle"
+                aria-expanded={!folded}
+                aria-controls={body}
+                aria-label={labelled.name}
+                onClick={toggle}
+              >
+                <Icon name="expand" />
+                {plain && shown}
+              </button>
+              {!plain && shown}
+            </Heading>
+            <span className="fold-end">{marks}</span>
+          </div>
+          {actions !== undefined && <span className="fold-actions">{actions}</span>}
         </div>
-      )}
+      </div>
       <div id={body} hidden={folded}>
         {!folded && children}
       </div>
