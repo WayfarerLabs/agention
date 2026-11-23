@@ -113,7 +113,7 @@ const asksOf = (session: string, within_?: HTMLElement) =>
 
 // entry is one of a session's log entries.
 function entry(seq: number, fields: Partial<SessionUpdate> = {}): SessionUpdate {
-  return { seq, created_at: time, state: "working", ...fields };
+  return { seq, created_at: time, state: "working", inferred: false, ...fields };
 }
 
 // serveLog answers a session's log from its entries, oldest first, as the
@@ -708,6 +708,19 @@ describe("a session unfolded", () => {
     const lines = within(log).getAllByRole("listitem");
     expect(lines).toHaveLength(2);
     expect(lines[0]?.textContent).toMatch(/20%.*60%/);
+  });
+
+  it("marks an entry the server inferred, which carries no note", async () => {
+    serveLog([entry(1, { state: "idle", note: "Waiting." }), entry(2, { inferred: true })], 2);
+    await open([agent("builder", [{ ...reported, unread_updates: 0 }])]);
+    fireEvent.click(fold("main"));
+    const log = await screen.findByRole("list", { name: "Updates" });
+    const lines = within(log).getAllByRole("listitem");
+    expect(lines.map((line) => line.querySelector(".log-inferred") !== null)).toEqual([
+      true,
+      false,
+    ]);
+    expect(lines[0]?.querySelector("q")).toBeNull();
   });
 
   it("reads nothing it has read already", async () => {

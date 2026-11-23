@@ -11,7 +11,7 @@ import {
 import { attachmentList, attachmentRead, fileTotals } from "./files.ts";
 import { name } from "./names.ts";
 import { reference, referenceList } from "./references.ts";
-import { threadPresence } from "./sessions.ts";
+import { outcomeGoesWithStopped, threadPresence, writeStatusFields } from "./sessions.ts";
 import { multilineText, singleLineText } from "./text.ts";
 import { timestamp } from "./time.ts";
 
@@ -275,13 +275,17 @@ export function detailNeedsText(
   }
 }
 
+// A session's start of a thread: a title, a first message of any parts, and
+// what it reports of its status with them (writeStatusFields).
 export const threadCreateInput = z
   .object({
     request_id: requestId,
     title: threadTitle,
     ...messageParts,
+    ...writeStatusFields,
   })
-  .superRefine(detailNeedsText);
+  .superRefine(detailNeedsText)
+  .superRefine(outcomeGoesWithStopped);
 export type ThreadCreateInput = z.infer<typeof threadCreateInput>;
 
 // The operator's start of a thread on a session: a title and a first message
@@ -357,6 +361,16 @@ export const messageSendInput = messageFields.superRefine(detailNeedsText).super
 export type MessageSendInput = z.infer<typeof messageSendInput>;
 // A message as a client writes it, before the schema applies its defaults.
 export type MessageSendRequest = z.input<typeof messageSendInput>;
+
+// A message as the agent mount takes it: what messageSendInput takes, and
+// what the session reports of its status with it (writeStatusFields), which
+// only a session reports, so the operator's mounts have no such fields.
+export const agentMessageSendInput = messageFields
+  .extend(writeStatusFields)
+  .superRefine(detailNeedsText)
+  .superRefine(needsAPart)
+  .superRefine(outcomeGoesWithStopped);
+export type AgentMessageSendInput = z.infer<typeof agentMessageSendInput>;
 
 export const markInput = z.object({
   through: sequence.describe("The message sequence to mark through."),

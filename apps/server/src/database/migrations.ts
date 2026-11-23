@@ -580,4 +580,12 @@ export const migrations: readonly string[] = [
   INSERT INTO message_positions (thread_id, seq)
     SELECT thread_id, seq FROM messages ORDER BY rowid;
   `,
+  `
+  -- Whether the server inferred a session's log entry rather than the session
+  -- reporting it: one logged when the session wrote to a thread while idle,
+  -- which marks it working and carries no note. Every earlier entry was
+  -- reported.
+  ALTER TABLE session_updates ADD COLUMN inferred INTEGER NOT NULL DEFAULT 0
+    CHECK (inferred = 0 OR (inferred = 1 AND state = 'working' AND note IS NULL));
+  `,
 ];

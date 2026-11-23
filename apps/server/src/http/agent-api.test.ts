@@ -652,3 +652,55 @@ describe("session status", () => {
     expect((response.body as ErrorBody).error.field).toBe("outcome");
   });
 });
+
+describe("a write's status", () => {
+  const status = (body: unknown) => harness.agent(approved, "POST", "/s/builder/main/status", body);
+  // The session's status as the operator's sessions view shows it.
+  const viewed = async () => {
+    const page = (await harness.web("GET", "/sessions")).body as {
+      agents: { sessions: { status?: { state: string; note?: string } }[] }[];
+    };
+    return page.agents[0]?.sessions[0]?.status;
+  };
+
+  it("is reported beside a message, on the agent mount alone", async () => {
+    await harness.agent(approved, "POST", "/s/builder/main/threads", newThread("r-1"));
+    const sent = await harness.agent(approved, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "r-2",
+      seen_through: 1,
+      text: "Over to you.",
+      state: "idle",
+      note: "Asked.",
+    });
+    expect(sent.body).toEqual({ number: 1, seq: 2 });
+    expect(await viewed()).toMatchObject({ state: "idle", note: "Asked." });
+    // The operator's mount takes no status, so it drops one sent beside a
+    // message, as any field it does not know.
+    const written = await harness.web("POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 2,
+      text: "Thanks.",
+      state: "stopped",
+      outcome: "completed",
+    });
+    expect(codeOf(written)).toBe("ok");
+    expect(await viewed()).toMatchObject({ state: "idle", note: "Asked." });
+  });
+
+  it("is working once an idle session writes, from a bridge of any version served", async () => {
+    for (const version of [undefined, String(agentApi.version - 1)]) {
+      await status({ state: "idle", note: "Waiting." });
+      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const created = await harness.agent(
+        approved,
+        "POST",
+        "/s/builder/main/threads",
+        newThread(`r-${version ?? "none"}`),
+        { headers },
+      );
+      expect([version, codeOf(created)]).toEqual([version, "ok"]);
+      const seen = await viewed();
+      expect([version, seen?.state, seen?.note]).toEqual([version, "working", undefined]);
+    }
+  });
+});

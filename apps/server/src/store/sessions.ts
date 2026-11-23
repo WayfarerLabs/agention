@@ -15,6 +15,7 @@ import {
   type SessionUpdateInput,
   type WorkOutcome,
   type WorkState,
+  type WriteStatus,
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import type { Database } from "../database/database.ts";
@@ -29,7 +30,9 @@ import { authorizeSession, type SessionTarget } from "./threads.ts";
 // What a session reports of its work, and the operator's view of the
 // sessions. A session's status lives only in its log: each entry holds the
 // whole status after it, so the current status is the latest entry, and
-// nothing about it is stored on the session.
+// nothing about it is stored on the session. The session reports it, with an
+// update or beside a write to a thread, and the server infers one change of
+// its own: a session that writes to a thread while idle is working.
 
 // A session's status as the log stores it.
 interface Status {
@@ -43,6 +46,7 @@ interface Status {
 interface UpdateRow extends Status {
   seq: number;
   note: string | null;
+  inferred: number;
   created_at: number;
 }
 
@@ -50,8 +54,8 @@ interface UpdateRow extends Status {
 function latestUpdate(db: Database, sessionId: number): UpdateRow | undefined {
   return db
     .prepare(
-      `SELECT seq, state, outcome, title, goal, percent, note, created_at FROM session_updates
-       WHERE session_id = ? ORDER BY seq DESC LIMIT 1`,
+      `SELECT seq, state, outcome, title, goal, percent, note, inferred, created_at
+       FROM session_updates WHERE session_id = ? ORDER BY seq DESC LIMIT 1`,
     )
     .get(sessionId) as unknown as UpdateRow | undefined;
 }
@@ -61,7 +65,8 @@ function latestUpdate(db: Database, sessionId: number): UpdateRow | undefined {
 // beside stopped and none beside the others; a session that first reports
 // without one is working, since it is running. A title, goal or percent sets
 // its field, and a goal other than the current one clears the percent unless
-// the update gives one. A field left out is unchanged.
+// the update gives one. A field left out is unchanged. A write's report is an
+// update with only a state, an outcome and a note.
 function merged(current: Status | undefined, input: SessionUpdateInput): Status {
   const goalChanged = input.goal !== undefined && input.goal !== (current?.goal ?? null);
   return {
@@ -99,7 +104,42 @@ function toUpdate(row: UpdateRow): SessionUpdate {
     created_at: formatTimestamp(row.created_at),
     ...toStatus(row),
     ...(row.note === null ? {} : { note: row.note }),
+    inferred: row.inferred === 1,
   };
+}
+
+// logStatus merges an update into the session's current status and logs the
+// result, as the registration's, answering with the status after it. An
+// update that changes nothing and carries no note logs nothing. inferred marks
+// an entry the session did not report.
+function logStatus(
+  db: Database,
+  sessionId: number,
+  registrationId: number,
+  input: SessionUpdateInput,
+  now: number,
+  inferred: boolean,
+): SessionStatus {
+  const current = latestUpdate(db, sessionId);
+  const status = merged(current, input);
+  if (current !== undefined && sameStatus(current, status) && input.note === undefined) {
+    return toStatus(status);
+  }
+  db.prepare(
+    `INSERT INTO session_updates (session_id, seq, registration_id, state, outcome, title, goal,
+       percent, note, inferred, created_at)
+     VALUES (:session_id, :seq, :registration_id, :state, :outcome, :title, :goal, :percent,
+       :note, :inferred, :created_at)`,
+  ).run({
+    session_id: sessionId,
+    seq: (current?.seq ?? 0) + 1,
+    registration_id: registrationId,
+    ...status,
+    note: input.note ?? null,
+    inferred: Number(inferred),
+    created_at: now,
+  });
+  return toStatus(status);
 }
 
 // updateSession merges a session's update into its status and logs the
@@ -120,30 +160,58 @@ export function updateSession(
     // A registration holds threads:write over its own session, the scope its
     // status rides on; only a registration reports one.
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
-    const { credential } = identity;
-    if (identity.actor !== sessionActorId(db, sessionId) || credential.kind !== "registration") {
-      throw notAllowed(undefined, "only a session reports its status, and only its own");
+    const registrationId = ownRegistration(db, identity, sessionId);
+    if (registrationId === undefined) {
+      throw notOwnStatus();
     }
-    const current = latestUpdate(db, sessionId);
-    const status = merged(current, input);
-    if (current !== undefined && sameStatus(current, status) && input.note === undefined) {
-      return toStatus(status);
-    }
-    db.prepare(
-      `INSERT INTO session_updates (session_id, seq, registration_id, state, outcome, title, goal,
-         percent, note, created_at)
-       VALUES (:session_id, :seq, :registration_id, :state, :outcome, :title, :goal, :percent,
-         :note, :created_at)`,
-    ).run({
-      session_id: sessionId,
-      seq: (current?.seq ?? 0) + 1,
-      registration_id: credential.registrationId,
-      ...status,
-      note: input.note ?? null,
-      created_at: now,
-    });
-    return toStatus(status);
+    return logStatus(db, sessionId, registrationId, input, now, false);
   });
+}
+
+// ownRegistration answers the registration behind the identity when it is the
+// session's own, the only identity whose calls report or change the session's
+// status, and undefined for any other.
+function ownRegistration(db: Database, identity: Identity, sessionId: number): number | undefined {
+  const { credential } = identity;
+  return identity.actor === sessionActorId(db, sessionId) && credential.kind === "registration"
+    ? credential.registrationId
+    : undefined;
+}
+
+function notOwnStatus() {
+  return notAllowed(undefined, "only a session reports its status, and only its own");
+}
+
+// statusOnWrite applies what a write to one of a session's threads says of the
+// session's status, inside the write's transaction once the write has passed
+// its checks, so the two land together or not at all. The session's own write
+// that reports a state, an outcome or a note applies them exactly as an update
+// with them would. One that reports nothing marks an idle session working,
+// since a session that writes is doing something, and logs that change as an
+// inferred entry; a stopped session stays stopped, since one that writes was
+// started again and says so itself. The operator's writes say nothing of the
+// session's status, and may report none.
+export function statusOnWrite(
+  db: Database,
+  identity: Identity,
+  sessionId: number,
+  report: WriteStatus,
+  now: number,
+): void {
+  const reported =
+    report.state !== undefined || report.outcome !== undefined || report.note !== undefined;
+  const registrationId = ownRegistration(db, identity, sessionId);
+  if (registrationId === undefined) {
+    if (reported) {
+      throw notOwnStatus();
+    }
+    return;
+  }
+  if (reported) {
+    logStatus(db, sessionId, registrationId, report, now, false);
+  } else if (latestUpdate(db, sessionId)?.state === "idle") {
+    logStatus(db, sessionId, registrationId, { state: "working" }, now, true);
+  }
 }
 
 // authorizeLogReader authorizes the identity for the session's log, which
@@ -184,8 +252,8 @@ export function sessionLog(
     const sessionId = authorizeLogReader(db, identity, "sessions:read", target, store.clock());
     const rows = db
       .prepare(
-        `SELECT seq, state, outcome, title, goal, percent, note, created_at FROM session_updates
-         WHERE session_id = :session AND (:before IS NULL OR seq < :before)
+        `SELECT seq, state, outcome, title, goal, percent, note, inferred, created_at
+         FROM session_updates WHERE session_id = :session AND (:before IS NULL OR seq < :before)
          ORDER BY seq DESC LIMIT :limit`,
       )
       .all({

@@ -9,6 +9,7 @@ import {
   groupParams,
   groupRef,
   groupsAndTags,
+  messageSendInput,
   operatorWaitQuery,
   operatorWaitResult,
   registrationParams,
@@ -106,7 +107,7 @@ export const operatorOperations: readonly OperatorOperation[] = [
     handler: ({ store, identity, query, signal }) =>
       waitForEverySession(store, identity, query, signal),
   }),
-  ...threadOperations,
+  ...threadOperations(messageSendInput),
   operation({
     name: "startThread",
     method: "POST",

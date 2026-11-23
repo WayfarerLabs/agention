@@ -171,10 +171,23 @@ content is rejected. Marking never conflicts with a write.
 
 ### Sessions report what they are doing; presence is observed
 
-A session reports its status through one call, and no other call changes it. What it is doing is
-working; idle, with nothing left but waiting while it still checks Agention; or stopped, with an
-outcome. Stopped means the session is not likely to see new messages until something starts it
-again. The latest update wins, exempt from the stale rule, since only the session writes its status.
+A session reports its status through its status call, or beside a message it writes, so one call can
+send its last message and report that it now waits. What it is doing is working; idle, with nothing
+left but waiting while it still checks Agention; or stopped, with an outcome. Stopped means the
+session is not likely to see new messages until something starts it again. The latest report wins,
+exempt from the stale rule, since only the session reports its status.
+
+The server infers one change of its own: a session that writes to its threads while idle, starting
+one, sending a message, or marking one read, unread or archived, without reporting a status beside
+the write, is working; a write that reports one applies it as a status call would. An agent that
+reports idle and then picks work up again without reporting working would otherwise look idle for
+hours while plainly active, and a reminder cannot catch it, since an idle status gets none while the
+session waits. A write is a fact the server sees, not a report it trusts, and an idle session that
+writes is doing something. Each inferred change is marked as such in the session's log, so the
+agent's own reports stay distinguishable from it. Reads and waits change nothing, since an idle
+session checks for answers by design, and a stopped session stays stopped, since one that writes was
+started again and should say so itself.
+
 Each change is appended to the session's log, so the current status is read from the log and nothing
 about it is stored elsewhere; the operator reads the log with a read cursor of their own. Whether a
 session is waiting on the operator is never reported: it is counted from the session's open asks, so
@@ -404,9 +417,13 @@ These are deliberate limits, not gaps to fill later without a new decision:
   agent from repeatedly failing a person's write, but with one person and occasional agent writes
   that is unlikely, and it would bring back racing writes: any message can be overtaken by what it
   missed. The web UI keeps the draft through a stale write instead.
+- **Session status only as the session reports it.** Changing the status only through the session's
+  own reports keeps every change explicit, but leaves an agent that forgets to report working
+  looking idle while it works. Inferring working from the writes the server sees, each inferred
+  change marked in the log, keeps the status true and the agent's reports apart.
 - **Session status on every call.** Every tool could carry the session's state, keeping it current
-  without a call of its own. One status call was chosen instead, which keeps every tool's input to
-  one purpose and every change of status explicit.
+  without a call of its own. Only the two writes that send a message take it, optionally, so the
+  last message can also report idle; every other tool keeps its input to one purpose.
 - **Waiting as a reported state.** A session working on one thing while an ask about another waits
   is both working and waiting, so one reported state would have to choose. Counting waiting from
   open asks keeps the two apart and always true.
