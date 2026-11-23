@@ -211,7 +211,8 @@ export function Composer({
   // operator started typing, staging or recording, so a message that lands
   // meanwhile, or one the page has not shown, makes the write stale instead
   // of being answered unseen. Emptying the composer ends the draft, unless a
-  // recording is still to become its text.
+  // recording is still to become its text. A draft still in the composer when
+  // a write lands counts from at least the message it wrote.
   const [basis, setBasis] = useState<number | undefined>(undefined);
   const empty = blank(text) && blank(detail) && files.files.length === 0;
   const [dictating, setDictating] = useState(false);
@@ -316,7 +317,7 @@ export function Composer({
       setDetailsShown(false);
     }
     stage((current) => (current === sentStaged ? undefined : current));
-    setBasis(undefined);
+    setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
     setStatus(sent);
     if (stillOpen() && goBackNow.current) {
