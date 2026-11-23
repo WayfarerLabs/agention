@@ -260,6 +260,40 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     expect(readFileSync(wake, "utf8")).toBe("notice\n");
   });
 
+  it("keeps the bridge's newer notice over one it cannot print", async () => {
+    // A cat that, asked for the taken notice, has the bridge write a newer
+    // one first, then fails as if Claude Code's end of stderr had gone.
+    const home = tempHome();
+    const host = hostProcess().pid ?? 0;
+    const bin = join(home, "bin");
+    mkdirSync(bin);
+    const real = spawnSync("sh", ["-c", "command -v cat"], { encoding: "utf8" }).stdout.trim();
+    writeFileSync(
+      join(bin, "cat"),
+      "#!/bin/sh\n" +
+        'if [ "${2#*/taken.}" != "$2" ]; then\n' +
+        "  printf 'newer\\n' >\"${2%/*}/wake-a\"\n" +
+        "  exit 1\n" +
+        "fi\n" +
+        `exec ${real} "$@"\n`,
+      { mode: 0o755 },
+    );
+    const watcher = start({
+      HOME: home,
+      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      AGENTION_URL: "https://agention.example",
+      CLAUDE_PID: String(host),
+    });
+    await eventually(
+      () => (lockHolder(home, host) === watcher.child.pid ? true : undefined),
+      "the watcher's lock",
+    );
+    const wake = join(hostDirectory(home, host), "wake-a");
+    writeFileSync(wake, "older\n", { mode: 0o600 });
+    expect((await watcher.exited).code).toBe(1);
+    expect(readFileSync(wake, "utf8")).toBe("newer\n");
+  });
+
   it.each(["../x", "a/b", "", "."])("exits 0, writing nothing, for host name %j", async (name) => {
     const home = tempHome();
     const bin = join(home, "bin");

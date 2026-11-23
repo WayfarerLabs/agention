@@ -116,17 +116,15 @@ while :; do
     esac
     # Renaming takes a file, so the bridge's next one is never lost. A
     # notice that cannot be printed goes back for the next watcher, unless
-    # the bridge has written a newer one, which supersedes it.
+    # the bridge has written a newer one, which supersedes it: linking fails
+    # where a file is, in one step.
     taken=0
     for wake in "$dir"/wake-*; do
         mine=$dir/taken.$$
         if [ -f "$wake" ] && mv -f -- "$wake" "$mine"; then
             if ! cat -- "$mine" >&3; then
-                if [ -e "$wake" ]; then
-                    rm -f -- "$mine"
-                else
-                    mv -f -- "$mine" "$wake"
-                fi
+                ln -- "$mine" "$wake"
+                rm -f -- "$mine"
                 release
                 exit 1
             fi
