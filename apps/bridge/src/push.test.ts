@@ -361,6 +361,63 @@ describe("push", () => {
     expect(notices).toBe(1);
   });
 
+  it("keeps the round's position past a truncated read, so no thread it left out is skipped", async () => {
+    // Forty-nine threads hold unread messages from before push started; the
+    // operator's message to one more is found, and messages to two others,
+    // A and B, land before the notice's read. That read is truncated after
+    // A, whose position is past what the notice names, and A is left out.
+    const bridge = await harness.claudeBridge();
+    await bridge.ok("register");
+    await harness.approve(harness.keyOnDisk());
+    const threads: number[] = [];
+    for (let index = 0; index < 52; index++) {
+      threads.push(await threadWith(bridge, `Thread ${index}`));
+    }
+    const [found = 0, a = 0, b = 0, ...older] = threads;
+    for (const thread of older) {
+      await harness.operatorWrites(thread, { text: "Earlier." });
+    }
+    const { since } = await bridge.ok("message_wait");
+    const at = { origin: harness.origin, agent: "builder", session: "main" };
+    harness.markHost();
+    new HostDirectory(harness.home, hostname(), host).saveCursor({ ...at, since: since as string });
+    let landed = false;
+    harness.afterAnswer = async (request) => {
+      const url = new URL(request.url);
+      if (landed || !url.pathname.endsWith("/wait") || url.searchParams.get("wait") !== "1") {
+        return;
+      }
+      const read = await harness.server.web("GET", `/s/builder/main/threads/${found}`);
+      if ((read.body as { thread: { last_seq: number } }).thread.last_seq === 2) {
+        landed = true;
+        await harness.operatorWrites(a, { text: "Meanwhile, A.", request_id: "meanwhile-a" });
+        await harness.operatorWrites(b, { text: "Meanwhile, B.", request_id: "meanwhile-b" });
+      }
+    };
+    // The next round's wait is held until the first notice is taken, so the
+    // second never replaces it unseen.
+    let release = (): void => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    harness.beforeRequest = async (request) => {
+      const url = new URL(request.url);
+      if (landed && url.pathname.endsWith("/wait") && url.searchParams.get("wait") === "1") {
+        await held;
+      }
+    };
+    await bridge.ok("register");
+    await harness.operatorWrites(found, { text: "Now." });
+    const first = await harness.takeWake();
+    expect(landed).toBe(true);
+    expect(integersOf(first)).toContain(found);
+    expect(integersOf(first)).not.toContain(a);
+    release();
+    // The next round, from the round's position, finds A and B, and names
+    // both.
+    const next = integersOf(await harness.takeWake("the next wake file"));
+    expect(next).toContain(a);
+    expect(next).toContain(b);
+  });
+
   it("does not push again a message that lands while it writes the notice", async () => {
     harness.markHost();
     const { bridge } = await harness.registered();

@@ -417,8 +417,10 @@ export class Push {
   //
   // A truncated read is no proof that a thread is read, so the round's own
   // threads are named first, then the read's, as many as a notice names. Its
-  // position may lag the round's, so the round's stays saved, and a message
-  // that landed meanwhile may be pushed once more.
+  // position is not saved: it may lag the round's, or lie past threads the
+  // notice left out, which saving it would skip for good. The round's stays
+  // saved, so those are pushed next, and a message that landed meanwhile may
+  // be pushed once more.
   async #notify(at: SessionAt, found: readonly NoticeThread[], signal: AbortSignal): Promise<void> {
     const { key } = await this.#session.credential(signal);
     const unread = await this.#wait(at, {

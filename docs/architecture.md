@@ -1119,19 +1119,20 @@ its tokens and where its requests may go.
   round's wait is not named, and when none is left unread no wake file is written; its position is
   saved too, so a message that landed after the round's wait answered is not pushed again. A read of
   51 is truncated, and absence from it is no proof of a read: the notice names the round's own
-  threads first, then the read's, 50 in all, and the round's position stays saved, since the
-  truncated read's may lag it, so only then can a message that landed meanwhile be pushed once more.
-  A notice whose read fails is written on the next pass. Each file is written to a hidden temporary
-  private file and renamed into place, without waiting for the disk: a cursor lost to a crash of the
-  machine only pushes again what is unread. Every failure is retried after a pause that doubles from
-  1 second to a minute. A server that does not serve the bridge's agent API version, or a host
-  directory the bridge cannot use, is also a lapse while it lasts. A registration that can never be
-  approved, rejected or revoked, or one that expired pending, ends the loop, with a lapse, and only
-  a `register`, which replaces the key, starts it again; an approval clears a lapse. After a lapse,
-  once `register` has said answers are pushed, the next answer of any tool but `register`, an error
-  included, ends with one line saying answers now reach the agent only when it checks; a lapse the
-  loop recovers from before an answer says it is not said. The loop stops when the host closes the
-  bridge's input. The watcher that takes the wake files is in
+  threads first, then the read's, 50 in all, and the round's position stays saved: the truncated
+  read's may lag it, or lie past threads the notice left out, which saving it would skip for good.
+  The next round then pushes those, and only then can a message that landed meanwhile be pushed once
+  more. A notice whose read fails is written on the next pass. Each file is written to a hidden
+  temporary private file and renamed into place, without waiting for the disk: a cursor lost to a
+  crash of the machine only pushes again what is unread. Every failure is retried after a pause that
+  doubles from 1 second to a minute. A server that does not serve the bridge's agent API version, or
+  a host directory the bridge cannot use, is also a lapse while it lasts. A registration that can
+  never be approved, rejected or revoked, or one that expired pending, ends the loop, with a lapse,
+  and only a `register`, which replaces the key, starts it again; an approval clears a lapse. After
+  a lapse, once `register` has said answers are pushed, the next answer of any tool but `register`,
+  an error included, ends with one line saying answers now reach the agent only when it checks; a
+  lapse the loop recovers from before an answer says it is not said. The loop stops when the host
+  closes the bridge's input. The watcher that takes the wake files is in
   [Generated plugins](#generated-plugins).
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
