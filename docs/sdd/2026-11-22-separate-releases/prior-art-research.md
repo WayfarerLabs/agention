@@ -57,15 +57,19 @@ but cannot route shared commits. Source: S9. Informs: the HLA's alternatives.
 package and are ignored. release-please then looks for `<component>-v<manifest version>`, and
 without it walks back to `bootstrap-sha` or up to 500 commits. Seeding `agention-v0.6.0` and
 `agention-mcp-v0.6.0` on the 0.6.0 release commit avoids both the walk and a changelog comparing
-against a tag that does not exist. A still-open release pull request under the old configuration is
-orphaned by the switch, so 0.6.0 releases first. Source: S10. Informs: R4 and the plan's migration
-steps.
+against a tag that does not exist. The seed tags must exist before the tag ruleset covers their
+prefixes, since its only bypass actor is the release App. Source: S10. Informs: R4 and the HLA's
+migration order.
 
 **F7. Commit types that release.** Only `feat`, `fix` and `perf` commits, and breaking changes,
 release. Dependabot here commits as `chore`, and docs, tests, refactors and CI changes use their own
-types, so changes outside both lines' directories release both lines only when they are fixes or
-features of shared code. Source: the repository's `.github/dependabot.yml` and history. Informs:
-R2's cost, which is small.
+types. But a feature or fix usually carries its docs, and any file outside a line's path reaches the
+other configuration: of the four releasing commits between 0.5.0 and 0.6.0, three touch both a
+line's path and docs, `CONTRIBUTING.md`, `.cspell.json` or `packages/api`. Across main's history, 19
+of 90 releasing commits touch `packages/api` and neither line's path, and about 12 of those are work
+only the server uses. Source: the repository's `.github/dependabot.yml` and history. Informs: the
+HLA's exclusion of paths that ship nothing, and its move of the server-only contract out of
+`packages/api`.
 
 ### Agent hosts
 

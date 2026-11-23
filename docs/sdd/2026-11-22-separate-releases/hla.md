@@ -11,70 +11,85 @@ Three changes, each complete on its own:
 
 1. **Release lines.** Two release-please configurations, one per line, replace the one that stamps
    one version everywhere. Each line has its own tags, changelog, release pull request and publish
-   run, and the agent line's publish refuses to run ahead of the server (C2).
-2. **A newer bridge against an older server.** The bridge checks the server's agent API version
-   before it registers, so it never leaves a pending registration behind (C4), and both sides word a
-   version mismatch in terms that hold when the lines' versions differ (C3). A new gate runs the
-   bridge at HEAD against every released server (C5).
-3. **The plugin-is-behind signal.** The bridge states its release on every request. The server
-   records what each session's bridge states, marks a session whose bridge is behind in the sessions
-   view and the operator API, and says so in the register answer, which bridges from this effort on
-   relay (U2 to U4).
+   run. A check on the agent line's release pull request keeps it from merging before the server
+   release it needs is on npm (C2).
+2. **A newer bridge against an older server.** Both sides word a version mismatch in terms that hold
+   when the lines' versions differ (C3), and a new gate runs the bridge at HEAD against every
+   released server older than it (C5).
+3. **The plugin-is-behind signal.** The server records the agent API version each session's bridge
+   states and marks a session whose bridge is behind in the sessions view and the operator API (U2);
+   a bridge from this effort on sees from the server's own answers that it is behind and says so in
+   its register answer (U3). Neither needs a change to the agent contract.
 
 ```mermaid
 flowchart LR
   subgraph serverLine["Server line: agention-vX.Y.Z"]
     server["apps/server"]
     web["apps/web"]
+    opApi["server-only contract"]
   end
   subgraph agentLine["Agent line: agention-mcp-vX.Y.Z"]
     bridge["apps/bridge"]
-    plugin["apps/agent-plugin and out/"]
+    plugin["apps/agent-plugin, out/, catalogs"]
   end
-  shared["packages/*, scripts, root files"]
+  shared["packages/api, packages/build, packages/private-files, root package.json, lockfile"]
+  none["docs/, scripts/, .github/, root docs and configs"]
   shared --> serverLine
   shared --> agentLine
-  bridge -- "Agention-Agent-API, Agention-Bridge" --> server
-  server -- "Agention-Agent-API, bridge status" --> bridge
+  bridge -- "Agention-Agent-API" --> server
+  server -- "Agention-Agent-API" --> bridge
 ```
 
 ## 1. Release lines
 
-### Membership
+### What each line ships
 
-| Line   | Component      | Tag                   | Paths it owns                                                            | Publishes                    |
-| ------ | -------------- | --------------------- | ------------------------------------------------------------------------ | ---------------------------- |
-| Server | `agention`     | `agention-vX.Y.Z`     | `apps/server`, `apps/web`                                                | `@wayfarerlabs/agention`     |
-| Agent  | `agention-mcp` | `agention-mcp-vX.Y.Z` | `apps/bridge`, `apps/agent-plugin`, `out/`, the two marketplace catalogs | `@wayfarerlabs/agention-mcp` |
+| Line    | Component      | Tag                   | Paths                                                                                    | Publishes                    |
+| ------- | -------------- | --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------- |
+| Server  | `agention`     | `agention-vX.Y.Z`     | `apps/server`, `apps/web`, the server-only contract package                              | `@wayfarerlabs/agention`     |
+| Agent   | `agention-mcp` | `agention-mcp-vX.Y.Z` | `apps/bridge`, `apps/agent-plugin`, `out/`, `.claude-plugin/`, `.agents/`                | `@wayfarerlabs/agention-mcp` |
+| Shared  | both           |                       | `packages/api`, `packages/build`, `packages/private-files`, `package.json`, the lockfile | both                         |
+| Neither |                |                       | `docs/`, `scripts/`, `.github/`, the root's Markdown, lint and editor configuration      | nothing                      |
 
-Everything else (`packages/*`, `scripts/`, the lockfile, root files) is shared: a releasing commit
-there releases both lines. Every workspace package under `packages/` is used by both the server and
-the bridge, so there is nothing to split further.
+**The server-only contract.** `packages/api` today holds both the contract the bridge and server
+share and modules only the server and web UI use (API keys, settings, attention, passkeys, groups
+and tags, the operator schemas). The bridge imports the whole package through its index, so a change
+to any of those modules changes the bridge's bundle too. Moving them into a package of their own,
+which the bridge does not depend on, makes R2 hold and lets the build enforce the boundary: the
+bridge cannot import what it does not depend on. This rests on the operator's answer to FRD open
+question 2; if they accept plugin releases for such changes instead, the package stays whole and R2
+is narrowed. The low-level design names the package and draws the line inside `sessions.ts`, whose
+operator parts move.
 
 ### Configuration
 
 release-please gives only a root package the commits outside every package's path (F2), so each line
-is the root package of its own configuration, excluding the other line's paths (F3):
+is the root package of its own configuration, excluding what it does not ship (F3):
 
 - `release-please-config.json` and `.release-please-manifest.json`: the server line, release type
-  `node`, component `agention`, `exclude-paths` the agent line's paths, the changelog `CHANGELOG.md`
-  (which keeps the history through 0.6.0), and `extra-files` for `apps/server/package.json` and its
-  lockfile entry. The root `package.json` version, which the `node` type writes, follows the server
-  line.
+  `node`, component `agention`, the changelog `CHANGELOG.md` (which keeps the history through
+  0.6.0), and `extra-files` for `apps/server/package.json` and its lockfile entry. The root
+  `package.json` version, which the `node` type writes, follows the server line.
 - `release-please-config.agent.json` and `.release-please-manifest.agent.json`: the agent line,
-  release type `simple` (so it writes no root `package.json`, F4), component `agention-mcp`,
-  `exclude-paths` the server line's paths, the changelog `apps/bridge/CHANGELOG.md`, and
-  `extra-files` for every place the agent version appears today: the bridge's `package.json` and
-  lockfile entry, the plugin definition, both generated plugin manifests, and the bridge's package
-  spec in both generated `.mcp.json` files. It also stamps the server's knowledge of the newest
-  bridge (see section 3).
+  release type `simple` (so it writes no root `package.json`, F4), component `agention-mcp`, the
+  changelog `apps/bridge/CHANGELOG.md`, its own `label` and `release-label`, and `extra-files` for
+  every place the agent version appears today: the bridge's `package.json` and lockfile entry, the
+  plugin definition, both generated plugin manifests, and the bridge's package spec in both
+  generated `.mcp.json` files.
 
-The release-please workflow runs the action twice, once per configuration. Each keeps its own
-release pull request. `node-workspace` and `linked-versions` are not used (F5).
+Each configuration's `exclude-paths` lists the other line's paths and the paths that ship nothing,
+so a feature that carries its docs releases only its own line, and a change to shared paths releases
+both. release-please drops a commit from a package only when every file it touches is excluded (F2),
+so a new top-level path that ships nothing and is missing from the lists releases both lines: the
+safe failure. CONTRIBUTING says where to add one.
 
-Only `feat`, `fix` and `perf` commits and breaking changes release (F7), so a shared change releases
-both lines only when it is a feature or fix of shared code; Dependabot's `chore` commits release
-neither.
+The agent configuration's labels differ from the server's because release-please stops updating a
+release pull request while any merged one still carries its pending label: shared labels would let
+one line's untagged release freeze the other's.
+
+The release-please workflow runs the action twice, once per configuration, each with its own release
+pull request and outputs. `node-workspace` and `linked-versions` are not used (F5). Only `feat`,
+`fix` and `perf` commits and breaking changes release (F7).
 
 ### Publishing
 
@@ -84,143 +99,170 @@ that is not that line's version everywhere the line stamps it, runs
 `scripts/check.sh --packages DIR`, and keeps only that line's tarball; the publish job, which runs
 no repository code, publishes it. A version already on npm is skipped, as today.
 
-**Release order (C2).** The agent line's build job refuses to go on until a server release serving
-the bridge's agent API version is on npm: it finds the newest server tag (`agention-v*`, or a legacy
-`v*`) whose `packages/api` agent API version is at least the bridge's and checks npm has that
-version. A refusal names the server release to merge first and says to re-run the failed jobs once
-it is published. When a shared change is pending on both lines, the maintainer merges the server's
-release pull request first.
+### Release order (C2, U4)
 
-The tag ruleset that lets only the release App create `v*` tags, and the npm environment's tag rule,
-must cover the new prefixes before the workflow triggers on them, or anyone who can push a tag could
-start a publish. Both are repository settings, which the operator changes (see Migration).
+A plugin is in effect released when its release pull request merges, not when its bridge reaches
+npm: the marketplace catalogs serve the plugin from `main`, so the merge changes the bridge every
+host runs (Codex at its next session start, F9). The order is therefore enforced at that merge.
+
+A new gate in `scripts/check.sh`, "Release order", acts only when HEAD's agent line version has no
+tag yet, which is true only on the agent line's release pull request. It reads the agent API version
+at HEAD and at the newest server tag reachable from HEAD (`agention-v*`, or a legacy `v*`; versions
+only grow, so the newest suffices), and fails unless that server serves HEAD's version and npm has
+it, naming the server release to merge and publish first, and asking for the check to be run again.
+`ci-success` requires it, so the agent release cannot merge first. The gate needs the network, so
+`--fast` skips it, as it does the compatibility gates.
+
+When the agent API changes, CONTRIBUTING has the maintainer merge the agent release pull request as
+soon as the server's release is published, so the window in which the sessions view asks for a
+plugin that is not yet released lasts minutes (U4).
 
 ### Gates
 
 - **Agent compatibility** keeps its meaning (every released bridge against the agent routes at
   HEAD), and finds released bridges from the legacy `v*` tags and the `agention-mcp-v*` tags.
 - **Server compatibility** is new (section 2).
-- `scripts/check.sh` otherwise does not change: CI checks both lines on every pull request, since a
-  change to shared code affects both.
+- **Release order** is new (above).
+- `scripts/check.sh` otherwise does not change: CI checks both lines on every pull request.
 
 ### Migration
 
-1. 0.6.0 releases under the current configuration (release pull request #58), since switching
-   configurations orphans an open release pull request (F6).
+0.6.0 released under the current configuration on 2026-11-23 (`v0.6.0`).
+
+1. The operator creates `agention-v0.6.0` and `agention-mcp-v0.6.0` on the `v0.6.0` commit, which
+   starts no run while the workflow triggers on `v*` only, and while the tag ruleset, whose only
+   bypass actor is the release App, does not yet cover them. They seed each line's history, so
+   release-please neither walks back 500 commits nor compares the first changelog against a tag that
+   does not exist (F6).
 2. The operator extends the tag ruleset and the npm environment's tag rule to `agention-v*` and
-   `agention-mcp-v*`.
-3. The operator creates `agention-v0.6.0` and `agention-mcp-v0.6.0` on the 0.6.0 release commit,
-   which starts no run while the workflow still triggers on `v*` only. These seed each line's
-   history, so release-please neither walks back 500 commits nor compares the first changelog
-   against a tag that does not exist (F6).
+   `agention-mcp-v*`, so only the release App can create them and only they can publish.
+3. The two configurations are tried against a fork or with release-please's dry run, since the
+   two-configuration pattern rests on reading the source (F3).
 4. The release-lines pull request merges, with both manifests at 0.6.0.
-5. Before that merge, the two configurations are tried against a fork or with release-please's dry
-   run, since the two-configuration pattern rests on reading the source (F3).
 
 ## 2. A newer bridge against an older server
 
-### What changes in the bridge
+### What the bridge says
 
-- **A version check before registering.** Before each `register` call reaches the server, the bridge
-  makes one request that every released server refuses without doing anything: an unauthenticated
-  request to the agent mount, which servers from 0.3.0 answer with their `Agention-Agent-API`
-  header, before authentication, and servers before 0.3.0 answer without one, meaning 1. A server
-  older than the bridge is refused there, so a new key is never sent and no pending registration is
-  recorded (C4). The per-answer check stays, for a server that changes under a running bridge.
-- **Wording.** The bridge's refusal names the server's version (or its silence) and the bridge's,
-  and the operator's fix in terms of each line's own releases: upgrade the Agention server to its
-  newest release, or install an earlier Agention plugin that matches the server, then restart the
-  session. It never asks for the server "at the bridge's release", which stops meaning anything once
-  the versions differ (C3).
+The bridge already refuses every answer from a server older than itself (`#requireVersion` in
+`apps/bridge/src/agent-api.ts`), errors included, so the server's own refusal of a newer bridge
+never reaches an agent through a bridge: the bridge's message is the one C3 governs, and the one its
+tests and the gate check. It is reworded to name the server's stated version, or its silence, and
+the bridge's, and the operator's fix in terms of the lines' own releases: upgrade the Agention
+server to its newest release, which by C2 serves every released bridge, and restart the session. It
+no longer names the server "at the bridge's release", which stops meaning anything once the versions
+differ.
 
-### What changes in the server
+### What the server says
 
-The agent mount's `unsupported_version` refusals are reworded the same way: a newer bridge than the
-server serves is told to have the operator upgrade the server to its newest release or install an
-earlier plugin; an older one than the server's oldest is told to update the plugin to its newest
-release. As today, the refusal names agent API versions, never the server's release.
+The agent mount's `unsupported_version` refusals are reworded the same way. The refusal of a bridge
+older than the server's oldest version, which bridges relay as the server wrote it, asks for the
+plugin's newest release. The refusal of a newer bridge reaches only clients other than Agention's
+bridges, and asks for the server's newest release. As today, both name agent API versions, never the
+server's release.
+
+### Registration against an older server (C4)
+
+Servers from 0.3.0 check the agent API version before any route, the registration route included, so
+a newer bridge's registration is refused before anything is recorded (proved at HEAD by the server's
+agent API tests). Servers before 0.3.0 state no version and may record a pending registration first;
+it expires unapproved within the hour. No change to the bridge is needed; the operator guide's
+statement that any older server leaves a registration waiting is narrowed to servers before 0.3.0.
 
 ### The server compatibility gate (C5)
 
 A new gate in `scripts/check.sh`, beside agent compatibility and skipped by `--fast`, mirrors it in
 the other direction. For each released server (legacy `v*` tags and `agention-v*` tags reachable
-from HEAD), it installs `@wayfarerlabs/agention` from npm by exact version with signatures and
-provenance checked, starts `agention serve` on loopback with a throwaway TLS certificate and data
-directory, and runs the bridge at HEAD against it as an agent host would:
-
-- against a server whose agent API version is older than the bridge's, every tool fails with the
-  refusal of C3, and the server's database holds no registration afterwards (C4);
-- against a server that serves the bridge's version, register, approval and a basic thread round
-  trip work.
-
-Released servers since 0.1.0 accept `--tls-cert` and `--tls-key`, so no proxy is needed. The low
-level design fixes how the gate approves a registration and reads the database across releases.
+from HEAD) whose agent API version is older than the bridge's at HEAD, it installs
+`@wayfarerlabs/agention` from npm by exact version with signatures and provenance checked, starts
+`agention serve` on loopback with a throwaway TLS certificate and data directory (every release
+accepts `--tls-cert` and `--tls-key`), and runs the bridge at HEAD against it as an agent host
+would. Every tool call fails with C3's refusal, and for servers from 0.3.0 the database holds no
+registration afterwards. A server that serves the bridge's version is skipped: the agent
+compatibility gate already covers bridges against the server at HEAD, and a server at the same
+version serves the same contract.
 
 ## 3. The plugin-is-behind signal
 
-### What a bridge states
+### What the server records
 
-Every request a bridge from this effort on makes carries its release in a new header,
-`Agention-Bridge`, beside `Agention-Agent-API`. Earlier bridges send no release; their agent API
-version is all the server knows of them (U4).
-
-### What the server knows
-
-- **The newest bridge it knows of** is a constant in `packages/api`, which the agent line's
-  release-please configuration stamps on each agent release. A server built at any commit therefore
-  knows the newest agent release made by then; a bridge-only release made after the server's own is
-  unknown to it, and is flagged once the operator upgrades the server.
-- **What each session's bridge states**: the session row records the agent API version and release
-  of the last approved call, updated only when they change, on the path that already marks the
-  session seen.
+The session row gains the agent API version stated on its last approved call (1 when the header is
+missing), written on the path that already marks the session seen, and only when it changes. A
+column rather than a value in memory, so the mark appears right after a server upgrade, before the
+session calls again. The store adds it with an append-only migration.
 
 ### When a session is behind
 
-A session is behind when its bridge's agent API version is below the server's (the server offers
-something the bridge cannot use), or its stated release is below the newest bridge the server knows
-of (a fix shipped since). A session with no recorded call yet is not marked.
+A session is behind when its recorded version is below the server's own. A session with no recorded
+call yet is not marked. Every released bridge states its version or, before 0.3.0, none, which reads
+as 1, so this covers them all (U2).
 
 ### Where it shows
 
-- **Sessions view**: the session's row carries a notice naming the reason and the fix: update the
-  Agention plugin on that agent's host and restart the session. A session that is current shows
-  nothing.
-- **Operator API**: the sessions read gains a field carrying the same status and reason, which is
-  additive and stays in operator API v1.
-- **Register answer**: the agent mount's registration answer gains the same status for the calling
-  session. This is a change to the agent contract, so it bumps the agent API version to 4. A bridge
-  from this effort on adds a sentence to its register answer asking the agent to tell the operator,
-  without failing the call (U3).
+- **Sessions view**: the session's row carries a notice saying the server offers features its plugin
+  cannot use, and the fix: update the Agention plugin on that agent's host to its newest release and
+  restart the session. A current session shows nothing.
+- **Operator API**: the sessions read gains a field carrying the same status, which is additive and
+  stays in operator API v1, and the generated OpenAPI document shows it.
+- **Register answer**: every answer already states the server's agent API version, so a bridge from
+  this effort on that sees a newer server than itself adds a sentence to its register answer asking
+  the agent to tell the operator, without failing the call (U3). The agent contract does not change,
+  so the agent API version does not move.
 
-### Sequencing with the agent API bump
+### Bridge-only fixes
 
-The agent line's first release after the signal speaks agent API 4, so by C2 it ships only after a
-server release that serves 4. Until the operator upgrades the server, a plugin updated to that
-release is refused with the reworded message of section 2.
+Marking a plugin behind because a newer bridge release fixed something (FRD open question 1) is not
+designed here. If the operator wants it, it needs the bridge to state its release on every request
+(the standard `User-Agent`, `agention-mcp/X.Y.Z`, rather than a header of Agention's own) and the
+server a source for the newest release: its own build (`apps/bridge/package.json` at the server's
+commit, which knows only bridges released before the server), the newest release any session
+reports, or npm.
+
+## Alternatives considered
+
+- **One configuration with `linked-versions` or `node-workspace`** (F5): neither routes a change to
+  shared code to both lines, and `node-workspace` would release the bridge on every server release.
+- **Checking the release order when the bridge publishes**: too late, since the merge already
+  changed the plugin every host runs; holding the publish only turns C3's refusal into a failed
+  `npx` install.
+- **Serving the plugin from a release tag** (F10): catalog entries with a `ref` would keep hosts off
+  unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
+  catalog's ref becomes one more thing each release stamps. Not needed for this effort's
+  requirements; a later change can adopt it.
+- **A version check before register**: it would spare only servers before 0.3.0 a pending
+  registration that expires within the hour, at the cost of a request on every registration.
+- **A separate plugin version**: the FRD excludes it.
 
 ## Documentation
 
 - A new ADR 0005, "Separate release lines", supersedes ADR 0001's "One version covers the server,
   the bridge and the plugins", and ADR 0001's status names it.
-- `docs/architecture.md`: "Versions", "Generated plugins", "Agent bridge" (the header, the version
-  check before register), "HTTP API" (the refusal wording), "Store" (the recorded bridge), "Web UI"
-  (the notice).
-- `CONTRIBUTING.md`: "Releasing" (two release pull requests, the merge order, the tags), "Checking a
-  release", "Checks" (the server compatibility gate), "The agent API".
+- `docs/architecture.md`: "Source and packages" (the server-only contract), "Versions", "Generated
+  plugins", "Agent bridge" (the refusal), "HTTP API" (the refusal wording), "Store" (the recorded
+  version), "Web UI" (the notice).
+- `CONTRIBUTING.md`: "Releasing" (two release pull requests, their merge order, the tags, where a
+  new path that ships nothing is listed), "Checking a release", "Checks" (the server compatibility
+  and release order gates), "The agent API".
 - `docs/operator-guide.md`: upgrading the server and updating the plugin as separate steps, the one
-  rule of U1, the sessions view's notice, and the update steps on each host (F8, F9), correcting the
-  claim that the hosts replace a plugin only when its version changes.
+  rule of U1, the sessions view's notice, the update steps on each host (F8, F9), and corrections to
+  the claims that the hosts replace a plugin only when its version changes and that any older server
+  leaves a registration waiting.
+- `SECURITY.md` "Supported versions", which says only the latest release is supported: the latest of
+  each line.
 - `README.md` "Status", `docs/development-context.md` (gates, release facts), and
   `docs/review-checklist.md` or `docs/live-testing.md` where they name releases or the one version.
+- The comments in `.github/workflows/release-please.yml` and `release.yml` that name `v*`.
 - The generated OpenAPI document, for the operator API's new field.
 
 ## Risks
 
-- **Undocumented release-please pattern.** Mitigated by the dry run of Migration step 5, and by the
+- **Undocumented release-please pattern.** Mitigated by the dry run of Migration step 3, and by the
   release workflow's own check that a tag matches its line's versions.
 - **Codex follows `main`.** A Codex host refreshes its plugin as soon as an agent release pull
   request merges, before the operator may have upgraded the server (F9). C2 orders the releases but
   cannot order the operator's installs; C3's refusal is what such a host sees. Graceful fallback is
   agention#16's, out of scope here.
 - **Two approvals for a shared change.** A shared fix becomes two release pull requests; the release
-  order check makes merging them in the wrong order fail loudly rather than publish out of order.
+  order gate keeps the agent one from merging first.
+- **Exclusion lists drift.** A path that ships nothing but is missing from both lists releases both
+  lines; over-releasing is the safe failure, and review catches the list.

@@ -4,9 +4,9 @@
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
-  records operator rulings here verbatim or as close transcription.
-- Origin: the operator's direction of 2026-11-22 (ruling 1). Agention as released in 0.6.0 is the
-  baseline; this effort's release mechanics land after 0.6.0 ships.
+  records operator rulings here verbatim.
+- Origin: the operator's direction of 2026-11-22 (ruling 1). Agention as released in 0.6.0, the last
+  release covering all three, is the baseline.
 
 ## Why this exists
 
@@ -39,8 +39,9 @@ and the plugins share one version, and each plugin release runs the bridge of th
 
 **R2. A line releases only when what it ships changes.** A change that affects only the server
 releases only the server line; one that affects only the bridge or the plugins (their tools, the
-usage skill, the plugin definition) releases only the agent line; one that changes what both share,
-such as the API contract, releases both, in the order C2 sets.
+usage skill, the plugin definition) releases only the agent line; one that changes what both ship,
+such as the agent API contract, releases both, in the order C2 sets. A change to what neither ships
+(docs, scripts, CI) releases neither, even when it rides with a change that releases one.
 
 **R3. Releasing stays one approval.** As today, merging a release pull request is a release's one
 human approval, after which CI publishes what released and nothing else. Each release is tagged and
@@ -56,22 +57,21 @@ installed at 0.6.0 or earlier stops working because of the split.
 updates the plugin when Agention tells them to. The operator guide says so, and says how to do each.
 
 **U2. The sessions view says when a plugin is behind.** A session's plugin is behind when its bridge
-speaks an older agent API version than the server, so the server offers something it cannot use, or
-when it is an older release than the newest bridge the server knows of, so a fix has shipped since.
-The sessions view marks such a session and says what to do: update the Agention plugin on that
-agent's host and restart the session. A session whose bridge is current shows nothing. The operator
-API's read of the sessions view carries the same information.
+speaks an older agent API version than the server, so the server offers something the bridge cannot
+use. The sessions view marks such a session and says what to do: update the Agention plugin on that
+agent's host to its newest release and restart the session. A session whose bridge is current shows
+nothing. The operator API's read of the sessions view carries the same information. This covers
+every released bridge, from the version each already states or, before the header existed, does not.
 
 **U3. The agent hears it at registration.** When a session registers, or checks its registration,
 with a bridge that is behind in the sense of U2, the answer tells the agent so, in words it can
-relay to the operator, without failing the call or holding up the work.
+relay to the operator, without failing the call or holding up the work. This reaches agents whose
+bridge is released from this effort on: every earlier bridge writes its register answer itself and
+relays nothing new.
 
-**U4. What reaches which bridge.** The sessions view's mark (U2) covers every released bridge: an
-older agent API version is recognized from the version every released bridge already states or,
-before the header existed, does not. An older release is recognized for bridges released from this
-effort on, which state their release; earlier bridges do not, so they are marked only by their agent
-API version. The register answer (U3) reaches agents whose bridge is released from this effort on,
-since every earlier bridge writes its register answer itself and relays nothing the server adds.
+**U4. Behind means a newer plugin exists.** The agent line's release that speaks a new agent API
+version follows the server's that serves it closely enough that the operator is not told to update
+to a plugin that has not been released.
 
 ### An older server
 
@@ -85,16 +85,17 @@ operator's current server, as long as that server is the newest release.
 **C3. A newer bridge against an older server fails clearly.** When a bridge meets a server that does
 not serve its agent API version, every tool call fails before anything it sent could be dropped
 silently, with a message the agent can relay that names the problem and the operator's fix in terms
-that hold when the two lines have different versions: upgrade the server to its newest release, or
-install an older Agention plugin.
+that hold when the two lines have different versions: upgrade the Agention server to its newest
+release, which by C2 serves every released bridge, and restart the session.
 
-**C4. A failed registration leaves nothing behind.** A session whose bridge is newer than the server
-never leaves a pending registration the operator would see and could not match to a code, since the
-agent never receives one to relay.
+**C4. A failed registration leaves nothing the operator must act on.** A server from 0.3.0 on
+refuses a newer bridge before recording anything, so no pending registration appears whose code the
+agent never relays. A server before 0.3.0, which states no agent API version, may record one; it
+expires unapproved within the hour, and the operator guide says so.
 
-**C5. Tested against real releases.** The behavior of C3 and C4 is proved against every released
-server it could meet, installed from npm as an operator would install it, as the agent compatibility
-gate today proves every released bridge against the server at HEAD.
+**C5. Tested against real releases.** C3 and C4 are proved against every released server older than
+the bridge's agent API version, installed from npm as an operator would install it, as the agent
+compatibility gate today proves every released bridge against the server at HEAD.
 
 ### Engineering
 
@@ -114,6 +115,20 @@ gate work with each line's tags, and a release refuses a tag that does not match
 - A third, separate version for the plugins.
 - Updating plugins for the operator, or changing how each agent host installs and updates plugins.
 - Telling the operator that the server itself has a newer release.
+
+## Open questions for the operator
+
+1. **Bridge-only fixes.** U2 marks a plugin behind only when the server offers something it cannot
+   use. Marking it also when a newer bridge release fixed something needs the server to learn of
+   bridge releases: from its own build, which knows only those released before the server was (so a
+   bridge-only fix is marked only after the next server release); from the newest release any
+   session reports; or from npm, a new outbound call. Without one, bridge-only fixes reach the
+   operator through the changelog and each host's plugin updates.
+2. **Shared code that only the server uses.** The API contract package, `packages/api`, holds both
+   what the bridge and server share and what only the server and web UI use (API keys, settings,
+   attention, passkeys, groups and tags, the operator schemas). By R2 a change to the latter must
+   not release the agent line, which needs those modules moved out of the shared package. The
+   alternative is to accept a plugin release for such changes and narrow R2 to match.
 
 ## Operator rulings, 2026-11-22 onward
 
@@ -136,6 +151,7 @@ gate work with each line's tags, and a release refuses a tag that does not match
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
 - After 0.6.0, at least one release ships on a line alone, and its tag, changelog and npm packages
   are that line's alone.
-- A session running a 0.6.0 plugin against a server released after an agent API change is marked in
-  the sessions view and told at register, live, on Claude Code.
+- Live on Claude Code: a session whose plugin speaks an older agent API version than the server is
+  marked in the sessions view, and a session on a plugin released by this effort is told at register
+  when it is behind.
 - The repository passes its documented checks in CI.
