@@ -12,8 +12,9 @@ channel needs a development flag each session during their research preview; and
 run in the background and wake Claude when it exits. Codex shows MCP notifications to no one, its
 background hooks start no turn, and the one outside wake is `codex queue`, which arrives as if the
 operator typed it. MCP's own answer, the events extension, is final as a specification, and how a
-host turns an event into a turn is left to the host. Every working design found sends a short,
-content-free notice and lets the agent read the messages through its tools, which is P2.
+host turns an event into a turn is left to the host. The one third-party design described in detail
+sends a short, content-free notice and lets the agent read the messages through its tools, which is
+P2.
 
 ## Claude Code
 
@@ -45,7 +46,7 @@ content-free notice and lets the agent read the messages through its tools, whic
 - **MCP notifications are logged, not shown.** The client writes `notifications/message`,
   `resources/updated` and the list-changed notifications to its trace log
   (`codex-rs/rmcp-client/src/logging_client_handler.rs`). Elicitation works only inside a tool call.
-  [openai/codex](https://github.com/openai/codex/tree/main/codex-rs/rmcp-client/src)
+  [openai/codex](https://github.com/openai/codex), as of 2026-11-22
 - **Hooks reach the model only within a turn.** Plugins ship hooks; `Stop` with `decision: "block"`
   continues with its reason as a new prompt, and `SessionStart`, `UserPromptSubmit` and
   `PostToolUse` add context. "Finishing a background hook doesn't start a new turn." Bears on H1 and
@@ -87,6 +88,8 @@ content-free notice and lets the agent read the messages through its tools, whic
   run for a session's lifetime, wake it, and start again after a wake? The spike answers both.
 - Does `codex queue` wake an idle interactive Codex session, and can the bridge find its session's
   id or name to address it?
+- Can the bridge tell whether push is live in its host session (a hook that is running, a channel
+  loaded with its flag, and neither under `--bare` or admin-managed hooks)? H3 and H4 depend on it.
 - Will either host adopt MCP's events extension, and when?
 
 ## Sources
