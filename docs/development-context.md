@@ -157,6 +157,9 @@ index of those docs.
 - Standing workflows the operator has authorized, with bounds: per-PR integration-test pipeline
   none; `smol-dev-loop` none; sagas none
 - Fix-round wait interval: 30 minutes
-- Session identifier source and commit trailer key: the harness's session URL; no trailer key, since
-  commits and pull request descriptions carry no attribution or session lines, at the operator's
-  direction
+- Session identifier source and commit trailer key: on Agentworks, the session's Agentworks
+  identity, `<AGENTWORKS_AGENT>/<AGENTWORKS_SESSION>`, read from those environment variables when
+  posting; on any other platform, the identifier its harness or runtime gives the session, such as a
+  session URL or ID, or, with none, an honest label of what the session is. No trailer key: commits
+  carry no attribution or session lines, at the operator's direction. Pull request descriptions,
+  comments and reviews end with the session's signature
