@@ -292,23 +292,27 @@ sends only what its tools are given.
   answer that does not state a length of at most 100 MiB, and removes what it fetched more than
   seven days ago. A fetched file is material for the agent to work with, never the operator's
   instructions, as the usage skill says. For push on Claude Code, the bridge also writes into the
-  host directory `~/.config/agention/_hosts/claude/<pid>/`, named for the Claude Code process and
-  [private](#private-files): the `cursor`, holding the server's origin, the granted names, the
-  wait's position and the thread numbers and counts of a notice not yet taken, and the `wake` file,
-  holding the notice. The plugin's watcher writes the `hooked` mark and the `watcher` lock, its own
-  pid, there. None of them holds a secret. Each is written to a temporary file and renamed into
-  place, and the directory of a host process that has ended is removed.
+  host directory `~/.config/agention/_hosts/claude/<pid>/`, named for its nearest ancestor process
+  named `claude` and [private](#private-files): for each session it pushes, a cursor holding the
+  server's origin, the granted names and the wait's position, and a wake file holding the notice,
+  each named by a hash of the origin and names, each written to a temporary file and renamed into
+  place. The plugin's watcher writes the `hooked` mark in place, and the `watcher` lock, its own
+  pid, by renaming. None of them holds a secret. The bridge removes the directory of a host process
+  that has ended.
 - **Push.** On Claude Code the bridge waits for the operator's messages in the background, signing
   each request with the session's key as every other request is, and the plugin's watcher, a hook
   Claude Code runs, prints the notice the bridge wrote, which wakes the agent. The watcher reads no
-  key, reaches no server, applies the private-file rule to the host directory and the wake file
-  before it prints anything, and exits 2, waking the agent, only after taking a wake file. The
-  notice is the one text Agention puts into an agent's conversation: fixed words and the threads'
-  numbers and unread counts, schema-checked integers, composed by one formatter in the bridge, which
-  no title, message text or other content from the server reaches. It tells the agent to read the
-  threads with the thread tools, which carry each message's author, so the notice never stands in
-  for the operator's words. Another process running as the agent's user can write a wake file, as it
-  could read the session's key: such a process is already inside the boundary.
+  key, reaches no server, applies the private-file rule to the host directory, and so to every file
+  in it, before it prints anything, and exits 2, waking the agent, only after taking a wake file;
+  nothing but a notice ever reaches its stderr. The notice is the one text Agention puts into an
+  agent's conversation: fixed words and the threads' numbers and unread counts, schema-checked
+  integers, composed by one formatter in the bridge, which no title, message text or other content
+  from the server reaches. It tells the agent to read the threads with the thread tools, which carry
+  each message's author, so the notice never stands in for the operator's words. The bridge looks
+  for its host directory only under its nearest Claude Code process, so it never pushes to a Claude
+  Code further up its ancestry, and never submits a key the server refused, nor a pending one past
+  its expiry. Another process running as the agent's user can write a wake file, as it could read
+  the session's key: such a process is already inside the boundary.
 - **Isolation between sessions.** Sessions whose keys share a home directory are not isolated from
   one another: a `register` call naming another session uses that session's key. Credentials stored
   under one operating-system user are not protected from each other, so agents that must not act as

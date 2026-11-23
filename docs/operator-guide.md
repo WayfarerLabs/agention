@@ -1119,13 +1119,17 @@ bridge do the rest. It needs what Claude Code needs to run a plugin's hooks: a f
 trusted, no `--bare`, and plugin hooks allowed where an administrator limits hooks to managed ones.
 The hook reads `AGENTION_URL` from Claude Code's environment, as the bridge does. Where any of that
 is missing, the agent is told its answers reach it only when it checks, and it checks as on any
-other host. If push stops for good, such as when the server no longer serves the bridge's version or
-you revoke the session's key, the agent's next tool answer tells it to check instead, and a later
-approval starts push again.
+other host. If push stops, such as when the server no longer serves the bridge's version or you
+revoke the session's key, the agent's next tool answer tells it to check instead. Push comes back on
+its own once the server serves the bridge's version again, and after a revocation once the agent
+registers again and you approve it.
 
-The hook ends a day after it starts, so a session left at its prompt for more than a day is pushed
-only after its next turn ends. A message you write while the agent works shows when the agent next
-can take it in, which may be in the middle of that turn rather than after it.
+The hook starts again at the end of every turn, whether the turn ends normally, in an error from the
+model's API or because you interrupted it, and whenever you send the agent a prompt. It ends a day
+after it starts, so a session left at its prompt for more than a day is pushed only after its next
+turn ends. A message you write while the agent works shows when the agent next can take it in, which
+may be in the middle of that turn rather than after it. If the bridge itself restarts, such as when
+you reconnect it with `/mcp`, push resumes at the agent's next call to Agention, not before.
 
 Codex has no push: nothing a plugin can reach wakes an open Codex session, so a Codex agent checks
 for your answers as it works and keeps checking while any are open.

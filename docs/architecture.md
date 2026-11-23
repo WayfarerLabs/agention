@@ -1076,43 +1076,46 @@ its tokens and where its requests may go.
   `structuredContent`.
 - **Push** (`apps/bridge/src/push.ts`). On Claude Code, the bridge holds the session's wait in the
   background and has the plugin's watcher wake the agent at its prompt when the operator writes. It
-  runs only for an MCP client whose `initialize` named it `claude-code`, and only when one of the
-  bridge's ancestor processes, its parent first and at most 16, read from `/proc` on Linux and with
-  `ps -o ppid=` elsewhere (`apps/bridge/src/process-ancestors.ts`), has a host directory with the
-  watcher's `hooked` mark (`apps/bridge/src/host-directory.ts`):
-  `~/.config/agention/_hosts/claude/<pid>/`, named for the Claude Code process, under the
-  private-file rule, which no session's key directory can meet, since no origin's host holds an
-  underscore. `register` decides it: when push can work, its approved answer says answers are
+  runs only for an MCP client whose `initialize` named it `claude-code`, and only when the bridge's
+  Claude Code process, its nearest ancestor whose command is `claude` within 16 of them, read from
+  `/proc` on Linux and with `ps -o ppid= -o comm=` elsewhere (`apps/bridge/src/claude-ancestor.ts`),
+  has a host directory with the watcher's `hooked` mark (`apps/bridge/src/host-directory.ts`):
+  `~/.config/agention/_hosts/claude/<pid>/`, under the private-file rule, which no session's key
+  directory can meet, since no origin's host holds an underscore. The walk never looks past that
+  process, so a Claude Code started from another one's shell is never taken for it, and without one
+  there is no push. `register` decides it: when push can work, its approved answer says answers are
   pushed, and it starts the background wait, even while the registration is pending; otherwise
-  nothing runs in the background. A thread tool that learns the names granted to an approved key by
-  the request `register` makes, as a bridge started again does at its first call, starts the wait
-  too, without a word to the agent, and counts it as told. The first look for the host directory
-  also removes the host directories of processes that have ended. The loop reads the registration of
-  the key on disk with the request `register` makes, every 15 seconds while it is not approved,
-  never creating a key and never submitting one the server refused, so push starts once the operator
-  approves with no tool call. Once approved, it long-polls `GET /api/agent/s/<agent>/<session>/wait`
-  for 25 seconds at a time, one request at a time, from the position in the host directory's
-  `cursor`, which counts only for the same origin and granted names, so the server marks the session
-  seen as an agent's own wait does. A round with threads saves the new position, then writes the
-  `wake` file: the notice one formatter composes from fixed words and each thread's number and
-  unread count, integers the answer's schema checks, naming at most ten threads and counting the
-  rest, so no title or message text reaches the agent this way. A wake file the watcher has not
-  taken yet is taken back by renaming it, and the new one names its threads too, with the newer
-  counts; the cursor records the threads a notice names until then. Each file is written to a
-  temporary private file and renamed into place, without waiting for the disk: a cursor lost to a
-  crash of the machine only pushes again what is unread. A failure the bridge can outlast, such as
-  an unreachable server, a proxy's error, an answer it cannot read or a key that is not approved, is
-  retried after a pause that doubles from 1 second to a minute. A server that does not serve the
-  bridge's agent API version, a registration rejected, revoked or expired, or a host directory the
-  bridge cannot use makes push give up: once `register` has said answers are pushed, the next answer
-  of any tool but `register`, an error included, ends with one line saying answers now reach the
-  agent only when it checks, and the loop goes back to reading the registration, so a new approval,
-  or a later `register`, starts push again. The loop stops when the host closes the bridge's input.
-  The watcher that takes the wake file is in [Generated plugins](#generated-plugins).
+  nothing runs in the background. A bridge started again under a pushed session, which no `register`
+  has started, starts the wait at its first call in the session, without a word to the agent, and
+  counts it as told. The first look for the Claude Code process also removes the host directories of
+  processes that have ended. The loop reads the registration of the key on disk with the request
+  `register` makes, every 15 seconds while it is pending and only until the expiry its last reading
+  gave, never creating a key, so push starts once the operator approves with no tool call, and a
+  pending registration the server has pruned is never registered afresh. Once approved, it
+  long-polls `GET /api/agent/s/<agent>/<session>/wait` for 25 seconds at a time, one request at a
+  time and each at least a second after the last began, from the position in the session's
+  `cursor-<session>` file, so the server marks the session seen as an agent's own wait does. Each
+  session's files are named by a hash of its origin and granted names, so two bridges of different
+  sessions under one Claude Code keep apart, and a position counts only for the origin and names it
+  holds. A round with threads saves the new position, then reads every thread with unread messages
+  at once, from the start, and writes the session's `wake-<session>` file, replacing one not yet
+  taken: the notice one formatter composes from fixed words and each thread's number and unread
+  count, integers the answer's schema checks, in thread order, so no title or message text reaches
+  the agent this way. Each file is written to a hidden temporary private file and renamed into
+  place, without waiting for the disk: a cursor lost to a crash of the machine only pushes again
+  what is unread. Every failure is retried after a pause that doubles from 1 second to a minute. A
+  server that does not serve the bridge's agent API version, or a host directory the bridge cannot
+  use, is also a lapse while it lasts; a registration rejected, revoked or expired, once approved,
+  ends the loop with a lapse, and only a `register`, which replaces the key, starts it again. After
+  a lapse, once `register` has said answers are pushed, the next answer of any tool but `register`,
+  an error included, ends with one line saying answers now reach the agent only when it checks; a
+  lapse the loop recovers from before an answer says it is not said. The loop stops when the host
+  closes the bridge's input. The watcher that takes the wake files is in
+  [Generated plugins](#generated-plugins).
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`: the cap, 40,000 bytes, 500 more for the status reminder and
-  400 for push's lapse line, since how Claude Code measures a result of several blocks is not
+  the lapse line's bytes, since how Claude Code measures a result of several blocks is not
   documented. A page of messages or threads over the limit is asked for again with half as many
   elements as the smaller of the last page size and what the answer held, down to one;
   `message_wait` asks for those smaller pages with no wait. The bridge gives a server 30 seconds to
@@ -1398,22 +1401,24 @@ the server lists, so the Codex declaration lists the bridge's configuration vari
 `tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
 can take longer; Claude Code's plugin format has no such setting.
 
-The Claude Code plugin alone also carries the wake hook the definition's `claudeWakeHook` declares,
-since Codex offers a plugin no way to wake an open session: `hooks/hooks.json`, which runs the
-watcher, `apps/agent-plugin/hooks/agention-watcher.sh` copied to the plugin's `hooks/` with its
-executable bit, as a command hook on `SessionStart` and `Stop`, with `asyncRewake` and a timeout of
-86,400 seconds. The watcher is POSIX shell, with no network and no key access. It exits 0 at once
-without `AGENTION_URL`, without a positive whole `CLAUDE_PID` of at most 10 digits, which Claude
-Code sets for hooks without documenting it, or when that process is gone. Otherwise it creates the
-host directory with a umask of 077, applies the private-file rule to it and to every directory above
-its real path from what `ls -n` prints, refusing with exit 1, removes the directories of host
-processes that have ended, writes the `hooked` mark if it is missing, and takes the `watcher` lock
-by renaming a file holding its pid over it, so the newest watcher waits and the one it replaced
+The Claude Code plugin alone also carries the hooks in `apps/agent-plugin/hooks/`, since Codex
+offers a plugin no way to wake an open session: `hooks.json`, in Claude Code's own format, and the
+watcher, `agention-watcher.sh`, copied to the plugin's `hooks/` with its executable bit; the
+watcher's tests stay out. `hooks.json` runs the watcher as a command hook with `asyncRewake` and a
+timeout of 86,400 seconds on `SessionStart`, on `UserPromptSubmit`, and at the end of every turn,
+`Stop` or `StopFailure`, so a turn that ends in an API error or an interrupt also leaves one
+running. The watcher is POSIX shell, with no network and no key access, and sends its shell's own
+errors nowhere: only a notice ever reaches stderr. It exits 0 at once without `AGENTION_URL`,
+without a positive whole `CLAUDE_PID` of at most 10 digits, which Claude Code sets for hooks without
+documenting it, or when that process is gone. Otherwise it creates the host directory with a umask
+of 077, applies the private-file rule to it and to every directory above its real path with `find`,
+refusing with exit 1, writes the `hooked` mark in place if it is missing, and takes the `watcher`
+lock by renaming a file holding its pid over it, so the newest watcher waits and the one it replaced
 exits 0. Each second it checks that its host process runs, that no other watcher holds the lock, and
-whether a wake file is there; it takes one by renaming it to its own name, prints it to stderr if it
-is a private file, removes it and exits 2, which wakes Claude Code. Every other outcome exits 0
-or 1. A wake file written while no watcher runs, during a turn, is taken by the watcher the turn's
-`Stop` starts. Its tests run it under `/bin/sh` and under `bash --posix`.
+whether any `wake-*` file is there; it takes each by renaming it to its own name, prints it to
+stderr, removes it, and once it has printed one, exits 2, which wakes Claude Code. Every other
+outcome exits 0 or 1. A wake file written while no watcher runs, during a turn, is taken by the
+watcher the turn's end starts. Its tests run it under `/bin/sh` and under `bash --posix`.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a

@@ -92,10 +92,11 @@ with each other or with what the product does, the disagreement is the finding.
   given while the agent waits at its prompt; a server restart recovered from; push surviving
   `/clear`; a woken turn longer than a minute with no lapse line; a message written during a turn,
   and when its notice shows; an untrusted folder and `--bare`, each told it checks; and `/exit`
-  leaving no watcher running and the host directory removed by the next session's start. On Codex,
-  the `register` answer saying answers reach the agent when it checks, and no background wait
-  (`docs/architecture.md` "Agent bridge" and "Generated plugins"; `docs/operator-guide.md` "Push on
-  Claude Code").
+  leaving no watcher running and the host directory removed by the next bridge's start; a turn ended
+  by an interrupt or an API error re-arming the watcher; two Agention bridges under one Claude Code
+  each pushing its own session. On Codex, the `register` answer saying answers reach the agent when
+  it checks, and no background wait (`docs/architecture.md` "Agent bridge" and "Generated plugins";
+  `docs/operator-guide.md` "Push on Claude Code").
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
