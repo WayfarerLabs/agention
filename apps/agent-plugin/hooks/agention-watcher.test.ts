@@ -311,6 +311,49 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     expect(readdirSync(home)).toEqual(["bin"]);
   });
 
+  // A hook always has stderr, so without one the watcher has no way to wake
+  // the agent and must never exit 2 or use up a notice. Under dash it sees
+  // the closed descriptor and exits 0 before writing anything. bash opens the
+  // script on the lowest free descriptor, 2, and leaves it there read-only,
+  // so the watcher cannot see stderr missing: it starts, and the notice it
+  // cannot print goes back.
+  it("never exits 2, and leaves the notice, without stderr", () => {
+    const home = tempHome();
+    const host = hostProcess().pid ?? 0;
+    const directory = hostDirectory(home, host);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    writeFileSync(join(directory, "wake-a"), "notice\n", { mode: 0o600 });
+    const [command = "sh", ...args] = shell;
+    // A shell closes its descriptor 2, then runs the watcher in its place.
+    const result = spawnSync(
+      "/bin/sh",
+      ["-c", 'exec 2>&-; exec "$@"', "sh", command, ...args, script],
+      {
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: home,
+          AGENTION_URL: "https://agention.example",
+          CLAUDE_PID: String(host),
+          CLAUDE_CODE_ENTRYPOINT: "cli",
+        },
+        stdio: "ignore",
+        timeout: 10_000,
+      },
+    );
+    expect(result.signal).toBeNull();
+    expect(readFileSync(join(directory, "wake-a"), "utf8")).toBe("notice\n");
+    const bash = spawnSync(command, [...args, "-c", 'printf %s "${BASH_VERSION:-}"'], {
+      encoding: "utf8",
+    }).stdout;
+    if (bash === "") {
+      expect(result.status).toBe(0);
+      expect(readdirSync(directory)).toEqual(["wake-a"]);
+    } else {
+      expect(result.status).toBe(1);
+      expect(readdirSync(directory).sort()).toEqual(["hooked", "wake-a"]);
+    }
+  });
+
   it("exits 1, printing nothing, when it cannot write its mark", async () => {
     const home = tempHome();
     const host = hostProcess().pid ?? 0;

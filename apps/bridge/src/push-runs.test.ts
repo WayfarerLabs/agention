@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { nearestClaude, nearestClaudeBy, type ProcessInfo } from "./claude-ancestor.ts";
-import { claudeHostsDirectory } from "./host-directory.ts";
+import { claudeHostsDirectory, hostNamePart } from "./host-directory.ts";
 import {
   childUnder,
   claudeLauncher,
@@ -88,6 +88,21 @@ describe("where push runs", () => {
     expect(existsSync(gone)).toBe(false);
     expect(existsSync(harness.hostDirectory())).toBe(true);
     expect(existsSync(elsewhere)).toBe(true);
+  });
+
+  it.each([
+    ["wf", "wf"],
+    ["a.b-c_D9", "a.b-c_D9"],
+    ["x".repeat(255), "x".repeat(255)],
+    ["x".repeat(256), undefined],
+    ["", undefined],
+    [".", undefined],
+    ["..", undefined],
+    ["a/b", undefined],
+    ["../x", undefined],
+    ["a b", undefined],
+  ])("takes the host name %j as %j", (name, part) => {
+    expect(hostNamePart(name)).toBe(part);
   });
 
   it("runs nothing on a machine whose host name is no path component", async () => {
@@ -201,6 +216,37 @@ describe("reading the registration", () => {
     const before = reads();
     await delay(2500);
     expect(reads()).toBe(before);
+    expect(harness.registrations().map((row) => row.public_key)).not.toContain(expired);
+  });
+
+  it("stops reading a pending registration the skew push allows before its expiry", async () => {
+    // The bridge's clock runs a minute behind the server's, as the agent API
+    // allows, and the server's is half a minute short of the expiry, so a
+    // reading by the bridge's clock alone would come once the server may
+    // have pruned the registration.
+    harness.markHost();
+    const bridge = await harness.bridge({}, harness.home, {
+      client: claudeCodeClient,
+      host: () => host,
+      hostName: () => harness.hostName,
+      pushTiming: timing,
+      clock: () => harness.server.fixture.now - 60_000,
+    });
+    await bridge.ok("register");
+    const expired = harness.keyOnDisk();
+    const reads = harness.counting("/registrations");
+    await eventually(() => (reads() >= 1 ? true : undefined), "push reading the registration");
+    harness.server.fixture.advance(hour - 30_000);
+    await delay(300);
+    const before = reads();
+    await delay(500);
+    expect(reads()).toBe(before);
+    // Past the expiry, another registration prunes it, and no reading
+    // registers the key afresh.
+    harness.server.fixture.advance(60_000);
+    const other = await harness.bridge({ AGENTWORKS_SESSION: "other" });
+    await other.ok("register");
+    await delay(500);
     expect(harness.registrations().map((row) => row.public_key)).not.toContain(expired);
   });
 
@@ -367,6 +413,36 @@ describe("a lapse", () => {
         { headers: { [agentApiHeader]: String(agentApi.version - 1) } },
       );
     await untilLapsed(bridge);
+  });
+
+  it("is said when a newer server refuses the bridge's version", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    harness.beforeRequest = (request) =>
+      new URL(request.url).pathname.endsWith("/wait")
+        ? Response.json(
+            { error: { code: "unsupported_version", message: "Upgrade the bridge." } },
+            { status: 400, headers: { [agentApiHeader]: String(agentApi.version + 1) } },
+          )
+        : undefined;
+    await untilLapsed(bridge);
+  });
+
+  it("is said once while push cannot use the host directory, however long", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    await harness.operatorWrites(await threadWith(bridge), { text: "One." });
+    await harness.takeWake();
+    const [cursor] = harness.filesOf("cursor");
+    if (cursor === undefined) {
+      throw new Error("no cursor saved");
+    }
+    chmodSync(cursor, 0o644);
+    await untilLapsed(bridge);
+    // The failure lasts through several retries; the line is not said again.
+    await delay(500);
+    expect(lapsed(await bridge.call("thread_list"))).toBe(false);
+    expect(lapsed(await bridge.call("thread_list"))).toBe(false);
   });
 
   it("is said while the host directory cannot be used, and push recovers after", async () => {

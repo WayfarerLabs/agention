@@ -63,7 +63,7 @@ export interface Answer {
 // client gives, and the bridge's own options for push.
 export type BridgeTestOptions = { client?: string } & Pick<
   BridgeOptions,
-  "host" | "hostName" | "pushTiming"
+  "clock" | "host" | "hostName" | "pushTiming"
 >;
 
 export class TestBridge {
