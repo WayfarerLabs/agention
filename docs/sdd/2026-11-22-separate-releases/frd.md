@@ -1,6 +1,6 @@
 # Separate releases: Functional Requirements
 
-- Status: Draft for the operator's acceptance
+- Status: Accepted by the operator, 2026-11-22 (ruling 2)
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -41,7 +41,9 @@ and the plugins share one version, and each plugin release runs the bridge of th
 releases only the server line; one that affects only the bridge or the plugins (their tools, the
 usage skill, the plugin definition) releases only the agent line; one that changes what both ship,
 such as the agent API contract, releases both, in the order C2 sets. A change to what neither ships
-(docs, scripts, CI) releases neither, even when it rides with a change that releases one.
+(docs, scripts, CI) releases neither, even when it rides with a change that releases one. What only
+the server ships includes the parts of the API contract only the server and web UI use, so a change
+to them releases only the server line (ruling 2).
 
 **R3. Releasing stays one approval.** As today, merging a release pull request is a release's one
 human approval, after which CI publishes what released and nothing else. Each release is tagged and
@@ -115,20 +117,8 @@ gate work with each line's tags, and a release refuses a tag that does not match
 - A third, separate version for the plugins.
 - Updating plugins for the operator, or changing how each agent host installs and updates plugins.
 - Telling the operator that the server itself has a newer release.
-
-## Open questions for the operator
-
-1. **Bridge-only fixes.** U2 marks a plugin behind only when the server offers something it cannot
-   use. Marking it also when a newer bridge release fixed something needs the server to learn of
-   bridge releases: from its own build, which knows only those released before the server was (so a
-   bridge-only fix is marked only after the next server release); from the newest release any
-   session reports; or from npm, a new outbound call. Without one, bridge-only fixes reach the
-   operator through the changelog and each host's plugin updates.
-2. **Shared code that only the server uses.** The API contract package, `packages/api`, holds both
-   what the bridge and server share and what only the server and web UI use (API keys, settings,
-   attention, passkeys, groups and tags, the operator schemas). By R2 a change to the latter must
-   not release the agent line, which needs those modules moved out of the shared package. The
-   alternative is to accept a plugin release for such changes and narrow R2 to match.
+- Marking a plugin behind because a newer bridge release fixed something, when the server offers
+  nothing it cannot use (ruling 2).
 
 ## Operator rulings, 2026-11-22 onward
 
@@ -145,6 +135,14 @@ gate work with each line's tags, and a release refuses a tag that does not match
    hitting an older server. This effort should ensure that is fully up to snuff and tested." Asked
    when and how, they answered: "After 0.6.0 with a proper design doc, but use the sdd process."
    Taken: R1 and R2, U1 to U3, C2 and C3 to C5, the out-of-scope fallback, and this SDD.
+
+2. (2026-11-22) Asked whether to accept the revised requirements, the operator chose "Accept". Asked
+   whether the sessions view should also flag a plugin when a newer bridge release fixed something,
+   they chose "No (recommended)": flag only when the server offers something the plugin cannot use.
+   Asked whether to split the modules only the server uses out of `packages/api` so server-only
+   changes stop releasing plugins, they chose "Split it (recommended)": a one-time refactor, after
+   which R2 holds and the build enforces it. Taken: this FRD as accepted, R2's note on the server's
+   part of the contract, and the out-of-scope bridge-only fixes.
 
 ## Definition of done
 

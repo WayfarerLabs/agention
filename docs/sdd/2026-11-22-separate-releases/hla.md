@@ -1,6 +1,6 @@
 # Separate releases: High-Level Architecture
 
-- Status: Draft, written against the draft FRD before its acceptance
+- Status: Draft, against the FRD as accepted (its ruling 2)
 - Date: 2026-11-22
 - Ownership: the effort lead
 - Inputs: [frd.md](frd.md), [prior-art-research.md](prior-art-research.md) (findings F1 to F11)
@@ -56,10 +56,8 @@ share and modules only the server and web UI use (API keys, settings, attention,
 and tags, the operator schemas). The bridge imports the whole package through its index, so a change
 to any of those modules changes the bridge's bundle too. Moving them into a package of their own,
 which the bridge does not depend on, makes R2 hold and lets the build enforce the boundary: the
-bridge cannot import what it does not depend on. This rests on the operator's answer to FRD open
-question 2; if they accept plugin releases for such changes instead, the package stays whole and R2
-is narrowed. The low-level design names the package and draws the line inside `sessions.ts`, whose
-operator parts move.
+bridge cannot import what it does not depend on (FRD ruling 2). The low-level design names the
+package and draws the line inside `sessions.ts`, whose operator parts move.
 
 ### Configuration
 
@@ -211,12 +209,11 @@ as 1, so this covers them all (U2).
 
 ### Bridge-only fixes
 
-Marking a plugin behind because a newer bridge release fixed something (FRD open question 1) is not
-designed here. If the operator wants it, it needs the bridge to state its release on every request
-(the standard `User-Agent`, `agention-mcp/X.Y.Z`, rather than a header of Agention's own) and the
-server a source for the newest release: its own build (`apps/bridge/package.json` at the server's
-commit, which knows only bridges released before the server), the newest release any session
-reports, or npm.
+Marking a plugin behind because a newer bridge release fixed something is out of scope (FRD ruling
+2). Should it come back, it needs the bridge to state its release on every request (the standard
+`User-Agent`, `agention-mcp/X.Y.Z`, rather than a header of Agention's own) and the server a source
+for the newest release: its own build (`apps/bridge/package.json` at the server's commit, which
+knows only bridges released before the server), the newest release any session reports, or npm.
 
 ## Alternatives considered
 
