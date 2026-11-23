@@ -66,8 +66,9 @@ operator API's sessions read carries the status, and the live run passes.
       exclusions, why the labels differ, which `extra-files`), with the configuration files as the
       only copy of the values; the release workflow's tag handling; the release order gate's
       algorithm, its network use and its re-run; the dry run's fixture commits and the pinned
-      release-please CLI; and the CONTRIBUTING rules for new paths that ship nothing and for
-      dependency changes in their own `build(deps)` commit.
+      release-please CLI; and the CONTRIBUTING rules for new paths that ship nothing and for a
+      dependency a feature or fix needs in its own `build(deps)` commit, with a dependency change
+      that is itself the fix as `fix(deps)`.
 - [ ] Operator step: `agention-vX.Y.Z` and `agention-mcp-vX.Y.Z` created on the commit of every `v*`
       release from 0.1.0 to the last combined release, before the next step (HLA Migration 1).
       Checked by `git ls-remote --tags` against the `v*` tags' commits.
@@ -76,9 +77,9 @@ operator API's sessions read carries the status, and the live run passes.
       (HLA Migration 2). Checked by reading both rulesets through the API, and the environment by
       the operator's confirmation.
 - [ ] Dry run (HLA Migration 3) on a scratch branch the effort lead pushes and deletes: each fixture
-      commit releases the lines the HLA says (a server-only dependency change in its own
-      `build(deps)` commit and a lock-only `fix(deps)` among them), and each line's release pull
-      request is its own.
+      commit releases the lines the HLA says (a `fix(deps)` changing one line's manifest and the
+      lockfile among them, releasing both), and each line's release pull request is its own; the LLD
+      says how the run's changelogs are read.
 - [ ] Two release-please configurations and manifests at the last combined release, the agent line's
       changelog, its own labels, and the release-please workflow running both (R1 to R4).
 - [ ] The release workflow: the two tag prefixes, the per-line version check, one line's tarball
@@ -94,7 +95,8 @@ operator API's sessions read carries the status, and the live run passes.
       plugins", "Agent bridge" and "HTTP API"; CONTRIBUTING "Releasing" (two pull requests, the
       merge order when the agent API changes, U4, merging a release pull request only once it is
       current), "Checking a release", "Checks", "The agent API", "One-time setup" (both tag rulesets
-      as they exist); SECURITY.md "Supported versions"; the operator guide's "Installing the
+      as they exist), "Commits and pull requests" (its one-version paragraph, and the rule for
+      dependency commits); SECURITY.md "Supported versions"; the operator guide's "Installing the
       plugins" and "Upgrading" (the new tags, the server and the plugin as separate steps, U1's
       rule, the update steps on each host with the Codex correction, F8, F9) and its version
       paragraph (the new refusal; servers before 0.3.0, their waiting registration and carried-out
@@ -110,7 +112,7 @@ line's changes, and the release workflow refuses a tag whose line's versions do 
 
 - [ ] `server-compat-lld.md`: which releases, installing and checking them, certificates and data
       directories, driving the bridge at HEAD (reusing the install loop of
-      `scripts/check-agent-compatibility.sh` and the TLS server start of
+      `scripts/check-agent-compatibility.sh` and the throwaway certificate and its trust from
       `apps/bridge/src/test-harness.ts`), reading each release's database for C4, and the gate's run
       time against the `check` job's limit.
 - [ ] The gate: every released server older than the bridge's agent API version, from npm with

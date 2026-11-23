@@ -67,9 +67,11 @@ types. But a feature or fix usually carries its docs, and any file outside a lin
 other configuration: of the four releasing commits between 0.5.0 and 0.6.0, three touch both a
 line's path and docs, `CONTRIBUTING.md`, `.cspell.json` or `packages/api`. Across main's history, 19
 of 90 releasing commits touch `packages/` and no agent-line path (18 of them `packages/api`), and
-about 12 of those are work only the server uses; 3 change the lockfile and no agent-line path.
-Source: the repository's `.github/dependabot.yml` and history. Informs: the HLA's exclusion of paths
-that ship nothing, its move of the server-only contract out of `packages/api`, and its rule for
+about 12 of those are work only the server uses. Since 0.1.0 no releasing commit has touched the
+lockfile: every dependency change was its own non-releasing commit (Dependabot's `chore(deps)` and
+one `build(deps)`), so the HLA's rule for dependency commits writes down existing practice. Source:
+the repository's `.github/dependabot.yml` and history. Informs: the HLA's exclusion of paths that
+ship nothing, its move of the server-only contract out of `packages/api`, and its rule for
 dependency commits.
 
 ### Agent hosts

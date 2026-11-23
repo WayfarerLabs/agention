@@ -57,15 +57,13 @@ operator schemas). The bridge imports the whole package through its index, so a 
 those modules changes the bridge's bundle too. Moving them into a package of their own makes R2 hold
 (FRD ruling 2). The rule for what stays is what the bridge's bundle needs: some files are split, not
 moved, since shared code uses parts of them (`thread-lists.ts` and `sessions.ts` use group and tag
-names from `groups-and-tags.ts`). The low-level design names the package and draws the line in those
-files.
+names from `groups-and-tags.ts`). The low-level design draws the line in those files.
 
 Nothing in the build stops the bridge importing the new package: npm links every workspace package
 into the root `node_modules`, and the bridge's test harness depends on the server, which depends on
 it. A test over the bridge's bundle, which the build already describes in a metafile, fails if any
-of the new package's modules is in it, and that test is what holds the line: the enforcement ruling
-2's "the build enforces it" comes to is this CI test over the bridge's build. The low-level design
-of delivery 1 names the package `packages/server-api` (`@wayfarerlabs/agention-server-api`).
+of the new package's modules is in it, and that test is what holds the line. Ruling 2 says the build
+enforces this; in practice, a CI test over the bridge's build does.
 
 ### Configuration
 
@@ -165,9 +163,9 @@ keeps the release branch's name and takes it over.
    protecting `v*`.
 3. The two configurations are tried with release-please's dry run, pinned to the version the release
    action bundles and installed from a lock, against a scratch branch of fixture commits
-   (server-only, agent-only, shared, docs-only, one that changes no shipped path, a server-only
-   dependency change in its own `build(deps)` commit, and a lock-only `fix(deps)`), since the
-   two-configuration pattern rests on reading the source (F3). The branch is deleted afterwards.
+   (server-only, agent-only, shared, docs-only, one that changes no shipped path, and a `fix(deps)`
+   changing one line's manifest and the lockfile, which releases both), since the two-configuration
+   pattern rests on reading the source (F3). The branch is deleted afterwards.
 4. The release-lines pull request merges, with both manifests at `X.Y.Z`.
 
 ## 2. A newer bridge against an older server
@@ -270,8 +268,9 @@ as 1, so this covers them all (U2).
   version), "Web UI" (the notice).
 - `CONTRIBUTING.md`: "Releasing" (two release pull requests, their merge order, the tags, where a
   new path that ships nothing is listed), "Checking a release", "Checks" (the server compatibility
-  and release order gates), "The agent API", and "One-time setup" (the ruleset, the npm environment
-  and the release-please configurations).
+  and release order gates), "The agent API", "One-time setup" (both tag rulesets, the npm
+  environment and the release-please configurations), and "Commits and pull requests" (its
+  one-version paragraph, and the rule for dependency commits).
 - `docs/operator-guide.md`: "Installing the plugins" and "Upgrading", which pin the marketplace to a
   `v*` tag and will name an `agention-mcp-v*` one; upgrading the server and updating the plugin as
   separate steps; the one rule of U1; the sessions view's notice; the update steps on each host (F8,
@@ -301,9 +300,12 @@ as 1, so this covers them all (U2).
   an update before each merge.
 - **Dependency commits.** A dependency change touches the root lockfile, which both lines count as
   shared, so a feature or fix that also adds a server-only dependency would release an unchanged
-  bridge. CONTRIBUTING has dependency changes go in their own `build(deps)` commit, which releases
-  nothing, so the feature or fix touches only its line's paths; a lock-only `fix(deps)` still
-  releases both lines. Nothing enforces the convention, and a missed split over-releases, the safe
-  failure.
+  bridge. CONTRIBUTING has a dependency that a feature or fix needs go in its own `build(deps)`
+  commit, which releases nothing, so the feature or fix touches only its line's paths. A dependency
+  change that is itself the fix, such as a security bump, is `fix(deps)` and releases both lines,
+  even when only one line's manifest changed: a residual of R2, accepted because the alternative
+  would not release the fix at all, and cheap, since the agent API version does not move and the
+  sessions view marks nothing. Nothing enforces the convention, and a missed split over-releases,
+  the safe failure.
 - **Exclusion lists drift.** A path that ships nothing but is missing from both lists releases both
   lines; over-releasing is the safe failure, and review catches the list.
