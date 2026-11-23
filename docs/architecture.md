@@ -1005,12 +1005,15 @@ its key file, its tokens and where its requests may go.
   operator can fix. The refusal names the version the server stated, or that it stated none, and the
   bridge's own, and asks the operator to upgrade the server to its newest release, which serves
   every released bridge ([Versions](#versions)). Such a server ignores what it does not know of a
-  request, so a field the bridge sent could otherwise go missing without a word. Every session calls
-  `register` first, so a bridge meets an older server there: for a key the server knows, on a call
-  that changes nothing; for a new key, the server records a pending registration before the bridge
-  refuses its answer, so the agent never relays its code, and the registration expires unapproved. A
-  newer server's answers are used: it serves the bridge's version, or refuses it in words of its
-  own. An answer that is not Agention's JSON, such as a proxy's, keeps its own problem.
+  request, so a field the bridge sent could otherwise go missing without a word. A server from 0.3.0
+  on refuses a newer bridge's request as `unsupported_version` before authenticating it or recording
+  anything ([HTTP API](#http-api)), and the bridge refuses that answer in turn, so nothing was done.
+  A server before 0.3.0 states no version and acts on a request before the bridge refuses its
+  answer: for a new key, `register` records a pending registration whose code the agent never
+  relays, which expires unapproved within the hour; for an approved session, the call is carried
+  out, without the fields that server does not know, and reported to the agent as failed. A newer
+  server's answers are used: it serves the bridge's version, or refuses it in words of its own. An
+  answer that is not Agention's JSON, such as a proxy's, keeps its own problem.
 - **Connections.** Requests go out through `node:https`, on one keep-alive agent per bridge with the
   settings of Node's global agent. The agent opens every connection at the origin's host and port,
   or at the address in `AGENTION_CONNECT`, and either way gives TLS the origin's host name as the
@@ -1424,8 +1427,9 @@ root and server `package.json` files and their lockfile entries; the agent line'
 `package.json` and lockfile entry, the plugin definition and both generated manifests, and the
 bridge's package spec in both generated MCP declarations, so the generated outputs stay current
 without regeneration. A line's tag runs `.github/workflows/release.yml`, which refuses a tag that is
-not its line's version everywhere the line sets it and publishes that line's package alone through
-npm's trusted publishing, as [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
+not the version of the line's package, and for the agent line of the plugin definition, and
+publishes that line's package alone through npm's trusted publishing, as
+[CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
 
 The agent API has a version of its own, 3 in this release, which a change to the agent contract
 bumps, as [HTTP API](#http-api) describes. It is shared code, so a release that changes it releases
