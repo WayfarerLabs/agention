@@ -5,8 +5,8 @@
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
   records operator rulings here verbatim.
-- Origin: the operator's direction of 2026-11-22 (ruling 1). Agention as released in 0.6.0, the last
-  release covering all three, is the baseline.
+- Origin: the operator's direction of 2026-11-22 (ruling 1). Agention as released in 0.6.0 is the
+  baseline.
 
 ## Why this exists
 

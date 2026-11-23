@@ -66,10 +66,11 @@ release. Dependabot here commits as `chore`, and docs, tests, refactors and CI c
 types. But a feature or fix usually carries its docs, and any file outside a line's path reaches the
 other configuration: of the four releasing commits between 0.5.0 and 0.6.0, three touch both a
 line's path and docs, `CONTRIBUTING.md`, `.cspell.json` or `packages/api`. Across main's history, 19
-of 90 releasing commits touch `packages/api` and neither line's path, and about 12 of those are work
-only the server uses. Source: the repository's `.github/dependabot.yml` and history. Informs: the
-HLA's exclusion of paths that ship nothing, and its move of the server-only contract out of
-`packages/api`.
+of 90 releasing commits touch `packages/` and no agent-line path (18 of them `packages/api`), and
+about 12 of those are work only the server uses; 3 change the lockfile and no agent-line path.
+Source: the repository's `.github/dependabot.yml` and history. Informs: the HLA's exclusion of paths
+that ship nothing, its move of the server-only contract out of `packages/api`, and its rule for
+dependency commits.
 
 ### Agent hosts
 

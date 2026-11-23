@@ -26,7 +26,7 @@ flowchart LR
   subgraph serverLine["Server line: agention-vX.Y.Z"]
     server["apps/server"]
     web["apps/web"]
-    opApi["server-only contract"]
+    opApi["packages/server-api"]
   end
   subgraph agentLine["Agent line: agention-mcp-vX.Y.Z"]
     bridge["apps/bridge"]
@@ -46,7 +46,7 @@ flowchart LR
 
 | Line    | Component      | Tag                   | Paths                                                                                    | Publishes                    |
 | ------- | -------------- | --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------- |
-| Server  | `agention`     | `agention-vX.Y.Z`     | `apps/server`, `apps/web`, the server-only contract package                              | `@wayfarerlabs/agention`     |
+| Server  | `agention`     | `agention-vX.Y.Z`     | `apps/server`, `apps/web`, `packages/server-api`                                         | `@wayfarerlabs/agention`     |
 | Agent   | `agention-mcp` | `agention-mcp-vX.Y.Z` | `apps/bridge`, `apps/agent-plugin`, `out/`, `.claude-plugin/`, `.agents/`                | `@wayfarerlabs/agention-mcp` |
 | Shared  | both           |                       | `packages/api`, `packages/build`, `packages/private-files`, `package.json`, the lockfile | both                         |
 | Neither |                |                       | `docs/`, `scripts/`, `.github/`, the root's Markdown, lint and editor configuration      | nothing                      |
@@ -63,7 +63,9 @@ files.
 Nothing in the build stops the bridge importing the new package: npm links every workspace package
 into the root `node_modules`, and the bridge's test harness depends on the server, which depends on
 it. A test over the bridge's bundle, which the build already describes in a metafile, fails if any
-of the new package's modules is in it, and that test is what holds the line.
+of the new package's modules is in it, and that test is what holds the line: the enforcement ruling
+2's "the build enforces it" comes to is this CI test over the bridge's build. The low-level design
+of delivery 1 names the package `packages/server-api` (`@wayfarerlabs/agention-server-api`).
 
 ### Configuration
 
@@ -107,7 +109,8 @@ no repository code, publishes it. A version already on npm is skipped, as today.
 
 A plugin is in effect released when its release pull request merges, not when its bridge reaches
 npm: the marketplace catalogs serve the plugin from `main`, so the merge changes the bridge every
-host runs (Codex at its next session start, F9). The order is therefore enforced at that merge.
+unpinned host runs (Codex at its next session start, F9), and creates the tag a pinned host moves to
+when the operator re-pins. The order is therefore enforced at that merge.
 
 A new gate in `scripts/check.sh`, "Release order", acts only when HEAD's agent line version has no
 tag yet, which is true only on the agent line's release pull request. It reads the agent API version
@@ -162,7 +165,8 @@ keeps the release branch's name and takes it over.
    protecting `v*`.
 3. The two configurations are tried with release-please's dry run, pinned to the version the release
    action bundles and installed from a lock, against a scratch branch of fixture commits
-   (server-only, agent-only, shared, docs-only, and one that changes no shipped path), since the
+   (server-only, agent-only, shared, docs-only, one that changes no shipped path, a server-only
+   dependency change in its own `build(deps)` commit, and a lock-only `fix(deps)`), since the
    two-configuration pattern rests on reading the source (F3). The branch is deleted afterwards.
 4. The release-lines pull request merges, with both manifests at `X.Y.Z`.
 
@@ -245,9 +249,9 @@ as 1, so this covers them all (U2).
 
 - **One configuration with `linked-versions` or `node-workspace`** (F5): neither routes a change to
   shared code to both lines, and `node-workspace` would release the bridge on every server release.
-- **Checking the release order when the bridge publishes**: too late, since the merge already
-  changed the plugin every host runs; holding the publish only turns C3's refusal into a failed
-  `npx` install.
+- **Checking the release order when the bridge publishes**: too late, since the merge has already
+  changed the plugin unpinned hosts run and created the tag pinned ones move to; holding the publish
+  only turns C3's refusal into a failed `npx` install.
 - **Serving the plugin from a release tag** (F10): catalog entries with a `ref` would keep hosts off
   unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
   catalog's ref becomes one more thing each release stamps. Not needed for this effort's
@@ -295,5 +299,11 @@ as 1, so this covers them all (U2).
   pass can predate a change on `main` by the minute before release-please refreshes the pull request
   (Release order). Requiring current branches would close it for every pull request, at the cost of
   an update before each merge.
+- **Dependency commits.** A dependency change touches the root lockfile, which both lines count as
+  shared, so a feature or fix that also adds a server-only dependency would release an unchanged
+  bridge. CONTRIBUTING has dependency changes go in their own `build(deps)` commit, which releases
+  nothing, so the feature or fix touches only its line's paths; a lock-only `fix(deps)` still
+  releases both lines. Nothing enforces the convention, and a missed split over-releases, the safe
+  failure.
 - **Exclusion lists drift.** A path that ships nothing but is missing from both lists releases both
   lines; over-releasing is the safe failure, and review catches the list.
