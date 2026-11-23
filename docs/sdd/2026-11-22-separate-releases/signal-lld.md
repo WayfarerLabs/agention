@@ -46,7 +46,7 @@ WHERE id = (SELECT session_id FROM registrations WHERE id = :registration AND st
 
 where `<due>` is today's throttle. So the version is written on any call that states a different
 one, whatever the throttle says, and a call that changes neither writes nothing: the `WHERE` matches
-no row, as an unthrottled call's does today, so the unchanged path costs no write and no extra
+no row, as a call within the minute does today, so the unchanged path costs no write and no extra
 statement. The name `markSeen` stays true: it records the sighting, and what the session was seen
 speaking is part of it.
 
@@ -99,7 +99,7 @@ Why `plugin_behind`:
   the session.
 - **Always present**, as `presence.quiet` is, so a client tests one boolean.
 
-The bridge's own tests read the sessions view as JSON (`apps/bridge/src/tools.test.ts:303-316`) with
+The bridge's own tests read the sessions view as JSON (`apps/bridge/src/tools.test.ts:311-316`) with
 `toMatchObject`, so they are unaffected.
 
 ## The web UI's notice
@@ -163,18 +163,19 @@ The tests, at their boundaries, asserting fields, statuses and the notice's pres
   throttle's minute while `last_seen_at` holds; an unchanged version within the minute writing
   nothing (SQLite's `changes()` is 0); a revoked registration recording nothing.
 - **Migration** (`database.test.ts`): a database at migration 7 opens with every row intact and the
-  new column null.
-- **HTTP**: the sessions read on the web mount marks a session that called stating an older version
-  or none and not one stating the current, nor one never seen; the operator mount answers the same
-  (its existing parity test, `apps/server/src/http/operator-api.test.ts:185-192`, covers equality,
-  and one assertion reads the field there).
+  new column null. The upgrade tests compared whole rows
+  (`apps/server/src/database/database.test.ts:638-645`), which a migration adding a column breaks
+  for every earlier test, so `earlier` compares each table on the columns its rows had before.
+- **HTTP** (`web-api.test.ts`): the sessions read on the web mount and on the operator mount, read
+  with an API key, marks a session after a call stating an older version or none, and not after one
+  stating the current, nor a session with no call recorded.
 - **Browser** (`apps/web/e2e/operator.spec.ts`): a session whose calls state an older version shows
   the notice on its row, another session none, and once its calls state the current version, the
   notice is gone.
-- **Bridge** (`register.test.ts` or `tools.test.ts`): the same register body answered stating the
-  bridge's version and a newer one, in each status, succeeds both times with the same fields, and
-  the newer answer's message is the other's with a sentence added; from the real server at HEAD, the
-  message carries no addition.
+- **Bridge** (`tools.test.ts`, beside the other version tests): the same register body answered
+  stating the bridge's version and a newer one, pending, approved and rejected, succeeds both times
+  with the same fields, and the newer answer's message is the other's with a sentence added; from
+  the real server at HEAD, the message carries no addition.
 
 ## Permanent docs
 
