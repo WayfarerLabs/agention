@@ -708,6 +708,24 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     not soon, and one without a credential not until you approve a registration for it. The thread
     is stranded until the session reads it.
 
+  - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
+    page's address keeps your choice, so going back to the view or a link to it shows it the same.
+    **Group** folds them by **Group**, the default, as above; by **Agent**, each agent over its
+    sessions, whether or not any is in a group; or by **Session**, each session's row on its own,
+    named with its agent, such as **builder/main**, with no agent's header, so an agent's tags, its
+    roll-up and its **Tags** option show only grouped by **Group** or **Agent**. **Sort** puts every
+    level in order: **Alphabetic** by name; **Registration time** by when each session was first
+    approved, a group or an agent by its earliest session; or **Manual**, offered only grouped by
+    **Group**, which keeps your groups in your order and their agents and sessions in name order.
+    The button beside **Sort** says which way it runs, **A to Z** or **Newest first**, and choosing
+    it reverses it; **Manual** has no direction, and **No group** comes last whichever way. Choosing
+    another sort starts it in its own direction, and grouping by **Agent** or **Session** while
+    sorted **Manual** sorts **Alphabetic**. In **Manual**, each group's head ends in **Move up** and
+    **Move down**, and, with a mouse, a handle to drag it onto another group's head and put it in
+    that one's place, which changes your groups' order everywhere, as
+    [Groups and tags](#groups-and-tags) does in Settings. While a move is under way, the groups take
+    no other; one another browser made stale is refused, and the groups show as they are.
+
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
 
@@ -757,8 +775,8 @@ the sessions under their groups, and the sessions view folds the agents under th
 
 Each group and each tag has a color, one of gray, red, orange, yellow, green, teal, blue and purple,
 which its chip shows wherever it appears; a new one takes the next color in turn until you choose
-another. Your groups keep the order you give them, which the sessions view and the thread list's
-**Group** filter follow; a new group goes last.
+another. Your groups keep the order you give them, here or in the sessions view sorted **Manual**,
+which the sessions view and the thread list's **Group** filter follow; a new group goes last.
 
 - **Group**, in a session's options, opens a picker beside the menu, or rising from the bottom on a
   phone: a search box over your groups in your order, each a chip, the session's own checked.
