@@ -48,65 +48,77 @@ sequenceDiagram
 The bridge and the watcher meet in a **host directory** named for the Claude Code process that runs
 both: `~/.config/agention/_hosts/claude/<pid>/`, beside the key files under `~/.config/agention/`
 (no server host is named `_hosts`), under the same private-file rule. The watcher learns the pid
-from `CLAUDE_PID`, which Claude Code sets for the hooks it runs; the bridge finds it among its own
-ancestors, since Claude Code starts it too (through `npx`). Both are undocumented by Claude Code,
-and the spike confirmed both on 2.1.330. A host session's id is not used: `/clear` gives hooks a new
-`session_id` while the bridge, which Claude Code does not restart, keeps the old one in its
-environment (the spike).
+from `CLAUDE_PID`, which Claude Code sets for the hooks it runs. The bridge takes its nearest
+ancestor whose command name is `claude`, and never looks further up, so a Claude Code started from
+another's shell, whose own hooks do not run, never borrows the outer one's directory; with no such
+ancestor there is no push. Both are undocumented by Claude Code, and the spike confirmed both on
+2.1.330. A host session's id is not used: `/clear` gives hooks a new `session_id` while the bridge,
+which Claude Code does not restart, keeps the old one in its environment (the spike).
 
 The directory holds:
 
 - `watcher`: the running watcher's pid, the lock that keeps one watcher per host process;
 - `hooked`: written by the first watcher and kept for the host process's life, which says the
   plugin's hooks run here;
-- `wake`: the notice the bridge writes and the watcher takes;
-- `cursor`: the wait's position, with the granted names it belongs to.
+- `wake-<h>` and `cursor-<h>`: for each Agention session pushed from this host process, the notice
+  the bridge writes and the watcher takes, and the wait's position with the origin and granted names
+  it belongs to, where `<h>` is a hash of those, so two bridges under one Claude Code never share
+  either.
 
-A directory whose pid is no longer a live process is removed whenever a bridge or watcher starts, so
-ended host sessions leave nothing behind.
+A directory whose pid is no longer a live process is removed whenever a bridge starts, so ended host
+sessions leave nothing behind.
 
 ### The bridge's wait
 
-- **When it runs.** Only where push can work: the MCP client is Claude Code (`clientInfo` in the
-  `initialize` request), a host directory exists for an ancestor pid with its `hooked` mark, and the
-  session's registration is approved. A program merely started from a Claude Code shell, such as
-  Codex, is not Claude Code's client, so it never claims push. Anywhere else nothing runs in the
-  background, so Codex costs nothing (C2).
+- **When it runs.** Only where push can work: the MCP client is Claude Code (its client name,
+  `claude-code`), its host directory has the `hooked` mark, and the session's registration is
+  approved. A program merely started from a Claude Code shell, such as Codex, is not Claude Code's
+  client, so it never claims push. Anywhere else nothing runs in the background, so Codex costs
+  nothing (C2). It starts at an approved `register`, and resumes at any call that finds the
+  session's credential, so a restarted bridge resumes at the agent's next Agention call.
 - **Learning of approval.** While the session's registration is pending, the bridge reads its state
-  every 15 seconds with the request `register` already makes, which creates nothing for a key the
-  server knows, so push starts once the operator approves even if the agent's turn has ended (P4).
-  It never submits a key that is absent from disk.
+  every 15 seconds with the request `register` already makes, only until the `expires_at` that state
+  gave, so push starts once the operator approves even if the agent's turn has ended (P4), and a
+  background read never recreates an expired registration. It never submits a key that is absent
+  from disk.
 - **The loop.** It long-polls the wait for 25 seconds at a time from the saved cursor, one request
-  at a time (C2). A round with threads saves the new cursor first, then writes the wake file, so a
-  message is never pushed twice, even if the agent leaves it unread or the bridge restarts (P3). A
+  at a time and never sooner than a second after the last began (C2). A round with threads saves the
+  new cursor first, then reads every thread with unread messages from the operator at once and
+  writes the notice from that, so a message is never pushed twice, even if the agent leaves it
+  unread or the bridge restarts (P3), and the notice names what is unread when it is written. A
   cursor saved under other granted names is discarded, since positions are per session.
-- **Failures.** An unreachable server, a restart or a lost connection is retried with backoff, so
-  push recovers on its own (H4). The bridge gives up only on what it cannot outlast: the server not
-  serving its agent API version, or the registration rejected, revoked or expired; it then goes back
-  to reading the registration's state, as while pending, so a new approval starts push again.
+- **Failures.** An unreachable server, a restart, a lost connection, a host directory that cannot be
+  written, or a server that no longer serves the bridge's agent API version is retried with backoff,
+  so push recovers on its own (H4). A rejected, revoked or expired registration ends the loop, and
+  only `register`, or a call that finds an approved credential, starts it again, so a refused key is
+  never read in the background.
 - **Presence.** The wait marks the session seen, as an agent's own waiter does today, so a session
   with push is not quiet while its host is open; threads strand as today otherwise (P5).
 
 ### The watcher
 
-A POSIX shell script the generator writes into the Claude Code plugin, run by a hook on
-`SessionStart` and on `Stop`, with `asyncRewake: true` and a day-long `timeout` (the spike saw it
+A POSIX shell script copied, with the hand-written `hooks.json` that runs it, into the Claude Code
+plugin only. It runs on `SessionStart`, `UserPromptSubmit`, `Stop` and `StopFailure`, so every way a
+turn ends or begins starts one, with `asyncRewake: true` and a day-long `timeout` (the spike saw it
 honored past the 600-second default).
 
 - It exits 0 at once unless `AGENTION_URL` is set and `CLAUDE_PID` is a positive integer, so a
   session that does not use Agention keeps nothing running.
-- It takes the `watcher` lock, a pid file checked with `kill -0`, and exits 0 when a live watcher
-  holds it; it writes `hooked` if absent.
-- It waits, checking every second for the wake file and for its host process. When the host process
-  is gone it exits 0, so a killed Claude Code leaves no watcher behind. When the wake file is there,
-  it renames it to its own name, prints its contents to stderr, removes it and exits 2. Every other
+- It sends its own stderr to nowhere at its start and prints only a notice, through a descriptor it
+  kept, so no shell error can reach the agent.
+- It checks the host directory and those above it under the private-file rule, writes `hooked` if
+  absent, and takes the `watcher` lock: the newest watcher wins, and an older one exits 0 within a
+  second, so the day-long timeout counts from the latest turn.
+- It waits, checking every second for wake files and for its host process. When the host process is
+  gone it exits 0, so a killed Claude Code leaves no watcher behind. When wake files are there, it
+  renames each to its own name, prints the notices to stderr, removes them and exits 2. Every other
   outcome exits 0 or 1, so nothing but a taken wake file can wake the agent, and a broken watcher
   cannot loop the session through turns.
-- A wake file written while no watcher runs, during a turn, is taken by the watcher the turn's
-  `Stop` starts, so it wakes the agent as soon as that turn ends.
+- A wake file written while no watcher runs, during a turn, is taken by the watcher that the turn's
+  end starts, so it wakes the agent as soon as that turn ends.
 
 A watcher ends at its timeout. A host session left at its prompt for more than a day is then not
-pushed until its next turn: a limit the operator guide states.
+pushed until its next turn: a limit the operator guide states (ruling 3).
 
 ### The notice
 
@@ -117,9 +129,9 @@ Agention: the operator wrote to you. Unread: thread 4 (2 messages), thread 7 (1 
 Read them with thread_get, then carry on as the agention skill describes.
 ```
 
-It names the threads the wait reported, with their unread counts, each a schema-checked integer. No
-message text, title or other content from the server reaches it. Claude Code shows it as hook
-feedback.
+It names every thread with unread messages from the operator, by number, with its unread count, each
+a schema-checked integer. No message text, title or other content from the server reaches it. Claude
+Code shows it as hook feedback.
 
 ### Telling the agent
 
@@ -127,9 +139,9 @@ feedback.
   client is Claude Code and its host has the `hooked` mark. Otherwise, as today, answers reach the
   agent when it checks (H3). The mark exists from the first hook, long before the agent registers,
   so there is nothing to wait for.
-- **Lapse.** When the wait gives up, the next tool answer ends with one line saying answers now
-  reach the agent only when it checks, as the status reminder's line does (H4); a later approved
-  `register` says they are pushed again. `toolMeta`'s declared size counts the line.
+- **Lapse.** When the wait fails or ends, the next tool answer ends with one line saying answers now
+  reach the agent only when it checks, as the status reminder's line does (H4); a recovered wait, or
+  a later approved `register`, makes it pushed again. `toolMeta`'s declared size counts the line.
 - **The skill and the tools.** The usage skill's loop, step 5, teaches both answers: pushed, where
   an agent with nothing else to do reports `idle` and ends its turn, with no waiter of its own; and
   when it checks, as today. `register`'s and `message_wait`'s descriptions say the same.
@@ -153,6 +165,10 @@ feedback.
 - **Undocumented `CLAUDE_PID`.** If Claude Code stops setting it, no mark appears and sessions are
   told they check: safe, and the live run catches it. The watcher's own parent chain is the
   fallback.
+- **The process name.** The bridge finds Claude Code by its command name, `claude`, as 2.1.330 shows
+  it; a host that runs under another name gets no push, and the live run checks it.
+- **Turn endings.** Whether `StopFailure` and `UserPromptSubmit` start a watcher as `Stop` does is
+  for the live run.
 - **A notice mid-turn.** A watcher started at `SessionStart`, or after a typed turn, runs while the
   agent works; a message arriving then is shown at the agent's next opportunity. The live run
   records exactly when, and the guide says it.
