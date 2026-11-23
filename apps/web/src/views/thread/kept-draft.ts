@@ -4,6 +4,7 @@ import {
   forgetDraft,
   keepDraft,
   type KeptDraft,
+  replaceDraft,
   signOutMark,
 } from "../../device.ts";
 import { blank } from "./writer.ts";
@@ -16,7 +17,10 @@ import { blank } from "./writer.ts";
 // a write lands, the text and details typed meanwhile, counting from at least
 // the message written, and whether the composer still holds more, or forgets
 // it when nothing is left: the page may be left as the write lands, before the
-// composer shows what is left.
+// composer shows what is left. A write that lands keeps what is left, or forgets
+// the draft, only while the stored draft is still the one this page kept (or
+// none is stored), so a newer draft typed after the thread was left and
+// reopened, or in another tab, stays.
 export function useKeptDraft(
   thread: DraftThread,
   draft: Omit<KeptDraft, "kept">,
@@ -30,18 +34,32 @@ export function useKeptDraft(
   // The starting point as it stands, which what is left once a write lands
   // counts from at least.
   const latestBasis = useRef(draft.basis);
+  // What is left that keepNow was refused for. While the composer still holds
+  // exactly that, the changes that follow the write landing keep it only as
+  // keepNow would, and anything typed since is kept as ever.
+  const refused = useRef<{ text: string; detail: string } | undefined>(undefined);
   const { text, detail, basis, leftBehind } = draft;
   useEffect(() => {
     latestBasis.current = basis;
     if (keep) {
-      kept.current = keepDraft(thread, { text, detail, basis, leftBehind }, since);
-    } else if (kept.current !== undefined) {
-      forgetDraft(thread, kept.current);
-      kept.current = undefined;
+      const held = { text, detail, basis, leftBehind };
+      if (refused.current?.text === text && refused.current.detail === detail) {
+        kept.current = replaceDraft(thread, held, since, kept.current);
+      } else {
+        refused.current = undefined;
+        kept.current = keepDraft(thread, held, since);
+      }
+    } else {
+      refused.current = undefined;
+      if (kept.current !== undefined) {
+        forgetDraft(thread, kept.current);
+        kept.current = undefined;
+      }
     }
   }, [text, detail, basis, leftBehind, keep, thread, since]);
 
   return (left, leftDetail, written, leftBehind) => {
+    refused.current = undefined;
     if (blank(left) && blank(leftDetail)) {
       if (kept.current !== undefined) {
         forgetDraft(thread, kept.current);
@@ -49,7 +67,7 @@ export function useKeptDraft(
       }
       return;
     }
-    kept.current = keepDraft(
+    kept.current = replaceDraft(
       thread,
       {
         text: left,
@@ -58,6 +76,10 @@ export function useKeptDraft(
         leftBehind,
       },
       since,
+      kept.current,
     );
+    if (kept.current === undefined) {
+      refused.current = { text: left, detail: leftDetail };
+    }
   };
 }

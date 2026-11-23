@@ -236,6 +236,21 @@ export function keepDraft(
   return undefined;
 }
 
+// replaceDraft keeps a thread's draft as keepDraft does, but only while the
+// stored record is still record (or none is stored when record is undefined),
+// so a draft another tab or a later page kept since stays.
+export function replaceDraft(
+  thread: DraftThread,
+  draft: Omit<KeptDraft, "kept">,
+  since: string | undefined,
+  record: string | undefined,
+): string | undefined {
+  if (read(draftKey(thread)) !== record) {
+    return undefined;
+  }
+  return keepDraft(thread, draft, since);
+}
+
 // forgetDraft forgets a thread's draft while it is still the record a page
 // kept, so a draft another tab kept since stays.
 export function forgetDraft(thread: DraftThread, record: string): void {
