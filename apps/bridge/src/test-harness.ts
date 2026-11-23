@@ -131,7 +131,13 @@ export async function startBridgeProcess(options: {
   let stderr = "";
   transport.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
   const client = new Client({ name: "agention-process-test", version: "0.0.0" });
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    // Closing the transport ends the process it started.
+    await transport.close();
+    throw error;
+  }
   return { bridge: new TestBridge(client), stderr: () => stderr };
 }
 

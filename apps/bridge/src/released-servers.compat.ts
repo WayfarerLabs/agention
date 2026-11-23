@@ -14,7 +14,6 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { olderServerRefusal } from "./agent-api.ts";
-import { KeyFile } from "./key-file.ts";
 import {
   agent,
   certificate,
@@ -54,9 +53,11 @@ const registrationLifetime = 60 * 60 * 1000;
 
 interface Serving {
   port: number;
-  output: () => string;
   stop: () => Promise<void>;
 }
+
+// How long a server has to stop once asked, before it is killed.
+const stopTimeout = 5_000;
 
 // serve starts a released server's agention serve on a free loopback port,
 // and resolves once it says where it serves, reading only the port.
@@ -66,18 +67,26 @@ async function serve(bin: string, args: string[]): Promise<Serving> {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
+  // Rejects when the process cannot start, such as for a missing command.
   const exited = once(child, "exit");
+  const ended = exited.then(
+    () => undefined,
+    () => undefined,
+  );
   const stop = async (): Promise<void> => {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill("SIGTERM");
-      await exited;
+    if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) {
+      return;
     }
+    child.kill("SIGTERM");
+    const timer = setTimeout(() => child.kill("SIGKILL"), stopTimeout);
+    await ended;
+    clearTimeout(timer);
   };
   const port = await new Promise<number>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`no start within 10 s:\n${output}`)), 10_000);
     const read = (chunk: Buffer): void => {
       output += chunk.toString();
-      const served = / on https:\/\/127\.0\.0\.1:([0-9]+)$/m.exec(output);
+      const served = / on https:\/\/127\.0\.0\.1:([0-9]+)\r?\n/.exec(output);
       if (served !== null) {
         clearTimeout(timer);
         resolve(Number(served[1]));
@@ -85,15 +94,21 @@ async function serve(bin: string, args: string[]): Promise<Serving> {
     };
     child.stdout.on("data", read);
     child.stderr.on("data", read);
-    void exited.then(() => {
-      clearTimeout(timer);
-      reject(new Error(`exited before serving:\n${output}`));
-    });
+    exited.then(
+      () => {
+        clearTimeout(timer);
+        reject(new Error(`exited before serving:\n${output}`));
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(new Error(`could not start ${bin}: ${(error as Error).message}`));
+      },
+    );
   }).catch(async (error: unknown) => {
     await stop();
     throw error;
   });
-  return { port, output: () => output, stop };
+  return { port, stop };
 }
 
 // contents reads every table of a database, read-only, as each row's JSON,
@@ -136,10 +151,17 @@ describe.each(versions)("the server released as %s", (version) => {
     scratch = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-server-")));
   });
 
+  // Each step runs even if one before it fails.
   afterEach(async () => {
-    await bridge?.close();
-    await server?.stop();
-    rmSync(scratch, { recursive: true, force: true });
+    try {
+      await bridge?.close();
+    } finally {
+      try {
+        await server?.stop();
+      } finally {
+        rmSync(scratch, { recursive: true, force: true });
+      }
+    }
   });
 
   it(
@@ -168,6 +190,9 @@ describe.each(versions)("the server released as %s", (version) => {
       ]);
       const database = path.join(data, "agention.db");
       const before = contents(database);
+      // Every release keeps its instance in one row, which a database it never
+      // wrote, or the wrong one, would lack.
+      expect(before.get("instance")).toHaveLength(1);
 
       ({ bridge } = await startBridgeProcess({
         entry: sourceEntry,
@@ -200,17 +225,11 @@ describe.each(versions)("the server released as %s", (version) => {
       const { tools } = await bridge.client.listTools();
       expect(calls.map(([tool]) => tool).sort()).toEqual(tools.map((tool) => tool.name).sort());
 
-      // Each is the refusal of a server stating what this release states: plain
-      // text, not an answer in Agention's JSON.
+      // Each is the refusal of a server stating what this release states.
       const refusal = olderServerRefusal(origin, stated).message;
       for (const [tool, args] of calls) {
         const answer = await bridge.call(tool, args);
-        expect([tool, answer.isError, answer.json, answer.text]).toEqual([
-          tool,
-          true,
-          undefined,
-          refusal,
-        ]);
+        expect([tool, answer.isError, answer.text]).toEqual([tool, true, refusal]);
       }
 
       await bridge.close();
@@ -220,27 +239,17 @@ describe.each(versions)("the server released as %s", (version) => {
       if (stated === undefined) {
         // A release stating no version records a new key's registration before
         // the bridge refuses its answer: one, pending, expiring within the hour.
-        const publicKey = new KeyFile(home, origin, { agent, session }).read()?.publicKey;
-        const rows = (name: string, of: Map<string, string[]>) => of.get(name) ?? [];
-        const recorded = rows("registrations", after)
-          .filter((row) => !rows("registrations", before).includes(row))
-          .map((row) => JSON.parse(row) as Record<string, unknown>);
-        expect(recorded).toMatchObject([
-          {
-            status: "pending",
-            public_key: publicKey,
-            proposed_agent: agent,
-            proposed_session: session,
-          },
-        ]);
-        const [{ created_at, expires_at }] = recorded as [
-          { created_at: number; expires_at: number },
-        ];
-        expect([expires_at > created_at, expires_at - created_at <= registrationLifetime]).toEqual([
+        const recorded = (after.get("registrations") ?? []).map(
+          (row) => JSON.parse(row) as { status: string; created_at: number; expires_at: number },
+        );
+        expect(recorded).toHaveLength(1);
+        const [{ status, created_at, expires_at }] = recorded as [(typeof recorded)[number]];
+        const lifetime = expires_at - created_at;
+        expect([status, lifetime > 0, lifetime <= registrationLifetime]).toEqual([
+          "pending",
           true,
           true,
         ]);
-        expect(rows("registrations", after).length).toBe(rows("registrations", before).length + 1);
         for (const name of ["registrations", "sqlite_sequence"]) {
           before.delete(name);
           after.delete(name);

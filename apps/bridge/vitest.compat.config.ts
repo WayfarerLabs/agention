@@ -6,4 +6,6 @@ import { defineConfig } from "vitest/config";
 // suite against the released servers scripts/check-server-compatibility.sh
 // installs. The bridge's own tests run with Vitest's defaults, which leave
 // them out.
-export default defineConfig({ test: { include: ["src/**/*.compat.ts"] } });
+// A hook's cleanup may wait for a bridge's process and a server's to end,
+// each killed after a few seconds if it does not.
+export default defineConfig({ test: { include: ["src/**/*.compat.ts"], hookTimeout: 20_000 } });
