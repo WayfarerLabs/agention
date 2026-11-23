@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/WayfarerLabs/agention/compare/v0.5.0...v0.6.0) (2026-11-23)
+
+
+### Features
+
+* **bridge:** remind an agent whose session status has gone unreported ([bf4a3c1](https://github.com/WayfarerLabs/agention/commit/bf4a3c132d95ab6bad83155194fcf2f232dafeed)), closes [#59](https://github.com/WayfarerLabs/agention/issues/59)
+* show how old a session's status is in the sessions view ([e2a2596](https://github.com/WayfarerLabs/agention/commit/e2a2596e8374a111ef77c84ecb96e72538ffa368)), closes [#59](https://github.com/WayfarerLabs/agention/issues/59)
+* **web:** open an attach menu of our own on touch devices ([b2ce308](https://github.com/WayfarerLabs/agention/commit/b2ce308a63799e876925c8d71b88932aff3c0c32)), closes [#48](https://github.com/WayfarerLabs/agention/issues/48)
+
+
+### Bug Fixes
+
+* **web:** keep the files of a replacement staged while a stale one was under way ([e63a3a9](https://github.com/WayfarerLabs/agention/commit/e63a3a9661091f411e9a3b52b29bb1a34ec573b5))
+
 ## [0.5.0](https://github.com/WayfarerLabs/agention/compare/v0.4.0...v0.5.0) (2026-11-22)
 
 
