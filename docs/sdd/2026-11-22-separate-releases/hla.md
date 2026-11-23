@@ -81,11 +81,13 @@ is the root package of its own configuration, excluding what it does not ship (F
   plugin definition, both generated plugin manifests, and the bridge's package spec in both
   generated `.mcp.json` files.
 
-Each configuration's `exclude-paths` lists the other line's paths and the paths that ship nothing,
-so a feature that carries its docs releases only its own line, and a change to shared paths releases
-both. release-please drops a commit from a package only when every file it touches is excluded (F2),
-so a new top-level path that ships nothing and is missing from the lists releases both lines: the
-safe failure. CONTRIBUTING says where to add one.
+Each configuration's `exclude-paths` lists the other line's paths and the directories that ship
+nothing, so a feature that carries its docs releases only its own line, and a change to shared paths
+releases both. release-please drops a commit from a package only when every file it touches is
+excluded (F2), so a new top-level directory that ships nothing and is missing from the lists
+releases both lines: the safe failure. CONTRIBUTING says where to add one. release-please excludes
+only directories, so the root's Markdown and lint and editor configuration, which ship nothing,
+cannot be listed: a change to them goes in its own non-releasing commit (Risks, Root files).
 
 The agent configuration's labels differ from the server's because release-please stops updating a
 release pull request while any merged one still carries its pending label: shared labels would let
@@ -99,7 +101,7 @@ pull request and outputs. `node-workspace` and `linked-versions` are not used (F
 
 `.github/workflows/release.yml` triggers on `agention-v*` and `agention-mcp-v*` (which the first
 does not match) instead of `v*`. The build job reads the line from the tag's prefix, refuses a tag
-that is not that line's version everywhere the line stamps it, runs
+that is not that line's version everywhere a shipped artifact carries it, runs
 `scripts/check.sh --packages DIR`, and keeps only that line's tarball; the publish job, which runs
 no repository code, publishes it. A version already on npm is skipped, as today.
 
@@ -309,5 +311,10 @@ as 1, so this covers them all (U2).
   would not release the fix at all, and cheap, since the agent API version does not move and the
   sessions view marks nothing. Nothing enforces the convention, and a missed split over-releases,
   the safe failure.
-- **Exclusion lists drift.** A path that ships nothing but is missing from both lists releases both
-  lines; over-releasing is the safe failure, and review catches the list.
+- **Exclusion lists drift.** A directory that ships nothing but is missing from both lists releases
+  both lines; over-releasing is the safe failure, and review catches the list.
+- **Root files.** release-please excludes only directories, so a releasing commit that also touches
+  a root file that ships nothing (such as `CONTRIBUTING.md` or `.cspell.json`) releases both lines.
+  CONTRIBUTING has such a change go in its own `docs:` or `chore:` commit, as with dependencies.
+  Nothing enforces it, and a missed split over-releases, the safe failure: a residual of R2,
+  reported to the operator.
