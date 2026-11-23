@@ -273,5 +273,5 @@ describe("a refused upload over a real connection", () => {
     } finally {
       await listening.close();
     }
-  }, 30_000);
+  });
 });
