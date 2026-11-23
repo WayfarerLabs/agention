@@ -5,17 +5,17 @@ considered, are recorded in [ADR 0001](adrs/0001-agention-v1-architecture.md).
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                                                                                                 |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract the agent bridge shares with the server and the web UI: zod schemas for the agent API's requests and responses, and what every mount reads of threads and files, which are also their bounds, and the error codes.                                   |
-| `packages/server-api`    | The rest of the API contract, which only the server and the web UI use: the operator's views, groups and tags, scopes and API keys, passkeys, settings, the routes' path parameters, the registration code, and the schemas' JSON Schema for the API's documentation. |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                                                                                |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                                                                                       |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                                                                                                   |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                                                                                        |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                                                                               |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                                                                                    |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                                                                                                |
+| Component                | State                                                                                                                                                                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract the agent bridge shares with the server and the web UI: zod schemas for the agent API's requests and responses, and what every mount reads of threads and files, which are also their bounds, and the error codes.                                    |
+| `packages/server-api`    | The rest of the API contract, which only the server and the web UI ship: the operator's views, groups and tags, scopes and API keys, passkeys, settings, the routes' path parameters, the registration code, and the schemas' JSON Schema for the API's documentation. |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                                                                                 |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                                                                                        |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                                                                                                    |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                                                                                         |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                                                                                |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                                                                                     |
+| `scripts/`               | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                                                                                                 |
 
 ## Source and packages
 
@@ -23,13 +23,12 @@ Node runs the TypeScript sources directly, by stripping their types, so developm
 generator need no build step; Vitest compiles the sources for the tests. The API contract's two
 packages need no build either: their `exports` point at their source.
 
-The API contract is split by what the bridge's bundle needs. `packages/api` holds every module the
-bridge imports and every module those import in turn; `packages/server-api` holds the rest, which
-only the server and the web UI import, and builds on `packages/api`. Where a subject has both an
-agent's side and the operator's, the agent's side is a module of `packages/api` and the operator's a
-module of the same name in `packages/server-api`: a session's status and the sessions view in the
-two `sessions.ts`, a session's thread list and the operator's in the two `thread-lists.ts`, and a
-registration's state and the registrations list in the two `registrations.ts`. A change to
+The API contract is split by what the bridge's bundle needs, a module at a time. A module stays in
+`packages/api` when the bridge's bundle includes it: the bridge imports it, or another module of
+`packages/api` does. The agent API's own requests and answers stay there with their subject, whether
+or not the bridge reads them. Every other module is in `packages/server-api`, which only the server
+and the web UI ship, and which builds on `packages/api`. Where a subject has an agent's side and the
+operator's, the operator's side is a module of the same name in `packages/server-api`. A change to
 `packages/server-api` leaves the bridge's bundle as it was. npm links every workspace package where
 the bridge resolves its imports, so nothing in the install stops the bridge importing
 `packages/server-api`; a test of the bridge, `apps/bridge/src/bundle.test.ts`, builds its bundle and
@@ -79,7 +78,7 @@ bundle includes, holds:
   disposition (`servedTypeOf`, `dispositionOf`), which the server serves by and the web UI shows by;
 - `canonicalOrigin`, below, and the claims of an agent's token, and the error shape.
 
-`packages/server-api`, which only the server and the web UI import, holds:
+`packages/server-api`, which only the server and the web UI ship, holds:
 
 - the operator's thread list with its total and, grouped, its groups' roll-ups; the counts of what
   each filter value keeps; the operator's wait across sessions; and bulk read and archive;

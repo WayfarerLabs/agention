@@ -183,7 +183,7 @@ checks. The store owns thread, session, and registration rules for every adapter
 API's agent, web and operator mounts, and, through the agent mount, the bridge's tools
 (`docs/architecture.md` "Store" and "HTTP API"). Request and response shapes come from the API
 contract: `packages/api` for what the bridge shares, and `packages/server-api` for what only the
-server and the web UI use, which the bridge's bundle never includes
+server and the web UI ship, which the bridge's bundle never includes
 (`apps/bridge/src/bundle.test.ts`; `docs/architecture.md` "Source and packages"). Once a bridge is
 released, agent routes only grow: each release's agent routes accept what earlier released bridges
 send and answer what they read, because agents run whatever bridge version their plugin pins; the
