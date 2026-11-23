@@ -267,8 +267,7 @@ host would, reaching it through `AGENTION_CONNECT`. Every tool, `register` first
 input, must fail with the bridge's refusal of a server stating what that release states, and the
 release's database, read before and after, must not change, but for the one pending registration a
 release before 0.3.0 records for a new key, which expires within the hour. A new tool joins the
-suite's list of calls. `scripts/check.sh --fast` skips the gate, and its fixture test runs in every
-mode.
+suite's list of calls. `scripts/check.sh --fast` skips the gate, and runs its fixture test.
 
 The agent contract is in `packages/api`, which both release lines ship, so a change to it releases
 both, the server first: the release order gate keeps the agent line's release pull request from
@@ -316,10 +315,10 @@ merging until a published server serves its agent API version ([Releasing](#rele
   packages. CI also runs the fast checks on the oldest line the published packages support, 24
   (their `engines`), at the exact version in `.github/workflows/ci.yml`. `@types/node` follows that
   oldest line, so the types refuse an API newer than it, and Dependabot ignores its major updates.
-- The agent compatibility gate ([The agent API](#the-agent-api)) installs Agention's own released
-  bridges with the wait turned off, since it checks a release as soon as it is published; that one
-  install is the only exception. The bridge is a bundle that declares no dependencies, so nothing
-  else resolves.
+- The agent and server compatibility gates ([The agent API](#the-agent-api)) install Agention's own
+  released bridges and servers with the wait turned off, since each checks a release as soon as it
+  is published; those installs are the only exceptions. The bridge and the server are bundles that
+  declare no dependencies, so nothing else resolves.
 - A security fix may skip the wait. When a published advisory affects a pinned or locked version and
   no fixed release in the release line in use is seven days old, take the first fixed release and
   only the new releases it requires, pinned exactly, and add each npm package among them to

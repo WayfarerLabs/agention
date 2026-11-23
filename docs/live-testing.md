@@ -86,8 +86,9 @@ with each other or with what the product does, the disagreement is the finding.
   `thread_create` and `message_send`, and a replacement keeping a file. The bridge at the head
   against a server of an earlier release, which it refuses, naming both agent API versions and the
   server's newest release as the fix, and a bridge an earlier release published against the server
-  at the head, which it still serves, where the charter names those releases; the agent
-  compatibility gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
+  at the head, which it still serves, where the charter names those releases; the server
+  compatibility gate covers the former against the newest server of each earlier agent API version,
+  and the agent compatibility gate the latter, on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
