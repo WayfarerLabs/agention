@@ -635,15 +635,16 @@ the refusals of the checks before it included, states the server's version in th
 own there, and a missing one means 1, which every bridge released before the header sends. The
 mount's first middleware refuses a request stating a version above the server's or below its oldest
 as `unsupported_version`, status 400, before authentication or any other work, worded for the agent
-as the bridge's own problems are: a newer bridge is told to have the operator upgrade the server or
-pin the plugin to a release that matches the server, an older one to have them update the plugin.
-Anyone who reaches the server can read the refusal, so it names the versions the server serves,
-never its release. A version is read whole, however many digits it has, and a header that is not a
-positive integer written without leading zeros is `invalid_input`, naming it. The version a served
-call by an approved key states is what the store records for its session, from which the sessions
-view's page, on the web mount and the operator mount alike, says whether the session's plugin is
-behind ([Store](#store)). The web mount is not versioned: the server serves its own web UI, always
-in step.
+as the bridge's own problems are: an older bridge is told to have the operator update the plugin to
+its newest release, and a newer one to have them upgrade the server to its newest release, since the
+two are released on lines of their own ([Versions](#versions)). Agention's bridges refuse an older
+server's answers before relaying them, so only other clients read the second. Anyone who reaches the
+server can read the refusal, so it names the versions the server serves, never its release. A
+version is read whole, however many digits it has, and a header that is not a positive integer
+written without leading zeros is `invalid_input`, naming it. The version a served call by an
+approved key states is what the store records for its session, from which the sessions view's page,
+on the web mount and the operator mount alike, says whether the session's plugin is behind
+([Store](#store)). The web mount is not versioned: the server serves its own web UI, always in step.
 
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores
@@ -1001,14 +1002,15 @@ its key file, its tokens and where its requests may go.
 - **Agent API version.** Every request states the version the bridge speaks in the
   `Agention-Agent-API` header. An answer in Agention's JSON that states an older version, or none,
   as every server before the header does, is refused before anything uses it, as a problem only the
-  operator can fix: they upgrade the server to the bridge's release or pin the plugin to the
-  server's. Such a server ignores what it does not know of a request, so a field the bridge sent
-  could otherwise go missing without a word. Every session calls `register` first, so a bridge meets
-  an older server there: for a key the server knows, on a call that changes nothing; for a new key,
-  the server records a pending registration before the bridge refuses its answer, so the agent never
-  relays its code, and the registration expires unapproved. A newer server's answers are used: it
-  serves the bridge's version, or refuses it in words of its own. An answer that is not Agention's
-  JSON, such as a proxy's, keeps its own problem.
+  operator can fix. The refusal names the version the server stated, or that it stated none, and the
+  bridge's own, and asks the operator to upgrade the server to its newest release, which serves
+  every released bridge ([Versions](#versions)). Such a server ignores what it does not know of a
+  request, so a field the bridge sent could otherwise go missing without a word. Every session calls
+  `register` first, so a bridge meets an older server there: for a key the server knows, on a call
+  that changes nothing; for a new key, the server records a pending registration before the bridge
+  refuses its answer, so the agent never relays its code, and the registration expires unapproved. A
+  newer server's answers are used: it serves the bridge's version, or refuses it in words of its
+  own. An answer that is not Agention's JSON, such as a proxy's, keeps its own problem.
 - **Connections.** Requests go out through `node:https`, on one keep-alive agent per bridge with the
   settings of Node's global agent. The agent opens every connection at the origin's host and port,
   or at the address in `AGENTION_CONNECT`, and either way gives TLS the origin's host name as the
@@ -1387,13 +1389,14 @@ prompts exercise it.
 
 Each plugin carries the usage skill and declares one MCP server, the bridge, in `.mcp.json` at the
 plugin root. The definition names the bridge's package, and the generator pins it to the plugin's
-version: `npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the server its whole
-environment. Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those
-the server lists, so the Codex declaration lists the bridge's configuration variables:
-`AGENTION_CONNECT`, `AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and
-`NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes the Codex declaration's
-`tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
-can take longer; Claude Code's plugin format has no such setting.
+version, which is the bridge's, since both are released on the agent line ([Versions](#versions)):
+`npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the server its whole environment.
+Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those the server
+lists, so the Codex declaration lists the bridge's configuration variables: `AGENTION_CONNECT`,
+`AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and `NODE_EXTRA_CA_CERTS`. The definition's
+`toolTimeoutSeconds`, 600, becomes the Codex declaration's `tool_timeout_sec`, since Codex ends a
+tool call after 60 seconds by default and a file's transfer can take longer; Claude Code's plugin
+format has no such setting.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a
@@ -1401,12 +1404,32 @@ new directory that it creates, so they cannot overwrite the committed plugins or
 
 ## Versions
 
-One version covers the server, the bridge and the plugins. A release sets it, in the same pull
-request, in the root and published `package.json` files, the lockfile, the plugin definition and
-both generated manifests, and in the bridge's package spec in both generated MCP declarations, so
-the generated outputs stay current without regeneration. A `v*` tag runs
-`.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
-[CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
+Agention releases on two lines, each with its own version, release pull request, changelog and tags
+([ADR 0005](adrs/0005-separate-release-lines.md)):
 
-The agent API has a version of its own, 3 in this release, which a release bumps only when it
-changes the agent contract, as [HTTP API](#http-api) describes.
+| Line   | What it releases                                                          | Tag                   | Changelog                  |
+| ------ | ------------------------------------------------------------------------- | --------------------- | -------------------------- |
+| Server | `@wayfarerlabs/agention`, with the web UI it serves                       | `agention-vX.Y.Z`     | `CHANGELOG.md`             |
+| Agent  | `@wayfarerlabs/agention-mcp` and the plugins, which run that same version | `agention-mcp-vX.Y.Z` | `apps/bridge/CHANGELOG.md` |
+
+Both start from 0.6.0, the last release that covered all three under one version, tagged `v0.6.0`
+like the releases before it; each of those releases also carries both lines' tags. Each line is the
+root package of its own release-please configuration: `release-please-config.json` and
+`.release-please-manifest.json` for the server line, `release-please-config.agent.json` and
+`.release-please-manifest.agent.json` for the agent line. A line's release pull request takes the
+changes that touch what it ships, and excludes the other line's directories and those that ship
+nothing (`docs/`, `scripts/`, `.github/`), so a change to shared code, such as `packages/api`, or to
+a file at the repository's root releases both. The server line's release sets its version in the
+root and server `package.json` files and their lockfile entries; the agent line's in the bridge's
+`package.json` and lockfile entry, the plugin definition and both generated manifests, and the
+bridge's package spec in both generated MCP declarations, so the generated outputs stay current
+without regeneration. A line's tag runs `.github/workflows/release.yml`, which refuses a tag that is
+not its line's version everywhere the line sets it and publishes that line's package alone through
+npm's trusted publishing, as [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
+
+The agent API has a version of its own, 3 in this release, which a change to the agent contract
+bumps, as [HTTP API](#http-api) describes. It is shared code, so a release that changes it releases
+both lines, and the agent line's release pull request cannot merge before a published server serves
+its agent API version: the release order gate holds it ([CONTRIBUTING.md](../CONTRIBUTING.md#checks)
+"Checks"). A server serves every agent API version from its oldest, so the newest server serves
+every released bridge.

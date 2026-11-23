@@ -13,11 +13,14 @@ harness. It records and shows; the agent decides what to do with an answer.
 
 ## Status
 
-Agention v1 is complete, and has been usable since its first release, 0.1.0. Each release is
-published to npm: the server and operator CLI as `@wayfarerlabs/agention`, and the agent bridge as
-`@wayfarerlabs/agention-mcp`. The Claude Code and Codex plugins install from this repository's
-plugin marketplace, and the [operator guide](docs/operator-guide.md) takes you from installing the
-server to agents asking and you answering. The repository contains:
+Agention v1 is complete, and has been usable since its first release, 0.1.0. It is released on two
+lines, each with its own version and published to npm: the server and operator CLI as
+`@wayfarerlabs/agention`, and the agent bridge as `@wayfarerlabs/agention-mcp`, with the Claude Code
+and Codex plugins that run it, which install from this repository's plugin marketplace. Both lines
+start from 0.6.0, the last release of all three under one version
+([CONTRIBUTING.md](CONTRIBUTING.md#releasing) "Releasing"), and the
+[operator guide](docs/operator-guide.md) takes you from installing the server to agents asking and
+you answering. The repository contains:
 
 - the `agention` command, the server and operator CLI: `agention serve` runs the HTTP API, with
   passkey sign-in for the person, key authentication for agents and API keys for the person's own
@@ -86,7 +89,8 @@ Each component is an npm workspace, and one lockfile covers them all.
 | `apps/web/`                                   | The React web UI                                                                                                                                                                             |
 | `apps/agent-plugin/`                          | The canonical agent plugin definition and its generator                                                                                                                                      |
 | `out/`, `.claude-plugin/`, `.agents/plugins/` | Generated Claude Code and Codex plugins and catalogs (committed)                                                                                                                             |
-| `scripts/`                                    | Check, lint, plugin generation and API document generation scripts                                                                                                                           |
+| `scripts/`                                    | Check, lint, release, plugin generation and API document generation scripts                                                                                                                  |
+| `release-please-config*.json`                 | The release configurations of the server line and the agent line, beside their manifests                                                                                                     |
 | `docs/`                                       | Architecture, operator guide, decision records (`docs/adrs/`), the generated OpenAPI document (`docs/api/`), the development contract and its checklists, and design documents (`docs/sdd/`) |
 
 ## License

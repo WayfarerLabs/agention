@@ -2,7 +2,10 @@
 
 ## Supported versions
 
-Agention is pre-1.0: fixes go into the next release, and only the latest release is supported.
+Agention is pre-1.0: fixes go into the next release, and only the latest release is supported. The
+server and the agent bridge with its plugins are released on lines of their own, each with its own
+version, so the latest release of each line is supported: the newest `@wayfarerlabs/agention` and
+the newest `@wayfarerlabs/agention-mcp`, with the plugins of the same version.
 
 ## Security model
 

@@ -84,10 +84,10 @@ with each other or with what the product does, the disagreement is the finding.
   which must not hang, a file over 100 MiB, and a key file named directly and through a symlink;
   `file_get` of each served type, its file's name and mode, and its image block; attachments on
   `thread_create` and `message_send`, and a replacement keeping a file. The bridge at the head
-  against a server of an earlier release, which it refuses with what the operator upgrades, and a
-  bridge an earlier release published against the server at the head, which it still serves, where
-  the charter names those releases; the agent compatibility gate covers the latter on every change
-  (`CONTRIBUTING.md` "The agent API").
+  against a server of an earlier release, which it refuses, naming both agent API versions and the
+  server's newest release as the fix, and a bridge an earlier release published against the server
+  at the head, which it still serves, where the charter names those releases; the agent
+  compatibility gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
