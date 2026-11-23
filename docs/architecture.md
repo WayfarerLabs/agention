@@ -1108,19 +1108,20 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                      |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                       |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                        |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                     |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                      |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                 |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                  |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                               |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -1219,6 +1220,30 @@ changes. The viewer is a modal dialog holding the image, zoomed and panned by `@
 only its stage sets `touch-action: none`. The Markdown renderer's output itself holds no frame, SVG
 or image: the frame belongs to the page.
 
+The keyboard shortcuts are declared once, each with where it acts, its keys and what it does, in
+`shortcuts` in `src/keyboard.tsx`, and the help overlay, a `Sheet` that `?` opens, lists that
+declaration whole, so it cannot drift from the keys. While it is mounted, each place's view gives
+every shortcut of its place its action, through a hook typed by the place (`useShortcuts` for the
+thread list and a thread, `useFieldShortcuts` for the composer, and the provider for those that act
+anywhere), so a place binds exactly its declared shortcuts, and no shortcut listed goes without an
+action. Only one component holds a shortcut's action at a time; a second registering one throws.
+Each action does what a control on the page does, only while that control could, and otherwise
+nothing. A matching key is always taken from the browser: no key bound does anything of the
+browser's own where it acts, apart from `/` on the thread list, which takes Firefox's Quick Find,
+deliberately; `Enter` on a row is left out, since the row is a link the browser follows. One handler
+on the document, added after the page's own, acts on a key only when nothing handled it first, it
+was not typed into a text field, a select or editable content, no dialog or options menu is open,
+and Ctrl, Alt and Meta are up; the first key of two, `g`, waits 1.5 seconds for the second. A screen
+reader's browse mode takes single keys before the page sees them, so the shortcuts reach the page
+only once it passes keys through, and never compete with its own. The composer's own keys, Send and
+leaving it, act within its fields from its form's key handler (`useFieldShortcuts`), and likewise
+not while a dialog or options menu is open, such as Attach's within the form. The thread list's
+selection is the row whose link has focus (`src/views/list/shortcuts.ts`), so moving it moves focus,
+which the focus ring shows and a screen reader follows; the number keys choose a suggestion on the
+ask card that holds focus or else the first open one, by pressing its control. The shortcuts are on
+unless the operator turns them off in Settings' Keyboard section, which this browser keeps in its
+local storage (`src/device.ts`).
+
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
 its boxes against the API's bounds of a message's text and detail, counted with the API's
@@ -1253,21 +1278,22 @@ separating servers. The thread list marks a thread with a kept draft from the sa
   has changed since keeps none again.
 
 Settings is a list of sections, declared once in `src/views/settings/sections.ts`, each with a slug,
-a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice
-and Storage under Features, and Sign out after the groups. The navigation and `/settings/<slug>` are
-built from that list, so a new section is one entry and one component, and a slug no section has is
-Not found. `/passkeys`, where passkeys had a page of their own, redirects to `/settings/passkeys`,
-replacing the history entry. The layout is decided in CSS alone: below the layout's `40rem`
-breakpoint `/settings` shows the navigation as a list and a section's page shows a back link to it;
-above it the navigation is a column beside the open section, and `/settings` opens the first
-section, which it mounts, and so loads, on every width, hidden below the breakpoint. Each section
-loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice, offers
-to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads `recent` from
-the key list, and Passkeys and Voice from the passkey list. The voice form starts afresh from what
-the server holds whenever that changes, and normalizes a base URL with the API's own reader; which
-hosts it may reach is the server's to judge, when it is saved. After a save or a clear, focus waits
-for the settings the server then holds before moving to the control that shows them, and moves only
-from the control pressed. Signing in again moves focus to the open section's heading.
+a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice,
+Storage and Keyboard under Features, and Sign out after the groups. The navigation and
+`/settings/<slug>` are built from that list, so a new section is one entry and one component, and a
+slug no section has is Not found. `/passkeys`, where passkeys had a page of their own, redirects to
+`/settings/passkeys`, replacing the history entry. The layout is decided in CSS alone: below the
+layout's `40rem` breakpoint `/settings` shows the navigation as a list and a section's page shows a
+back link to it; above it the navigation is a column beside the open section, and `/settings` opens
+the first section, which it mounts, and so loads, on every width, hidden below the breakpoint. Each
+section loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice,
+offers to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads
+`recent` from the key list, and Passkeys and Voice from the passkey list. The voice form starts
+afresh from what the server holds whenever that changes, and normalizes a base URL with the API's
+own reader; which hosts it may reach is the server's to judge, when it is saved. After a save or a
+clear, focus waits for the settings the server then holds before moving to the control that shows
+them, and moves only from the control pressed. Signing in again moves focus to the open section's
+heading.
 
 The API keys section (`src/views/settings/ApiKeys.tsx`) lists the keys as the server does, each with
 its scopes and when it was created, expires and was last used, flagged while it is live with no

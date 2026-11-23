@@ -708,12 +708,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
   (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Voice**
-  (`/settings/voice`), as [Voice](#voice) describes, and **Storage** (`/settings/storage`), as
-  [Attachments](#attachments) describes; and **Sign out** (`/settings/sign-out`), which signs this
-  browser out, forgetting the drafts it kept, and leaves your others signed in. On a wide screen the
-  sections are listed beside the one open; on a phone Settings opens on the list, and each section
-  has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too old for a change
-  to passkeys, API keys or voice, those sections offer **Sign in again** first.
+  (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as
+  [Attachments](#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
+  [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`),
+  which signs this browser out, forgetting the drafts it kept, and leaves your others signed in. On
+  a wide screen the sections are listed beside the one open; on a phone Settings opens on the list,
+  and each section has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too
+  old for a change to passkeys, API keys or voice, those sections offer **Sign in again** first.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image written in Markdown shows as a link and never loads, unlike
@@ -763,6 +764,37 @@ the sessions under their groups, and the sessions view folds the agents under th
   **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
   sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
   carries is gone, as a topic no thread carries is.
+
+### Keyboard shortcuts
+
+With a keyboard, single keys do the everyday things, in the manner of mail and code-review tools.
+They act only while focus is outside a text field, an open menu and a dialog, and never with Ctrl,
+Alt or Cmd held unless the key needs it; on a phone without a keyboard nothing changes. Press `?`
+anywhere to list them all.
+
+| Where           | Key                         | What it does                                                                                                              |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Anywhere        | `?`                         | Lists the shortcuts                                                                                                       |
+| Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone |
+| The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
+| The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
+| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
+| The thread list | `/`                         | Opens **Filters** on its search box                                                                                       |
+| A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
+| A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
+| A thread        | `e`                         | **Archive all**, while it is available                                                                                    |
+| A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
+| A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
+| The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |
+| The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                    |
+
+Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does.
+Moving through the list moves focus from row to row, so a screen reader reads each row as it is
+reached. A screen reader in its browse mode keeps single keys for its own navigation, so the
+shortcuts act only once it passes keys through, as in its focus mode. To turn the shortcuts listed
+here off in this browser, if they get in the way of a screen reader, voice control or another tool,
+clear **Keyboard shortcuts** in **Settings**, under **Keyboard**, which also lists them. The diagram
+viewer's own keys stay on.
 
 ## Voice
 

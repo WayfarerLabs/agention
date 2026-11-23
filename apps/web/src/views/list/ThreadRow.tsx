@@ -104,6 +104,7 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
         to={threadHref(thread.agent, thread.session, thread.number)}
         state={() => ({ from: here.pathname + here.search })}
         className="thread-link"
+        data-needs-you={thread.unread > 0 || asks.blocking ? "" : undefined}
       >
         <div className="row-title">
           <Heading>
@@ -137,3 +138,11 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
     </li>
   );
 }
+
+// The links of the rows on the page, in order: a row under a folded header is
+// not rendered, so not among them.
+export const rowLinks = (): HTMLAnchorElement[] =>
+  Array.from(document.querySelectorAll<HTMLAnchorElement>("a.thread-link"));
+
+// needsYou says whether a row's thread is unread or blocked on the operator.
+export const needsYou = (link: HTMLAnchorElement) => link.hasAttribute("data-needs-you");

@@ -15,6 +15,7 @@ import { useStillOpen } from "../../data.ts";
 import { type KeptDraft, useDeviceChoice } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
+import { useFieldShortcuts } from "../../keyboard.tsx";
 import { useDictation, useVoiceOn } from "../../voice/Dictation.tsx";
 import {
   attachmentsOf,
@@ -173,6 +174,7 @@ export function Composer({
   context,
   files,
   restored,
+  box,
 }: {
   // Writes to the thread; the page holds it, so a refusal that names an
   // answer's own words shows at their field on the ask's card.
@@ -210,6 +212,8 @@ export function Composer({
   files: DraftFiles;
   // The draft this browser kept for the thread, which the page opened with.
   restored: KeptDraft | undefined;
+  // The message box, which the page's reply shortcut puts focus in.
+  box: RefObject<HTMLTextAreaElement | null>;
 }) {
   // The message the draft was started from: the last one on screen when the
   // operator started typing, staging or recording, so a message that lands
@@ -280,7 +284,6 @@ export function Composer({
     goBackNow.current = goBack;
   }, [goBack]);
   const id = useId();
-  const box = useRef<HTMLTextAreaElement>(null);
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
   const draft = { text, detail, attachments };
   const hold = filesHold(files.files);
@@ -393,6 +396,18 @@ export function Composer({
     sending(staged);
     void write(contentOf(draft, staged));
   };
+
+  // Its shortcuts, within its fields: Send, while Send can, and one to leave
+  // it, for its heading, where the page's own shortcuts act again.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const fieldKeys = useFieldShortcuts("Composer", {
+    send: () => {
+      if (!writer.pending && !loading && ready) {
+        send();
+      }
+    },
+    leaveComposer: () => heading.current?.focus(),
+  });
 
   // After a stale write, a draft left to send goes again once the missed
   // messages are read; otherwise they are only marked read.
@@ -511,7 +526,9 @@ export function Composer({
   );
   return (
     <section className="composer" aria-labelledby={`${id}-heading`}>
-      <h2 id={`${id}-heading`}>Reply</h2>
+      <h2 id={`${id}-heading`} ref={heading} tabIndex={-1}>
+        Reply
+      </h2>
       {writer.missed !== undefined && (
         <div className="notice warning stale" role="alert">
           <p>
@@ -535,7 +552,7 @@ export function Composer({
           </button>
         </div>
       )}
-      <form onSubmit={(event) => event.preventDefault()} noValidate>
+      <form onSubmit={(event) => event.preventDefault()} onKeyDown={fieldKeys} noValidate>
         {leftBehind && (
           <p className="hint" role="note">
             This browser kept only your draft's text and details, not what it had staged, attached
