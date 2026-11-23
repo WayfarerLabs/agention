@@ -14,8 +14,8 @@ Three changes, each complete on its own:
    run. A check on the agent line's release pull request keeps it from merging before the server
    release it needs is on npm (C2).
 2. **A newer bridge against an older server.** Both sides word a version mismatch in terms that hold
-   when the lines' versions differ (C3), and a new gate runs the bridge at HEAD against every
-   released server older than it (C5).
+   when the lines' versions differ (C3), and a new gate runs the bridge at HEAD against the newest
+   released server of each older agent API version (C5).
 3. **The plugin-is-behind signal.** The server records the agent API version each session's bridge
    states and marks a session whose bridge is behind in the sessions view and the operator API (U2);
    a bridge from this effort on sees from the server's own answers that it is behind and says so in
@@ -26,7 +26,7 @@ flowchart LR
   subgraph serverLine["Server line: agention-vX.Y.Z"]
     server["apps/server"]
     web["apps/web"]
-    opApi["server-only contract"]
+    opApi["packages/server-api"]
   end
   subgraph agentLine["Agent line: agention-mcp-vX.Y.Z"]
     bridge["apps/bridge"]
@@ -46,7 +46,7 @@ flowchart LR
 
 | Line    | Component      | Tag                   | Paths                                                                                    | Publishes                    |
 | ------- | -------------- | --------------------- | ---------------------------------------------------------------------------------------- | ---------------------------- |
-| Server  | `agention`     | `agention-vX.Y.Z`     | `apps/server`, `apps/web`, the server-only contract package                              | `@wayfarerlabs/agention`     |
+| Server  | `agention`     | `agention-vX.Y.Z`     | `apps/server`, `apps/web`, `packages/server-api`                                         | `@wayfarerlabs/agention`     |
 | Agent   | `agention-mcp` | `agention-mcp-vX.Y.Z` | `apps/bridge`, `apps/agent-plugin`, `out/`, `.claude-plugin/`, `.agents/`                | `@wayfarerlabs/agention-mcp` |
 | Shared  | both           |                       | `packages/api`, `packages/build`, `packages/private-files`, `package.json`, the lockfile | both                         |
 | Neither |                |                       | `docs/`, `scripts/`, `.github/`, the root's Markdown, lint and editor configuration      | nothing                      |
@@ -57,13 +57,13 @@ operator schemas). The bridge imports the whole package through its index, so a 
 those modules changes the bridge's bundle too. Moving them into a package of their own makes R2 hold
 (FRD ruling 2). The rule for what stays is what the bridge's bundle needs: some files are split, not
 moved, since shared code uses parts of them (`thread-lists.ts` and `sessions.ts` use group and tag
-names from `groups-and-tags.ts`). The low-level design names the package and draws the line in those
-files.
+names from `groups-and-tags.ts`). The low-level design draws the line in those files.
 
 Nothing in the build stops the bridge importing the new package: npm links every workspace package
 into the root `node_modules`, and the bridge's test harness depends on the server, which depends on
 it. A test over the bridge's bundle, which the build already describes in a metafile, fails if any
-of the new package's modules is in it, and that test is what holds the line.
+of the new package's modules is in it, and that test is what holds the line. Ruling 2 says the build
+enforces this; in practice, a CI test over the bridge's build does.
 
 ### Configuration
 
@@ -71,9 +71,9 @@ release-please gives only a root package the commits outside every package's pat
 is the root package of its own configuration, excluding what it does not ship (F3):
 
 - `release-please-config.json` and `.release-please-manifest.json`: the server line, release type
-  `node`, component `agention`, the changelog `CHANGELOG.md` (which keeps the history through
-  0.6.0), and `extra-files` for `apps/server/package.json` and its lockfile entry. The root
-  `package.json` version, which the `node` type writes, follows the server line.
+  `node`, component `agention`, the changelog `CHANGELOG.md` (which keeps the history through the
+  last combined release), and `extra-files` for `apps/server/package.json` and its lockfile entry.
+  The root `package.json` version, which the `node` type writes, follows the server line.
 - `release-please-config.agent.json` and `.release-please-manifest.agent.json`: the agent line,
   release type `simple` (so it writes no root `package.json`, F4), component `agention-mcp`, the
   changelog `apps/bridge/CHANGELOG.md`, its own `label` and `release-label`, and `extra-files` for
@@ -107,7 +107,8 @@ no repository code, publishes it. A version already on npm is skipped, as today.
 
 A plugin is in effect released when its release pull request merges, not when its bridge reaches
 npm: the marketplace catalogs serve the plugin from `main`, so the merge changes the bridge every
-host runs (Codex at its next session start, F9). The order is therefore enforced at that merge.
+unpinned host runs (Codex at its next session start, F9), and creates the tag a pinned host moves to
+when the operator re-pins. The order is therefore enforced at that merge.
 
 A new gate in `scripts/check.sh`, "Release order", acts only when HEAD's agent line version has no
 tag yet, which is true only on the agent line's release pull request. It reads the agent API version
@@ -141,16 +142,17 @@ plugin that is not yet released lasts minutes (U4).
 
 ### Migration
 
-0.6.0 released under the current configuration on 2026-11-23, UTC (`v0.6.0`). No release pull
-request merges from then until the release-lines pull request does, so 0.6.0 stays the last release
-covering all three (R4); an open one is harmless, since the server configuration's component keeps
-the release branch's name and takes it over. A release needed sooner would move the migration's
-starting point, and is an amendment of R4 for the operator.
+Both lines start from the last combined release, `vX.Y.Z` below: 0.6.0 (released 2026-11-23, UTC),
+or a later one cut before the switch (R4, FRD ruling 3). Releases go on as usual until the operator
+starts step 1. From then until the release-lines pull request merges, a matter of hours, no release
+pull request merges, since a combined release cut after step 2 would need tags only the release App
+could then create. An open release pull request is harmless: the server configuration's component
+keeps the release branch's name and takes it over.
 
 1. The operator creates `agention-vX.Y.Z` and `agention-mcp-vX.Y.Z` on the commit of every `v*`
-   release, 0.1.0 to 0.6.0, since each published both packages. That starts no run while the
+   release, 0.1.0 to `vX.Y.Z`, since each published both packages. That starts no run while the
    workflow triggers on `v*` only, and the tag ruleset, whose only bypass actor is the release App,
-   does not yet cover them. The 0.6.0 pair seeds each line's history, so release-please neither
+   does not yet cover them. The `vX.Y.Z` pair seeds each line's history, so release-please neither
    walks back 500 commits nor compares the first changelog against a tag that does not exist (F6),
    and the rest let every gate read one prefix per line, never the legacy `v*` beside it.
 2. The operator extends both tag rulesets to `agention-v*` and `agention-mcp-v*`: the one that
@@ -161,9 +163,10 @@ starting point, and is an amendment of R4 for the operator.
    protecting `v*`.
 3. The two configurations are tried with release-please's dry run, pinned to the version the release
    action bundles and installed from a lock, against a scratch branch of fixture commits
-   (server-only, agent-only, shared, docs-only, and one that changes no shipped path), since the
-   two-configuration pattern rests on reading the source (F3). The branch is deleted afterwards.
-4. The release-lines pull request merges, with both manifests at 0.6.0.
+   (server-only, agent-only, shared, docs-only, one that changes no shipped path, and a `fix(deps)`
+   changing one line's manifest and the lockfile, which releases both), since the two-configuration
+   pattern rests on reading the source (F3). The branch is deleted afterwards.
+4. The release-lines pull request merges, with both manifests at `X.Y.Z`.
 
 ## 2. A newer bridge against an older server
 
@@ -194,24 +197,26 @@ agent API tests). Servers before 0.3.0, current for two days, state no version, 
 call before the bridge refuses their answer: a new key's registration is recorded pending, and
 expires unapproved within the hour; a session already approved there has its call carried out,
 without the fields that server does not know, and then reported as failed. The bridge could prevent
-both by checking the server's version once when it starts, before its first call, with a request
-that changes nothing; that costs a request per bridge start, and code and tests, for three releases
-current two days. Without it, the operator guide says so, narrowing its statement that any older
-server leaves a registration waiting to servers before 0.3.0. The operator decides which.
+both by checking the server's version once when it starts, but the operator chose to accept and
+document it as a known limit of those three releases (FRD ruling 3), so the bridge does not change;
+the operator guide says so, narrowing its statement that any older server leaves a registration
+waiting to servers before 0.3.0.
 
 ### The server compatibility gate (C5)
 
 A new gate in `scripts/check.sh`, beside agent compatibility and skipped by `--fast`, mirrors it in
-the other direction. For each released server (`agention-v*` tags reachable from HEAD) whose agent
-API version is older than the bridge's at HEAD, it installs `@wayfarerlabs/agention` from npm by
-exact version with signatures and provenance checked, starts `agention serve` on loopback with a
-throwaway TLS certificate and data directory (every release accepts `--tls-cert` and `--tls-key`),
-and runs the bridge at HEAD against it as an agent host would. Every tool call fails with C3's
-refusal, and for servers from 0.3.0 the database holds no registration afterwards. A server that
-serves the bridge's version is skipped: the agent compatibility gate already covers bridges against
-the server at HEAD, and a server at the same version serves the same contract. The gate drives only
-unapproved sessions, since released servers approve only through a passkey; the low-level design
-measures its run time against CI's limit for the `check` job.
+the other direction. For each agent API version older than the bridge's at HEAD (a server that
+states none counting as one), it takes the newest released server at that version (`agention-v*`
+tags reachable from HEAD), today 0.2.1 (none) and 0.4.0 (2), and installs `@wayfarerlabs/agention`
+from npm by exact version with signatures and provenance checked, starts `agention serve` on
+loopback with a throwaway TLS certificate and data directory (every release accepts `--tls-cert` and
+`--tls-key`), and runs the bridge at HEAD against it as an agent host would. Every tool call fails
+with C3's refusal, and for servers from 0.3.0 the database holds no registration afterwards. A
+server that serves the bridge's version is skipped: the agent compatibility gate already covers
+bridges against the server at HEAD, and a server at the same version serves the same contract, which
+is also why one server per older version suffices (FRD ruling 4). The gate drives only unapproved
+sessions, since released servers approve only through a passkey; the low-level design measures its
+run time against CI's limit for the `check` job.
 
 ## 3. The plugin-is-behind signal
 
@@ -244,15 +249,16 @@ as 1, so this covers them all (U2).
 
 - **One configuration with `linked-versions` or `node-workspace`** (F5): neither routes a change to
   shared code to both lines, and `node-workspace` would release the bridge on every server release.
-- **Checking the release order when the bridge publishes**: too late, since the merge already
-  changed the plugin every host runs; holding the publish only turns C3's refusal into a failed
-  `npx` install.
+- **Checking the release order when the bridge publishes**: too late, since the merge has already
+  changed the plugin unpinned hosts run and created the tag pinned ones move to; holding the publish
+  only turns C3's refusal into a failed `npx` install.
 - **Serving the plugin from a release tag** (F10): catalog entries with a `ref` would keep hosts off
   unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
   catalog's ref becomes one more thing each release stamps. Not needed for this effort's
   requirements; a later change can adopt it.
-- **A version check when the bridge starts**: see "Servers before 0.3.0", which leaves it to the
-  operator.
+- **A version check when the bridge starts**: it would spare servers before 0.3.0 both their pending
+  registrations and their carried-out calls, at a request per bridge start; the operator chose to
+  document the limit instead (FRD ruling 3).
 - **A separate plugin version**: the FRD excludes it.
 
 ## Documentation
@@ -264,8 +270,9 @@ as 1, so this covers them all (U2).
   version), "Web UI" (the notice).
 - `CONTRIBUTING.md`: "Releasing" (two release pull requests, their merge order, the tags, where a
   new path that ships nothing is listed), "Checking a release", "Checks" (the server compatibility
-  and release order gates), "The agent API", and "One-time setup" (the ruleset, the npm environment
-  and the release-please configurations).
+  and release order gates), "The agent API", "One-time setup" (both tag rulesets, the npm
+  environment and the release-please configurations), and "Commits and pull requests" (its
+  one-version paragraph, and the rule for dependency commits).
 - `docs/operator-guide.md`: "Installing the plugins" and "Upgrading", which pin the marketplace to a
   `v*` tag and will name an `agention-mcp-v*` one; upgrading the server and updating the plugin as
   separate steps; the one rule of U1; the sessions view's notice; the update steps on each host (F8,
@@ -293,5 +300,14 @@ as 1, so this covers them all (U2).
   pass can predate a change on `main` by the minute before release-please refreshes the pull request
   (Release order). Requiring current branches would close it for every pull request, at the cost of
   an update before each merge.
+- **Dependency commits.** A dependency change touches the root lockfile, which both lines count as
+  shared, so a feature or fix that also adds a server-only dependency would release an unchanged
+  bridge. CONTRIBUTING has a dependency that a feature or fix needs go in its own `build(deps)`
+  commit, which releases nothing, so the feature or fix touches only its line's paths. A dependency
+  change that is itself the fix, such as a security bump, is `fix(deps)` and releases both lines,
+  even when only one line's manifest changed: a residual of R2, accepted because the alternative
+  would not release the fix at all, and cheap, since the agent API version does not move and the
+  sessions view marks nothing. Nothing enforces the convention, and a missed split over-releases,
+  the safe failure.
 - **Exclusion lists drift.** A path that ships nothing but is missing from both lists releases both
   lines; over-releasing is the safe failure, and review catches the list.
