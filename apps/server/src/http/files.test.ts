@@ -101,6 +101,75 @@ describe("a file read", () => {
     await expect(reader?.read()).rejects.toBeInstanceOf(ApiError);
   });
 
+  // A read cut short over a real connection logs through the app, not the
+  // adapter, and drops the connection, so the client's body ends incomplete.
+  // The client reads nothing until onResponse has run, and with the default
+  // socket buffers a file of 16 chunks is more than the connection holds, so a
+  // cut it causes comes before the end.
+  async function readCutShort(onResponse: () => void = () => undefined) {
+    const consoleError = vi.spyOn(console, "error");
+    const authorization = `Bearer ${await harness.token(agent)}`;
+    const listening = await harness.listen();
+    try {
+      const read = await new Promise<{
+        status: number | undefined;
+        received: number;
+        complete: boolean;
+      }>((resolve, reject) => {
+        const request = httpRequest({
+          host: "127.0.0.1",
+          port: listening.address.port,
+          path: "/api/agent/s/builder/main/threads/1/messages/1/files/big.bin",
+          headers: { host, authorization },
+        });
+        request
+          .on("response", (answer) => {
+            onResponse();
+            let received = 0;
+            answer.on("data", (data: Buffer) => (received += data.length));
+            // The client's error for a body cut short, which complete shows.
+            answer.on("error", () => undefined);
+            answer.on("close", () =>
+              resolve({ status: answer.statusCode, received, complete: answer.complete }),
+            );
+          })
+          .on("error", reject)
+          .end();
+      });
+      expect(consoleError).not.toHaveBeenCalled();
+      return read;
+    } finally {
+      await listening.close();
+    }
+  }
+
+  it("cut short once its credential is revoked logs one line and drops the connection", async () => {
+    await attach([{ bytes: Buffer.alloc(chunkBytes * 16), name: "big.bin" }]);
+    const logged = harness.logged.length;
+    const read = await readCutShort(() =>
+      revokeRegistration(
+        harness.fixture.store,
+        harness.fixture.operator,
+        harness.registrationId(agent),
+      ),
+    );
+    expect(read.status).toBe(200);
+    expect(read.complete).toBe(false);
+    expect(harness.logged.slice(logged)).toHaveLength(1);
+    expect(harness.logged.at(-1)).not.toContain("\n");
+  });
+
+  it("cut short by a missing chunk logs one line and drops the connection", async () => {
+    await attach([{ bytes: Buffer.alloc(chunkBytes * 3), name: "big.bin" }]);
+    harness.fixture.db.prepare("DROP TRIGGER file_chunks_kept").run();
+    harness.fixture.db.prepare("DELETE FROM file_chunks WHERE idx = 1").run();
+    const logged = harness.logged.length;
+    const read = await readCutShort();
+    expect([read.status, read.complete]).toEqual([200, false]);
+    expect(read.received).toBeLessThanOrEqual(chunkBytes);
+    expect(harness.logged.slice(logged)).toHaveLength(1);
+  });
+
   it("whose first chunk fails is answered by the app, with its headers, over a real connection", async () => {
     await attach([{ bytes: Buffer.alloc(chunkBytes * 2), name: "big.bin" }]);
     harness.fixture.db.prepare("DROP TRIGGER file_chunks_kept").run();
