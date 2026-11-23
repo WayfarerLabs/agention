@@ -79,10 +79,10 @@ index of those docs.
   generated from `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` by
   `apps/agent-plugin/gen/`; `scripts/generate-plugins.sh`, and `scripts/generate-plugins.sh --check`
   in the "Plugin drift" gate (`CONTRIBUTING.md` "Generated plugins"); and `docs/api/openapi.json`,
-  generated from the server's operation declarations and the `packages/api` schemas they use by
-  `apps/server/generate-api-docs.ts`, through `scripts/generate-api-docs.sh`, with the parity test
-  `apps/server/src/http/api-docs.test.ts` in the "Tests" gate (`CONTRIBUTING.md` "Generated API
-  document")
+  generated from the server's operation declarations and the `packages/api` and
+  `packages/server-api` schemas they use by `apps/server/generate-api-docs.ts`, through
+  `scripts/generate-api-docs.sh`, with the parity test `apps/server/src/http/api-docs.test.ts` in
+  the "Tests" gate (`CONTRIBUTING.md` "Generated API document")
 - Everything CI requires on a pull request, in order: `.github/workflows/ci.yml`: the `check` job
   runs `scripts/check.sh`, whose gates `CONTRIBUTING.md` "Checks" lists in order; then `ci-success`,
   the one required check, which passes only when `check` succeeded
@@ -104,11 +104,11 @@ index of those docs.
   summaries and field descriptions clients read in the generated `docs/api/openapi.json`
 - Command or API reference: `agention --help` and each command's `--help`, with
   `docs/operator-guide.md` "Commands" and "Running the server"; `agention-mcp --help`; the API's
-  request and response schemas in `packages/api` (`docs/architecture.md` "API contract") and the
-  bridge's tool schemas, generated from them (`docs/architecture.md` "Agent bridge"); the OpenAPI
-  document of the operator and agent APIs, `docs/api/openapi.json`, and the page rendered from it,
-  which `agention serve --api-docs` serves at `/docs/api/` (`docs/architecture.md` "API
-  documentation"; `docs/operator-guide.md` "Using the operator API")
+  request and response schemas in `packages/api` and `packages/server-api` (`docs/architecture.md`
+  "API contract") and the bridge's tool schemas, generated from them (`docs/architecture.md` "Agent
+  bridge"); the OpenAPI document of the operator and agent APIs, `docs/api/openapi.json`, and the
+  page rendered from it, which `agention serve --api-docs` serves at `/docs/api/`
+  (`docs/architecture.md` "API documentation"; `docs/operator-guide.md` "Using the operator API")
 
 ## Testing
 

@@ -38,19 +38,25 @@ Every component is an npm workspace, listed in the root `package.json`, and one 
 `package-lock.json` locks them all. The root `package.json` also holds the repository's own tools:
 TypeScript, Vitest, esbuild, Prettier, markdownlint-cli2 and cspell.
 
-| Workspace                | Package                                          | What it is                                            |
-| ------------------------ | ------------------------------------------------ | ----------------------------------------------------- |
-| `packages/api`           | `@wayfarerlabs/agention-api` (private)           | The API contract: request and response schemas        |
-| `packages/build`         | `@wayfarerlabs/agention-build` (private)         | The bundle build the published packages use           |
-| `packages/private-files` | `@wayfarerlabs/agention-private-files` (private) | The private-file rule the server and the bridge share |
-| `apps/server`            | `@wayfarerlabs/agention`                         | The server and the `agention` operator CLI            |
-| `apps/bridge`            | `@wayfarerlabs/agention-mcp`                     | The agent bridge, the `agention-mcp` command          |
-| `apps/web`               | `@wayfarerlabs/agention-web` (private)           | The React web UI, built with Vite                     |
-| `apps/agent-plugin`      | `@wayfarerlabs/agention-agent-plugin` (private)  | The canonical plugin definition and its generator     |
+| Workspace                | Package                                          | What it is                                                             |
+| ------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `packages/api`           | `@wayfarerlabs/agention-api` (private)           | The API contract the bridge shares with the server and the web UI      |
+| `packages/build`         | `@wayfarerlabs/agention-build` (private)         | The bundle build the published packages use                            |
+| `packages/private-files` | `@wayfarerlabs/agention-private-files` (private) | The private-file rule the server and the bridge share                  |
+| `packages/server-api`    | `@wayfarerlabs/agention-server-api` (private)    | The rest of the API contract, which only the server and the web UI use |
+| `apps/server`            | `@wayfarerlabs/agention`                         | The server and the `agention` operator CLI                             |
+| `apps/bridge`            | `@wayfarerlabs/agention-mcp`                     | The agent bridge, the `agention-mcp` command                           |
+| `apps/web`               | `@wayfarerlabs/agention-web` (private)           | The React web UI, built with Vite                                      |
+| `apps/agent-plugin`      | `@wayfarerlabs/agention-agent-plugin` (private)  | The canonical plugin definition and its generator                      |
 
-`@wayfarerlabs/agention-api` has no build step: its `exports` point at its TypeScript source, so a
-workspace that imports it type-checks against the contract itself, and a change to the contract
-fails the type check of every side it breaks.
+The API contract's packages, `@wayfarerlabs/agention-api` and `@wayfarerlabs/agention-server-api`,
+have no build step: their `exports` point at their TypeScript source, so a workspace that imports
+them type-checks against the contract itself, and a change to the contract fails the type check of
+every side it breaks. A schema goes in `@wayfarerlabs/agention-server-api` unless the bridge imports
+it or a module of `@wayfarerlabs/agention-api` does; `@wayfarerlabs/agention-server-api` builds on
+`@wayfarerlabs/agention-api` and never the reverse, and the bridge never imports it outside its
+tests, which `apps/bridge/src/bundle.test.ts` holds
+([architecture](docs/architecture.md#source-and-packages)).
 
 A workspace that imports another declares it in its `package.json` with the range `*`. The published
 packages declare it under `devDependencies`, like everything else their bundles include (see
@@ -203,7 +209,7 @@ host restarts the bridge, so build only code you trust.
 ### Generated API document
 
 `docs/api/openapi.json`, the OpenAPI document of the operator API and the agent API, is generated
-from the server's operation declarations and the `packages/api` schemas they use, by
+from the server's operation declarations and the API contract's schemas they use, by
 `apps/server/generate-api-docs.ts`, which Node runs directly. Never edit it by hand. After changing
 an operation or a schema one uses, regenerate it and commit it in the same change, so the contract's
 change is reviewed as a diff:
