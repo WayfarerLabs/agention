@@ -47,9 +47,9 @@ excluded directory; a file at the repository's root cannot be excluded.
   request while a merged one carrying its pending label is untagged. The release-please workflow
   runs once per configuration.
 - **One release, one package.** The release workflow takes either line's tags, refuses a tag that is
-  not its line's version everywhere that line's release pull request writes it, read from the line's
-  configuration, and publishes that line's package alone, from a job that runs no repository code,
-  as before.
+  not the version of what its line ships, the line's package and for the agent line the plugin
+  definition, and publishes that line's package alone, from a job that runs no repository code, as
+  before.
 - **The server is released first.** No bridge is released before a server that serves its agent API
   version. A plugin is in effect released when its release pull request merges, since hosts install
   it from `main`, so the order is held at that merge: a gate in `scripts/check.sh`, required through

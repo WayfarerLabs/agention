@@ -61,8 +61,8 @@ index of those docs.
   agent line (`@wayfarerlabs/agention-mcp` and the plugins, tags `agention-mcp-vX.Y.Z`), from the
   last combined release, 0.6.0 (ADR 0005; `docs/architecture.md` "Versions"); their release-please
   configurations `release-please-config.json` and `release-please-config.agent.json`, with their
-  manifests; `.github/workflows/release.yml`, whose tag check is `scripts/check-release-tag.sh`; and
-  the merge order the release order gate holds (`CONTRIBUTING.md` "Releasing")
+  manifests; `.github/workflows/release.yml`; and the merge order the release order gate,
+  `scripts/check-release-order.sh`, holds (`CONTRIBUTING.md` "Releasing")
 - Toolchain pins and locked install: `.node-version`, with the npm it bundles; exact pins in each
   `package.json` and the one root `package-lock.json`; `.npmrc` (`save-exact`, `ignore-scripts`);
   `npm ci --ignore-scripts`, then `npx playwright install --only-shell chromium` for the browser
@@ -133,8 +133,8 @@ index of those docs.
   built server in Chromium with virtual authenticators and Chromium's fake microphone
   (`docs/architecture.md` "Web UI"); the local stub transcription provider,
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
-  `scripts/check-sdd.test.sh`; and `scripts/check-release-tag.test.sh` and
-  `scripts/check-release-order.test.sh`, the release scripts' fixture tests
+  `scripts/check-sdd.test.sh`; and `scripts/check-release-order.test.sh`, the release order gate's
+  fixture tests
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`); setup is the locked install and Chromium's headless shell (`CONTRIBUTING.md`
   "Prerequisites"), and the release tags for the agent compatibility and release order gates
