@@ -278,6 +278,8 @@ export function Composer({
   // goes back by the choice as it stands when the write lands, and only
   // while the page that sent it is still open.
   const [goBack, setGoBack] = useDeviceChoice(goBackChoice, true);
+  // Whether Go back after sending had focus as dictation moved it.
+  const goBackHadFocus = useRef(false);
   const goBackNow = useRef(goBack);
   const stillOpen = useStillOpen();
   useEffect(() => {
@@ -515,14 +517,7 @@ export function Composer({
   // dictation has controls there, so the row stays short at the foot of a
   // phone's screen.
   const goBackOption = (
-    <label className="check">
-      <input
-        type="checkbox"
-        checked={goBack}
-        onChange={(event) => setGoBack(event.target.checked)}
-      />
-      Go back after sending
-    </label>
+    <GoBackOption checked={goBack} onChange={setGoBack} hadFocus={goBackHadFocus} />
   );
   return (
     <section className="composer" aria-labelledby={`${id}-heading`}>
@@ -704,5 +699,44 @@ export function Composer({
         {dictating && goBackOption}
       </form>
     </section>
+  );
+}
+
+// GoBackOption is Go back after sending. It sits in the Send row, which stays
+// at the foot of the screen, and below it while dictating; no style can move a
+// control out of that row, so moving it mounts it afresh. The one leaving
+// records, in its layout cleanup, whether it had focus, before React removes
+// it from the page; the one arriving takes focus back in the same commit's
+// layout effects, before dictation's own focus moves run.
+function GoBackOption({
+  checked,
+  onChange,
+  hadFocus,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  hadFocus: RefObject<boolean>;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (hadFocus.current) {
+      hadFocus.current = false;
+      input.current?.focus();
+    }
+    const element = input.current;
+    return () => {
+      hadFocus.current = element !== null && document.activeElement === element;
+    };
+  }, [hadFocus]);
+  return (
+    <label className="check">
+      <input
+        ref={input}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      Go back after sending
+    </label>
   );
 }
