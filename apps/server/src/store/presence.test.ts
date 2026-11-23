@@ -82,7 +82,7 @@ describe("the agent API version", () => {
   });
 
   it.each([
-    ["a missing header, read as 1", 1, true],
+    ["version 1, which a missing header reads as", 1, true],
     ["an older version", agentApi.version - 1, true],
     ["the server's own", agentApi.version, false],
   ])(

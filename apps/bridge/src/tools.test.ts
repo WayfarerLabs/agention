@@ -282,11 +282,11 @@ describe("the agent API version", () => {
   });
 
   it.each([
-    ["pending", pending],
-    ["approved", { ...pending, status: "approved", agent: "builder", session: "main" }],
-    ["rejected", { ...pending, status: "rejected" }],
+    ["a pending", pending],
+    ["an approved", { ...pending, status: "approved", agent: "builder", session: "main" }],
+    ["a rejected", { ...pending, status: "rejected" }],
   ])(
-    "adds a sentence to a %s register answer from a newer server, and nothing else",
+    "adds a sentence to %s register answer from a newer server, and nothing else",
     async (_, body) => {
       // A rejected key is replaced and registered again, which the same
       // answer reports once more.
