@@ -20,15 +20,18 @@ be built where the trust model says it does not belong (A6).
 
 ## A1. Standalone and runtime-neutral
 
-Agention never grants permissions, injects into a chat, controls a harness, or acts on message
-content (ADR 0001 "Not doing"). Tailscale is one documented way to host, not a dependency (ADR 0001
-"Transport independence"); Agentworks only supplies the session's default names, and nothing else
-depends on it; the MCP surface and usage skill work on every supported agent host (ADR 0001
-"Distribution: generated agent plugins"); and Agention uses no paid service by default: voice's
-transcription provider is the one optional paid service, which the operator opts into and which is
-off until they do (ADR 0002). Look for core paths that import, require, or default to one host,
-network, or harness, a paid service on by default or without a decision of its own, and optionality
-or dependencies nothing in the docs calls for.
+Agention never grants permissions, controls a harness, or acts on message content, and injects
+nothing into a chat but push's notice (ADR 0001 "Not doing", ADR 0005): fixed words and
+schema-checked integers, composed by the bridge's one formatter, which no title, message text or
+other server-provided content reaches. Look for any other text reaching an agent's conversation
+outside a tool's answer, and for anything from the server flowing into the notice. Tailscale is one
+documented way to host, not a dependency (ADR 0001 "Transport independence"); Agentworks only
+supplies the session's default names, and nothing else depends on it; the MCP surface and usage
+skill work on every supported agent host (ADR 0001 "Distribution: generated agent plugins"); and
+Agention uses no paid service by default: voice's transcription provider is the one optional paid
+service, which the operator opts into and which is off until they do (ADR 0002). Look for core paths
+that import, require, or default to one host, network, or harness, a paid service on by default or
+without a decision of its own, and optionality or dependencies nothing in the docs calls for.
 
 ## A2. Actor from authentication, target from the request
 

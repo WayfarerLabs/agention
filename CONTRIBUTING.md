@@ -153,10 +153,10 @@ try UI changes by building the server package and running it as the
 ### Generated plugins
 
 The Claude Code and Codex plugins under `out/` and the catalogs in `.claude-plugin/` and
-`.agents/plugins/` are generated from `apps/agent-plugin/plugin.json` and
-`apps/agent-plugin/skills/` by `apps/agent-plugin/gen/`, which Node runs directly. Never edit the
-outputs by hand. After changing the sources or the generator, regenerate and commit the outputs in
-the same change:
+`.agents/plugins/` are generated from `apps/agent-plugin/plugin.json`, `apps/agent-plugin/skills/`
+and the Claude Code plugin's watcher hook in `apps/agent-plugin/hooks/` by `apps/agent-plugin/gen/`,
+which Node runs directly. Never edit the outputs by hand. After changing the sources or the
+generator, regenerate and commit the outputs in the same change:
 
 ```bash
 scripts/generate-plugins.sh

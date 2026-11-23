@@ -40,15 +40,16 @@ index of those docs.
   its source-of-truth layer: one SQLite database, which the store owns (ADR 0001 "One Node server
   and one SQLite database"; `docs/architecture.md` "Database" and "Store"); user and machine
   interfaces and their clients: the `agention` CLI (`docs/operator-guide.md` "Commands"), the agent
-  bridge's MCP tools, which agent hosts run (`docs/architecture.md` "Agent bridge"), the HTTP API's
-  agent and web mounts and the operator API, its versioned operator mount, whose clients are
-  programs the operator runs with API keys (`docs/architecture.md` "HTTP API";
-  `docs/operator-guide.md` "Using the operator API"), and the web UI in the operator's browsers
-  (`docs/operator-guide.md` "Using the web UI"); supported environment matrix: a Linux server with
-  Node.js 24 or later (`docs/operator-guide.md`, its opening and "Linux: a systemd user unit"; the
-  macOS launchd setup is documented as untested in "macOS: a launchd agent"), mobile and desktop
-  browsers with WebAuthn's JSON helpers (`docs/operator-guide.md` "Signing in" and "Using the web
-  UI"), and Claude Code and Codex as agent hosts, with Node.js 24 or later for the bridge
+  bridge's MCP tools, which agent hosts run, and the push that the bridge's background wait and the
+  Claude Code plugin's watcher hook deliver (`docs/architecture.md` "Agent bridge" and "Generated
+  plugins"; ADR 0005), the HTTP API's agent and web mounts and the operator API, its versioned
+  operator mount, whose clients are programs the operator runs with API keys (`docs/architecture.md`
+  "HTTP API"; `docs/operator-guide.md` "Using the operator API"), and the web UI in the operator's
+  browsers (`docs/operator-guide.md` "Using the web UI"); supported environment matrix: a Linux
+  server with Node.js 24 or later (`docs/operator-guide.md`, its opening and "Linux: a systemd user
+  unit"; the macOS launchd setup is documented as untested in "macOS: a launchd agent"), mobile and
+  desktop browsers with WebAuthn's JSON helpers (`docs/operator-guide.md` "Signing in" and "Using
+  the web UI"), and Claude Code and Codex as agent hosts, with Node.js 24 or later for the bridge
   (`docs/operator-guide.md` "Agents" and "Installing the plugins")
 
 ## Contribution and gates
@@ -76,13 +77,13 @@ index of those docs.
   "Vulnerabilities" gate of `scripts/check.sh`
 - Generated outputs, their generator configuration, and drift check: `out/claude-plugin/`,
   `out/codex-plugin/`, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`,
-  generated from `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` by
-  `apps/agent-plugin/gen/`; `scripts/generate-plugins.sh`, and `scripts/generate-plugins.sh --check`
-  in the "Plugin drift" gate (`CONTRIBUTING.md` "Generated plugins"); and `docs/api/openapi.json`,
-  generated from the server's operation declarations and the `packages/api` schemas they use by
-  `apps/server/generate-api-docs.ts`, through `scripts/generate-api-docs.sh`, with the parity test
-  `apps/server/src/http/api-docs.test.ts` in the "Tests" gate (`CONTRIBUTING.md` "Generated API
-  document")
+  generated from `apps/agent-plugin/plugin.json`, `apps/agent-plugin/skills/` and
+  `apps/agent-plugin/hooks/` by `apps/agent-plugin/gen/`; `scripts/generate-plugins.sh`, and
+  `scripts/generate-plugins.sh --check` in the "Plugin drift" gate (`CONTRIBUTING.md` "Generated
+  plugins"); and `docs/api/openapi.json`, generated from the server's operation declarations and the
+  `packages/api` schemas they use by `apps/server/generate-api-docs.ts`, through
+  `scripts/generate-api-docs.sh`, with the parity test `apps/server/src/http/api-docs.test.ts` in
+  the "Tests" gate (`CONTRIBUTING.md` "Generated API document")
 - Everything CI requires on a pull request, in order: `.github/workflows/ci.yml`: the `check` job
   runs `scripts/check.sh`, whose gates `CONTRIBUTING.md` "Checks" lists in order; then `ci-success`,
   the one required check, which passes only when `check` succeeded
@@ -99,9 +100,10 @@ index of those docs.
   operator guide's systemd unit and launchd plist are its examples); CLI help and completions: the
   usage text in `apps/server/src/cli.ts` and `apps/bridge/src/cli.ts`, and no completions; product
   guidance: the usage skill in `apps/agent-plugin/skills/`, the plugin definition
-  `apps/agent-plugin/plugin.json` and their generated outputs, the tool and field descriptions
-  agents read, in `apps/bridge/src/tools.ts` and the `packages/api` schemas, and the operation
-  summaries and field descriptions clients read in the generated `docs/api/openapi.json`
+  `apps/agent-plugin/plugin.json`, the watcher hook in `apps/agent-plugin/hooks/` and their
+  generated outputs, the tool and field descriptions agents read, in `apps/bridge/src/tools.ts` and
+  the `packages/api` schemas, and the operation summaries and field descriptions clients read in the
+  generated `docs/api/openapi.json`
 - Command or API reference: `agention --help` and each command's `--help`, with
   `docs/operator-guide.md` "Commands" and "Running the server"; `agention-mcp --help`; the API's
   request and response schemas in `packages/api` (`docs/architecture.md` "API contract") and the
@@ -121,10 +123,12 @@ index of those docs.
   in-process HTTP harness, `apps/server/src/http/test-harness.ts`, which also creates API keys and
   calls the operator mount with them, with `apps/server/src/auth/test-authenticator.ts`, a software
   passkey authenticator; the bridge's harness, `apps/bridge/src/test-harness.ts`, which runs the
-  server in process over TLS and bridges in process or as processes, released bundles among them
-  (`docs/architecture.md` "Agent bridge"); the browser tests in `apps/web/e2e/`, which drive the
-  built server in Chromium with virtual authenticators and Chromium's fake microphone
-  (`docs/architecture.md` "Web UI"); the local stub transcription provider,
+  server in process over TLS and bridges in process or as processes, released bundles among them,
+  with the Claude Code client name and host directories push needs (`docs/architecture.md` "Agent
+  bridge"); the watcher's tests, `apps/agent-plugin/hooks/agention-watcher.test.ts`, which run the
+  shell script itself under `/bin/sh` and `bash --posix`; the browser tests in `apps/web/e2e/`,
+  which drive the built server in Chromium with virtual authenticators and Chromium's fake
+  microphone (`docs/architecture.md` "Web UI"); the local stub transcription provider,
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
   and `scripts/check-sdd.test.sh`
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,

@@ -17,7 +17,9 @@ view's tab counting the sessions with unread updates is superseded: a navigation
 what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
 approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
 UI" and the [operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row
-still marks its unread updates.
+still marks its unread updates. Its "No push" is superseded for agents by
+[ADR 0005](0005-push-to-agents.md), which amends "No permissions, no harness control" and "Agention
+never holds up an agent's work" for push's one notice.
 
 ## Context
 
@@ -320,14 +322,20 @@ These are deliberate limits, not gaps to fill later without a new decision:
 - **Agention never holds up an agent's work.** An agent asks and carries on, checking for answers as
   it works, and once its other work is done keeps checking, as cheaply as it can, while it has open
   asks or unread messages. A session's reported state, its presence and its stranded threads show
-  the person when an agent is not there to read, so they know to resume it.
+  the person when an agent is not there to read, so they know to resume it. (Amended by
+  [ADR 0005](0005-push-to-agents.md): an agent whose answers are pushed ends its turn instead of
+  checking, and the push wakes it.)
 - **No push.** Agention reaches the person only through its own web UI, with no notifications, email
   or other channel, and reaches an agent only when the agent checks, through `message_wait`.
   Standard MCP notifications reach neither host's model; waking an idle agent takes each host's own
   mechanism, which exists on both hosts, and is left for a later release so that polling, which
-  every host supports, works well first.
+  every host supports, works well first. (Superseded for agents by
+  [ADR 0005](0005-push-to-agents.md): on Claude Code, the bridge and a plugin hook wake an agent at
+  its prompt when the operator writes.)
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
-  agent's conversation, or control an agent harness.
+  agent's conversation, or control an agent harness. (Amended by [ADR 0005](0005-push-to-agents.md):
+  push's notice, fixed words and numbers naming the threads to read, is the one text Agention puts
+  into an agent's conversation.)
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through
   the bridge, over the plain HTTP API, with keys the operator approved. Serving MCP or running OAuth
   on the server would need the machinery the bridge avoids.

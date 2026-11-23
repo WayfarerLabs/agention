@@ -946,19 +946,20 @@ its key file, its tokens and where its requests may go.
   `register` leaves out falling back to its variable. Whichever the bridge uses first fixes the
   session for the life of the process; naming another afterwards is `invalid_input`.
 - **Key file.** `apps/bridge/src/key-file.ts` keeps one key per server, agent and session, selected
-  by the proposed names, and is the bridge's only state. Its operations are synchronous. Every
-  request reads the file, so bridges sharing a session sign with the key now on disk. Only
-  `register` creates a key, by writing a temporary file and linking it into place, which fails if a
-  key exists, so bridges starting together share the first. Only `register` replaces one: once the
-  server answers that its registration was rejected, revoked or expired, it writes a new key to a
-  temporary file, renames it into place if the file still holds the refused key, submits it, and
-  reads the file again, reporting the registration of whatever key is now on disk. A registration
-  left behind when that read finds another bridge's key was never relayed, and expires unapproved.
-  Only two replacements interleaving within one round trip can relay a code whose key was
-  overwritten; if the operator approves it, the session's next `register` shows the key on disk
-  still pending, and the operator revokes the stray registration. Every operation applies the
-  private-file rule, and writes, links and renames only in the session directory's real path. The
-  home directory must exist: the bridge creates only the directories below it.
+  by the proposed names, and is the bridge's only state but push's host directory, below. Its
+  operations are synchronous. Every request reads the file, so bridges sharing a session sign with
+  the key now on disk. Only `register` creates a key, by writing a temporary file and linking it
+  into place, which fails if a key exists, so bridges starting together share the first. Only
+  `register` replaces one: once the server answers that its registration was rejected, revoked or
+  expired, it writes a new key to a temporary file, renames it into place if the file still holds
+  the refused key, submits it, and reads the file again, reporting the registration of whatever key
+  is now on disk. A registration left behind when that read finds another bridge's key was never
+  relayed, and expires unapproved. Only two replacements interleaving within one round trip can
+  relay a code whose key was overwritten; if the operator approves it, the session's next `register`
+  shows the key on disk still pending, and the operator revokes the stray registration. Every
+  operation applies the private-file rule, and writes, links and renames only in the session
+  directory's real path. The home directory must exist: the bridge creates only the directories
+  below it.
 - **Tokens.** `jose` mints a token for each request, signed with the session's key.
 - **Bodies.** A JSON body is sent whole, as a string, so it declares its length. A file's bytes
   stream from the open file with its `Content-Length`, the size the file had when it was opened, so
@@ -1014,21 +1015,22 @@ its key file, its tokens and where its requests may go.
   `message_wait` waits for nothing by default and answers at once, which is how an agent checks for
   answers as it works; a longer wait is for an agent with no other work and open asks or unread
   messages, or for a waiter of its own. `register`'s answer, once approved, says how answers reach
-  the agent: when it checks. No tool marks a thread unread, which agents have no use for, though the
-  agent API offers it as the web API does. The SDK advertises each tool's JSON Schema, generated
-  from the shared schemas, but the bridge parses the arguments itself, so input outside a bound is
-  `invalid_input` naming the field, as the server would answer it. A tool also refuses a field it
-  does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
-  silently, while the server's request schemas ignore unknown fields, and the agent API version
-  keeps a newer bridge from relying on that against an older server. An answer is the API's JSON as
-  text, followed by the status reminder when one is due, and a call the server refuses is an error
-  result holding the API's error JSON. A problem the bridge finds itself, such as its configuration,
-  an unreachable server, missing names or a cancelled call, is an error result in plain text, worded
-  for the agent: what to do, or, for what only the operator can fix, to tell them at the terminal
-  what to change and whether the session must restart. `apps/bridge/src/errors.ts` words those.
-  `message_wait` gives every error but `invalid_input` no sooner than its `wait_seconds` would have
-  ended, counted from the call's start, so an agent that waits again at once does not call a server
-  it cannot use in a tight loop.
+  the agent: `pushed` is true, and its message says they are pushed, exactly when push can work for
+  the host session, and otherwise answers reach the agent when it checks. No tool marks a thread
+  unread, which agents have no use for, though the agent API offers it as the web API does. The SDK
+  advertises each tool's JSON Schema, generated from the shared schemas, but the bridge parses the
+  arguments itself, so input outside a bound is `invalid_input` naming the field, as the server
+  would answer it. A tool also refuses a field it does not know, at any depth, as `invalid_input`
+  naming it, so a misspelled field never drops silently, while the server's request schemas ignore
+  unknown fields, and the agent API version keeps a newer bridge from relying on that against an
+  older server. An answer is the API's JSON as text, followed by the status reminder when one is
+  due, and a call the server refuses is an error result holding the API's error JSON. A problem the
+  bridge finds itself, such as its configuration, an unreachable server, missing names or a
+  cancelled call, is an error result in plain text, worded for the agent: what to do, or, for what
+  only the operator can fix, to tell them at the terminal what to change and whether the session
+  must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error but
+  `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's start,
+  so an agent that waits again at once does not call a server it cannot use in a tight loop.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a `session_update` the server logged (one with a note, one whose answered status
   differs from the last it answered, or its first), or, until then, when a tool first answered in
@@ -1071,31 +1073,67 @@ its key file, its tokens and where its requests may go.
   model; a larger image's answer says to read the file at its path. Answers are text, with that
   block alone beside it, and the status reminder after both when one is due: no `resource_link` or
   `structuredContent`.
+- **Push** (`apps/bridge/src/push.ts`). On Claude Code, the bridge holds the session's wait in the
+  background and has the plugin's watcher wake the agent at its prompt when the operator writes. It
+  runs only for an MCP client whose `initialize` named it `claude-code`, and only when one of the
+  bridge's ancestor processes, its parent first and at most 16, read from `/proc` on Linux and with
+  `ps -o ppid=` elsewhere (`apps/bridge/src/process-ancestors.ts`), has a host directory with the
+  watcher's `hooked` mark (`apps/bridge/src/host-directory.ts`):
+  `~/.config/agention/_hosts/claude/<pid>/`, named for the Claude Code process, under the
+  private-file rule, which no session's key directory can meet, since no origin's host holds an
+  underscore. `register` decides it: when push can work, its approved answer says answers are
+  pushed, and it starts the background wait, even while the registration is pending; otherwise
+  nothing runs in the background. The first `register` also removes the host directories of
+  processes that have ended. The loop reads the registration of the key on disk with the request
+  `register` makes, every 15 seconds while it is not approved, never creating a key and never
+  submitting one the server refused, so push starts once the operator approves with no tool call.
+  Once approved, it long-polls `GET /api/agent/s/<agent>/<session>/wait` for 25 seconds at a time,
+  one request at a time, from the position in the host directory's `cursor`, which counts only for
+  the same origin and granted names, so the server marks the session seen as an agent's own wait
+  does. A round with threads saves the new position, then writes the `wake` file: the notice one
+  formatter composes from fixed words and each thread's number and unread count, integers the
+  answer's schema checks, naming at most ten threads and counting the rest, so no title or message
+  text reaches the agent this way. A wake file the watcher has not taken yet is taken back by
+  renaming it, and the new one names its threads too, with the newer counts; the cursor records the
+  threads a notice names until then. Each file is written to a temporary private file and renamed
+  into place, without waiting for the disk: a cursor lost to a crash of the machine only pushes
+  again what is unread. A failure the bridge can outlast, such as an unreachable server, a proxy's
+  error, an answer it cannot read or a key that is not approved, is retried after a pause that
+  doubles from 1 second to a minute. A server that does not serve the bridge's agent API version, a
+  registration rejected, revoked or expired, or a host directory the bridge cannot use makes push
+  give up: once `register` has said answers are pushed, the next answer of any tool but `register`,
+  an error included, ends with one line saying answers now reach the agent only when it checks, and
+  the loop goes back to reading the registration, so a new approval, or a later `register`, starts
+  push again. The loop stops when the host closes the bridge's input. The watcher that takes the
+  wake file is in [Generated plugins](#generated-plugins).
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
-  size to Claude Code in its `_meta`: the cap, 40,000 bytes, and 500 more for the status reminder,
-  since how Claude Code measures a result of several blocks is not documented. A page of messages or
-  threads over the limit is asked for again with half as many elements as the smaller of the last
-  page size and what the answer held, down to one; `message_wait` asks for those smaller pages with
-  no wait. The bridge gives a server 30 seconds to answer a request beyond any wait it asks for, and
-  a whole `message_wait` call, its credential lookup and every request included, the same 30 seconds
-  beyond its `wait_seconds`, so it ends within 55 seconds, under Codex's 60-second tool timeout, and
-  answers that the server did not answer in time if it runs out. An answer still over it at one
-  element leaves out its largest text-bearing fields, largest first, until it fits: texts (each
-  answer's own words included) and details, references, a message's attachments whole, each ask's
-  fallback text, question and suggested answers, the question each answer carries, and the reasons
-  of withdrawals, the thread's and each ask's included, each named in `omitted` as a dotted path,
-  such as `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not escape
-  always comes back whole beside its text, unless the message's other fields are large too; one in
-  other scripts can be left out and named in `omitted`, from roughly 19,000 code points in a
-  two-byte script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale`
-  error lists only the leading missed messages that fit and says from which sequence to read the
-  rest, or that none fits; every other error stays within its limit by construction, quoting at most
-  100 characters of any configured value.
+  size to Claude Code in its `_meta`: the cap, 40,000 bytes, 500 more for the status reminder and
+  400 for push's lapse line, since how Claude Code measures a result of several blocks is not
+  documented. A page of messages or threads over the limit is asked for again with half as many
+  elements as the smaller of the last page size and what the answer held, down to one;
+  `message_wait` asks for those smaller pages with no wait. The bridge gives a server 30 seconds to
+  answer a request beyond any wait it asks for, and a whole `message_wait` call, its credential
+  lookup and every request included, the same 30 seconds beyond its `wait_seconds`, so it ends
+  within 55 seconds, under Codex's 60-second tool timeout, and answers that the server did not
+  answer in time if it runs out. An answer still over it at one element leaves out its largest
+  text-bearing fields, largest first, until it fits: texts (each answer's own words included) and
+  details, references, a message's attachments whole, each ask's fallback text, question and
+  suggested answers, the question each answer carries, and the reasons of withdrawals, the thread's
+  and each ask's included, each named in `omitted` as a dotted path, such as
+  `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not escape always
+  comes back whole beside its text, unless the message's other fields are large too; one in other
+  scripts can be left out and named in `omitted`, from roughly 19,000 code points in a two-byte
+  script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale` error lists
+  only the leading missed messages that fit and says from which sequence to read the rest, or that
+  none fits; every other error stays within its limit by construction, quoting at most 100
+  characters of any configured value.
 
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
-protocol, and as a process over stdio. The agent compatibility gate runs each released bridge's
+protocol, and as a process over stdio. Push's tests give a bridge the Claude Code client name, its
+host process and its pacing, and one runs the plugin's own watcher beside it, which exits 2 with the
+bridge's notice once the operator writes. The agent compatibility gate runs each released bridge's
 published bundle the same way against the server at HEAD
 ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API"). `AGENTION_CONNECT`'s tests
 run it at an origin whose host resolves nowhere, under `.test`, which bridges reach only at the
@@ -1340,12 +1378,12 @@ and call the operator mount with its secret from outside the browser.
 
 ## Generated plugins
 
-`apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` are the only plugin sources.
-`scripts/generate-plugins.sh` renders them into `out/claude-plugin/`, `out/codex-plugin/`,
-`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. The outputs are committed,
-and CI fails if they drift from their sources. Installing the plugins from the repository's
-marketplace is in daily use on Claude Code; on Codex, the live tests' basic plugin-integration
-prompts exercise it.
+`apps/agent-plugin/plugin.json`, `apps/agent-plugin/skills/` and `apps/agent-plugin/hooks/` are the
+only plugin sources. `scripts/generate-plugins.sh` renders them into `out/claude-plugin/`,
+`out/codex-plugin/`, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. The
+outputs are committed, and CI fails if they drift from their sources. Installing the plugins from
+the repository's marketplace is in daily use on Claude Code; on Codex, the live tests' basic
+plugin-integration prompts exercise it.
 
 Each plugin carries the usage skill and declares one MCP server, the bridge, in `.mcp.json` at the
 plugin root. The definition names the bridge's package, and the generator pins it to the plugin's
@@ -1356,6 +1394,23 @@ the server lists, so the Codex declaration lists the bridge's configuration vari
 `NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes the Codex declaration's
 `tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
 can take longer; Claude Code's plugin format has no such setting.
+
+The Claude Code plugin alone also carries the wake hook the definition's `claudeWakeHook` declares,
+since Codex offers a plugin no way to wake an open session: `hooks/hooks.json`, which runs the
+watcher, `apps/agent-plugin/hooks/agention-watcher.sh` copied to the plugin's `hooks/` with its
+executable bit, as a command hook on `SessionStart` and `Stop`, with `asyncRewake` and a timeout of
+86,400 seconds. The watcher is POSIX shell, with no network and no key access. It exits 0 at once
+without `AGENTION_URL`, without a positive whole `CLAUDE_PID` of at most 10 digits, which Claude
+Code sets for hooks without documenting it, or when that process is gone. Otherwise it creates the
+host directory with a umask of 077, applies the private-file rule to it and to every directory above
+its real path from what `ls -n` prints, refusing with exit 1, removes the directories of host
+processes that have ended, writes the `hooked` mark if it is missing, and takes the `watcher` lock
+by renaming a file holding its pid over it, so the newest watcher waits and the one it replaced
+exits 0. Each second it checks that its host process runs, that no other watcher holds the lock, and
+whether a wake file is there; it takes one by renaming it to its own name, prints it to stderr if it
+is a private file, removes it and exits 2, which wakes Claude Code. Every other outcome exits 0
+or 1. A wake file written while no watcher runs, during a turn, is taken by the watcher the turn's
+`Stop` starts. Its tests run it under `/bin/sh` and under `bash --posix`.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a

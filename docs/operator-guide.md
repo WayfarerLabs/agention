@@ -160,7 +160,9 @@ state. A thread whose agent has not read your latest messages while its session 
 stopped or has no active credential is **stranded**: the agent will not see what you wrote until you
 resume it. An agent keeps checking for your answers while it has open asks or unread messages, so a
 thread stranded by a quiet session means the agent stopped without saying so, such as when its host
-ended the session, or is busy and has not checked.
+ended the session, or is busy and has not checked. A session whose answers are
+[pushed](#push-on-claude-code) may still pick up what you write to a stranded thread, such as a
+stopped session still open at its prompt, but resuming it at its terminal is the sure way.
 
 The data directory and the database must be private to the user running Agention, under the rule
 [SECURITY.md](../SECURITY.md#private-files) states. `agention serve` creates a missing data
@@ -1075,7 +1077,8 @@ Agention, and runs the bridge with `npx` at the version it pins, which npm fetch
 With the plugin, an agent asks you everything through Agention, never waiting at its terminal, and
 also shows at its terminal whatever it sends you in Agention, so you can follow either one. It takes
 what you write in Agention as it takes what you type at its terminal, brings its threads in line
-with what you tell it at its terminal, and keeps checking for your answers while any are open.
+with what you tell it at its terminal, and keeps checking for your answers while any are open, or,
+on Claude Code, is woken when you write, as [Push on Claude Code](#push-on-claude-code) describes.
 
 Then give the bridge the server's origin in `AGENTION_URL`. Claude Code gives the bridge its whole
 environment, and Codex gives it only a few common variables and those the plugin lists, which
@@ -1097,6 +1100,35 @@ agent tells you at its terminal what to change. The agent host gives the bridge 
 the session starts, so after changing one, restart the session from a shell that has the change, a
 new terminal if you changed a shell profile; resuming it, with `claude --continue` or
 `codex resume --last`, keeps its conversation.
+
+### Push on Claude Code
+
+On Claude Code, what you write reaches an agent even once its turn has ended and it sits at its
+prompt: the agent is pushed. When you start a thread with it, answer its ask or write to one of its
+threads, Claude Code wakes it within a few seconds with a short notice from Agention naming the
+threads that hold your unread messages, and the agent reads them with its tools and carries on. The
+notice holds nothing of what you wrote. The agent's `register` answer tells it whether its answers
+are pushed; an agent with push that has nothing else to do reports **idle** and ends its turn,
+running no waiter of its own. Push works whatever state the session reported, so writing to a
+stopped session still open at its prompt starts it again, and starts once you approve its
+registration, even after its turn has ended. Each message is pushed once, whether or not the agent
+reads it.
+
+Installing or updating the plugin is all push needs: the plugin's hook, run by Claude Code, and the
+bridge do the rest. It needs what Claude Code needs to run a plugin's hooks: a folder you have
+trusted, no `--bare`, and plugin hooks allowed where an administrator limits hooks to managed ones.
+The hook reads `AGENTION_URL` from Claude Code's environment, as the bridge does. Where any of that
+is missing, the agent is told its answers reach it only when it checks, and it checks as on any
+other host. If push stops for good, such as when the server no longer serves the bridge's version or
+you revoke the session's key, the agent's next tool answer tells it to check instead, and a later
+approval starts push again.
+
+The hook ends a day after it starts, so a session left at its prompt for more than a day is pushed
+only after its next turn ends. A message you write while the agent works shows when the agent next
+can take it in, which may be in the middle of that turn rather than after it.
+
+Codex has no push: nothing a plugin can reach wakes an open Codex session, so a Codex agent checks
+for your answers as it works and keeps checking while any are open.
 
 ### Reaching the server through a tunnel
 

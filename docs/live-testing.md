@@ -84,7 +84,18 @@ with each other or with what the product does, the disagreement is the finding.
   it still serves, where the charter names those releases; the agent compatibility gate covers the
   latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
-  it. Codex runs only basic plugin-integration prompts, an operator bound.
+  it. Codex runs only basic plugin-integration prompts and live checks of waking an agent for push,
+  an operator bound.
+- **Push** on Claude Code, with the plugin rendered against the head's packed bridge: an agent at
+  its prompt woken when the operator starts a thread from the web UI, after a `register` answer that
+  said answers are pushed, reading the thread and acting on it; push starting after an approval
+  given while the agent waits at its prompt; a server restart recovered from; push surviving
+  `/clear`; a woken turn longer than a minute with no lapse line; a message written during a turn,
+  and when its notice shows; an untrusted folder and `--bare`, each told it checks; and `/exit`
+  leaving no watcher running and the host directory removed by the next session's start. On Codex,
+  the `register` answer saying answers reach the agent when it checks, and no background wait
+  (`docs/architecture.md` "Agent bridge" and "Generated plugins"; `docs/operator-guide.md` "Push on
+  Claude Code").
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
@@ -145,10 +156,13 @@ Compare what a surface reports with:
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
   `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443, and the
   fetched files in `~/.cache/agention/files/`, `0700` with `0600` files and no partial file left
-  behind (`SECURITY.md` "Private files" and "The agent bridge");
+  behind, and push's host directories under `~/.config/agention/_hosts/claude/<pid>/`, `0700` with
+  `0600` files, none for a Claude Code process that has ended (`SECURITY.md` "Private files" and
+  "The agent bridge");
 - processes and sockets: the listener's address and TLS, bridge processes the hosts start and stop,
-  and the shutdown `docs/operator-guide.md` "Running the server" and `docs/architecture.md`
-  "Serving" describe, with long polls open;
+  at most one watcher per Claude Code process and none once it exits, at most one wait per host
+  session held by push, and the shutdown `docs/operator-guide.md` "Running the server" and
+  `docs/architecture.md` "Serving" describe, with long polls open;
 - the other side: what an agent wrote must appear in the web UI, and what the operator answered must
   reach the agent through the bridge;
 - host state: the plugin's files and MCP entry as each host loaded them, and the environment each
@@ -163,7 +177,8 @@ Compare what a surface reports with:
 On top of the method's failure classes, look for:
 
 - **False success**: `register` reporting approval while calls fail, a tool reporting a write the
-  thread's log lacks, a passkey ceremony that "succeeds" without a session.
+  thread's log lacks, a passkey ceremony that "succeeds" without a session, `register` saying
+  answers are pushed where no watcher wakes the agent.
 - **Divergence**: the code the bridge relays against the code the sessions view shows, signals,
   roll-ups and a row's unread and total counts in a view against the thread's messages, a stopped
   session whose threads holding an unread message of the operator's are not stranded, or stay
@@ -181,8 +196,9 @@ On top of the method's failure classes, look for:
   in, a wait that outlives the key or the browser session holding it, a key's secret left on the
   page once dismissed.
 - **Non-idempotency**: a retried request id (same content replays, different content conflicts), a
-  repeated `register` that creates anything, a reissued link that leaves earlier ones usable, a
-  restart over the same data directory.
+  repeated `register` that creates anything, a message pushed twice to one host session, or a turn
+  woken with no wake file taken, a reissued link that leaves earlier ones usable, a restart over the
+  same data directory.
 - **Concurrency**: a write from the bridge racing one from the web UI, where the loser gets `stale`
   with the missed messages and a losing UI keeps its draft; bridges for one session starting
   together, which share the first key written.
