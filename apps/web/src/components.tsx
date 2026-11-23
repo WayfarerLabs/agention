@@ -562,6 +562,10 @@ export function OptionsMenu({
   );
 }
 
+// anyMenuOpen says whether an options menu is open on the page, which keeps
+// the page's keyboard shortcuts from acting over it.
+export const anyMenuOpen = () => document.querySelector(".options.open") !== null;
+
 // MenuItem is an item of an options menu: choosing it closes the menu, focus
 // returning to its button, and then does what the item does.
 export function MenuItem({

@@ -66,6 +66,9 @@ describe.each(versions)("the bridge released as %s", (version) => {
     };
     const { tools } = await bridge.client.listTools();
     const has = (tool: string) => tools.some((each) => each.name === tool);
+    // takes says whether a tool the release has takes a field.
+    const takes = (tool: string, field: string) =>
+      tools.find((each) => each.name === tool)?.inputSchema.properties?.[field] !== undefined;
     const called = new Set<string>();
     // call calls a tool that must succeed.
     const call = (tool: string, args: Record<string, unknown> = {}) => {
@@ -316,6 +319,37 @@ describe.each(versions)("the bridge released as %s", (version) => {
           attachments: [{ upload: uploaded.upload }],
         }),
       ).toEqual({ number: 3, seq: 5 });
+    }
+
+    // A status reported beside a write, in a release whose writes take one.
+    if (takes("thread_create", "state")) {
+      expect(
+        await call("thread_create", {
+          request_id: "compat-11",
+          title: "Waiting",
+          text: "Over to you.",
+          state: "idle",
+          note: "Asked.",
+        }),
+      ).toEqual({ number: 4, seq: 1 });
+      expect((await harness.server.web("GET", "/sessions")).body).toMatchObject({
+        agents: [{ sessions: [{ status: { state: "idle", note: "Asked." } }] }],
+      });
+      if (takes("message_send", "state")) {
+        expect(
+          await call("message_send", {
+            thread: 4,
+            request_id: "compat-12",
+            seen_through: 1,
+            text: "Back on it.",
+            state: "working",
+            note: "Resumed.",
+          }),
+        ).toEqual({ number: 4, seq: 2 });
+        expect((await harness.server.web("GET", "/sessions")).body).toMatchObject({
+          agents: [{ sessions: [{ status: { state: "working", note: "Resumed." } }] }],
+        });
+      }
     }
 
     if (has("session_update")) {

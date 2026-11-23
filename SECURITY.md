@@ -235,6 +235,11 @@ files in its database, so they are in every backup.
   file's address never change, so seeking a video or reopening a photo does not fetch it again on a
   phone's data plan. The price is deliberate: a file stays in that browser's cache after signing
   out, so on a shared device clear the browser's data for the server's site.
+- **Drafts stay in the browser's storage.** The composer keeps a draft's text and details in that
+  browser's local storage past the session that typed them. Signing out there, from Settings or by
+  removing the passkey it signed in with, forgets its drafts; a session that expires, or one ended
+  elsewhere, as a passkey link ends every browser's, does not, so on a shared device clear the
+  browser's data for the server's site.
 
 ### Private files
 

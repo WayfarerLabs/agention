@@ -69,7 +69,8 @@ bundle includes, holds:
 - starting a thread, sending a message, reading a thread, a session's thread list and its long poll;
 - read, unread and archive marks;
 - registration submit and state;
-- a session's status update and the status it answers with;
+- a session's status update and the status it answers with, and the status a session's writes
+  report;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - files (`packages/api/src/files.ts`): the limits on files and pending uploads, a file's name and
   reference, an upload's query and result, a message's `attachments` as written and as read, a
@@ -83,8 +84,9 @@ bundle includes, holds:
 - the operator's thread list with its total and, grouped, its groups' roll-ups; the counts of what
   each filter value keeps; the operator's wait across sessions; and bulk read and archive;
 - the registrations list and approval;
-- the sessions view's page of agents, each with its tags and its sessions; a session's log and the
-  operator's read mark on it; and the operator's start of a thread on a session;
+- the sessions view's page of agents, each with its tags and its sessions; a session's log, each
+  entry saying whether the server inferred it, and the operator's read mark on it; and the
+  operator's start of a thread on a session;
 - the operator's session groups and tags: the list of them, creating, renaming and removing a group,
   renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
 - what waits on the operator, as the web UI's navigation counts it;
@@ -172,11 +174,12 @@ under `BEGIN IMMEDIATE`, so no write interleaves with another in the process.
 
 A session's status lives only in its log, `session_updates`, append-only by the same triggers as
 messages: each entry, numbered from 1 within its session, holds the session's whole status after it
-(its state, the outcome it stopped with, its title, goal and percent), its own note and the
-credential behind it, so the current status is the entry with the highest number, read through the
-primary key, and nothing about it is stored on the session. A check holds an outcome exactly beside
-the stopped state. `session_marks` holds each actor's read cursor on a session's log, as
-`thread_marks` holds one on a thread.
+(its state, the outcome it stopped with, its title, goal and percent), its own note, the credential
+behind it and whether the server inferred it, so the current status is the entry with the highest
+number, read through the primary key, and nothing about it is stored on the session. A check holds
+an outcome exactly beside the stopped state, and an inferred entry only as working, without a note.
+`session_marks` holds each actor's read cursor on a session's log, as `thread_marks` holds one on a
+thread.
 
 The operator's session groups are rows of their own, `session_groups`, each with a name unique
 ignoring the case of ASCII letters, since a group can be empty and renamed. A group keeps its id
@@ -329,35 +332,46 @@ against the request's clock, and only the thread's audience, the operator, sees 
 and outcome the session last reported, which say why it is stranded; a grouped list's presence for a
 session or an agent carries neither.
 
-A session reports its status itself, on the agent mount's status route, and no other call changes
-it. Each update merges into the current status: a state replaces the state, `stopped` with the
-outcome the update must give, and `working` and `idle` with none, so a stopped session stays stopped
-until it reports one of them; a session that first reports without a state is `working`, since it is
-running. A title, goal or percent sets its field, and a goal other than the current one clears the
-percent unless the update gives one; a field left out is unchanged, and nothing clears a field. The
-note belongs to its entry alone. An update whose merged status equals the current one and that
-carries no note appends nothing, so an update carries no request id: repeating one changes nothing,
-unless it carries a note, which is logged again. Updates are exempt from the stale rule and the
-latest wins, since only the session writes its status. The operator reads a session's log newest
-first, with their read mark on it, which marking read raises up to the latest entry and never
-lowers; the entries above it are the session's unread updates.
+A session reports its status itself, on the agent mount's status route or beside a write: a thread
+it starts or a message it sends may carry a state, with its outcome, and a note, which apply as an
+update with them would, in the write's transaction once the write has passed its checks, so a write
+that fails changes no status, and a retry of the same request id applies nothing again. The server
+infers one change of its own: a write the session makes to one of its threads (starting it, a
+message, a read or unread mark, archiving) while it is idle and reports nothing of its status marks
+it `working`, since a session that writes is doing something, and logs that change as an inferred
+entry, keeping every field but the state, with no note; a write that reports a status takes it
+exactly as an update would, so every change the server infers is marked inferred. Reads and waits
+change nothing, since an idle session checks for answers by design; a stopped session stays stopped,
+since one that writes was started again and says so itself; a session that never reported stays
+without a status; and the operator's writes, whose mounts take no status, change nothing. No other
+call changes the status. Each update merges into the current status: a state replaces the state,
+`stopped` with the outcome the update must give, and `working` and `idle` with none, so a stopped
+session stays stopped until it reports one of them; a session that first reports without a state is
+`working`, since it is running. A title, goal or percent sets its field, and a goal other than the
+current one clears the percent unless the update gives one; a field left out is unchanged, and
+nothing clears a field. The note belongs to its entry alone. An update whose merged status equals
+the current one and that carries no note appends nothing, so an update carries no request id:
+repeating one changes nothing, unless it carries a note, which is logged again. Updates are exempt
+from the stale rule and the latest wins, since only the session writes its status. The operator
+reads a session's log newest first, with their read mark on it, which marking read raises up to the
+latest entry and never lowers; the entries above it are the session's unread updates.
 
 The sessions view's page lists the agents in name order for the operator, each with at most 500 of
 its sessions: those working or idle first, then those that never reported, then stopped ones, each
 latest seen first. Each session carries its presence, by the formula threads use; its approved
-registrations, with their ids and codes; its status with the latest entry's note, and as
-`updated_at` when that entry was written; its unread updates; how many of its threads the operator
-has not archived, with how many of those hold messages the operator has not read and how many are
-stranded, counted for every session of the page in one statement grouped over the threads as the
-operator sees them; and how many asks are open in all its threads, with how many of those are
-blocking, which is what waits on the operator, counted in one statement grouped over the open asks;
-and `plugin_behind`, true while its recorded agent API version is below the server's, so the server
-offers what its plugin cannot use, and false for a session with no call recorded. The server's own
-version is compared as the page is read, never stored, so once a server that moved it starts, every
-session recorded at an older one is marked before it calls again. The operator can never archive a
-thread holding an ask open to them, so their thread list shows every thread counted. A separate read
-counts the sessions whose log holds entries the operator has not read, which the web UI's navigation
-shows.
+registrations, with their ids and codes; its status with the latest entry's note, none after an
+inferred one, and as `updated_at` when that entry was written; its unread updates; how many of its
+threads the operator has not archived, with how many of those hold messages the operator has not
+read and how many are stranded, counted for every session of the page in one statement grouped over
+the threads as the operator sees them; and how many asks are open in all its threads, with how many
+of those are blocking, which is what waits on the operator, counted in one statement grouped over
+the open asks; and `plugin_behind`, true while its recorded agent API version is below the server's,
+so the server offers what its plugin cannot use, and false for a session with no call recorded. The
+server's own version is compared as the page is read, never stored, so once a server that moved it
+starts, every session recorded at an older one is marked before it calls again. The operator can
+never archive a thread holding an ask open to them, so their thread list shows every thread counted.
+A separate read counts the sessions whose log holds entries the operator has not read, which the web
+UI's navigation shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
 them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration
@@ -582,11 +596,12 @@ built from the same lists ([API documentation](#api-documentation)).
   thread in it, its thread list and its long poll, and the operations on one thread and on its
   session's uploads (`thread-operations.ts`), which every mount shares under `/s/:agent/:session`,
   so the role, message and file checks have one handler each: a thread (`/threads/:thread`), a
-  message, its read and unread marks and archiving, a thread's files (`GET /threads/:thread/files`),
-  a file a message carries (`GET /threads/:thread/messages/:seq/files/:name`), an upload
-  (`POST /uploads`) and removing one (`POST /uploads/:upload/remove`). Each names its scope, and an
-  agent's registration holds `threads:write` over its own session, which covers every one. One path
-  can name different operations on different mounts: `POST /s/:agent/:session/threads` is an agent's
+  message, whose schema each mount gives, since only the agent mount's carries the session's status,
+  its read and unread marks and archiving, a thread's files (`GET /threads/:thread/files`), a file a
+  message carries (`GET /threads/:thread/messages/:seq/files/:name`), an upload (`POST /uploads`)
+  and removing one (`POST /uploads/:upload/remove`). Each names its scope, and an agent's
+  registration holds `threads:write` over its own session, which covers every one. One path can name
+  different operations on different mounts: `POST /s/:agent/:session/threads` is an agent's
   `createThread` on the agent mount and the operator's `startThread` on the others. Registration,
   the one agent route a key not yet approved may call, authenticates against the key its token
   carries, so its route is built by hand from its declaration.
@@ -855,8 +870,9 @@ identity provider, would change Agention in these places:
 - **The credential.** `Credential` in `apps/server/src/identity.ts` is a closed union of a
   registration, a browser session and an API key; an issuer's credential would be a fourth kind, and
   every check that branches on the kind, such as `checkCredential`, would take it.
-- **The status call.** A session's status update accepts only a registration's credential
-  (`updateSession` in `apps/server/src/store/sessions.ts`).
+- **The status call.** A session's status update accepts only a registration's credential, and so do
+  a write's report and the inference from a write (`updateSession` and `statusOnWrite` in
+  `apps/server/src/store/sessions.ts`).
 - **The session log.** Each entry in `session_updates` names the registration that wrote it, in a
   column that is never null.
 - **The signals.** Whether a session holds a working credential (`credential_active`, in the thread
@@ -1052,44 +1068,50 @@ its key file, its tokens and where its requests may go.
   the session's status, and two file tools, `file_upload` and `file_get`, each annotated neither
   read-only nor destructive and as acting on a closed world. `thread_create` and `message_send` take
   a message's detail beside its text, refusing detail without text as the server does, and its
-  `attachments`, which may be all a message carries. A session never answers an ask, so
-  `message_send` takes no answers; it takes the withdrawals of the session's own open asks.
-  `message_wait` waits for nothing by default and answers at once, which is how an agent checks for
-  answers as it works; a longer wait is for an agent with no other work and open asks or unread
-  messages, or for a waiter of its own. `register`'s answer, once approved, says how answers reach
-  the agent: when it checks. No tool marks a thread unread, which agents have no use for, though the
-  agent API offers it as the web API does. The SDK advertises each tool's JSON Schema, generated
-  from the shared schemas, but the bridge parses the arguments itself, so input outside a bound is
-  `invalid_input` naming the field, as the server would answer it. A tool also refuses a field it
-  does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
-  silently, while the server's request schemas ignore unknown fields, and the agent API version
-  keeps a newer bridge from relying on that against an older server. An answer is the API's JSON as
-  text, followed by the status reminder when one is due, and a call the server refuses is an error
-  result holding the API's error JSON. A problem the bridge finds itself, such as its configuration,
-  an unreachable server, missing names or a cancelled call, is an error result in plain text, worded
-  for the agent: what to do, or, for what only the operator can fix, to tell them at the terminal
-  what to change and whether the session must restart. `apps/bridge/src/errors.ts` words those.
-  `message_wait` gives every error but `invalid_input` no sooner than its `wait_seconds` would have
-  ended, counted from the call's start, so an agent that waits again at once does not call a server
-  it cannot use in a tight loop.
+  `attachments`, which may be all a message carries, and the session's `state`, with its `outcome`,
+  and a `note`, which report its status with the write, refusing an outcome apart from `stopped` as
+  `session_update` does. A session never answers an ask, so `message_send` takes no answers; it
+  takes the withdrawals of the session's own open asks. `message_wait` waits for nothing by default
+  and answers at once, which is how an agent checks for answers as it works; a longer wait is for an
+  agent with no other work and open asks or unread messages, or for a waiter of its own.
+  `register`'s answer, once approved, says how answers reach the agent: when it checks. No tool
+  marks a thread unread, which agents have no use for, though the agent API offers it as the web API
+  does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but the
+  bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the field,
+  as the server would answer it. A tool also refuses a field it does not know, at any depth, as
+  `invalid_input` naming it, so a misspelled field never drops silently, while the server's request
+  schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying on that
+  against an older server. An answer is the API's JSON as text, followed by the status reminder when
+  one is due, and a call the server refuses is an error result holding the API's error JSON. A
+  problem the bridge finds itself, such as its configuration, an unreachable server, missing names
+  or a cancelled call, is an error result in plain text, worded for the agent: what to do, or, for
+  what only the operator can fix, to tell them at the terminal what to change and whether the
+  session must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error
+  but `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's
+  start, so an agent that waits again at once does not call a server it cannot use in a tight loop.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
-  when it last sent a `session_update` the server logged (one with a note, one whose answered status
-  differs from the last it answered, or its first), or, until then, when a tool first answered in
-  the session, which needs approval. While the session last reported `working` through this bridge,
-  or has reported nothing through it, and that is more than 20 minutes ago, the next successful
-  answer of any tool but `register` and `session_update` ends with one more text block after the
-  API's JSON, saying how many minutes this bridge has gone without sending a status update and to
-  report what the agent is doing with `session_update` and a note, which the server logs even when
-  the status is unchanged. Another comes each further 20 minutes until the bridge sends an update
-  the server logs, so an agent that checks Agention every half minute is not told on every answer.
-  An idle or stopped status gets none: it holds while the session waits or has stopped, and the
-  sessions view shows its age. No reminder comes on an error result. The bridge knows only its own
-  updates, since the agent API offers no reading of the status: a bridge started anew counts from
-  its own first answer, one sharing a session with another bridge does not see that bridge's
-  updates, and a key revoked and approved again keeps the count it had. A bridge sends its
-  `session_update` calls one at a time, recording each once answered, so what it records follows the
-  order the server committed them in. The clock is the one tokens are minted by, which tests
-  replace.
+  when it last sent a status update the server logged (one with a note, one whose status differs
+  from the last it knew, or its first), or, until then, when a tool first answered in the session,
+  which needs approval. A `session_update` answers with the status, which the bridge compares; a
+  write's answer carries none, so for a write the bridge applies the server's rule to the status it
+  last knew: the state and note the write gave, or, for a write that reports neither, `working`
+  while the status was `idle`. A write that reports nothing therefore restarts the count only when
+  it ends an idle status, as the server then logs an inferred entry, and the reminder comes again
+  once that `working` has gone unreported past the threshold, since an inferred entry carries no
+  note on what the session does. While the status the bridge last knew is `working`, or it knows
+  none, and its last logged update is more than 20 minutes ago, the next successful answer of any
+  tool but `register` and `session_update` ends with one more text block after the API's JSON,
+  saying how many minutes this bridge has gone without sending a status update and to report what
+  the agent is doing with `session_update` and a note, which the server logs even when the status is
+  unchanged. Another comes each further 20 minutes until the bridge sends an update the server logs,
+  so an agent that checks Agention every half minute is not told on every answer. An idle or stopped
+  status gets none: it holds while the session waits or has stopped, and the sessions view shows its
+  age. No reminder comes on an error result. The bridge knows only its own updates, since the agent
+  API offers no reading of the status: a bridge started anew counts from its own first answer, one
+  sharing a session with another bridge does not see that bridge's updates, and a key revoked and
+  approved again keeps the count it had. A bridge sends its `session_update` calls and its writes to
+  threads one at a time, recording each once answered, so what it records follows the order the
+  server committed them in. The clock is the one tokens are minted by, which tests replace.
 - **File tools** (`apps/bridge/src/file-tools.ts`). `file_upload` takes an absolute path and an
   optional name, by default the path's last segment, and declares the type `typeOfName` gives the
   name, reading nothing of the file to choose it. It opens the path with `O_RDONLY`, `O_NONBLOCK`
@@ -1149,19 +1171,20 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                      |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                       |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                        |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                     |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                      |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                 |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                  |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                               |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/server-api`, for the
@@ -1263,6 +1286,30 @@ changes. The viewer is a modal dialog holding the image, zoomed and panned by `@
 only its stage sets `touch-action: none`. The Markdown renderer's output itself holds no frame, SVG
 or image: the frame belongs to the page.
 
+The keyboard shortcuts are declared once, each with where it acts, its keys and what it does, in
+`shortcuts` in `src/keyboard.tsx`, and the help overlay, a `Sheet` that `?` opens, lists that
+declaration whole, so it cannot drift from the keys. While it is mounted, each place's view gives
+every shortcut of its place its action, through a hook typed by the place (`useShortcuts` for the
+thread list and a thread, `useFieldShortcuts` for the composer, and the provider for those that act
+anywhere), so a place binds exactly its declared shortcuts, and no shortcut listed goes without an
+action. Only one component holds a shortcut's action at a time; a second registering one throws.
+Each action does what a control on the page does, only while that control could, and otherwise
+nothing. A matching key is always taken from the browser: no key bound does anything of the
+browser's own where it acts, apart from `/` on the thread list, which takes Firefox's Quick Find,
+deliberately; `Enter` on a row is left out, since the row is a link the browser follows. One handler
+on the document, added after the page's own, acts on a key only when nothing handled it first, it
+was not typed into a text field, a select or editable content, no dialog or options menu is open,
+and Ctrl, Alt and Meta are up; the first key of two, `g`, waits 1.5 seconds for the second. A screen
+reader's browse mode takes single keys before the page sees them, so the shortcuts reach the page
+only once it passes keys through, and never compete with its own. The composer's own keys, Send and
+leaving it, act within its fields from its form's key handler (`useFieldShortcuts`), and likewise
+not while a dialog or options menu is open, such as Attach's within the form. The thread list's
+selection is the row whose link has focus (`src/views/list/shortcuts.ts`), so moving it moves focus,
+which the focus ring shows and a screen reader follows; the number keys choose a suggestion on the
+ask card that holds focus or else the first open one, by pressing its control. The shortcuts are on
+unless the operator turns them off in Settings' Keyboard section, which this browser keeps in its
+local storage (`src/device.ts`).
+
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
 its boxes against the API's bounds of a message's text and detail, counted with the API's
@@ -1273,22 +1320,46 @@ so the keyboard does not hide Send. The composer measures the row as it changes 
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
 
+The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
+`src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
+separating servers. The thread list marks a thread with a kept draft from the same storage.
+
+- **What is kept:** the text and details, and the message the draft was started from, which the
+  stale-write check counts from, so a restored draft still misses what landed while it was away.
+  What the composer held besides, staged, attached or being recorded, is left behind, since a
+  replacement's message may be replaced and an upload expire meanwhile; the draft says it left
+  something behind, and the composer says so.
+- **When:** as it changes, except the text and details a replacement loaded while they are as
+  loaded, which would come back as a new message the operator never wrote. A write that lands keeps
+  what is left, or forgets the draft, at once, since going back after sending unmounts the page in
+  the same render.
+- **Forgetting:** once there is nothing to keep, a page forgets the draft only while the stored
+  record is still the one it kept, so the draft another tab typed since stays. A draft the browser
+  refuses to keep forgets the one kept before, which would come back older.
+- **Limits:** a draft kept more than 30 days ago, or after now, is none, opening its thread keeps it
+  again, and a new draft forgets those that are none and the oldest past 50, which caps the storage
+  drafts take.
+- **Signing out**, from Settings or by removing the passkey this browser signed in with, forgets
+  every draft, then writes a fresh random mark, which a page reads as it opens: a page whose mark
+  has changed since keeps none again.
+
 Settings is a list of sections, declared once in `src/views/settings/sections.ts`, each with a slug,
-a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice
-and Storage under Features, and Sign out after the groups. The navigation and `/settings/<slug>` are
-built from that list, so a new section is one entry and one component, and a slug no section has is
-Not found. `/passkeys`, where passkeys had a page of their own, redirects to `/settings/passkeys`,
-replacing the history entry. The layout is decided in CSS alone: below the layout's `40rem`
-breakpoint `/settings` shows the navigation as a list and a section's page shows a back link to it;
-above it the navigation is a column beside the open section, and `/settings` opens the first
-section, which it mounts, and so loads, on every width, hidden below the breakpoint. Each section
-loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice, offers
-to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads `recent` from
-the key list, and Passkeys and Voice from the passkey list. The voice form starts afresh from what
-the server holds whenever that changes, and normalizes a base URL with the API's own reader; which
-hosts it may reach is the server's to judge, when it is saved. After a save or a clear, focus waits
-for the settings the server then holds before moving to the control that shows them, and moves only
-from the control pressed. Signing in again moves focus to the open section's heading.
+a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice,
+Storage and Keyboard under Features, and Sign out after the groups. The navigation and
+`/settings/<slug>` are built from that list, so a new section is one entry and one component, and a
+slug no section has is Not found. `/passkeys`, where passkeys had a page of their own, redirects to
+`/settings/passkeys`, replacing the history entry. The layout is decided in CSS alone: below the
+layout's `40rem` breakpoint `/settings` shows the navigation as a list and a section's page shows a
+back link to it; above it the navigation is a column beside the open section, and `/settings` opens
+the first section, which it mounts, and so loads, on every width, hidden below the breakpoint. Each
+section loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice,
+offers to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads
+`recent` from the key list, and Passkeys and Voice from the passkey list. The voice form starts
+afresh from what the server holds whenever that changes, and normalizes a base URL with the API's
+own reader; which hosts it may reach is the server's to judge, when it is saved. After a save or a
+clear, focus waits for the settings the server then holds before moving to the control that shows
+them, and moves only from the control pressed. Signing in again moves focus to the open section's
+heading.
 
 The API keys section (`src/views/settings/ApiKeys.tsx`) lists the keys as the server does, each with
 its scopes and when it was created, expires and was last used, flagged while it is live with no

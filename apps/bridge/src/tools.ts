@@ -14,6 +14,7 @@ import {
   messageFields,
   name,
   needsAPart,
+  outcomeGoesWithStopped,
   pageLimit,
   priority,
   sequence,
@@ -25,6 +26,8 @@ import {
   topic,
   unreadFilter,
   waitSeconds,
+  writeStatusFields,
+  type WriteStatus,
 } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
 import { type AgentApi, type ApiRequest, answerTimeout } from "./agent-api.ts";
@@ -113,6 +116,11 @@ const attachingText =
   "To attach a file, upload it with file_upload, then name its upload in attachments; text " +
   "and detail can link to the message's own files as [label](attachment:name), or as " +
   "[label](<attachment:name with spaces>) for a name with spaces.";
+const writeStatusText =
+  "Give state, with outcome beside stopped, and note to report your session's status with the " +
+  "message, as session_update would, such as idle on your last message before you wait; " +
+  "a write that reports none of them marks an idle session working.";
+const marksWorkingText = "Marks your session working if it was idle.";
 
 // registerTools defines the bridge's tools on the MCP server. Each thread tool
 // is one request on the agent API, apart from asking again for a smaller page
@@ -188,8 +196,19 @@ export function registerTools(server: McpServer, connection: Connection): void {
     return { api, key, sessionPath: `/s/${granted.agent}/${granted.session}` };
   };
 
-  // The session_update calls under way, in the order they were made.
-  let statusUpdates: Promise<unknown> = Promise.resolve();
+  // The calls under way that report the session's status or may change it,
+  // session_update and the writes to threads, in the order they were made.
+  let statusCalls: Promise<unknown> = Promise.resolve();
+
+  // inStatusOrder runs such a call once those before it have answered, each
+  // request and its record together, so the status the reminder last records
+  // is the one the server committed last, however the answers of overlapping
+  // calls would arrive. A failed call frees the next as a successful one does.
+  const inStatusOrder = (call: () => Promise<unknown>): Promise<unknown> => {
+    const run = statusCalls.then(call);
+    statusCalls = run.catch(() => undefined);
+    return run;
+  };
 
   // onSession makes a request in the session.
   const onSession = async (
@@ -199,6 +218,20 @@ export function registerTools(server: McpServer, connection: Connection): void {
     const { api, key, sessionPath } = await inSession(signal);
     return api.request(key, { ...request(sessionPath), signal });
   };
+
+  // writeInSession makes a write to a thread of the session, in status order,
+  // and once it lands records the status it reports, which for a mark is
+  // none.
+  const writeInSession = (
+    signal: AbortSignal,
+    report: WriteStatus,
+    request: (sessionPath: string) => ApiRequest,
+  ): Promise<unknown> =>
+    inStatusOrder(async () => {
+      const answer = await onSession(signal, request);
+      connected().statusReminder.wrote(report);
+      return answer;
+    });
 
   tool(
     "register",
@@ -229,11 +262,15 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "their own words instead, or beside their picks where several are allowed; or, on an ask " +
       "without suggested answers, their own words alone. They may also decline it. The title, " +
       "questions, suggested answers, fallbacks and references are plain text. " +
-      `${attachingText} ${priorityText} ${requestIdText} Answers with the thread's number and ` +
-      "its first message's sequence.",
+      `${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} Answers with the ` +
+      "thread's number and its first message's sequence.",
     threadCreateInput,
     (input, signal) =>
-      onSession(signal, (path) => ({ method: "POST", path: `${path}/threads`, body: input })),
+      writeInSession(signal, input, (path) => ({
+        method: "POST",
+        path: `${path}/threads`,
+        body: input,
+      })),
   );
 
   tool(
@@ -253,15 +290,16 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "message it replaces, and it withdraws again every ask that message withdrew. " +
       "seen_through is the latest message sequence you have read: if others landed since, the " +
       "message fails as stale and lists what you missed, so read it and decide again. " +
-      `${attachingText} ${priorityText} ${requestIdText} Answers with the new message's ` +
-      "sequence.",
+      `${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} Answers with the ` +
+      "new message's sequence.",
     messageFields
       .omit({ answers: true })
-      .extend({ thread })
+      .extend({ thread, ...writeStatusFields })
       .superRefine(detailNeedsText)
-      .superRefine(needsAPart),
+      .superRefine(needsAPart)
+      .superRefine(outcomeGoesWithStopped),
     ({ thread: number, ...body }, signal) =>
-      onSession(signal, (path) => ({
+      writeInSession(signal, body, (path) => ({
         method: "POST",
         path: `${path}/threads/${number}/messages`,
         body,
@@ -342,12 +380,12 @@ export function registerTools(server: McpServer, connection: Connection): void {
 
   tool(
     "thread_read",
-    "Mark one of this session's threads read through a message, without writing to it, so the " +
+    "Mark one of this session's threads read through a message, without sending one, so the " +
       "operator sees how far you have read. A message of your own reads through itself. " +
-      "Answers with both parties' read cursors.",
+      `${marksWorkingText} Answers with both parties' read cursors.`,
     markInput.extend({ thread }),
     ({ thread: number, ...body }, signal) =>
-      onSession(signal, (path) => ({
+      writeInSession(signal, {}, (path) => ({
         method: "POST",
         path: `${path}/threads/${number}/read`,
         body,
@@ -359,11 +397,11 @@ export function registerTools(server: McpServer, connection: Connection): void {
     "Archive one of this session's threads through a message once it needs nothing more from " +
       "you, so it leaves your list of threads until the operator writes to it again. Archived " +
       "messages no longer count as unread or wake message_wait, read or not, and your own later " +
-      "messages keep the thread archived. Only you see your archive mark. Answers with your " +
-      "marks.",
+      "messages keep the thread archived. Only you see your archive mark. " +
+      `${marksWorkingText} Answers with your marks.`,
     markInput.extend({ thread }),
     ({ thread: number, ...body }, signal) =>
-      onSession(signal, (path) => ({
+      writeInSession(signal, {}, (path) => ({
         method: "POST",
         path: `${path}/threads/${number}/archive`,
         body,
@@ -444,14 +482,12 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "leave out stays as it was. stopped needs an outcome, and an outcome needs stopped. Never " +
       "report that you wait on the operator: your open asks already tell them; name anything " +
       "else you wait on, such as CI or a review, in the note. An update that changes nothing " +
-      "and has no note is not recorded. Answers with the session's status.",
+      "and has no note is not recorded. Your writes to threads that report no status, marks " +
+      "included, mark an idle session working, so report idle when you start waiting, with or " +
+      "after your last write: on your last message, or here. Answers with the session's status.",
     sessionUpdateInput,
-    // Updates run one at a time, each request and its record together, so
-    // the status the reminder last records is the one the server committed
-    // last, however the answers of overlapping calls would arrive. A failed
-    // update frees the next as a successful one does.
-    (input, signal) => {
-      const update = statusUpdates.then(async () => {
+    (input, signal) =>
+      inStatusOrder(async () => {
         const answer = await onSession(signal, (path) => ({
           method: "POST",
           path: `${path}/status`,
@@ -459,10 +495,7 @@ export function registerTools(server: McpServer, connection: Connection): void {
         }));
         connected().statusReminder.reported(input.note, answer);
         return answer;
-      });
-      statusUpdates = update.catch(() => undefined);
-      return update;
-    },
+      }),
   );
 
   registerFileTools(tool, connected, inSession);

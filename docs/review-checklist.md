@@ -100,9 +100,12 @@ As material as A5: the server never acts on a deadline, whose consequence is ent
 requester's choice; goals are set explicitly and never inferred (ADR 0001 "Not doing"); derived
 signals, such as overdue, quiet and stranded, inform and never trigger actions or block writes; and
 accuracy of impact, priority, effort, progress, and session state is the honor system's, not
-something to police with enforcement ladders. Look for timers or jobs that change threads, inferred
-goals or progress, automatic withdrawals, archives, or escalations, and validation that
-second-guesses what the agent reports.
+something to police with enforcement ladders. The server infers one thing a session did not report:
+its own write to a thread while idle, reporting no status, makes it working, logged as inferred, and
+a stopped session stays stopped (ADR 0001 "Sessions report what they are doing"). Look for timers or
+jobs that change threads or a session's status, inferred goals, progress or any other state,
+automatic withdrawals, archives, or escalations, and validation that second-guesses what the agent
+reports.
 
 ## A7. Stale writes, request ids, and read cursors
 
@@ -114,13 +117,17 @@ marks, and optimistic concurrency"). Marks move only the caller's own cursors, n
 thread or conflict with a write, and never answer an ask; how they move, and what counts as unread
 and as archived, is in `docs/architecture.md` "Store". A session's presence is stamped in a
 transaction of its own before the call's work, so a call refused later still counts. A session's
-status changes only through its status tool: an update merges into the current status and appends
-the result to the session log, appending nothing when it changes nothing and carries no note, so it
-needs no request id; updates are last-writer-wins and exempt from the stale rule, since only the
-session writes its own status. The UI keeps the draft on a stale write (`docs/operator-guide.md`
-"Using the web UI"). Look for marks or derived counts that depart from those definitions,
-check-then-write races outside one immediate transaction, writes that skip the sequence check, and
-request-id handling that replays a different payload.
+status changes only through its own reports, with its status tool or beside a thread it starts or a
+message it sends, and the one inference A6 names: an update merges into the current status and
+appends the result to the session log, appending nothing when it changes nothing and carries no
+note, so it needs no request id; updates are last-writer-wins and exempt from the stale rule, since
+only the session writes its own status. A report beside a write, and the inference from a write,
+apply in the write's transaction once its checks pass, so a write that fails changes no status, and
+the report is part of the write's digest, so a replay applies nothing again. The UI keeps the draft
+on a stale write (`docs/operator-guide.md` "Using the web UI"). Look for marks or derived counts
+that depart from those definitions, check-then-write races outside one immediate transaction, writes
+that skip the sequence check, a status a write changes outside its transaction, and request-id
+handling that replays a different payload.
 
 ## A8. Append-only, attributed history
 

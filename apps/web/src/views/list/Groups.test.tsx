@@ -16,7 +16,6 @@ import {
 let api: FakeApi;
 
 beforeEach(() => {
-  window.localStorage.clear();
   api = new FakeApi();
 });
 

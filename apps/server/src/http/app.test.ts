@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ErrorBody } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Hono } from "hono";
+import { testDirectory } from "../test-directory.ts";
 import { contentSecurityPolicy, maxBodyBytes, securityHeaders } from "./app.ts";
 import { ownHeaders } from "./own-headers.ts";
 import { type AgentKey, codeOf, Harness, newThread, origin } from "./test-harness.ts";
@@ -186,17 +186,13 @@ describe("the web UI", () => {
 
   beforeEach(() => {
     // The build's directory sits beside a file it must never serve.
-    root = mkdtempSync(path.join(tmpdir(), "agention-web-"));
+    root = testDirectory("web");
     dir = path.join(root, "web");
     mkdirSync(path.join(dir, "assets"), { recursive: true });
     writeFileSync(path.join(root, "secret.txt"), "outside the build");
     writeFileSync(path.join(dir, "index.html"), indexPage("Agention"));
     writeFileSync(path.join(dir, "assets", "app-1.js"), "console.log(1);");
     harness = new Harness({ webRoot: dir });
-  });
-
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
   });
 
   it("serves the build's files with their types", async () => {
@@ -300,16 +296,12 @@ describe("the diagram frame", () => {
   const script = "assets/diagram-frame-AB12CD34.js";
 
   beforeEach(() => {
-    dir = mkdtempSync(path.join(tmpdir(), "agention-web-"));
+    dir = testDirectory("web");
     mkdirSync(path.join(dir, "assets"));
     writeFileSync(path.join(dir, "index.html"), "<!doctype html><title>Agention</title>");
     writeFileSync(path.join(dir, script), "drawDiagrams();");
     writeFileSync(path.join(dir, "diagram-frame.json"), JSON.stringify({ script }));
     harness = new Harness({ webRoot: dir });
-  });
-
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
   });
 
   it("is a page that loads only its script, sandboxed by its own policy", async () => {

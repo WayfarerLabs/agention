@@ -136,9 +136,10 @@ index of those docs.
   `scripts/check-sdd.test.sh`; and `scripts/check-release-order.test.sh`, the release order gate's
   fixture tests
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
-  homes and `TMPDIR`); setup is the locked install and Chromium's headless shell (`CONTRIBUTING.md`
-  "Prerequisites"), and the release tags for the agent compatibility and release order gates
-  (`CONTRIBUTING.md` "Checks")
+  homes and `TMPDIR`), with the server's tests in a `TMPDIR` of their own that must be empty when
+  they finish (`CONTRIBUTING.md` "Working on one component"); setup is the locked install and
+  Chromium's headless shell (`CONTRIBUTING.md` "Prerequisites"), and the release tags for the agent
+  compatibility and release order gates (`CONTRIBUTING.md` "Checks")
 - Integration test selection or markers: none; the bridge's in-process integration tests run in its
   Vitest suite, and the browser tests run with `npm run -w apps/web test:browser` against the
   server's last build, which `scripts/check.sh --fast` skips with the builds; the agent
@@ -165,6 +166,10 @@ index of those docs.
 - Standing workflows the operator has authorized, with bounds: per-PR integration-test pipeline
   none; `smol-dev-loop` none; sagas none
 - Fix-round wait interval: 30 minutes
-- Session identifier source and commit trailer key: the harness's session URL; no trailer key, since
-  commits and pull request descriptions carry no attribution or session lines, at the operator's
-  direction
+- Session identifier source and commit trailer key: where `AGENTWORKS_AGENT` and
+  `AGENTWORKS_SESSION` are both set, as on Agentworks, `<AGENTWORKS_AGENT>/<AGENTWORKS_SESSION>`,
+  read when posting; otherwise the identifier the harness gives the session, or an honest label
+  (`message-signatures`). An agent session signs all its GitHub activity with it: pull request
+  descriptions, issues, comments and reviews. No trailer key: commits carry no attribution or
+  session lines, and pull request descriptions none beyond the signature, a harness's own included,
+  at the operator's direction

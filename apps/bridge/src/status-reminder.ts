@@ -1,4 +1,4 @@
-import { type SessionStatus, sessionStatus } from "@wayfarerlabs/agention-api";
+import { type SessionStatus, sessionStatus, type WriteStatus } from "@wayfarerlabs/agention-api";
 
 // How long a working session's status may go without an update through this
 // bridge before a tool's answer reminds the agent to send one, and how long
@@ -16,10 +16,10 @@ export const statusReminderAfter = 20 * 60_000;
 export const maxReminderBytes = 500;
 
 // StatusReminder keeps, within the bridge's process, when this bridge last
-// sent a status update the server logged, and says when an answer should
-// remind the agent to send another. It knows only this bridge's updates:
-// another bridge may share the session, and the agent API offers no reading
-// of the status.
+// sent a status update the server logged, with session_update or beside a
+// write to a thread, and says when an answer should remind the agent to send
+// another. It knows only this bridge's updates: another bridge may share the
+// session, and the agent API offers no reading of the status.
 export class StatusReminder {
   readonly #clock: () => number;
   // When this bridge last sent an update the server logged, or, until it
@@ -43,7 +43,42 @@ export class StatusReminder {
   // no earlier one to compare.
   reported(note: string | undefined, answer: unknown): void {
     const parsed = sessionStatus.safeParse(answer);
-    const status = parsed.success ? parsed.data : undefined;
+    this.#record(note, parsed.success ? parsed.data : undefined);
+  }
+
+  // wrote records a successful write to a thread. A write that reports a
+  // state or a note reports it as an update with them would; one that
+  // reports nothing marks an idle session working, since a session that
+  // writes is doing something, and the server then logs an entry of its own.
+  // The write's answer carries no status, so the bridge applies that rule to
+  // the status it last knew, and until it knows one, a write tells it only
+  // the state the write gives.
+  wrote(report: WriteStatus): void {
+    const known = this.#status;
+    if (report.state === undefined && report.note === undefined) {
+      if (known?.state === "idle") {
+        this.#record(undefined, { ...known, state: "working" });
+      }
+      return;
+    }
+    if (report.state === undefined) {
+      this.#record(report.note, known);
+      return;
+    }
+    // A state replaces the outcome with its own, which only stopped has.
+    const status: SessionStatus = { ...known, state: report.state };
+    delete status.outcome;
+    if (report.outcome !== undefined) {
+      status.outcome = report.outcome;
+    }
+    this.#record(report.note, status);
+  }
+
+  // #record records a report the server answered, with its note and the
+  // status after it. The server logs a report with a note, or one that
+  // changes the status, and only those restart the count; the bridge's first
+  // counts as a change, since it has no earlier one to compare.
+  #record(note: string | undefined, status: SessionStatus | undefined): void {
     if (note !== undefined || this.#status === undefined || !same(this.#status, status)) {
       this.#start();
     }

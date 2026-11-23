@@ -1,8 +1,8 @@
-import { chmodSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { testDirectory } from "../test-directory.ts";
 import { Database } from "./database.ts";
 import { applicationId, migrations } from "./migrations.ts";
 
@@ -10,13 +10,12 @@ let root: string;
 let file: string;
 
 beforeEach(() => {
-  root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-vacuum-")));
+  root = testDirectory("vacuum");
   file = path.join(root, "agention.db");
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  rmSync(root, { recursive: true, force: true });
 });
 
 function withRaw<T>(fn: (connection: DatabaseSync) => T): T {

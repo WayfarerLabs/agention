@@ -15,7 +15,6 @@ import {
 let api: FakeApi;
 
 beforeEach(() => {
-  window.localStorage.clear();
   // The credentials and past requests unfolded, as these tests read them.
   window.localStorage.setItem("agention.sessions.unfolded-sections", '["past-requests"]');
   api = new FakeApi();
