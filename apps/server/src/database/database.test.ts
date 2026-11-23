@@ -636,13 +636,25 @@ describe("a database an earlier release wrote", () => {
     );
   }
 
-  // earlier keeps the tables of rows that a database had before it was opened
-  // at HEAD.
+  // earlier keeps what a database had before it was opened at HEAD: its
+  // tables, and of each table's rows the columns they had, since a later
+  // migration may add one.
   function earlier(
     rows: Record<string, string[]>,
     before: Record<string, string[]>,
   ): Record<string, string[]> {
-    return Object.fromEntries(Object.keys(before).map((name) => [name, rows[name] ?? []]));
+    return Object.fromEntries(
+      Object.entries(before).map(([name, had]) => {
+        const columns = Object.keys(JSON.parse(had[0] ?? "{}") as object);
+        const kept = (rows[name] ?? []).map((row) => {
+          const values = JSON.parse(row) as Record<string, unknown>;
+          return JSON.stringify(
+            Object.fromEntries(columns.map((column) => [column, values[column]])),
+          );
+        });
+        return [name, kept.sort()];
+      }),
+    );
   }
 
   it("opens with migration 1's rows intact and the session log's tables empty", () => {
@@ -847,6 +859,41 @@ describe("a database an earlier release wrote", () => {
         [],
         [],
         [],
+      ]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("opens with every earlier row intact and no session's agent API version recorded", () => {
+    const file = path.join(root, "agention.db");
+    const before = withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      for (const migration of migrations.slice(0, 7)) {
+        connection.exec(migration);
+      }
+      connection.exec("PRAGMA user_version = 7");
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO agents (name, created_at) VALUES ('builder', 1);
+        INSERT INTO sessions (agent_id, name, last_pos, last_seen_at, created_at)
+          VALUES (1, 'main', 0, 60000, 1), (1, 'nightly', 0, NULL, 2);
+        INSERT INTO actors (person_id) VALUES (1);
+        INSERT INTO actors (session_id) VALUES (1), (2);
+        INSERT INTO registrations (public_key, proposed_agent, proposed_session, status,
+            session_id, created_at, expires_at, decided_at, revoked_at)
+          VALUES ('approved-key', 'builder', 'main', 'approved', 1, 1, 2, 1, NULL);
+      `);
+      return rowsOf(connection);
+    });
+    chmodSync(file, 0o600);
+
+    const database = Database.open(file, quiet);
+    try {
+      expect(earlier(rowsOf(database), before)).toEqual(before);
+      expect(database.prepare("SELECT agent_api_version FROM sessions").all()).toEqual([
+        { agent_api_version: null },
+        { agent_api_version: null },
       ]);
     } finally {
       database.close();

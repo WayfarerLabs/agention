@@ -1,4 +1,5 @@
 import {
+  agentApi,
   formatTimestamp,
   maxListed,
   type PublicKey,
@@ -234,6 +235,7 @@ interface SessionRow {
   name: string;
   created_at: number;
   last_seen_at: number | null;
+  agent_api_version: number | null;
   quiet: number;
   latest_seq: number | null;
   state: WorkState | null;
@@ -259,12 +261,13 @@ const sessionOrder = `
 // registrations; its status, with the latest entry's note and when that entry
 // was written; how many of its log's entries the operator has not read; how
 // many of its threads they have not archived, with how many of those hold
-// messages they have not read and how many are stranded; and how many asks
-// are open in all its threads, with how many of those are blocking. The
-// operator can never archive a thread holding an ask open to them, as
-// archiveThread refuses, so the thread list shows every thread these asks are
-// in. The thread counts and the ask counts each come from one statement for
-// every session of the page.
+// messages they have not read and how many are stranded; how many asks are
+// open in all its threads, with how many of those are blocking; and whether
+// its plugin is behind, its latest call stating an older agent API version
+// than the server's. The operator can never archive a thread holding an ask
+// open to them, as archiveThread refuses, so the thread list shows every
+// thread these asks are in. The thread counts and the ask counts each come
+// from one statement for every session of the page.
 export function listSessions(store: Store, identity: Identity, query: SessionsQuery): SessionsPage {
   const { db } = store;
   const position =
@@ -288,7 +291,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
     const sessions = db
       .prepare(
         `SELECT * FROM (
-           SELECT s.id, s.agent_id, s.name, s.created_at, s.last_seen_at,
+           SELECT s.id, s.agent_id, s.name, s.created_at, s.last_seen_at, s.agent_api_version,
              ${quietOf("s")} AS quiet,
              u.seq AS latest_seq, u.state, u.outcome, u.title, u.goal, u.percent, u.note,
              u.created_at AS updated_at,
@@ -397,6 +400,9 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       unread_updates: (row.latest_seq ?? 0) - row.read_seq,
       threads: threads.get(row.id) ?? { total: 0, unread: 0, stranded: 0 },
       open_asks: asks.get(row.id) ?? { count: 0, blocking_count: 0 },
+      // A session with no recorded call is not behind; one recorded at a
+      // version below the server's is, from the moment the server moves on.
+      plugin_behind: row.agent_api_version !== null && row.agent_api_version < agentApi.version,
     });
     const last = page.rows.at(-1);
     return {

@@ -21,7 +21,7 @@ afterEach(() => {
 
 it("refuses a version below its oldest before authenticating, a missing header included", async () => {
   const key = newAgentKey();
-  const register = (headers: Record<string, string>) =>
+  const register = (headers: Record<string, string | undefined>) =>
     harness.agent(
       key,
       "POST",
@@ -29,7 +29,8 @@ it("refuses a version below its oldest before authenticating, a missing header i
       { agent: "builder", session: "main" },
       { headers },
     );
-  for (const headers of [{}, { [agentApiHeader]: String(agentApi.version - 1) }]) {
+  for (const version of [undefined, String(agentApi.version - 1)]) {
+    const headers = { [agentApiHeader]: version };
     const response = await register(headers);
     expect([response.status, codeOf(response)]).toEqual([400, "unsupported_version"]);
     expect(response.headers.get(agentApiHeader)).toBe(String(agentApi.version));

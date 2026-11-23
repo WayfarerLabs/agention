@@ -1,10 +1,10 @@
 import type { RegistrationState } from "@wayfarerlabs/agention-api";
-import { Hono, type MiddlewareHandler } from "hono";
+import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { authenticateAgent, verifyRegistrationToken } from "../auth/agent-tokens.ts";
 import { unauthenticated } from "../errors.ts";
 import { findRegistrationByKey, markSeen, type Store, submitRegistration } from "../store/index.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
-import { requireServedAgentApiVersion } from "./agent-api-version.ts";
+import { requireServedAgentApiVersion, statedAgentApiVersion } from "./agent-api-version.ts";
 import { parseBody } from "./input.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
@@ -30,14 +30,16 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   const { store, origin, budgets, log } = options;
   const api = new Hono<IdentityEnv>();
 
-  // seen marks the session an approved registration acts for as seen. Last
-  // seen is advisory, so a failure to stamp it is logged and the call goes on.
-  // A failure that lasts, such as a full or busy database, recurs on every
-  // call, so it is logged at most once a minute, by the store's clock.
+  // seen marks the session an approved registration acts for as seen,
+  // speaking the agent API version the call states, which the mount's first
+  // middleware has checked it serves. Presence is advisory, so a failure to
+  // mark it is logged and the call goes on. A failure that lasts, such as a
+  // full or busy database, recurs on every call, so it is logged at most once
+  // a minute, by the store's clock.
   let failureLoggedAt: number | undefined;
-  const seen = (registrationId: number): void => {
+  const seen = (c: Context, registrationId: number): void => {
     try {
-      markSeen(store, registrationId);
+      markSeen(store, registrationId, Number(statedAgentApiVersion(c)));
     } catch (error) {
       const now = store.clock();
       if (failureLoggedAt === undefined || now - failureLoggedAt >= seenFailureLogInterval) {
@@ -68,7 +70,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
       budgets.spend("submit");
     } else {
       budgets.spendForKey(key);
-      seen(known.id);
+      seen(c, known.id);
     }
     const input = await parseBody(c, registration.body);
     const state: RegistrationState = submitRegistration(store, key, input);
@@ -84,7 +86,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
     );
     budgets.spendForKey(publicKey);
     if (identity.credential.kind === "registration") {
-      seen(identity.credential.registrationId);
+      seen(c, identity.credential.registrationId);
     }
     c.set("identity", identity);
     await next();

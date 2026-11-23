@@ -1,5 +1,5 @@
 import { agentApi, agentApiHeader, agentApiVersion } from "@wayfarerlabs/agention-api";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { ApiError } from "../errors.ts";
 import { parse } from "./input.ts";
 
@@ -14,6 +14,13 @@ export const stateAgentApiVersion: MiddlewareHandler = async (c, next) => {
   c.res.headers.set(agentApiHeader, String(agentApi.version));
 };
 
+// statedAgentApiVersion reads the version a request states, a missing header
+// meaning 1, refusing a header that is no version as invalid_input. Past
+// requireServedAgentApiVersion it is one the server serves.
+export function statedAgentApiVersion(c: Context): bigint {
+  return parse(agentApiVersion, c.req.header(agentApiHeader), agentApiHeader);
+}
+
 // requireServedAgentApiVersion refuses a request stating a version above this
 // server's or below the oldest it serves, a missing header meaning 1, before
 // authentication or any other work. The refusal is worded for the agent, as
@@ -21,7 +28,7 @@ export const stateAgentApiVersion: MiddlewareHandler = async (c, next) => {
 // agent what the operator updates. Anyone who reaches the server can read it,
 // so it names the versions the server serves, never its release.
 export const requireServedAgentApiVersion: MiddlewareHandler = async (c, next) => {
-  const version = parse(agentApiVersion, c.req.header(agentApiHeader), agentApiHeader);
+  const version = statedAgentApiVersion(c);
   const served =
     `This session's Agention bridge speaks version ${version} of the agent API, and the ` +
     `Agention server serves versions ${agentApi.oldest} to ${agentApi.version}`;

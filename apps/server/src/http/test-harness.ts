@@ -1,6 +1,8 @@
 // An HTTP application over a fresh store, with an operator signed in on one
 // browser and helpers to sign agent requests, for the HTTP tests.
 import {
+  agentApi,
+  agentApiHeader,
   type ErrorBody,
   type PublicKey,
   publicKey,
@@ -183,18 +185,31 @@ export class Harness {
     return { status: response.status, headers: response.headers, body: parsed };
   }
 
-  // agent makes a request on the agent mount with a freshly minted token.
+  // agent makes a request on the agent mount with a freshly minted token,
+  // stating this release's agent API version as the bridge does, unless the
+  // headers given set the version's header, a header given as undefined
+  // sending none.
   async agent(
     key: AgentKey,
     method: string,
     path: string,
     body?: unknown,
-    options: TokenOptions & { headers?: Record<string, string>; signal?: AbortSignal } = {},
+    options: TokenOptions & {
+      headers?: Record<string, string | undefined>;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<Response> {
     const authorization = `Bearer ${await this.token(key, options)}`;
+    const headers = Object.fromEntries(
+      Object.entries({
+        authorization,
+        [agentApiHeader]: String(agentApi.version),
+        ...options.headers,
+      }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    );
     return this.request(method, `/api/agent${path}`, {
       body,
-      headers: { authorization, ...options.headers },
+      headers,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
   }

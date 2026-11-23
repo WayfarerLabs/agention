@@ -581,7 +581,7 @@ describe("the agent API version", () => {
 
   it("serves a request without the header as version 1, and one stating its own", async () => {
     for (const version of [undefined, "1", String(agentApi.version)]) {
-      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const headers = { [agentApiHeader]: version };
       expect([version, codeOf(await list(approved, { headers }))]).toEqual([version, "ok"]);
     }
   });

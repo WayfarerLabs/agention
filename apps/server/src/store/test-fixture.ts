@@ -1,6 +1,7 @@
 // A store over a fresh database, with an operator and helpers to register
 // agents and write to threads, for the store's tests.
 import {
+  agentApi,
   type MessageSendInput,
   messageSendInput,
   type PublicKey,
@@ -168,9 +169,10 @@ export class Fixture {
     };
   }
 
-  // seen marks the agent's session seen now, as each of its calls does.
-  seen(agent: Agent): void {
-    markSeen(this.store, agent.registrationId);
+  // seen marks the agent's session seen now, as each of its calls does,
+  // speaking the agent API version given, this release's by default.
+  seen(agent: Agent, agentApiVersion: number = agentApi.version): void {
+    markSeen(this.store, agent.registrationId, agentApiVersion);
   }
 
   // createThread creates a thread from fields the schema parses, by default

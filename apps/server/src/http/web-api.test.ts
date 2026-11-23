@@ -1,8 +1,10 @@
-import type {
-  ErrorBody,
-  ThreadGetResult,
-  WaitResult,
-  WriteResult,
+import {
+  agentApi,
+  agentApiHeader,
+  type ErrorBody,
+  type ThreadGetResult,
+  type WaitResult,
+  type WriteResult,
 } from "@wayfarerlabs/agention-api";
 import type {
   AttentionCounts,
@@ -325,6 +327,55 @@ describe("the sessions view", () => {
       },
     ]);
     expect(codeOf(await harness.web("GET", "/sessions?limit=0"))).toBe("invalid_input");
+  });
+
+  it("marks a session behind while its latest call states an older agent API version, on both mounts", async () => {
+    // reviewer/main has made no call since it was approved, so it records no
+    // version.
+    await harness.approvedAgent("reviewer", "main");
+    const { secret } = await harness.createKey(["sessions:read"]);
+    const behind = async () => {
+      const marked = [];
+      for (const answer of [
+        await harness.web("GET", "/sessions"),
+        await harness.operator(secret, "GET", "/sessions"),
+      ]) {
+        const page = answer.body as SessionsPage;
+        marked.push(
+          page.agents.flatMap((each) =>
+            each.sessions.map((session) => [
+              `${each.agent}/${session.session}`,
+              session.plugin_behind,
+            ]),
+          ),
+        );
+      }
+      return marked;
+    };
+    const both = (builder: boolean) => [
+      [
+        ["builder/main", builder],
+        ["reviewer/main", false],
+      ],
+      [
+        ["builder/main", builder],
+        ["reviewer/main", false],
+      ],
+    ];
+    const stating = (version: string | undefined) =>
+      harness.agent(agent, "GET", "/s/builder/main/threads", undefined, {
+        headers: { [agentApiHeader]: version },
+      });
+    expect(await behind()).toEqual(both(false));
+    for (const [version, marked] of [
+      [String(agentApi.version - 1), true],
+      [String(agentApi.version), false],
+      [undefined, true],
+      [String(agentApi.version), false],
+    ] as const) {
+      expect((await stating(version)).status).toBe(200);
+      expect([version, await behind()]).toEqual([version, both(marked)]);
+    }
   });
 
   it("pages a session's log newest first and marks it read", async () => {
