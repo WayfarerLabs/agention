@@ -1152,38 +1152,39 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                 |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                  |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                               |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                   |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
 filters on open asks and the status they keep. A session group is named in the address by its id, so
-the list loads the operator's groups and tags while the sheet is open or a group or tag filter is
-on, to name the groups chosen and to say which group was removed and which tag nothing carries.
-Grouped by session group, the list folds the sessions under their groups only while the roll-ups or
-the rows loaded hold two or more, no group among them, and composes a group's roll-up from its
-sessions', as it does an agent's; this browser keeps a group's fold by the group's id. A header's
-label and the marks of its roll-up that a filter matches link to the list's address with the
-header's own filter (its group by id, its session, topic or agent) and the mark's added to the view,
-and a plain click chooses that view in place, as the filters do, replacing the address and, when the
-view changes, moving focus to **Filters**. While a filter on open asks is on, Blocked on you and the
-priority stay plain: a roll-up counts every open ask of the threads kept, while those filters keep a
-thread for one ask meeting them all, so the mark's filter could replace the one on or keep nothing.
-A header of no topic, which no filter names, links nothing. The sessions view's header links are
-these same links (`src/views/filter-links.tsx`), starting from no filters instead of the list on
-screen.
+the list loads the operator's groups and tags while the sheet is open, a group or tag filter is on
+or the list is grouped by session group, to name the groups chosen, to say which group or tag was
+removed, and to color them. A tag the operator's groups and tags do not list was removed, since they
+list every tag, those nothing carries among them. Grouped by session group, the list folds the
+sessions under their groups only while the roll-ups or the rows loaded hold two or more, no group
+among them, and composes a group's roll-up from its sessions', as it does an agent's; this browser
+keeps a group's fold by the group's id. A header's label and the marks of its roll-up that a filter
+matches link to the list's address with the header's own filter (its group by id, its session, topic
+or agent) and the mark's added to the view, and a plain click chooses that view in place, as the
+filters do, replacing the address and, when the view changes, moving focus to **Filters**. While a
+filter on open asks is on, Blocked on you and the priority stay plain: a roll-up counts every open
+ask of the threads kept, while those filters keep a thread for one ask meeting them all, so the
+mark's filter could replace the one on or keep nothing. A header of no topic, which no filter names,
+links nothing. The sessions view's header links are these same links (`src/views/filter-links.tsx`),
+starting from no filters instead of the list on screen.
 
 Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
 button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
@@ -1214,27 +1215,43 @@ unfolded log marks the operator's read through its newest entry whenever that is
 with the read marking the thread page uses for its messages. The agents a browser folds, and whether
 it shows the past requests, are kept in its local storage, as the thread list's groups are, and a
 session's row starts folded on every visit. Once any session carries a group, the view folds the
-agents under their groups, splitting each agent's sessions by the group each carries, groups in name
-order ignoring the case of ASCII letters, as the server compares them, and no group last; this
-browser keeps a group's fold by its id, and an agent's under a group by the group's id and the
-agent's name. Each heading sits a level below the one it folds under. Each session's row shows its
-threads' roll-up from its summary, and an agent's header and a group's head compose theirs from the
-sessions they show, none when the view or the agent left sessions out, each with a link opening the
-thread list on those threads, the agent's within its group while the view folds by group; a row's
-and an agent's count of stranded threads, while there are any, link likewise to the stranded among
-them, by the list's stranded filter, an agent that left sessions out flagging them with no count.
-Blocked on the operator shows once, in the thread list's words and tone, as Blocked on you in the
-danger tone, before a row's and an agent's open asks, in the attention tone, and on a group's head,
-which has none. Every mark that stands for threads links to the thread list with no other filter on:
-a group's, an agent's and a session's name and its envelope to its threads and its unread ones,
+agents under their groups, splitting each agent's sessions by the group each carries, groups in the
+operator's order as `GET /groups-and-tags` lists them, which the view loads beside its sessions, a
+group it does not list yet after those in name order, and no group last; this browser keeps a
+group's fold by its id, and an agent's under a group by the group's id and the agent's name. Each
+heading sits a level below the one it folds under. Each session's row shows its threads' roll-up
+from its summary, and an agent's header and a group's head compose theirs from the sessions they
+show, none when the view or the agent left sessions out, each with a link opening the thread list on
+those threads, the agent's within its group while the view folds by group; a row's and an agent's
+count of stranded threads, while there are any, link likewise to the stranded among them, by the
+list's stranded filter, an agent that left sessions out flagging them with no count. Blocked on the
+operator shows once, in the thread list's words and tone, as Blocked on you in the danger tone,
+before a row's and an agent's open asks, in the attention tone, and on a group's head, which has
+none. Every mark that stands for threads links to the thread list with no other filter on: a
+group's, an agent's and a session's name and its envelope to its threads and its unread ones,
 Blocked on you to those holding a blocking ask, the open asks to the open ones, each within the
 header or row it sits on, and a group's or a tag's chip to the threads in that group or carrying
 that tag alone. Each session's row says when the session was last seen, from its presence, as quiet
 while it is and has not stopped, and beside it how long ago its status was updated, from the
 status's `updated_at`, since a session can go on being seen long after its status stopped saying
 what it does. Each session's row shows its group and tags, and each agent's header its tags, from
-the sessions view's page; the sheets that set them, and the Groups and tags sheet, load the
-operator's groups and tags while they are open, and reload the view once a change lands. While the
+the sessions view's page, in the colors the operator's groups and tags give them, which views that
+show groups and tags pass down through a palette (`src/organizing.tsx`); the stylesheet draws each
+of the API's named colors as a tone and a background for each color scheme, at AA contrast. A
+session's group and an agent's or a session's tags are set in pickers (`views/sessions/Picker.tsx`),
+modal dialogs placed beside the control that opened them on a wide screen and rising as a sheet on a
+phone, whose search box is a combobox owning a listbox of the groups or tags, the item the arrow
+keys are on its active descendant. Each pick applies at once, a picker taking one at a time, its
+items unavailable until the change settles, so tags picked fast never land out of order; a failed
+change shows the tags as last applied, and the view reloads with the groups and tags once a change
+lands. The same pickers, in a registration's approval (`views/sessions/Organize.tsx`), keep their
+picks for the approval request, starting from an existing session's own group and tags and over for
+another agent or session, a new session keeping them as it is named, dropping a pick that lands
+after they changed, and create a group picked new at once since the approval names its group by id.
+Settings' groups and tags (`views/settings/`) list them to create, rename, recolor, remove and, for
+groups, order, each move sending the whole order to `POST /groups/order`, which refuses one that
+does not name every group, so a stale order reloads the list. A move or a color under way marks its
+controls `aria-disabled` rather than disabling them, so keyboard focus stays where it was. While the
 operator is signed in, the navigation reads what waits on the operator, from `GET /attention`, and
 shows it as a badge on each tab while there is any: the unread threads on Threads and the
 registrations waiting for approval on Sessions. The counts refresh on an interval, on returning to
