@@ -92,6 +92,11 @@ export class Fixture {
   constructor(options: { quietAfter?: number } = {}) {
     this.root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-store-")));
     this.db = Database.open(path.join(this.root, "agention.db"));
+    // A test's database is thrown away, so no commit needs to survive a power
+    // loss. Not syncing each one to disk keeps the tests built on this
+    // fixture, the HTTP and bridge harnesses' included, from waiting on the
+    // disk, which parallel test workers and a busy machine contend for.
+    this.db.prepare("PRAGMA synchronous = OFF").run();
     this.store = createStore(this.db, { clock: () => this.now, ...options });
     this.browserSession = randomBytes(32);
     this.passkeyId = this.db.transaction(() => {
