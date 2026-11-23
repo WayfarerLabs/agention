@@ -1,30 +1,23 @@
 import {
   chmodSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
-  realpathSync,
-  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { testDirectory } from "../test-directory.ts";
 import { Database, DatabaseOpenError, type DatabaseOpenReason } from "./database.ts";
 import { applicationId, migrations } from "./migrations.ts";
 
 let root: string;
 
 beforeEach(() => {
-  root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-database-")));
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  root = testDirectory("database");
 });
 
 function mode(target: string): number {
@@ -569,6 +562,18 @@ describe("session updates and their marks", () => {
     expect(() => update(1, columns)).toThrow();
   });
 
+  it("hold an inferred entry only as working, without a note", () => {
+    update(1, { state: "idle", note: "Waiting." });
+    update(2, { inferred: 1 });
+    expect(() => update(3, { state: "idle", inferred: 1 })).toThrow();
+    expect(() => update(3, { inferred: 1, note: "n" })).toThrow();
+    expect(() => update(3, { inferred: 2 })).toThrow();
+    expect(database.prepare("SELECT seq, inferred FROM session_updates").all()).toEqual([
+      { seq: 1, inferred: 0 },
+      { seq: 2, inferred: 1 },
+    ]);
+  });
+
   it("number each session's entries from 1, once each", () => {
     expect(() => update(0)).toThrow();
     update(1);
@@ -741,7 +746,13 @@ describe("a database an earlier release wrote", () => {
     const database = Database.open(file, quiet);
     try {
       const after = rowsOf(database);
-      expect(earlier(after, before)).toEqual(before);
+      // Every entry logged before was reported, none inferred.
+      expect(earlier(after, before)).toEqual({
+        ...before,
+        session_updates: before.session_updates?.map((row) =>
+          JSON.stringify({ ...(JSON.parse(row) as object), inferred: 0 }),
+        ),
+      });
       expect([
         after.session_groups,
         after.session_group_members,

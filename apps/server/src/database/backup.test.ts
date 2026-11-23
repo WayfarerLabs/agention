@@ -3,23 +3,20 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   renameSync,
-  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
   writeSync,
   closeSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { testDirectory } from "../test-directory.ts";
 import { BackupError, backupDatabase } from "./backup.ts";
 import { Database, DatabaseOpenError } from "./database.ts";
 import { applicationId, migrations } from "./migrations.ts";
@@ -30,16 +27,12 @@ let backups: string;
 let source: string;
 
 beforeEach(() => {
-  root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-backup-")));
+  root = testDirectory("backup");
   data = path.join(root, "data");
   backups = path.join(root, "backups");
   mkdirSync(data, { mode: 0o700 });
   mkdirSync(backups, { mode: 0o700 });
   source = path.join(data, "agention.db");
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
 });
 
 const mode = (file: string) => statSync(file).mode & 0o7777;

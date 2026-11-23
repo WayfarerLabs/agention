@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v3",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 3."
+    "version": "operator v1, agent v4",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 4."
   },
   "tags": [
     {
@@ -4180,6 +4180,19 @@
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
                     "description": "The area of work the thread is in, as a short lowercase name such as auth or billing-api, shared by the session's threads in that area; the operator finds a session's threads by it. The latest live message that sets one stands; only the requester sets it."
+                  },
+                  "state": {
+                    "$ref": "#/components/schemas/WorkState",
+                    "description": "Your session's state from this write on, as session_update reports it, such as idle on the last message before you wait. A write that reports no status at all marks an idle session working and leaves any other state as it was."
+                  },
+                  "outcome": {
+                    "$ref": "#/components/schemas/WorkOutcome"
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300,
+                    "description": "One line on what just happened, kept with this update alone."
                   }
                 },
                 "required": [
@@ -4738,6 +4751,19 @@
                     "minimum": 0,
                     "maximum": 9007199254740991,
                     "description": "An earlier message of your own that this one replaces, which is ignored from then on."
+                  },
+                  "state": {
+                    "$ref": "#/components/schemas/WorkState",
+                    "description": "Your session's state from this write on, as session_update reports it, such as idle on the last message before you wait. A write that reports no status at all marks an idle session working and leaves any other state as it was."
+                  },
+                  "outcome": {
+                    "$ref": "#/components/schemas/WorkOutcome"
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300,
+                    "description": "One line on what just happened, kept with this update alone."
                   }
                 },
                 "required": [
@@ -5599,7 +5625,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "3"
+          "const": "4"
         }
       }
     },
@@ -6561,12 +6587,16 @@
           },
           "note": {
             "type": "string"
+          },
+          "inferred": {
+            "type": "boolean"
           }
         },
         "required": [
           "state",
           "seq",
-          "created_at"
+          "created_at",
+          "inferred"
         ]
       },
       "Suggestion": {

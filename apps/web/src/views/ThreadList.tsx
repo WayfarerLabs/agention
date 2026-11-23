@@ -31,6 +31,7 @@ import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet, type SearchText } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
+import { useListShortcuts } from "./list/shortcuts.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
 
 // The thread list, built filters first: with no filter on it holds every
@@ -99,8 +100,21 @@ export function ThreadList() {
   const sheet = useRef<HTMLDialogElement>(null);
   const sheetHeading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  const searchBox = useRef<HTMLInputElement>(null);
   // The sheet's counts load while it is open, and again after each change.
   const [sheetOpen, setSheetOpen] = useState(false);
+  const openSheet = () => {
+    sheet.current?.showModal();
+    setSheetOpen(true);
+    // On the heading, not the search box, so a phone's keyboard does not
+    // rise over the sheet as it opens.
+    sheetHeading.current?.focus();
+  };
+  // The search shortcut opens the sheet on its search box.
+  useListShortcuts(() => {
+    openSheet();
+    searchBox.current?.focus();
+  });
   const filters = query(queryOf(view, threadFilters.shape));
   const counts = useFollowing(filters, sheetOpen, () =>
     request<ThreadCounts>("GET", `/threads/counts${filters}`),
@@ -150,13 +164,7 @@ export function ThreadList() {
           className="secondary filters-button"
           aria-haspopup="dialog"
           aria-label={on > 0 ? `Filters, ${on} on` : "Filters"}
-          onClick={() => {
-            sheet.current?.showModal();
-            setSheetOpen(true);
-            // On the heading, not the search box, so a phone's keyboard does
-            // not rise over the sheet as it opens.
-            sheetHeading.current?.focus();
-          }}
+          onClick={openSheet}
         >
           <Icon name="filters" />
           {on > 0 && (
@@ -178,6 +186,7 @@ export function ThreadList() {
       <FilterSheet
         sheet={sheet}
         heading={sheetHeading}
+        searchBox={searchBox}
         opener={opener}
         view={view}
         search={search}

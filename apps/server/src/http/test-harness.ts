@@ -85,23 +85,30 @@ export class Harness {
       apiDocs?: boolean;
     } = {},
   ) {
-    this.app = createApp({
-      ...(options.apiDocs === undefined ? {} : { apiDocs: options.apiDocs }),
-      ...(options.voiceEnvironment === undefined
-        ? {}
-        : { voiceEnvironment: options.voiceEnvironment }),
-      ...(options.transcription === undefined ? {} : { transcription: options.transcription }),
-      store: this.fixture.store,
-      origin,
-      name: options.name ?? "Agention",
-      webRoot: options.webRoot,
-      ...(options.rates === undefined ? {} : { rates: options.rates }),
-      shutdown: this.shutdown.signal,
-      log: (message) => this.logged.push(message),
-    });
-    const session = this.#openBrowserSession();
-    this.cookie = session.token;
-    this.csrf = session.csrfToken;
+    try {
+      this.app = createApp({
+        ...(options.apiDocs === undefined ? {} : { apiDocs: options.apiDocs }),
+        ...(options.voiceEnvironment === undefined
+          ? {}
+          : { voiceEnvironment: options.voiceEnvironment }),
+        ...(options.transcription === undefined ? {} : { transcription: options.transcription }),
+        store: this.fixture.store,
+        origin,
+        name: options.name ?? "Agention",
+        webRoot: options.webRoot,
+        ...(options.rates === undefined ? {} : { rates: options.rates }),
+        shutdown: this.shutdown.signal,
+        log: (message) => this.logged.push(message),
+      });
+      const session = this.#openBrowserSession();
+      this.cookie = session.token;
+      this.csrf = session.csrfToken;
+    } catch (error) {
+      // A harness whose construction fails, such as over a web root the server
+      // refuses, is never handed back to be closed, so it closes its fixture.
+      this.close();
+      throw error;
+    }
   }
 
   // signIn opens a new browser session for the operator as the clock now

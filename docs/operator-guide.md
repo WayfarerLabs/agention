@@ -154,13 +154,17 @@ now; **idle** while it has nothing left to do but wait, for your answers, CI or 
 keeps checking Agention; and **stopped** once it stops checking, with why: **completed** when the
 work is done, **withdrawn** when you called it off, or **stalled** when it cannot go on. A stopped
 session will not see what you write until something starts it again, and stays stopped until it
-reports working or idle. Whether a session waits on you is no state it reports: its open asks say
-so. A session whose agent never reported, such as one whose plugin predates session states, has no
-state. A thread whose agent has not read your latest messages while its session is quiet, has
-stopped or has no active credential is **stranded**: the agent will not see what you wrote until you
-resume it. An agent keeps checking for your answers while it has open asks or unread messages, so a
-thread stranded by a quiet session means the agent stopped without saying so, such as when its host
-ended the session, or is busy and has not checked.
+reports working or idle. An agent reports its state with an update of its own or beside a message it
+writes, and an idle session that writes to its threads without reporting a state or note, a message,
+a new thread, or marking one read, unread or archived, is working from then on, since it is plainly
+doing something: the server marks it so itself, logging that it did so, with no note. Checking for
+your answers changes nothing, and neither does anything you write. Whether a session waits on you is
+no state it reports: its open asks say so. A session whose agent never reported, such as one whose
+plugin predates session states, has no state. A thread whose agent has not read your latest messages
+while its session is quiet, has stopped or has no active credential is **stranded**: the agent will
+not see what you wrote until you resume it. An agent keeps checking for your answers while it has
+open asks or unread messages, so a thread stranded by a quiet session means the agent stopped
+without saying so, such as when its host ended the session, or is busy and has not checked.
 
 The data directory and the database must be private to the user running Agention, under the rule
 [SECURITY.md](../SECURITY.md#private-files) states. `agention serve` creates a missing data
@@ -458,20 +462,20 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     and a dot before its title, set extra bold; while it does, the closed envelope with how many are
     unread over all the messages it holds, yours included and a replaced message counted once,
     through its replacement, such as **2/5**, and once you have read them all, the open envelope
-    with how many it holds, such as **5**; the archive box when you archived it; where it is, its
-    agent, session and topic, and when it last changed; and, when an ask is open to you, the
-    question of the one the list leads with, the first in its order among those the filters keep,
-    with its priority, blocked and assuming marks, how long answering takes when the agent said, and
-    how many more are open; otherwise, muted, **Answered**, or **Withdrawn:** and the agent's latest
-    reason on one line. When any of the asks open to you has an answer-by, the row also shows the
-    earliest answer-by among them, whichever ask carries it: **Due** and the time when that falls
-    today, or the date and time on another day, with the year only when it is not this year's; and
-    once the server finds it passed, as the **Overdue** filter does, **Overdue since** then. Holding
-    the pointer over the time shows it in full. A stranded thread shows a **Stranded** tag in the
-    warning's color, as the sessions view flags stranded threads, saying why: its session
-    **stopped**, with how; it is quiet, **last seen** when, or **never seen**; or it has **no active
-    credential**. A session with no active credential also shows its own tag, unless the stranded
-    tag already says so.
+    with how many it holds, such as **5**; a pencil while this browser keeps your draft of a reply
+    to it; the archive box when you archived it; where it is, its agent, session and topic, and when
+    it last changed; and, when an ask is open to you, the question of the one the list leads with,
+    the first in its order among those the filters keep, with its priority, blocked and assuming
+    marks, how long answering takes when the agent said, and how many more are open; otherwise,
+    muted, **Answered**, or **Withdrawn:** and the agent's latest reason on one line. When any of
+    the asks open to you has an answer-by, the row also shows the earliest answer-by among them,
+    whichever ask carries it: **Due** and the time when that falls today, or the date and time on
+    another day, with the year only when it is not this year's; and once the server finds it passed,
+    as the **Overdue** filter does, **Overdue since** then. Holding the pointer over the time shows
+    it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
+    view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
+    seen** when, or **never seen**; or it has **no active credential**. A session with no active
+    credential also shows its own tag, unless the stranded tag already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
@@ -560,7 +564,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     your answers, opens again the card of every ask that message answered that is still live, with
     your answers, moves you to the first, unfolding the archived messages when it is among them, and
     puts that message's text and details in their boxes. An answer to an ask the agent since revised
-    or retracted stays with that message, and the line above the box says so.
+    or retracted stays with that message, and the line above the box says so. When the asks it
+    changes have to load first, and the page learns meanwhile that the message was replaced, nothing
+    is staged.
   - **Edit** in the options of your other messages changes their text and details, and drops their
     answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
     whole message, so they need empty boxes with nothing staged. A replaced message folds into one
@@ -580,6 +586,21 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     other asks' choices are unavailable until you send or remove one. While a change or an edit is
     staged, nothing else can be started until you send or remove it, and removing it empties both
     boxes. An edit needs text.
+  - This browser keeps your draft's text and details as you type, one draft for each thread, so
+    leaving the thread or reloading the page loses nothing: the composer opens with them when you
+    come back, and counts from where the draft started, so a message the agent wrote while you were
+    away makes sending stale, as below. With the thread open in two tabs, the draft typed last is
+    the one kept. What you staged, the files you attached and a recording are not kept: the composer
+    says so when the draft it opens with had them, and sending it then posts its text as a new
+    message. The text a change or an edit loads is kept only once you change it. **Discard draft**,
+    under the boxes while they hold anything, asks once, then empties the composer and forgets the
+    draft; a message that is sent forgets it, and one that fails to send keeps it. Reloading the
+    page while a message is being sent brings its text back as the draft; if the message landed,
+    sending the draft again fails as stale, with your message among those missed, so nothing is sent
+    twice unseen. The browser forgets a draft 30 days after you last opened its thread or typed in
+    it, keeps the latest 50, and forgets them all when you sign out here or remove the passkey it
+    signed in with. A browser that refuses storage, as a private window may, keeps none, and the
+    composer works as before.
   - Beside **Send**, **Go back after sending** returns you to the list, as **Threads** does, once a
     message is sent, and the list says what was sent; a message that fails to send stays on the page
     with your draft. It is checked until you uncheck it, and this browser keeps your choice. While
@@ -646,8 +667,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     and when, or **Never seen**, in the warning's color while the session is quiet and has not
     stopped, and once it has reported a status, how long ago it last updated it, such as **status
     updated 2 hours ago**, since a session can go on checking Agention long after its status stopped
-    saying what it does. While a session reports **Working**, its bridge reminds it to update its
-    status once it has sent none for 20 minutes. The bridge counts from the session's own last
+    saying what it does; a session marked working because it wrote counts as an update then. While a
+    session is **Working**, its bridge reminds it to update its status once it has sent none for 20
+    minutes, counting a write that marked it working. The bridge counts from the session's own last
     update through it, not from the age you see, so the two differ when the bridge has restarted or
     another bridge shares the session. The third line, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
@@ -666,16 +688,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       or the open envelope when none is, the closed one opening it on the session's unread threads.
       **Blocked on you** shows once, before its open asks, as on an agent's header;
     - its unread updates, such as **2 new updates**;
-    - and its latest note, cut to fit.
+    - and its latest update's note, cut to fit, with none after the server marked it working.
 
     Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
     and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
-    each update changed, newest first, with its note. Consecutive updates that changed only the
-    percent show as one line, such as **Progress 20% → 60%**, and **Older** shows the updates
-    before. Unfolding reads the updates it shows, which stay marked unread until you fold the row
-    again. Rows start folded each time you open the view, and a row under an agent or a group you
-    folded reads nothing, since it is not shown. This browser keeps the agents you fold, under each
-    group apart.
+    each update changed, newest first, with its note, and **inferred from a write** on one the
+    server logged when the idle session wrote. Consecutive updates that changed only the percent
+    show as one line, such as **Progress 20% → 60%**, and **Older** shows the updates before.
+    Unfolding reads the updates it shows, which stay marked unread until you fold the row again.
+    Rows start folded each time you open the view, and a row under an agent or a group you folded
+    reads nothing, since it is not shown. This browser keeps the agents you fold, under each group
+    apart.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.
@@ -693,12 +716,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
   (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Voice**
-  (`/settings/voice`), as [Voice](#voice) describes, and **Storage** (`/settings/storage`), as
-  [Attachments](#attachments) describes; and **Sign out** (`/settings/sign-out`), which signs this
-  browser out and leaves your others signed in. On a wide screen the sections are listed beside the
-  one open; on a phone Settings opens on the list, and each section has a link back to it.
-  `/passkeys` leads to Passkeys. While your sign-in is too old for a change to passkeys, API keys or
-  voice, those sections offer **Sign in again** first.
+  (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as
+  [Attachments](#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
+  [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`),
+  which signs this browser out, forgetting the drafts it kept, and leaves your others signed in. On
+  a wide screen the sections are listed beside the one open; on a phone Settings opens on the list,
+  and each section has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too
+  old for a change to passkeys, API keys or voice, those sections offer **Sign in again** first.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image written in Markdown shows as a link and never loads, unlike
@@ -748,6 +772,37 @@ the sessions under their groups, and the sessions view folds the agents under th
   **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
   sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
   carries is gone, as a topic no thread carries is.
+
+### Keyboard shortcuts
+
+With a keyboard, single keys do the everyday things, in the manner of mail and code-review tools.
+They act only while focus is outside a text field, an open menu and a dialog, and never with Ctrl,
+Alt or Cmd held unless the key needs it; on a phone without a keyboard nothing changes. Press `?`
+anywhere to list them all.
+
+| Where           | Key                         | What it does                                                                                                              |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Anywhere        | `?`                         | Lists the shortcuts                                                                                                       |
+| Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone |
+| The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
+| The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
+| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
+| The thread list | `/`                         | Opens **Filters** on its search box                                                                                       |
+| A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
+| A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
+| A thread        | `e`                         | **Archive all**, while it is available                                                                                    |
+| A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
+| A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
+| The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |
+| The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                    |
+
+Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does.
+Moving through the list moves focus from row to row, so a screen reader reads each row as it is
+reached. A screen reader in its browse mode keeps single keys for its own navigation, so the
+shortcuts act only once it passes keys through, as in its focus mode. To turn the shortcuts listed
+here off in this browser, if they get in the way of a screen reader, voice control or another tool,
+clear **Keyboard shortcuts** in **Settings**, under **Keyboard**, which also lists them. The diagram
+viewer's own keys stay on.
 
 ## Voice
 

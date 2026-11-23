@@ -1,20 +1,10 @@
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  realpathSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { SignJWT } from "jose";
 import { Agent, get } from "node:http";
 import { type AddressInfo, createServer } from "node:net";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import packageJson from "../package.json" with { type: "json" };
 import { run } from "./cli.ts";
 import { Database } from "./database/database.ts";
@@ -23,6 +13,7 @@ import { hashOfSecret } from "./auth/secrets.ts";
 import { type AgentKey, newAgentKey } from "./http/test-harness.ts";
 import { identityForBrowserSession } from "./identity.ts";
 import { insertTestPasskey } from "./store/test-fixture.ts";
+import { testDirectory } from "./test-directory.ts";
 import {
   approveRegistration,
   beginUpload,
@@ -113,12 +104,8 @@ describe("agention serve and passkey-link", () => {
   let data: string;
 
   beforeEach(() => {
-    root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-cli-")));
+    root = testDirectory("cli");
     data = path.join(root, "data");
-  });
-
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
   });
 
   const serve = (...flags: string[]) => ["serve", "--data", "DATA", "--origin", origin, ...flags];
@@ -578,12 +565,8 @@ describe("agention backup", () => {
   let data: string;
 
   beforeEach(() => {
-    root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-cli-")));
+    root = testDirectory("cli");
     data = path.join(root, "data");
-  });
-
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
   });
 
   it("writes a copy of the database, and prints where", async () => {

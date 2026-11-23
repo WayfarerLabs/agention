@@ -280,6 +280,7 @@ export interface SearchText {
 export function FilterSheet({
   sheet,
   heading,
+  searchBox,
   opener,
   view,
   search,
@@ -292,6 +293,7 @@ export function FilterSheet({
 }: {
   sheet: RefObject<HTMLDialogElement | null>;
   heading: RefObject<HTMLHeadingElement | null>;
+  searchBox: RefObject<HTMLInputElement | null>;
   opener: RefObject<HTMLButtonElement | null>;
   view: ThreadsView;
   search: SearchText;
@@ -387,6 +389,7 @@ export function FilterSheet({
         </h2>
         <label htmlFor={`${id}-search`}>Search</label>
         <input
+          ref={searchBox}
           id={`${id}-search`}
           type="search"
           maxLength={200}
