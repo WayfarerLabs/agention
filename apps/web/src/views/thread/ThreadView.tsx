@@ -648,7 +648,7 @@ function ThreadPage({
       setText("");
       setDetail("");
       setDetailsShown(false);
-      files.dropKept();
+      files.dropKept(files.files.map((file) => file.id));
     }
     setStaged(undefined);
   };
