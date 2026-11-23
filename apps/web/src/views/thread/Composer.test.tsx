@@ -1030,6 +1030,69 @@ describe("the draft's starting point", () => {
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     expect(await send()).toMatchObject({ text: "Noted.", seen_through: 2 });
   });
+
+  it("starts again from the operator's own message once a write lands, the log having shown it first", async () => {
+    const state = await page.openWith([message(1)]);
+    // The write lands at once, and its answer is held while the log shows it.
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () => {
+      state.thread = { ...state.thread, last_seq: 2 };
+      state.messages = [...state.messages, operatorMessage(2, { text: "Sent first." })];
+      return new Promise<Reply>((resolve) => (answer = resolve));
+    });
+    fireEvent.change(textBox(), { target: { value: "First." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.change(textBox(), { target: { value: "First. And second." } });
+    fireEvent.focus(window);
+    await screen.findByText("Sent first.");
+    answer(written(2));
+    await screen.findByRole("status");
+    state.thread = { ...state.thread, last_seq: 3, unread: 1 };
+    state.messages = [...state.messages, message(3, { text: "Agent note" })];
+    fireEvent.focus(window);
+    await screen.findByText("Agent note");
+    page.serveWrites(state);
+    // The agent's note landed while the second draft was under way, so it
+    // was missed.
+    expect(await send()).toMatchObject({ text: "First. And second.", seen_through: 2 });
+  });
+
+  it.each([
+    ["typed after the write lands", false],
+    ["typed again before the write lands", true],
+  ])(
+    "ends with a composer emptied while a write was under way, so a draft %s misses nothing shown",
+    async (_, before) => {
+      const state = await page.openWith([message(1)]);
+      // The write lands at once, and its answer is held while the log shows
+      // it and an agent's note after it.
+      let answer: (reply: Reply) => void = () => {};
+      page.api.on("POST", `${path}/messages`, () => {
+        state.thread = { ...state.thread, last_seq: 3, unread: 1 };
+        state.messages = [
+          ...state.messages,
+          operatorMessage(2, { text: "Sent first." }),
+          message(3, { text: "Agent note" }),
+        ];
+        return new Promise<Reply>((resolve) => (answer = resolve));
+      });
+      fireEvent.change(textBox(), { target: { value: "First." } });
+      fireEvent.click(sendButton());
+      await waitFor(() => expect(page.writes()).toHaveLength(1));
+      fireEvent.change(textBox(), { target: { value: "" } });
+      fireEvent.focus(window);
+      await screen.findByText("Agent note");
+      if (before) {
+        fireEvent.change(textBox(), { target: { value: "Noted." } });
+      }
+      answer(written(2));
+      await screen.findByRole("status");
+      fireEvent.change(textBox(), { target: { value: "Noted." } });
+      page.serveWrites(state);
+      expect(await send()).toMatchObject({ text: "Noted.", seen_through: 3 });
+    },
+  );
 });
 
 describe("a stale write", () => {
