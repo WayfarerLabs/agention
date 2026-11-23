@@ -273,6 +273,33 @@ describe("the agent API version", () => {
     expect([failed.isError, failed.json]).toEqual([true, undefined]);
   });
 
+  it("refuses an older server alike whatever it answered, naming what it stated", async () => {
+    // The server's statement is the refusal's only input: an answer and a
+    // failure from the same server are refused alike, and a server stating an
+    // older version is refused apart from one stating none.
+    const bridge = await harness.bridge();
+    const refusals = new Set<string>();
+    for (const version of [undefined, String(agentApi.version - 1)]) {
+      answerWith(200, pending, version);
+      const answered = await bridge.call("register");
+      answerWith(404, { error: { code: "not_found", message: "not found" } }, version);
+      const failed = await bridge.call("register");
+      expect([answered.isError, failed.isError, answered.text]).toEqual([true, true, failed.text]);
+      refusals.add(answered.text);
+    }
+    expect(refusals.size).toBe(2);
+  });
+
+  it("relays a newer server's refusal of its version as the server gave it", async () => {
+    // Such a server no longer serves this bridge's version, and its refusal
+    // names the fix, which the agent relays to the operator.
+    const bridge = await harness.bridge();
+    const refusal = { error: { code: "unsupported_version", message: "Update the plugin." } };
+    answerWith(400, refusal, String(agentApi.version + 1));
+    const relayed = await bridge.call("register");
+    expect([relayed.isError, relayed.json]).toEqual([true, refusal]);
+  });
+
   it("takes an answer stating its own version or a newer one, however long", async () => {
     const bridge = await harness.bridge();
     for (const version of [agentApi.version, agentApi.version + 1, "99999999999999999999"]) {
