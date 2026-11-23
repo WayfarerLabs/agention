@@ -142,7 +142,14 @@ export const threadOperations = [
     params: fileParams,
     query: fileReadQuery,
     response: fileBytes,
-    handler: ({ store, identity, params, query, request, log }) =>
-      serveFile({ store, identity, target: { ...params, ref: query.file }, request, log }),
+    handler: ({ store, identity, params, query, request, log, dropConnection }) =>
+      serveFile({
+        store,
+        identity,
+        target: { ...params, ref: query.file },
+        request,
+        log,
+        dropConnection,
+      }),
   }),
 ];
