@@ -34,22 +34,34 @@ export async function bundle(
   // A failed build must not leave an earlier build's notices beside it.
   const notices = join(dirname(outfile), noticesFile);
   rmSync(notices, { force: true });
-  const { metafile } = await build({
-    entryPoints: [entry],
-    outfile,
-    bundle: true,
-    platform: "node",
-    format: "esm",
-    target: "node24",
-    logLevel: "warning",
-    metafile: true,
-  });
+  const { metafile } = await build({ ...commandOptions(entry), outfile });
   const bundleName = basename(outfile);
   const sections = [noticeSection(bundleName, includedPackages(metafile, entry))];
   if (options.alsoShips !== undefined) {
     sections.push(noticeSection(options.alsoShips.name, options.alsoShips.packages));
   }
   writeFileSync(notices, sections.join("\n"));
+}
+
+// bundleInputs builds a command as bundle does, writing nothing, and returns
+// the absolute path of every file the bundle includes, so a test can hold
+// what a published package carries.
+export async function bundleInputs(entry: string): Promise<string[]> {
+  const { metafile } = await build({ ...commandOptions(entry), write: false });
+  return Object.keys(metafile.inputs).map((input) => resolve(input));
+}
+
+// The options of a command's bundle, which bundle and bundleInputs share.
+function commandOptions(entry: string) {
+  return {
+    entryPoints: [entry],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node24",
+    logLevel: "warning",
+    metafile: true,
+  } satisfies BuildOptions;
 }
 
 // bundleScript builds a browser entry into one minified classic script that
