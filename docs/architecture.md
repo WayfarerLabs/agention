@@ -929,12 +929,13 @@ SDK's stdio transport, so it serves the protocol revisions hosts open with `init
 `server/discover` as a method it does not have. Its entry point checks for Node 24 or later before
 loading anything else. Without options `agention-mcp` serves; `--version` and `--help` print and
 exit. It exits once the host closes its standard input. Its answer to `initialize` carries
-instructions that state the usage skill's first rule, to ask through Agention and never wait at the
-terminal for an answer, and tell the agent to load the skill, so the agent has the rule before the
-skill loads. Claude Code adds them to the agent's system prompt. Codex describes the bridge's tools
-with them and shows only their first 250 characters until the agent loads the tools, so they stay
-within that. [SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends:
-its key file, its tokens and where its requests may go.
+instructions that state the usage skill's first rule, to ask through Agention, with no question tool
+that waits and no ending the turn to wait unless `register` says answers are pushed, and tell the
+agent to load the skill, so the agent has the rule before the skill loads. Claude Code adds them to
+the agent's system prompt. Codex describes the bridge's tools with them and shows only their first
+250 characters until the agent loads the tools, so they stay within that.
+[SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends: its key file,
+its tokens and where its requests may go.
 
 - **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`, and `AGENTION_CONNECT`, when
   set and not empty, as a host and port: a host name or address, IPv6 in brackets, and a port from 1
@@ -1083,29 +1084,31 @@ its key file, its tokens and where its requests may go.
   private-file rule, which no session's key directory can meet, since no origin's host holds an
   underscore. `register` decides it: when push can work, its approved answer says answers are
   pushed, and it starts the background wait, even while the registration is pending; otherwise
-  nothing runs in the background. The first `register` also removes the host directories of
-  processes that have ended. The loop reads the registration of the key on disk with the request
-  `register` makes, every 15 seconds while it is not approved, never creating a key and never
-  submitting one the server refused, so push starts once the operator approves with no tool call.
-  Once approved, it long-polls `GET /api/agent/s/<agent>/<session>/wait` for 25 seconds at a time,
-  one request at a time, from the position in the host directory's `cursor`, which counts only for
-  the same origin and granted names, so the server marks the session seen as an agent's own wait
-  does. A round with threads saves the new position, then writes the `wake` file: the notice one
-  formatter composes from fixed words and each thread's number and unread count, integers the
-  answer's schema checks, naming at most ten threads and counting the rest, so no title or message
-  text reaches the agent this way. A wake file the watcher has not taken yet is taken back by
-  renaming it, and the new one names its threads too, with the newer counts; the cursor records the
-  threads a notice names until then. Each file is written to a temporary private file and renamed
-  into place, without waiting for the disk: a cursor lost to a crash of the machine only pushes
-  again what is unread. A failure the bridge can outlast, such as an unreachable server, a proxy's
-  error, an answer it cannot read or a key that is not approved, is retried after a pause that
-  doubles from 1 second to a minute. A server that does not serve the bridge's agent API version, a
-  registration rejected, revoked or expired, or a host directory the bridge cannot use makes push
-  give up: once `register` has said answers are pushed, the next answer of any tool but `register`,
-  an error included, ends with one line saying answers now reach the agent only when it checks, and
-  the loop goes back to reading the registration, so a new approval, or a later `register`, starts
-  push again. The loop stops when the host closes the bridge's input. The watcher that takes the
-  wake file is in [Generated plugins](#generated-plugins).
+  nothing runs in the background. A thread tool that learns the names granted to an approved key by
+  the request `register` makes, as a bridge started again does at its first call, starts the wait
+  too, without a word to the agent, and counts it as told. The first look for the host directory
+  also removes the host directories of processes that have ended. The loop reads the registration of
+  the key on disk with the request `register` makes, every 15 seconds while it is not approved,
+  never creating a key and never submitting one the server refused, so push starts once the operator
+  approves with no tool call. Once approved, it long-polls `GET /api/agent/s/<agent>/<session>/wait`
+  for 25 seconds at a time, one request at a time, from the position in the host directory's
+  `cursor`, which counts only for the same origin and granted names, so the server marks the session
+  seen as an agent's own wait does. A round with threads saves the new position, then writes the
+  `wake` file: the notice one formatter composes from fixed words and each thread's number and
+  unread count, integers the answer's schema checks, naming at most ten threads and counting the
+  rest, so no title or message text reaches the agent this way. A wake file the watcher has not
+  taken yet is taken back by renaming it, and the new one names its threads too, with the newer
+  counts; the cursor records the threads a notice names until then. Each file is written to a
+  temporary private file and renamed into place, without waiting for the disk: a cursor lost to a
+  crash of the machine only pushes again what is unread. A failure the bridge can outlast, such as
+  an unreachable server, a proxy's error, an answer it cannot read or a key that is not approved, is
+  retried after a pause that doubles from 1 second to a minute. A server that does not serve the
+  bridge's agent API version, a registration rejected, revoked or expired, or a host directory the
+  bridge cannot use makes push give up: once `register` has said answers are pushed, the next answer
+  of any tool but `register`, an error included, ends with one line saying answers now reach the
+  agent only when it checks, and the loop goes back to reading the registration, so a new approval,
+  or a later `register`, starts push again. The loop stops when the host closes the bridge's input.
+  The watcher that takes the wake file is in [Generated plugins](#generated-plugins).
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`: the cap, 40,000 bytes, 500 more for the status reminder and

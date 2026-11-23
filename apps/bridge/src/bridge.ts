@@ -42,9 +42,9 @@ export interface BridgeOptions {
 // only the first 250 characters until the agent loads the tools, so it stays
 // within that.
 export const instructions =
-  "Ask your user every question, decision or approval in Agention, and never wait at your " +
-  "terminal for an answer: no question tool that waits (AskUserQuestion, request_user_input), " +
-  "no ending your turn to wait. Load the agention skill first.";
+  "Ask your user every question, decision or approval in Agention: no question tool that " +
+  "waits (AskUserQuestion, request_user_input), and no ending your turn to wait unless " +
+  "register says answers are pushed. Load the agention skill first.";
 
 // createBridge builds the bridge's MCP server for one agent session. A setting
 // the bridge cannot work with does not stop it: every tool answers with what

@@ -45,6 +45,11 @@ async function connected() {
 const clientInfo = { name: "host", version: "1.0.0" };
 
 describe("the bridge", () => {
+  // Codex shows only the first 250 characters until the agent loads the tools.
+  it("gives instructions Codex shows whole", () => {
+    expect(instructions.length).toBeLessThanOrEqual(250);
+  });
+
   it.each(["2025-06-18", "2025-11-25"])("opens with initialize at %s", async (version) => {
     const { ask, close } = await connected();
     const reply = await ask("initialize", {
