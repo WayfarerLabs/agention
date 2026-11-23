@@ -53,22 +53,23 @@ counting as one version below every other (FRD C5, ruling 4):
    so both gates read the declaration one way. No match fails, naming the file.
 2. The candidates are the tags `agention-vX.Y.Z` reachable from HEAD
    (`git tag --list 'agention-v*' --merged HEAD`), as the agent compatibility gate takes its own
-   (`scripts/check-agent-compatibility.sh:21-30`), newest first by version
-   (`git -c versionsort.suffix=- ... --sort=-v:refname`). A tag with a prerelease suffix is skipped:
-   an operator installs releases. A server tagged after HEAD's branch point is not reachable, and
-   `main`'s own run checks it once merged. None reachable fails, asking for `git fetch --tags`.
+   (`scripts/check-agent-compatibility.sh:21-30`), newest first by version (`--sort=-v:refname`). A
+   tag that is not `X.Y.Z`, such as a prerelease, is skipped: an operator installs releases. A
+   server tagged after HEAD's branch point is not reachable, and `main`'s own run checks it once
+   merged.
 3. Each tag's version is read at the tag the same way. A tag whose tree has no
    `packages/api/src/agent-api.ts` states none, as every release before 0.3.0 does: the file and the
    header arrived together in 96c481b, first released in 0.3.0, and no tag before it mentions
    `Agention-Agent-API` anywhere under `apps/` or `packages/`. A tag that has the file but no
-   matching line fails, as in the release order gate. A tag with the file that is older than one
-   without it also fails, since that means the declaration moved and the match needs updating: a
-   moved file would otherwise read every later release as stating none. That check is two lines of
-   the script and has no fixture case.
+   matching line fails, as in the release order gate. If the declaration ever moves, the gate's
+   `contract` path moves with it, and releases from before the move then read as stating none; the
+   selection cannot tell, but the suite does, since such a release states a version and its refusal
+   then differs from the one for none (0.4.0's names version 2).
 4. The first tag met at each version below `N` is that version's newest. A version at `N` or above
    is skipped: the agent compatibility gate covers bridges against the server at HEAD, and a server
-   at HEAD's version serves the same contract (HLA). No server below `N` fails too: this
-   repository's history always has one, so its absence means tags are missing.
+   at HEAD's version serves the same contract (HLA). No server below `N`, as when no tag at all is
+   reachable, fails, asking for `git fetch --tags`: this repository's history always has one, so its
+   absence means tags are missing.
 
 At 2bd3ed3, with the seed tags in place, that is 0.2.1 (none: 0.1.0, 0.2.0 and 0.2.1) and 0.4.0
 (version 2: 0.3.0 and 0.4.0), while 0.5.0 and 0.6.0 speak 3, HEAD's (`git show <tag>:` at each tag;
@@ -143,9 +144,13 @@ at `v0.2.1`, usage lines 28-44 and the line at 283-286; at `v0.4.0`, lines 31-55
 The suite starts it as a child process and reads the port from
 `agention: serving <origin> on https://127.0.0.1:<port>`, as the Build gate reads its server's
 (`scripts/check.sh:128-132`); only the port is read. A start that prints no such line within ten
-seconds, or exits, fails the test with the release's output. The suite stops it with SIGTERM, which
-every release handles by closing its database (`apps/server/src/main.ts` at both tags, lines 4-9),
-and waits for it to exit before reading the database.
+seconds, or exits, fails the test with the release's output, and one that cannot start, such as for
+a missing command, fails at once naming it. The suite stops it with SIGTERM, which every release
+handles by closing its database (`apps/server/src/main.ts` at both tags, lines 4-9), and kills it if
+it has not exited 5 seconds later; it waits for the exit before reading the database. Cleanup closes
+the bridge, stops the server and removes the scratch directory, each even if one before it fails,
+within the compatibility config's hook timeout, and a bridge process whose MCP connection fails is
+closed, which ends it.
 
 The origin names no port, so the release can be started before its port is known, and the bridge
 reaches it through `AGENTION_CONNECT=127.0.0.1:<port>`, the setting an operator uses for a tunnel
@@ -179,13 +184,12 @@ seconds, so its failure's pause costs nothing (`apps/bridge/src/tools.ts:428-433
 (`tools.ts:163-170`, `tools.ts:488-490`); it has no code, since the API has none for a bridge's own
 problems (`apps/bridge/src/errors.ts:4-9`). So each answer must be:
 
-- an error, and not in Agention's JSON (its text parses as no error body), as the bridge's tests
-  check an older server's refusal (`apps/bridge/src/tools.test.ts:263-274`); and
-- the refusal the bridge gives that release's statement: `#requireVersion`'s refusal moves into an
-  exported function, `olderServerRefusal(origin, stated)`, which `#requireVersion` throws
-  (`agent-api.ts:395-415`), and the suite compares each answer's text with
-  `olderServerRefusal("https://localhost", stated).message`, `stated` being the `agent-api` file's
-  version, or none.
+- an error; and
+- the refusal the bridge gives that release's statement, which is plain text, not Agention's JSON:
+  `#requireVersion`'s refusal moves into an exported function, `olderServerRefusal(origin, stated)`,
+  which `#requireVersion` throws (`agent-api.ts:395-415`), and the suite compares each answer's text
+  with `olderServerRefusal("https://localhost", stated).message`, `stated` being the `agent-api`
+  file's version, or none.
 
 The comparison is generation parity, one source and its output, never a sentence the test holds: a
 change to the refusal's words changes both sides, and the gate does not depend on C3's wording. The
@@ -223,13 +227,14 @@ it is serving, before the bridge starts, and once it has exited. Each read takes
 read-only connection opened beside the running 0.4.0, and after it stopped, without changing the
 database.
 
+- **Every release's** first read must hold the `instance` table's one row, so a database the release
+  never wrote, or the wrong file, cannot pass as unchanged.
 - **From 0.3.0** the two reads are equal: the release recorded nothing (C4).
-- **Before 0.3.0** they are equal but for `registrations`, which gains exactly one row, and
-  `sqlite_sequence`, SQLite's own counter for it: `status` `pending`, `public_key` the key on the
-  bridge's disk, the proposed names the bridge's, and `expires_at` after `created_at` by at most an
-  hour (C4). The columns read are those of `registrations` at `v0.2.1`
-  (`apps/server/src/database/migrations.ts`, lines 54-68), and releases before 0.3.0 are fixed
-  history.
+- **Before 0.3.0** `registrations` holds exactly one row afterwards, `status` `pending`, with
+  `expires_at` after `created_at` by at most an hour (C4), and the reads are equal once
+  `registrations` and `sqlite_sequence`, SQLite's own counter for it, are left out of both. The
+  columns read are those of `registrations` at `v0.2.1` (`apps/server/src/database/migrations.ts`,
+  lines 54-68), and releases before 0.3.0 are fixed history.
 
 The release decides which rule applies by what it states: `none` takes the second, any version the
 first. In the probe, 0.2.1 held one pending registration with a lifetime of 3,600,000 ms and 0.4.0
@@ -253,8 +258,9 @@ none, and neither held an agent or a session.
 - `scripts/check-server-compatibility.test.sh`, a fixture test in the shape of
   `scripts/check-release-order.test.sh`, runs `--list` in throwaway repositories, and keeps to the
   decisions that can regress (the effort lead's ruling): the newest release of each older version,
-  one stating none among them and HEAD's version skipped; a prerelease skipped; and failures for no
-  older release reachable and for a contract line written another way.
+  one stating none among them and HEAD's version skipped; a prerelease skipped; version order over
+  name order, 0.10.0 above 0.9.0 at one version; and failures for no older release reachable and for
+  a contract line written another way.
 - `scripts/check.sh`: a "Server compatibility tests" step after "Release order tests", which needs
   neither the network nor the tags, and a "Server compatibility" step after "Agent compatibility",
   in the block `--fast` skips (`check.sh:214-224`), so `--fast` skips the gate.
@@ -273,7 +279,7 @@ about 0.6 s each in CI (0.5 s locally, cached); and per release in the suite, a 
 s, a bridge process, eleven calls in 0.35 s, a stop and two reads. With Vitest's own start, about 5
 s in all. It grows by one release per agent API version, a few times a year at most, so it stays
 seconds against minutes of headroom. Built, the gate ran locally in 12 s end to end, its suite in
-1.5 s to 3.8 s.
+1.0 s to 3.8 s.
 
 ## Proving it can fail
 
@@ -290,7 +296,7 @@ and passes again once it is reverted.
 
 ## Permanent docs
 
-The plan box's, with what each gains:
+The plan box's, and two the change outdates, with what each gains:
 
 - **CONTRIBUTING "Checks"**: the two steps in the gates table, `--fast`'s list in the commands
   block, and the network and tags paragraph, which then names this gate too.
@@ -298,6 +304,11 @@ The plan box's, with what each gains:
   version suffices, the install as the agent compatibility gate's, the refusal of every tool and the
   database rules for releases from 0.3.0 and before, and that a new tool joins its table; its name
   for the agent compatibility suite's script.
+- **CONTRIBUTING "Dependencies"**: the install with the release-age wait off is both compatibility
+  gates' exception, for the same reason: each checks a release as soon as it is published, and
+  installs a bundle that declares no dependencies.
+- **`docs/live-testing.md` "Surfaces"**: the bridge at the head against earlier servers is covered
+  on every change by this gate, as the agent compatibility gate covers the other direction.
 - **`docs/architecture.md` "Agent bridge"**: its paragraph on the bridge's tests
   (`docs/architecture.md:1136-1142`) gains the server compatibility gate, which runs the bridge at
   HEAD against released servers over TLS with the test certificate, through `AGENTION_CONNECT`.
