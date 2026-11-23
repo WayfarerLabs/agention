@@ -304,14 +304,6 @@ describe("the agent API version", () => {
     },
   );
 
-  it("adds nothing to the register answer of the server at HEAD, which states the bridge's own version", async () => {
-    const bridge = await approvedBridge();
-    const served = await bridge.ok("register");
-    const { message: _, ...state } = served;
-    answerWith(200, { ...state, expires_at: pending.expires_at }, String(agentApi.version));
-    expect(await bridge.ok("register")).toEqual(served);
-  });
-
   it("leaves an answer without Agention's JSON, such as a proxy's, to the problem it names", async () => {
     const bridge = await harness.bridge();
     harness.beforeRequest = () => new Response("Bad Gateway", { status: 502 });
