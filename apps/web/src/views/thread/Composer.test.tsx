@@ -899,19 +899,64 @@ describe("editing", () => {
     ...range(51, 60).map((seq) => message(seq)),
   ];
 
+  // holdAsks holds the load of the message at seq, an ask's off the page,
+  // until the test lets it arrive.
+  function holdAsks(state: State, seq: number): () => void {
+    let arrive = () => {};
+    const arrived = new Promise<void>((resolve) => (arrive = resolve));
+    page.api.on("GET", path, async (call) => {
+      if (call.url.searchParams.get("after") === String(seq - 1)) {
+        await arrived;
+      }
+      return page.threadReply(state, call);
+    });
+    return arrive;
+  }
+
+  // changingWhileStale starts a change of the answers message 3 carries
+  // while a message is under way, the box emptied after it, and gives a way
+  // to answer that write as stale, with the missed messages landed, and to
+  // let the asks arrive; later writes land.
+  async function changingWhileStale(state: State): Promise<{
+    stale: (missed: Message[]) => Promise<void>;
+    arrive: () => void;
+  }> {
+    const arrive = holdAsks(state, 1);
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(state.thread.last_seq + 1),
+    );
+    fireEvent.change(textBox(), { target: { value: "One more thing." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.change(textBox(), { target: { value: "" } });
+    fireEvent.click(option(3, "Change answer"));
+    await waitFor(() => expect(textBox()).toHaveProperty("disabled", true));
+    const stale = async (missed: Message[]) => {
+      const replaced = new Map(missed.map((each) => [each.replaces, each.seq]));
+      state.thread = { ...state.thread, last_seq: missed.at(-1)?.seq ?? state.thread.last_seq };
+      state.messages = [
+        ...state.messages.map((each) =>
+          replaced.has(each.seq)
+            ? { ...each, live: false, replaced_by: replaced.get(each.seq) }
+            : each,
+        ),
+        ...missed,
+      ];
+      answer(failure("stale", "other messages landed after the latest one you saw", { missed }));
+      await screen.findByRole("alert");
+    };
+    return { stale, arrive };
+  }
+
   it("holds the composer, Change answer and the other asks while the asks it changes load", async () => {
     const state = await page.openWith(
       beforeThePage(message(50, { asks: [ask({ number: 2, question: "And the cache?" })] })),
       { unread: 59, ...openAsks([2, 50]) },
     );
-    let arrive = () => {};
-    const arrived = new Promise<void>((resolve) => (arrive = resolve));
-    page.api.on("GET", path, async (call) => {
-      if (call.url.searchParams.get("after") === "0") {
-        await arrived;
-      }
-      return page.threadReply(state, call);
-    });
+    const arrive = holdAsks(state, 1);
     fireEvent.click(option(3, "Change answer"));
     await waitFor(() => expect(textBox()).toHaveProperty("disabled", true));
     expect(sendButton()).toHaveProperty("disabled", true);
@@ -936,6 +981,182 @@ describe("editing", () => {
     await screen.findByRole("alert");
     expect(stagedLine()).toBeNull();
     expect(textBox().value).toBe("");
+  });
+
+  it("stages nothing when a stale write learns, while the asks it changes load, that the message was replaced", async () => {
+    const state = await page.openWith(beforeThePage(message(50)), { unread: 59 });
+    const { stale, arrive } = await changingWhileStale(state);
+    // Another device replaced message 3 meanwhile.
+    await stale([operatorMessage(61, { replaces: 3, answers: [answerTo({ picks: [0] })] })]);
+    arrive();
+    await waitFor(() => expect(textBox()).toHaveProperty("disabled", false));
+    expect(stagedLine()).toBeNull();
+    expect(textBox().value).toBe("");
+  });
+
+  it("stages nothing when a refresh shows, while the asks it changes load, that the message was replaced", async () => {
+    // The thread is read to its end, so the page shows its latest messages:
+    // the ask is on message 5, off the page, and the answer on message 15.
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    const state = await page.openWith(
+      [
+        ...range(1, 4).map((seq) => message(seq)),
+        message(5, {
+          asks: [ask({ open: false, answer: { seq: 15, declined: false, ...sqlite } })],
+        }),
+        ...range(6, 14).map((seq) => message(seq)),
+        operatorMessage(15, {
+          text: "Small data.",
+          answers: [answerTo({ ask_seq: 5, ...sqlite })],
+        }),
+        ...range(16, 60).map((seq) => message(seq)),
+      ],
+      { unread: 0 },
+    );
+    const arrive = holdAsks(state, 5);
+    fireEvent.click(option(15, "Change answer"));
+    await waitFor(() => expect(textBox()).toHaveProperty("disabled", true));
+    // Another device replaced message 15 meanwhile, which a refresh shows.
+    state.thread = { ...state.thread, last_seq: 61 };
+    state.messages = [
+      ...state.messages.map((each) =>
+        each.seq === 15 ? { ...each, live: false, replaced_by: 61 } : each,
+      ),
+      operatorMessage(61, { text: "Elsewhere.", replaces: 15 }),
+    ];
+    fireEvent.focus(window);
+    await screen.findByText("Elsewhere.");
+    arrive();
+    await waitFor(() => expect(textBox()).toHaveProperty("disabled", false));
+    expect(stagedLine()).toBeNull();
+    expect(textBox().value).toBe("");
+  });
+
+  it("stages nothing when a refresh shows, while the asks it changes load, the message replaced by one beyond the page", async () => {
+    const state = await page.openWith(beforeThePage(message(50)), { unread: 59 });
+    const arrive = holdAsks(state, 1);
+    fireEvent.click(option(3, "Change answer"));
+    await waitFor(() => expect(textBox()).toHaveProperty("disabled", true));
+    // Another device replaced message 3 with 61, which the page, showing 2
+    // to 51, learns only from message 3 itself.
+    state.thread = { ...state.thread, last_seq: 61 };
+    state.messages = [
+      ...state.messages.map((each) =>
+        each.seq === 3 ? { ...each, live: false, replaced_by: 61 } : each,
+      ),
+      operatorMessage(61, { text: "Elsewhere.", replaces: 3 }),
+    ];
+    fireEvent.focus(window);
+    await waitFor(() =>
+      expect(document.getElementById("message-3")?.classList.contains("replaced")).toBe(true),
+    );
+    arrive();
+    await waitFor(() => expect(textBox()).toHaveProperty("disabled", false));
+    expect(stagedLine()).toBeNull();
+    expect(textBox().value).toBe("");
+  });
+
+  it.each([
+    ["loaded off the page", 1, 2],
+    ["shown on the page by a refresh", 2, 1],
+  ])(
+    "stages a change without the answer to an ask whose message, %s, was revised beyond the page while the asks load",
+    async (_, revised, kept) => {
+      const sqlite = { picks: [0], labels: ["SQLite"] };
+      // Ask 1 is on message 1, before the page; ask 2 on message 2, on it.
+      const state = await page.openWith(
+        [
+          message(1, {
+            asks: [ask({ open: false, answer: { seq: 3, declined: false, ...sqlite } })],
+          }),
+          message(2, {
+            asks: [ask({ number: 2, open: false, answer: { seq: 3, declined: false, ...sqlite } })],
+          }),
+          operatorMessage(3, {
+            text: "Small data.",
+            answers: [answerTo(sqlite), answerTo({ ask: 2, ask_seq: 2, ...sqlite })],
+          }),
+          ...range(4, 60).map((seq) => message(seq)),
+        ],
+        { unread: 59 },
+      );
+      const arrive = holdAsks(state, 1);
+      page.api.on("POST", `${path}/messages`, written(62));
+      fireEvent.click(option(3, "Change answer"));
+      await waitFor(() => expect(textBox()).toHaveProperty("disabled", true));
+      // The agent revised the ask's message with 61, beyond the page.
+      state.thread = { ...state.thread, last_seq: 61 };
+      state.messages = [
+        ...state.messages.map((each) =>
+          each.seq === revised ? { ...each, live: false, replaced_by: 61 } : each,
+        ),
+        message(61, { replaces: revised, asks: [ask({ number: 3 })] }),
+      ];
+      if (revised === 2) {
+        fireEvent.focus(window);
+        await waitFor(() =>
+          expect(document.getElementById("message-2")?.classList.contains("replaced")).toBe(true),
+        );
+      }
+      arrive();
+      await waitFor(() => expect(textBox().value).toBe("Small data."));
+      expect(stagedLine()?.querySelector(".dropped")).not.toBeNull();
+      expect(await send()).toMatchObject({ answers: [{ ask: kept, picks: [0] }], replaces: 3 });
+      expect(page.bodies()[0]?.answers).toHaveLength(1);
+    },
+  );
+
+  it("stages a change without the answer to an ask a stale write learns was revised while the asks load", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    // Ask 1 is on message 1, before the page; ask 2 on message 2, on it.
+    const state = await page.openWith(
+      [
+        message(1, {
+          asks: [ask({ open: false, answer: { seq: 3, declined: false, ...sqlite } })],
+        }),
+        message(2, {
+          asks: [ask({ number: 2, open: false, answer: { seq: 3, declined: false, ...sqlite } })],
+        }),
+        operatorMessage(3, {
+          text: "Small data.",
+          answers: [answerTo(sqlite), answerTo({ ask: 2, ask_seq: 2, ...sqlite })],
+        }),
+        ...range(4, 60).map((seq) => message(seq)),
+      ],
+      { unread: 59 },
+    );
+    const { stale, arrive } = await changingWhileStale(state);
+    // The agent revised ask 1 meanwhile.
+    await stale([message(61, { replaces: 1, asks: [ask({ number: 3 })] })]);
+    arrive();
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    // Ask 1's answer stays with message 3, and focus moves to ask 2's card.
+    expect(stagedLine()?.querySelector(".dropped")).not.toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(card(2)));
+    // The change is what the draft now holds, so it goes once they are read.
+    fireEvent.click(screen.getByRole("button", { name: "Mark these read and send again" }));
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({
+      answers: [{ ask: 2, picks: [0] }],
+      replaces: 3,
+      seen_through: 61,
+    });
+    expect(page.bodies()[1]?.answers).toHaveLength(1);
+  });
+
+  it("stages an edit when a stale write learns, while the asks load, that every ask the change answers was revised", async () => {
+    const state = await page.openWith(beforeThePage(message(50)), { unread: 59 });
+    const { stale, arrive } = await changingWhileStale(state);
+    // The agent revised ask 1, the only one message 3 answers, meanwhile.
+    await stale([message(61, { replaces: 1, asks: [ask({ number: 2 })] })]);
+    arrive();
+    await waitFor(() => expect(textBox().value).toBe("Not now."));
+    expect(stagedLine()).not.toBeNull();
+    expect(stagedAnswers()).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Mark these read and send again" }));
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({ text: "Not now.", replaces: 3, seen_through: 61 });
+    expect(page.bodies()[1]).not.toHaveProperty("answers");
   });
 });
 

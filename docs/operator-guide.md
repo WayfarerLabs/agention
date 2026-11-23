@@ -564,7 +564,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     your answers, opens again the card of every ask that message answered that is still live, with
     your answers, moves you to the first, unfolding the archived messages when it is among them, and
     puts that message's text and details in their boxes. An answer to an ask the agent since revised
-    or retracted stays with that message, and the line above the box says so.
+    or retracted stays with that message, and the line above the box says so. When the asks it
+    changes have to load first, and the page learns meanwhile that the message was replaced, nothing
+    is staged.
   - **Edit** in the options of your other messages changes their text and details, and drops their
     answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
     whole message, so they need empty boxes with nothing staged. A replaced message folds into one

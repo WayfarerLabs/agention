@@ -58,6 +58,7 @@ import {
   blank,
   type Staged,
   type StagedAnswer,
+  staleChange,
   type ThreadTarget,
   useWriter,
   wordsFailure,
@@ -349,6 +350,16 @@ function ThreadPage({
     [reach, refresh],
   );
   const writer = useWriter(target, written);
+  // The messages the page shows as they stand, which a change judges once its
+  // asks load, with those a stale write missed, which the writer gives exactly
+  // (missedNow). Unlike the composer's refs, this one is set in a layout
+  // effect, as each refresh commits, not after the browser paints, since the
+  // change reads it after a wait that a refresh can end; a refresh can still
+  // land one commit too late to count.
+  const shownNow = useRef(messages);
+  useLayoutEffect(() => {
+    shownNow.current = messages;
+  }, [messages]);
   const unread = useAction();
   const archive = useAction();
   // The draft this browser kept for the thread, which the composer opens
@@ -640,18 +651,39 @@ function ThreadPage({
         },
       ];
     });
-    const [first] = staging;
-    if (first === undefined) {
+    if (staging.length === 0) {
       return;
     }
-    replace(message, {
+    // What the page learned while the asks loaded, as the page refreshed, a
+    // stale write missed it or the asks arrived, judges the change as it
+    // would one staged then: a message that replaced this one drops it, and
+    // one that revised an ask drops its answer. A message no longer live was
+    // replaced, by a message the page may not hold, since a page shows only
+    // part of the thread, so it counts as replaced too.
+    const change: Staged = {
       kind: "answers",
       answers: staging,
       replaces: message.seq,
       ...(dropped.length === 0 ? {} : { dropped }),
-    });
+    };
+    const learned = [...shownNow.current, ...(writer.missedNow() ?? []), ...asking];
+    const judged = staleChange(change, [
+      ...learned,
+      ...learned.filter((each) => !each.live).map((each) => ({ replaces: each.seq })),
+    ]);
+    const left = judged === undefined ? change : judged.left;
+    if (left === undefined) {
+      return;
+    }
+    replace(message, left);
+    // With no live ask left, the change is an edit of the message's text.
+    const cards = left.kind === "answers" ? left.answers : [];
+    const [first] = cards;
+    if (first === undefined) {
+      return;
+    }
     // A card among the archived messages shows once they unfold.
-    if (staging.some((each) => each.seq <= marks.archived_through)) {
+    if (cards.some((each) => each.seq <= marks.archived_through)) {
       setUnfolded(true);
     }
     focusOn({ seq: first.seq, ask: first.ask });
