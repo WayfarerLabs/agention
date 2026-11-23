@@ -59,6 +59,30 @@ export async function agentToken(key: SessionKey, origin: string, now: number): 
     .sign(key.privateKey);
 }
 
+// olderServerRefusal is the problem a server at origin is refused for when it
+// states the agent API version given, older than the bridge's, or none. The
+// server and the bridge are released on lines of their own, so it names agent
+// API versions, and the server release that fixes it is the newest, which
+// serves every released bridge.
+export function olderServerRefusal(origin: string, version: string | undefined): BridgeError {
+  const stated = agentApiVersion.safeParse(version);
+  // A missing version reads as 1, but the refusal says it is missing, which
+  // tells the operator how old the server is.
+  const speaks =
+    version === undefined
+      ? "states no agent API version, as releases before 0.3.0 do"
+      : stated.success
+        ? `speaks version ${stated.data} of the agent API`
+        : "states no agent API version this bridge can read";
+  return operatorProblem(
+    `The Agention server at ${origin} ${speaks}, and this session's bridge, ` +
+      `agention-mcp ${packageJson.version}, speaks version ${agentApi.version}, which that ` +
+      "server does not serve",
+    "upgrade the Agention server to its newest release, and restart this session, resuming " +
+      "it to keep this conversation",
+  );
+}
+
 export interface ApiRequest {
   method: "GET" | "POST";
   // The path below /api/agent.
@@ -388,30 +412,13 @@ export class AgentApi {
   // anything uses the answer: such a server ignores what it does not know of
   // a request, so a field the bridge sent could go missing without a word. A
   // newer server's answers are used: it serves this bridge's version, or
-  // refuses it in words of its own. It returns the version accepted. The
-  // server and the bridge are released on lines of their own, so the
-  // refusal names agent API versions, and the server release that fixes it
-  // is the newest, which serves every released bridge.
+  // refuses it in words of its own. It returns the version accepted.
   #requireVersion(version: string | undefined): bigint {
     const stated = agentApiVersion.safeParse(version);
     if (stated.success && stated.data >= agentApi.version) {
       return stated.data;
     }
-    // A missing version reads as 1, but the refusal says it is missing, which
-    // tells the operator how old the server is.
-    const speaks =
-      version === undefined
-        ? "states no agent API version, as releases before 0.3.0 do"
-        : stated.success
-          ? `speaks version ${stated.data} of the agent API`
-          : "states no agent API version this bridge can read";
-    throw operatorProblem(
-      `The Agention server at ${this.origin} ${speaks}, and this session's bridge, ` +
-        `agention-mcp ${packageJson.version}, speaks version ${agentApi.version}, which that ` +
-        "server does not serve",
-      "upgrade the Agention server to its newest release, and restart this session, resuming " +
-        "it to keep this conversation",
-    );
+    throw olderServerRefusal(this.origin, version);
   }
 
   // send makes one request through the origin's agent, which never follows a
