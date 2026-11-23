@@ -124,7 +124,7 @@ compatibility gates.
 last run. A change to the agent API version is a feature or fix of shared code, which makes
 release-please refresh the agent release pull request and CI run the gate again; the residue is the
 minute between such a merge and that refresh, which the maintainer closes by merging release pull
-requests only once they are current.
+requests only once they are current, as CONTRIBUTING "Releasing" says.
 
 When the agent API changes, CONTRIBUTING has the maintainer merge the agent release pull request as
 soon as the server's release is published, so the window in which the sessions view asks for a
@@ -141,7 +141,11 @@ plugin that is not yet released lasts minutes (U4).
 
 ### Migration
 
-0.6.0 released under the current configuration on 2026-11-22 (`v0.6.0`).
+0.6.0 released under the current configuration on 2026-11-23, UTC (`v0.6.0`). No release pull
+request merges from then until the release-lines pull request does, so 0.6.0 stays the last release
+covering all three (R4); an open one is harmless, since the server configuration's component keeps
+the release branch's name and takes it over. A release needed sooner would move the migration's
+starting point, and is an amendment of R4 for the operator.
 
 1. The operator creates `agention-vX.Y.Z` and `agention-mcp-vX.Y.Z` on the commit of every `v*`
    release, 0.1.0 to 0.6.0, since each published both packages. That starts no run while the
@@ -149,10 +153,12 @@ plugin that is not yet released lasts minutes (U4).
    does not yet cover them. The 0.6.0 pair seeds each line's history, so release-please neither
    walks back 500 commits nor compares the first changelog against a tag that does not exist (F6),
    and the rest let every gate read one prefix per line, never the legacy `v*` beside it.
-2. The operator extends the tag ruleset and the npm environment's tag rule to `agention-v*` and
-   `agention-mcp-v*`, so only the release App can create them and only they can publish, and drops
-   `v*` from the npm environment once the release workflow no longer triggers on it. The ruleset
-   keeps protecting `v*`.
+2. The operator extends both tag rulesets to `agention-v*` and `agention-mcp-v*`: the one that
+   restricts creation to the release App, and the one that makes version tags immutable (no update
+   or deletion, no bypass), so a tag stays where the App put it and a moved tag cannot start a
+   publish. They also extend the npm environment's tag rule, so only those tags can publish, and
+   drop `v*` from it once the release workflow no longer triggers on it. Both rulesets keep
+   protecting `v*`.
 3. The two configurations are tried with release-please's dry run, pinned to the version the release
    action bundles and installed from a lock, against a scratch branch of fixture commits
    (server-only, agent-only, shared, docs-only, and one that changes no shipped path), since the
@@ -187,9 +193,11 @@ a newer bridge's call is refused before anything is recorded or done (proved at 
 agent API tests). Servers before 0.3.0, current for two days, state no version, so they act on a
 call before the bridge refuses their answer: a new key's registration is recorded pending, and
 expires unapproved within the hour; a session already approved there has its call carried out,
-without the fields that server does not know, and then reported as failed. No change to the bridge
-can prevent either, since the server acts first. The operator guide says so, narrowing its statement
-that any older server leaves a registration waiting to servers before 0.3.0.
+without the fields that server does not know, and then reported as failed. The bridge could prevent
+both by checking the server's version once when it starts, before its first call, with a request
+that changes nothing; that costs a request per bridge start, and code and tests, for three releases
+current two days. Without it, the operator guide says so, narrowing its statement that any older
+server leaves a registration waiting to servers before 0.3.0. The operator decides which.
 
 ### The server compatibility gate (C5)
 
@@ -243,8 +251,8 @@ as 1, so this covers them all (U2).
   unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
   catalog's ref becomes one more thing each release stamps. Not needed for this effort's
   requirements; a later change can adopt it.
-- **A version check before register**: it would spare only servers before 0.3.0 a pending
-  registration that expires within the hour, at the cost of a request on every registration.
+- **A version check when the bridge starts**: see "Servers before 0.3.0", which leaves it to the
+  operator.
 - **A separate plugin version**: the FRD excludes it.
 
 ## Documentation

@@ -8,6 +8,8 @@
   LLD, permanent docs and tests, and checks its boxes in its own pull request, citing it. Each
   delivery's docs describe only what is true once it merges: the split's own consequences (the tags,
   the refusals' wording) land with the split, and U1's rule with the signal that makes it true.
+- No release pull request merges until delivery 2 does, so 0.6.0 stays the last release covering all
+  three (R4, HLA Migration).
 - Operator steps sit inside the delivery that needs them; the effort lead asks for each through
   Agention when it can be acted on, and checks it after.
 
@@ -43,9 +45,10 @@ edit to any moved module, and `scripts/check.sh` passes.
 - [ ] Operator step: `agention-vX.Y.Z` and `agention-mcp-vX.Y.Z` created on the commit of every `v*`
       release from 0.1.0 to 0.6.0, before the next step (HLA Migration 1). Checked by
       `git ls-remote --tags` against the `v*` tags' commits.
-- [ ] Operator step: the tag ruleset and the npm environment's tag rule extended to `agention-v*`
-      and `agention-mcp-v*` (HLA Migration 2). Checked by reading the ruleset through the API where
-      the token allows, otherwise by the operator's confirmation.
+- [ ] Operator step: both tag rulesets (creation restricted to the release App; version tags
+      immutable) and the npm environment's tag rule extended to `agention-v*` and `agention-mcp-v*`
+      (HLA Migration 2). Checked by reading both rulesets through the API, and the environment by
+      the operator's confirmation.
 - [ ] Dry run (HLA Migration 3) on a scratch branch the effort lead pushes and deletes: each fixture
       commit releases the lines the HLA says, and each line's release pull request is its own.
 - [ ] Two release-please configurations and manifests at 0.6.0, the agent line's changelog, its own
@@ -61,8 +64,9 @@ edit to any moved module, and `scripts/check.sh` passes.
       version and one stating none, and of the older-bridge refusal as bridges relay it.
 - [ ] Permanent docs: ADR 0005 and ADR 0001's status; `docs/architecture.md` "Versions", "Generated
       plugins", "Agent bridge" and "HTTP API"; CONTRIBUTING "Releasing" (two pull requests, the
-      merge order when the agent API changes, U4), "Checking a release", "Checks", "The agent API",
-      "One-time setup"; SECURITY.md "Supported versions"; the operator guide's "Installing the
+      merge order when the agent API changes, U4, merging a release pull request only once it is
+      current), "Checking a release", "Checks", "The agent API", "One-time setup" (both tag rulesets
+      as they exist); SECURITY.md "Supported versions"; the operator guide's "Installing the
       plugins" and "Upgrading" (the new tags, the server and the plugin as separate steps, the
       update steps on each host with the Codex correction, F8, F9) and its version paragraph (the
       new refusal; servers before 0.3.0, C4); README "Status"; `docs/development-context.md`; the
