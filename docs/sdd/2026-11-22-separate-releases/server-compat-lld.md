@@ -16,11 +16,9 @@ asserts, how it reads each release's database for C4, where it lives, and its ru
 
 ## A finding: what an approved session meets before 0.3.0
 
-FRD C3 and the HLA ("Servers before 0.3.0") say that against a server before 0.3.0 an approved
-session's call is carried out and reported as failed, and the operator guide
-(`docs/operator-guide.md:1315-1319`), `docs/architecture.md:1011-1014` and ADR 0005
-(`docs/adrs/0005-separate-release-lines.md:84-85`) say so too. At HEAD that holds only for a bridge
-process that already holds its grant when it meets such a server:
+FRD C3 says that against a server before 0.3.0 an approved session's call is carried out and
+reported as failed, and the HLA and delivery 3's docs first said so too. At 2bd3ed3 that holds only
+for a bridge process that already holds its grant when it meets such a server:
 
 - Every tool but `register` acts under the names the operator granted, which the bridge learns only
   from a registration answer it accepted (`apps/bridge/src/session.ts:140-155`, `#learn` at
@@ -39,8 +37,10 @@ pending registration for a new key, or a last-seen stamp for an approved one. A 
 only when a bridge that accepted its grant from a server serving it then meets a server before 0.3.0
 at the same origin within the same process: the operator replacing the server with a release before
 0.3.0, such as by restoring a backup there, while the session runs. The known limit is real but
-narrower than the documents state. The FRD is the operator's and the HLA the effort lead's; this
-design does not depend on how they word it (Driving the bridge, Approved sessions).
+narrower than first stated. Delivery 3 (agention#90) narrowed the operator guide
+(`docs/operator-guide.md:1315-1320`), `docs/architecture.md` "Agent bridge" and ADR 0005 to say so
+(7c75d54), and the HLA with them (da07f20); the FRD's C3 is the operator's to amend. This design
+does not depend on how C3 is worded (Driving the bridge, Approved sessions).
 
 ## Which releases
 
@@ -197,16 +197,16 @@ version 2 from 0.4.0.
 In the probe, against both releases, every tool failed in plain text with one and the same refusal,
 naming the statement each release made.
 
-**Approved sessions.** The gate drives unapproved sessions only. The HLA's reason, that released
-servers approve only through a passkey, is not the reason: a software authenticator exists
-(`apps/server/src/auth/test-authenticator.ts`), and with each release's `agention passkey-link` and
-web API it could approve the key there. The reason is that approval changes nothing a session that
-starts against an older server sends or is told (the finding above): every call is the same
-registration check, refused alike. From 0.3.0 the release refuses the version before authenticating
-anything (`requireServedAgentApiVersion` in `apps/server/src/http/agent-api-version.ts` at `v0.4.0`,
-lines 17-44, mounted first at `apps/server/src/http/agent-api.ts` line 64), so approval changes
-nothing there either. Driving approval would tie the suite to each release's passkey and approval
-routes for no answer it does not already check.
+**Approved sessions.** The gate drives unapproved sessions only. Passkeys are not what stops it: a
+software authenticator exists (`apps/server/src/auth/test-authenticator.ts`), and with each
+release's `agention passkey-link` and web API it could approve the key there. The reason is that
+approval changes nothing a session that starts against an older server sends or is told (the finding
+above): every call is the same registration check, refused alike. From 0.3.0 the release refuses the
+version before authenticating anything (`requireServedAgentApiVersion` in
+`apps/server/src/http/agent-api-version.ts` at `v0.4.0`, lines 17-44, mounted first at
+`apps/server/src/http/agent-api.ts` line 64), so approval changes nothing there either. Driving
+approval would tie the suite to each release's passkey and approval routes for no answer it does not
+already check.
 
 The carried-out case needs a bridge that accepted its grant from a server serving it, then meets a
 release before 0.3.0 at the same origin: a front of the suite's own switching from one to the other
@@ -307,6 +307,5 @@ The plan box's, with what each gains:
 
 And, since the change outdates them: the header comments of `scripts/check.sh` (lines 7-15) and of
 `scripts/check-agent-compatibility.sh`, the `fetch-depth` comment in `.github/workflows/ci.yml`
-(lines 29-31), and the comment on `BridgeHarness.process` once its transport moves. If the effort
-lead narrows the finding above, the operator guide, `docs/architecture.md` and ADR 0005 passages it
-cites change with that ruling, wherever it lands.
+(lines 29-31), and the comment on `BridgeHarness.process` once its transport moves. The finding
+above changed no docs of this delivery's: delivery 3 carries it.
