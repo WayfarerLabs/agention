@@ -1,30 +1,23 @@
 import {
   chmodSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
-  realpathSync,
-  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { testDirectory } from "../test-directory.ts";
 import { Database, DatabaseOpenError, type DatabaseOpenReason } from "./database.ts";
 import { applicationId, migrations } from "./migrations.ts";
 
 let root: string;
 
 beforeEach(() => {
-  root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-database-")));
-});
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  root = testDirectory("database");
 });
 
 function mode(target: string): number {
