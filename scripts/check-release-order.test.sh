@@ -22,7 +22,6 @@ set -euo pipefail
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -55,8 +54,6 @@ new_repo() {
     git -C "$repo" config user.email fixture@example.invalid
     mkdir -p "$repo/scripts" "$repo/packages/api/src"
     cp "$SCRIPT_DIR/check-release-order.sh" "$SCRIPT_DIR/_common.sh" "$repo/scripts/"
-    ln -s "$REPO_ROOT/node_modules" "$repo/node_modules"
-    printf 'node_modules\n' >"$repo/.gitignore"
     printf '{ ".": "%s" }\n' "$2" >"$repo/.release-please-manifest.agent.json"
     contract "$repo" 3 1
     git -C "$repo" add -A
@@ -127,7 +124,21 @@ git -C "$repo" checkout -q -b older HEAD~1
 git -C "$repo" tag agention-v0.9.0
 git -C "$repo" checkout -q main
 contract "$repo" 3 1
-expect fail "the newest server by version, not by name or date, is the one read" "$repo" "0.9.0 0.10.0"
+expect fail "the newest server by version order, not name order, is the one read" "$repo" "0.9.0 0.10.0"
+
+repo="$(new_repo prerelease 1.1.0)"
+git -C "$repo" tag agention-v1.0.0
+contract "$repo" 4 4
+git -C "$repo" tag agention-v1.0.0-rc.1
+contract "$repo" 3 1
+expect pass "a release sorts above its own prerelease" "$repo" "1.0.0 1.0.0-rc.1"
+
+repo="$(new_repo reformatted 0.7.0)"
+git -C "$repo" tag agention-v0.6.0
+printf 'export const agentApi = {\n  version: 3,\n  oldest: 1,\n} as const;\n' \
+    >"$repo/packages/api/src/agent-api.ts"
+git -C "$repo" commit -q -am "agent API reformatted"
+expect fail "an agentApi line written another way fails rather than reading a wrong version" "$repo" "0.6.0"
 
 repo="$(new_repo unreachable 0.7.0)"
 git -C "$repo" checkout -q -b server
