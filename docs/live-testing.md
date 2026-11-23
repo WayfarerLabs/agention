@@ -91,15 +91,15 @@ with each other or with what the product does, the disagreement is the finding.
   said answers are pushed, reading the thread and acting on it; push starting after an approval
   given while the agent waits at its prompt; a server restart recovered from; push surviving
   `/clear`; a woken turn longer than a minute with no lapse line; a message written during a turn,
-  and when its notice shows; `--bare`, where no hook runs and no host directory appears (its
-  `register` answer needs an API key, since `--bare` refuses a sign-in; interactive Claude Code
-  never runs in an untrusted folder); and `/exit` leaving no watcher running, and its host directory
-  removed when a later Claude Code session's bridge first looks for its Claude Code process; whether
-  a turn ended by an interrupt or an API error re-arms the watcher; `claude -p`, told it checks; a
-  host name changed mid-session, with a lapse line until a new turn's watcher marks the new name's
-  directory, and push there after; two Agention bridges under one Claude Code each pushing its own
-  session. On Codex, the `register` answer saying answers reach the agent when it checks, and no
-  background wait (`docs/architecture.md` "Agent bridge" and "Generated plugins";
+  and when its notice shows; `--bare`, where no hook runs and no host directory appears, and, with
+  an API key, since `--bare` refuses a sign-in, its `register` answer saying it checks (interactive
+  Claude Code never runs in an untrusted folder); and `/exit` leaving no watcher running, and its
+  host directory removed when a later Claude Code session's bridge first looks for its Claude Code
+  process; whether a turn ended by an interrupt or an API error re-arms the watcher; `claude -p`,
+  told it checks; a host name changed mid-session, with a lapse line until a new turn's watcher
+  marks the new name's directory, and push there after; two Agention bridges under one Claude Code
+  each pushing its own session. On Codex, the `register` answer saying answers reach the agent when
+  it checks, and no background wait (`docs/architecture.md` "Agent bridge" and "Generated plugins";
   `docs/operator-guide.md` "Push on Claude Code").
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,

@@ -1126,9 +1126,10 @@ answer tells it to check instead. Push comes back on its own once the server ser
 version again, and after a revocation once the agent registers again and you approve it.
 
 The hook starts again whenever you send the agent a prompt, when a turn ends, and when a turn ends
-in an error from the model's API, so a turn you interrupt, or one the API fails, leaves push
-running. Each start lasts a day, so a session left at its prompt for more than a day after its last
-prompt or turn is pushed only after its next turn ends. A message you write while the agent works
+in an error from the model's API, so a turn the API fails leaves push running, and so does a turn
+you interrupt, unless a notice already woke the agent during it; then push starts again at your next
+prompt. Each start lasts a day, so a session left at its prompt for more than a day after its last
+prompt or turn is pushed again once you next prompt it. A message you write while the agent works
 shows when the agent next can take it in, which may be in the middle of that turn rather than after
 it. If the bridge itself restarts, such as when you reconnect it with `/mcp`, push resumes at the
 agent's next call to Agention, not before. Run one Agention bridge per Claude Code session: with

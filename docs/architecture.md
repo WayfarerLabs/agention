@@ -1420,23 +1420,22 @@ offers a plugin no way to wake an open session: `hooks.json`, in Claude Code's o
 watcher, `agention-watcher.sh`, copied to the plugin's `hooks/` with its executable bit; the
 watcher's tests stay out. `hooks.json` runs the watcher as a command hook with `asyncRewake` and a
 timeout of 86,400 seconds on `SessionStart`, on `UserPromptSubmit`, and on `Stop` and `StopFailure`,
-which Claude Code 2.1.330 lists among its hook events, so that a turn ended by an API error leaves
-one running too where Claude Code runs that hook. The watcher is POSIX shell, with no network and no
-key access, and sends its shell's own errors nowhere: only a notice ever reaches stderr. It exits 0
-at once without `AGENTION_URL`, outside an interactive session in the terminal, which
-`CLAUDE_CODE_ENTRYPOINT` being exactly `cli` marks (`claude -p` gives `sdk-cli`), without a positive
-whole `CLAUDE_PID` of at most 10 digits, which Claude Code sets for hooks without documenting it,
-when that process is gone, or when `uname -n` is not a host name the bridge takes. Otherwise it
-creates the host directory with a umask of 077, applies the private-file rule to it and to every
-directory above its real path with `find`, refusing with exit 1, writes the `hooked` mark in place
-if it is missing, and takes the `watcher` lock by renaming a file holding its pid over it, so the
-newest watcher waits and the one it replaced exits 0. Each second it checks that its host process
-runs, that no other watcher holds the lock, and whether any `wake-*` file is there; it takes each by
-renaming it to its own name, prints it to stderr and removes it, and once it has printed one, exits
-2, which wakes Claude Code. A notice it cannot print goes back under its name, unless the bridge has
-written a newer one, and the watcher exits 1. Every other outcome exits 0 or 1. A wake file written
-while no watcher runs, during a turn, is taken by the watcher the turn's end starts. Its tests run
-it under `/bin/sh` and under `bash --posix`.
+so that a turn ended by an API error leaves one running too, as it does on Claude Code 2.1.330. The
+watcher is POSIX shell, with no network and no key access, and sends its shell's own errors nowhere:
+only a notice ever reaches stderr. It exits 0 at once without `AGENTION_URL`, outside an interactive
+session in the terminal, which `CLAUDE_CODE_ENTRYPOINT` being exactly `cli` marks (`claude -p` gives
+`sdk-cli`), without a positive whole `CLAUDE_PID` of at most 10 digits, which Claude Code sets for
+hooks without documenting it, when that process is gone, or when `uname -n` is not a host name the
+bridge takes. Otherwise it creates the host directory with a umask of 077, applies the private-file
+rule to it and to every directory above its real path with `find`, refusing with exit 1, writes the
+`hooked` mark in place if it is missing, and takes the `watcher` lock by renaming a file holding its
+pid over it, so the newest watcher waits and the one it replaced exits 0. Each second it checks that
+its host process runs, that no other watcher holds the lock, and whether any `wake-*` file is there;
+it takes each by renaming it to its own name, prints it to stderr and removes it, and once it has
+printed one, exits 2, which wakes Claude Code. A notice it cannot print goes back under its name,
+unless the bridge has written a newer one, and the watcher exits 1. Every other outcome exits 0
+or 1. A wake file written while no watcher runs, during a turn, is taken by the watcher the turn's
+end starts. Its tests run it under `/bin/sh` and under `bash --posix`.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a
