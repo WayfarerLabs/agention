@@ -3,11 +3,17 @@ import { needsYou, rowLinks } from "./ThreadRow.tsx";
 
 // The thread list's keyboard shortcuts. The row selected is the row whose
 // link has focus, so moving the selection moves focus, which a screen reader
-// follows, and the focus ring shows it; with none selected, moving selects
-// the first row there is to move to.
+// follows, and the focus ring shows it. With focus on no row, side by side,
+// the row of the thread open beside the list is selected, so moving starts
+// from it and opens nothing; with none selected, moving selects the first row
+// there is to move to.
 
-const selected = (links: HTMLAnchorElement[]) =>
-  links.findIndex((link) => link === document.activeElement);
+function selected(links: HTMLAnchorElement[]): number {
+  const focused = links.findIndex((link) => link === document.activeElement);
+  return focused !== -1
+    ? focused
+    : links.findIndex((link) => link.getAttribute("aria-current") === "page");
+}
 
 // step moves the selection by one row, stopping at either end.
 function step(by: 1 | -1): void {

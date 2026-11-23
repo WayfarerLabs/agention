@@ -346,6 +346,18 @@ comes back to that page afterwards.
 The web UI is laid out for a phone first and follows the browser's light or dark setting. Every view
 refreshes itself every 10 seconds while it is visible, and as soon as you return to it.
 
+On a screen at least 1024 pixels wide at the browser's usual text size, a desktop's, **Threads**
+shows the thread list and the thread you open side by side, the list on the left; on a narrower
+screen, or with text enlarged until they no longer fit, it shows one at a time, as on a phone.
+Resizing the window across that width keeps the thread you have open as it is, with anything you
+were writing or attaching. Side by side, each thread keeps its own address, so **Back** and
+**Forward** move between the threads you opened, and back to the list with none open. The list stays
+as you set it, its filters, order, folds and scroll, as threads open beside it and as you go back
+and forward; the row of the thread open is outlined, and choosing it again takes you to the thread;
+and choosing another order or filter keeps the thread open. The thread scrolls with the page while
+the list stays in view, scrolling on its own. Going back to the list from a thread, with its
+**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left.
+
 Where a thread is, its agent, its session and its topic, shows each part behind a small badge: **A**
 for the agent, **S** for the session and **T** for the topic; holding the pointer over a badge names
 it. A topic is a name like an agent's or a session's, such as `auth`, and belongs to its session:
@@ -833,11 +845,14 @@ anywhere to list them all.
 
 Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does.
 Moving through the list moves focus from row to row, so a screen reader reads each row as it is
-reached. A screen reader in its browse mode keeps single keys for its own navigation, so the
-shortcuts act only once it passes keys through, as in its focus mode. To turn the shortcuts listed
-here off in this browser, if they get in the way of a screen reader, voice control or another tool,
-clear **Keyboard shortcuts** in **Settings**, under **Keyboard**, which also lists them. The diagram
-viewer's own keys stay on.
+reached. With the list and a thread side by side, the list's keys act wherever focus is, and moving
+through the list starts from the open thread's row and opens nothing until `o`; the thread's keys
+act only while focus is outside the list, as after clicking the thread; and `n`, which both use,
+acts in the list while focus is in it, and in the thread otherwise. A screen reader in its browse
+mode keeps single keys for its own navigation, so the shortcuts act only once it passes keys
+through, as in its focus mode. To turn the shortcuts listed here off in this browser, if they get in
+the way of a screen reader, voice control or another tool, clear **Keyboard shortcuts** in
+**Settings**, under **Keyboard**, which also lists them. The diagram viewer's own keys stay on.
 
 ## Voice
 

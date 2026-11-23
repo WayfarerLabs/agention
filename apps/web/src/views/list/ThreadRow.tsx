@@ -1,6 +1,13 @@
 import type { AskSummary, OpenAsks, ThreadSummary } from "@wayfarerlabs/agention-api";
-import type { ReactNode } from "react";
-import { type FoldLevel, PathParts, placeOf, Tags, ThreadTitle } from "../../components.tsx";
+import { type ReactNode, useContext, useLayoutEffect, useRef } from "react";
+import {
+  type FoldLevel,
+  focusLanding,
+  PathParts,
+  placeOf,
+  Tags,
+  ThreadTitle,
+} from "../../components.tsx";
 import {
   absenceOf,
   absenceWords,
@@ -16,7 +23,8 @@ import {
 } from "../../format.tsx";
 import { Mark } from "../../icons.tsx";
 import { readDraft } from "../../device.ts";
-import { Link, threadHref, useLocation } from "../../router.tsx";
+import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
+import { ListBeside } from "./beside.ts";
 
 // What stands out about the asks open to the operator: the one the thread
 // leads with; the earliest answer-by among them all, whichever ask carries
@@ -90,9 +98,41 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // it leads with: the first in the list's order among those the filters keep;
 // otherwise, muted, that its asks were answered or withdrawn; and whether it
 // is stranded, and why; and whether this browser keeps a draft of a reply to
-// it. The link records the list, so the thread page returns to it.
+// it. The link records the list on screen as it is followed, so the thread
+// page returns to it.
+//
+// Side by side, the row of the thread open beside the list is marked current,
+// and opening it again moves focus to where opening it lands, the thread's
+// pane; the row of the thread just left is where going back to the list
+// lands; and a row that goes while its link has focus, as the row of a thread
+// archived beside the list does once the list follows, gives focus to the
+// page's heading, so it is not lost.
 export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: FoldLevel }) {
-  const here = useLocation();
+  const href = threadHref(thread.agent, thread.session, thread.number);
+  const beside = useContext(ListBeside);
+  const current = beside?.open === href;
+  const left = beside?.left === href;
+  const link = useRef<HTMLAnchorElement>(null);
+  // Whether the list was side by side as the row last showed.
+  const sideBySide = useRef(false);
+  useLayoutEffect(() => {
+    sideBySide.current = beside !== undefined;
+  });
+  useLayoutEffect(() => {
+    const shown = link.current;
+    return () => {
+      if (sideBySide.current && shown !== null && shown === document.activeElement) {
+        shown.closest("main")?.querySelector<HTMLElement>("h1")?.focus();
+      }
+    };
+  }, []);
+  // Opening the thread already open beside the list lands in its pane.
+  const openAgain = () => {
+    const page = link.current?.closest("main");
+    if (page !== null && page !== undefined) {
+      focusLanding(page);
+    }
+  };
   const { open_asks: asks } = thread;
   const ask = asks.lead;
   const Heading = headings[level];
@@ -101,9 +141,13 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
   return (
     <li className={thread.unread > 0 ? "thread-row unread" : "thread-row"}>
       <Link
-        to={threadHref(thread.agent, thread.session, thread.number)}
-        state={() => ({ from: here.pathname + here.search })}
+        ref={link}
+        to={href}
+        state={() => ({ from: listHref(currentListView()) })}
+        {...(current ? { follow: openAgain } : {})}
         className="thread-link"
+        aria-current={current ? "page" : undefined}
+        data-landing={left ? "" : undefined}
         data-needs-you={thread.unread > 0 || asks.blocking ? "" : undefined}
       >
         <div className="row-title">
