@@ -9,6 +9,7 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -179,7 +180,7 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     const first = await watching(home, host);
     const second = await watching(home, host);
     expect(await first.exited).toEqual({ code: 0, stderr: "" });
-    writeFileSync(join(hostDirectory(home, host), "wake"), "notice\n", { mode: 0o600 });
+    writeFileSync(join(hostDirectory(home, host), "wake-a"), "notice\n", { mode: 0o600 });
     expect(await second.exited).toEqual({ code: 2, stderr: "notice\n" });
   });
 
@@ -190,8 +191,10 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     const notice = "Agention: the operator wrote to you. Unread: thread 4 (2 messages).\n";
     // Written whole, as the bridge renames a finished file into place.
     const directory = hostDirectory(home, host);
-    writeFileSync(join(directory, "wake.new"), notice, { mode: 0o600 });
-    expect(spawnSync("mv", [join(directory, "wake.new"), join(directory, "wake")]).status).toBe(0);
+    writeFileSync(join(directory, ".wake-a.new"), notice, { mode: 0o600 });
+    expect(
+      spawnSync("mv", [join(directory, ".wake-a.new"), join(directory, "wake-a")]).status,
+    ).toBe(0);
     expect(await watcher.exited).toEqual({ code: 2, stderr: notice });
     // It leaves its mark and nothing else behind.
     expect(readdirSync(directory)).toEqual(["hooked"]);
@@ -203,7 +206,7 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     const earlier = await watching(home, host);
     earlier.child.kill();
     expect((await earlier.exited).code).toBe(0);
-    writeFileSync(join(hostDirectory(home, host), "wake"), "notice\n", { mode: 0o600 });
+    writeFileSync(join(hostDirectory(home, host), "wake-a"), "notice\n", { mode: 0o600 });
     const next = start({
       HOME: home,
       AGENTION_URL: "https://agention.example",
@@ -212,15 +215,37 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
     expect(await next.exited).toEqual({ code: 2, stderr: "notice\n" });
   });
 
-  it("refuses a wake file others can read, printing nothing", async () => {
+  it("takes every session's wake file at once", async () => {
     const home = tempHome();
     const host = hostProcess().pid ?? 0;
     const watcher = await watching(home, host);
-    const wake = join(hostDirectory(home, host), "wake");
-    writeFileSync(wake, "notice\n", { mode: 0o644 });
-    chmodSync(wake, 0o644);
-    expect(await watcher.exited).toEqual({ code: 1, stderr: "" });
-    expect(existsSync(wake)).toBe(false);
+    const directory = hostDirectory(home, host);
+    // Written whole and renamed into place together, as two bridges might.
+    writeFileSync(join(directory, ".wake-a.new"), "first\n", { mode: 0o600 });
+    writeFileSync(join(directory, ".wake-b.new"), "second\n", { mode: 0o600 });
+    spawnSync("sh", ["-c", "mv .wake-a.new wake-a && mv .wake-b.new wake-b"], { cwd: directory });
+    const exit = await watcher.exited;
+    expect(exit.code).toBe(2);
+    expect(
+      exit.stderr
+        .split("\n")
+        .filter((line) => line !== "")
+        .sort(),
+    ).toEqual(["first", "second"]);
+  });
+
+  it("exits 1, printing nothing, when it cannot write its mark", async () => {
+    const home = tempHome();
+    const host = hostProcess().pid ?? 0;
+    const directory = hostDirectory(home, host);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    symlinkSync(join(home, "missing", "hooked"), join(directory, "hooked"));
+    const exit = await start({
+      HOME: home,
+      AGENTION_URL: "https://agention.example",
+      CLAUDE_PID: String(host),
+    }).exited;
+    expect(exit).toEqual({ code: 1, stderr: "" });
   });
 
   it("refuses a host directory below one others can write to", async () => {
@@ -248,17 +273,5 @@ describe.each(shells)("the watcher under %s", (_, shell) => {
       CLAUDE_PID: String(host),
     }).exited;
     expect(exit).toEqual({ code: 1, stderr: "" });
-  });
-
-  it("removes the directories of host processes that have ended", async () => {
-    const home = tempHome();
-    const host = hostProcess().pid ?? 0;
-    const ended = hostDirectory(home, endedPid());
-    mkdirSync(join(ended, "inner"), { recursive: true, mode: 0o700 });
-    const other = hostProcess().pid ?? 0;
-    mkdirSync(hostDirectory(home, other), { recursive: true, mode: 0o700 });
-    await watching(home, host);
-    expect(existsSync(ended)).toBe(false);
-    expect(existsSync(hostDirectory(home, other))).toBe(true);
   });
 });

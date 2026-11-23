@@ -27,7 +27,7 @@ export interface Generated {
 // published package. It is for trying an unreleased server, so outputs
 // rendered with it never belong in the repository.
 export function render(
-  { definition: def, skills, wakeHookScript }: Sources,
+  { definition: def, skills, claudeHooks }: Sources,
   packageFile?: string,
 ): Generated {
   // Both hosts read the same plugin manifest. Optional fields the definition
@@ -60,7 +60,9 @@ export function render(
       },
     },
   });
-  const plugin = (manifestDir: string, mcp: FileContent, hooks: [string, FileContent][] = []) =>
+  // Only Claude Code offers a plugin a hook that wakes an open session, so
+  // only its plugin carries the hooks.
+  const plugin = (manifestDir: string, mcp: FileContent, hooks = new Map<string, FileContent>()) =>
     new Map([
       [posix.join(manifestDir, "plugin.json"), manifest],
       [".mcp.json", mcp],
@@ -68,7 +70,7 @@ export function render(
         posix.join("skills", path),
         file,
       ]),
-      ...hooks,
+      ...[...hooks].map(([name, file]): [string, FileContent] => [posix.join("hooks", name), file]),
     ]);
 
   const claudeCatalog = encodeJSON({
@@ -83,7 +85,7 @@ export function render(
 
   return {
     dirs: new Map([
-      [claudePluginDir, plugin(".claude-plugin", claudeMcp, claudeHooks(def, wakeHookScript))],
+      [claudePluginDir, plugin(".claude-plugin", claudeMcp, claudeHooks)],
       [codexPluginDir, plugin(".codex-plugin", codexMcp)],
     ]),
     files: new Map([
@@ -91,34 +93,6 @@ export function render(
       [codexCatalogPath, codexCatalog],
     ]),
   };
-}
-
-// claudeHooks are the files of the Claude Code plugin's wake hook: the script,
-// and hooks/hooks.json, which Claude Code reads from an enabled plugin. Each
-// event the hook names runs the script in the background, where its exit 2
-// wakes the agent at its prompt.
-function claudeHooks(
-  { claudeWakeHook: hook }: Definition,
-  script: FileContent | undefined,
-): [string, FileContent][] {
-  if (hook === undefined || script === undefined) {
-    return [];
-  }
-  const handler = {
-    type: "command",
-    command: `"\${CLAUDE_PLUGIN_ROOT}/hooks/${hook.script}"`,
-    asyncRewake: true,
-    timeout: hook.timeoutSeconds,
-  };
-  const hooks = encodeJSON({
-    description:
-      "Wakes the agent at its prompt when the Agention bridge finds the operator's messages.",
-    hooks: Object.fromEntries(hook.events.map((event) => [event, [{ hooks: [handler] }]])),
-  });
-  return [
-    ["hooks/hooks.json", hooks],
-    [posix.join("hooks", hook.script), script],
-  ];
 }
 
 // npxArgs are the arguments that run the MCP server with npx, without a

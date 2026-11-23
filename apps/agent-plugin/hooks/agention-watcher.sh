@@ -2,22 +2,30 @@
 # agention-watcher: the Claude Code hook that wakes an agent at its prompt
 # when the Agention bridge finds messages from the operator.
 #
-# Claude Code runs it in the background (asyncRewake) on SessionStart and on
-# every Stop. It waits in the host directory it shares with the bridge,
+# Claude Code runs it in the background (asyncRewake) on SessionStart, on
+# UserPromptSubmit, and at every turn's end, Stop or StopFailure. It waits in
+# the host directory it shares with the bridge,
 # ~/.config/agention/_hosts/claude/<pid>/, named for the Claude Code process
-# in CLAUDE_PID, for the wake file the bridge writes. It takes the file,
-# prints the notice in it to stderr and exits 2, which wakes the agent. Every
-# other outcome exits 0 or 1, so nothing but a taken wake file wakes the
-# agent, and a broken watcher cannot loop the session through turns.
+# in CLAUDE_PID, for the wake files the bridge writes, one per session. It
+# takes them, prints their notices to stderr and exits 2, which wakes the
+# agent. Every other outcome exits 0 or 1, and nothing else ever reaches
+# stderr, so nothing but a taken wake file wakes the agent, and a broken
+# watcher cannot loop the session through turns or put text before it.
 #
 # One watcher runs per host process: each new one takes the lock, and the one
-# it replaces exits 0, so the watcher running is the one the last turn
+# it replaces exits 0, so the watcher running is the one the last hook
 # started. It touches no key and no server, and writes nothing but the host
 # directory, under the private-file rule the bridge keeps there too.
 
+# Only the notice goes to stderr, by descriptor 3; everything else, the
+# shell's own errors included, goes nowhere. A hook always has stderr, so
+# without one there is nothing to do.
+true >&2 || exit 0
+exec 3>&2 2>/dev/null
+
 # Claude Code hands a hook its input on stdin, which the watcher has no use
 # for.
-[ -t 0 ] || cat >/dev/null 2>&1
+[ -t 0 ] || cat >/dev/null
 
 # A session that does not use Agention, or a host that gives no pid, keeps
 # nothing running. The pid becomes a path component, so it is digits only.
@@ -34,58 +42,30 @@ esac
 
 # alive says whether a process of this user runs with the pid given.
 alive() {
-    kill -0 "$1" 2>/dev/null
+    kill -0 "$1"
 }
 
 alive "$host" || exit 0
 
 umask 077
 uid=$(id -u) || exit 1
-mkdir -p "$HOME/.config/agention/_hosts/claude/$host" 2>/dev/null || exit 1
-dir=$(cd -P -- "$HOME/.config/agention/_hosts/claude/$host" 2>/dev/null && pwd -P) || exit 1
+mkdir -p "$HOME/.config/agention/_hosts/claude/$host" || exit 1
+dir=$(cd -P -- "$HOME/.config/agention/_hosts/claude/$host" && pwd -P) || exit 1
 
 # The private-file rule, as the bridge applies it: the host directory belongs
-# to this user with mode 700, every directory above its real path belongs to
-# this user or root and no other user can write to it unless it is sticky,
-# and a file the watcher reads belongs to this user with mode 600 and is no
-# symlink. Each check reads the mode and owner ls -n prints.
+# to this user, with no group or other permissions, and every directory
+# above its real path belongs to this user or root, with no group or other
+# write permission unless it is sticky. Every file in the directory is then
+# this user's to write.
 private_directory() {
-    ls -ldn -- "$1" 2>/dev/null | (
-        read -r mode _ owner _ || exit 1
-        case $mode in
-            drwx------*) [ "$owner" = "$uid" ] ;;
-            *) exit 1 ;;
-        esac
-    )
+    [ -n "$(find "$1" -prune -type d -user "$uid" \
+        ! -perm -0040 ! -perm -0020 ! -perm -0010 \
+        ! -perm -0004 ! -perm -0002 ! -perm -0001 -print)" ]
 }
 
 safe_ancestor() {
-    ls -ldn -- "$1" 2>/dev/null | (
-        read -r mode _ owner _ || exit 1
-        case $mode in
-            d*) ;;
-            *) exit 1 ;;
-        esac
-        [ "$owner" = "$uid" ] || [ "$owner" = 0 ] || exit 1
-        case $mode in
-            ?????w* | ????????w*)
-                case $mode in
-                    ?????????[tT]*) ;;
-                    *) exit 1 ;;
-                esac
-                ;;
-        esac
-    )
-}
-
-private_file() {
-    ls -ln -- "$1" 2>/dev/null | (
-        read -r mode _ owner _ || exit 1
-        case $mode in
-            -rw-------*) [ "$owner" = "$uid" ] ;;
-            *) exit 1 ;;
-        esac
-    )
+    [ -n "$(find "$1" -prune -type d \( -user "$uid" -o -user 0 \) \
+        \( -perm -1000 -o \( ! -perm -0020 ! -perm -0002 \) \) -print)" ]
 }
 
 private_directory "$dir" || exit 1
@@ -96,29 +76,22 @@ while [ "$above" != / ]; do
     safe_ancestor "$above" || exit 1
 done
 
-# The directories of host processes that have ended are removed.
-for entry in "${dir%/*}"/*; do
-    name=${entry##*/}
-    case $name in
-        '' | 0* | *[!0-9]*) continue ;;
-    esac
-    if [ "$name" != "$host" ] && [ -d "$entry" ] && [ ! -h "$entry" ] && ! alive "$name"; then
-        rm -rf -- "$entry"
-    fi
-done
-
 # The mark tells the bridge that the plugin's hooks run in this host process.
-[ -e "$dir/hooked" ] || : >"$dir/hooked" || exit 1
+# true, unlike :, is no special builtin, so a mark that cannot be written
+# fails the command rather than ending the shell with status 2.
+[ -e "$dir/hooked" ] || true >"$dir/hooked" || exit 1
 
 # The lock holds the running watcher's pid. Taking it replaces the file
 # whole, so it never holds half a pid.
 lock=$dir/watcher
-printf '%s\n' "$$" >"$lock.$$" && mv -f -- "$lock.$$" "$lock" || exit 1
-
 release() {
-    [ "$(cat -- "$lock" 2>/dev/null)" = "$$" ] && rm -f -- "$lock"
+    [ "$(cat -- "$lock")" = "$$" ] && rm -f -- "$lock"
 }
 trap 'release; exit 0' HUP INT TERM
+if ! { printf '%s\n' "$$" >"$lock.$$" && mv -f -- "$lock.$$" "$lock"; }; then
+    rm -f -- "$lock.$$"
+    exit 1
+fi
 
 while :; do
     if ! alive "$host"; then
@@ -126,24 +99,23 @@ while :; do
         exit 0
     fi
     # A newer watcher holds the lock: it is the one that waits now.
-    holder=$(cat -- "$lock" 2>/dev/null)
+    holder=$(cat -- "$lock")
     case $holder in
         '' | "$$") ;;
         *) exit 0 ;;
     esac
-    if [ -e "$dir/wake" ] || [ -h "$dir/wake" ]; then
-        # Renaming takes the file; if the bridge took it back first to write
-        # a fuller one, the next look finds that.
-        taken=$dir/wake.$$
-        if mv -f -- "$dir/wake" "$taken" 2>/dev/null; then
-            release
-            if private_file "$taken" && cat -- "$taken" >&2; then
-                rm -f -- "$taken"
-                exit 2
-            fi
-            rm -f -- "$taken"
-            exit 1
+    # Renaming takes a file, so the bridge's next one is never lost.
+    taken=0
+    for wake in "$dir"/wake-*; do
+        mine=$dir/taken.$$
+        if [ -f "$wake" ] && mv -f -- "$wake" "$mine"; then
+            cat -- "$mine" >&3 && taken=1
+            rm -f -- "$mine"
         fi
+    done
+    if [ "$taken" = 1 ]; then
+        release
+        exit 2
     fi
     sleep 1
 done
