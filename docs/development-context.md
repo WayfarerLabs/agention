@@ -128,10 +128,10 @@ index of those docs.
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
   and `scripts/check-sdd.test.sh`
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
-  homes and `TMPDIR`), with the server's tests in a `TMPDIR` of their own that must be empty when
-  they finish (`CONTRIBUTING.md` "Working on one component"); setup is the locked install and
-  Chromium's headless shell (`CONTRIBUTING.md` "Prerequisites"), and the release tags for the agent
-  compatibility gate (`CONTRIBUTING.md` "Checks")
+  homes and `TMPDIR`), with the server's and the bridge's tests each in a `TMPDIR` of their own that
+  must be empty when they finish (`CONTRIBUTING.md` "Working on one component"); setup is the locked
+  install and Chromium's headless shell (`CONTRIBUTING.md` "Prerequisites"), and the release tags
+  for the agent compatibility gate (`CONTRIBUTING.md` "Checks")
 - Integration test selection or markers: none; the bridge's in-process integration tests run in its
   Vitest suite, and the browser tests run with `npm run -w apps/web test:browser` against the
   server's last build, which `scripts/check.sh --fast` skips with the builds; the agent
