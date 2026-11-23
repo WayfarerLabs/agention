@@ -8,8 +8,8 @@
 
 This settles what the HLA leaves to delivery 2: the session column and when it is written, the
 sessions read's new field, the web UI's notice and the bridge's register sentence. The agent
-contract does not change: no agent route or field is added, and `agentApi.version` stays 3
-(`packages/api/src/agent-api.ts:12`).
+contract does not change: no agent route or field is added, and `agentApi.version`
+(`packages/api/src/agent-api.ts:12`) is not bumped by this delivery.
 
 ## The column
 
