@@ -8,9 +8,8 @@ index of those docs.
 - Reviewer: `project-reviewer`, with Agention's project checks in `docs/review-checklist.md`
 - Tester: none; live testing follows the shared `integration-testing` tester method with Agention's
   surfaces, layers, hunts and bed rails in `docs/live-testing.md`
-- SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"), active effort
-  `docs/sdd/2026-11-22-attachments/`; SDD check: `scripts/check-sdd.sh`, in the "SDD records" gate
-  of `scripts/check.sh`
+- SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"), no active effort on `main`; SDD
+  check: `scripts/check-sdd.sh`, in the "SDD records" gate of `scripts/check.sh`
 
 ## Identity and design
 

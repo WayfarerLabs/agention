@@ -49,5 +49,5 @@ backups. Each box is checked when it is built, reviewed and green.
 - [x] The operator's check on Android Chrome and Windows Edge or Chrome against the staging server:
       a photo from the phone read by an agent, and an image, a PDF, a video and a text file an agent
       attached, opened. The phone's image read through `file_get` as an image block. (agention#46)
-- [ ] The release carrying it, through release-please.
-- [ ] `locked.md` in this directory, with the final merge.
+- [x] The release carrying it, through release-please: 0.5.0. (agention#49)
+- [x] `locked.md` in this directory, with the final merge. (agention#53)
