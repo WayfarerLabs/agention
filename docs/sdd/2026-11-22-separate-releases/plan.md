@@ -124,8 +124,8 @@ line's changes, and the release workflow refuses a tag whose line's versions do 
       bridge", `docs/development-context.md`.
 - [ ] Reviewed (project review, complexity pass, correctness lane) and CI green.
 
-Done when the gate passes in CI against 0.2.1 and 0.4.0 (the newest releases stating no agent API
-version and version 2, both older than agent API 3) and fails when the bridge's refusal is broken.
+Done when the gate passes in CI against the newest release of each older agent API version (0.2.1,
+0.4.0 and 0.6.0 while the agent API is at 4) and fails when the bridge's refusal is broken.
 
 ## Closeout
 

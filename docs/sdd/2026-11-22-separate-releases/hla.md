@@ -213,17 +213,17 @@ registration waiting to servers before 0.3.0.
 A new gate in `scripts/check.sh`, beside agent compatibility and skipped by `--fast`, mirrors it in
 the other direction. For each agent API version older than the bridge's at HEAD (a server that
 states none counting as one), it takes the newest released server at that version (`agention-v*`
-tags reachable from HEAD), today 0.2.1 (none) and 0.4.0 (2), and installs `@wayfarerlabs/agention`
-from npm by exact version with signatures and provenance checked, starts `agention serve` on
-loopback with a throwaway TLS certificate and data directory (every release accepts `--tls-cert` and
-`--tls-key`), and runs the bridge at HEAD against it as an agent host would. Every tool call fails
-with C3's refusal, and for servers from 0.3.0 the database holds no registration afterwards. A
-server that serves the bridge's version is skipped: the agent compatibility gate already covers
-bridges against the server at HEAD, and a server at the same version serves the same contract, which
-is also why one server per older version suffices (FRD ruling 4). The gate drives only unapproved
-sessions: approval changes nothing a starting bridge sends to a server before 0.3.0, and from 0.3.0
-the server refuses the version before authenticating. The low-level design measures its run time
-against CI's limit for the `check` job.
+tags reachable from HEAD), today 0.2.1 (none), 0.4.0 (2) and 0.6.0 (3), and installs
+`@wayfarerlabs/agention` from npm by exact version with signatures and provenance checked, starts
+`agention serve` on loopback with a throwaway TLS certificate and data directory (every release
+accepts `--tls-cert` and `--tls-key`), and runs the bridge at HEAD against it as an agent host
+would. Every tool call fails with C3's refusal, and for servers from 0.3.0 the database holds no
+registration afterwards. A server that serves the bridge's version is skipped: the agent
+compatibility gate already covers bridges against the server at HEAD, and a server at the same
+version serves the same contract, which is also why one server per older version suffices (FRD
+ruling 4). The gate drives only unapproved sessions: approval changes nothing a starting bridge
+sends to a server before 0.3.0, and from 0.3.0 the server refuses the version before authenticating.
+The low-level design measures its run time against CI's limit for the `check` job.
 
 ## 3. The plugin-is-behind signal
 

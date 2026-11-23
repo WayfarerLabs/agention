@@ -8,7 +8,10 @@
   (`git show v0.4.0:<path>`), the commit its `agention-v*` seed tag will name.
 - Probe: on 2026-11-23 the bridge at 2bd3ed3, run from source, was driven by a scratch script
   against `@wayfarerlabs/agention` 0.2.1 and 0.4.0 installed from npm as below. What it showed is
-  cited as "the probe"; nothing of it is committed.
+  cited as "the probe"; nothing of it is committed. When agention#71 moved the agent API to 4, 0.6.0
+  joined the selection, and on 2026-11-23 it was checked the same way at `v0.6.0` and by hand: it
+  refused a request stating version 4 as `unsupported_version`, stating 3, and recorded no
+  registration.
 
 This settles what the HLA leaves to delivery 4: which releases the gate runs, how it installs and
 starts them, where their certificate and data live, how it drives the bridge at HEAD and what it
@@ -71,15 +74,17 @@ counting as one version below every other (FRD C5, ruling 4):
    reachable, fails, asking for `git fetch --tags`: this repository's history always has one, so its
    absence means tags are missing.
 
-At 2bd3ed3, with the seed tags in place, that is 0.2.1 (none: 0.1.0, 0.2.0 and 0.2.1) and 0.4.0
-(version 2: 0.3.0 and 0.4.0), while 0.5.0 and 0.6.0 speak 3, HEAD's (`git show <tag>:` at each tag;
-`packages/api/src/agent-api.ts:12`).
+With the seed tags in place and the agent API at 4 since agention#71
+(`packages/api/src/agent-api.ts:12`), that is 0.2.1 (none: 0.1.0, 0.2.0 and 0.2.1), 0.4.0 (version
+2: 0.3.0 and 0.4.0) and 0.6.0 (version 3: 0.5.0 and 0.6.0) (`git show <tag>:` at each tag). At
+2bd3ed3, with the agent API at 3, it was the first two.
 
-**A fixed list instead.** `servers=(0.2.1 0.4.0)` in the script needs no tag reading and no fixture
-test. Its cost is the case the gate exists for: the pull request that bumps `agentApi.version` must
-also add the newest server of the version it leaves, by hand, and a forgotten entry passes silently,
-leaving the bridge untested against the server an operator who has not upgraded most likely runs.
-The derived list gets that server on the bump's own pull request.
+**A fixed list instead.** `servers=(0.2.1 0.4.0 0.6.0)` in the script needs no tag reading and no
+fixture test. Its cost is the case the gate exists for: the pull request that bumps
+`agentApi.version` must also add the newest server of the version it leaves, by hand, and a
+forgotten entry passes silently, leaving the bridge untested against the server an operator who has
+not upgraded most likely runs. The derived list gets that server on the bump's own pull request, as
+it took 0.6.0 when agention#71 moved the agent API to 4, with no edit to the gate.
 
 **What deriving costs.** About thirty lines of the script, a fixture test of its decisions (Where it
 lives), and the tags, which CI already fetches for the two gates delivery 3 touches
@@ -103,7 +108,8 @@ package that declares any, `scripts/check.sh:72-80`), so nothing else resolves, 
 the agent compatibility gate. Each directory also gets a file `agent-api` holding the version its
 tag states, or `none`, which the suite reads.
 
-In the probe, both installs verified one registry signature and one attestation each.
+In the probe, and in the gate's runs since, each install verified one registry signature and one
+attestation.
 
 ## Certificates and data directories
 
@@ -111,9 +117,9 @@ The suite makes one certificate for the run with the bridge harness's own: `cert
 `testCertificate()` for `localhost` and 127.0.0.1, valid for an hour
 (`apps/bridge/src/test-harness.ts:34`, `apps/server/src/http/test-certificate.ts:52-82`). It writes
 the certificate and key as PEM into a directory of its own, the key with mode 0600; each release
-reads both with `readFileSync` (`apps/server/src/cli.ts` at `v0.2.1`, line 229; at `v0.4.0`, line
-287). The bridge trusts it through `NODE_EXTRA_CA_CERTS`, as `BridgeHarness.process` makes a bridge
-trust it (`test-harness.ts:208-219`).
+reads both with `readFileSync` (`apps/server/src/cli.ts` at `v0.2.1`, line 229; at `v0.6.0`, line
+303; at `v0.4.0`, line 287). The bridge trusts it through `NODE_EXTRA_CA_CERTS`, as
+`BridgeHarness.process` makes a bridge trust it (`test-harness.ts:208-219`).
 
 Each release gets a data directory of its own, `realpathSync(mkdtempSync(path.join(tmpdir(), ...)))`
 as the harness makes its home (`test-harness.ts:112`), mode 0700, and each bridge a home the same
@@ -122,8 +128,8 @@ ancestor that another user owns (`foreign_ancestor`) or that its group or others
 it is sticky (`writable_ancestor`; `checkAncestor` in `packages/private-files/src/private-files.ts`
 at `v0.2.1` and `v0.4.0`, lines 134-153). So:
 
-- **In CI** `tmpdir()` is `/tmp`, root's and sticky, which both releases accept, as the Build gate's
-  server already shows (`scripts/check.sh:122-126`, under `mktemp -d`).
+- **In CI** `tmpdir()` is `/tmp`, root's and sticky, which every release accepts, as the Build
+  gate's server already shows (`scripts/check.sh:122-126`, under `mktemp -d`).
 - **Locally** the same holds wherever `TMPDIR` is unset or private. A directory inside an Agentworks
   workspace is not: on this host `/opt/agentworks/workspaces` is root's with mode 0771 and the
   workspace another user's with mode 2770, so a release refuses a data directory there. The gate
@@ -133,8 +139,9 @@ at `v0.2.1` and `v0.4.0`, lines 134-153). So:
 
 ## Starting each release
 
-Both releases take the same command line and print the same start-up line (`apps/server/src/cli.ts`
-at `v0.2.1`, usage lines 28-44 and the line at 283-286; at `v0.4.0`, lines 31-55 and 342-345):
+Every release selected takes the same command line and prints the same start-up line
+(`apps/server/src/cli.ts` at `v0.2.1`, usage lines 28-44 and the line at 283-286; at `v0.4.0`, lines
+31-55 and 342-345; at `v0.6.0`, lines 38-65 and 366-369):
 
 ```bash
 <dir>/node_modules/.bin/agention serve --data <data> --origin https://localhost \
@@ -146,7 +153,7 @@ The suite starts it as a child process and reads the port from
 (`scripts/check.sh:128-132`); only the port is read. A start that prints no such line within ten
 seconds, or exits, fails the test with the release's output, and one that cannot start, such as for
 a missing command, fails at once naming it. The suite stops it with SIGTERM, which every release
-handles by closing its database (`apps/server/src/main.ts` at both tags, lines 4-9), and kills it if
+handles by closing its database (`apps/server/src/main.ts` at each tag, lines 4-9), and kills it if
 it has not exited 5 seconds later; it waits for the exit before reading the database. Cleanup closes
 the bridge, stops the server and removes the scratch directory, each even if one before it fails,
 within the compatibility config's hook timeout, and a bridge process whose MCP connection fails is
@@ -156,8 +163,9 @@ The origin names no port, so the release can be started before its port is known
 reaches it through `AGENTION_CONNECT=127.0.0.1:<port>`, the setting an operator uses for a tunnel
 (`apps/bridge/src/agent-api.ts:108-138`). The bridge then gives TLS and `Host` the origin's host
 (`docs/architecture.md`, "Agent bridge", Connections), which each release's host check requires
-(`apps/server/src/http/app.ts` at `v0.2.1`, lines 78-85; at `v0.4.0`, lines 110-117). An origin with
-the port in it would need a port picked before the start and freed for it, which can race.
+(`apps/server/src/http/app.ts` at `v0.2.1`, lines 78-85; at `v0.4.0`, lines 110-117; at `v0.6.0`,
+lines 126-133). An origin with the port in it would need a port picked before the start and freed
+for it, which can race.
 
 In the probe each release served in about 100 ms, and with `--listen 127.0.0.1:0`.
 
@@ -199,7 +207,7 @@ show nothing recorded too. The second fails for every failure but the older-serv
 release's own statement, so it also proves the bridge read what the release stated: none from 0.2.1,
 version 2 from 0.4.0.
 
-In the probe, against both releases, every tool failed in plain text with one and the same refusal,
+In the probe, against each release, every tool failed in plain text with one and the same refusal,
 naming the statement each release made.
 
 **Approved sessions.** The gate drives unapproved sessions only. Passkeys are not what stops it: a
@@ -208,10 +216,10 @@ release's `agention passkey-link` and web API it could approve the key there. Th
 approval changes nothing a session that starts against an older server sends or is told (the finding
 above): every call is the same registration check, refused alike. From 0.3.0 the release refuses the
 version before authenticating anything (`requireServedAgentApiVersion` in
-`apps/server/src/http/agent-api-version.ts` at `v0.4.0`, lines 17-44, mounted first at
-`apps/server/src/http/agent-api.ts` line 64), so approval changes nothing there either. Driving
-approval would tie the suite to each release's passkey and approval routes for no answer it does not
-already check.
+`apps/server/src/http/agent-api-version.ts` at `v0.4.0`, lines 17-44, and at `v0.6.0`, lines 23-44,
+mounted first at `apps/server/src/http/agent-api.ts`, line 64 at `v0.4.0` and line 50 at `v0.6.0`),
+so approval changes nothing there either. Driving approval would tie the suite to each release's
+passkey and approval routes for no answer it does not already check.
 
 The carried-out case needs a bridge that accepted its grant from a server serving it, then meets a
 release before 0.3.0 at the same origin: a front of the suite's own switching from one to the other
@@ -274,21 +282,22 @@ The `check` job has 15 minutes (`.github/workflows/ci.yml:24`). Its recent runs 
 to 7 min 8 s (CI runs 45150759719, 45149282127 and 45148920601 on 2026-11-23). In the second, the
 agent compatibility gate installed and verified seven bridges in 4.3 s and its suite ran in 10.2 s.
 
-The server gate's share, from the probe and those figures: two installs and signature checks at
-about 0.6 s each in CI (0.5 s locally, cached); and per release in the suite, a start of about 0.1
-s, a bridge process, eleven calls in 0.35 s, a stop and two reads. With Vitest's own start, about 5
-s in all. It grows by one release per agent API version, a few times a year at most, so it stays
-seconds against minutes of headroom. Built, the gate ran locally in 12 s end to end, its suite in
-1.0 s to 3.8 s.
+The server gate's share, from the probe and those figures: an install and signature check per
+release at about 0.6 s each in CI (0.5 s locally, cached); and per release in the suite, a start of
+about 0.1 s, a bridge process, eleven calls in 0.35 s, a stop and two reads. With Vitest's own
+start, about 5 s in all. It grows by one release per agent API version, a few times a year at most,
+so it stays seconds against minutes of headroom. Built, the gate ran locally in 12 s end to end, its
+suite in 1.0 s to 3.8 s, against two releases; against three, once agention#71 moved the agent API
+to 4, its suite ran in 4.5 s.
 
 ## Proving it can fail
 
 A verification step of the implementation, recorded in its pull request and not committed: with the
-seed tags fetched, the gate passes against 0.2.1 and 0.4.0, then fails with each of these probes,
-and passes again once it is reverted.
+seed tags fetched, the gate passes against 0.2.1, 0.4.0 and 0.6.0, then fails with each of these
+probes, and passes again once it is reverted.
 
 1. `#requireVersion` accepts any version: against 0.2.1, `register` answers pending, not an error;
-   against 0.4.0, the release's `unsupported_version` comes through as Agention's JSON.
+   against 0.4.0 and 0.6.0, the release's `unsupported_version` comes through as Agention's JSON.
 2. A missing version is refused as if it were version 1: against 0.2.1, the refusal is not the one
    for a release stating none.
 3. `AGENTION_CONNECT` left out, so the bridge cannot reach the release: every answer is plain text
