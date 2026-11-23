@@ -257,6 +257,12 @@ export function Composer({
   useEffect(() => {
     detailNow.current = detail;
   }, [detail]);
+  // What is staged as it stands, for a stale write that comes back after the
+  // operator changed it.
+  const stagedNow = useRef(staged);
+  useEffect(() => {
+    stagedNow.current = staged;
+  }, [staged]);
   const detailBox = useRef<HTMLTextAreaElement>(null);
   // Opening the Details box moves focus into it, in place of the control
   // that opened it.
@@ -291,16 +297,14 @@ export function Composer({
     }
     if ("missed" in outcome) {
       // What the missed messages made impossible to send goes; the rest, the
-      // text, the detail and the files stay. A replacement that goes takes
-      // the files it kept with it, and only those: one staged since keeps its
-      // own.
-      const stale = staleChange(sentStaged, outcome.missed);
+      // text, the detail and the files stay. They judge what is staged now,
+      // which sends next: what was sent, with any answers picked again since,
+      // or what replaced it.
+      const now = stagedNow.current;
+      const stale = staleChange(now, outcome.missed);
       if (stale !== undefined) {
         setChanged(stale.change);
-        stage((current) => (current === sentStaged ? stale.left : current));
-        if (stale.left === undefined) {
-          files.dropKept(sentFiles);
-        }
+        stage((current) => (current === now ? stale.left : current));
       }
       return;
     }

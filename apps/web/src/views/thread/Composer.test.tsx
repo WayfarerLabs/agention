@@ -1302,6 +1302,79 @@ describe("a stale write", () => {
     expect(textBox().value).toBe("Edited here.");
   });
 
+  // holding holds the first write until the test answers it as stale, the
+  // missed messages having landed meanwhile, and answers later writes as
+  // landed.
+  function holding(state: State): (missed: Message[]) => void {
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(state.thread.last_seq + 1),
+    );
+    return (missed) => {
+      const last = missed.at(-1)?.seq ?? state.thread.last_seq;
+      state.thread = { ...state.thread, last_seq: last };
+      state.messages = [...state.messages, ...missed];
+      answer(failure("stale", "other messages landed after the latest one you saw", { missed }));
+    };
+  }
+
+  it("judges the edit staged when the answer comes, not one set aside while it was under way", async () => {
+    const state = await page.openWith([
+      operatorMessage(1, { text: "First" }),
+      operatorMessage(2, { text: "Second" }),
+    ]);
+    const stale = holding(state);
+    fireEvent.click(option(1, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "First, edited." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    // The operator sets that edit aside, and edits message 2 instead.
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Reply" })).getByRole("button", { name: "Remove" }),
+    );
+    fireEvent.click(option(2, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "Second, edited." } });
+    // Another device replaced message 1 meanwhile, which leaves the edit of
+    // message 2 to send.
+    stale([operatorMessage(3, { replaces: 1, text: "Elsewhere" })]);
+    const panel = await staleNotice();
+    expect(stagedLine()).not.toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "Mark these read and send again" }));
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({
+      text: "Second, edited.",
+      replaces: 2,
+      seen_through: 3,
+    });
+  });
+
+  it("drops a change of answers picked again while under way, when the message it changes was replaced", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    const state = await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+    ]);
+    const stale = holding(state);
+    fireEvent.click(option(2, "Change answer"));
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(choice(/^Postgres/));
+    stale([operatorMessage(3, { replaces: 2, answers: [answerTo({ declined: true })] })]);
+    const panel = await staleNotice();
+    expect(stagedLine()).toBeNull();
+    expect(textBox().value).toBe("Small data.");
+    fireEvent.click(within(panel).getByRole("button", { name: "Mark these read" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({ text: "Small data.", seen_through: 3 });
+    expect(page.bodies()[1]).not.toHaveProperty("replaces");
+    expect(page.bodies()[1]).not.toHaveProperty("answers");
+  });
+
   it("sends an answer again when the missed messages leave it standing", async () => {
     const state = await opening();
     landing(state, [message(2, { text: "Any news?" })]);
