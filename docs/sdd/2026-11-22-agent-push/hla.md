@@ -28,7 +28,7 @@ sequenceDiagram
     participant W as watcher (hook)
     participant B as bridge (MCP server)
     participant S as server
-    H->>W: SessionStart or Stop hook, asyncRewake
+    H->>W: a turn's start or end hook, asyncRewake
     W->>W: one per host process, writes the hooked mark
     B->>B: approved, sees the hooked mark of its host
     B->>S: GET /wait?since=cursor (signed, 25 s, repeated)
@@ -38,7 +38,7 @@ sequenceDiagram
     W->>W: takes the wake file
     W-->>H: the notice on stderr, exit 2
     H->>H: wakes, takes a turn
-    H->>W: Stop starts the next watcher
+    H->>W: the turn's end starts the next watcher
 ```
 
 ## Components

@@ -25,11 +25,12 @@
       Done when tests show both answers, the lapse line and a Codex client never told push (H3, H4).
       (agention#67)
 - [x] The watcher and the plugin: the shell watcher, and the hook in the plugin definition,
-      generated into the Claude Code plugin only, on `SessionStart` and `Stop` with `asyncRewake`
-      and the day-long timeout. Done when tests run the watcher itself and show it exiting 0 without
-      Agention's variables, one watcher per host process, exit 2 only after taking a wake file with
-      the notice on stderr, exit 0 when its host process is gone, and the generator's tests and
-      drift check pass with the Codex plugin unchanged. (agention#67)
+      generated into the Claude Code plugin only, on `SessionStart`, `UserPromptSubmit`, `Stop` and
+      `StopFailure` with `asyncRewake` and the day-long timeout. Done when tests run the watcher
+      itself and show it exiting 0 without Agention's variables, one watcher per host process, exit
+      2 only after taking a wake file with the notice on stderr, exit 0 when its host process is
+      gone, and the generator's tests and drift check pass with the Codex plugin unchanged.
+      (agention#67)
 - [x] The usage skill's loop, step 5, and the `register` and `message_wait` descriptions for pushed
       and checking sessions, regenerated into both plugins. Done when the generated outputs are
       committed and the drift check passes. (agention#67)
@@ -47,8 +48,9 @@
       `--bare` is told it checks; and `/exit` leaves no watcher (definition of done, HLA "Risks and
       open items"). (agention#67; on a loopback bed at 399cb24 with the operator in the web UI, and
       again at f272955 for waking, re-arming, the lapse and `/exit`; an untrusted folder cannot run
-      interactively, and `--bare` was seen to run no hook and make no host directory, its answer
-      needing an API key)
+      interactively, and `--bare` was seen to run no hook and make no host directory, while its
+      `register` answer, which needs an API key, was not observed live; the bridge's tests cover a
+      host without the mark being told it checks)
 - [x] Live check on Codex: the bridge's `register` answer says answers reach the agent when it
       checks, and nothing runs in the background (definition of done, ruling 2). (agention#67; at
       399cb24)
