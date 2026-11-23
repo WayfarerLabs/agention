@@ -654,6 +654,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - its unread updates, such as **2 new updates**;
     - and its latest note, cut to fit.
 
+    When a session's Agention plugin is behind the server, its row carries a warning under these
+    facts, folded or not: the server offers features that plugin cannot use, since its bridge last
+    called speaking an older version of the agent API. Update the Agention plugin on that agent's
+    host to its newest release, and restart the session, resuming it to keep its conversation; the
+    warning goes once the session calls again. A session on a current plugin shows nothing, and so
+    does one with no call recorded yet. The session's agent is told the same when it calls
+    `register` with a plugin new enough to know, and the operator API's sessions read carries it as
+    `plugin_behind`.
+
     Choosing a row lets its title wrap whole and unfolds it to its goal over a bar of how far it has
     come, its credentials and its log: what each update changed, newest first, with its note.
     Consecutive updates that changed only the percent show as one line, such as **Progress 20% →

@@ -161,13 +161,14 @@ the ask it answers, and reads back with that ask's question, so a reader knows w
 withdrawal belongs to its message and names the number of the ask it withdraws, with the requester's
 reason. Two views define once, for every query, which messages are live (`live_messages`: no later
 message replaces them) and which asks are open (`open_asks`: on a live message, and no live message
-answers or withdraws them). A session records when it was last seen, kept to the minute. A thread
-changes only its latest sequence, which a trigger holds. A full-text index, `thread_titles`, holds
-every thread's title for search, word prefixes matched with case and accents ignored; a trigger
-fills it as a thread is created, and it relies on titles never changing. Checks hold the rest of
-what the store keeps true: one operator, whose id is 1; a registration's session set exactly when it
-is approved or revoked; and a message's detail only beside its text. `transaction()` runs one
-synchronous function under `BEGIN IMMEDIATE`, so no write interleaves with another in the process.
+answers or withdraws them). A session records when it was last seen, kept to the minute, and the
+agent API version its latest approved call stated, null until its first. A thread changes only its
+latest sequence, which a trigger holds. A full-text index, `thread_titles`, holds every thread's
+title for search, word prefixes matched with case and accents ignored; a trigger fills it as a
+thread is created, and it relies on titles never changing. Checks hold the rest of what the store
+keeps true: one operator, whose id is 1; a registration's session set exactly when it is approved or
+revoked; and a message's detail only beside its text. `transaction()` runs one synchronous function
+under `BEGIN IMMEDIATE`, so no write interleaves with another in the process.
 
 A session's status lives only in its log, `session_updates`, append-only by the same triggers as
 messages: each entry, numbered from 1 within its session, holds the session's whole status after it
@@ -315,15 +316,18 @@ every conversation, marks its session seen before its own work, in a transaction
 call refused later still counts. It writes only while the registration is still approved, so a
 revocation that commits as a token is verified stamps nothing, and only when that moves the
 session's last seen a minute or more, or when the last seen is after now, so a clock stepped back
-never holds it still. A stamp that fails is logged and the call carries on, since presence is
-advisory. A pending registration has no session, so its calls mark nothing. A session is quiet when
-it has not been seen within `agention serve --quiet-minutes`, 15 by default, and the minute a stamp
-may lag, so a session that keeps calling never is, or when it was never seen. A thread is stranded
-when it holds a live message of the operator's that the session has not read while the session is
-quiet, has no active credential or has stopped: the agent is not there to read it. Both are derived
-in queries against the request's clock, and only the thread's audience, the operator, sees them,
-with the state and outcome the session last reported, which say why it is stranded; a grouped list's
-presence for a session or an agent carries neither.
+never holds it still. The same statement records the agent API version the call states, the version
+the mount's first middleware checked, whenever it differs from the one recorded, whatever the
+minute, so a call that changes neither writes nothing; a session two bridges share records whichever
+called last. A stamp that fails is logged and the call carries on, since presence is advisory. A
+pending registration has no session, so its calls mark nothing. A session is quiet when it has not
+been seen within `agention serve --quiet-minutes`, 15 by default, and the minute a stamp may lag, so
+a session that keeps calling never is, or when it was never seen. A thread is stranded when it holds
+a live message of the operator's that the session has not read while the session is quiet, has no
+active credential or has stopped: the agent is not there to read it. Both are derived in queries
+against the request's clock, and only the thread's audience, the operator, sees them, with the state
+and outcome the session last reported, which say why it is stranded; a grouped list's presence for a
+session or an agent carries neither.
 
 A session reports its status itself, on the agent mount's status route, and no other call changes
 it. Each update merges into the current status: a state replaces the state, `stopped` with the
@@ -346,10 +350,14 @@ registrations, with their ids and codes; its status with the latest entry's note
 has not archived, with how many of those hold messages the operator has not read and how many are
 stranded, counted for every session of the page in one statement grouped over the threads as the
 operator sees them; and how many asks are open in all its threads, with how many of those are
-blocking, which is what waits on the operator, counted in one statement grouped over the open asks.
-The operator can never archive a thread holding an ask open to them, so their thread list shows
-every thread counted. A separate read counts the sessions whose log holds entries the operator has
-not read, which the web UI's navigation shows.
+blocking, which is what waits on the operator, counted in one statement grouped over the open asks;
+and `plugin_behind`, true while its recorded agent API version is below the server's, so the server
+offers what its plugin cannot use, and false for a session with no call recorded. The server's own
+version is compared as the page is read, never stored, so once a server that moved it starts, every
+session recorded at an older one is marked before it calls again. The operator can never archive a
+thread holding an ask open to them, so their thread list shows every thread counted. A separate read
+counts the sessions whose log holds entries the operator has not read, which the web UI's navigation
+shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
 them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration
@@ -631,8 +639,11 @@ as the bridge's own problems are: a newer bridge is told to have the operator up
 pin the plugin to a release that matches the server, an older one to have them update the plugin.
 Anyone who reaches the server can read the refusal, so it names the versions the server serves,
 never its release. A version is read whole, however many digits it has, and a header that is not a
-positive integer written without leading zeros is `invalid_input`, naming it. The web mount is not
-versioned: the server serves its own web UI, always in step.
+positive integer written without leading zeros is `invalid_input`, naming it. The version a served
+call by an approved key states is what the store records for its session, from which the sessions
+view's page, on the web mount and the operator mount alike, says whether the session's plugin is
+behind ([Store](#store)). The web mount is not versioned: the server serves its own web UI, always
+in step.
 
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores
@@ -1019,8 +1030,11 @@ its key file, its tokens and where its requests may go.
   only while the registration is pending, so an agent never reads it as the credential's; `replaced`
   when it replaced the key; and a `message` saying what to do next: the code to relay, to carry on
   meanwhile with work that does not need Agention, and the names to pass when the agent calls again.
-  Once the server has pruned a key's expired pending registration, the same key is registered afresh
-  and keeps its code.
+  When the answer it reports states a newer agent API version than the bridge's, the message, in any
+  state, adds a sentence asking the agent to tell the operator to update the Agention plugin on its
+  host to its newest release and restart the session, while the call succeeds with its fields
+  unchanged. Once the server has pruned a key's expired pending registration, the same key is
+  registered afresh and keeps its code.
 - **Granted names.** The bridge keeps the names the operator granted, with the key they were granted
   to. A thread tool that does not know them for the key on disk first makes the request `register`
   makes, and answers `unauthenticated` with what the operator still has to do unless the key is
@@ -1184,17 +1198,20 @@ asks say it, as Blocked on you before how many are open, in the danger tone whil
 attention tone otherwise, and a group's head, which has none, shows Blocked on you. Each session's
 row says when the session was last seen, from its presence, as quiet while it is and has not
 stopped, and beside it how long ago its status was updated, from the status's `updated_at`, since a
-session can go on being seen long after its status stopped saying what it does. Each session's row
-shows its group and tags, and each agent's header its tags, from the sessions view's page; the
-sheets that set them, and the Groups and tags sheet, load the operator's groups and tags while they
-are open, and reload the view once a change lands. While the operator is signed in, the navigation
-reads what waits on the operator, from `GET /attention`, and shows it as a badge on each tab while
-there is any: the unread threads on Threads and the registrations waiting for approval on Sessions.
-The counts refresh on an interval, on returning to the page, on going to another view, and at once
-after any change the page makes lands, which the web API client announces for every request but a
-read and signing in or out. Wherever a thread shows as stranded, the UI says why from the session's
-presence in the thread's summary: the stop the session reported, with its outcome; otherwise quiet,
-with when it was last seen; otherwise no active credential.
+session can go on being seen long after its status stopped saying what it does. While a session's
+`plugin_behind` holds, its row carries a warning notice under its facts, folded or not, saying the
+server offers features the session's plugin cannot use and that the fix is to update the Agention
+plugin on the agent's host to its newest release and restart the session; a current session's row
+shows none. Each session's row shows its group and tags, and each agent's header its tags, from the
+sessions view's page; the sheets that set them, and the Groups and tags sheet, load the operator's
+groups and tags while they are open, and reload the view once a change lands. While the operator is
+signed in, the navigation reads what waits on the operator, from `GET /attention`, and shows it as a
+badge on each tab while there is any: the unread threads on Threads and the registrations waiting
+for approval on Sessions. The counts refresh on an interval, on returning to the page, on going to
+another view, and at once after any change the page makes lands, which the web API client announces
+for every request but a read and signing in or out. Wherever a thread shows as stranded, the UI says
+why from the session's presence in the thread's summary: the stop the session reported, with its
+outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
