@@ -1,6 +1,7 @@
 // A real Agention server over TLS, run in this process from apps/server, and
 // bridges connected to it through the MCP SDK's client, in this process or
-// as processes of their own, for the bridge's tests.
+// as processes of their own, for the bridge's tests; and bridge processes
+// alone, for a server run elsewhere, such as a released one.
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import {
@@ -106,6 +107,34 @@ export class TestBridge {
   }
 }
 
+// startBridgeProcess starts a bridge as an agent host starts one: a process of
+// its own, from entry, speaking MCP on standard input and output, configured
+// only by its environment, with home as HOME, and trusting the certificate
+// authority in the file authority names through NODE_EXTRA_CA_CERTS.
+export async function startBridgeProcess(options: {
+  entry: string;
+  home: string;
+  environment: Record<string, string>;
+  authority?: string;
+}): Promise<{ bridge: TestBridge; stderr: () => string }> {
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [options.entry],
+    env: {
+      PATH: process.env.PATH ?? "",
+      HOME: options.home,
+      ...options.environment,
+      ...(options.authority === undefined ? {} : { NODE_EXTRA_CA_CERTS: options.authority }),
+    },
+    stderr: "pipe",
+  });
+  let stderr = "";
+  transport.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+  const client = new Client({ name: "agention-process-test", version: "0.0.0" });
+  await client.connect(transport);
+  return { bridge: new TestBridge(client), stderr: () => stderr };
+}
+
 export class BridgeHarness {
   // The operator's side: the server's store, with a signed-in browser.
   readonly server = new Harness();
@@ -193,12 +222,11 @@ export class BridgeHarness {
     return bridge;
   }
 
-  // process starts a bridge as an agent host starts one: a process of its
-  // own, from entry, speaking MCP on standard input and output, configured
-  // only by its environment, and trusting the server's certificate authority
-  // through NODE_EXTRA_CA_CERTS unless told not to. A bridge process signs
-  // with the real clock, so the server's clock is set to it, and the operator
-  // signs in again as it stands.
+  // process starts a bridge process from entry against this server, as
+  // startBridgeProcess does, trusting the server's certificate authority
+  // unless told not to. A bridge process signs with the real clock, so the
+  // server's clock is set to it, and the operator signs in again as it
+  // stands.
   async process(
     options: { entry?: string; trust?: boolean } = {},
   ): Promise<{ bridge: TestBridge; stderr: () => string }> {
@@ -207,26 +235,18 @@ export class BridgeHarness {
     this.server.signIn();
     const authority = path.join(this.home, "authority.pem");
     writeFileSync(authority, certificate.cert);
-    const transport = new StdioClientTransport({
-      command: process.execPath,
-      args: [entry],
-      env: {
-        PATH: process.env.PATH ?? "",
-        HOME: this.home,
+    const started = await startBridgeProcess({
+      entry,
+      home: this.home,
+      environment: {
         AGENTION_URL: this.#origin,
         AGENTWORKS_AGENT: agent,
         AGENTWORKS_SESSION: session,
-        ...(trust ? { NODE_EXTRA_CA_CERTS: authority } : {}),
       },
-      stderr: "pipe",
+      ...(trust ? { authority } : {}),
     });
-    let stderr = "";
-    transport.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
-    const client = new Client({ name: "agention-process-test", version: "0.0.0" });
-    await client.connect(transport);
-    const bridge = new TestBridge(client);
-    this.bridges.push(bridge);
-    return { bridge, stderr: () => stderr };
+    this.bridges.push(started.bridge);
+    return started;
   }
 
   // keyFile is where the bridges keep a session's key.
