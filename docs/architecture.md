@@ -1223,6 +1223,45 @@ while it holds focus passes it to the page's heading, and crossing the breakpoin
 what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
 and the list's pane is sticky and scrolls on its own.
 
+A thread page's **Next** and **Archive & next** go to the next thread needing the operator
+(`src/views/thread/next-thread.ts`): the next after it, in the list it returns to, that is unread or
+blocked on them (`needsYou` in `src/views/list/listing.ts`, which the rows' `data-needs-you`, and so
+the list's `n`, go by), going round past the list's end. The page walks that list's pages through
+`GET /threads` with the list's own query, at the most a page holds (`largestPage`); the list arrives
+in the order it shows, grouped or not, so no query of its own is needed. "After it" is where the
+thread stood on opening, since the page's own doing moves it: an answer under the priority order and
+a reply under the latest message's. So on opening, and again when the list it returns to changes,
+the page walks until it reaches the thread and keeps the threads ahead of it. Reading the thread
+takes it out of a list kept to the unread, and can do so before the walk reaches it, so a flat list
+is walked with its unread filter off: no order goes by what is unread, so the threads the filter
+keeps stand in the same order without it. The price is a longer walk on opening in a flat list kept
+to the unread, through the read threads among it. A grouped list places each group by its first
+thread the list keeps, so without the filter a read thread can lift its group ahead of others; a
+grouped list is walked as it is, and there a read that lands before the walk reaches the thread, as
+it can past the first page or on a walk again after a failure, leaves the thread not in the list, so
+any thread needing the operator is next. Holding the page's first read until the walk passed the
+thread would close that gap, but a page closed meanwhile would then never send the read, so it is
+left open. When that walk failed, the next finding walks again, and after a change of list the walk
+is the new list's, each judging "ahead" from where the thread stands then, after any answering or
+replying the page did. Whether a thread needs the operator is the list's as it stands: finding the
+next walks afresh, with the list's own filters, and stops at the first thread needing them that is
+neither this one nor one that was ahead of it, usually on the first page, walking to the end only to
+go round, to the first needing them other than this one. Each walk stops at 100 pages; a finding
+that stops there with nothing found fails, rather than say none is left, and a walk on opening that
+stops there before reaching the thread counts it as not in the list. A walk on opening still going
+when the list changes or the page closes is abandoned (`request`'s `signal`); a finding under way
+when the list changes starts again on the list as it now stands, and one under way when the page
+closes finishes, and the page, closed, drops it. What is found carries the list it was found in,
+which the next thread's entry carries on. Next pushes that entry; Archive & next finds the next
+before archiving, so a failure to find it archives nothing, then replaces the archived thread's
+entry with it, and when the list changed while the archive was under way, it finds the next again in
+the list as it now stands, staying on the thread, archived, with the failure shown, should that
+fail. That finding's walk of the new list for the threads ahead can miss the thread just archived,
+which a list without archived threads no longer holds, so it then takes the first thread needing the
+operator in the new list. With none, both go to the list, leaving it a notice to say so. While
+either is under way, or the page is leaving otherwise, neither starts again, and Next is marked
+busy.
+
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
 title.
@@ -1346,22 +1385,22 @@ browser's own where it acts, apart from `/` on the thread list, which takes Fire
 deliberately; `Enter` on a row is left out, since the row is a link the browser follows. One handler
 on the document, added after the page's own, acts on a key only when nothing handled it first, it
 was not typed into a text field, a select or editable content, no dialog or options menu is open,
-and Ctrl, Alt and Meta are up; the first key of two, `g`, waits 1.5 seconds for the second. A screen
-reader's browse mode takes single keys before the page sees them, so the shortcuts reach the page
-only once it passes keys through, and never compete with its own. The composer's own keys, Send and
-leaving it, act within its fields from its form's key handler (`useFieldShortcuts`), and likewise
-not while a dialog or options menu is open, such as Attach's within the form. Side by side, the
-list's shortcuts and the thread's act together, each pane naming the area of its view's
-(`ShortcutArea`), which clicking within a pane gives focus. While focus is in one place's area,
-another place's keys act only if they reach across (`reachesAcross`): the list's do, moving focus
-into it, but the thread's do not, so `e`, a digit or `u` never acts on the thread from the list. A
-key both bind, `n`, acts in the place whose area holds focus, or else in the later place declared,
-the thread. The thread list's selection is the row whose link has focus
-(`src/views/list/shortcuts.ts`), or, side by side with focus on no row, the open thread's, so moving
-it moves focus, which the focus ring shows and a screen reader follows; the number keys choose a
-suggestion on the ask card that holds focus or else the first open one, by pressing its control. The
-shortcuts are on unless the operator turns them off in Settings' Keyboard section, which this
-browser keeps in its local storage (`src/device.ts`).
+and Ctrl, Alt and Meta are up, AltGr, which Chrome on Windows reports as Ctrl and Alt held, counting
+as neither; the first key of two, `g`, waits 1.5 seconds for the second. A screen reader's browse
+mode takes single keys before the page sees them, so the shortcuts reach the page only once it
+passes keys through, and never compete with its own. The composer's own keys, Send and leaving it,
+act within its fields from its form's key handler (`useFieldShortcuts`), and likewise not while a
+dialog or options menu is open, such as Attach's within the form. Side by side, the list's shortcuts
+and the thread's act together, each pane naming the area of its view's (`ShortcutArea`), which
+clicking within a pane gives focus. While focus is in one place's area, another place's keys act
+only if they reach across (`reachesAcross`): the list's do, moving focus into it, but the thread's
+do not, so `e`, a digit or `u` never acts on the thread from the list. A key both bind, `n`, acts in
+the place whose area holds focus, or else in the later place declared, the thread. The thread list's
+selection is the row whose link has focus (`src/views/list/shortcuts.ts`), or, side by side with
+focus on no row, the open thread's, so moving it moves focus, which the focus ring shows and a
+screen reader follows; the number keys choose a suggestion on the ask card that holds focus or else
+the first open one, by pressing its control. The shortcuts are on unless the operator turns them off
+in Settings' Keyboard section, which this browser keeps in its local storage (`src/device.ts`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks

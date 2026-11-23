@@ -54,6 +54,7 @@ import {
   Link,
   listHref,
   navigate,
+  threadHref,
   threadPathParts,
   useListView,
 } from "../../router.tsx";
@@ -61,6 +62,7 @@ import { Composer } from "./Composer.tsx";
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
+import { type NextFound, useNextThread } from "./next-thread.ts";
 import {
   blank,
   type Staged,
@@ -424,6 +426,7 @@ function ThreadPage({
     action: ReturnType<typeof useAction>,
     route: "/unread" | "/archive",
     body: UnreadInput | MarkInput,
+    onward: () => void = returnToList,
   ) => {
     const done = await action.run((csrf) =>
       request<CursorsResult | MarksResult>(
@@ -433,35 +436,79 @@ function ThreadPage({
       ),
     );
     if (done !== undefined && stillOpen()) {
-      returnToList();
+      onward();
     }
   };
+  // Next opens the next thread needing the operator, in the list the page
+  // returns to (useNextThread), as a new history entry, so going back
+  // returns to this thread; with none, it goes back to that list, which says
+  // so. It moves on only if the page is still open once the next is found,
+  // and does nothing while the page is busy, which it shows.
+  const nextThread = useNextThread(target, origin);
+  const finding = useAction();
+  const findNext = () => finding.run(nextThread);
   // Archive all first shows every message through the thread's latest,
   // loading later pages as needed, so it never archives a message the page
   // has not shown, then archives through the latest. When loading them
   // fails, it stops and says so, until the operator chooses it again.
-  const [archivingAll, setArchivingAll] = useState(false);
+  // Archive & next does all of that, finding the next thread before it
+  // archives, so a failure to find it archives nothing, then opens the next
+  // thread in place of this one, or, with none, goes back to the list as
+  // Archive all does, which says so. When the list the page returns to
+  // changed while the archive was under way, as the list beside the thread
+  // can, it finds the next again in the list as it now stands, so it opens
+  // one of that list; should that fail, it stays on the thread, archived,
+  // and says so, and Next finds it again. archivingAll is where the one
+  // under way goes.
+  const [archivingAll, setArchivingAll] = useState<"list" | "next">();
   const [showingFailure, setShowingFailure] = useState<unknown>();
   // The failure the thread's last load had when Archive all was chosen.
   const failedBefore = useRef<unknown>(undefined);
-  const leaving = unread.pending || archive.pending || reading.pending || archivingAll;
-  const archiveAll = () => {
+  // Whether the page is on its way to another, or finding where to go: no
+  // other way on starts meanwhile.
+  const busy = unread.pending || archive.pending || finding.pending || archivingAll !== undefined;
+  const leaving = busy || reading.pending;
+  const archiveAll = (onward: "list" | "next") => {
     setMarkedFrom(undefined);
     setShowingFailure(undefined);
     failedBefore.current = loaded.failure;
-    setArchivingAll(true);
+    setArchivingAll(onward);
     show(thread.last_seq);
   };
+  const archiveAndNext = async (through: number) => {
+    const found = await findNext();
+    if (found !== undefined && stillOpen()) {
+      await leaveWith(archive, "/archive", { through }, () => void moveOnFrom(found));
+    }
+  };
+  const moveOnFrom = async (found: NextFound) => {
+    const now = found.from === listHref(currentListView()) ? found : await findNext();
+    if (now !== undefined && stillOpen()) {
+      goToNext(now, true);
+    }
+  };
+  const openNext = async () => {
+    if (busy) {
+      return;
+    }
+    const found = await findNext();
+    if (found !== undefined && stillOpen()) {
+      goToNext(found, false);
+    }
+  };
   useEffect(() => {
-    if (!archivingAll) {
+    if (archivingAll === undefined) {
       return;
     }
     if (loaded.failure !== undefined && loaded.failure !== failedBefore.current) {
-      setArchivingAll(false);
+      setArchivingAll(undefined);
       setShowingFailure(loaded.failure);
     } else if (!data.later) {
-      setArchivingAll(false);
-      void leaveWith(archive, "/archive", { through: data.thread.last_seq });
+      setArchivingAll(undefined);
+      const through = data.thread.last_seq;
+      void (archivingAll === "list"
+        ? leaveWith(archive, "/archive", { through })
+        : archiveAndNext(through));
     }
   }, [archivingAll, data, loaded.failure]);
   // Archiving through a message stays on the page, where the messages
@@ -753,9 +800,15 @@ function ThreadPage({
     reply: () => composerBox.current?.focus(),
     archive: () => {
       if (canArchiveAll) {
-        archiveAll();
+        archiveAll("list");
       }
     },
+    archiveAndNext: () => {
+      if (canArchiveAll) {
+        archiveAll("next");
+      }
+    },
+    openNext: () => void openNext(),
     jump: () => {
       if (jumpTo !== undefined) {
         setSeeking({ failedBefore: loaded.failure });
@@ -773,7 +826,18 @@ function ThreadPage({
     <article>
       <header className="thread-header">
         <div className="thread-bar">
-          <BackToThreads origin={origin} />
+          <div className="thread-nav">
+            <BackToThreads origin={origin} />
+            <button
+              type="button"
+              className="secondary"
+              aria-label="Next thread"
+              aria-busy={busy}
+              onClick={() => void openNext()}
+            >
+              Next
+            </button>
+          </div>
           <div className="thread-actions">
             {thread.archived && <Mark icon="archive" label="Archived" />}
             <button
@@ -781,15 +845,25 @@ function ThreadPage({
               className="secondary"
               disabled={!canArchiveAll}
               aria-describedby={openCount > 0 ? archiveAllHint : undefined}
-              onClick={archiveAll}
+              onClick={() => archiveAll("list")}
             >
               Archive all
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={!canArchiveAll}
+              aria-describedby={openCount > 0 ? archiveAllHint : undefined}
+              onClick={() => archiveAll("next")}
+            >
+              Archive &amp; next
             </button>
           </div>
         </div>
         {openCount > 0 && (
           <p id={archiveAllHint} className="hint">
-            Archive all is available once every ask open to you is answered or declined.
+            Archive all and Archive &amp; next are available once every ask open to you is answered
+            or declined.
           </p>
         )}
         <PageHeading>
@@ -825,6 +899,7 @@ function ThreadPage({
           failure={markedFrom === undefined ? (archive.failure ?? showingFailure) : undefined}
         />
         <HeadFailure action="Reading this thread" failure={reading.failure} />
+        <HeadFailure action="Finding the next thread" failure={finding.failure} />
       </header>
 
       <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
@@ -902,6 +977,22 @@ function ThreadPage({
 // not open the thread again.
 function returnToList(): void {
   navigate(listHref(currentListView()), { replace: true });
+}
+
+// The list's status, once Next or Archive & next went back to it for want of
+// another thread needing the operator.
+export const noneNeedsYou = "No other thread needs you.";
+
+// goToNext leaves the thread page for the next thread needing the operator,
+// carrying on the list it was found in, or, with none, for that list, which
+// says so.
+function goToNext({ next, from }: NextFound, replace: boolean): void {
+  if (next === undefined) {
+    leaveNotice(noneNeedsYou);
+    navigate(from, { replace });
+  } else {
+    navigate(threadHref(next.agent, next.session, next.number), { replace, state: { from } });
+  }
 }
 
 // BackToThreads is the back button to the thread list as the operator left

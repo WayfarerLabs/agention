@@ -1372,6 +1372,13 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin-bottom: var(--space-3);
 }
 
+/* The way back to the list, and on to the next thread, together. */
+.thread-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* The back button: a heavy arrow and its word, at full strength, bordered
    like the head's other buttons. */
 .back {

@@ -19,8 +19,11 @@ export const requestId = z
 // It has room for a grouped list's position, four sets of a thread's keys.
 export const cursor = z.string().min(1).max(1_024);
 
+// The most a page or a bulk list holds.
+export const largestPage = 100;
+
 // The size of every page and bulk list.
-export const pageLimit = z.number().int().min(1).max(100).default(50);
+export const pageLimit = z.number().int().min(1).max(largestPage).default(50);
 
 // Lists that come whole rather than in pages, of agents, sessions and topics,
 // hold at most this many and say when they leave any out.

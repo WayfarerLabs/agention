@@ -81,6 +81,14 @@ const focusInThread = () => threadPane().contains(document.activeElement);
 // Whether the thread's pane holds its word on opening one, with none open.
 const noThread = () => threadPane().querySelector(".empty") !== null;
 
+// The list's own loads, not the walks of its pages a thread's page makes to
+// find its next thread, which ask for the most a page holds.
+const listLoads = () =>
+  api.callsTo("GET", "/threads").filter((call) => !call.url.searchParams.has("limit"));
+// Those walks, which the thread open makes of the list it returns to.
+const walks = () =>
+  api.callsTo("GET", "/threads").filter((call) => call.url.searchParams.has("limit"));
+
 // press presses a key where focus is, as the keyboard does.
 function press(key: string): void {
   fireEvent.keyDown(document.activeElement ?? document.body, { key });
@@ -112,13 +120,39 @@ describe("side by side", () => {
     await openList();
     const list = listPane().querySelector("ul.threads");
     const sort = within(listPane()).getByRole("combobox", { name: "Sort" });
-    const loads = api.callsTo("GET", "/threads").length;
+    const loads = listLoads().length;
     // Both are read, so opening them changes nothing the list follows.
     await openFromList("First");
     await openFromList("Second");
     expect(listPane().querySelector("ul.threads")).toBe(list);
     expect(within(listPane()).getByRole("combobox", { name: "Sort" })).toBe(sort);
-    expect(api.callsTo("GET", "/threads")).toHaveLength(loads);
+    expect(listLoads()).toHaveLength(loads);
+  });
+
+  it("opens the next thread that needs you beside the list, which stays mounted, its row current", async () => {
+    await openList();
+    const list = listPane().querySelector("ul.threads");
+    await openFromList("First");
+    // The page has walked the list for where its thread stands.
+    await waitFor(() => expect(walks()).toHaveLength(1));
+    fireEvent.click(within(threadPane()).getByRole("button", { name: "Next thread" }));
+    await waitFor(() => expect(titleOf(threadHeading())).toBe("Third"));
+    expect(window.location.pathname).toBe(threadPath(3));
+    expect(listPane().querySelector("ul.threads")).toBe(list);
+    expect(rowLink("Third").getAttribute("aria-current")).toBe("page");
+    expect(rowLink("First").getAttribute("aria-current")).toBeNull();
+    expect(focusInThread()).toBe(true);
+  });
+
+  it("walks the list again for where the thread stands when the list beside it changes", async () => {
+    await openList();
+    await openFromList("Second");
+    await waitFor(() => expect(walks()).toHaveLength(1));
+    fireEvent.change(within(listPane()).getByRole("combobox", { name: "Sort" }), {
+      target: { value: "latest" },
+    });
+    await waitFor(() => expect(walks()).toHaveLength(2));
+    expect(walks()[1]?.url.searchParams.get("sort")).toBe("latest");
   });
 
   it("has one level-one heading, the list's while no thread is open and the thread's while one is", async () => {
@@ -262,9 +296,7 @@ describe("side by side", () => {
     );
     expect(window.location.pathname).toBe(threadPath(1));
     expect(titleOf(threadHeading())).toBe("First");
-    await waitFor(() =>
-      expect(api.callsTo("GET", "/threads").at(-1)?.url.searchParams.get("unread")).toBe("true"),
-    );
+    await waitFor(() => expect(listLoads().at(-1)?.url.searchParams.get("unread")).toBe("true"));
   });
 
   it("keeps the thread open when the list beside it changes, and returns to the list as changed", async () => {
@@ -273,9 +305,7 @@ describe("side by side", () => {
     fireEvent.change(within(listPane()).getByRole("combobox", { name: "Sort" }), {
       target: { value: "latest" },
     });
-    await waitFor(() =>
-      expect(api.callsTo("GET", "/threads").at(-1)?.url.searchParams.get("sort")).toBe("latest"),
-    );
+    await waitFor(() => expect(listLoads().at(-1)?.url.searchParams.get("sort")).toBe("latest"));
     expect(window.location.pathname).toBe(threadPath(2));
     expect(titleOf(threadHeading())).toBe("Second");
     press("u");
@@ -313,9 +343,9 @@ describe("side by side", () => {
     await openList();
     await openFromList("First");
     await openFromList("Second");
-    const loads = api.callsTo("GET", "/threads").length;
+    const loads = listLoads().length;
     press("u");
-    await waitFor(() => expect(api.callsTo("GET", "/threads")).toHaveLength(loads + 1));
+    await waitFor(() => expect(listLoads()).toHaveLength(loads + 1));
     expect(window.location.pathname).toBe("/");
   });
 
@@ -347,9 +377,9 @@ describe("side by side", () => {
   it("loads again as a change lands, as the thread beside it is read", async () => {
     await openList();
     await openFromList("First");
-    const loads = api.callsTo("GET", "/threads").length;
+    const loads = listLoads().length;
     window.dispatchEvent(new Event(changeLanded));
-    await waitFor(() => expect(api.callsTo("GET", "/threads").length).toBe(loads + 1));
+    await waitFor(() => expect(listLoads().length).toBe(loads + 1));
   });
 
   it("keeps the list as set going back from thread to thread, neither changing nor remounting it", async () => {
@@ -359,18 +389,16 @@ describe("side by side", () => {
     fireEvent.change(within(listPane()).getByRole("combobox", { name: "Sort" }), {
       target: { value: "latest" },
     });
-    await waitFor(() =>
-      expect(api.callsTo("GET", "/threads").at(-1)?.url.searchParams.get("sort")).toBe("latest"),
-    );
+    await waitFor(() => expect(listLoads().at(-1)?.url.searchParams.get("sort")).toBe("latest"));
     const list = listPane().querySelector("ul.threads");
-    const loads = api.callsTo("GET", "/threads").length;
+    const loads = listLoads().length;
     window.history.back();
     await waitFor(() => expect(titleOf(threadHeading())).toBe("First"));
     expect(
       within(listPane()).getByRole<HTMLSelectElement>("combobox", { name: "Sort" }).value,
     ).toBe("latest");
     expect(listPane().querySelector("ul.threads")).toBe(list);
-    expect(api.callsTo("GET", "/threads")).toHaveLength(loads);
+    expect(listLoads()).toHaveLength(loads);
     // The entry gone back to returns to the list as set, as u does.
     expect(window.history.state).toMatchObject({ from: "/?sort=latest" });
     press("u");
@@ -383,9 +411,7 @@ describe("side by side", () => {
     fireEvent.change(within(listPane()).getByRole("combobox", { name: "Sort" }), {
       target: { value: "latest" },
     });
-    await waitFor(() =>
-      expect(api.callsTo("GET", "/threads").at(-1)?.url.searchParams.get("sort")).toBe("latest"),
-    );
+    await waitFor(() => expect(listLoads().at(-1)?.url.searchParams.get("sort")).toBe("latest"));
     const list = listPane().querySelector("ul.threads");
     window.history.back();
     await waitFor(() => expect(noThread()).toBe(true));

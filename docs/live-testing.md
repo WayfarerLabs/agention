@@ -95,7 +95,9 @@ with each other or with what the product does, the disagreement is the finding.
   said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
   by agent, each header's label and marks adding their filters to the list and its bar folding but
   on a link; the thread page's numbered asks answered several at once, a message's details,
-  replacements, mark unread from a message, archive through a message and archive all; Send and what
+  replacements, mark unread from a message, archive through a message and archive all, and Next and
+  Archive & next from a thread, with `]` and `E`, to the next thread unread or blocked on you in the
+  list it was opened from and back to the list, which says so, once none is left; Send and what
   answers it kept on a short screen while writing, and the way back under the composer; the Threads
   tab side by side at a desktop's width, the list kept as chosen beside each thread opened, the open
   thread's row marked, Back from thread to thread, focus back on the row left, and one at a time

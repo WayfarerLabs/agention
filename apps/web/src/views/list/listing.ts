@@ -25,6 +25,10 @@ export function topicShown(path: string): string {
 // A thread as the operator's list shows it, with its session's group.
 export type ListedThread = ThreadList["threads"][number];
 
+// needsYou says whether a thread needs the operator: it is unread or blocked
+// on them. The list's n and a thread page's Next both go by it.
+export const needsYou = (thread: ThreadSummary) => thread.unread > 0 || thread.open_asks.blocking;
+
 // distinct keeps each thread once: one that moved between two pages as they
 // loaded comes back on both.
 export function distinct<T extends ThreadSummary>(threads: T[]): T[] {

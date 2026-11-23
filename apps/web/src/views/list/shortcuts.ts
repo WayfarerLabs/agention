@@ -1,5 +1,5 @@
 import { useShortcuts } from "../../keyboard.tsx";
-import { needsYou, rowLinks } from "./ThreadRow.tsx";
+import { rowLinks, rowNeedsYou } from "./ThreadRow.tsx";
 
 // The thread list's keyboard shortcuts. The row selected is the row whose
 // link has focus, so moving the selection moves focus, which a screen reader
@@ -32,7 +32,7 @@ function seek(by: 1 | -1): void {
   const from = at !== -1 ? at : by === 1 ? -1 : 0;
   for (let count = 1; count <= links.length; count += 1) {
     const link = links[(((from + by * count) % links.length) + links.length) % links.length];
-    if (link !== undefined && needsYou(link)) {
+    if (link !== undefined && rowNeedsYou(link)) {
       link.focus();
       return;
     }

@@ -692,9 +692,12 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await second.click();
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
   const listsAsked: string[] = [];
+  // Each list asked for, the size of its pages aside, which the thread
+  // page's walk for its next thread asks for too.
   const askedFor = (request: Request) => {
     const url = new URL(request.url());
     if (url.pathname === "/api/web/threads") {
+      url.searchParams.delete("limit");
       listsAsked.push(url.search);
     }
   };
@@ -1244,6 +1247,84 @@ test("Settings orders the groups by their buttons and by dragging, keeping the o
   await alpha.getByRole("button", { name: "Remove" }).click();
   await alpha.getByRole("button", { name: "Remove this group" }).click();
   await expect(alpha).toHaveCount(0);
+});
+
+test("Next opens the next thread that needs you and Archive & next archives the thread and moves on, beside the list and on a phone", async () => {
+  for (const name of ["one", "two", "three"]) {
+    await agent.send<WriteResult>("POST", threads, {
+      request_id: `create-hopscotch-${name}`,
+      title: `Hopscotch ${name}`,
+      text: "On to the next square.",
+    });
+  }
+  const wide = page.viewportSize();
+  // A short window, so the list beside the thread scrolls.
+  await page.setViewportSize({ width: wide?.width ?? 1280, height: 420 });
+  await page.goto("/?search=Hopscotch&sort=created");
+  const list = page.getByRole("region", { name: "Thread list" });
+  const pane = page.getByRole("region", { name: "Thread", exact: true });
+  const rows = page.locator("ul.threads").getByRole("link");
+  await expect(rows).toHaveCount(3);
+  const titles = await Promise.all(
+    [0, 1, 2].map(
+      async (index) => (await rows.nth(index).getByRole("heading").textContent()) ?? "",
+    ),
+  );
+
+  // Beside the list, ] opens the next thread that needs the operator, and
+  // the list keeps its scroll, its row marked current.
+  await rows.nth(0).click();
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
+  const shown = await list.locator("ul.threads").elementHandle();
+  const scrolled = await list.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return element.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(0);
+  await page.keyboard.press("]");
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
+  await expect(rows.nth(1)).toHaveAttribute("aria-current", "page");
+  expect(await shown?.evaluate((element) => element.isConnected)).toBe(true);
+  expect(await list.evaluate((element) => element.scrollTop)).toBe(scrolled);
+
+  // On a phone the thread's head holds Next and Archive & next within its
+  // width, and Archive & next archives the thread and opens the next in its
+  // place.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(list).toHaveCount(0);
+  const head = page.locator(".thread-bar");
+  for (const control of [
+    head.getByRole("link", { name: "Back to threads" }),
+    head.getByRole("button", { name: "Next thread" }),
+    head.getByRole("button", { name: "Archive all", exact: true }),
+    head.getByRole("button", { name: "Archive & next" }),
+  ]) {
+    const box = await control.boundingBox();
+    expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  const entries = await page.evaluate(() => window.history.length);
+  await head.getByRole("button", { name: "Archive & next" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[2] ?? "");
+  expect(await page.evaluate(() => window.history.length)).toBe(entries);
+
+  // With no other thread needing the operator, E archives this one and goes
+  // back to the list, which says so, holding only the thread read first.
+  await page.keyboard.press("E");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+  await expect(page).toHaveURL(/\/\?search=Hopscotch&sort=created$/);
+  await expect(page.getByRole("status")).not.toBeEmpty();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.getByRole("heading")).toHaveText(titles[0] ?? "");
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
+  await page.goto("/");
 });
 
 test("signing in with the passkey returns to the page that needed it", async () => {

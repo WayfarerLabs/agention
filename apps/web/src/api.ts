@@ -43,6 +43,8 @@ export interface RequestOptions {
   body?: unknown;
   // The session's CSRF token, which every change needs.
   csrf?: string | undefined;
+  // Aborting it ends the request as a network failure.
+  signal?: AbortSignal | undefined;
 }
 
 // The answer is read as an error body only when it has the API's error shape:
@@ -105,6 +107,7 @@ export async function request<T>(
       method,
       headers,
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     },
     options.csrf,
     requestTimeout,
