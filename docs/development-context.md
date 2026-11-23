@@ -139,7 +139,8 @@ index of those docs.
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
   acceptance, and dictation with a real transcription provider, by the operator; Codex used only for
-  basic plugin-integration prompts (an operator bound); private inventory location: none
+  basic plugin-integration prompts and live checks of waking an agent for push (an operator bound);
+  private inventory location: none
 - Known acceptance gaps and standing issues not to re-report: the residual `fast-uri` and `katex`
   advisories recorded in `CONTRIBUTING.md` "Dependencies"; live Codex checks need an authenticated
   Codex session; the macOS launchd setup is untested (`docs/operator-guide.md` "macOS: a launchd

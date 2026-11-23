@@ -1,6 +1,6 @@
 # Agent push: Functional Requirements
 
-- Status: Draft, for the operator's acceptance
+- Status: Accepted by the operator, 2026-11-22 (ruling 2)
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -75,9 +75,9 @@ way.
 offers a plugin, where one exists. A host that offers none has no push and works as today. The
 operator guide says, per host, whether push works there and what it needs.
 
-**H2. No setup where the host needs none.** Where a host lets a plugin push without the operator's
-configuration, installing or updating the plugin is all push needs. Where a host requires the
-operator to opt in, the operator guide says how, and a session without the opt-in works as today.
+**H2. No setup.** Installing or updating the plugin is all push needs. On Claude Code, a means that
+needs the operator to opt in at every launch, such as a development flag, is not used (ruling 2);
+where a host offers only such a means, that host has no push.
 
 **H3. The register answer tells the truth.** `register`'s answer says answers are pushed only when
 the bridge can tell push is live for its host session, and otherwise that answers reach the agent
@@ -119,6 +119,7 @@ are tested against the bridge and plugin as each host runs them.
 - Pushing to a host session that is closed, or starting one.
 - Telling a working agent of unread messages in its tool answers; it checks between steps as today.
 - Changing how a host installs or updates plugins, or asking a host's maker to allowlist the plugin.
+- Claude Code's channels, while a custom channel needs a flag at every launch (ruling 2).
 
 ## Operator rulings, 2026-11-22 onward
 
@@ -129,12 +130,25 @@ are tested against the bridge and plugin as each host runs them.
    spike first. They added: "Please note the release split PR #61, too." Taken: agention#63, this
    SDD, and C1.
 
+2. (2026-11-22) Asked whether to accept these requirements, including P2's notice as the one
+   exception to ADR 0001's rule against injecting text into an agent's conversation, the operator
+   chose "Accept". Asked whether the operator guide may teach Claude Code's channels opt-in, a flag
+   passed at every launch that shows a warning, as a fallback if the plugin-hook path does not work,
+   they chose "Hook only". Asked whether the bridge may wake a Codex session with `codex queue`,
+   whose message arrives as if the operator typed it, and whether to widen the development
+   contract's Codex bound to a live check of it, they chose "Yes, and test it live". Asked when the
+   hands-on spike should run, and whether it may launch separate interactive Claude Code and Codex
+   sessions on this VM with a development build of the plugin, they chose "After acceptance, yes".
+   Taken: this FRD as accepted, H2, the Codex line of the definition of done, the widened Codex
+   bound, and the spike.
+
 ## Definition of done
 
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
 - Live on Claude Code: an agent at its prompt is pushed when the operator starts a thread with it
   from the web UI, reads the thread and acts on it, and its `register` answer said answers are
   pushed.
-- On Codex: the operator guide and the `register` answer are accurate for what the host allows,
-  shown by the bridge and plugin as Codex runs them.
+- Live on Codex: where `codex queue` wakes a session, an agent at its prompt is pushed when the
+  operator starts a thread with it, and otherwise the operator guide and the `register` answer say
+  Codex has no push.
 - The repository passes its documented checks in CI.
