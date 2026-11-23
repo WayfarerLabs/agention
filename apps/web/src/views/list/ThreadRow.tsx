@@ -15,6 +15,7 @@ import {
   Time,
 } from "../../format.tsx";
 import { Mark } from "../../icons.tsx";
+import { readDraft } from "../../device.ts";
 import { Link, threadHref, useLocation } from "../../router.tsx";
 
 // What stands out about the asks open to the operator: the one the thread
@@ -88,8 +89,8 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // open, which the operator as its audience answers, the question of the one
 // it leads with: the first in the list's order among those the filters keep;
 // otherwise, muted, that its asks were answered or withdrawn; and whether it
-// is stranded, and why. The link records the list, so the thread page returns
-// to it.
+// is stranded, and why; and whether this browser keeps a draft of a reply to
+// it. The link records the list, so the thread page returns to it.
 export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: FoldLevel }) {
   const here = useLocation();
   const { open_asks: asks } = thread;
@@ -110,6 +111,7 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
           </Heading>
           <span className="marks">
             <MessageCount unread={thread.unread} total={thread.message_count} />
+            {readDraft(thread) !== undefined && <Mark icon="draft" label="Draft" />}
             {thread.archived && <Mark icon="archive" label="Archived" />}
           </span>
         </div>

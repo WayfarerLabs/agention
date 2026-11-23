@@ -458,20 +458,20 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     and a dot before its title, set extra bold; while it does, the closed envelope with how many are
     unread over all the messages it holds, yours included and a replaced message counted once,
     through its replacement, such as **2/5**, and once you have read them all, the open envelope
-    with how many it holds, such as **5**; the archive box when you archived it; where it is, its
-    agent, session and topic, and when it last changed; and, when an ask is open to you, the
-    question of the one the list leads with, the first in its order among those the filters keep,
-    with its priority, blocked and assuming marks, how long answering takes when the agent said, and
-    how many more are open; otherwise, muted, **Answered**, or **Withdrawn:** and the agent's latest
-    reason on one line. When any of the asks open to you has an answer-by, the row also shows the
-    earliest answer-by among them, whichever ask carries it: **Due** and the time when that falls
-    today, or the date and time on another day, with the year only when it is not this year's; and
-    once the server finds it passed, as the **Overdue** filter does, **Overdue since** then. Holding
-    the pointer over the time shows it in full. A stranded thread shows a **Stranded** tag in the
-    warning's color, as the sessions view flags stranded threads, saying why: its session
-    **stopped**, with how; it is quiet, **last seen** when, or **never seen**; or it has **no active
-    credential**. A session with no active credential also shows its own tag, unless the stranded
-    tag already says so.
+    with how many it holds, such as **5**; a pencil while this browser keeps your draft of a reply
+    to it; the archive box when you archived it; where it is, its agent, session and topic, and when
+    it last changed; and, when an ask is open to you, the question of the one the list leads with,
+    the first in its order among those the filters keep, with its priority, blocked and assuming
+    marks, how long answering takes when the agent said, and how many more are open; otherwise,
+    muted, **Answered**, or **Withdrawn:** and the agent's latest reason on one line. When any of
+    the asks open to you has an answer-by, the row also shows the earliest answer-by among them,
+    whichever ask carries it: **Due** and the time when that falls today, or the date and time on
+    another day, with the year only when it is not this year's; and once the server finds it passed,
+    as the **Overdue** filter does, **Overdue since** then. Holding the pointer over the time shows
+    it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
+    view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
+    seen** when, or **never seen**; or it has **no active credential**. A session with no active
+    credential also shows its own tag, unless the stranded tag already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
@@ -580,6 +580,21 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     other asks' choices are unavailable until you send or remove one. While a change or an edit is
     staged, nothing else can be started until you send or remove it, and removing it empties both
     boxes. An edit needs text.
+  - This browser keeps your draft's text and details as you type, one draft for each thread, so
+    leaving the thread or reloading the page loses nothing: the composer opens with them when you
+    come back, and counts from where the draft started, so a message the agent wrote while you were
+    away makes sending stale, as below. With the thread open in two tabs, the draft typed last is
+    the one kept. What you staged, the files you attached and a recording are not kept: the composer
+    says so when the draft it opens with had them, and sending it then posts its text as a new
+    message. The text a change or an edit loads is kept only once you change it. **Discard draft**,
+    under the boxes while they hold anything, asks once, then empties the composer and forgets the
+    draft; a message that is sent forgets it, and one that fails to send keeps it. Reloading the
+    page while a message is being sent brings its text back as the draft; if the message landed,
+    sending the draft again fails as stale, with your message among those missed, so nothing is sent
+    twice unseen. The browser forgets a draft 30 days after you last opened its thread or typed in
+    it, keeps the latest 50, and forgets them all when you sign out here or remove the passkey it
+    signed in with. A browser that refuses storage, as a private window may, keeps none, and the
+    composer works as before.
   - Beside **Send**, **Go back after sending** returns you to the list, as **Threads** does, once a
     message is sent, and the list says what was sent; a message that fails to send stays on the page
     with your draft. It is checked until you uncheck it, and this browser keeps your choice. While
@@ -695,10 +710,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Voice**
   (`/settings/voice`), as [Voice](#voice) describes, and **Storage** (`/settings/storage`), as
   [Attachments](#attachments) describes; and **Sign out** (`/settings/sign-out`), which signs this
-  browser out and leaves your others signed in. On a wide screen the sections are listed beside the
-  one open; on a phone Settings opens on the list, and each section has a link back to it.
-  `/passkeys` leads to Passkeys. While your sign-in is too old for a change to passkeys, API keys or
-  voice, those sections offer **Sign in again** first.
+  browser out, forgetting the drafts it kept, and leaves your others signed in. On a wide screen the
+  sections are listed beside the one open; on a phone Settings opens on the list, and each section
+  has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too old for a change
+  to passkeys, API keys or voice, those sections offer **Sign in again** first.
 
 A message's text and details are Markdown with GitHub's tables, task lists and strikethrough, shown
 inert: raw HTML shows as text, an image written in Markdown shows as a link and never loads, unlike
