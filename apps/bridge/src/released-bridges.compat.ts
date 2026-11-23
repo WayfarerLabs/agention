@@ -1,3 +1,5 @@
+import { agentApi, agentApiHeader, agentApiVersion } from "@wayfarerlabs/agention-api";
+import type { SessionsPage } from "@wayfarerlabs/agention-server-api";
 import { readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import path from "node:path";
@@ -56,6 +58,12 @@ describe.each(versions)("the bridge released as %s", (version) => {
 
   it("works through every tool it has against this server", { timeout: 60_000 }, async () => {
     expect(bridge.client.getServerVersion()?.version).toBe(version);
+    // The agent API version the latest request to the server stated, the
+    // bridge's own once its last call below is made.
+    let stated: string | undefined;
+    harness.beforeRequest = (request) => {
+      stated = request.headers.get(agentApiHeader) ?? undefined;
+    };
     const { tools } = await bridge.client.listTools();
     const has = (tool: string) => tools.some((each) => each.name === tool);
     const called = new Set<string>();
@@ -316,5 +324,13 @@ describe.each(versions)("the bridge released as %s", (version) => {
       ).toMatchObject({ state: "stopped", outcome: "completed" });
     }
     expect([...called].sort()).toEqual(tools.map((tool) => tool.name).sort());
+
+    // The sessions view marks its session's plugin behind exactly when the
+    // version it states, none reading as 1, is below the server's.
+    const sessions = (await harness.server.web("GET", "/sessions")).body as SessionsPage;
+    const behind = agentApiVersion.parse(stated) < BigInt(agentApi.version);
+    expect(sessions.agents).toMatchObject([
+      { agent, sessions: [{ session, plugin_behind: behind }] },
+    ]);
   });
 });
