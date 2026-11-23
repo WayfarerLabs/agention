@@ -5,5 +5,5 @@
     "MD013": false,
   },
   "gitignore": true,
-  "ignores": ["out/**", "CHANGELOG.md"],
+  "ignores": ["out/**", "CHANGELOG.md", "apps/bridge/CHANGELOG.md"],
 }
