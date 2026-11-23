@@ -386,10 +386,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     **Blocked on you** when an agent's ask blocks its work on your answer, the highest priority of
     an open ask, the archive box when all are archived, and, in the warning's color on a session's
     or an agent's header while it is quiet, **last seen** and when, or **never seen** (an agent is
-    quiet while every session it shows is). A session group's header adds up its sessions'. Choosing
-    a header collapses everything under it or expands it again. Every header starts expanded, and
-    this browser keeps the ones you collapse, for each way of grouping, a session group's however
-    you rename it.
+    quiet while every session it shows is). A session group's header adds up its sessions'. A
+    header's name, and each of those marks a filter matches, is a link that adds what the header
+    heads (its group, session, topic or agent) and the mark's own filter to the filters on, keeping
+    the others, the order and the grouping: the name and the count keep all its threads, the
+    envelope its unread ones, **Blocked on you** those blocking an agent on your answer, and the
+    priority those with an ask at that priority or higher. While a filter on open asks is on,
+    **Blocked on you** and the priority link nowhere, since they count every open ask of the threads
+    shown while those filters keep a thread for one ask meeting them all. **No topic**, which no
+    filter names, the archive box and **last seen** link nowhere. The chevron before a header's name
+    collapses everything under it or expands it again, as a click anywhere else on the header does
+    but on a link. Every header starts expanded, and this browser keeps the ones you collapse, for
+    each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
@@ -614,11 +622,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes. The **Sessions** tab counts them, and approving
     or rejecting them clears the count.
+  - Everything in the view that stands for threads is a link opening the thread list on those
+    threads alone, with no other filter on: a group's, an agent's or a session's name, a count of
+    threads, the envelope, **Blocked on you**, open asks and stranded threads, each within the
+    header or row it sits on, and a group's or a tag's chip, on the threads in that group or
+    carrying that tag wherever they are. Following one never folds anything: the chevron before a
+    name folds what it heads, as a click anywhere else on the header or the row does but on a link
+    or a button.
   - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
     with how many sessions it has and what they add up to: their threads' roll-up and unread updates
     as each session's row shows them, their open asks as each row shows its own, their stranded
-    threads, and the agent's tags. Beside it, its threads open the thread list on the agent's
-    threads; how many of them are stranded, flagged while any are, opens it on those, as the
+    threads, and the agent's tags. At the header's end, its threads open the thread list on the
+    agent's threads; how many of them are stranded, flagged while any are, opens it on those, as the
     **Stranded** filter does; and the **⋯** button opens **Tags**. Once you have put any session in
     a group, the agents fold under their groups, groups in name order and **No group** last, each
     group's head showing what its sessions add up to, with **Blocked on you** when an ask in them
@@ -640,17 +655,16 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No
       status** when it has never reported, such as one whose plugin predates session status;
     - its open asks, while it has any, whatever it is doing: a session working on one thing can wait
-      on your answer about another. In the thread list's words, **Blocked on you · 2 open asks** in
-      red while any of them blocks its work on your answer, and otherwise **2 open asks**. It opens
-      the thread list on the session's open threads;
+      on your answer about another. In the thread list's words, **Blocked on you** in red while any
+      of them blocks its work on your answer, opening the thread list on the session's threads that
+      do, then how many are open, such as **2 open asks**, opening it on the session's open threads;
     - **No credential**, when it has no active credential;
     - its group, in a chip with a dashed border, and its tags, each led by **#**;
     - its threads' roll-up, as the thread list's headers show theirs: how many threads you have not
       archived, which opens the thread list on the session; how many are stranded, flagged as on an
       agent's header, which opens it on those alone; the closed envelope with how many are unread,
-      or the open envelope when none is. Its open asks already say when an ask blocks its work on
-      your answer, so the row has no separate **Blocked on you**, nor does an agent's header, whose
-      open asks say it;
+      or the open envelope when none is, the closed one opening it on the session's unread threads.
+      **Blocked on you** shows once, before its open asks, as on an agent's header;
     - its unread updates, such as **2 new updates**;
     - and its latest note, cut to fit.
 
@@ -663,13 +677,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     calls `register` with a plugin new enough to know, and the operator API's sessions read carries
     it as `plugin_behind`.
 
-    Choosing a row lets its title wrap whole and unfolds it to its goal over a bar of how far it has
-    come, its credentials and its log: what each update changed, newest first, with its note.
-    Consecutive updates that changed only the percent show as one line, such as **Progress 20% →
-    60%**, and **Older** shows the updates before. Unfolding reads the updates it shows, which stay
-    marked unread until you fold the row again. Rows start folded each time you open the view, and a
-    row under an agent or a group you folded reads nothing, since it is not shown. This browser
-    keeps the agents you fold, under each group apart.
+    Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
+    and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
+    each update changed, newest first, with its note. Consecutive updates that changed only the
+    percent show as one line, such as **Progress 20% → 60%**, and **Older** shows the updates
+    before. Unfolding reads the updates it shows, which stay marked unread until you fold the row
+    again. Rows start folded each time you open the view, and a row under an agent or a group you
+    folded reads nothing, since it is not shown. This browser keeps the agents you fold, under each
+    group apart.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.
@@ -730,11 +745,11 @@ the sessions under their groups, and the sessions view folds the agents under th
   group** with a field for its name, up to 100 characters on one line; **Save** puts the session in
   the one chosen, creating a new group first. A group's name is unique, whatever the case of its
   letters, and you can have up to 200 groups.
-- **Tags**, in a session's options or beside an agent's header, opens a sheet checking the tags it
-  carries among every tag, with a search box that narrows them as you type. Typing a name no tag has
-  offers **Add tag**. A tag is a name like a topic's: up to 63 lowercase letters, digits, `-` and
-  `_`, starting with a letter or digit. An agent or a session carries up to 20 tags, and **Save**
-  sets them.
+- **Tags**, in a session's options or at the end of an agent's header, opens a sheet checking the
+  tags it carries among every tag, with a search box that narrows them as you type. Typing a name no
+  tag has offers **Add tag**. A tag is a name like a topic's: up to 63 lowercase letters, digits,
+  `-` and `_`, starting with a letter or digit. An agent or a session carries up to 20 tags, and
+  **Save** sets them.
 - **Groups and tags**, at the top of the sessions view, lists each group with how many sessions it
   holds, and each tag with how many agents and sessions carry it, with **Rename** and **Remove**.
   Renaming keeps a group's sessions, and the thread list's filters and folds on it keep working; a

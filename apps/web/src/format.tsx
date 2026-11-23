@@ -103,7 +103,7 @@ export function DueTime({ value }: { value: string }) {
 
 // lastSeenWords says when a session was last seen: "last seen 14:02", or
 // "never seen".
-export function lastSeenWords(presence: Presence): string {
+function lastSeenWords(presence: Presence): string {
   return presence.last_seen_at === undefined
     ? "never seen"
     : `last seen ${sinceTime(presence.last_seen_at)}`;

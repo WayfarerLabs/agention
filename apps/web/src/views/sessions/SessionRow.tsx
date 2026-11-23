@@ -17,11 +17,11 @@ import { query, request, sessionPath } from "../../api.ts";
 import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
 import { plural, Since, Spoken, Time, workStateWords } from "../../format.tsx";
-import { Icon, Mark, UnreadCount } from "../../icons.tsx";
-import { Link, listHref, unfiltered } from "../../router.tsx";
+import { Icon, Mark } from "../../icons.tsx";
+import { BlockedLink, FilterLink, UnreadLink } from "../filter-links.tsx";
 import { type Change, type LogLine, logLines } from "./log.ts";
 import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
-import { OpenAsksFlag, rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
+import { OpenAsksLink, rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
 import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of three short lines, its
@@ -29,9 +29,11 @@ import { type Credential, Revocation } from "./Registrations.tsx";
 // facts wrapping on a phone, so that many fit on a screen, with a notice
 // beneath them while its plugin is behind the server; unfolded, its title
 // wrapping whole in its head, and beneath, its goal, its credentials and its
-// log. Tapping anywhere on the row's facts folds or unfolds it, but for the
-// links and the options among them. A row's log loads, refreshes and is read
-// only while the row is unfolded and shown.
+// log. The row's chevron folds or unfolds it, as a tap anywhere else on the
+// row does, but for the links and the controls on it: the session's name and
+// every fact that stands for threads link to them on the thread list. A
+// row's log loads, refreshes and is read only while the row is unfolded and
+// shown.
 
 // A session's path, by which the view names it.
 export const sessionKey = (agent: string, session: string) => `${agent}/${session}`;
@@ -62,6 +64,7 @@ export function SessionRow({
   organize: (what: "group" | "tags", opener: HTMLElement | null) => void;
 }) {
   const detail = useId();
+  const fold = useId();
   const options = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState(false);
   const [revoking, setRevoking] = useState<Credential>();
@@ -69,26 +72,36 @@ export function SessionRow({
   const { status } = session;
   const Heading = `h${level}` as const;
   return (
-    <li className="session-row">
+    <li className={unfolded ? "session-row unfolded" : "session-row"}>
       <div className="session-summary">
         <div className="session-head">
-          <Heading>
+          {/* The heading goes by its fold's name alone, as a Fold's does, so
+              the linked name beside it does not say it twice. The spaces
+              between the parts keep them apart as they are read; the layout
+              sets them apart for the eye. */}
+          <Heading aria-labelledby={fold}>
             <button
               type="button"
+              id={fold}
               className="session-fold"
               aria-expanded={unfolded}
               aria-controls={unfolded ? detail : undefined}
+              aria-label={`Session ${session.session}`}
               onClick={toggle}
             >
               <Icon name="expand" />
-              {/* The spaces between the parts keep them apart in the
-                  button's name; the layout sets them apart for the eye. */}
-              <span className="session-name">{session.session}</span>{" "}
-              {status?.title !== undefined && <span className="session-title">{status.title}</span>}{" "}
-              {status?.percent !== undefined && (
-                <span className="session-percent">{status.percent}%</span>
-              )}
-            </button>
+            </button>{" "}
+            <FilterLink
+              className="session-name"
+              narrowing={{ session: [path] }}
+              spoken={`Threads of session ${path}`}
+            >
+              {session.session}
+            </FilterLink>{" "}
+            {status?.title !== undefined && <span className="session-title">{status.title}</span>}{" "}
+            {status?.percent !== undefined && (
+              <span className="session-percent">{status.percent}%</span>
+            )}
           </Heading>
           <OptionsMenu label={`Options for ${path}`} open={menu} setOpen={setMenu} button={options}>
             <MenuItem onChoose={() => newThread(options.current)}>New thread</MenuItem>
@@ -169,26 +182,32 @@ function PluginBehind() {
   );
 }
 
-// The session's facts on its folded row: what it is doing; its open asks,
-// with whether any blocks its work, linking to its open threads; whether it
-// has no credential; the operator's group and tags for it; its threads'
-// roll-up, linking to them, and how many are stranded, linking to those, but
-// for blocked, which its open asks say already; its unread updates; and its
+// The session's facts on its folded row: what it is doing; Blocked on you
+// while any open ask blocks its work, linking to its blocked threads, and its
+// open asks, linking to its open threads; whether it has no credential; the
+// operator's group and tags for it, each linking to its threads; its
+// threads' roll-up, linking to them, and how many are stranded, linking to
+// those, but for blocked, which leads its open asks already, and the
+// envelope, linking to its unread threads; its unread updates; and its
 // latest note, cut to fit, which its log holds whole.
 function SessionFacts({ agent, session }: { agent: string; session: SessionSummary }) {
   const { status, open_asks: asks, threads } = session;
   const path = sessionKey(agent, session.session);
   const rollup = rollupOfSession(session);
+  const scope = { narrowing: { session: [path] }, label: path };
   return (
     <ul className="tags session-facts">
       <li className={status === undefined ? "muted" : stateTone[status.state]}>
         {status === undefined ? "No status" : workStateWords(status)}
       </li>
+      {asks.blocking_count > 0 && (
+        <li className="bare">
+          <BlockedLink {...scope} />
+        </li>
+      )}
       {asks.count > 0 && (
         <li className="bare">
-          <Link to={listHref({ ...unfiltered, session: [path], status: "open" })}>
-            <OpenAsksFlag count={asks.count} blocking={asks.blocking_count > 0} />
-          </Link>
+          <OpenAsksLink count={asks.count} {...scope} />
         </li>
       )}
       {session.registrations.length === 0 && <li className="warning">No credential</li>}
@@ -203,15 +222,15 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
         </li>
       ))}
       <li className="bare">
-        <ThreadsLink rollup={rollup} narrowing={{ session: [path] }} label={path} />
+        <ThreadsLink rollup={rollup} {...scope} />
       </li>
       {threads.stranded > 0 && (
         <li className="bare">
-          <StrandedLink stranded={threads.stranded} narrowing={{ session: [path] }} label={path} />
+          <StrandedLink stranded={threads.stranded} {...scope} />
         </li>
       )}
       <li className="bare">
-        <UnreadCount unread={rollup.unread} />
+        <UnreadLink unread={rollup.unread} {...scope} />
       </li>
       {rollup.unread_updates > 0 && (
         <li className="accent">{plural(rollup.unread_updates, "new update")}</li>
