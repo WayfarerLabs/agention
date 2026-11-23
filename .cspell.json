@@ -33,6 +33,7 @@
     "mkfifo",
     "mktemp",
     "modelcontextprotocol",
+    "NFKC",
     "NOCASE",
     "nologin",
     "nosniff",
