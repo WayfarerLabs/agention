@@ -146,11 +146,12 @@ npm run -w apps/server typecheck   # tsc --noEmit, for any workspace
 npm run -w apps/web test:browser   # the browser tests, against the server's last build
 ```
 
-The server's tests run in a `TMPDIR` of their own, and the run fails if they leave anything in it
-(`apps/server/src/test-tmpdir.ts`). A test takes a temporary directory from `testDirectory`
-(`apps/server/src/test-directory.ts`), which removes it once the test finishes, pass or fail, and a
-test that makes a store or server fixture closes it in `afterEach`. A run that is killed, or a watch
-session until it exits, leaves its `agention-server-tests-*` directory in the outer `TMPDIR`.
+The server's and the bridge's tests each run in a `TMPDIR` of their own, and the run fails if they
+leave anything in it (`apps/server/src/test-tmpdir.ts`). A server test takes a temporary directory
+from `testDirectory` (`apps/server/src/test-directory.ts`), which removes it once the test finishes,
+pass or fail, and a test that makes a store or server fixture closes it in `afterEach`, as a bridge
+test closes its `BridgeHarness`. A run that is killed, or a watch session until it exits, leaves its
+`agention-tests-*` directory in the outer `TMPDIR`.
 
 The web UI talks only to the server that serves it, and passkeys need that server's HTTPS origin, so
 try UI changes by building the server package and running it as the
