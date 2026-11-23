@@ -1237,7 +1237,7 @@ describe("the group and tag choices", () => {
     expect(lastQuery()?.get("tag")).toBe("infra");
   });
 
-  it("show as chips by their names now, saying when a group was removed or a tag is on nothing", async () => {
+  it("show as chips by their names now, saying when a group or a tag was removed", async () => {
     serve([]);
     api.on("GET", "/groups-and-tags", {
       body: {
@@ -1253,17 +1253,17 @@ describe("the group and tag choices", () => {
     // Each says so first, so a long name cut short leaves it standing.
     renderAt("/?session_group=9&tag=long-gone-spare");
     await waitFor(() => expect(chipText(chips()[0] as HTMLElement)).toBe("Removed group"));
-    expect(chipText(chips()[1] as HTMLElement)).toBe("Unused tag: long-go…");
+    expect(chipText(chips()[1] as HTMLElement)).toBe("Removed tag: long-g…");
     expect(chips().map((chip) => chip.getAttribute("aria-label"))).toEqual([
       "Remove filter: Removed group, keeping nothing",
-      "Remove filter: Unused tag long-gone-spare, on nothing, keeping nothing",
+      "Remove filter: Removed tag long-gone-spare, keeping nothing",
     ]);
     cleanup();
     renderAt("/?session_group=4&session_group=9&session_group=none&tag=gone&tag=infra");
     await waitFor(() =>
       expect(chips().map((chip) => chipText(chip))).toEqual([
         "3 groups, 1 removed",
-        "2 tags, 1 unused",
+        "2 tags, 1 removed",
       ]),
     );
     fireEvent.click(chips()[0] as HTMLElement);

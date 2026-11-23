@@ -1049,6 +1049,9 @@ describe("groups and tags", () => {
         each.closest("a")?.getAttribute("href"),
       ]);
     expect(chips(facts, ".group-chip")).toEqual([["Billing", "/?session_group=4"]]);
+    // Each in its color, once the groups and tags have loaded.
+    await waitFor(() => expect(facts.querySelector(".group-chip.tone-blue")).not.toBeNull());
+    expect(facts.querySelector(".tag-chip.tone-red")?.textContent).toBe("urgent");
     expect(chips(facts, ".tag-chip")).toEqual([
       ["infra", "/?tag=infra"],
       ["urgent", "/?tag=urgent"],
@@ -1061,113 +1064,203 @@ describe("groups and tags", () => {
     expect(window.location.pathname + window.location.search).toBe("/?tag=urgent");
   });
 
-  it("set a session's group from its options, an existing one or a new one", async () => {
+  // The picker open on what it is named for, and its parts: its search box,
+  // its items with whether each is chosen, and the item the keys are on.
+  const picker = (name: string) => dialog(name);
+  const searchOf = (open: HTMLElement) => within(open).getByRole("combobox");
+  const itemsOf = (open: HTMLElement) =>
+    within(open)
+      .queryAllByRole("option")
+      .map(
+        (item) =>
+          `${item.getAttribute("aria-selected") === "true" ? "☑" : "☐"} ${item.textContent}`,
+      );
+  const item = (open: HTMLElement, name: string | RegExp) =>
+    within(open).getByRole("option", { name });
+  const press = (open: HTMLElement, key: string) => fireEvent.keyDown(searchOf(open), { key });
+  const activeOf = (open: HTMLElement) =>
+    document.getElementById(searchOf(open).getAttribute("aria-activedescendant") ?? "")
+      ?.textContent;
+
+  it("pick a session's group from its options, applying it at once", async () => {
     await open([agent("builder", [sessionSummary()])]);
     api.on("POST", "/s/builder/main/group", { body: {} });
-    api.on("POST", "/groups", { body: { id: 6, name: "Release" } });
     fireEvent.click(options("builder/main"));
     fireEvent.click(screen.getByRole("button", { name: "Group: none" }));
-    const sheet = dialog("Group for builder/main");
-    await within(sheet).findByRole("radio", { name: "Billing" });
-    expect(within(sheet).getByRole<HTMLInputElement>("radio", { name: "No group" }).checked).toBe(
-      true,
-    );
-    fireEvent.click(within(sheet).getByRole("radio", { name: "Billing" }));
-    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    const open_ = picker("Group for builder/main");
+    // The search box takes focus, over the groups in the operator's order.
+    expect(document.activeElement).toBe(searchOf(open_));
+    await waitFor(() => expect(itemsOf(open_)).toEqual(["☐ Billing", "☐ Personal"]));
+    expect(item(open_, "Billing").querySelector(".group-chip.tone-blue")).not.toBeNull();
+    // Search narrows them.
+    fireEvent.change(searchOf(open_), { target: { value: "person" } });
+    expect(itemsOf(open_)).toEqual(["☐ Personal", "☐ Create group “person”"]);
+    fireEvent.change(searchOf(open_), { target: { value: "" } });
+    // A pick applies at once, with no Save, and closes the picker, focus
+    // returning to the options it was opened from.
+    fireEvent.click(item(open_, "Billing"));
     await waitFor(() => expect(posted("/s/builder/main/group")).toEqual([{ group: 4 }]));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(options("builder/main"));
-
-    fireEvent.click(options("builder/main"));
-    fireEvent.click(screen.getByRole("button", { name: "Group: none" }));
-    const again = dialog("Group for builder/main");
-    fireEvent.change(await within(again).findByRole("textbox", { name: "New group's name" }), {
-      target: { value: "Release" },
-    });
-    expect(within(again).getByRole<HTMLInputElement>("radio", { name: "New group" }).checked).toBe(
-      true,
-    );
-    fireEvent.click(within(again).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posted("/groups")).toEqual([{ name: "Release" }]));
-    await waitFor(() =>
-      expect(posted("/s/builder/main/group")).toEqual([{ group: 4 }, { group: 6 }]),
-    );
   });
 
-  it("set a session's tags, offering to add a tag no tag has", async () => {
+  it("pick a group by the keys, clear it, and create one named as typed", async () => {
+    await open([agent("builder", [sessionSummary({ group: billing })])]);
+    api.on("POST", "/s/builder/main/group", { body: {} });
+    api.on("POST", "/groups", { body: { id: 6, name: "Release", color: "purple" } });
+    const opened = async () => {
+      fireEvent.click(options("builder/main"));
+      fireEvent.click(screen.getByRole("button", { name: "Group: Billing" }));
+      const open_ = picker("Group for builder/main");
+      await waitFor(() => expect(itemsOf(open_)).toHaveLength(3));
+      return open_;
+    };
+    // With a group, Clear group leads, the group checked.
+    let open_ = await opened();
+    expect(itemsOf(open_)).toEqual(["☐ Clear group", "☑ Billing", "☐ Personal"]);
+    // The arrow keys move through the list, round from either end, and
+    // Enter picks.
+    expect(activeOf(open_)).toBe("Clear group");
+    press(open_, "ArrowUp");
+    expect(activeOf(open_)).toBe("Personal");
+    press(open_, "ArrowDown");
+    press(open_, "ArrowDown");
+    expect(activeOf(open_)).toBe("Billing");
+    press(open_, "ArrowDown");
+    press(open_, "Enter");
+    await waitFor(() => expect(posted("/s/builder/main/group")).toEqual([{ group: 5 }]));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Clear group puts the session in none.
+    open_ = await opened();
+    fireEvent.click(item(open_, "Clear group"));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/group")).toEqual([{ group: 5 }, { group: null }]),
+    );
+    // A name no group has, whatever its case, offers to create it; one a
+    // group has does not.
+    open_ = await opened();
+    fireEvent.change(searchOf(open_), { target: { value: "BILLING" } });
+    expect(itemsOf(open_)).toEqual(["☑ Billing"]);
+    // Escape clears what was typed first, the picker staying open.
+    press(open_, "Escape");
+    expect((searchOf(open_) as HTMLInputElement).value).toBe("");
+    expect(itemsOf(open_)).toHaveLength(3);
+    fireEvent.change(searchOf(open_), { target: { value: "Release" } });
+    expect(itemsOf(open_)).toEqual(["☐ Create group “Release”"]);
+    // Enter again while the group is being created creates no other.
+    press(open_, "Enter");
+    press(open_, "Enter");
+    await waitFor(() => expect(posted("/groups")).toEqual([{ name: "Release" }]));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/group")).toEqual([
+        { group: 5 },
+        { group: null },
+        { group: 6 },
+      ]),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("pick a session's tags, each pick applied at once, and create one named as typed", async () => {
     await open([agent("builder", [sessionSummary({ tags: ["urgent"] })])]);
     api.on("POST", "/s/builder/main/tags", { body: {} });
     fireEvent.click(options("builder/main"));
     fireEvent.click(screen.getByRole("button", { name: "Tags: urgent" }));
-    const sheet = dialog("Tags for builder/main");
-    const boxes = async () =>
-      (await within(sheet).findAllByRole<HTMLInputElement>("checkbox")).map(
-        (box) => `${box.checked ? "☑" : "☐"} ${box.closest("label")?.textContent}`,
-      );
-    expect(await boxes()).toEqual(["☐ infra", "☑ urgent"]);
-    const search = within(sheet).getByRole("searchbox", { name: "Search or add tags" });
-    fireEvent.change(search, { target: { value: "inf" } });
-    expect(await boxes()).toEqual(["☐ infra"]);
-    // A name a tag has offers no adding, and one no tag has does.
-    fireEvent.change(search, { target: { value: "infra" } });
-    expect(within(sheet).queryByRole("button", { name: /^Add tag/ })).toBeNull();
-    fireEvent.change(search, { target: { value: "Ops" } });
-    fireEvent.click(within(sheet).getByRole("button", { name: "Add tag ops" }));
-    expect(await boxes()).toEqual(["☐ infra", "☑ ops", "☑ urgent"]);
-    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    const open_ = picker("Tags for builder/main");
+    await waitFor(() => expect(itemsOf(open_)).toEqual(["☐ infra", "☑ urgent"]));
+    expect(within(open_).getByRole("listbox").getAttribute("aria-multiselectable")).toBe("true");
+    fireEvent.click(item(open_, "infra"));
     await waitFor(() =>
-      expect(posted("/s/builder/main/tags")).toEqual([{ tags: ["urgent", "ops"] }]),
+      expect(posted("/s/builder/main/tags")).toEqual([{ tags: ["urgent", "infra"] }]),
     );
+    // The picker stays open for more.
+    expect(itemsOf(open_)).toEqual(["☑ infra", "☑ urgent"]);
+    fireEvent.change(searchOf(open_), { target: { value: "infra" } });
+    expect(itemsOf(open_)).toEqual(["☑ infra"]);
+    // A name no tag has offers to create it, in a tag's lowercase, which
+    // applies at once and clears the search.
+    fireEvent.change(searchOf(open_), { target: { value: "Ops" } });
+    expect(itemsOf(open_)).toEqual(["☐ Create tag “ops”"]);
+    press(open_, "Enter");
+    await waitFor(() =>
+      expect(posted("/s/builder/main/tags").at(-1)).toEqual({ tags: ["urgent", "infra", "ops"] }),
+    );
+    expect((searchOf(open_) as HTMLInputElement).value).toBe("");
+    expect(itemsOf(open_)).toEqual(["☑ infra", "☑ ops", "☑ urgent"]);
+    fireEvent.click(item(open_, "urgent"));
+    await waitFor(() =>
+      expect(posted("/s/builder/main/tags").at(-1)).toEqual({ tags: ["infra", "ops"] }),
+    );
+    // Done closes it, every pick applied already.
+    const sent = posted("/s/builder/main/tags").length;
+    fireEvent.click(within(open_).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(posted("/s/builder/main/tags")).toHaveLength(sent);
+    expect(document.activeElement).toBe(options("builder/main"));
   });
 
-  it("set an agent's tags from its header's options", async () => {
+  it("take one tag pick at a time, and show the tags the server last took when one fails", async () => {
+    await open([agent("builder", [sessionSummary()])]);
+    api.on("POST", "/s/builder/main/tags", { body: {} });
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "Tags: none" }));
+    const open_ = picker("Tags for builder/main");
+    await waitFor(() => expect(itemsOf(open_)).toEqual(["☐ infra", "☐ urgent"]));
+    fireEvent.click(item(open_, "infra"));
+    await waitFor(() => expect(posted("/s/builder/main/tags")).toEqual([{ tags: ["infra"] }]));
+    await waitFor(() => expect(item(open_, "urgent").hasAttribute("aria-disabled")).toBe(false));
+    let answer = () => undefined as void;
+    api.on("POST", "/s/builder/main/tags", async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      return failure("internal", "something went wrong");
+    });
+    fireEvent.click(item(open_, "urgent"));
+    await waitFor(() => expect(posted("/s/builder/main/tags")).toHaveLength(2));
+    // While it is under way, the picker takes no other pick.
+    expect(itemsOf(open_)).toEqual(["☑ infra", "☑ urgent"]);
+    expect(item(open_, "infra").getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(item(open_, "infra"));
+    press(open_, "Enter");
+    answer();
+    await within(open_).findByRole("alert");
+    // The tags show as the server last took them, the failure staying.
+    expect(itemsOf(open_)).toEqual(["☑ infra", "☐ urgent"]);
+    expect(posted("/s/builder/main/tags")).toEqual([
+      { tags: ["infra"] },
+      { tags: ["infra", "urgent"] },
+    ]);
+    await waitFor(() => expect(item(open_, "infra").hasAttribute("aria-disabled")).toBe(false));
+    expect(within(open_).getByRole("alert")).toBeDefined();
+  });
+
+  it("pick an agent's tags from its header's options", async () => {
     await open([agent("builder", [sessionSummary()])]);
     api.on("POST", "/agents/builder/tags", { body: {} });
     fireEvent.click(screen.getByRole("button", { name: "Options for builder" }));
     fireEvent.click(screen.getByRole("button", { name: "Tags: none" }));
-    const sheet = dialog("Tags for builder");
-    fireEvent.click(await within(sheet).findByRole("checkbox", { name: "infra" }));
-    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    const open_ = picker("Tags for builder");
+    await waitFor(() => expect(itemsOf(open_)).toHaveLength(2));
+    fireEvent.click(item(open_, "infra"));
     await waitFor(() => expect(posted("/agents/builder/tags")).toEqual([{ tags: ["infra"] }]));
   });
 
-  it("are listed in their sheet to rename, and to remove once it asks", async () => {
-    await open([agent("builder", [sessionSummary()])]);
-    api.on("POST", "/groups/4/name", failure("conflict", "another group already has this name"));
-    api.on("POST", "/groups/4/remove", { body: {} });
-    api.on("POST", "/tags/urgent/name", { body: {} });
-    fireEvent.click(screen.getByRole("button", { name: "Groups and tags" }));
-    const sheet = dialog("Groups and tags");
-    const group = await within(sheet).findByRole("article", { name: "Group Billing" });
-    expect(group.textContent).toContain("1 session");
-    expect(within(sheet).getByRole("article", { name: "Tag infra" }).textContent).toContain(
-      "1 agent, 1 session",
-    );
-    // Rename refused for a name another group has says why.
-    fireEvent.click(within(group).getByRole("button", { name: "Rename" }));
-    fireEvent.change(within(group).getByRole("textbox", { name: "New name" }), {
-      target: { value: "Personal" },
+  it("order the groups' folds as the operator ordered the groups, no group last", async () => {
+    api.on("GET", "/groups-and-tags", {
+      body: { ...known, groups: [...known.groups].reverse() },
     });
-    fireEvent.click(within(group).getByRole("button", { name: "Save" }));
-    expect((await within(group).findByRole("alert")).textContent).toBe(
-      "Another group already has this name.",
-    );
-    fireEvent.click(within(group).getByRole("button", { name: "Cancel" }));
-    // Remove asks first, saying what it takes the group off.
-    fireEvent.click(within(group).getByRole("button", { name: "Remove" }));
-    const asking = within(group).getByRole("group", {
-      name: "Remove the group Billing? Its 1 session will be in no group.",
-    });
-    expect(posted("/groups/4/remove")).toEqual([]);
-    fireEvent.click(within(asking).getByRole("button", { name: "Remove this group" }));
-    await waitFor(() => expect(posted("/groups/4/remove")).toEqual([undefined]));
-    // A tag is renamed in its own case.
-    const tag = within(sheet).getByRole("article", { name: "Tag urgent" });
-    fireEvent.click(within(tag).getByRole("button", { name: "Rename" }));
-    fireEvent.change(within(tag).getByRole("textbox", { name: "New name" }), {
-      target: { value: "Soon" },
-    });
-    fireEvent.click(within(tag).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posted("/tags/urgent/name")).toEqual([{ name: "soon" }]));
+    await open([
+      agent("builder", [
+        sessionSummary({ session: "main", group: billing }),
+        sessionSummary({ session: "side", group: { id: 5, name: "Personal" } }),
+        sessionSummary({ session: "loose" }),
+      ]),
+    ]);
+    const heads = () =>
+      Array.from(document.querySelectorAll(".group-head > .fold-main > h3 > .fold-toggle")).map(
+        (each) => each.getAttribute("aria-label"),
+      );
+    await waitFor(() => expect(heads()).toEqual(["Group Personal", "Group Billing", "No group"]));
   });
 });

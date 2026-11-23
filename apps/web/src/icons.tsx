@@ -16,6 +16,10 @@ const shapes = {
   "arrow-up": <path d="M12 20V4m-6 6 6-6 6 6" />,
   // Two headings, each over its indented rows, for grouping.
   group: <path d="M3 4h9M7 8h14M7 11h14M3 15h9M7 19h14" />,
+  // A check mark, for what a picker has chosen.
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  // Two columns of dots, for a handle that drags a row into another place.
+  grip: <path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" strokeWidth="3" />,
   // A chevron pointing down, for a group shown expanded; turned to point
   // along the line while it is collapsed.
   expand: <path d="m6 9 6 6 6-6" />,

@@ -21,7 +21,15 @@ import {
 import { usePages, useResource } from "../data.ts";
 import { useFolds } from "../device.ts";
 import { plural, Spoken } from "../format.tsx";
-import { GroupSheet, GroupsAndTagsSheet, TagChip, TagsSheet } from "./sessions/GroupsAndTags.tsx";
+import {
+  type Palette,
+  PaletteProvider,
+  Swatch,
+  usePalette,
+  loadGroupsAndTags,
+  nameKey,
+} from "../organizing.tsx";
+import { SessionGroupPicker, TagChip, TagsSetter } from "./sessions/GroupsAndTags.tsx";
 import { NewThreadSheet } from "./sessions/NewThreadSheet.tsx";
 import {
   DecidedRegistration,
@@ -39,14 +47,13 @@ import {
 import { SessionRow, sessionKey } from "./sessions/SessionRow.tsx";
 
 // The sessions view: every session the operator's agents run, in one view.
-// Top to bottom: the Groups and tags button, which opens the sheet listing
-// the operator's groups and tags; the registrations waiting for approval;
-// each agent under a header that folds, rolling up its sessions' threads,
+// Top to bottom: the registrations waiting for approval; each agent under a header that folds, rolling up its sessions' threads,
 // open asks, unread updates and stranded threads, with links to its threads
 // and its stranded threads, its tags and a menu setting them, over a folded
 // row for each of its sessions; and, folded, the credentials and past
 // requests. Once some session is in a group, the agents fold under their
-// groups, groups in name order and no group last, each group's head rolling
+// groups, groups in the operator's order and no group last, each group's head
+// rolling
 // up its sessions with a link to their threads, and an agent with sessions
 // in two groups comes under each with that group's sessions alone. Every
 // chip that stands for threads, the names of groups, agents and sessions
@@ -54,16 +61,18 @@ import { SessionRow, sessionKey } from "./sessions/SessionRow.tsx";
 // never folds anything; a header's chevron folds it, as a click on the rest
 // of its bar does. The view reads every session before it shows any, so it
 // folds them by the group each session carries. It refreshes as every view
-// does. This browser keeps the groups and agents it folds and whether the
+// does. The operator's groups and tags load beside the sessions, for their
+// colors and the groups' order; a session's group and an agent's or a
+// session's tags are picked from their options menus, each pick applied at
+// once. This browser keeps the groups and agents it folds and whether the
 // past requests are shown; a session's row starts folded on every visit.
 // What a fold hides is not loaded, so a session's log loads and is read
 // only while its row is unfolded under an unfolded agent.
 
-// What the operator is organizing, in a sheet open on it: every group and
-// tag, a session's group, or an agent's or a session's tags; and the control
-// focus returns to when the sheet closes.
+// What the operator is organizing, in a picker open on it: a session's group,
+// or an agent's or a session's tags; and the control the picker lies beside,
+// which focus returns to when it closes.
 type Organizing = { opener: HTMLElement | null } & (
-  | { kind: "all" }
   | { kind: "group"; agent: string; session: SessionSummary }
   | { kind: "tags"; agent: string; session?: SessionSummary; tags: string[] }
 );
@@ -82,13 +91,22 @@ export function Sessions() {
   // Each decision or read the view makes reloads it, and the past requests
   // too.
   const [changes, changed] = useReducer((count: number) => count + 1, 0);
+  // The operator's groups and tags, for their colors and the groups' order,
+  // which a change to a session's group or tags can add to.
+  const known = useResource(loadGroupsAndTags);
   const { refresh: refreshPending } = pending;
   const { refresh: refreshSessions } = sessions;
+  const { refresh: refreshKnown } = known;
   const refresh = useCallback(() => {
     refreshPending();
     refreshSessions();
+    refreshKnown();
     changed();
-  }, [refreshPending, refreshSessions]);
+  }, [refreshPending, refreshSessions, refreshKnown]);
+  const organized = () => {
+    refreshSessions();
+    refreshKnown();
+  };
   const sections = useFolds(unfoldedSections);
   // The session the new-thread sheet is open on, as it was when it opened,
   // and the control focus returns to when it closes. The sheet follows the
@@ -111,18 +129,8 @@ export function Sessions() {
           ?.sessions.find((session) => session.session === writing.session.session) ??
         writing.session);
   return (
-    <>
+    <PaletteProvider known={known.data}>
       <PageHeading visuallyHidden>Sessions</PageHeading>
-      <div className="view-actions">
-        <button
-          type="button"
-          className="secondary"
-          aria-haspopup="dialog"
-          onClick={(event) => setOrganizing({ kind: "all", opener: event.currentTarget })}
-        >
-          Groups and tags
-        </button>
-      </div>
       <section aria-labelledby="pending-heading">
         <h2 id="pending-heading">Waiting for approval</h2>
         <Loadable data={pending.data} failure={pending.failure} retry={pending.refresh}>
@@ -184,21 +192,19 @@ export function Sessions() {
       >
         <PastRequests changes={changes} refresh={refresh} />
       </Fold>
-      {organizing?.kind === "all" && (
-        <GroupsAndTagsSheet onClose={doneOrganizing} onChanged={refreshSessions} />
-      )}
       {organizing?.kind === "group" && (
-        <GroupSheet
+        <SessionGroupPicker
           agent={organizing.agent}
           session={organizing.session.session}
           group={organizing.session.group}
+          anchor={organizing.opener}
           onClose={doneOrganizing}
-          onChanged={refreshSessions}
+          onChanged={organized}
         />
       )}
       {organizing?.kind === "tags" && (
-        <TagsSheet
-          heading={
+        <TagsSetter
+          label={
             organizing.session === undefined
               ? `Tags for ${organizing.agent}`
               : `Tags for ${organizing.agent}/${organizing.session.session}`
@@ -209,8 +215,9 @@ export function Sessions() {
               : `/s/${organizing.agent}/${organizing.session.session}/tags`
           }
           tags={organizing.tags}
+          anchor={organizing.opener}
           onClose={doneOrganizing}
-          onChanged={refreshSessions}
+          onChanged={organized}
         />
       )}
       {writing !== undefined && writingOn !== undefined && (
@@ -223,12 +230,12 @@ export function Sessions() {
           }}
         />
       )}
-    </>
+    </PaletteProvider>
   );
 }
 
 // The views' parts SessionFolds and AgentFolds pass down: reloading the
-// view, and opening the new-thread sheet or a sheet organizing sessions.
+// view, and opening the new-thread sheet or a picker organizing sessions.
 interface Handlers {
   refresh: () => void;
   newThread: (agent: string, session: SessionSummary, opener: HTMLElement | null) => void;
@@ -249,14 +256,11 @@ interface GroupFold {
 const groupKeyOf = (group: GroupRef | undefined) =>
   group === undefined ? noGroup : String(group.id);
 
-// A group's name for its order: ignoring the case of ASCII letters, as the
-// server compares names.
-const nameOrder = (name: string) => name.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
-
-// foldByGroup splits each agent's sessions by their group: the groups in name
-// order and no group last, each holding the agents with sessions in it, in
-// the page's order, each with that group's sessions only.
-function foldByGroup(agents: Agents): GroupFold[] {
+// foldByGroup splits each agent's sessions by their group: the groups in the
+// operator's order, as the palette knows it, any it does not know yet after
+// them in name order, and no group last, each holding the agents with
+// sessions in it, in the page's order, each with that group's sessions only.
+function foldByGroup(agents: Agents, palette: Palette): GroupFold[] {
   const folds = new Map<string, GroupFold>();
   for (const entry of agents) {
     const split = new Map<string, Held>();
@@ -274,13 +278,19 @@ function foldByGroup(agents: Agents): GroupFold[] {
     }
   }
   const ordered = (fold: GroupFold) =>
-    fold.group === undefined ? undefined : ([nameOrder(fold.group.name), fold.group.id] as const);
+    fold.group === undefined
+      ? undefined
+      : ([
+          palette.place(fold.group.id) ?? Number.MAX_SAFE_INTEGER,
+          nameKey(fold.group.name),
+          fold.group.id,
+        ] as const);
   return [...folds.values()].sort((a, b) => {
     const [x, y] = [ordered(a), ordered(b)];
     if (x === undefined || y === undefined) {
       return x === y ? 0 : x === undefined ? 1 : -1;
     }
-    return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1];
+    return x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : x[2] - y[2]);
   });
 }
 
@@ -295,10 +305,11 @@ function SessionFolds({
   ...handlers
 }: { agents: Agents; truncated: boolean } & Handlers) {
   const folds = useFolds(foldedGroups);
+  const palette = usePalette();
   if (!agents.some((entry) => entry.sessions.some((session) => session.group !== undefined))) {
     return <AgentFolds agents={agents} {...handlers} />;
   }
-  return foldByGroup(agents).map(({ group, agents: held }) => {
+  return foldByGroup(agents, palette).map(({ group, agents: held }) => {
     const key = groupKeyOf(group);
     const name = group?.name ?? "No group";
     const rollup =
@@ -318,6 +329,7 @@ function SessionFolds({
             narrowing={narrowing}
             spoken={group === undefined ? "Threads in no group" : `Threads in group ${name}`}
           >
+            {group !== undefined && <Swatch color={palette.group(group.id)} />}
             {name}
           </FilterLink>
         }
