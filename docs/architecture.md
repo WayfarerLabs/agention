@@ -1229,6 +1229,29 @@ so the keyboard does not hide Send. The composer measures the row as it changes 
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
 
+The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
+`src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
+separating servers. The thread list marks a thread with a kept draft from the same storage.
+
+- **What is kept:** the text and details, and the message the draft was started from, which the
+  stale-write check counts from, so a restored draft still misses what landed while it was away.
+  What the composer held besides, staged, attached or being recorded, is left behind, since a
+  replacement's message may be replaced and an upload expire meanwhile; the draft says it left
+  something behind, and the composer says so.
+- **When:** as it changes, except the text and details a replacement loaded while they are as
+  loaded, which would come back as a new message the operator never wrote. A write that lands keeps
+  what is left, or forgets the draft, at once, since going back after sending unmounts the page in
+  the same render.
+- **Forgetting:** once there is nothing to keep, a page forgets the draft only while the stored
+  record is still the one it kept, so the draft another tab typed since stays. A draft the browser
+  refuses to keep forgets the one kept before, which would come back older.
+- **Limits:** a draft kept more than 30 days ago, or after now, is none, opening its thread keeps it
+  again, and a new draft forgets those that are none and the oldest past 50, which caps the storage
+  drafts take.
+- **Signing out**, from Settings or by removing the passkey this browser signed in with, forgets
+  every draft, then writes a fresh random mark, which a page reads as it opens: a page whose mark
+  has changed since keeps none again.
+
 Settings is a list of sections, declared once in `src/views/settings/sections.ts`, each with a slug,
 a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice
 and Storage under Features, and Sign out after the groups. The navigation and `/settings/<slug>` are

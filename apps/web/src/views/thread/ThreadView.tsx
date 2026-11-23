@@ -36,6 +36,7 @@ import {
   useResource,
   useStillOpen,
 } from "../../data.ts";
+import { readDraft } from "../../device.ts";
 import {
   AbsenceReason,
   absenceOf,
@@ -349,12 +350,17 @@ function ThreadPage({
   const writer = useWriter(target, written);
   const unread = useAction();
   const archive = useAction();
-  const [text, setText] = useState("");
-  const [detail, setDetail] = useState("");
+  // The draft this browser kept for the thread, which the composer opens
+  // with.
+  const [restored] = useState(() => readDraft(target));
+  const [text, setText] = useState(restored?.text ?? "");
+  const [detail, setDetail] = useState(restored?.detail ?? "");
   // Whether the composer's Details box shows: once opened, or once a change
   // or an edit loads a detail into it, it stays while it is in use, emptied
   // or not, until a write empties it or the change or edit is removed.
-  const [detailsShown, setDetailsShown] = useState(false);
+  const [detailsShown, setDetailsShown] = useState(
+    restored !== undefined && !blank(restored.detail),
+  );
   const [staged, setStaged] = useState<Staged | undefined>(undefined);
   const files = useDraftFiles(target);
   // Kept files belong to the replacement staged, which loaded them, so they
@@ -814,6 +820,7 @@ function ThreadPage({
         loading={loading.pending}
         context={{ target, find }}
         files={files}
+        restored={restored}
       />
       <div className="thread-foot">
         <BackToThreads origin={origin} />

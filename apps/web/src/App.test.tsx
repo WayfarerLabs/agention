@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { request } from "./api.ts";
+import { keepDraft, readDraft, signOutMark } from "./device.ts";
 import { matchRoute, safeReturnPath } from "./router.tsx";
 import {
   csrf,
@@ -188,21 +189,34 @@ describe("signing in", () => {
     expect(window.location.search).toBe("?unread=true");
   });
 
-  it("signs out from Settings to the sign-in page", async () => {
+  // A thread's draft, as this browser keeps it.
+  const thread = { agent: "builder", session: "main", number: 1 };
+  const keepADraft = () =>
+    keepDraft(
+      thread,
+      { text: "Half a reply", detail: "", basis: 1, leftBehind: false },
+      signOutMark(),
+    );
+
+  it("signs out from Settings to the sign-in page, forgetting the drafts this browser kept", async () => {
+    keepADraft();
     api.on("POST", "/auth/signout", { body: signedOut });
     renderAt("/settings/sign-out");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await screen.findByRole("heading", { name: "Sign in" });
     expect(window.location.pathname + window.location.search).toBe("/sign-in");
     expect(api.callsTo("POST", "/auth/signout")[0]?.headers["x-csrf-token"]).toBe(csrf);
+    expect(readDraft(thread)).toBeUndefined();
   });
 
-  it("says when signing out failed, and stays", async () => {
+  it("says when signing out failed, and stays, with the drafts this browser kept", async () => {
+    keepADraft();
     api.on("POST", "/auth/signout", failure("internal", "internal error"));
     renderAt("/settings/sign-out");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await screen.findByRole("alert");
     expect(window.location.pathname).toBe("/settings/sign-out");
+    expect(readDraft(thread)).toBeDefined();
   });
 });
 

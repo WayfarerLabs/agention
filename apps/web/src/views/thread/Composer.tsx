@@ -10,9 +10,9 @@ import {
   useState,
 } from "react";
 import { ApiFailure, describeFailure } from "../../api.ts";
-import { Status } from "../../components.tsx";
+import { ConfirmButton, Status } from "../../components.tsx";
 import { useStillOpen } from "../../data.ts";
-import { useDeviceChoice } from "../../device.ts";
+import { type KeptDraft, useDeviceChoice } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { useDictation, useVoiceOn } from "../../voice/Dictation.tsx";
@@ -26,6 +26,7 @@ import {
 } from "./files/attach.ts";
 import { AttachButton } from "./files/AttachButton.tsx";
 import { AttachList } from "./files/AttachList.tsx";
+import { useKeptDraft } from "./kept-draft.ts";
 import { type MessageContext, MessageView } from "./Messages.tsx";
 import {
   blank,
@@ -171,6 +172,7 @@ export function Composer({
   loading,
   context,
   files,
+  restored,
 }: {
   // Writes to the thread; the page holds it, so a refusal that names an
   // answer's own words shows at their field on the ask's card.
@@ -206,14 +208,20 @@ export function Composer({
   // The files the draft carries, which the page holds beside the text, since
   // an edit loads the files of the message it replaces.
   files: DraftFiles;
+  // The draft this browser kept for the thread, which the page opened with.
+  restored: KeptDraft | undefined;
 }) {
   // The message the draft was started from: the last one on screen when the
   // operator started typing, staging or recording, so a message that lands
   // meanwhile, or one the page has not shown, makes the write stale instead
   // of being answered unseen. Emptying the composer ends the draft, unless a
   // recording is still to become its text. A draft still in the composer when
-  // a write lands counts from at least the message it wrote.
-  const [basis, setBasis] = useState<number | undefined>(undefined);
+  // a write lands counts from at least the message it wrote, and one this
+  // browser kept from before counts from where it started, or from what the
+  // page shows when that is earlier.
+  const [basis, setBasis] = useState(() =>
+    restored === undefined ? undefined : Math.min(restored.basis, shown),
+  );
   const empty = blank(text) && blank(detail) && files.files.length === 0;
   const [dictating, setDictating] = useState(false);
   useEffect(() => {
@@ -221,6 +229,33 @@ export function Composer({
       staged === undefined && empty && !dictating ? undefined : (current ?? shown),
     );
   }, [staged, empty, dictating, shown]);
+  // This browser keeps the draft's text and details as they change, and
+  // where it started; not what is staged, attached or being recorded, which
+  // may be gone by the time the draft comes back. A change or an edit loads
+  // the text and details of the message it replaces, which are kept only once
+  // the operator changes them: as they were, they would come back as a new
+  // message the operator never wrote.
+  const replaced = staged?.replaces === undefined ? undefined : context.find(staged.replaces);
+  const asLoaded =
+    replaced !== undefined && text === (replaced.text ?? "") && detail === (replaced.detail ?? "");
+  const keepNow = useKeptDraft(
+    context.target,
+    {
+      text,
+      detail,
+      basis: basis ?? shown,
+      leftBehind: staged !== undefined || files.files.length > 0 || dictating,
+    },
+    !(blank(text) && blank(detail)) && !asLoaded,
+  );
+  // Whether the draft the page opened with left something behind, which the
+  // composer says until it is emptied.
+  const [leftBehind, setLeftBehind] = useState(restored?.leftBehind === true);
+  useEffect(() => {
+    if (empty) {
+      setLeftBehind(false);
+    }
+  }, [empty]);
   const voiceOn = useVoiceOn();
   // How many messages the composer has sent, so a transcript that arrives
   // after its draft was sent is dropped rather than starting a new one.
@@ -254,9 +289,11 @@ export function Composer({
   // The detail as it stands, for a write that lands after the operator
   // typed on.
   const detailNow = useRef(detail);
+  const textNow = useRef(text);
   useEffect(() => {
     detailNow.current = detail;
-  }, [detail]);
+    textNow.current = text;
+  }, [detail, text]);
   // What is staged as it stands, for a write whose answer comes after the
   // operator changed it.
   const stagedNow = useRef(staged);
@@ -323,8 +360,14 @@ export function Composer({
     sends.current += 1;
     // Clear only what was sent: text typed meanwhile is a new draft, and so
     // are files added meanwhile.
-    setText((current) => (current === sentText ? "" : current));
-    setDetail((current) => (current === sentDetail ? "" : current));
+    const unsent = (current: string, sent: string) => (current === sent ? "" : current);
+    setText((current) => unsent(current, sentText));
+    setDetail((current) => unsent(current, sentDetail));
+    keepNow(
+      unsent(textNow.current, sentText),
+      unsent(detailNow.current, sentDetail),
+      outcome.written,
+    );
     files.sent(sentFiles);
     // The Details box folds with the detail it sent; one typed meanwhile
     // stays in sight.
@@ -378,6 +421,20 @@ export function Composer({
       ? writer.failure
       : undefined;
   const removed = () => box.current?.focus();
+
+  // discard empties the composer, which forgets the draft this browser kept:
+  // what is staged, with what it loaded, the text, the details and the files.
+  const discard = () => {
+    unstage();
+    setText("");
+    setDetail("");
+    setDetailsShown(false);
+    for (const file of files.files) {
+      files.remove(file.id);
+    }
+    setStatus("");
+    removed();
+  };
 
   // A paste holding images attaches them, named by when they were pasted,
   // and inserts nothing; any other paste is the browser's own.
@@ -479,6 +536,12 @@ export function Composer({
         </div>
       )}
       <form onSubmit={(event) => event.preventDefault()} noValidate>
+        {leftBehind && (
+          <p className="hint" role="note">
+            This browser kept only your draft's text and details, not what it had staged, attached
+            or was recording, so sending posts them as a new message.
+          </p>
+        )}
         {staged?.kind === "answers" && staged.replaces === undefined ? (
           <ul className="staged">
             {staged.answers.map((each) => (
@@ -581,6 +644,17 @@ export function Composer({
           </button>
         )}
         <AttachList draft={files} attach={attach} disabled={loading} />
+        {/* A recording has its own Discard, so this one waits until the
+            recording is done with. */}
+        {(!empty || staged !== undefined) && !dictating && (
+          <ConfirmButton
+            label="Discard draft"
+            confirmLabel="Discard"
+            question="Discard this draft, with what it stages and its files?"
+            disabled={writer.pending || loading}
+            onConfirm={discard}
+          />
+        )}
         {/* What answers Send and dictation show beside them, as the row stays
             at the foot of the screen: a failure above them, and what was
             sent or heard after them. */}

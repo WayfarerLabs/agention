@@ -8,6 +8,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { keepDraft, signOutMark } from "../device.ts";
 import { absoluteTime, sinceTime } from "../format.tsx";
 import { Icon, type IconName } from "../icons.tsx";
 import { leaveNotice } from "../notice.ts";
@@ -319,6 +320,20 @@ describe("the thread list", () => {
     expect(mark("Archived", "1 message read")).toBeTruthy();
     expect(mark("Archived", "Archived").querySelector("svg")).not.toBeNull();
     expect(within(row("Read")).queryByTitle("Archived")).toBeNull();
+  });
+
+  it("marks the threads this browser keeps a draft of a reply to", async () => {
+    const draft = { text: "Half a reply", detail: "", basis: 1, leftBehind: false };
+    keepDraft({ agent: "builder", session: "main", number: 2 }, draft, signOutMark());
+    serve([
+      threadSummary({ number: 1, title: "Untouched" }),
+      threadSummary({ number: 2, title: "Drafted" }),
+    ]);
+    renderAt("/");
+    await screen.findByRole("heading", { level: 2, name: titled("Drafted") });
+    const row = (name: string) => screen.getByRole("link", { name: new RegExp(`^#\\d+ ${name}`) });
+    expect(within(row("Drafted")).getByTitle("Draft").querySelector("svg")).not.toBeNull();
+    expect(within(row("Untouched")).queryByTitle("Draft")).toBeNull();
   });
 
   it("asks for the threads not archived, in priority order, ungrouped, with no filter on", async () => {

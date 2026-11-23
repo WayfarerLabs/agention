@@ -2,10 +2,13 @@ import type { SessionState } from "@wayfarerlabs/agention-api";
 import { request } from "../../api.ts";
 import { Failure } from "../../components.tsx";
 import { useAction } from "../../data.ts";
+import { forgetDrafts } from "../../device.ts";
 import { navigate } from "../../router.tsx";
 import { useSession } from "../../session.tsx";
 
-// SignOutSection ends this browser's session and goes to the sign-in page.
+// SignOutSection ends this browser's session and goes to the sign-in page,
+// forgetting the drafts the browser kept, since another person may use it
+// next.
 export function SignOutSection() {
   const session = useSession();
   const action = useAction();
@@ -14,6 +17,7 @@ export function SignOutSection() {
       request<SessionState>("POST", "/auth/signout", { csrf }),
     );
     if (state !== undefined) {
+      forgetDrafts();
       navigate("/sign-in", { replace: true });
       session.update(state);
     }

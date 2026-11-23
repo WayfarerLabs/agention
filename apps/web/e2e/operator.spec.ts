@@ -2,8 +2,9 @@
 // banner and titles, linking the first passkey, approving an agent and the
 // Sessions tab's count of registrations waiting, answering its asks, a
 // message's detail folded under its text and the composer's Details box, a
-// stale write, Send kept on a short phone's screen, text written to take the
-// page down, reading and marking unread from a message and the Threads tab's
+// stale write, a draft kept across the Sessions tab and a reload until discarded,
+// Send kept on a short phone's screen, text written to take the page down,
+// reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
 // order, the order's direction and grouping, an ask the agent withdraws and the
 // way back under the composer, the sessions view with a session's status and
@@ -304,6 +305,22 @@ test("a write the agent overtakes keeps the draft and sends after one action", a
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/1`);
   expect(read.body.messages.at(-1)).toMatchObject({ author: { kind: "person" }, text: draft });
   expect(read.body.cursors.audience).toBe(read.body.thread.last_seq);
+});
+
+test("a draft comes back after the Sessions tab and a reload, until Discard draft forgets it", async () => {
+  const box = page.getByLabel("Message", { exact: true });
+  await box.fill("Half a reply");
+  await tab("Sessions").click();
+  await expect(page).toHaveURL(/\/sessions$/);
+  await page.goBack();
+  await expect(box).toHaveValue("Half a reply");
+  await page.reload();
+  await expect(box).toHaveValue("Half a reply");
+  await page.getByRole("button", { name: "Discard draft" }).click();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(box).toHaveValue("");
+  await page.reload();
+  await expect(box).toHaveValue("");
 });
 
 test("Send stays on a short phone's screen while the message box is at its foot, within the composer", async () => {

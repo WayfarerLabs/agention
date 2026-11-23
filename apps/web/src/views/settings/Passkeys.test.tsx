@@ -1,6 +1,7 @@
 import type { PasskeyList, PasskeySummary } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { keepDraft, readDraft, signOutMark } from "../../device.ts";
 import {
   csrf,
   FakeApi,
@@ -175,7 +176,13 @@ describe("the passkeys in Settings", () => {
     expect(addSection().querySelector("p.hint")).not.toBeNull();
   });
 
-  it("removes a passkey once confirmed, signing out when it signed this browser in", async () => {
+  it("removes a passkey once confirmed, signing out when it signed this browser in, which forgets its drafts", async () => {
+    const thread = { agent: "builder", session: "main", number: 1 };
+    keepDraft(
+      thread,
+      { text: "Half a reply", detail: "", basis: 1, leftBehind: false },
+      signOutMark(),
+    );
     await open(both);
     api.on("POST", "/passkeys/1/remove", { body: { signed_out: true } });
     api.on("GET", "/session", { body: { signed_in: false, operator_exists: true } });
@@ -183,6 +190,7 @@ describe("the passkeys in Settings", () => {
     fireEvent.click(within(article("Laptop")).getByRole("button", { name: "Remove this passkey" }));
     await screen.findByRole("heading", { level: 1, name: "Sign in" });
     expect(api.callsTo("POST", "/passkeys/1/remove")[0]?.headers["x-csrf-token"]).toBe(csrf);
+    expect(readDraft(thread)).toBeUndefined();
   });
 
   it("keeps the last passkey, saying why", async () => {
