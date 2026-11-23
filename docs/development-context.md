@@ -78,9 +78,10 @@ index of those docs.
 - Build and packaging: `npm run -w apps/server build` (the web UI, then the server's bundle) and
   `npm run -w apps/bridge build` (`CONTRIBUTING.md` "Building"); the "Build" gate packs, installs
   and runs each package, and `scripts/check.sh --packages DIR` keeps the tarballs it checked
-- Security and dependency checks: `npm audit signatures` in the "Dependency integrity" gate, and for
-  each agent line release's bridge in the "Agent compatibility" gate, and
-  `npm audit --audit-level=high` in the "Vulnerabilities" gate of `scripts/check.sh`
+- Security and dependency checks: `npm audit signatures` in the "Dependency integrity" gate, for
+  each agent line release's bridge in the "Agent compatibility" gate and for each server release the
+  "Server compatibility" gate installs, and `npm audit --audit-level=high` in the "Vulnerabilities"
+  gate of `scripts/check.sh`
 - Generated outputs, their generator configuration, and drift check: `out/claude-plugin/`,
   `out/codex-plugin/`, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`,
   generated from `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` by
@@ -128,22 +129,24 @@ index of those docs.
   in-process HTTP harness, `apps/server/src/http/test-harness.ts`, which also creates API keys and
   calls the operator mount with them, with `apps/server/src/auth/test-authenticator.ts`, a software
   passkey authenticator; the bridge's harness, `apps/bridge/src/test-harness.ts`, which runs the
-  server in process over TLS and bridges in process or as processes, released bundles among them
-  (`docs/architecture.md` "Agent bridge"); the browser tests in `apps/web/e2e/`, which drive the
-  built server in Chromium with virtual authenticators and Chromium's fake microphone
-  (`docs/architecture.md` "Web UI"); the local stub transcription provider,
-  `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
-  `scripts/check-sdd.test.sh`; and `scripts/check-release-order.test.sh`, the release order gate's
-  fixture tests
+  server in process over TLS and bridges in process or as processes, released bundles among them,
+  and bridge processes alone against a released server (`docs/architecture.md` "Agent bridge"); the
+  browser tests in `apps/web/e2e/`, which drive the built server in Chromium with virtual
+  authenticators and Chromium's fake microphone (`docs/architecture.md` "Web UI"); the local stub
+  transcription provider, `apps/server/src/transcription/test-provider.ts`, which the server's and
+  the browser tests share; `scripts/check-sdd.test.sh`; `scripts/check-release-order.test.sh`, the
+  release order gate's fixture tests; and `scripts/check-server-compatibility.test.sh`, the fixture
+  tests of the releases the server compatibility gate selects
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`); setup is the locked install and Chromium's headless shell (`CONTRIBUTING.md`
-  "Prerequisites"), and the release tags for the agent compatibility and release order gates
-  (`CONTRIBUTING.md` "Checks")
+  "Prerequisites"), and the release tags for the agent compatibility, server compatibility and
+  release order gates (`CONTRIBUTING.md` "Checks")
 - Integration test selection or markers: none; the bridge's in-process integration tests run in its
   Vitest suite, and the browser tests run with `npm run -w apps/web test:browser` against the
-  server's last build, which `scripts/check.sh --fast` skips with the builds; the agent
-  compatibility suite runs only in its gate, which `--fast` also skips, as it does the release order
-  gate (`CONTRIBUTING.md` "The agent API" and "Checks")
+  server's last build, which `scripts/check.sh --fast` skips with the builds; the agent and server
+  compatibility suites run only in their gates (`npm run -w apps/bridge test:agent-compat` and
+  `test:server-compat`, which need their gates' installs), which `--fast` also skips, as it does the
+  release order gate (`CONTRIBUTING.md` "The agent API" and "Checks")
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
   acceptance, and dictation with a real transcription provider, by the operator; Codex used only for

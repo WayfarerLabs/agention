@@ -1139,10 +1139,12 @@ its key file, its tokens and where its requests may go.
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
 protocol, and as a process over stdio. The agent compatibility gate runs each released bridge's
-published bundle the same way against the server at HEAD
-([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API"). `AGENTION_CONNECT`'s tests
-run it at an origin whose host resolves nowhere, under `.test`, which bridges reach only at the
-address it listens on.
+published bundle the same way against the server at HEAD, and the server compatibility gate runs the
+bridge at HEAD as a process against the newest released server of each older agent API version, each
+started with `agention serve` over TLS with the test-time certificate and reached through
+`AGENTION_CONNECT` ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API").
+`AGENTION_CONNECT`'s tests run it at an origin whose host resolves nowhere, under `.test`, which
+bridges reach only at the address it listens on.
 
 ## Web UI
 
