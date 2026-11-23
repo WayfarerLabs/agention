@@ -20,18 +20,19 @@
 Deliberately a refactor that releases nothing (`refactor:` commits), so R2 holds from the first
 split release.
 
-- [ ] `contract-split-lld.md`: the new workspace package's name, the rule for what stays shared
+- [x] `contract-split-lld.md`: the new workspace package's name, the rule for what stays shared
       (what the bridge's bundle needs), the modules that move (API keys, settings, attention,
-      passkeys, the operator schemas) and the files split rather than moved (`groups-and-tags.ts`,
-      `thread-lists.ts`, `sessions.ts`).
-- [ ] The modules moved into the new package, the server, web UI and OpenAPI generation importing
+      passkeys, groups and tags, the operator schemas) and the files split rather than moved
+      (`sessions.ts`, `thread-lists.ts`, `registrations.ts`, `threads.ts`) (agention#73).
+- [x] The modules moved into the new package, the server, web UI and OpenAPI generation importing
       them from it, `packages/api` keeping only what the bridge or both sides use; no behavior,
-      route, schema or generated document changes.
-- [ ] The boundary held by a test over the bridge's bundle metafile, failing if any module of the
-      new package is in it.
-- [ ] Permanent docs: `docs/architecture.md` "Source and packages" and "API contract", README's
+      route, schema or generated document changes (agention#73).
+- [x] The boundary held by a test over the bridge's bundle metafile, failing if any module of the
+      new package is in it (agention#73).
+- [x] Permanent docs: `docs/architecture.md` "Source and packages" and "API contract", README's
       repository layout, CONTRIBUTING where it names the contract package,
-      `docs/development-context.md` and `docs/review-checklist.md` where they name a moved module.
+      `docs/development-context.md` and `docs/review-checklist.md` where they name a moved module
+      (agention#73).
 - [ ] Reviewed (project review, complexity pass, correctness lane) and CI green.
 
 Done when `docs/api/openapi.json` is unchanged byte for byte, the bridge's bundle is unchanged by an

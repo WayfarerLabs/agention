@@ -1,6 +1,6 @@
 # Separate releases: the server-only contract LLD
 
-- Status: Draft
+- Status: Built in delivery 1 (agention#73)
 - Date: 2026-11-22
 - Requirements: [FRD](frd.md) R2 and ruling 2; [HLA](hla.md) "What each line ships" and "The
   server-only contract"; [plan](plan.md) delivery 1
