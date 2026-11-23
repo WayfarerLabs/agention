@@ -40,25 +40,20 @@ export const colorName: Record<Color, string> = {
   purple: "Purple",
 };
 
-// What a view knows of the operator's groups and tags: each group's color
-// and place in the operator's order, and each tag's color.
+// What a view knows of the operator's groups and tags: each one's color.
 export interface Palette {
   group: (id: GroupId) => Color | undefined;
   tag: (name: string) => Color | undefined;
-  // A group's place in the operator's order, from 0, or undefined for one
-  // the palette does not know.
-  place: (id: GroupId) => number | undefined;
 }
 
 // paletteOf reads a palette from the operator's groups and tags, while they
 // are known.
 function paletteOf(known: GroupsAndTags | undefined): Palette {
-  const groups = new Map(known?.groups.map((group, index) => [group.id, { ...group, index }]));
+  const groups = new Map(known?.groups.map((group) => [group.id, group.color]));
   const tags = new Map(known?.tags.map((tag) => [tag.name, tag.color]));
   return {
-    group: (id) => groups.get(id)?.color,
+    group: (id) => groups.get(id),
     tag: (name) => tags.get(name),
-    place: (id) => groups.get(id)?.index,
   };
 }
 

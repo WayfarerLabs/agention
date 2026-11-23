@@ -1,17 +1,10 @@
 import type { GroupsAndTags } from "@wayfarerlabs/agention-api";
 import { useId } from "react";
 import { request } from "../../api.ts";
-import { Failure, LeftOut } from "../../components.tsx";
+import { Failure, LeftOut, useFocusWhenShown } from "../../components.tsx";
 import { useAction } from "../../data.ts";
 import { plural } from "../../format.tsx";
-import {
-  focusNext,
-  HoldsLink,
-  ListHead,
-  Organized,
-  useFocusWhenShown,
-  useSearch,
-} from "./Organizer.tsx";
+import { focusNext, HoldsLink, ListHead, Organized, useSearch } from "./Organizer.tsx";
 
 type Tag = GroupsAndTags["tags"][number];
 

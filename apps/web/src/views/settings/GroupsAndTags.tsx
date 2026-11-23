@@ -19,7 +19,7 @@ export function GroupsAndTagsSection() {
     <Loadable data={known.data} failure={known.failure} retry={known.refresh}>
       {({ groups, tags, truncated }) => (
         <>
-          <GroupList groups={groups} refresh={known.refresh} />
+          <GroupList groups={groups} failure={known.failure} refresh={known.refresh} />
           <TagList tags={tags} truncated={truncated} refresh={known.refresh} />
         </>
       )}

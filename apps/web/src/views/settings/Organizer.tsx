@@ -5,21 +5,13 @@ import {
   type ThreadsView,
   tagName,
 } from "@wayfarerlabs/agention-api";
-import {
-  type DragEvent,
-  type FormEvent,
-  type ReactNode,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import { ConfirmButton, Failure } from "../../components.tsx";
 import { useAction } from "../../data.ts";
-import { Icon } from "../../icons.tsx";
 import { colorName, nameKey, nameProblem, OrganizedChip } from "../../organizing.tsx";
 import { FilterLink } from "../filter-links.tsx";
+import { type Drag, DragHandle, useDropTarget } from "../group-order.tsx";
 
 // The parts Settings' lists of groups and of tags share: a list's head, with
 // its search box and New; the form that names a group or a tag; and one group
@@ -38,29 +30,6 @@ export function useSearch(label: string): [ReactNode, string] {
     />,
     nameKey(text.trim()),
   ];
-}
-
-// useFocusWhenShown puts focus on an element by its id as soon as it shows,
-// which a change can take a render or a reload to bring, as a tag renamed
-// shows under its new name once the list reloads. The list's next reload,
-// a new shown, ends the wait whether the element came or not, so a stale
-// one never takes focus later.
-export function useFocusWhenShown(shown: unknown): (id: string) => void {
-  const [wanted, setWanted] = useState<{ id: string; shown: unknown }>();
-  // What shows now, for a wait asked for from a callback made before it.
-  const now = useRef(shown);
-  now.current = shown;
-  useLayoutEffect(() => {
-    if (wanted === undefined) {
-      return;
-    }
-    const element = document.getElementById(wanted.id);
-    if (element !== null || wanted.shown !== shown) {
-      setWanted(undefined);
-      element?.focus();
-    }
-  });
-  return (id) => setWanted({ id, shown: now.current });
 }
 
 // focusNext puts focus, once a row of a list is removed, on the row after
@@ -254,14 +223,6 @@ export function HoldsLink({
   );
 }
 
-// A group's drag by its handle: starting and ending it, and dropping another
-// group on this one.
-export interface Drag {
-  start: () => void;
-  end: () => void;
-  drop: (event: DragEvent) => void;
-}
-
 // Organized is one group or tag in its list: its chip and what it holds,
 // with Rename, which opens a field for its new name in its place, its color,
 // which applies as it is chosen, and Remove, which asks first. A change
@@ -305,7 +266,7 @@ export function Organized({
 }) {
   const action = useAction();
   const [renaming, setRenaming] = useState(false);
-  const [over, setOver] = useState(false);
+  const [over, dropProps] = useDropTarget(drag);
   const article = useRef<HTMLElement>(null);
   const change = async (what: string, body: object) => {
     const done = await action.run((csrf) => request("POST", `${path}/${what}`, { csrf, body }));
@@ -322,19 +283,7 @@ export function Organized({
   const label = kind === "group" ? `Group ${name}` : `Tag ${name}`;
   const classes = ["organized", dragging ? "dragging" : "", over ? "drop-over" : ""];
   return (
-    <li
-      onDragOver={(event) => {
-        if (drag !== undefined) {
-          event.preventDefault();
-          setOver(true);
-        }
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(event) => {
-        setOver(false);
-        drag?.drop(event);
-      }}
-    >
+    <li {...dropProps}>
       <article
         ref={article}
         id={rowId}
@@ -343,25 +292,7 @@ export function Organized({
         aria-label={label}
       >
         <div className="organized-line">
-          {drag !== undefined && (
-            <span
-              className="drag-handle"
-              aria-hidden="true"
-              title="Drag to move"
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", name);
-                if (article.current !== null) {
-                  event.dataTransfer.setDragImage?.(article.current, 0, 0);
-                }
-                drag.start();
-              }}
-              onDragEnd={() => drag.end()}
-            >
-              <Icon name="grip" />
-            </span>
-          )}
+          {drag !== undefined && <DragHandle name={name} image={article} drag={drag} />}
           <OrganizedChip kind={kind} name={name} color={color} />
           {holds}
           {moves !== undefined && <span className="organized-moves">{moves}</span>}

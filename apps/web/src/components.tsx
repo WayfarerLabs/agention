@@ -3,6 +3,7 @@ import {
   type FocusEvent,
   type FormEvent,
   Fragment,
+  type HTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
@@ -340,6 +341,9 @@ const foldClasses: Record<FoldDepth, [section: string, head: string]> = {
   innermost: ["subgroup innermost", "subgroup-head"],
 };
 
+// What takes a drop, as a fold's head can: the handlers it takes one by.
+export type DropProps = Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
+
 // What a fold's header is labelled: a plain label, which sits in the
 // fold's button and names it; or, given the name the button goes by, as in
 // "Agent builder", a label beside the button, which can be a link, such as to
@@ -356,7 +360,8 @@ type FoldLabel = { name?: undefined; label: string } | { name: string; label: Re
 // controls, such as an options menu. The button stretches under the bar, so
 // a click anywhere on it but on a link or a control folds or unfolds it, as
 // on a plain label or a plain mark; keyboards and assistive technology use
-// the button.
+// the button. A fold can take a class of its own beside its depth's, and
+// what takes a drop on its head.
 export function Fold({
   level,
   depth,
@@ -365,6 +370,8 @@ export function Fold({
   folded,
   toggle,
   children,
+  className,
+  drop,
   ...labelled
 }: FoldLabel & {
   level: FoldLevel;
@@ -374,6 +381,8 @@ export function Fold({
   folded: boolean;
   toggle: () => void;
   children: ReactNode;
+  className?: string | undefined;
+  drop?: DropProps | undefined;
 }) {
   const body = useId();
   const button = useId();
@@ -382,8 +391,8 @@ export function Fold({
   const shown = <span className="group-label">{labelled.label}</span>;
   const plain = labelled.name === undefined;
   return (
-    <section className={section}>
-      <div className="fold-head">
+    <section className={className === undefined ? section : `${section} ${className}`}>
+      <div className="fold-head" {...drop}>
         <div className={head}>
           <div className="fold-main">
             <Heading className="fold-title" aria-labelledby={plain ? undefined : button}>
@@ -642,4 +651,27 @@ export function useTapOutside(
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, [open, root, button, shut]);
+}
+
+// useFocusWhenShown puts focus on an element by its id as soon as it shows,
+// which a change can take a render or a reload to bring, as a tag renamed
+// shows under its new name once its list reloads. The next shown, as the
+// list reloads, ends the wait whether the element came or not, so a stale
+// one never takes focus later.
+export function useFocusWhenShown(shown: unknown): (id: string) => void {
+  const [wanted, setWanted] = useState<{ id: string; shown: unknown }>();
+  // What shows now, for a wait asked for from a callback made before it.
+  const now = useRef(shown);
+  now.current = shown;
+  useLayoutEffect(() => {
+    if (wanted === undefined) {
+      return;
+    }
+    const element = document.getElementById(wanted.id);
+    if (element !== null || wanted.shown !== shown) {
+      setWanted(undefined);
+      element?.focus();
+    }
+  });
+  return (id) => setWanted({ id, shown: now.current });
 }
