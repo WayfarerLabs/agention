@@ -126,6 +126,8 @@ describe("the listener's deadlines, on a fake clock", () => {
     // The check that sees the bytes arrive starts the idle time.
     advance(0);
     advance(timeouts.bodyIdle - 1);
+    // A cut drops the request at once, so one still tracked was not cut.
+    expect(deadlines.tracking).toBe(1);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(connection.received()).toBe("");
     advance(1);
@@ -184,11 +186,15 @@ describe("the listener's deadlines, on a fake clock", () => {
   it("cut any other request still arriving 30 seconds after its headers, however it trickles", async () => {
     await harness.agent(agent, "POST", "/s/builder/main/threads", newThread("r-1"));
     const connection = open(port, await agentHead("/s/builder/main/threads/1/read", 100));
+    // Its 30 seconds count from when its headers arrive.
+    await until(() => deadlines.tracking === 1, "the request's headers");
     for (let second = 1; second < 30; second++) {
       connection.socket.write(" ");
       await new Promise((resolve) => setTimeout(resolve, 5));
       advance(1000);
     }
+    // A cut drops the request at once, so one still tracked was not cut.
+    expect(deadlines.tracking).toBe(1);
     expect(connection.received()).toBe("");
     connection.socket.write(" ");
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -223,14 +229,20 @@ describe("the listener's deadlines, on a fake clock", () => {
   it("leave a long poll alone however long it waits, and the web mount's answers without the version", async () => {
     const poll = open(
       port,
-      headOf("GET", "/api/agent/s/builder/main/wait?wait=25", {
+      headOf("GET", "/api/agent/s/builder/main/wait?wait=1", {
         authorization: `Bearer ${await harness.token(agent)}`,
       }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The poll is waiting, so its headers arrived and its request is complete.
+    const session = (harness.fixture.db.prepare("SELECT id FROM sessions").get() as { id: number })
+      .id;
+    await until(() => harness.fixture.store.notifier.waiting(session) === 1, "the poll to wait");
     advance(120_000);
     expect(deadlines.tracking).toBe(0);
-    expect(poll.closed()).toBe(false);
+    // The poll ends on its own, a second later, with its answer rather than
+    // the listener's 408.
+    await until(() => poll.received().includes("\r\n\r\n"), "the poll's answer");
+    expect(headersOf(poll.received()).status).toBe(200);
     poll.socket.destroy();
 
     const web = open(
@@ -241,7 +253,7 @@ describe("the listener's deadlines, on a fake clock", () => {
         "content-length": "10",
       }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await until(() => deadlines.tracking === 1, "the request's headers");
     advance(0);
     advance(timeouts.bodyIdle);
     await until(() => web.closed(), "the connection to close");
