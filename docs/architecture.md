@@ -1009,11 +1009,14 @@ its key file, its tokens and where its requests may go.
   on refuses a newer bridge's request as `unsupported_version` before authenticating it or recording
   anything ([HTTP API](#http-api)), and the bridge refuses that answer in turn, so nothing was done.
   A server before 0.3.0 states no version and acts on a request before the bridge refuses its
-  answer: for a new key, `register` records a pending registration whose code the agent never
-  relays, which expires unapproved within the hour; for an approved session, the call is carried
-  out, without the fields that server does not know, and reported to the agent as failed. A newer
-  server's answers are used: it serves the bridge's version, or refuses it in words of its own. An
-  answer that is not Agention's JSON, such as a proxy's, keeps its own problem.
+  answer. The bridge learns its session's grant only from a registration answer it accepts, so a
+  bridge that starts against such a server sends only registration checks: for a new key, one
+  records a pending registration whose code the agent never relays, which expires unapproved within
+  the hour, and no tool call is carried out. Only a bridge that learned its grant before its server
+  was replaced by such a release sends that server a thread call, which is carried out, without the
+  fields that server does not know, and reported to the agent as failed. A newer server's answers
+  are used: it serves the bridge's version, or refuses it in words of its own. An answer that is not
+  Agention's JSON, such as a proxy's, keeps its own problem.
 - **Connections.** Requests go out through `node:https`, on one keep-alive agent per bridge with the
   settings of Node's global agent. The agent opens every connection at the origin's host and port,
   or at the address in `AGENTION_CONNECT`, and either way gives TLS the origin's host name as the

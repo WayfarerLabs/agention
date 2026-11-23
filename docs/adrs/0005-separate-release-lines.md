@@ -81,5 +81,7 @@ excluded directory; a file at the repository's root cannot be excluded.
 - A Codex host following `main` may refresh its plugin as soon as an agent release merges, before
   its operator upgrades the server; that bridge then refuses the older server, saying which to
   upgrade, until they do.
-- Servers before 0.3.0 state no agent API version, so they act on a call before a newer bridge can
-  refuse their answer; the operator guide says to upgrade such a server first.
+- Servers before 0.3.0 state no agent API version, so they record a newer bridge's registration
+  check before it can refuse their answer, and carry out a call only for a bridge that was already
+  running when its server went back to such a release; the operator guide says to upgrade such a
+  server first.
