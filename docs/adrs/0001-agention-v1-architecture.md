@@ -17,7 +17,10 @@ view's tab counting the sessions with unread updates is superseded: a navigation
 what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
 approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
 UI" and the [operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row
-still marks its unread updates.
+still marks its unread updates. Its "One version covers the server, the bridge and the plugins", its
+"one release stream" and its `v*` tags are superseded by [ADR 0005](0005-separate-release-lines.md):
+the server, and the bridge with the plugins, are released on lines of their own, each with its own
+version and tags.
 
 ## Context
 
