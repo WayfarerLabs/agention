@@ -1,6 +1,7 @@
 # Separate releases: Functional Requirements
 
-- Status: Accepted by the operator, 2026-11-22 (ruling 2); C3 and R4 amended by ruling 3
+- Status: Accepted by the operator, 2026-11-22 (ruling 2); C3 and R4 amended by ruling 3, C5 by
+  ruling 4
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -100,9 +101,10 @@ refuses a newer bridge before recording anything, so no pending registration app
 agent never relays. A server before 0.3.0, which states no agent API version, may record one; it
 expires unapproved within the hour, and the operator guide says so.
 
-**C5. Tested against real releases.** C3 and C4 are proved against every released server older than
-the bridge's agent API version, installed from npm as an operator would install it, as the agent
-compatibility gate today proves every released bridge against the server at HEAD.
+**C5. Tested against real releases.** C3 and C4 are proved against the newest released server of
+each agent API version older than the bridge's (a server that states none counting as one version),
+installed from npm as an operator would install it, as the agent compatibility gate today proves
+every released bridge against the server at HEAD (ruling 4).
 
 ### Engineering
 
@@ -158,6 +160,10 @@ gate work with each line's tags, and a release refuses a tag that does not match
    Is this a bigger deal than it seems?" It is not: the lines can start from whichever combined
    release is last at the switch. Taken: C3's known limit for servers before 0.3.0, and R4 starting
    both lines from the last combined release, with releases going on as usual until the switch.
+
+4. (2026-11-23) Asked whether to amend C5 to test the newest released server of each older agent API
+   version, instead of every older server, the operator chose "Newest per version (recommended)".
+   Taken: C5 as amended.
 
 ## Definition of done
 

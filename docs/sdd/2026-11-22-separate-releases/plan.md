@@ -115,15 +115,15 @@ line's changes, and the release workflow refuses a tag whose line's versions do 
       `scripts/check-agent-compatibility.sh` and the throwaway certificate and its trust from
       `apps/bridge/src/test-harness.ts`), reading each release's database for C4, and the gate's run
       time against the `check` job's limit.
-- [ ] The gate: every released server older than the bridge's agent API version, from npm with
-      signatures checked, refusing every tool call with C3's message and, from 0.3.0, recording no
-      registration (C4, C5); skipped by `--fast`.
+- [ ] The gate: the newest released server of each agent API version older than the bridge's, from
+      npm with signatures checked, refusing every tool call with C3's message and, from 0.3.0,
+      recording no registration (C4, C5); skipped by `--fast`.
 - [ ] Permanent docs: CONTRIBUTING "Checks" and "The agent API", `docs/architecture.md` "Agent
       bridge", `docs/development-context.md`.
 - [ ] Reviewed (project review, complexity pass, correctness lane) and CI green.
 
-Done when the gate passes in CI against 0.1.0 to 0.4.0 (the releases older than agent API 3) and
-fails when the bridge's refusal is broken.
+Done when the gate passes in CI against 0.2.1 and 0.4.0 (the newest releases stating no agent API
+version and version 2, both older than agent API 3) and fails when the bridge's refusal is broken.
 
 ## Closeout
 

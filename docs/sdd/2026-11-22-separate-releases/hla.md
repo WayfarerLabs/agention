@@ -14,8 +14,8 @@ Three changes, each complete on its own:
    run. A check on the agent line's release pull request keeps it from merging before the server
    release it needs is on npm (C2).
 2. **A newer bridge against an older server.** Both sides word a version mismatch in terms that hold
-   when the lines' versions differ (C3), and a new gate runs the bridge at HEAD against every
-   released server older than it (C5).
+   when the lines' versions differ (C3), and a new gate runs the bridge at HEAD against the newest
+   released server of each older agent API version (C5).
 3. **The plugin-is-behind signal.** The server records the agent API version each session's bridge
    states and marks a session whose bridge is behind in the sessions view and the operator API (U2);
    a bridge from this effort on sees from the server's own answers that it is behind and says so in
@@ -205,16 +205,18 @@ waiting to servers before 0.3.0.
 ### The server compatibility gate (C5)
 
 A new gate in `scripts/check.sh`, beside agent compatibility and skipped by `--fast`, mirrors it in
-the other direction. For each released server (`agention-v*` tags reachable from HEAD) whose agent
-API version is older than the bridge's at HEAD, it installs `@wayfarerlabs/agention` from npm by
-exact version with signatures and provenance checked, starts `agention serve` on loopback with a
-throwaway TLS certificate and data directory (every release accepts `--tls-cert` and `--tls-key`),
-and runs the bridge at HEAD against it as an agent host would. Every tool call fails with C3's
-refusal, and for servers from 0.3.0 the database holds no registration afterwards. A server that
-serves the bridge's version is skipped: the agent compatibility gate already covers bridges against
-the server at HEAD, and a server at the same version serves the same contract. The gate drives only
-unapproved sessions, since released servers approve only through a passkey; the low-level design
-measures its run time against CI's limit for the `check` job.
+the other direction. For each agent API version older than the bridge's at HEAD (a server that
+states none counting as one), it takes the newest released server at that version (`agention-v*`
+tags reachable from HEAD), today 0.2.1 (none) and 0.4.0 (2), and installs `@wayfarerlabs/agention`
+from npm by exact version with signatures and provenance checked, starts `agention serve` on
+loopback with a throwaway TLS certificate and data directory (every release accepts `--tls-cert` and
+`--tls-key`), and runs the bridge at HEAD against it as an agent host would. Every tool call fails
+with C3's refusal, and for servers from 0.3.0 the database holds no registration afterwards. A
+server that serves the bridge's version is skipped: the agent compatibility gate already covers
+bridges against the server at HEAD, and a server at the same version serves the same contract, which
+is also why one server per older version suffices (FRD ruling 4). The gate drives only unapproved
+sessions, since released servers approve only through a passkey; the low-level design measures its
+run time against CI's limit for the `check` job.
 
 ## 3. The plugin-is-behind signal
 
