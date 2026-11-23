@@ -355,6 +355,7 @@ describe("listSessions", () => {
               outcome: "completed",
               title: "Retire invoices",
               note: "Done.",
+              updated_at: formatTimestamp(fixture.now),
             },
             unread_updates: 1,
             threads: { total: 0, unread: 0, stranded: 0 },
@@ -371,6 +372,17 @@ describe("listSessions", () => {
     );
     expect(nextPage.agents.map((each) => each.agent)).toEqual(["reviewer"]);
     expect(nextPage).not.toHaveProperty("next");
+  });
+
+  it("dates the status by its latest entry, which an update that logs nothing leaves", () => {
+    report({ state: "working", title: "Retire invoices" });
+    const first = formatTimestamp(fixture.now);
+    fixture.advance(60_000);
+    report({ state: "working" });
+    expect(summary().status?.updated_at).toBe(first);
+    fixture.advance(60_000);
+    report({ note: "Backfill under way." });
+    expect(summary().status?.updated_at).toBe(formatTimestamp(fixture.now));
   });
 
   it("orders working and idle sessions first, then those that never reported, then stopped ones", () => {

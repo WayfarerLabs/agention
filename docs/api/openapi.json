@@ -6460,10 +6460,14 @@
               },
               "note": {
                 "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
               }
             },
             "required": [
-              "state"
+              "state",
+              "updated_at"
             ]
           },
           "unread_updates": {

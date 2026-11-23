@@ -322,14 +322,15 @@ lowers; the entries above it are the session's unread updates.
 The sessions view's page lists the agents in name order for the operator, each with at most 500 of
 its sessions: those working or idle first, then those that never reported, then stopped ones, each
 latest seen first. Each session carries its presence, by the formula threads use; its approved
-registrations, with their ids and codes; its status with the latest entry's note; its unread
-updates; how many of its threads the operator has not archived, with how many of those hold messages
-the operator has not read and how many are stranded, counted for every session of the page in one
-statement grouped over the threads as the operator sees them; and how many asks are open in all its
-threads, with how many of those are blocking, which is what waits on the operator, counted in one
-statement grouped over the open asks. The operator can never archive a thread holding an ask open to
-them, so their thread list shows every thread counted. A separate read counts the sessions whose log
-holds entries the operator has not read, which the web UI's navigation shows.
+registrations, with their ids and codes; its status with the latest entry's note, and as
+`updated_at` when that entry was written; its unread updates; how many of its threads the operator
+has not archived, with how many of those hold messages the operator has not read and how many are
+stranded, counted for every session of the page in one statement grouped over the threads as the
+operator sees them; and how many asks are open in all its threads, with how many of those are
+blocking, which is what waits on the operator, counted in one statement grouped over the open asks.
+The operator can never archive a thread holding an ask open to them, so their thread list shows
+every thread counted. A separate read counts the sessions whose log holds entries the operator has
+not read, which the web UI's navigation shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
 them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration
@@ -1161,16 +1162,18 @@ Blocked on the operator shows once, in the thread list's words and tone: a row's
 asks say it, as Blocked on you before how many are open, in the danger tone while any blocks and the
 attention tone otherwise, and a group's head, which has none, shows Blocked on you. Each session's
 row says when the session was last seen, from its presence, as quiet while it is and has not
-stopped. Each session's row shows its group and tags, and each agent's header its tags, from the
-sessions view's page; the sheets that set them, and the Groups and tags sheet, load the operator's
-groups and tags while they are open, and reload the view once a change lands. While the operator is
-signed in, the navigation reads what waits on the operator, from `GET /attention`, and shows it as a
-badge on each tab while there is any: the unread threads on Threads and the registrations waiting
-for approval on Sessions. The counts refresh on an interval, on returning to the page, on going to
-another view, and at once after any change the page makes lands, which the web API client announces
-for every request but a read and signing in or out. Wherever a thread shows as stranded, the UI says
-why from the session's presence in the thread's summary: the stop the session reported, with its
-outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
+stopped, and beside it how long ago its status was updated, from the status's `updated_at`, since a
+session can go on being seen long after its status stopped saying what it does. Each session's row
+shows its group and tags, and each agent's header its tags, from the sessions view's page; the
+sheets that set them, and the Groups and tags sheet, load the operator's groups and tags while they
+are open, and reload the view once a change lands. While the operator is signed in, the navigation
+reads what waits on the operator, from `GET /attention`, and shows it as a badge on each tab while
+there is any: the unread threads on Threads and the registrations waiting for approval on Sessions.
+The counts refresh on an interval, on returning to the page, on going to another view, and at once
+after any change the page makes lands, which the web API client announces for every request but a
+read and signing in or out. Wherever a thread shows as stranded, the UI says why from the session's
+presence in the thread's summary: the stop the session reported, with its outcome; otherwise quiet,
+with when it was last seen; otherwise no active credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

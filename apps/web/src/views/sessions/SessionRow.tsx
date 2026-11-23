@@ -16,7 +16,7 @@ import {
 import { query, request, sessionPath } from "../../api.ts";
 import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
-import { plural, Since, Spoken, workStateWords } from "../../format.tsx";
+import { plural, Since, Spoken, Time, workStateWords } from "../../format.tsx";
 import { Icon, Mark, UnreadCount } from "../../icons.tsx";
 import { Link, listHref, unfiltered } from "../../router.tsx";
 import { type Change, type LogLine, logLines } from "./log.ts";
@@ -25,12 +25,12 @@ import { OpenAsksFlag, rollupOfSession, StrandedLink, ThreadsLink } from "./roll
 import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of three short lines, its
-// head, when it was last seen and its key facts, the facts wrapping on a
-// phone, so that many fit on a screen; unfolded, its title wrapping whole in
-// its head, and beneath, its goal, its credentials and its log. Tapping
-// anywhere on the row's facts folds or unfolds it, but for the links and the
-// options among them. A row's log loads, refreshes and is read only while
-// the row is unfolded and shown.
+// head, when it was last seen and its status updated, and its key facts, the
+// facts wrapping on a phone, so that many fit on a screen; unfolded, its title
+// wrapping whole in its head, and beneath, its goal, its credentials and its
+// log. Tapping anywhere on the row's facts folds or unfolds it, but for the
+// links and the options among them. A row's log loads, refreshes and is read
+// only while the row is unfolded and shown.
 
 // A session's path, by which the view names it.
 export const sessionKey = (agent: string, session: string) => `${agent}/${session}`;
@@ -108,7 +108,7 @@ export function SessionRow({
             ))}
           </OptionsMenu>
         </div>
-        <LastSeen session={session} />
+        <Recency session={session} />
         <SessionFacts agent={agent} session={session} />
       </div>
       <Revocation
@@ -126,11 +126,13 @@ export function SessionRow({
   );
 }
 
-// LastSeen is the line under a session's head saying when it was last seen,
-// in the words the thread list's headers use, in the warning's tone while it
-// is quiet and has not stopped, which a stopped session's state says
-// already, and said as quiet then.
-function LastSeen({ session }: { session: SessionSummary }) {
+// Recency is the line under a session's head saying when it was last seen,
+// in the words the thread list's headers use, and how long ago its status
+// was last updated, once it has one, since a session can keep being seen
+// long after its status stopped saying what it does. The line takes the
+// warning's tone while the session is quiet and has not stopped, which a
+// stopped session's state says already, and is said as quiet then.
+function Recency({ session }: { session: SessionSummary }) {
   const { presence, status } = session;
   const quiet = presence.quiet && status?.state !== "stopped";
   const seen = presence.last_seen_at === undefined ? "Never seen" : "Last seen";
@@ -142,6 +144,12 @@ function LastSeen({ session }: { session: SessionSummary }) {
           {" "}
           <Since value={presence.last_seen_at} />
         </>
+      )}
+      {status !== undefined && (
+        <span className="session-status-age">
+          {" "}
+          · status updated <Time value={status.updated_at} />
+        </span>
       )}
     </p>
   );
