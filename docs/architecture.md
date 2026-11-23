@@ -1127,13 +1127,14 @@ its tokens and where its requests may go.
   crash of the machine only pushes again what is unread. Every failure is retried after a pause that
   doubles from 1 second to a minute. A server that does not serve the bridge's agent API version, or
   a host directory the bridge cannot use, is also a lapse while it lasts. A registration that can
-  never be approved, rejected or revoked, or one that expired pending, ends the loop, with a lapse,
-  and only a `register`, which replaces the key, starts it again; an approval clears a lapse. After
-  a lapse, once `register` has said answers are pushed, the next answer of any tool but `register`,
-  an error included, ends with one line saying answers now reach the agent only when it checks; a
-  lapse the loop recovers from before an answer says it is not said. The loop stops when the host
-  closes the bridge's input. The watcher that takes the wake files is in
-  [Generated plugins](#generated-plugins).
+  never be approved, rejected or revoked, or one the server reports expired while pending, ends the
+  loop with a lapse; a pending one the bridge's own clock sees reach its last reading before the
+  expiry ends it without one. Only a `register` starts the loop again, replacing a refused key
+  first; an approval clears a lapse. After a lapse, once `register` has said answers are pushed, the
+  next answer of any tool but `register`, an error included, ends with one line saying answers now
+  reach the agent only when it checks; a lapse the loop recovers from before an answer says it is
+  not said. The loop stops when the host closes the bridge's input. The watcher that takes the wake
+  files is in [Generated plugins](#generated-plugins).
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`: the cap, 40,000 bytes, 500 more for the status reminder and
