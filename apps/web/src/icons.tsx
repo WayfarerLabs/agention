@@ -41,6 +41,8 @@ const shapes = {
       <path d="m3 10 9 6 9-6" />
     </>
   ),
+  // A pencil, for a draft.
+  draft: <path d="M4 20h4L20 8l-4-4L4 16zM13 7l4 4" />,
   // A box under its lid, for archived.
   archive: (
     <>

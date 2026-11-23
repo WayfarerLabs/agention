@@ -22,12 +22,15 @@ import { registrationId } from "./registrations.ts";
 // operator's start of a thread on a session.
 
 // An entry of a session's log: its sequence, counting from 1 within the
-// session, when it was written, the session's status after it, and its own
-// note.
+// session, when it was written, the session's status after it, its own note,
+// and whether the server inferred it: an inferred entry is one the session
+// never reported, logged when it wrote to a thread while idle, which marked
+// it working. An inferred entry carries no note.
 export const sessionUpdate = sessionStatus.extend({
   seq: sequence,
   created_at: z.string(),
   note: z.string().optional(),
+  inferred: z.boolean(),
 });
 export type SessionUpdate = z.infer<typeof sessionUpdate>;
 

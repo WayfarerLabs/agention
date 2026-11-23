@@ -209,6 +209,7 @@ describe("the session log", () => {
           title: "Retire invoices",
           percent: 60,
           note: "Backfill well along.",
+          inferred: false,
         },
         {
           seq: 2,
@@ -216,6 +217,7 @@ describe("the session log", () => {
           state: "working",
           title: "Retire invoices",
           percent: 20,
+          inferred: false,
         },
       ],
       read_through: 0,

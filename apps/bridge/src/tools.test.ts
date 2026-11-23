@@ -1,9 +1,9 @@
 import {
   agentApi,
   agentApiHeader,
+  agentMessageSendInput,
   includeArchivedFilter,
   markInput,
-  messageFields,
   sessionUpdateInput,
   statusFilter,
   threadCreateInput,
@@ -94,7 +94,7 @@ describe("the tool list", () => {
     const { tools: listed } = await bridge.client.listTools();
     const schema = (name: string) => listed.find((tool) => tool.name === name)?.inputSchema;
     expect(schema("thread_create")?.properties).toEqual(propertiesOf(threadCreateInput));
-    const { answers, ...sent } = propertiesOf(messageFields);
+    const { answers, ...sent } = propertiesOf(agentMessageSendInput);
     expect(answers).toBeDefined();
     expect(schema("message_send")?.properties).toEqual({
       ...sent,
@@ -362,6 +362,52 @@ describe("session_update", () => {
     };
     const error = await bridge.error("session_update", input);
     expect([error.code, error.field]).toEqual(["invalid_input", field]);
+    expect(requests).toBe(0);
+  });
+});
+
+describe("a write's status", () => {
+  // The session's status as the operator's sessions view shows it.
+  const viewed = async () => {
+    const page = (await harness.server.web("GET", "/sessions")).body as {
+      agents: { sessions: { status?: Record<string, unknown> }[] }[];
+    };
+    return page.agents[0]?.sessions[0]?.status;
+  };
+
+  it("passes the state and note through with the write", async () => {
+    const bridge = await approvedBridge();
+    expect(
+      await bridge.ok("thread_create", newThread("r1", { state: "idle", note: "Asked." })),
+    ).toEqual({ number: 1, seq: 1 });
+    expect(await viewed()).toMatchObject({ state: "idle", note: "Asked." });
+    expect(
+      await bridge.ok("message_send", {
+        thread: 1,
+        request_id: "r2",
+        seen_through: 1,
+        text: "Done.",
+        state: "stopped",
+        outcome: "completed",
+      }),
+    ).toEqual({ number: 1, seq: 2 });
+    expect(await viewed()).toMatchObject({ state: "stopped", outcome: "completed" });
+  });
+
+  it.each([
+    ["thread_create", newThread("r1", { state: "stopped" })],
+    [
+      "message_send",
+      { thread: 1, request_id: "r2", seen_through: 1, text: "Hi.", outcome: "stalled" },
+    ],
+  ])("refuses an outcome apart from stopped on %s before any request", async (tool, input) => {
+    const bridge = await approvedBridge();
+    let requests = 0;
+    harness.beforeRequest = () => {
+      requests++;
+    };
+    const error = await bridge.error(tool, input);
+    expect([error.code, error.field]).toEqual(["invalid_input", "outcome"]);
     expect(requests).toBe(0);
   });
 });

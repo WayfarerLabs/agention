@@ -1,8 +1,7 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
+import { testDirectory } from "../test-directory.ts";
 import { Database } from "./database.ts";
 
 // A migration list whose second migration fails part way through.
@@ -14,14 +13,8 @@ vi.mock("./migrations.ts", () => ({
   ],
 }));
 
-const root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-migration-")));
-
-afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
-});
-
 it("rolls back a failing migration and leaves the earlier ones applied", () => {
-  const file = path.join(root, "agention.db");
+  const file = path.join(testDirectory("migration"), "agention.db");
   expect(() => Database.open(file)).toThrow();
   const connection = new DatabaseSync(file);
   try {

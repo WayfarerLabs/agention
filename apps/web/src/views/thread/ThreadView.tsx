@@ -36,6 +36,7 @@ import {
   useResource,
   useStillOpen,
 } from "../../data.ts";
+import { readDraft } from "../../device.ts";
 import {
   AbsenceReason,
   absenceOf,
@@ -46,16 +47,18 @@ import {
   Time,
 } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
+import { useShortcuts } from "../../keyboard.tsx";
 import { leaveNotice } from "../../notice.ts";
 import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
 import { Composer } from "./Composer.tsx";
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
-import { type MessageContext, MessageList, mine } from "./Messages.tsx";
+import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
 import {
   blank,
   type Staged,
   type StagedAnswer,
+  staleChange,
   type ThreadTarget,
   useWriter,
   wordsFailure,
@@ -347,14 +350,29 @@ function ThreadPage({
     [reach, refresh],
   );
   const writer = useWriter(target, written);
+  // The messages the page shows as they stand, which a change judges once its
+  // asks load, with those a stale write missed, which the writer gives exactly
+  // (missedNow). Unlike the composer's refs, this one is set in a layout
+  // effect, as each refresh commits, not after the browser paints, since the
+  // change reads it after a wait that a refresh can end; a refresh can still
+  // land one commit too late to count.
+  const shownNow = useRef(messages);
+  useLayoutEffect(() => {
+    shownNow.current = messages;
+  }, [messages]);
   const unread = useAction();
   const archive = useAction();
-  const [text, setText] = useState("");
-  const [detail, setDetail] = useState("");
+  // The draft this browser kept for the thread, which the composer opens
+  // with.
+  const [restored] = useState(() => readDraft(target));
+  const [text, setText] = useState(restored?.text ?? "");
+  const [detail, setDetail] = useState(restored?.detail ?? "");
   // Whether the composer's Details box shows: once opened, or once a change
   // or an edit loads a detail into it, it stays while it is in use, emptied
   // or not, until a write empties it or the change or edit is removed.
-  const [detailsShown, setDetailsShown] = useState(false);
+  const [detailsShown, setDetailsShown] = useState(
+    restored !== undefined && !blank(restored.detail),
+  );
   const [staged, setStaged] = useState<Staged | undefined>(undefined);
   const files = useDraftFiles(target);
   // Kept files belong to the replacement staged, which loaded them, so they
@@ -633,18 +651,39 @@ function ThreadPage({
         },
       ];
     });
-    const [first] = staging;
-    if (first === undefined) {
+    if (staging.length === 0) {
       return;
     }
-    replace(message, {
+    // What the page learned while the asks loaded, as the page refreshed, a
+    // stale write missed it or the asks arrived, judges the change as it
+    // would one staged then: a message that replaced this one drops it, and
+    // one that revised an ask drops its answer. A message no longer live was
+    // replaced, by a message the page may not hold, since a page shows only
+    // part of the thread, so it counts as replaced too.
+    const change: Staged = {
       kind: "answers",
       answers: staging,
       replaces: message.seq,
       ...(dropped.length === 0 ? {} : { dropped }),
-    });
+    };
+    const learned = [...shownNow.current, ...(writer.missedNow() ?? []), ...asking];
+    const judged = staleChange(change, [
+      ...learned,
+      ...learned.filter((each) => !each.live).map((each) => ({ replaces: each.seq })),
+    ]);
+    const left = judged === undefined ? change : judged.left;
+    if (left === undefined) {
+      return;
+    }
+    replace(message, left);
+    // With no live ask left, the change is an edit of the message's text.
+    const cards = left.kind === "answers" ? left.answers : [];
+    const [first] = cards;
+    if (first === undefined) {
+      return;
+    }
     // A card among the archived messages shows once they unfold.
-    if (staging.some((each) => each.seq <= marks.archived_through)) {
+    if (cards.some((each) => each.seq <= marks.archived_through)) {
       setUnfolded(true);
     }
     focusOn({ seq: first.seq, ask: first.ask });
@@ -695,6 +734,31 @@ function ThreadPage({
     agentRead: cursors.requester,
   };
 
+  // The thread page's shortcuts each do what a control on it does, and only
+  // while that control could; choosing a suggestion picks it as a press of
+  // its control does, and moves focus there.
+  const canArchiveAll = !leaving && openCount === 0;
+  const composerBox = useRef<HTMLTextAreaElement>(null);
+  useShortcuts("Thread", {
+    backToList: () => navigate(listHref(origin)),
+    reply: () => composerBox.current?.focus(),
+    archive: () => {
+      if (canArchiveAll) {
+        archiveAll();
+      }
+    },
+    jump: () => {
+      if (jumpTo !== undefined) {
+        setSeeking({ failedBefore: loaded.failure });
+      }
+    },
+    choose: (key) => {
+      const choice = suggestionChoices()[Number(key) - 1];
+      choice?.click();
+      choice?.focus();
+    },
+  });
+
   const tags = thread.credential_active ? [] : [{ label: "No active credential" }];
   return (
     <article>
@@ -706,7 +770,7 @@ function ThreadPage({
             <button
               type="button"
               className="secondary"
-              disabled={leaving || openCount > 0}
+              disabled={!canArchiveAll}
               aria-describedby={openCount > 0 ? archiveAllHint : undefined}
               onClick={archiveAll}
             >
@@ -814,6 +878,8 @@ function ThreadPage({
         loading={loading.pending}
         context={{ target, find }}
         files={files}
+        restored={restored}
+        box={composerBox}
       />
       <div className="thread-foot">
         <BackToThreads origin={origin} />

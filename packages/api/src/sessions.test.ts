@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { invalidInputBody } from "./errors.ts";
 import { sessionUpdateInput } from "./sessions.ts";
+import { agentMessageSendInput, threadCreateInput } from "./threads.ts";
 
 function fieldOf(result: { error?: Parameters<typeof invalidInputBody>[0] | undefined }) {
   return result.error === undefined ? undefined : invalidInputBody(result.error).error.field;
@@ -59,5 +60,32 @@ describe("sessionUpdateInput", () => {
       percent: 100,
     };
     expect(sessionUpdateInput.parse(input)).toEqual(input);
+  });
+});
+
+describe("a write's status", () => {
+  const writes = [
+    ["threadCreateInput", threadCreateInput, { request_id: "r-1", title: "Release" }],
+    [
+      "agentMessageSendInput",
+      agentMessageSendInput,
+      { request_id: "r-2", seen_through: 1, text: "Shipped." },
+    ],
+  ] as const;
+
+  it.each(writes)("rides on %s, a state with its outcome and a note", (_, schema, write) => {
+    const full = { ...write, state: "stopped", outcome: "completed", note: "Done." };
+    expect(schema.parse(full)).toMatchObject(full);
+    expect(schema.parse({ ...write, note: "Picked it up." })).not.toHaveProperty("state");
+  });
+
+  it.each(writes)("on %s, refuses an outcome apart from stopped", (_, schema, write) => {
+    for (const status of [
+      { state: "stopped" },
+      { state: "idle", outcome: "stalled" },
+      { outcome: "completed" },
+    ]) {
+      expect(fieldOf(schema.safeParse({ ...write, ...status }))).toBe("outcome");
+    }
   });
 });
