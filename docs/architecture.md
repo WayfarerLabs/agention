@@ -1084,44 +1084,48 @@ its tokens and where its requests may go.
   `~/.config/agention/_hosts/claude/<host name>/<pid>/`, under the private-file rule, which no
   session's key directory can meet, since no origin's host holds an underscore. The machine's host
   name keeps machines and pid namespaces that share a home apart; one that is not a path component
-  of letters, digits, dots, hyphens and underscores means no push. The walk never looks past that
-  process, so a Claude Code started from another one's shell is never taken for it, and without one
-  there is no push. The watcher writes the mark only in an interactive session, so `claude -p` and
-  SDK runs, which no one waits on at a prompt, are never told they are pushed. `register` decides
-  it: when push can work, its approved answer says answers are pushed, and it starts the background
-  wait, even while the registration is pending; otherwise nothing runs in the background. A bridge
-  started again under a pushed session, which no `register` has started, starts the wait at its
-  first call in the session, without a word to the agent, and counts it as told. The first look for
-  the Claude Code process, for a Claude Code client, also removes the directories of this machine's
-  host processes that have ended. The loop reads the registration of the key on disk with the
-  request `register` makes, every 15 seconds while it is pending, and while its last reading was
-  pending only until a second before the expiry that reading gave, never creating a key, so push
-  starts once the operator approves with no tool call, and a pending registration the server has
-  pruned is never registered afresh. A `register` while the loop runs has it read the registration
-  again, even as a reading ends it. Once approved, it long-polls
-  `GET /api/agent/s/<agent>/<session>/wait` for 25 seconds at a time, one request at a time and each
-  at least a second after the last began, from the position in the session's `cursor-<session>`
-  file, so the server marks the session seen as an agent's own wait does; a position the server
-  refuses is dropped, and the wait starts from none. Each session's files are named by a hash of its
-  origin and granted names, so two bridges of different sessions under one Claude Code keep apart,
-  and a position counts only for the origin and names it holds. A round with threads saves the new
-  position, then reads every thread with unread messages at once, from the start, and writes the
-  session's `wake-<session>` file, replacing one not yet taken: the notice one formatter composes
-  from fixed words and the number and unread count of each of those threads and the round's own,
-  integers the answers' schema checks, in thread order, so no title or message text reaches the
-  agent this way. When that read's page is not full, its position is saved too, so a message that
-  landed after the round's wait answered is not pushed again. A notice whose read fails is written
-  on the next pass. Each file is written to a hidden temporary private file and renamed into place,
-  without waiting for the disk: a cursor lost to a crash of the machine only pushes again what is
-  unread. Every failure is retried after a pause that doubles from 1 second to a minute. A server
-  that does not serve the bridge's agent API version, or a host directory the bridge cannot use, is
-  also a lapse while it lasts. A registration that can never be approved, rejected or revoked, or
-  one that expired pending, ends the loop, with a lapse, and only a `register`, which replaces the
-  key, starts it again; an approval clears a lapse. After a lapse, once `register` has said answers
-  are pushed, the next answer of any tool but `register`, an error included, ends with one line
-  saying answers now reach the agent only when it checks; a lapse the loop recovers from before an
-  answer says it is not said. The loop stops when the host closes the bridge's input. The watcher
-  that takes the wake files is in [Generated plugins](#generated-plugins).
+  of letters, digits, dots, hyphens and underscores means no push. Each round takes the host name as
+  it is then, so after a rename push follows the watchers started since into the new name's
+  directory once one marks it, and until then the host directory counts as one push cannot use, a
+  lapse; the cursor left under the old name may have it push once more what is still unread. The
+  walk never looks past that process, so a Claude Code started from another one's shell is never
+  taken for it, and without one there is no push. The watcher writes the mark only in an interactive
+  session, so `claude -p` and SDK runs, which no one waits on at a prompt, are never told they are
+  pushed. `register` decides it: when push can work, its approved answer says answers are pushed,
+  and it starts the background wait, even while the registration is pending; otherwise nothing runs
+  in the background. A bridge started again under a pushed session, which no `register` has started,
+  starts the wait at its first call in the session, without a word to the agent, and counts it as
+  told. The first look for the Claude Code process, for a Claude Code client, also removes the
+  directories of this machine's host processes that have ended. The loop reads the registration of
+  the key on disk with the request `register` makes, every 15 seconds while it is pending, and while
+  its last reading was pending only until two minutes before the expiry that reading gave, the clock
+  skew the agent API tolerates, never creating a key, so push starts once the operator approves with
+  no tool call, and a pending registration the server has pruned is never registered afresh. A
+  `register` while the loop runs has it read the registration again, even as a reading ends it. Once
+  approved, it long-polls `GET /api/agent/s/<agent>/<session>/wait` for 25 seconds at a time, one
+  request at a time and each at least a second after the last began, from the position in the
+  session's `cursor-<session>` file, so the server marks the session seen as an agent's own wait
+  does; a position the server refuses is dropped, and the wait starts from none. Each session's
+  files are named by a hash of its origin and granted names, so two bridges of different sessions
+  under one Claude Code keep apart, and a position counts only for the origin and names it holds. A
+  round with threads saves the new position, then reads every thread with unread messages at once,
+  from the start, and writes the session's `wake-<session>` file, replacing one not yet taken: the
+  notice one formatter composes from fixed words and the number and unread count of each of those
+  threads and the round's own, integers the answers' schema checks, in thread order, so no title or
+  message text reaches the agent this way. When that read's page is not full, its position is saved
+  too, so a message that landed after the round's wait answered is not pushed again. A notice whose
+  read fails is written on the next pass. Each file is written to a hidden temporary private file
+  and renamed into place, without waiting for the disk: a cursor lost to a crash of the machine only
+  pushes again what is unread. Every failure is retried after a pause that doubles from 1 second to
+  a minute. A server that does not serve the bridge's agent API version, or a host directory the
+  bridge cannot use, is also a lapse while it lasts. A registration that can never be approved,
+  rejected or revoked, or one that expired pending, ends the loop, with a lapse, and only a
+  `register`, which replaces the key, starts it again; an approval clears a lapse. After a lapse,
+  once `register` has said answers are pushed, the next answer of any tool but `register`, an error
+  included, ends with one line saying answers now reach the agent only when it checks; a lapse the
+  loop recovers from before an answer says it is not said. The loop stops when the host closes the
+  bridge's input. The watcher that takes the wake files is in
+  [Generated plugins](#generated-plugins).
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
   size to Claude Code in its `_meta`: the cap, 40,000 bytes, 500 more for the status reminder and

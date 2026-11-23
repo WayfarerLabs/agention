@@ -63,9 +63,10 @@ extension leaves to each host how an event becomes a turn, and neither host has 
   are pushed; Codex sessions, `claude -p` and Agent SDK runs, a session under `--bare` and one where
   an administrator allows only managed hooks are not, and are told they check.
 - The host directory's name comes from `CLAUDE_PID`, which Claude Code sets for hooks without
-  documenting it, and from the bridge's nearest ancestor whose command is `claude`. If Claude Code
-  stops setting it, or its process takes another name, no mark is found and sessions are told they
-  check.
+  documenting it, and from the bridge's nearest ancestor whose command is `claude`; and the watcher
+  tells an interactive session from `claude -p` and SDK runs by `CLAUDE_CODE_ENTRYPOINT` being
+  `cli`, also undocumented. If Claude Code stops setting either, or its process takes another name,
+  no mark is found and sessions are told they check.
 - A bridge started again resumes push at the agent's next call in the session, not before.
 - A watcher ends at its day-long timeout, so a session left at its prompt longer is pushed only
   after its next turn.
