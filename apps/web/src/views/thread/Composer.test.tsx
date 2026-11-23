@@ -1017,6 +1017,100 @@ describe("retries", () => {
   });
 });
 
+describe("a write that lands", () => {
+  // holdingFirst holds the first write until the test answers it, and
+  // answers a later one as landed at seq next.
+  function holdingFirst(next: number): (reply: Reply) => void {
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(next),
+    );
+    return (reply) => answer(reply);
+  }
+
+  it("drops a change of answers picked again while it was under way", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+    ]);
+    const land = holdingFirst(4);
+    fireEvent.click(option(2, "Change answer"));
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(choice(/^Postgres/));
+    land(written(3));
+    await screen.findByRole("status");
+    expect(stagedLine()).toBeNull();
+    fireEvent.change(textBox(), { target: { value: "One more thing." } });
+    expect(await send()).not.toHaveProperty("replaces");
+  });
+
+  it("drops the answers to the asks it answered, keeping one staged while it was under way", async () => {
+    await page.openWith(
+      [message(1, { asks: [ask(), ask({ number: 2 })] })],
+      openAsks([1, 1], [2, 1]),
+    );
+    const land = holdingFirst(3);
+    fireEvent.click(choice(/^SQLite/, 1));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(choice(/^Postgres/, 1));
+    fireEvent.click(choice(/^Postgres/, 2));
+    land(written(2));
+    await screen.findByRole("status");
+    expect(stagedAnswers()).toHaveLength(1);
+    expect((await send())?.answers).toEqual([{ ask: 2, picks: [1] }]);
+  });
+
+  it("keeps an edit of another message staged while it was under way", async () => {
+    await page.openWith([
+      operatorMessage(1, { text: "First" }),
+      operatorMessage(2, { text: "Second" }),
+    ]);
+    const land = holdingFirst(4);
+    fireEvent.click(option(1, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "First, edited." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Reply" })).getByRole("button", { name: "Remove" }),
+    );
+    fireEvent.click(option(2, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "Second, edited." } });
+    land(written(3));
+    await screen.findByRole("status");
+    expect(await send()).toMatchObject({ text: "Second, edited.", replaces: 2 });
+  });
+
+  it("keeps a change of answers staged as the write lands, before the page shows it", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+      operatorMessage(3, { text: "Third" }),
+    ]);
+    const land = holdingFirst(5);
+    fireEvent.click(option(3, "Edit"));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Reply" })).getByRole("button", { name: "Remove" }),
+    );
+    // The change loads after a wait of its own, so the write's answer comes
+    // before the page shows what it staged.
+    fireEvent.click(option(2, "Change answer"));
+    land(written(4));
+    await screen.findByRole("status");
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    expect(stagedLine()).not.toBeNull();
+    expect(await send()).toMatchObject({ text: "Small data.", replaces: 2 });
+  });
+});
+
 describe("the draft's starting point", () => {
   it("ends when the composer is emptied, so a message seen since is not missed", async () => {
     const state = await page.openWith([message(1)]);
@@ -1030,6 +1124,69 @@ describe("the draft's starting point", () => {
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     expect(await send()).toMatchObject({ text: "Noted.", seen_through: 2 });
   });
+
+  it("starts again from the operator's own message once a write lands, the log having shown it first", async () => {
+    const state = await page.openWith([message(1)]);
+    // The write lands at once, and its answer is held while the log shows it.
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () => {
+      state.thread = { ...state.thread, last_seq: 2 };
+      state.messages = [...state.messages, operatorMessage(2, { text: "Sent first." })];
+      return new Promise<Reply>((resolve) => (answer = resolve));
+    });
+    fireEvent.change(textBox(), { target: { value: "First." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.change(textBox(), { target: { value: "First. And second." } });
+    fireEvent.focus(window);
+    await screen.findByText("Sent first.");
+    answer(written(2));
+    await screen.findByRole("status");
+    state.thread = { ...state.thread, last_seq: 3, unread: 1 };
+    state.messages = [...state.messages, message(3, { text: "Agent note" })];
+    fireEvent.focus(window);
+    await screen.findByText("Agent note");
+    page.serveWrites(state);
+    // The agent's note landed while the second draft was under way, so it
+    // was missed.
+    expect(await send()).toMatchObject({ text: "First. And second.", seen_through: 2 });
+  });
+
+  it.each([
+    ["typed after the write lands", false],
+    ["typed again before the write lands", true],
+  ])(
+    "ends with a composer emptied while a write was under way, so a draft %s misses nothing shown",
+    async (_, before) => {
+      const state = await page.openWith([message(1)]);
+      // The write lands at once, and its answer is held while the log shows
+      // it and an agent's note after it.
+      let answer: (reply: Reply) => void = () => {};
+      page.api.on("POST", `${path}/messages`, () => {
+        state.thread = { ...state.thread, last_seq: 3, unread: 1 };
+        state.messages = [
+          ...state.messages,
+          operatorMessage(2, { text: "Sent first." }),
+          message(3, { text: "Agent note" }),
+        ];
+        return new Promise<Reply>((resolve) => (answer = resolve));
+      });
+      fireEvent.change(textBox(), { target: { value: "First." } });
+      fireEvent.click(sendButton());
+      await waitFor(() => expect(page.writes()).toHaveLength(1));
+      fireEvent.change(textBox(), { target: { value: "" } });
+      fireEvent.focus(window);
+      await screen.findByText("Agent note");
+      if (before) {
+        fireEvent.change(textBox(), { target: { value: "Noted." } });
+      }
+      answer(written(2));
+      await screen.findByRole("status");
+      fireEvent.change(textBox(), { target: { value: "Noted." } });
+      page.serveWrites(state);
+      expect(await send()).toMatchObject({ text: "Noted.", seen_through: 3 });
+    },
+  );
 });
 
 describe("a stale write", () => {
@@ -1237,6 +1394,79 @@ describe("a stale write", () => {
     expect(within(panel).queryByRole("button", { name: /send again/ })).toBeNull();
     expect(stagedLine()).toBeNull();
     expect(textBox().value).toBe("Edited here.");
+  });
+
+  // holding holds the first write until the test answers it as stale, the
+  // missed messages having landed meanwhile, and answers later writes as
+  // landed.
+  function holding(state: State): (missed: Message[]) => void {
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on("POST", `${path}/messages`, () =>
+      page.writes().length === 1
+        ? new Promise<Reply>((resolve) => (answer = resolve))
+        : written(state.thread.last_seq + 1),
+    );
+    return (missed) => {
+      const last = missed.at(-1)?.seq ?? state.thread.last_seq;
+      state.thread = { ...state.thread, last_seq: last };
+      state.messages = [...state.messages, ...missed];
+      answer(failure("stale", "other messages landed after the latest one you saw", { missed }));
+    };
+  }
+
+  it("judges the edit staged when the answer comes, not one set aside while it was under way", async () => {
+    const state = await page.openWith([
+      operatorMessage(1, { text: "First" }),
+      operatorMessage(2, { text: "Second" }),
+    ]);
+    const stale = holding(state);
+    fireEvent.click(option(1, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "First, edited." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    // The operator sets that edit aside, and edits message 2 instead.
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Reply" })).getByRole("button", { name: "Remove" }),
+    );
+    fireEvent.click(option(2, "Edit"));
+    fireEvent.change(textBox(), { target: { value: "Second, edited." } });
+    // Another device replaced message 1 meanwhile, which leaves the edit of
+    // message 2 to send.
+    stale([operatorMessage(3, { replaces: 1, text: "Elsewhere" })]);
+    const panel = await staleNotice();
+    expect(stagedLine()).not.toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "Mark these read and send again" }));
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({
+      text: "Second, edited.",
+      replaces: 2,
+      seen_through: 3,
+    });
+  });
+
+  it("drops a change of answers picked again while under way, when the message it changes was replaced", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    const state = await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+    ]);
+    const stale = holding(state);
+    fireEvent.click(option(2, "Change answer"));
+    await waitFor(() => expect(textBox().value).toBe("Small data."));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.click(choice(/^Postgres/));
+    stale([operatorMessage(3, { replaces: 2, answers: [answerTo({ declined: true })] })]);
+    const panel = await staleNotice();
+    expect(stagedLine()).toBeNull();
+    expect(textBox().value).toBe("Small data.");
+    fireEvent.click(within(panel).getByRole("button", { name: "Mark these read" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    expect(page.bodies()[1]).toMatchObject({ text: "Small data.", seen_through: 3 });
+    expect(page.bodies()[1]).not.toHaveProperty("replaces");
+    expect(page.bodies()[1]).not.toHaveProperty("answers");
   });
 
   it("sends an answer again when the missed messages leave it standing", async () => {

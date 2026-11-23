@@ -109,6 +109,7 @@ describe("an operation a read scope grants", () => {
         signal: new AbortController().signal,
         request: requestFor(operation),
         log,
+        dropConnection: undefined,
       });
       expect(changes()).toBe(before);
     },
@@ -195,6 +196,7 @@ async function run(operation: Operation, identity: Identity): Promise<string> {
       signal: new AbortController().signal,
       request: requestFor(operation),
       log,
+      dropConnection: undefined,
     });
   } catch (error) {
     if (error instanceof ApiError) {

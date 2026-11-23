@@ -686,8 +686,10 @@ share the operator's pending limits, and the web UI can name one in a message.
   transaction, which confirms the scope as every store call does and re-checks the credential, so a
   revoked or expired agent's registration, browser session or API key stops it within one chunk; the
   first chunk is read before the answer starts, so a credential revoked meanwhile or a chunk that is
-  gone is answered as any refusal is, and a chunk missing later cuts the body short, which is
-  logged.
+  gone is answered as any refusal is. A read that fails later, at a refused credential, a missing
+  chunk or anything else, is logged once through the server's log, naming the file, the chunk and
+  why (an internal error with its stack, as every internal error is logged), and drops its
+  connection, so the client sees the body cut short rather than ended.
 - **A file's headers.** `Content-Type` is the served type: the declared type when it is PNG, JPEG,
   GIF, WebP or SVG (`image/svg+xml`), PDF, `video/mp4`, `video/webm` or `video/ogg`, or
   `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/webm`, `audio/wav` or `audio/flac`;
@@ -1330,9 +1332,9 @@ server, so it stops counting against the operator's pending uploads at once. Onl
 instant before the list shows the last byte gone or the upload's answer, or a removal the connection
 loses, leaves the upload counting until it expires. Send waits until every file has uploaded, saying
 what it waits on, and sends kept files as `{keep}`, then uploads as `{upload, name}`; a refusal
-naming an upload marks that file expired. A stale write keeps the files with the draft. Editing a
-message, or changing its answers, loads its files as kept, which **Remove** drops from the
-replacement.
+naming an upload marks that file expired. Editing a message, or changing its answers, loads its
+files as kept, which **Remove** drops from the replacement. A stale write keeps the files with the
+draft, except the kept files of a replacement its missed messages drop.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with

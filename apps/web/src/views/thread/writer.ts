@@ -248,21 +248,22 @@ export function wordsFailure(
   return index < 0 ? undefined : failureAt(failure, `answers.${index}.text`);
 }
 
-// staleChange says how missed messages changed what is staged, and what of it
-// can still be sent. A new answer goes when its ask was revised, withdrawn or
-// answered, and the rest stay. A replacement goes whole when the message it
-// replaces was replaced; a change of answers drops only the answers whose
-// asks were revised or retracted, by replacing their message, which go with
-// the message it changes. A withdrawal needs an open ask, so it never reaches
-// an answered one and changes no change of answers.
+// staleChange says how messages that landed, those a stale write missed or
+// the one a write just wrote, change what is staged, and what of it can still
+// be sent. A new answer goes when its ask was revised, withdrawn or answered,
+// and the rest stay. A replacement goes whole when the message it replaces
+// was replaced; a change of answers drops only the answers whose asks were
+// revised or retracted, by replacing their message, which go with the
+// message it changes. A withdrawal needs an open ask, so it never reaches an
+// answered one and changes no change of answers.
 export function staleChange(
   staged: Staged | undefined,
-  missed: Message[],
+  landed: readonly Pick<WriteContent, "replaces" | "answers" | "withdrawals">[],
 ): { change: string; left: Staged | undefined } | undefined {
   if (staged === undefined) {
     return undefined;
   }
-  const replaced = (seq: number) => missed.some((message) => message.replaces === seq);
+  const replaced = (seq: number) => landed.some((message) => message.replaces === seq);
   if (staged.kind === "edit") {
     return replaced(staged.replaces)
       ? { change: "The message you were editing was replaced.", left: undefined }
@@ -296,9 +297,9 @@ export function staleChange(
     };
   }
   const answered = (ask: number) =>
-    missed.some((message) => message.answers?.some((each) => each.ask === ask) === true);
+    landed.some((message) => message.answers?.some((each) => each.ask === ask) === true);
   const withdrawn = (ask: number) =>
-    missed.some((message) => message.withdrawals?.some((each) => each.ask === ask) === true);
+    landed.some((message) => message.withdrawals?.some((each) => each.ask === ask) === true);
   // An open ask closes when it is withdrawn or answered, or when its message
   // is replaced, by asks that revise it. One a replacement of its message
   // withdraws by name reads as withdrawn, not revised.

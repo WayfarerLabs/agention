@@ -211,7 +211,8 @@ export function Composer({
   // operator started typing, staging or recording, so a message that lands
   // meanwhile, or one the page has not shown, makes the write stale instead
   // of being answered unseen. Emptying the composer ends the draft, unless a
-  // recording is still to become its text.
+  // recording is still to become its text. A draft still in the composer when
+  // a write lands counts from at least the message it wrote.
   const [basis, setBasis] = useState<number | undefined>(undefined);
   const empty = blank(text) && blank(detail) && files.files.length === 0;
   const [dictating, setDictating] = useState(false);
@@ -256,6 +257,12 @@ export function Composer({
   useEffect(() => {
     detailNow.current = detail;
   }, [detail]);
+  // What is staged as it stands, for a write whose answer comes after the
+  // operator changed it.
+  const stagedNow = useRef(staged);
+  useEffect(() => {
+    stagedNow.current = staged;
+  }, [staged]);
   const detailBox = useRef<HTMLTextAreaElement>(null);
   // Opening the Details box moves focus into it, in place of the control
   // that opened it.
@@ -266,6 +273,19 @@ export function Composer({
       detailBox.current?.focus();
     }
   });
+
+  // restage judges what is staged now, which sends next, by what landed since
+  // it was staged: a stale write's missed messages, or the write that landed.
+  // What they made impossible to send goes; anything staged since the page
+  // last showed what is staged stays. It says what changed, if anything.
+  const restage = (landed: Parameters<typeof staleChange>[1]): string | undefined => {
+    const now = stagedNow.current;
+    const change = staleChange(now, landed);
+    if (change !== undefined) {
+      stage((current) => (current === now ? change.left : current));
+    }
+    return change?.change;
+  };
 
   const write = async (content: WriteContent) => {
     const sentText = text;
@@ -289,17 +309,13 @@ export function Composer({
       return;
     }
     if ("missed" in outcome) {
-      // What the missed messages made impossible to send goes; the rest, the
-      // text, the detail and the files stay. A replacement that goes takes
-      // the files it kept with it, and only those: one staged since keeps its
-      // own.
-      const stale = staleChange(sentStaged, outcome.missed);
-      if (stale !== undefined) {
-        setChanged(stale.change);
-        stage((current) => (current === sentStaged ? stale.left : current));
-        if (stale.left === undefined) {
-          files.dropKept(sentFiles);
-        }
+      // What the missed messages made impossible to send goes, and the page
+      // says what; the rest, the text, the detail and the files stay. What is
+      // staged may be what was sent, with answers picked again since, or what
+      // replaced it.
+      const change = restage(outcome.missed);
+      if (change !== undefined) {
+        setChanged(change);
       }
       return;
     }
@@ -315,8 +331,10 @@ export function Composer({
     if (detailNow.current === sentDetail) {
       setDetailsShown(false);
     }
-    stage((current) => (current === sentStaged ? undefined : current));
-    setBasis(undefined);
+    // What the write did judges what is staged now as missed messages do,
+    // without a word: an answer picked again since to an ask it answered goes.
+    restage([content]);
+    setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
     setStatus(sent);
     if (stillOpen() && goBackNow.current) {
