@@ -233,6 +233,15 @@ export function Composer({
       staged === undefined && empty && !dictating ? undefined : (current ?? shown),
     );
   }, [staged, empty, dictating, shown]);
+  // Whether the draft the page opened with left something behind, which the
+  // composer says, and the draft keeps saying, until the composer is emptied,
+  // which ends the draft.
+  const [leftBehind, setLeftBehind] = useState(restored?.leftBehind === true);
+  useEffect(() => {
+    if (empty) {
+      setLeftBehind(false);
+    }
+  }, [empty]);
   // This browser keeps the draft's text and details as they change, and
   // where it started; not what is staged, attached or being recorded, which
   // may be gone by the time the draft comes back. A change or an edit loads
@@ -248,18 +257,10 @@ export function Composer({
       text,
       detail,
       basis: basis ?? shown,
-      leftBehind: staged !== undefined || files.files.length > 0 || dictating,
+      leftBehind: leftBehind || staged !== undefined || files.files.length > 0 || dictating,
     },
     !(blank(text) && blank(detail)) && !asLoaded,
   );
-  // Whether the draft the page opened with left something behind, which the
-  // composer says until it is emptied.
-  const [leftBehind, setLeftBehind] = useState(restored?.leftBehind === true);
-  useEffect(() => {
-    if (empty) {
-      setLeftBehind(false);
-    }
-  }, [empty]);
   const voiceOn = useVoiceOn();
   // How many messages the composer has sent, so a transcript that arrives
   // after its draft was sent is dropped rather than starting a new one.
@@ -303,6 +304,12 @@ export function Composer({
   useEffect(() => {
     stagedNow.current = staged;
   }, [staged]);
+  // The files and whether a recording is under way as they stand, for a write
+  // that lands after the operator added to them.
+  const heldNow = useRef({ files: files.files, dictating });
+  useEffect(() => {
+    heldNow.current = { files: files.files, dictating };
+  }, [files.files, dictating]);
   const detailBox = useRef<HTMLTextAreaElement>(null);
   // Opening the Details box moves focus into it, in place of the control
   // that opened it.
@@ -318,13 +325,15 @@ export function Composer({
   // it was staged: a stale write's missed messages, or the write that landed.
   // What they made impossible to send goes; anything staged since the page
   // last showed what is staged stays. It says what changed, if anything.
-  const restage = (landed: Parameters<typeof staleChange>[1]): string | undefined => {
+  const restage = (
+    landed: Parameters<typeof staleChange>[1],
+  ): { notice: string | undefined; left: Staged | undefined } => {
     const now = stagedNow.current;
     const change = staleChange(now, landed);
     if (change !== undefined) {
       stage((current) => (current === now ? change.left : current));
     }
-    return change?.change;
+    return { notice: change?.change, left: change === undefined ? now : change.left };
   };
 
   const write = async (content: WriteContent) => {
@@ -353,9 +362,9 @@ export function Composer({
       // says what; the rest, the text, the detail and the files stay. What is
       // staged may be what was sent, with answers picked again since, or what
       // replaced it.
-      const change = restage(outcome.missed);
-      if (change !== undefined) {
-        setChanged(change);
+      const { notice } = restage(outcome.missed);
+      if (notice !== undefined) {
+        setChanged(notice);
       }
       return;
     }
@@ -366,11 +375,6 @@ export function Composer({
     const unsent = (current: string, sent: string) => (current === sent ? "" : current);
     setText((current) => unsent(current, sentText));
     setDetail((current) => unsent(current, sentDetail));
-    keepNow(
-      unsent(textNow.current, sentText),
-      unsent(detailNow.current, sentDetail),
-      outcome.written,
-    );
     files.sent(sentFiles);
     // The Details box folds with the detail it sent; one typed meanwhile
     // stays in sight.
@@ -379,7 +383,19 @@ export function Composer({
     }
     // What the write did judges what is staged now as missed messages do,
     // without a word: an answer picked again since to an ask it answered goes.
-    restage([content]);
+    const { left } = restage([content]);
+    // What is left is a draft of its own, which leaves behind only what the
+    // composer still holds: what is still staged, files added meanwhile or a
+    // recording, not what a draft it was restored from left behind.
+    setLeftBehind(false);
+    keepNow(
+      unsent(textNow.current, sentText),
+      unsent(detailNow.current, sentDetail),
+      outcome.written,
+      left !== undefined ||
+        heldNow.current.files.some((file) => !sentFiles.includes(file.id)) ||
+        heldNow.current.dictating,
+    );
     setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
     setStatus(sent);

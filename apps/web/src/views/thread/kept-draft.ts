@@ -14,22 +14,25 @@ import { blank } from "./writer.ts";
 // tab kept since stays, so the draft typed last is the one kept. It gives
 // keepNow, which keeps at once what is left of the draft once
 // a write lands, the text and details typed meanwhile, counting from at least
-// the message written, or forgets it when nothing is left: the page may be
-// left as the write lands, before the composer shows what is left.
+// the message written, and whether the composer still holds more, or forgets
+// it when nothing is left: the page may be left as the write lands, before the
+// composer shows what is left.
 export function useKeptDraft(
   thread: DraftThread,
   draft: Omit<KeptDraft, "kept">,
   keep: boolean,
-): (text: string, detail: string, written: number) => void {
+): (text: string, detail: string, written: number, leftBehind: boolean) => void {
   // The browser's sign-out mark as the page opened, so a draft is not kept
   // once the browser signed out since.
   const [since] = useState(signOutMark);
   // The record of the draft this page last kept, while it keeps one.
   const kept = useRef<string | undefined>(undefined);
-  const latest = useRef(draft);
+  // The starting point as it stands, which what is left once a write lands
+  // counts from at least.
+  const latestBasis = useRef(draft.basis);
   const { text, detail, basis, leftBehind } = draft;
   useEffect(() => {
-    latest.current = { text, detail, basis, leftBehind };
+    latestBasis.current = basis;
     if (keep) {
       kept.current = keepDraft(thread, { text, detail, basis, leftBehind }, since);
     } else if (kept.current !== undefined) {
@@ -38,7 +41,7 @@ export function useKeptDraft(
     }
   }, [text, detail, basis, leftBehind, keep, thread, since]);
 
-  return (left, leftDetail, written) => {
+  return (left, leftDetail, written, leftBehind) => {
     if (blank(left) && blank(leftDetail)) {
       if (kept.current !== undefined) {
         forgetDraft(thread, kept.current);
@@ -51,8 +54,8 @@ export function useKeptDraft(
       {
         text: left,
         detail: leftDetail,
-        basis: Math.max(latest.current.basis, written),
-        leftBehind: latest.current.leftBehind,
+        basis: Math.max(latestBasis.current, written),
+        leftBehind,
       },
       since,
     );
