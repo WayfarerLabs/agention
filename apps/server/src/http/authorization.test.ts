@@ -43,9 +43,13 @@ function agentRoutes(session: string): [string, string, unknown][] {
 const groupAndTagRoutes: [string, string, unknown][] = [
   ["GET", "/groups-and-tags", undefined],
   ["POST", "/groups", { name: "Work" }],
+  ["POST", "/groups/order", { groups: [1] }],
   ["POST", "/groups/1/name", { name: "Play" }],
+  ["POST", "/groups/1/color", { color: "teal" }],
   ["POST", "/groups/1/remove", undefined],
+  ["POST", "/tags", { name: "billing" }],
   ["POST", "/tags/infra/name", { name: "ops" }],
+  ["POST", "/tags/infra/color", { color: "blue" }],
   ["POST", "/tags/infra/remove", undefined],
   ["POST", "/s/builder/main/group", { group: null }],
   ["POST", "/s/builder/main/tags", { tags: [] }],

@@ -771,7 +771,7 @@ the sessions under their groups, and the sessions view folds the agents under th
   name another group or tag has is refused. Renaming a tag renames it everywhere it is carried.
   **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
   sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
-  carries is gone, as a topic no thread carries is.
+  carries stays until you remove it.
 
 ### Keyboard shortcuts
 
@@ -963,13 +963,13 @@ under **API keys**. **Create an API key** asks for:
 - **Name**: up to 50 characters on one line, such as the program that will hold the key.
 - **Scopes**: what the key may do, as you, at least one of them:
 
-  | Scope              | What it grants                                                                                                                                                                                        |
-  | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                       |
-  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk             |
-  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                             |
-  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming and removing groups, renaming and removing tags, and setting a session's group and an agent's or a session's tags |
-  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations                                                                                                                                          |
+  | Scope              | What it grants                                                                                                                                                                                                                                    |
+  | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                                                                   |
+  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                         |
+  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                         |
+  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags |
+  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                    |
 
   A write or approve scope includes its resource's read, so choosing `threads:write` chooses
   `threads:read` with it; `sessions:write` and `sessions:approve` include neither the other.

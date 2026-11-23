@@ -292,7 +292,7 @@ function valueCounts<T extends string>(values: readonly T[]) {
 // own choices are; threads without a topic are no value of topic. Each lists
 // in name order: agents by name, sessions by their name then their agent's,
 // topics by their session's name, their own, then their agent's.
-// session_group lists each group holding a thread, in name order, each with
+// session_group lists each group holding a thread, in the operator's order, each with
 // its own count whatever the group filter's choices are, and none counts the
 // threads of sessions in no group likewise; tag lists each tag carried by a
 // session holding a thread, or by its agent, in name order, likewise. reset

@@ -3010,7 +3010,7 @@
     "/api/operator/v1/groups-and-tags": {
       "get": {
         "operationId": "operatorListGroupsAndTags",
-        "summary": "List the session groups and the tags in use",
+        "summary": "List the session groups, in the operator's order, and the tags, with their colors",
         "tags": [
           "operator"
         ],
@@ -3043,6 +3043,20 @@
                           "name": {
                             "type": "string"
                           },
+                          "color": {
+                            "type": "string",
+                            "enum": [
+                              "gray",
+                              "red",
+                              "orange",
+                              "yellow",
+                              "green",
+                              "teal",
+                              "blue",
+                              "purple"
+                            ],
+                            "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                          },
                           "sessions": {
                             "type": "integer",
                             "minimum": 0,
@@ -3052,6 +3066,7 @@
                         "required": [
                           "id",
                           "name",
+                          "color",
                           "sessions"
                         ]
                       }
@@ -3066,6 +3081,20 @@
                             "type": "string",
                             "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
                           },
+                          "color": {
+                            "type": "string",
+                            "enum": [
+                              "gray",
+                              "red",
+                              "orange",
+                              "yellow",
+                              "green",
+                              "teal",
+                              "blue",
+                              "purple"
+                            ],
+                            "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                          },
                           "agents": {
                             "type": "integer",
                             "minimum": 0,
@@ -3079,6 +3108,7 @@
                         },
                         "required": [
                           "name",
+                          "color",
                           "agents",
                           "sessions"
                         ]
@@ -3106,7 +3136,7 @@
     "/api/operator/v1/groups": {
       "post": {
         "operationId": "operatorCreateGroup",
-        "summary": "Create an empty session group",
+        "summary": "Create an empty session group, last in the order, with a color",
         "tags": [
           "operator"
         ],
@@ -3128,6 +3158,20 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "gray",
+                      "red",
+                      "orange",
+                      "yellow",
+                      "green",
+                      "teal",
+                      "blue",
+                      "purple"
+                    ],
+                    "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
                   }
                 },
                 "required": [
@@ -3143,7 +3187,93 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GroupRef"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "teal",
+                        "blue",
+                        "purple"
+                      ],
+                      "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "color"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/groups/order": {
+      "post": {
+        "operationId": "operatorOrderGroups",
+        "summary": "Put the session groups in an order, naming every group once",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "sessions:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "groups": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "description": "Every group's id, each once, in the order wanted."
+                  }
+                },
+                "required": [
+                  "groups"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
                 }
               }
             }
@@ -3206,7 +3336,137 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GroupRef"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "teal",
+                        "blue",
+                        "purple"
+                      ],
+                      "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "color"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/groups/{id}/color": {
+      "post": {
+        "operationId": "operatorRecolorGroup",
+        "summary": "Give a session group another color",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "sessions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "gray",
+                      "red",
+                      "orange",
+                      "yellow",
+                      "green",
+                      "teal",
+                      "blue",
+                      "purple"
+                    ],
+                    "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                  }
+                },
+                "required": [
+                  "color"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "teal",
+                        "blue",
+                        "purple"
+                      ],
+                      "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "color"
+                  ]
                 }
               }
             }
@@ -3261,10 +3521,98 @@
         }
       }
     },
+    "/api/operator/v1/tags": {
+      "post": {
+        "operationId": "operatorCreateTag",
+        "summary": "Create a tag that nothing carries yet, with a color",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "sessions:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "gray",
+                      "red",
+                      "orange",
+                      "yellow",
+                      "green",
+                      "teal",
+                      "blue",
+                      "purple"
+                    ],
+                    "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "teal",
+                        "blue",
+                        "purple"
+                      ],
+                      "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "color"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
     "/api/operator/v1/tags/{tag}/name": {
       "post": {
         "operationId": "operatorRenameTag",
-        "summary": "Rename a tag on every agent and session carrying it",
+        "summary": "Rename a tag, and so on every agent and session carrying it",
         "tags": [
           "operator"
         ],
@@ -3323,10 +3671,105 @@
         }
       }
     },
+    "/api/operator/v1/tags/{tag}/color": {
+      "post": {
+        "operationId": "operatorRecolorTag",
+        "summary": "Give a tag another color",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "sessions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "gray",
+                      "red",
+                      "orange",
+                      "yellow",
+                      "green",
+                      "teal",
+                      "blue",
+                      "purple"
+                    ],
+                    "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                  }
+                },
+                "required": [
+                  "color"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "teal",
+                        "blue",
+                        "purple"
+                      ],
+                      "description": "One of the palette's named colors. Created without one, a group takes the palette's colors in turn by how many groups there are already, and a tag by how many tags."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "color"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
     "/api/operator/v1/tags/{tag}/remove": {
       "post": {
         "operationId": "operatorRemoveTag",
-        "summary": "Remove a tag from every agent and session carrying it",
+        "summary": "Remove a tag, taking it off every agent and session carrying it",
         "tags": [
           "operator"
         ],
@@ -3674,7 +4117,7 @@
     "/api/operator/v1/registrations/{id}/approve": {
       "post": {
         "operationId": "operatorApproveRegistration",
-        "summary": "Approve a pending registration for a new or existing session, which its key then acts for; approving onto an existing session grants the key that session's whole history",
+        "summary": "Approve a pending registration for a new or existing session, which its key then acts for, with the session's group and tags if given; approving onto an existing session grants the key that session's whole history",
         "tags": [
           "operator"
         ],
@@ -3731,6 +4174,28 @@
                       "existing": {
                         "type": "boolean",
                         "description": "whether the agent's session named already exists: true grants that session, false creates it; a mismatch is refused as invalid_input on session.name. Approving onto an existing session grants the new key that session's whole history, every thread and message in it"
+                      },
+                      "group": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The id of an existing group to put the session in, or null for none, as the approval grants it; left out, the session's group is unchanged. Needs sessions:write"
+                      },
+                      "tags": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "description": "The session's tags, the whole set, as the approval grants it; a name no tag has creates that tag. Left out, the session's tags are unchanged. Needs sessions:write"
                       }
                     },
                     "required": [

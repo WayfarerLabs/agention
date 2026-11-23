@@ -13,8 +13,9 @@ import {
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
-import { authorizeScope, type Identity } from "../identity.ts";
+import { authorizeScope, holds, type Identity } from "../identity.ts";
 import { findAgentId, findSessionId, insertAgent, insertSession } from "./directory.ts";
+import { putInGroup, tagSession } from "./groups-and-tags.ts";
 import { pageOf } from "./thread-reads.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
@@ -240,7 +241,12 @@ function decide(
 // says whether the agent and the session it names already exist, and a
 // mismatch is refused, so granting an existing session's whole history is
 // always deliberate. The names may differ from the proposed ones, and a session
-// may hold several approved credentials.
+// may hold several approved credentials. The group and tags the request gives
+// the session apply in the same transaction, so a new session never shows
+// without them. They need sessions:write beside sessions:approve, and to an
+// identity without it they do not exist. A group is named by its id, so a
+// new one is created first; a tag by its name, which creates it, as setting a
+// session's tags does.
 export function approveRegistration(
   store: Store,
   identity: Identity,
@@ -267,8 +273,23 @@ export function approveRegistration(
           : "names a session the agent already has",
       );
     }
+    const { group, tags } = input.session;
+    for (const [field, given] of [
+      ["session.group", group],
+      ["session.tags", tags],
+    ] as const) {
+      if (given !== undefined && !holds(identity, "sessions:write")) {
+        throw notFound(field);
+      }
+    }
     const agentId = existingAgent ?? insertAgent(db, input.agent.name, now);
     const sessionId = existingSession ?? insertSession(db, agentId, input.session.name, now);
+    if (group !== undefined) {
+      putInGroup(db, sessionId, group, "session.group");
+    }
+    if (tags !== undefined) {
+      tagSession(db, sessionId, tags);
+    }
     db.prepare(
       "UPDATE registrations SET status = 'approved', session_id = ?, decided_at = ? WHERE id = ?",
     ).run(sessionId, now, id);

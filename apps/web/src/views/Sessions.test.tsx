@@ -1019,12 +1019,12 @@ describe("groups and tags", () => {
   const billing = { id: 4, name: "Billing" };
   const known: GroupsAndTags = {
     groups: [
-      { ...billing, sessions: 1 },
-      { id: 5, name: "Personal", sessions: 0 },
+      { ...billing, color: "blue", sessions: 1 },
+      { id: 5, name: "Personal", color: "green", sessions: 0 },
     ],
     tags: [
-      { name: "infra", agents: 1, sessions: 1 },
-      { name: "urgent", agents: 0, sessions: 1 },
+      { name: "infra", color: "teal", agents: 1, sessions: 1 },
+      { name: "urgent", color: "red", agents: 0, sessions: 1 },
     ],
     truncated: false,
   };

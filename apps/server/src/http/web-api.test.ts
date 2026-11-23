@@ -440,10 +440,10 @@ describe("groups and tags", () => {
       expect([path, codeOf(await harness.web("POST", path, body))]).toEqual([path, "ok"]);
     }
     expect((await harness.web("GET", "/groups-and-tags")).body).toEqual({
-      groups: [{ id: group.id, name: "Ledger", sessions: 1 }],
+      groups: [{ id: group.id, name: "Ledger", color: "gray", sessions: 1 }],
       tags: [
-        { name: "infra", agents: 1, sessions: 0 },
-        { name: "soon", agents: 0, sessions: 1 },
+        { name: "infra", color: "red", agents: 1, sessions: 0 },
+        { name: "soon", color: "gray", agents: 0, sessions: 1 },
       ],
       truncated: false,
     } satisfies GroupsAndTags);

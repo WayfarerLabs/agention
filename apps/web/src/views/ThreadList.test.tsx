@@ -1241,8 +1241,8 @@ describe("the group and tag choices", () => {
     serve([]);
     api.on("GET", "/groups-and-tags", {
       body: {
-        groups: [{ id: 4, name: "Billing", sessions: 2 }],
-        tags: [{ name: "infra", agents: 1, sessions: 0 }],
+        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 2 }],
+        tags: [{ name: "infra", color: "teal", agents: 1, sessions: 0 }],
         truncated: false,
       },
     });
@@ -1274,7 +1274,11 @@ describe("the group and tag choices", () => {
     serve([]);
     serveCounts();
     api.on("GET", "/groups-and-tags", {
-      body: { groups: [{ id: 4, name: "removed", sessions: 2 }], tags: [], truncated: false },
+      body: {
+        groups: [{ id: 4, name: "removed", color: "gray", sessions: 2 }],
+        tags: [],
+        truncated: false,
+      },
     });
     renderAt("/?session_group=4");
     await waitFor(() => expect(chipText(chips()[0] as HTMLElement)).toBe("Group: removed"));

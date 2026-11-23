@@ -285,13 +285,17 @@ the web mount serves the same list, so no operation has a second handler (`docs/
 stays a web-only route. Each operation requires the narrowest scope that covers it: an operation a
 read scope grants is a `GET` without a body whose store work writes nothing, which the test over the
 list in `apps/server/src/http/operations.test.ts` holds, and approving, rejecting or revoking a
-registration needs `sessions:approve`, which no other scope includes. Files are their threads':
-uploading and removing a pending upload need `threads:write`, and a thread's files and reading one
-`threads:read`. The mount refuses a missing scope before reading input, and the store operation
-confirms the same scope inside its transaction, which a test over every operation in the same file
-holds; a file's chunk reads and writes are store calls too, and confirm it as every other does. Each
-chunk also re-checks the credential, in its own transaction, so a transfer stops within one chunk
-once its credential is revoked or expires (one check for both), which the store's
+registration needs `sessions:approve`, which no other scope includes. One operation needs a second
+scope for some of its fields: approving a registration that also sets the session's group or tags
+needs `sessions:write` beside `sessions:approve`, which the store checks inside the approval's
+transaction, answering a key without it `not_found` on the field and applying nothing, as
+`apps/server/src/http/groups-and-tags.test.ts` holds. Files are their threads': uploading and
+removing a pending upload need `threads:write`, and a thread's files and reading one `threads:read`.
+The mount refuses a missing scope before reading input, and the store operation confirms the same
+scope inside its transaction, which a test over every operation in the same file holds; a file's
+chunk reads and writes are store calls too, and confirm it as every other does. Each chunk also
+re-checks the credential, in its own transaction, so a transfer stops within one chunk once its
+credential is revoked or expires (one check for both), which the store's
 `apps/server/src/store/files.test.ts` ("stops within a chunk once its credential is revoked") and
 the HTTP tests in `apps/server/src/http/files.test.ts` (the same, for a read) and
 `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource

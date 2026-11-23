@@ -62,8 +62,9 @@ inferred types the server, the bridge and the web UI share:
   or infer; the sessions view's page of agents, each with its tags and its sessions; how many
   sessions have updates the operator has not read; a session's log and the operator's read mark on
   it; and the operator's start of a thread on a session;
-- the operator's session groups and tags: the list of them, creating, renaming and removing a group,
-  renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
+- the operator's session groups and tags: the list of them, creating, renaming, recoloring, ordering
+  and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
+  group and an agent's or a session's tags, on their own or with an approval;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
@@ -160,17 +161,20 @@ an outcome exactly beside the stopped state, and an inferred entry only as worki
 thread.
 
 The operator's session groups are rows of their own, `session_groups`, each with a name unique
-ignoring the case of ASCII letters, since a group can be empty and renamed. A group keeps its id
-when renamed, and ids never repeat, so a filter or fold naming a removed group never reaches a later
-one. `session_group_members` is keyed on the session, so a session sits in at most one group, and
-removing a group takes its memberships with it by a cascade. A tag is only a name on an agent
-(`agent_tags`) or a session (`session_tags`), as a topic is a name on a thread: it exists while
-something carries it. Agents and sessions are never deleted, so no membership or tag outlives what
-it is on. A second full-text index, `message_texts`, holds the text and detail of every message that
-has text, matched as titles are. It keeps no copy of them, only each message's thread and sequence,
-since a message has no integer key of its own for an external-content index to rest on; a trigger
-fills it as a message is written, since messages are append-only, and a search joins its rows to
-`live_messages`, so a replaced message no longer matches.
+ignoring the case of ASCII letters, since a group can be empty and renamed, a color, and a position
+in the operator's order, unique by an index. A group keeps its id when renamed, and ids never
+repeat, so a filter or fold naming a removed group never reaches a later one.
+`session_group_members` is keyed on the session, so a session sits in at most one group, and
+removing a group takes its memberships with it by a cascade. A tag is a row of its own too, `tags`,
+with a unique name and a color, and exists until it is removed; an agent (`agent_tags`) or a session
+(`session_tags`) carries it by its name, a foreign key whose cascades rename it everywhere it is
+carried and take it off everything when it is removed. A check holds each color to the palette.
+Agents and sessions are never deleted, so no membership or tag outlives what it is on. A second
+full-text index, `message_texts`, holds the text and detail of every message that has text, matched
+as titles are. It keeps no copy of them, only each message's thread and sequence, since a message
+has no integer key of its own for an external-content index to rest on; a trigger fills it as a
+message is written, since messages are append-only, and a search joins its rows to `live_messages`,
+so a replaced message no longer matches.
 
 Files have three tables. `files` holds one row per upload: its random reference, the name and
 declared type it was uploaded with, its size, as its `Content-Length` declared it before any byte
@@ -350,14 +354,31 @@ holds, so to an agent none exists. A group's name is plain text on one line, tri
 points, unique ignoring the case of ASCII letters; a tag's is a name, as a topic's is. An instance
 holds at most 200 groups, and an agent or a session carries at most 20 tags; past either bound a
 write is `invalid_input`. A name another group or tag already has is refused as `conflict`, naming
-`name`, whether a group is created or either is renamed. A group's rename changes its name only, so
-a filter by its id keeps working, and removing it leaves its sessions in no group. Renaming a tag
-rewrites it on every agent and session carrying it, and removing one takes it off all of them, each
-in one transaction. Setting a session's group names it by id, or none; setting an agent's or a
-session's tags gives the whole set. The list of them gives every group in name order, with how many
-sessions each holds, and every tag carried, at most 500, in name order, with how many agents and how
-many sessions carry it, saying when it leaves any out. The sessions view's page carries each agent's
-tags, and each session's group and tags.
+`name`, whether either is created or renamed. A color is one of a fixed palette of eight named
+tones, `gray`, `red`, `orange`, `yellow`, `green`, `teal`, `blue` and `purple`, which each client
+draws to suit its themes; any other is `invalid_input`. A group or a tag created without a color
+takes the palette's in turn, each kind its own: the color after as many as there are groups, or
+tags, already. A tag is a row keyed by its name, which the tags agents and sessions carry name by a
+foreign key, and an instance keeps at most 500, so the list of them is whole unless an upgrade
+carried more tags in use than that, which it then says it left out; creating one past the cap,
+directly or by setting tags, is `invalid_input`. A new group goes last in the operator's order, and
+ordering the groups gives every group's id once, in the order wanted: a list naming any other set,
+as when another client created or removed a group since, is `invalid_input` on `groups` and changes
+nothing, so two clients' orders never interleave, and the later whole order stands. A group's rename
+changes its name only, so a filter by its id keeps working, and removing it leaves its sessions in
+no group. Renaming a tag renames it on every agent and session carrying it, and removing one takes
+it off all of them. Setting a session's group names it by id, or none; setting an agent's or a
+session's tags gives the whole set, and creates, with its color in turn, any tag it names that does
+not exist. Approving a registration may also give the session's group, by id or none, and its tags,
+which apply in the approval's transaction, so a new session never shows without them, and which need
+`sessions:write` beside `sessions:approve`: to an identity without it, they are `not_found`, naming
+the field, and nothing applies. A group is named by its id there as everywhere, so a client creates
+a new one first; a tag by its name, which creates it as setting tags does. Agents' tags are set on
+their own, since an agent's tags count for every session it has. The list of them gives every group
+in the operator's order, with its color and how many sessions it holds, and every tag, at most 500,
+in name order, with its color and how many agents and how many sessions carry it, none for a tag
+nothing carries, saying when it leaves any out. The sessions view's page carries each agent's tags,
+and each session's group and tags.
 
 The operator starts a thread on a session with a title and a first message of text, with its detail.
 The session stays the thread's requester and the operator its audience, so the operator's request
@@ -439,9 +460,10 @@ message of the operator's that the session has not read) or `stranded` (such a m
 session is quiet, has no active credential or has stopped); `agent` and `session`, up to 50 of each,
 a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id, `none`
 naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A
-group that was removed, or a tag nothing carries, keeps nothing. The filters on asks together keep
-the threads holding one open ask that meets them all, so any of them keeps only open threads. One
-definition of each filter's condition serves the list, its total, its counts and its roll-ups.
+group that was removed, or a tag nothing carries or that was removed, keeps nothing. The filters on
+asks together keep the threads holding one open ask that meets them all, so any of them keeps only
+open threads. One definition of each filter's condition serves the list, its total, its counts and
+its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -499,9 +521,9 @@ status, and every status but `open`, with the filters on asks off, as choosing i
 and each value of a filter on asks with `open` chosen, as choosing it chooses `open`. Each agent,
 session and topic holding a thread has its own count, whatever that filter's own choices are, each
 kind counted in one statement grouped by it with that filter's condition off; so does each group
-holding a thread, beside the count of threads in no group, and each tag that a session holding a
-thread, or its agent, carries, a thread counting once for a tag both carry. `reset` is the total
-with no filter on.
+holding a thread, in the operator's order, beside the count of threads in no group, and each tag
+that a session holding a thread, or its agent, carries, a thread counting once for a tag both carry.
+`reset` is the total with no filter on.
 
 Counts and roll-ups list at most 500 agents, sessions, topics and tags each, the first in name order
 or in the list's, and say when they leave any out; the sessions view's page pages agents, each with
@@ -557,12 +579,14 @@ built from the same lists ([API documentation](#api-documentation)).
   a pending upload; `sessions:read` the sessions view (`GET /sessions`), a session's log
   (`GET /s/:agent/:session/updates`), the groups and tags (`GET /groups-and-tags`) and the
   registrations (`GET /registrations`); `sessions:write` the log's read mark and the groups' and
-  tags' writes, each a POST naming its action (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
-  `/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
-  `/agents/:agent/tags`); and `sessions:approve` approving, rejecting and revoking a registration. A
-  write or approve scope includes its resource's read, and neither includes the other. A test over
-  the list holds every operation a read scope grants to a `GET` without a body whose store work
-  writes nothing.
+  tags' writes, each a POST naming its action (`/groups`, `/groups/order`, `/groups/:id/name`,
+  `/groups/:id/color`, `/groups/:id/remove`, `/tags`, `/tags/:tag/name`, `/tags/:tag/color`,
+  `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
+  `/agents/:agent/tags`); and `sessions:approve` approving, rejecting and revoking a registration,
+  with `sessions:write` too for an approval that gives the session's group or tags. A write or
+  approve scope includes its resource's read, and neither includes the other. A test over the list
+  holds every operation a read scope grants to a `GET` without a body whose store work writes
+  nothing.
 - **Agent operations** (`agent-operations.ts`) are the agent mount's: a session's status, starting a
   thread in it, its thread list and its long poll, and the operations on one thread and on its
   session's uploads (`thread-operations.ts`), which every mount shares under `/s/:agent/:session`,
