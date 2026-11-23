@@ -9,7 +9,15 @@ import {
   readDraft,
   signOutMark,
 } from "../../device.ts";
-import { ask, message, operatorMessage, type Reply, threadSummary } from "../../test-support.tsx";
+import {
+  ask,
+  installRecorder,
+  installUploads,
+  message,
+  operatorMessage,
+  type Reply,
+  threadSummary,
+} from "../../test-support.tsx";
 import { goBackChoice } from "./Composer.tsx";
 import { useKeptDraft } from "./kept-draft.ts";
 import {
@@ -32,6 +40,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   expect(page.api.unhandled).toEqual([]);
+  Reflect.deleteProperty(navigator, "mediaDevices");
 });
 
 // The thread the page serves, as its draft is kept by.
@@ -48,6 +57,19 @@ function discard() {
   fireEvent.click(within(composer()).getByRole("button", { name: "Discard" }));
 }
 const draft = { text: "Half a reply", detail: "", basis: 1, leftBehind: false };
+// Voice on, so the composer offers dictation.
+const voiceOn = {
+  voice: {
+    on: true,
+    base_url: "https://api.openai.com/v1",
+    model: "gpt-transcribe",
+    prompt: null,
+    key: "set",
+    key_ending: "c3dE",
+    from_environment: [],
+    invalid: false,
+  },
+};
 const dayMs = 24 * 60 * 60 * 1000;
 
 // reopen leaves the thread, unmounting its page, and opens it again.
@@ -176,6 +198,114 @@ describe("a draft kept in the browser", () => {
     await reopen(state);
     expect(textBox().value).toBe("Go ahead.");
   });
+
+  it("says it left something behind on every visit, as it is typed on, until emptied", async () => {
+    keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
+    const state = await page.openLog({ last_seq: 1 });
+    expect(within(composer()).getByRole("note")).toBeTruthy();
+    fireEvent.change(textBox(), { target: { value: "Half a reply, and more" } });
+    await reopen(state);
+    expect(textBox().value).toBe("Half a reply, and more");
+    expect(within(composer()).getByRole("note")).toBeTruthy();
+    fireEvent.change(textBox(), { target: { value: "" } });
+    fireEvent.change(textBox(), { target: { value: "A new draft" } });
+    await reopen(state);
+    expect(within(composer()).queryByRole("note")).toBeNull();
+  });
+
+  it.each([
+    ["stays", false],
+    ["goes back", true],
+  ])(
+    "starts afresh, leaving nothing behind, with what was typed while a restored draft was sent, as the page %s",
+    async (_, goBack) => {
+      keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
+      window.localStorage.setItem(goBackChoice, String(goBack));
+      const state = await page.open(
+        { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+        { from: "/" },
+      );
+      expect(within(composer()).getByRole("note")).toBeTruthy();
+      let answer: (reply: Reply) => void = () => {};
+      page.api.on(
+        "POST",
+        `${path}/messages`,
+        () => new Promise<Reply>((resolve) => (answer = resolve)),
+      );
+      fireEvent.click(sendButton());
+      await waitFor(() => expect(page.writes()).toHaveLength(1));
+      fireEvent.change(textBox(), { target: { value: "Half a reply, and another" } });
+      answer(written(2));
+      if (goBack) {
+        await waitFor(() => expect(window.location.pathname).toBe("/"));
+      } else {
+        await screen.findByRole("status");
+        expect(within(composer()).queryByRole("note")).toBeNull();
+      }
+      expect(readDraft(thread)).toMatchObject({
+        text: "Half a reply, and another",
+        leftBehind: false,
+      });
+      await reopen(state);
+      expect(textBox().value).toBe("Half a reply, and another");
+      expect(within(composer()).queryByRole("note")).toBeNull();
+    },
+  );
+
+  it.each([
+    [
+      "a file attached",
+      () => {
+        installUploads();
+        const picker = composer().querySelector<HTMLInputElement>('input[type="file"]')!;
+        fireEvent.change(picker, {
+          target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
+        });
+      },
+    ],
+    [
+      "a recording started",
+      async () => {
+        fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
+        await within(composer()).findByRole("button", { name: "Stop" });
+      },
+    ],
+  ])(
+    "still leaves behind %s while a restored draft was sent, with what was typed meanwhile, as the page goes back",
+    async (what, add) => {
+      if (what === "a recording started") {
+        page.api.on("GET", "/settings", { body: voiceOn });
+        installRecorder();
+      }
+      keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
+      // Going back as the write lands, the page never shows what is left, so
+      // only what the landing keeps is kept.
+      window.localStorage.setItem(goBackChoice, "true");
+      await page.open(
+        { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+        { from: "/" },
+      );
+      if (what === "a recording started") {
+        await within(composer()).findByRole("button", { name: "Dictate" });
+      }
+      let answer: (reply: Reply) => void = () => {};
+      page.api.on(
+        "POST",
+        `${path}/messages`,
+        () => new Promise<Reply>((resolve) => (answer = resolve)),
+      );
+      fireEvent.click(sendButton());
+      await waitFor(() => expect(page.writes()).toHaveLength(1));
+      fireEvent.change(textBox(), { target: { value: "Half a reply, and another" } });
+      await add();
+      answer(written(2));
+      await waitFor(() => expect(window.location.pathname).toBe("/"));
+      expect(readDraft(thread)).toMatchObject({
+        text: "Half a reply, and another",
+        leftBehind: true,
+      });
+    },
+  );
 
   it("comes back without what was staged", async () => {
     const state = await page.openWith([message(1, { asks: [ask()] })], {
@@ -369,7 +499,7 @@ describe("two pages keeping a thread's draft", () => {
   it("keep the draft typed last when the other's write lands with nothing left", () => {
     const first = typing("From the first");
     typing("From the second");
-    first.result.current("", "", 2);
+    first.result.current("", "", 2, false);
     expect(readDraft(thread)).toMatchObject({ text: "From the second" });
   });
 });
