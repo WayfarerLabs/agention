@@ -1779,6 +1779,26 @@ audio.file-media {
   padding: var(--space-2);
 }
 
+/* On a phone or a tablet, Attach discloses a menu of where files come from,
+   which opens above it, since the Send row stays at the foot of the screen,
+   each item an icon and its words. */
+.composer .actions > .options {
+  margin: 0;
+}
+
+.composer .actions > .options .options-menu {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + var(--space-1));
+  left: 0;
+}
+
+.composer .actions > .options .options-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .composer .actions > .hold {
   margin: 0;
 }

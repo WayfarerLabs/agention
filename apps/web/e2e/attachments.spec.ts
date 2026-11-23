@@ -1,11 +1,12 @@
 // cspell:ignore filechooser
 // Attachments in Chromium against the real server, on a server of these
 // tests' own: an agent's files shown in place, an image, a video and audio
-// played and text read, a PDF opened in its tab and a missing file marked; every file
-// downloading under its name; the operator attaching a file and pasting an
-// image, which the agent reads, and the thread's files folded in its head;
-// and bytes of HTML and script declared as each type shown, opened on their
-// own, running nothing.
+// played and text read, a PDF opened in its tab and a missing file marked;
+// every file downloading under its name; the operator attaching a file and
+// pasting an image, which the agent reads, and the thread's files folded in
+// its head; Attach's menu on a phone, each item its own picker; and bytes of
+// HTML and script declared as each type shown, opened on their own, running
+// nothing.
 import type { BrowserContext, Page } from "@playwright/test";
 import type { ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
 import type { Agent } from "./agent.ts";
@@ -202,6 +203,67 @@ test("the operator attaches a file and pastes an image, which arrive with the me
   await expect(listed).toHaveCount(held);
   await listed.filter({ hasText: "shot.png" }).getByRole("link", { name: "#1" }).click();
   await expect(message(1)).toBeFocused();
+});
+
+test("on a phone, Attach opens a menu of where files come from, each its own picker", async ({
+  browser,
+}) => {
+  // A phone, signed in as the operator is: its pointer a finger, at a
+  // phone's width.
+  const phone = await browser.newContext({
+    baseURL: server.origin,
+    storageState: await context.storageState(),
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    const tab = await phone.newPage();
+    tab.on("console", (each) => {
+      if (each.type() === "error") {
+        problems.push(each.text());
+      }
+    });
+    tab.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
+    await tab.goto(`${threads}/1`);
+    const composer = tab.getByRole("region", { name: "Reply" });
+    const attach = composer.getByRole("button", { name: "Attach files" });
+    const items = composer.locator(".options-menu").getByRole("button");
+    await attach.tap();
+    await expect(items).toHaveText([
+      "Take a photo",
+      "Record a video",
+      "Photos and videos",
+      "Other files",
+    ]);
+    // The menu shows whole within the screen, above the Send row.
+    const box = await composer.locator(".options-menu").boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    expect(box!.y + box!.height).toBeLessThanOrEqual((await attach.boundingBox())!.y);
+    await tab.keyboard.press("Escape");
+    await expect(items).toHaveCount(0);
+    await expect(attach).toBeFocused();
+
+    // Photos and videos opens a picker of those alone, and what it gives
+    // uploads.
+    await attach.tap();
+    const chooser = tab.waitForEvent("filechooser");
+    await items.filter({ hasText: "Photos and videos" }).tap();
+    const picker = await chooser;
+    expect(await picker.element().getAttribute("accept")).toBe("image/*,video/*");
+    expect(picker.isMultiple()).toBe(true);
+    await picker.setFiles({ name: "beach.png", mimeType: "image/png", buffer: png(64, 48) });
+    const attached = composer.getByRole("list", { name: "Files to send" }).getByRole("listitem");
+    await expect(attached.getByText("Uploaded")).toHaveCount(1);
+    await expect(attach).toBeFocused();
+    // Removed, it leaves nothing pending for the tests after.
+    await composer.getByRole("button", { name: "Remove beach.png" }).tap();
+    await expect(attached).toHaveCount(0);
+  } finally {
+    await phone.close();
+  }
 });
 
 test("bytes of HTML and script, declared as each type, run nothing in the page or on their own", async () => {

@@ -137,6 +137,14 @@ tests cover them.
    text box, which would then turn into an attachment. Not required but really, really nice to
    have." Taken, extending A2: an image pasted into the composer's text box becomes an attachment.
 
+6. (2026-11-23, after release, for the phone attach menu of agention#48) Told that on phones the
+   menu offers Take a photo, Record a video, Photos and videos, and Other files (documents and
+   text), so audio files and other types outside those filters cannot be attached from a phone, and
+   asked whether to add an Any file item: "Yeah, for #53, I think we keep it as-is. If people
+   complain, we can adjust." Taken, narrowing A2 on touch devices: the composer attaches from the
+   camera, the device's photos and videos, and its documents and text; a computer still attaches any
+   file.
+
 ## Definition of done
 
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.

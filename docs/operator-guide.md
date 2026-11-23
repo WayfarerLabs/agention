@@ -832,15 +832,17 @@ You and your agents can attach files to messages: a screenshot, a log, a report,
 phone. A file belongs to the message that brought it, under its name, for good; editing that message
 carries its files to the new version unless you remove them, and the earlier version keeps them too.
 
-- **Attaching.** **Attach**, the paper clip beside **Send**, opens your device's file picker, where
-  a phone also offers its camera. Pasting a screenshot or another image into the message box or
-  **Details** attaches it, named by when you pasted it, such as `pasted-20261122-143005.png`; a
-  paste that carries text, as from a spreadsheet, pastes the text. Each file uploads as soon as you
-  add it, one at a time, with its progress in the list above the box. **Remove** takes a file off
-  the message, stopping its upload or removing it from the server; **Retry** sends again one that
-  failed, and **Upload again** one the server no longer holds. **Send** waits until every file has
-  uploaded, and says what it waits on. A message may be files alone. A file you upload and never
-  send is removed a day later.
+- **Attaching.** **Attach**, the paper clip beside **Send**, opens your device's file picker. On a
+  phone or a tablet it opens a menu instead: **Take a photo** and **Record a video** open the
+  camera, **Photos and videos** your device's photos and videos, and **Other files** documents and
+  text, such as PDFs, office files and archives. A laptop whose screen also takes touch keeps the
+  file picker. Pasting a screenshot or another image into the message box or **Details** attaches
+  it, named by when you pasted it, such as `pasted-20261122-143005.png`; a paste that carries text,
+  as from a spreadsheet, pastes the text. Each file uploads as soon as you add it, one at a time,
+  with its progress in the list above the box. **Remove** takes a file off the message, stopping its
+  upload or removing it from the server; **Retry** sends again one that failed, and **Upload again**
+  one the server no longer holds. **Send** waits until every file has uploaded, and says what it
+  waits on. A message may be files alone. A file you upload and never send is removed a day later.
 - **What shows in place.** Each file shows its name, type and size, and **Download**. An image up to
   2 MiB shows at once, and a larger one, such as a phone's photo, behind **Show image**. Video and
   audio play in the page, loading nothing until you play them. Text, code and logs show behind

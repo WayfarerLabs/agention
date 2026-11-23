@@ -1216,29 +1216,41 @@ it.
 
 A message's files (`src/views/thread/files/`) come in two halves. In the composer, **Attach**, an
 icon beside Send, opens a hidden file input that takes several files, with no `accept` and no
-`capture`, so a phone offers its camera among its sources. A paste into the message or Details box
-whose clipboard holds only image files, PNG, JPEG, GIF or WebP, attaches them, named
-`pasted-YYYYMMDD-HHMMSS` in local time with their type's extension, and inserts nothing; a paste
-that carries `text/plain` stays text, since some programs put a picture of what was copied beside
-its text. A name another file of the draft has gets `-2`, `-3` and so on before its extension. A
-file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh, is refused in the
-list, saying why, without uploading. The others upload one at a time, in the order added, since a
-browser opens only a few connections to one host and the long poll and every read share them.
-`uploadFile` in `src/api.ts` sends each with `XMLHttpRequest`, which reports upload progress, as the
-`File` itself, so the browser states its length, declaring `File.type`, else `typeOfName`; no
-progress for 60 seconds aborts it, longer than the server's own idle limit so the server's answer
-comes first, and there is no total deadline. `request` announces each change that lands, but an
-upload alone changes none of the navigation's counts, so it announces none. The list shows each
-file's name, size and state, with a progress bar while it uploads, **Retry** for one that failed,
-**Upload again** for one that expired, and **Remove**, which stops an upload under way while bytes
-remain, lets one whose every byte has gone answer and then removes it from the server, and removes a
-finished one from the server, so it stops counting against the operator's pending uploads at once.
-Only a Remove in the instant before the list shows the last byte gone or the upload's answer, or a
-removal the connection loses, leaves the upload counting until it expires. Send waits until every
-file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then uploads as
-`{upload, name}`; a refusal naming an upload marks that file expired. A stale write keeps the files
-with the draft. Editing a message, or changing its answers, loads its files as kept, which
-**Remove** drops from the replacement.
+`capture`. Where the primary pointer is coarse (`(pointer: coarse)`), a phone or a tablet, whose
+browser would hand that input to the system's chooser, Attach is an options menu of its own instead,
+of four items each opening its own hidden input: **Take a photo** (`accept="image/*"`,
+`capture="environment"`), **Record a video** (`video/*`, likewise), **Photos and videos**
+(`image/*,video/*`, several, which recent Android shows in its photo picker) and **Other files**
+(`application/*,text/*`, several: a picker that could take images, video or audio is one Android
+hands to its chooser of camera, video camera and files, which the menu stands in for). A touchscreen
+laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
+`(any-pointer: coarse)` would not. Focus stays on Attach as the menu opens, as in every options
+menu, and Escape or a tap elsewhere closes it with focus back on Attach; whatever an input gives is
+added alike. `useMedia` in `src/media.ts` follows a media query, this one and the color scheme
+diagrams are drawn in; the component tests run on a `matchMedia` that matches nothing, from
+`src/test-setup.ts`, unless a test stubs it. A paste into the message or Details box whose clipboard
+holds only image files, PNG, JPEG, GIF or WebP, attaches them, named `pasted-YYYYMMDD-HHMMSS` in
+local time with their type's extension, and inserts nothing; a paste that carries `text/plain` stays
+text, since some programs put a picture of what was copied beside its text. A name another file of
+the draft has gets `-2`, `-3` and so on before its extension. A file whose name cannot be a file's
+(`fileName`), one over 100 MiB, or an eleventh, is refused in the list, saying why, without
+uploading. The others upload one at a time, in the order added, since a browser opens only a few
+connections to one host and the long poll and every read share them. `uploadFile` in `src/api.ts`
+sends each with `XMLHttpRequest`, which reports upload progress, as the `File` itself, so the
+browser states its length, declaring `File.type`, else `typeOfName`; no progress for 60 seconds
+aborts it, longer than the server's own idle limit so the server's answer comes first, and there is
+no total deadline. `request` announces each change that lands, but an upload alone changes none of
+the navigation's counts, so it announces none. The list shows each file's name, size and state, with
+a progress bar while it uploads, **Retry** for one that failed, **Upload again** for one that
+expired, and **Remove**, which stops an upload under way while bytes remain, lets one whose every
+byte has gone answer and then removes it from the server, and removes a finished one from the
+server, so it stops counting against the operator's pending uploads at once. Only a Remove in the
+instant before the list shows the last byte gone or the upload's answer, or a removal the connection
+loses, leaves the upload counting until it expires. Send waits until every file has uploaded, saying
+what it waits on, and sends kept files as `{keep}`, then uploads as `{upload, name}`; a refusal
+naming an upload marks that file expired. A stale write keeps the files with the draft. Editing a
+message, or changing its answers, loads its files as kept, which **Remove** drops from the
+replacement.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with
@@ -1296,10 +1308,11 @@ its public key with `--ignore-certificate-errors-spki-list`. That makes the page
 context rather than one that bypasses a certificate error. The diagram tests start a server of their
 own, and drive the frame under the server's real policies. The voice tests start one too, with a
 local stub of a transcription provider, and record through Chromium's fake microphone. The
-attachment tests attach a file and paste an image, show images, video, audio and text in place and
-open a PDF's tab, download every file, and serve HTML and script bytes declared as each served type,
-which run nothing in the page or opened on their own. The API keys tests start one as well, create a
-key in Settings, and call the operator mount with its secret from outside the browser.
+attachment tests attach a file and paste an image, open Attach's menu in a touch context at a
+phone's width and choose from it, show images, video, audio and text in place and open a PDF's tab,
+download every file, and serve HTML and script bytes declared as each served type, which run nothing
+in the page or opened on their own. The API keys tests start one as well, create a key in Settings,
+and call the operator mount with its secret from outside the browser.
 
 ## Generated plugins
 

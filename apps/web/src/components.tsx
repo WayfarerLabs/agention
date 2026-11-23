@@ -16,7 +16,7 @@ import {
   useState,
 } from "react";
 import { describeFailure } from "./api.ts";
-import { Icon } from "./icons.tsx";
+import { Icon, type IconName } from "./icons.tsx";
 import { serverName } from "./server-name.ts";
 
 // Pieces the views share.
@@ -455,19 +455,25 @@ export function Sheet({
 // An options menu's way to close as an item is chosen.
 const MenuChoice = createContext<() => void>(() => {});
 
-// OptionsMenu is a button of three dots and the short menu of items it
-// discloses below it, over what follows. Escape, choosing an item, a tap
-// elsewhere, or focus moving on to another control closes it. Focus returns
-// to the button, without scrolling to it, unless it went to that control or
-// the tap landed on one. Choosing an item returns focus before the item acts,
-// so an item that opens something, such as a sheet or a question, takes focus
-// on to it. notes follow the items, such as why one waits. button, when
-// given, is the caller's hold on the button, for focus to come back to later.
+// OptionsMenu is a button of three dots, or of icon, and the short menu of
+// items it discloses over what is around it, below the button unless the
+// stylesheet places it elsewhere, as it does Attach's. Escape, choosing an
+// item, a tap elsewhere, or focus moving on to another control closes it.
+// Focus returns to the button, without scrolling to it, unless it went to
+// that control or the tap landed on one. Choosing an item returns focus
+// before the item acts, so an item that opens something, such as a sheet or a
+// question, takes focus on to it. notes follow the items, such as why one
+// waits. button, when given, is the caller's hold on the button, for focus to
+// come back to later. buttonClass lets the button look as the control the
+// menu stands in for, such as Attach.
 export function OptionsMenu({
   label,
   open,
   setOpen,
   button,
+  icon = "options",
+  buttonClass = "options-button",
+  disabled,
   notes,
   children,
 }: {
@@ -475,6 +481,9 @@ export function OptionsMenu({
   open: boolean;
   setOpen: (open: boolean) => void;
   button?: RefObject<HTMLButtonElement | null>;
+  icon?: IconName;
+  buttonClass?: string;
+  disabled?: boolean;
   notes?: ReactNode;
   children: ReactNode;
 }) {
@@ -521,13 +530,14 @@ export function OptionsMenu({
       <button
         ref={opener}
         type="button"
-        className="options-button"
+        className={buttonClass}
         aria-label={label}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
+        disabled={disabled}
         onClick={() => setOpen(!open)}
       >
-        <Icon name="options" />
+        <Icon name={icon} />
       </button>
       {open && (
         <div id={id} className="options-menu">

@@ -13,7 +13,7 @@ let revoked: string[];
 beforeEach(() => {
   created = [];
   revoked = [];
-  // jsdom has neither blob: URLs nor media queries.
+  // jsdom has no blob: URLs.
   Object.assign(URL, {
     createObjectURL: () => {
       created.push(`blob:diagram-${created.length + 1}`);
@@ -21,11 +21,6 @@ beforeEach(() => {
     },
     revokeObjectURL: (url: string) => revoked.push(url),
   });
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-  }));
 });
 
 // The page's one frame stays for every test, as it would on a page.

@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { type DiagramTheme, tooLongToDraw } from "../diagram-frame/protocol.ts";
+import { useMedia } from "../media.ts";
 import { DiagramViewer } from "./DiagramViewer.tsx";
 import { drawDiagram } from "./diagrams.ts";
 import { SvgImage } from "./SvgImage.tsx";
@@ -13,22 +14,8 @@ import { SvgImage } from "./SvgImage.tsx";
 // drawn again when the color scheme changes, and its SVG is kept for that
 // and for the viewer.
 
+// A dark color scheme, which a diagram is drawn in Mermaid's dark theme for.
 const darkScheme = "(prefers-color-scheme: dark)";
-
-function subscribeToScheme(changed: () => void): () => void {
-  const query = window.matchMedia(darkScheme);
-  query.addEventListener("change", changed);
-  return () => query.removeEventListener("change", changed);
-}
-
-// useDiagramTheme is the Mermaid theme that matches the app's color scheme.
-function useDiagramTheme(): DiagramTheme {
-  return useSyncExternalStore(
-    subscribeToScheme,
-    () => (window.matchMedia(darkScheme).matches ? "dark" : "default"),
-    () => "default",
-  );
-}
 
 type State =
   | { kind: "drawing" }
@@ -36,7 +23,7 @@ type State =
   | { kind: "drawn"; svg: string; alt: string; description: string | undefined };
 
 export function Diagram({ source }: { source: string }) {
-  const theme = useDiagramTheme();
+  const theme: DiagramTheme = useMedia(darkScheme) ? "dark" : "default";
   const [state, setState] = useState<State>({ kind: "drawing" });
   const [showSource, setShowSource] = useState(false);
   const [viewing, setViewing] = useState(false);
