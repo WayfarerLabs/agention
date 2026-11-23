@@ -29,3 +29,11 @@ require_npm_tools() {
 read_pin() {
     tr -d '[:space:]' <"$REPO_ROOT/$1"
 }
+
+# agent_api_of prints the version and oldest of the one line on standard input
+# that declares agentApi, written as packages/api/src/agent-api.ts writes it,
+# and nothing for a line written any other way, so a gate reading it fails
+# rather than reading a wrong version.
+agent_api_of() {
+    sed -nE 's/^export const agentApi = \{ version: ([0-9]+), oldest: ([0-9]+) \} as const;$/\1 \2/p'
+}
