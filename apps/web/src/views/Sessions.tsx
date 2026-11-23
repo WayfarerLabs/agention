@@ -20,7 +20,7 @@ import {
 } from "../components.tsx";
 import { usePages, useResource } from "../data.ts";
 import { useFolds } from "../device.ts";
-import { plural } from "../format.tsx";
+import { plural, Spoken } from "../format.tsx";
 import { GroupSheet, GroupsAndTagsSheet, TagChip, TagsSheet } from "./sessions/GroupsAndTags.tsx";
 import { NewThreadSheet } from "./sessions/NewThreadSheet.tsx";
 import {
@@ -28,11 +28,10 @@ import {
   loadRegistrations,
   PendingRegistration,
 } from "./sessions/Registrations.tsx";
+import { BlockedLink, FilterLink } from "./filter-links.tsx";
 import {
   composeSessions,
-  OpenAsksFlag,
-  openAsksWords,
-  rollupWords,
+  OpenAsksLink,
   SessionsRollupMarks,
   StrandedLink,
   ThreadsLink,
@@ -49,13 +48,16 @@ import { SessionRow, sessionKey } from "./sessions/SessionRow.tsx";
 // requests. Once some session is in a group, the agents fold under their
 // groups, groups in name order and no group last, each group's head rolling
 // up its sessions with a link to their threads, and an agent with sessions
-// in two groups comes under each with that group's sessions alone. The view
-// reads every session before it shows any, so it folds them by the group
-// each session carries. It refreshes as every view does. This browser keeps
-// the groups and agents it folds and whether the past requests are shown; a
-// session's row starts folded on every visit. What a fold hides is not
-// loaded, so a session's log loads and is read only while its row is
-// unfolded under an unfolded agent.
+// in two groups comes under each with that group's sessions alone. Every
+// chip that stands for threads, the names of groups, agents and sessions
+// among them, links to those threads on the thread list, and following one
+// never folds anything; a header's chevron folds it, as a click on the rest
+// of its bar does. The view reads every session before it shows any, so it
+// folds them by the group each session carries. It refreshes as every view
+// does. This browser keeps the groups and agents it folds and whether the
+// past requests are shown; a session's row starts folded on every visit.
+// What a fold hides is not loaded, so a session's log loads and is read
+// only while its row is unfolded under an unfolded agent.
 
 // What the operator is organizing, in a sheet open on it: every group and
 // tag, a session's group, or an agent's or a session's tags; and the control
@@ -283,9 +285,10 @@ function foldByGroup(agents: Agents): GroupFold[] {
 }
 
 // SessionFolds shows the agents, folded under their groups once any session
-// is in one. Each group's head carries its sessions' roll-up, with Blocked on
-// you while any blocking ask is open in them, unless the view was cut short or an
-// agent under it left sessions out, and a link to its threads.
+// is in one. Each group's head names the group, linking to its threads, and
+// carries its sessions' roll-up, with Blocked on you while any blocking ask
+// is open in them, unless the view was cut short or an agent under it left
+// sessions out, and a link to its threads.
 function SessionFolds({
   agents,
   truncated,
@@ -302,32 +305,32 @@ function SessionFolds({
       truncated || held.some((entry) => entry.truncated)
         ? undefined
         : composeSessions(held.flatMap((entry) => entry.sessions));
-    const spoken = group === undefined ? name : `Group ${name}`;
+    const narrowing: Partial<ThreadsView> = { session_group: [group?.id ?? noGroup] };
+    const label = group === undefined ? "no group" : name;
     return (
       <Fold
         key={key}
         level={3}
         depth="outer"
-        label={name}
-        marks={
-          rollup !== undefined && (
-            <span className="roll-up" aria-hidden="true">
-              <SessionsRollupMarks rollup={rollup} />
-              {rollup.blocked && <span className="flag danger">Blocked on you</span>}
-            </span>
-          )
+        name={group === undefined ? name : `Group ${name}`}
+        label={
+          <FilterLink
+            narrowing={narrowing}
+            spoken={group === undefined ? "Threads in no group" : `Threads in group ${name}`}
+          >
+            {name}
+          </FilterLink>
         }
-        spoken={[
-          spoken,
-          ...(rollup === undefined ? [] : rollupWords(rollup)),
-          ...(rollup?.blocked === true ? ["blocked on you"] : []),
-        ].join(", ")}
-        actions={
-          <ThreadsLink
-            rollup={rollup}
-            narrowing={{ session_group: [group?.id ?? noGroup] }}
-            label={group === undefined ? "no group" : name}
-          />
+        marks={
+          <>
+            {rollup !== undefined && (
+              <span className="roll-up">
+                <SessionsRollupMarks rollup={rollup} narrowing={narrowing} label={label} />
+                {rollup.blocked && <BlockedLink narrowing={narrowing} label={label} />}
+              </span>
+            )}
+            <ThreadsLink rollup={rollup} narrowing={narrowing} label={label} />
+          </>
         }
         folded={folds.has(key)}
         toggle={() => folds.toggle(key)}
@@ -340,8 +343,10 @@ function SessionFolds({
 
 // AgentFolds shows each agent under its header, its sessions' rows beneath,
 // a level below; the headers sit a level below a group's head when under
-// one, and at the group's own level otherwise. Under a group, an agent's
-// threads and stranded threads link to those in that group, and this
+// one, and at the group's own level otherwise. Each header's name, its
+// roll-up's marks and its open asks link to the threads they stand for, and
+// its tags to the threads carrying them. Under a group, an agent's links
+// lead to the threads in that group, its tags' aside, and this
 // browser keeps its fold by the group's id and the agent's name, so an agent
 // under two groups folds under each apart; an agent in no group keeps its
 // fold by its name alone, as without groups. The rows unfolded hold only
@@ -388,31 +393,30 @@ function AgentFolds({
         key={fold}
         level={level}
         depth={level === 3 ? "outer" : "inner"}
-        label={<PathParts place={[["agent", entry.agent]]} />}
-        marks={
-          <span className="roll-up" aria-hidden="true">
-            <span className="roll-up-count">{sessions}</span>
-            {rollup !== undefined && <SessionsRollupMarks rollup={rollup} />}
-            {asks > 0 && <OpenAsksFlag count={asks} blocking={blocking > 0} />}
-            {entry.tags.map((tag) => (
-              <TagChip key={tag} tag={tag} />
-            ))}
-          </span>
+        name={`Agent ${entry.agent}`}
+        label={
+          <FilterLink narrowing={narrowing} spoken={`Threads of agent ${entry.agent}`}>
+            <PathParts place={[["agent", entry.agent]]} />
+          </FilterLink>
         }
-        spoken={[
-          `Agent ${entry.agent}`,
-          entry.truncated ? `more than ${sessions}` : sessions,
-          ...(rollup === undefined ? [] : rollupWords(rollup)),
-          ...(asks > 0
-            ? openAsksWords(asks, blocking > 0).map((words) => words.toLowerCase())
-            : []),
-          ...(stranded === 0
-            ? []
-            : [entry.truncated ? "stranded threads" : plural(stranded, "stranded thread")]),
-          ...(entry.tags.length > 0 ? [`tags ${entry.tags.join(", ")}`] : []),
-        ].join(", ")}
-        actions={
+        marks={
           <>
+            <span className="roll-up">
+              <span className="roll-up-count">
+                <Spoken
+                  shown={sessions}
+                  spoken={entry.truncated ? `more than ${sessions}` : sessions}
+                />
+              </span>
+              {rollup !== undefined && (
+                <SessionsRollupMarks rollup={rollup} narrowing={narrowing} label={entry.agent} />
+              )}
+              {blocking > 0 && <BlockedLink narrowing={narrowing} label={entry.agent} />}
+              {asks > 0 && <OpenAsksLink count={asks} narrowing={narrowing} label={entry.agent} />}
+              {entry.tags.map((tag) => (
+                <TagChip key={tag} tag={tag} />
+              ))}
+            </span>
             <ThreadsLink rollup={rollup} narrowing={narrowing} label={entry.agent} />
             {stranded > 0 && (
               <StrandedLink
@@ -421,14 +425,16 @@ function AgentFolds({
                 label={entry.agent}
               />
             )}
-            <AgentMenu
-              agent={entry.agent}
-              tags={entry.tags}
-              onTags={(opener) =>
-                organize({ kind: "tags", agent: entry.agent, tags: entry.tags, opener })
-              }
-            />
           </>
+        }
+        actions={
+          <AgentMenu
+            agent={entry.agent}
+            tags={entry.tags}
+            onTags={(opener) =>
+              organize({ kind: "tags", agent: entry.agent, tags: entry.tags, opener })
+            }
+          />
         }
         folded={folds.has(fold)}
         toggle={() => folds.toggle(fold)}
@@ -463,7 +469,7 @@ function AgentFolds({
   });
 }
 
-// AgentMenu is an agent's options beside its header: Tags, which opens the
+// AgentMenu is an agent's options at its header's end: Tags, which opens the
 // sheet setting its tags.
 function AgentMenu({
   agent,

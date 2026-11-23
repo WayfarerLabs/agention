@@ -1,16 +1,19 @@
 import type { SessionSummary, ThreadsView } from "@wayfarerlabs/agention-api";
 import { plural } from "../../format.tsx";
-import { UnreadCount } from "../../icons.tsx";
-import { Link, listHref, unfiltered } from "../../router.tsx";
+import { FilterLink, type Scope, UnreadLink } from "../filter-links.tsx";
 
 // What the sessions view shows of the sessions under a session's row, an
 // agent's header or a group's head: their threads' roll-up, as the thread
 // list's headers show theirs (how many threads and the envelope with how many
-// are unread), with a link to those threads on the thread list, and their
-// unread updates as a mark of their own, so the envelope means unread threads
-// everywhere. Whether any is blocked on the operator shows once, in the
-// thread list's words: a row's and an agent's open asks say it, and a
-// group's head, which has none, shows Blocked on you.
+// are unread), and their unread updates as a mark of their own, so the
+// envelope means unread threads everywhere. Whether any is blocked on the
+// operator shows once, as Blocked on you, beside a row's and an agent's open
+// asks, and on a group's head, which has none. Every mark that stands for
+// threads links to them on the thread list, narrowed to the threads of what
+// it sits on and the mark's own filter, with no other filter on: the count
+// to them all, the envelope to the unread, Blocked on you to those blocking
+// on an ask, and the open asks to the open threads. The unread updates stand
+// for the log, not for threads.
 
 // What sessions hold, rolled up: how many threads the operator has not
 // archived, how many of those hold messages they have not read, whether any
@@ -44,41 +47,28 @@ export function composeSessions(sessions: readonly SessionSummary[]): SessionsRo
   };
 }
 
-// rollupWords says a roll-up for assistive technology, after what it heads,
-// blocked aside: "3 threads, 1 unread, 2 new updates".
-export function rollupWords(rollup: SessionsRollup): string[] {
-  return [
-    plural(rollup.threads, "thread"),
-    ...(rollup.unread > 0 ? [`${rollup.unread} unread`] : []),
-    ...(rollup.unread_updates > 0 ? [plural(rollup.unread_updates, "new update")] : []),
-  ];
-}
-
-// openAsksWords says what open asks wait on the operator, in the thread
-// list's words, for the eye and for assistive technology: "Blocked on you"
-// first while any blocks its agent's work, then how many are open.
-export function openAsksWords(count: number, blocking: boolean): string[] {
-  return [...(blocking ? ["Blocked on you"] : []), plural(count, "open ask")];
-}
-
-// OpenAsksFlag shows open asks in those words, in the danger tone while any
-// blocks, as the thread list's Blocked on you does, and the attention tone
-// otherwise.
-export function OpenAsksFlag({ count, blocking }: { count: number; blocking: boolean }) {
+// OpenAsksLink flags how many asks are open on the operator, in the
+// attention tone, linking to the open threads.
+export function OpenAsksLink({ count, narrowing, label, list }: Scope & { count: number }) {
+  const asks = plural(count, "open ask");
   return (
-    <span className={blocking ? "flag danger" : "flag attention"}>
-      {openAsksWords(count, blocking).join(" · ")}
-    </span>
+    <FilterLink
+      narrowing={{ ...narrowing, status: "open" }}
+      spoken={`${asks} of ${label}`}
+      list={list}
+    >
+      <span className="flag attention">{asks}</span>
+    </FilterLink>
   );
 }
 
-// SessionsRollupMarks shows a roll-up's marks for the eye, its threads' count
+// SessionsRollupMarks shows a roll-up's marks on a header, its threads' count
 // aside, which ThreadsLink shows, and blocked aside: the envelope and the
 // unread updates.
-export function SessionsRollupMarks({ rollup }: { rollup: SessionsRollup }) {
+export function SessionsRollupMarks({ rollup, ...scope }: Scope & { rollup: SessionsRollup }) {
   return (
     <>
-      <UnreadCount unread={rollup.unread} />
+      <UnreadLink unread={rollup.unread} {...scope} />
       {rollup.unread_updates > 0 && (
         <span className="flag accent">{plural(rollup.unread_updates, "new update")}</span>
       )}
@@ -102,13 +92,9 @@ export function ThreadsLink({
 }) {
   const shown = rollup === undefined ? "Threads" : plural(rollup.threads, "thread");
   return (
-    <Link
-      className="threads-link"
-      to={listHref({ ...unfiltered, ...narrowing })}
-      aria-label={`${shown} of ${label}`}
-    >
+    <FilterLink className="threads-link" narrowing={narrowing} spoken={`${shown} of ${label}`}>
       {shown}
-    </Link>
+    </FilterLink>
   );
 }
 
@@ -133,12 +119,12 @@ export function StrandedLink({
       ? ["Stranded", "Stranded threads"]
       : [`${stranded} stranded`, plural(stranded, "stranded thread")];
   return (
-    <Link
+    <FilterLink
       className="stranded-link"
-      to={listHref({ ...unfiltered, ...narrowing, agent_read: "stranded" })}
-      aria-label={`${spoken} of ${label}`}
+      narrowing={{ ...narrowing, agent_read: "stranded" }}
+      spoken={`${spoken} of ${label}`}
     >
       <span className="flag warning">{shown}</span>
-    </Link>
+    </FilterLink>
   );
 }
