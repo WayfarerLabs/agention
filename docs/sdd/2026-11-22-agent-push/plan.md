@@ -7,35 +7,44 @@
 
 ## Delivery 1: push on Claude Code
 
-- [ ] The host record: written under the private-file rule once a registration is approved and
-      whenever the granted names change, keyed by the host session id from the environment, none
-      without one, and records a week stale with no live lock pruned. Done when the bridge's tests
-      show each case, including a session with no id writing nothing (HLA "The host record").
-- [ ] The watcher, `agention-mcp watch`: the lock, waiting for a record and an approved
-      registration, the 25-second loop with the saved cursor and the heartbeat, the notice, backoff
-      on unreachable servers, and exit 0 with the heartbeat removed on a refusal it cannot outlast.
-      Done when tests against the bridge's test server show a message pushed once whether or not it
-      is read, a second watcher exiting at once, recovery after the server restarts, and nothing
-      pushed before approval (P1 to P4, H4, C2).
-- [ ] The bridge's push status: `register` says answers are pushed only with a live heartbeat, and
-      the first tool answer after it goes stale says they reach the agent when it checks, once. Done
-      when tests show both answers and the lapse line, and that a Codex-like environment never
-      claims push (H3, H4).
-- [ ] The plugin: the hook in the plugin definition, `hooks/hooks.json` generated into the Claude
-      Code plugin only with the package spec of the MCP declaration, and the generated outputs
-      committed. Done when the generator's tests and drift check pass and the Codex plugin is
-      unchanged.
-- [ ] The usage skill's "How answers reach you" for pushed and checking sessions, regenerated into
-      both plugins.
-- [ ] Permanent docs: a new ADR for push and its notice, with ADR 0001's "No push" marked superseded
-      and its "No permissions, no harness control" and "Never holds up" amended; README;
-      `docs/review-checklist.md` A1; `SECURITY.md`; `docs/architecture.md`; the operator guide;
-      `docs/live-testing.md`; and the development contract (E1).
+- [ ] The host directory: found from the watcher's `CLAUDE_PID` and the bridge's ancestors, under
+      the private-file rule, with the `watcher` lock, `hooked` mark, `wake` file and `cursor`, and
+      directories of dead pids removed. Done when the bridge's tests show the bridge finding its
+      host's directory, finding none without a mark, and pruning a dead one (HLA "The host
+      directory").
+- [ ] The bridge's wait: started only for a Claude Code client whose host has the mark, reading a
+      pending registration's state every 15 seconds without submitting, the 25-second loop with the
+      cursor saved before the wake file, the cursor discarded for other granted names, backoff on an
+      unreachable server, and giving up only on what it cannot outlast. Done when tests against the
+      bridge's test server show a message pushed once whether or not it is read and across a bridge
+      restart, push starting after approval with no tool call, recovery after the server restarts,
+      nothing running for a client that is not Claude Code, and the notice holding only fixed words
+      and integers (P1 to P4, H4, C2).
+- [ ] Telling the agent: `register` says answers are pushed exactly when the HLA says, the lapse
+      line appears once on the next tool answer after the wait gives up, and `toolMeta` counts it.
+      Done when tests show both answers, the lapse line and a Codex client never told push (H3, H4).
+- [ ] The watcher and the plugin: the shell watcher, and the hook in the plugin definition,
+      generated into the Claude Code plugin only, on `SessionStart` and `Stop` with `asyncRewake`
+      and the day-long timeout. Done when tests run the watcher itself and show it exiting 0 without
+      Agention's variables, one watcher per host process, exit 2 only after taking a wake file with
+      the notice on stderr, exit 0 when its host process is gone, and the generator's tests and
+      drift check pass with the Codex plugin unchanged.
+- [ ] The usage skill's loop, step 5, and the `register` and `message_wait` descriptions for pushed
+      and checking sessions, regenerated into both plugins. Done when the generated outputs are
+      committed and the drift check passes.
+- [ ] Permanent docs: the new ADR, superseding ADR 0001's "No push" for agents and amending its "No
+      permissions, no harness control" and "Never holds up"; README; `docs/review-checklist.md` A1;
+      `SECURITY.md` "The agent bridge" and "Files it writes"; `docs/architecture.md`; the operator
+      guide, with push's needs on Claude Code, none on Codex, the day-long limit and stranded
+      threads; `docs/live-testing.md`; and the development contract (E1). Done when each describes
+      push as built and the project review finds none stale.
 - [ ] Live run on Claude Code with the plugin from a packed build: an agent at its prompt is pushed
       when the operator starts a thread with it from the web UI, reads it and acts on it, after its
-      `register` answer said answers are pushed; a server restart is recovered from; the lapse line
-      appears when the watcher is stopped; and whether `/clear` and a resumed session keep push is
-      recorded (definition of done, HLA "Risks and open items").
+      `register` answer said answers are pushed; a woken turn longer than a minute shows no lapse
+      line; push starts after an approval given while the agent waits; a server restart is recovered
+      from; push survives `/clear`; a message during a turn is recorded; an untrusted folder or
+      `--bare` is told it checks; and `/exit` leaves no watcher (definition of done, HLA "Risks and
+      open items").
 - [ ] Live check on Codex: the bridge's `register` answer says answers reach the agent when it
-      checks, and the operator guide says Codex has no push (definition of done, ruling 2).
+      checks, and nothing runs in the background (definition of done, ruling 2).
 - [ ] `locked.md` in this directory, with the final merge.

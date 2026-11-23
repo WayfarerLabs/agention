@@ -101,6 +101,11 @@ variables removed from its environment so it could not reach Agention.
     600-second default.
   - On `/exit` the running watcher received a termination signal, leaving nothing behind.
   - The workspace trust prompt came first; hooks run only once a folder is trusted.
+- **The bridge and the hooks share the host process, not the session id.** A second plugin with an
+  MCP server and plain hooks logged what each saw. The MCP server's `CLAUDE_CODE_SESSION_ID` matched
+  the hooks' `session_id` at first, but `/clear` gave the hooks a new one while the MCP server, not
+  restarted, kept the old. The hooks see the Claude Code process's pid in `CLAUDE_PID`, and that
+  process is the MCP server's parent. Both variables are undocumented.
 - **`codex queue` neither wakes nor delivers to an open session.** With a Codex session at its
   prompt, `codex queue --thread <id> --message <text>` exited 0 and stored the message in
   `~/.codex/queue_1.sqlite`, but the session did not wake within 60 seconds and did not take the
