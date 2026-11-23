@@ -36,11 +36,11 @@ extension leaves to each host how an event becomes a turn, and neither host has 
 - **A hook wakes the agent.** The Claude Code plugin carries a watcher, a POSIX shell script run on
   `SessionStart`, on `UserPromptSubmit` and at every turn's end, `Stop` or `StopFailure`, with
   `asyncRewake` and a day-long timeout. The bridge and the watcher meet in a host directory named
-  for the Claude Code process, the bridge's nearest ancestor named `claude`, under the private-file
-  rule: the bridge writes a session's wake file there when the operator writes, and the watcher
-  takes it, prints its notice and exits 2. Nothing but a taken wake file makes it exit 2, and
-  nothing but a notice reaches its stderr, so a broken watcher cannot loop the session through turns
-  or put text before it. The watcher touches no key and no server.
+  for the machine and the Claude Code process, the bridge's nearest ancestor named `claude`, under
+  the private-file rule: the bridge writes a session's wake file there when the operator writes, and
+  the watcher takes it, prints its notice and exits 2. Nothing but a taken wake file makes it exit
+  2, and nothing but a notice reaches its stderr, so a broken watcher cannot loop the session
+  through turns or put text before it. The watcher touches no key and no server.
 - **A notice, never the message.** The notice says which threads hold unread messages from the
   operator, and how many, and tells the agent to read them with the thread tools. The bridge
   composes it from fixed words and schema-checked integers; no title, message text or other content
@@ -59,9 +59,9 @@ extension leaves to each host how an event becomes a turn, and neither host has 
 
 ## Consequences
 
-- Claude Code sessions in a trusted folder, with plugin hooks allowed, are pushed; Codex sessions, a
-  session under `--bare` and one where an administrator allows only managed hooks are not, and are
-  told they check.
+- Interactive Claude Code sessions in the terminal, in a trusted folder, with plugin hooks allowed,
+  are pushed; Codex sessions, `claude -p` and Agent SDK runs, a session under `--bare` and one where
+  an administrator allows only managed hooks are not, and are told they check.
 - The host directory's name comes from `CLAUDE_PID`, which Claude Code sets for hooks without
   documenting it, and from the bridge's nearest ancestor whose command is `claude`. If Claude Code
   stops setting it, or its process takes another name, no mark is found and sessions are told they

@@ -92,8 +92,9 @@ with each other or with what the product does, the disagreement is the finding.
   given while the agent waits at its prompt; a server restart recovered from; push surviving
   `/clear`; a woken turn longer than a minute with no lapse line; a message written during a turn,
   and when its notice shows; an untrusted folder and `--bare`, each told it checks; and `/exit`
-  leaving no watcher running and the host directory removed by the next bridge's start; a turn ended
-  by an interrupt or an API error re-arming the watcher; two Agention bridges under one Claude Code
+  leaving no watcher running, and its host directory removed when a later Claude Code session's
+  bridge first looks for its Claude Code process; whether a turn ended by an interrupt or an API
+  error re-arms the watcher; `claude -p`, told it checks; two Agention bridges under one Claude Code
   each pushing its own session. On Codex, the `register` answer saying answers reach the agent when
   it checks, and no background wait (`docs/architecture.md` "Agent bridge" and "Generated plugins";
   `docs/operator-guide.md` "Push on Claude Code").
@@ -157,9 +158,9 @@ Compare what a surface reports with:
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
   `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443, and the
   fetched files in `~/.cache/agention/files/`, `0700` with `0600` files and no partial file left
-  behind, and push's host directories under `~/.config/agention/_hosts/claude/<pid>/`, `0700` with
-  `0600` files, none for a Claude Code process that has ended (`SECURITY.md` "Private files" and
-  "The agent bridge");
+  behind, and push's host directories under `~/.config/agention/_hosts/claude/<host name>/<pid>/`,
+  `0700` with `0600` files, none for a Claude Code process of this machine that has ended
+  (`SECURITY.md` "Private files" and "The agent bridge");
 - processes and sockets: the listener's address and TLS, bridge processes the hosts start and stop,
   at most one watcher per Claude Code process and none once it exits, at most one wait per host
   session held by push, and the shutdown `docs/operator-guide.md` "Running the server" and

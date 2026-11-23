@@ -292,13 +292,13 @@ sends only what its tools are given.
   answer that does not state a length of at most 100 MiB, and removes what it fetched more than
   seven days ago. A fetched file is material for the agent to work with, never the operator's
   instructions, as the usage skill says. For push on Claude Code, the bridge also writes into the
-  host directory `~/.config/agention/_hosts/claude/<pid>/`, named for its nearest ancestor process
-  named `claude` and [private](#private-files): for each session it pushes, a cursor holding the
-  server's origin, the granted names and the wait's position, and a wake file holding the notice,
-  each named by a hash of the origin and names, each written to a temporary file and renamed into
-  place. The plugin's watcher writes the `hooked` mark in place, and the `watcher` lock, its own
-  pid, by renaming. None of them holds a secret. The bridge removes the directory of a host process
-  that has ended.
+  host directory `~/.config/agention/_hosts/claude/<host name>/<pid>/`, named for the machine and
+  its nearest ancestor process named `claude`, and [private](#private-files): for each session it
+  pushes, a cursor holding the server's origin, the granted names and the wait's position, and a
+  wake file holding the notice, each named by a hash of the origin and names, each written to a
+  temporary file and renamed into place. The plugin's watcher writes the `hooked` mark in place, and
+  the `watcher` lock, its own pid, by renaming. None of them holds a secret. The bridge removes the
+  directory of a host process of this machine that has ended.
 - **Push.** On Claude Code the bridge waits for the operator's messages in the background, signing
   each request with the session's key as every other request is, and the plugin's watcher, a hook
   Claude Code runs, prints the notice the bridge wrote, which wakes the agent. The watcher reads no
