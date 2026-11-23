@@ -9,8 +9,8 @@
 
 - [ ] The host directory: found from the watcher's `CLAUDE_PID` and the bridge's ancestors, under
       the private-file rule, with the `watcher` lock, `hooked` mark, `wake` file and `cursor`, and
-      directories of dead pids removed. Done when the bridge's tests show the bridge finding its
-      host's directory, finding none without a mark, and pruning a dead one (HLA "The host
+      directories of dead processes removed. Done when the bridge's tests show the bridge finding
+      its host's directory, finding none without a mark, and pruning a dead one (HLA "The host
       directory").
 - [ ] The bridge's wait: started only for a Claude Code client whose host has the mark, reading a
       pending registration's state every 15 seconds without submitting, the 25-second loop with the
