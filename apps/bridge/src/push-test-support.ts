@@ -74,8 +74,11 @@ export async function threadWith(bridge: TestBridge, title = "A question"): Prom
 }
 
 export class PushHarness extends BridgeHarness {
-  hostDirectory(pid = host): string {
-    return path.join(claudeHostsDirectory(this.home, hostname()), String(pid));
+  // The host name the Claude Code bridges see, which a test may change.
+  hostName = hostname();
+
+  hostDirectory(pid = host, hostName = this.hostName): string {
+    return path.join(claudeHostsDirectory(this.home, hostName), String(pid));
   }
 
   // markHost makes a host directory with the watcher's mark, as the watcher
@@ -126,7 +129,12 @@ export class PushHarness extends BridgeHarness {
     names: Record<string, string> = {},
     pushTiming = timing,
   ): Promise<TestBridge> {
-    return this.bridge(names, this.home, { client, host: () => host, pushTiming });
+    return this.bridge(names, this.home, {
+      client,
+      host: () => host,
+      hostName: () => this.hostName,
+      pushTiming,
+    });
   }
 
   // registered starts a Claude Code bridge whose session the operator has

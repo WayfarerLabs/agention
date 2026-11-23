@@ -1,6 +1,6 @@
 import { agentApi, agentApiHeader } from "@wayfarerlabs/agention-api";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
@@ -95,7 +95,7 @@ describe("where push runs", () => {
     const bridge = await harness.bridge({}, harness.home, {
       client: claudeCodeClient,
       host: () => host,
-      hostName: "../elsewhere",
+      hostName: () => "../elsewhere",
     });
     await bridge.ok("register");
     await harness.approve(harness.keyOnDisk());
@@ -204,6 +204,25 @@ describe("reading the registration", () => {
     expect(harness.registrations().map((row) => row.public_key)).not.toContain(expired);
   });
 
+  it("reads afresh a key registered again while the loop waits past its expiry", async () => {
+    // The loop reads every three seconds; between two readings the
+    // registration expires and is pruned, and register submits the same key
+    // afresh, which the loop must then read rather than stop at the old
+    // expiry.
+    harness.markHost();
+    const bridge = await harness.claudeBridge(undefined, {}, { ...timing, stateEvery: 3000 });
+    await bridge.ok("register");
+    const reads = harness.counting("/registrations");
+    await eventually(() => (reads() >= 1 ? true : undefined), "push reading the registration");
+    harness.server.fixture.advance(hour + 1);
+    const other = await harness.bridge({ AGENTWORKS_SESSION: "other" });
+    await other.ok("register");
+    expect(await bridge.ok("register")).toMatchObject({ status: "pending" });
+    await harness.approve(harness.keyOnDisk());
+    await harness.operatorWrites(await threadWith(bridge), { text: "Go ahead." });
+    await harness.takeWake();
+  });
+
   it("reads a key registered again once its pending registration expired", async () => {
     harness.markHost();
     const bridge = await harness.claudeBridge();
@@ -283,6 +302,24 @@ describe("reading the registration", () => {
 });
 
 describe("a lapse", () => {
+  it("is said when the host name changes, until a watcher marks the new directory", async () => {
+    harness.markHost();
+    const { bridge } = await harness.registered();
+    const thread = await threadWith(bridge);
+    await harness.operatorWrites(thread, { text: "One." });
+    await harness.takeWake();
+    const before = harness.hostName;
+    harness.hostName = "renamed";
+    await untilLapsed(bridge);
+    // A watcher started since the rename marks the new directory, and push
+    // follows it there, pushing again once what is still unread.
+    harness.markHost();
+    await harness.operatorWrites(thread, { text: "Two." });
+    expect(integersOf(await harness.takeWake())[0]).toBe(thread);
+    const old = readdirSync(harness.hostDirectory(host, before));
+    expect(old.filter((name) => name.startsWith("wake-"))).toEqual([]);
+  });
+
   it("is said on a revocation long after the pending registration push read", async () => {
     // Told its answers are pushed, the agent registers a new key once the
     // first is revoked, and the operator approves it while the agent waits,

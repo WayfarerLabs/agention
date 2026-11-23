@@ -1,7 +1,7 @@
 import { cursor, type PublicKey, sequence, threadNumber } from "@wayfarerlabs/agention-api";
 import { performance } from "node:perf_hooks";
 import { z } from "zod";
-import type { AgentApi } from "./agent-api.ts";
+import { type AgentApi, tokenLifetimeSeconds } from "./agent-api.ts";
 import { ApiFailure, BridgeError, OlderServer } from "./errors.ts";
 import {
   HostDirectory,
@@ -50,9 +50,11 @@ export const pushTiming: PushTiming = {
 export const waitFloor = 1_000;
 
 // How long before a pending registration's expiry, by the bridge's clock,
-// the loop reads it last, in milliseconds, so it never reads one at its
-// expiry, which the server may have pruned.
-const expiryMargin = 1_000;
+// the loop reads it last, in milliseconds: the clock skew the agent API
+// tolerates, a token's lifetime, so a bridge whose clock is behind the
+// server's by up to that never reads one past its expiry, which the server
+// may have pruned and would register afresh.
+const expiryMargin = tokenLifetimeSeconds * 1000;
 
 // The most threads one wait answer lists, which bounds a notice.
 const waitLimit = 50;
@@ -111,8 +113,8 @@ export interface PushOptions {
   clientName: () => string | undefined;
   // The Claude Code process the bridge runs under, if any.
   host: () => number | undefined;
-  // The machine's host name, which the host directory's path holds.
-  hostName: string;
+  // The machine's host name now, which the host directory's path holds.
+  hostName: () => string;
   timing: PushTiming;
 }
 
@@ -136,12 +138,13 @@ export class Push {
   readonly #clock: () => number;
   readonly #clientName: () => string | undefined;
   readonly #findHost: () => number | undefined;
-  readonly #hostName: string | undefined;
+  readonly #hostName: () => string;
   readonly #timing: PushTiming;
   readonly #closed = new AbortController();
   // The Claude Code process's pid once looked for, null when there is none.
   #hostPid: number | null | undefined;
-  #host: HostDirectory | undefined;
+  // Whether available has found the watcher's mark, which start needs.
+  #found = false;
   #started = false;
   #running = false;
   // Whether start was called while the loop ran, since the loop last read
@@ -165,7 +168,7 @@ export class Push {
     this.#clock = options.clock;
     this.#clientName = options.clientName;
     this.#findHost = options.host;
-    this.#hostName = hostNamePart(options.hostName);
+    this.#hostName = options.hostName;
     this.#timing = options.timing;
   }
 
@@ -174,7 +177,7 @@ export class Push {
   // bridge runs under has the watcher's mark. The first look for that process
   // also removes the directories of host processes that have ended.
   available(): boolean {
-    const hostName = this.#hostName;
+    const hostName = hostNamePart(this.#hostName());
     if (this.#clientName() !== claudeCodeClient || hostName === undefined) {
       return false;
     }
@@ -189,25 +192,36 @@ export class Push {
     if (this.#hostPid === null) {
       return false;
     }
-    if (this.#host === undefined) {
-      const host = new HostDirectory(this.#home, hostName, this.#hostPid);
+    if (!this.#found) {
       try {
-        if (!host.hooked()) {
-          return false;
-        }
+        this.#found = new HostDirectory(this.#home, hostName, this.#hostPid).hooked();
       } catch {
         return false;
       }
-      this.#host = host;
     }
-    return true;
+    return this.#found;
+  }
+
+  // hostDirectory is the host directory as the machine's host name now
+  // makes it, which a watcher started since a rename waits in, once a
+  // watcher has marked it; until then push cannot work.
+  #hostDirectory(): HostDirectory {
+    const hostName = hostNamePart(this.#hostName());
+    if (hostName === undefined || typeof this.#hostPid !== "number") {
+      throw new HostDirectoryFailure("the host name is no path component");
+    }
+    const host = new HostDirectory(this.#home, hostName, this.#hostPid);
+    if (!this.#hostDo(() => host.hooked())) {
+      throw new HostDirectoryFailure(`${host.path} has no watcher's mark`);
+    }
+    return host;
   }
 
   // start runs the background wait, once available has found the host
   // directory, or has it read the registration at once if it runs already,
   // as it is, without the expiry of a pending one it read before.
   start(): void {
-    if (this.#host === undefined || this.#closed.signal.aborted) {
+    if (!this.#found || this.#closed.signal.aborted) {
       return;
     }
     this.#started = true;
@@ -217,7 +231,7 @@ export class Push {
       return;
     }
     this.#running = true;
-    this.#run(this.#host, this.#closed.signal).catch(() => (this.#running = false));
+    this.#run(this.#closed.signal).catch(() => (this.#running = false));
   }
 
   // resume starts push, where it can work, the first time a tool acts in the
@@ -261,7 +275,7 @@ export class Push {
   // awaited between, so a start that comes while it runs is never lost: it
   // either sets #restart before that step, which the step sees, or finds the
   // loop no longer running and runs a new one.
-  async #run(host: HostDirectory, signal: AbortSignal): Promise<void> {
+  async #run(signal: AbortSignal): Promise<void> {
     let retry = this.#timing.retryFirst;
     let approved = false;
     // The pending registration the loop last read, while the last reading
@@ -302,7 +316,7 @@ export class Push {
           this.#lapseDue = false;
         }
         const started = performance.now();
-        const found = await this.#round(host, signal);
+        const found = await this.#round(signal);
         this.#gaveUp = false;
         this.#lapseDue = false;
         retry = this.#timing.retryFirst;
@@ -360,13 +374,14 @@ export class Push {
   // other thread with unread messages. It says whether it found any. A saved
   // position the server refuses, from another release or cut short, is
   // dropped, and the round waits from none.
-  async #round(host: HostDirectory, signal: AbortSignal): Promise<boolean> {
+  async #round(signal: AbortSignal): Promise<boolean> {
     const { key, granted } = await this.#session.credential(signal);
     const at: SessionAt = { origin: this.#api.origin, ...granted };
     if (this.#owed !== undefined) {
-      await this.#notify(host, at, this.#owed, signal);
+      await this.#notify(at, this.#owed, signal);
       return true;
     }
+    const host = this.#hostDirectory();
     const saved = this.#hostDo(() => host.readCursor(at));
     const since = belongs(saved, at) ? saved.since : undefined;
     const request = { wait: this.#timing.waitSeconds, signal, key };
@@ -385,7 +400,7 @@ export class Push {
     }
     this.#hostDo(() => host.saveCursor({ ...at, since: answer.since }));
     this.#owed = answer.threads;
-    await this.#notify(host, at, answer.threads, signal);
+    await this.#notify(at, answer.threads, signal);
     return true;
   }
 
@@ -395,18 +410,14 @@ export class Push {
   // is not full, its position covers every message the notice names, so it
   // is saved too, and a message that landed after the round's wait answered
   // is not pushed again.
-  async #notify(
-    host: HostDirectory,
-    at: SessionAt,
-    found: readonly NoticeThread[],
-    signal: AbortSignal,
-  ): Promise<void> {
+  async #notify(at: SessionAt, found: readonly NoticeThread[], signal: AbortSignal): Promise<void> {
     const { key } = await this.#session.credential(signal);
     const unread = await this.#wait(at, { since: undefined, wait: 0, signal, key });
     const threads = new Map(found.map((thread) => [thread.number, thread]));
     for (const thread of unread.threads) {
       threads.set(thread.number, thread);
     }
+    const host = this.#hostDirectory();
     this.#hostDo(() => {
       host.writeWake(at, pushNotice([...threads.values()]));
       if (unread.threads.length < waitLimit) {
