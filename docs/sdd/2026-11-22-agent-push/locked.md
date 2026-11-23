@@ -28,7 +28,9 @@ the packed head and the operator driving the web UI: nine messages woke nine tur
 about a second, none twice; push started after an approval given at the prompt, and survived a
 server restart, `/clear`, a turn of over two minutes, an interrupt and an API error; a revocation
 gave the lapse line; `claude -p` and Codex were told they check, and Codex held no background wait.
-A shorter run at the final head confirmed waking, re-arming, the lapse and `/exit`.
+A shorter run at f272955 confirmed waking, re-arming, the lapse and `/exit`. The notice's
+composition changed after it, in answer to review on the pull request, and is proved by the bridge's
+tests against a real server.
 
 ## Where it lives now
 
