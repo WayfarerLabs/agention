@@ -2,28 +2,25 @@ import { largestPage, type ThreadList, type ThreadsView } from "@wayfarerlabs/ag
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ApiFailure, query, request } from "../../api.ts";
 import { listHref, listViewOf, queryOf } from "../../router.tsx";
-import { type ListedThread, needsYou } from "../list/listing.ts";
+import type { ListedThread } from "../list/listing.ts";
 
-// The next thread needing the operator, from a thread's page: the next thread
-// after it in the list the page returns to, with the list's filters, order
-// and grouping, that is unread or blocked on them (needsYou, the rule the
-// list's n goes by), going round past the list's end.
+// The next thread, from a thread's page: the next row after it in the list
+// the page returns to, with the list's filters, order and grouping, as j
+// moves to in the list, going round past the list's end.
 //
 // "After it" is where the thread stood when the page opened, since the page's
 // own doing moves the thread in the list: answering an ask, under the
 // priority order; replying, under the latest message's; and reading it, out
 // of a list kept to the unread, which a flat list is walked without
-// (aheadIn).
-// So the page walks the list once on opening, until it reaches the thread,
-// and keeps the threads that came before it. Whether a thread needs the
-// operator, though, is the list's as it stands when they ask: each finding
-// walks the list afresh and takes the first thread needing them that is
-// neither this one nor one that came before it, so an agent that wrote since
-// counts and a thread handled elsewhere does not, and a thread new since the
-// page opened counts where it stands now. With none, it goes round, taking
-// the first needing them other than this one. A thread the list did not
-// hold on opening had none before it, so any thread needing the operator is
-// next.
+// (aheadIn). So the page walks the list once on opening, until it reaches
+// the thread, and keeps the threads that came before it. What the list holds,
+// though, is the list's as it stands when the operator asks: each finding
+// walks the list afresh and takes the first thread that is neither this one
+// nor one that came before it, so a thread gone from the list since, as one
+// archived elsewhere, is passed over, and a thread new since the page opened
+// counts where it stands now. With none, it goes round, taking the list's
+// first thread other than this one. A thread the list did not hold on
+// opening had none before it, so the list's first thread is next.
 
 interface Place {
   agent: string;
@@ -86,10 +83,10 @@ export async function threadsAhead(
   return found ? ahead : new Set();
 }
 
-// findNext walks the list as it stands for the next thread needing the
-// operator after a thread, given the threads that were ahead of it. A walk
-// that read its most pages without finding one fails, rather than say none
-// is left, since one may lie further on.
+// findNext walks the list as it stands for the next thread after a thread,
+// given the threads that were ahead of it. A walk that read its most pages
+// without finding one fails, rather than say none is left, since one may lie
+// further on.
 export async function findNext(
   view: ThreadsView,
   from: Place,
@@ -100,7 +97,7 @@ export async function findNext(
   let first: ListedThread | undefined;
   const whole = await walk(view, (thread) => {
     const key = keyOf(thread);
-    if (key === here || !needsYou(thread)) {
+    if (key === here) {
       return false;
     }
     if (!ahead.has(key)) {
@@ -127,11 +124,11 @@ export async function findNext(
 // thread the list keeps, so without the filter a read thread can lift its
 // group ahead of others, and a grouped list is walked as it is: there, a
 // read that lands before the walk reaches the thread leaves it not in the
-// list, and any thread needing the operator is next.
+// list, and the list's first thread is next.
 const aheadIn = (view: ThreadsView): ThreadsView =>
   view.group === undefined ? { ...view, unread: false } : view;
 
-// The next thread needing the operator, none when none does, as found in the
+// The next thread, none when the list holds no other, as found in the
 // list a thread's page returns to, by that list's address.
 export interface NextFound {
   next: ListedThread | undefined;
@@ -146,7 +143,7 @@ interface Listed {
   ahead: Promise<ReadonlySet<string>>;
 }
 
-// useNextThread gives a way to find the next thread needing the operator from
+// useNextThread gives a way to find the next thread from
 // a thread's page, in the list it returns to. The page walks the list for the
 // threads ahead of this one on opening, and again when the list changes, as
 // the list beside the thread can side by side, abandoning a walk still going

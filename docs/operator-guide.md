@@ -525,23 +525,21 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     archives through it, taking the thread off your list until the agent writes to it again, and
     returns to the list; while an ask is open to you, answer or decline it first. Writing to a
     thread you archived keeps it archived, and what you archived never counts as unread.
-  - **Next** opens the next thread that needs you: the next one after this thread, in the list you
-    opened it from, with that list's filters, order and grouping, that is unread or blocked on you,
-    the rule `n` goes by in the list, going round past the list's end. Unlike `n`, it opens threads
-    under folded groups too. "After this thread" is where it stood when you opened it, so answering,
-    replying or reading here does not move what comes next; whether a thread needs you is the list's
-    as it stands when you press **Next**, so a thread an agent wrote to since counts, and one you
-    dealt with on another device does not. A thread that was not ahead of this one when you opened
-    it, such as one an agent just wrote to under **Latest message**, is taken in the list's order as
-    it stands, so it can come first. In a grouped list kept to the unread, reading this thread can
-    now and then take it out of the list before **Next** has found where it stood, and then any
-    thread that needs you can come next. **Next** looks through up to 10,000 threads of the list; in
-    a longer one, if it finds none there, it says it could not find the next rather than that none
-    is left. With no other thread needing you, **Next** goes back to the list, which says so.
-    **Back** returns to this thread. Side by side, the next thread opens beside the list, which
+  - **Next** opens the next thread in the list you opened this one from: the next row after it, with
+    that list's filters, order and grouping, read or not, as `j` moves to in the list, going round
+    past the list's end. Unlike `j`, it opens threads under folded groups too. "After this thread"
+    is where it stood when you opened it, so answering, replying or reading here does not move what
+    comes next; what the list holds is the list as it stands when you press **Next**, so a thread
+    archived on another device since is passed over, and a thread new to the list since is taken
+    where it stands now, so it can come first. In a grouped list kept to the unread, reading this
+    thread can now and then take it out of the list before **Next** has found where it stood, and
+    then the list's first thread comes next. **Next** looks through up to 10,000 threads of the
+    list; in a longer one, if it finds none there, it says it could not find the next rather than
+    that none is left. With no other thread in the list, **Next** goes back to the list, which says
+    so. **Back** returns to this thread. Side by side, the next thread opens beside the list, which
     keeps its scroll, the next thread's row outlined.
-  - **Archive & next** does what **Archive all** does, then opens the next thread that needs you in
-    its place, as **Next** would have, or, with none, goes back to the list, which says so; **Back**
+  - **Archive & next** does what **Archive all** does, then opens the next thread in the list in its
+    place, as **Next** would have, or, with none, goes back to the list, which says so; **Back**
     does not return to the thread archived. If you change the list beside the thread while it
     archives, it opens the next thread of the list as you changed it. While an ask is open to you,
     answer or decline it first.
@@ -859,7 +857,7 @@ counts as none. On a phone without a keyboard nothing changes. Press `?` anywher
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
 | A thread        | `e`                         | **Archive all**, while it is available                                                                                    |
 | A thread        | `E`                         | **Archive & next**, while it is available                                                                                 |
-| A thread        | `]`                         | **Next**: opens the next thread that is unread or blocked on you                                                          |
+| A thread        | `]`                         | **Next**: opens the next thread in the list                                                                               |
 | A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
 | A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
 | The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |

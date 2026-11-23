@@ -13,7 +13,7 @@ import {
 import { listViewOf, showList } from "../../router.tsx";
 import { mostPages } from "./next-thread.ts";
 import { path, shownMessages, ThreadPageTest } from "./thread-test-support.tsx";
-import { noneNeedsYou } from "./ThreadView.tsx";
+import { noOtherThread } from "./ThreadView.tsx";
 
 // Next and Archive & next on a thread's page: the thread open is builder/main
 // #1, and the list it returns to is served a few threads a page, so finding
@@ -33,13 +33,6 @@ afterEach(() => {
 const threadPath = (number: number) => `/s/builder/main/threads/${number}`;
 const unread = (number: number) => threadSummary({ number, title: `Thread ${number}`, unread: 1 });
 const read = (number: number) => threadSummary({ number, title: `Thread ${number}`, unread: 0 });
-const blocked = (number: number) =>
-  threadSummary({
-    number,
-    title: `Thread ${number}`,
-    unread: 0,
-    open_asks: { asks: [], count: 1, blocking: true, overdue: false },
-  });
 
 // A page of the list holds two threads here, whatever the page asks for.
 const listPage = 2;
@@ -70,11 +63,12 @@ function serveList(threads: ThreadSummary[]): { threads: ThreadSummary[] } {
   return list;
 }
 
-// serveEndless answers the list with a page that always has another after it.
+// serveEndless answers the list with a page that always has another after
+// it, each holding the thread open alone.
 function serveEndless(): void {
   page.api.on("GET", "/threads", (call: Call) => ({
     body: {
-      threads: [read(2)],
+      threads: [read(1)],
       total: 1,
       next: `${Number(call.url.searchParams.get("cursor") ?? "0") + 1}`,
     },
@@ -171,8 +165,8 @@ const toNarrowed = () => act(() => showList(listViewOf(new URLSearchParams("sear
 const wholeWalks = () => walked().filter((query) => !query.has("search")).length;
 
 describe("Next", () => {
-  it("opens the next thread after this one that is unread or blocked on you, in the list it returns to, as a new entry", async () => {
-    serveList([unread(4), read(1), read(2), blocked(3), unread(5)]);
+  it("opens the next row after this one in the list it returns to, read or not, as a new entry", async () => {
+    serveList([unread(4), read(1), read(3), read(2), unread(5)]);
     await openThread({}, "/?sort=latest&group=session");
     const length = window.history.length;
     fireEvent.click(nextButton());
@@ -191,11 +185,11 @@ describe("Next", () => {
     }
   });
 
-  it("goes round past the end of the list to the first thread that needs you", async () => {
-    serveList([read(2), unread(4), read(1), read(3)]);
+  it("goes round past the end of the list to its first thread", async () => {
+    serveList([read(2), unread(4), read(1)]);
     await openThread();
     press("]");
-    await landedOn(4);
+    await landedOn(2);
   });
 
   it("goes on from where the thread stood when it opened, though the page moved it since", async () => {
@@ -207,11 +201,11 @@ describe("Next", () => {
     await landedOn(3);
   });
 
-  it("finds a thread that needs you since the thread opened, and skips one dealt with elsewhere", async () => {
-    const list = serveList([read(1), unread(2), read(3), unread(4)]);
+  it("passes over a thread gone from the list since the thread opened", async () => {
+    const list = serveList([read(1), unread(2), read(3)]);
     await openThread();
-    // Thread 2 was read on another device, and an agent wrote to thread 3.
-    list.threads = [read(1), read(2), unread(3), unread(4)];
+    // Thread 2 was archived on another device.
+    list.threads = [read(1), read(3)];
     press("]");
     await landedOn(3);
   });
@@ -295,12 +289,12 @@ describe("Next", () => {
   it("stops at its most pages in a list that goes on, and says it could not find the next rather than that none is left", async () => {
     serveEndless();
     await openThread();
-    await waitFor(() => expect(walked()).toHaveLength(mostPages));
     press("]");
     expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
       /^Finding the next thread/,
     );
-    expect(walked()).toHaveLength(2 * mostPages);
+    // One page on opening, which held the thread, and the most on the press.
+    expect(walked()).toHaveLength(1 + mostPages);
     expect(window.location.pathname).toBe(path);
   });
 
@@ -382,18 +376,18 @@ describe("Next", () => {
     await waitFor(() => expect(walked().length).toBe(opened + 2));
   });
 
-  it("follows a thread the list does not hold with the list's first thread that needs you", async () => {
+  it("follows a thread the list does not hold with the list's first thread", async () => {
     serveList([read(2), unread(3), unread(4)]);
     await openThread();
     press("]");
-    await landedOn(3);
+    await landedOn(2);
   });
 
-  it("goes back to the list when no other thread needs you, and the list says so", async () => {
-    serveList([read(2), unread(1), read(3)]);
+  it("goes back to the list when it holds no other thread, and the list says so", async () => {
+    serveList([unread(1)]);
     await openThread({ unread: 1 });
     press("]");
-    expect(await listSays()).toBe(noneNeedsYou);
+    expect(await listSays()).toBe(noOtherThread);
     expect(window.location.pathname).toBe("/");
   });
 
@@ -428,18 +422,18 @@ describe("Archive & next", () => {
       return { body: { marks: { read_through: 120, archived_through: 120 } } };
     });
     fireEvent.click(archiveAndNext());
-    await landedOn(3);
+    await landedOn(2);
     expect(page.api.callsTo("POST", `${path}/archive`).map((call) => call.body)).toEqual([
       { through: 120 },
     ]);
     expect(window.history.length).toBe(length);
   });
 
-  it("goes back to the list once archived when no other thread needs you, and the list says so", async () => {
-    serveList([unread(1), read(2)]);
+  it("goes back to the list once archived when it holds no other thread, and the list says so", async () => {
+    serveList([unread(1)]);
     await openThread({ unread: 1 });
     press("E");
-    expect(await listSays()).toBe(noneNeedsYou);
+    expect(await listSays()).toBe(noOtherThread);
     expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1);
   });
 
@@ -518,7 +512,6 @@ describe("Archive & next", () => {
   it("archives nothing when it cannot look through the whole list for the next thread", async () => {
     serveEndless();
     await openThread();
-    await waitFor(() => expect(walked()).toHaveLength(mostPages));
     fireEvent.click(archiveAndNext());
     expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
       /^Finding the next thread/,

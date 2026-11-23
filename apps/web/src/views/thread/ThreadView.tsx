@@ -439,7 +439,7 @@ function ThreadPage({
       onward();
     }
   };
-  // Next opens the next thread needing the operator, in the list the page
+  // Next opens the next thread, the next row in the list the page
   // returns to (useNextThread), as a new history entry, so going back
   // returns to this thread; with none, it goes back to that list, which says
   // so. It moves on only if the page is still open once the next is found,
@@ -980,15 +980,15 @@ function returnToList(): void {
 }
 
 // The list's status, once Next or Archive & next went back to it for want of
-// another thread needing the operator.
-export const noneNeedsYou = "No other thread needs you.";
+// another thread in it.
+export const noOtherThread = "No other thread in this list.";
 
-// goToNext leaves the thread page for the next thread needing the operator,
+// goToNext leaves the thread page for the next thread,
 // carrying on the list it was found in, or, with none, for that list, which
 // says so.
 function goToNext({ next, from }: NextFound, replace: boolean): void {
   if (next === undefined) {
-    leaveNotice(noneNeedsYou);
+    leaveNotice(noOtherThread);
     navigate(from, { replace });
   } else {
     navigate(threadHref(next.agent, next.session, next.number), { replace, state: { from } });

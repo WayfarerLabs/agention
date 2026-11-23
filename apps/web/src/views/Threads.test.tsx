@@ -129,17 +129,17 @@ describe("side by side", () => {
     expect(listLoads()).toHaveLength(loads);
   });
 
-  it("opens the next thread that needs you beside the list, which stays mounted, its row current", async () => {
+  it("opens the next thread beside the list, which stays mounted, its row current", async () => {
     await openList();
     const list = listPane().querySelector("ul.threads");
     await openFromList("First");
     // The page has walked the list for where its thread stands.
     await waitFor(() => expect(walks()).toHaveLength(1));
     fireEvent.click(within(threadPane()).getByRole("button", { name: "Next thread" }));
-    await waitFor(() => expect(titleOf(threadHeading())).toBe("Third"));
-    expect(window.location.pathname).toBe(threadPath(3));
+    await waitFor(() => expect(titleOf(threadHeading())).toBe("Second"));
+    expect(window.location.pathname).toBe(threadPath(2));
     expect(listPane().querySelector("ul.threads")).toBe(list);
-    expect(rowLink("Third").getAttribute("aria-current")).toBe("page");
+    expect(rowLink("Second").getAttribute("aria-current")).toBe("page");
     expect(rowLink("First").getAttribute("aria-current")).toBeNull();
     expect(focusInThread()).toBe(true);
   });

@@ -1249,7 +1249,7 @@ test("Settings orders the groups by their buttons and by dragging, keeping the o
   await expect(alpha).toHaveCount(0);
 });
 
-test("Next opens the next thread that needs you and Archive & next archives the thread and moves on, beside the list and on a phone", async () => {
+test("Next opens the next thread in the list and Archive & next archives the thread and moves on, beside the list and on a phone", async () => {
   for (const name of ["one", "two", "three"]) {
     await agent.send<WriteResult>("POST", threads, {
       request_id: `create-hopscotch-${name}`,
@@ -1271,8 +1271,8 @@ test("Next opens the next thread that needs you and Archive & next archives the 
     ),
   );
 
-  // Beside the list, ] opens the next thread that needs the operator, and
-  // the list keeps its scroll, its row marked current.
+  // Beside the list, ] opens the next thread in it, and the list keeps its
+  // scroll, its row marked current.
   await rows.nth(0).click();
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
   const shown = await list.locator("ul.threads").elementHandle();
@@ -1313,14 +1313,16 @@ test("Next opens the next thread that needs you and Archive & next archives the 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[2] ?? "");
   expect(await page.evaluate(() => window.history.length)).toBe(entries);
 
-  // With no other thread needing the operator, E archives this one and goes
-  // back to the list, which says so, holding only the thread read first.
+  // From the last row, E archives this one and goes round to the first; from
+  // there, with no other thread left in the list, it goes back to the list,
+  // which says so, empty.
+  await page.keyboard.press("E");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
   await page.keyboard.press("E");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   await expect(page).toHaveURL(/\/\?search=Hopscotch&sort=created$/);
   await expect(page.getByRole("status")).not.toBeEmpty();
-  await expect(rows).toHaveCount(1);
-  await expect(rows.getByRole("heading")).toHaveText(titles[0] ?? "");
+  await expect(rows).toHaveCount(0);
   if (wide !== null) {
     await page.setViewportSize(wide);
   }

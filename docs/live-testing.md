@@ -96,14 +96,14 @@ with each other or with what the product does, the disagreement is the finding.
   by agent, each header's label and marks adding their filters to the list and its bar folding but
   on a link; the thread page's numbered asks answered several at once, a message's details,
   replacements, mark unread from a message, archive through a message and archive all, and Next and
-  Archive & next from a thread, with `]` and `E`, to the next thread unread or blocked on you in the
-  list it was opened from and back to the list, which says so, once none is left; Send and what
-  answers it kept on a short screen while writing, and the way back under the composer; the Threads
-  tab side by side at a desktop's width, the list kept as chosen beside each thread opened, the open
-  thread's row marked, Back from thread to thread, focus back on the row left, and one at a time
-  below that width; stranded's reasons, in the warning's color in both tabs; the sessions view, its
-  group and agent folds and folded rows with what each session reports, when it was last seen and
-  whether it is quiet, how old its status is, its open asks in the thread list's words and its
+  Archive & next from a thread, with `]` and `E`, to the next thread in the list it was opened from,
+  going round past its end, and back to the list, which says so, once it holds no other; Send and
+  what answers it kept on a short screen while writing, and the way back under the composer; the
+  Threads tab side by side at a desktop's width, the list kept as chosen beside each thread opened,
+  the open thread's row marked, Back from thread to thread, focus back on the row left, and one at a
+  time below that width; stranded's reasons, in the warning's color in both tabs; the sessions view,
+  its group and agent folds and folded rows with what each session reports, when it was last seen
+  and whether it is quiet, how old its status is, its open asks in the thread list's words and its
   threads' roll-up, the links from a row, an agent and a group, their names and every chip standing
   for threads among them, to the thread list filtered to them, folding nothing, and from a row's and
   an agent's stranded flag to their stranded threads, a row unfolded to its log and marking it read,

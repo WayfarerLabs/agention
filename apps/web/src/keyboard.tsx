@@ -87,12 +87,12 @@ export const shortcuts = {
   archiveAndNext: {
     place: "Thread",
     keys: ["E"],
-    description: "Archive all of the thread and open the next that is unread or blocked on you",
+    description: "Archive all of the thread and open the next thread in the list",
   },
   openNext: {
     place: "Thread",
     keys: ["]"],
-    description: "Open the next thread that is unread or blocked on you",
+    description: "Open the next thread in the list",
   },
   jump: {
     place: "Thread",

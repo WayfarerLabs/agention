@@ -25,7 +25,6 @@ import { Mark } from "../../icons.tsx";
 import { readDraft } from "../../device.ts";
 import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
 import { ListBeside } from "./beside.ts";
-import { needsYou } from "./listing.ts";
 
 // What stands out about the asks open to the operator: the one the thread
 // leads with; the earliest answer-by among them all, whichever ask carries
@@ -149,7 +148,7 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
         className="thread-link"
         aria-current={current ? "page" : undefined}
         data-landing={left ? "" : undefined}
-        data-needs-you={needsYou(thread) ? "" : undefined}
+        data-needs-you={thread.unread > 0 || asks.blocking ? "" : undefined}
       >
         <div className="row-title">
           <Heading>
@@ -189,5 +188,5 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
 export const rowLinks = (): HTMLAnchorElement[] =>
   Array.from(document.querySelectorAll<HTMLAnchorElement>("a.thread-link"));
 
-// rowNeedsYou says whether a row's thread needs the operator (needsYou).
-export const rowNeedsYou = (link: HTMLAnchorElement) => link.hasAttribute("data-needs-you");
+// needsYou says whether a row's thread is unread or blocked on the operator.
+export const needsYou = (link: HTMLAnchorElement) => link.hasAttribute("data-needs-you");

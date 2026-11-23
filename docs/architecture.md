@@ -1223,10 +1223,9 @@ while it holds focus passes it to the page's heading, and crossing the breakpoin
 what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
 and the list's pane is sticky and scrolls on its own.
 
-A thread page's **Next** and **Archive & next** go to the next thread needing the operator
-(`src/views/thread/next-thread.ts`): the next after it, in the list it returns to, that is unread or
-blocked on them (`needsYou` in `src/views/list/listing.ts`, which the rows' `data-needs-you`, and so
-the list's `n`, go by), going round past the list's end. The page walks that list's pages through
+A thread page's **Next** and **Archive & next** go to the next thread
+(`src/views/thread/next-thread.ts`): the next row after it in the list it returns to, as the list's
+`j` moves to, going round past the list's end. The page walks that list's pages through
 `GET /threads` with the list's own query, at the most a page holds (`largestPage`); the list arrives
 in the order it shows, grouped or not, so no query of its own is needed. "After it" is where the
 thread stood on opening, since the page's own doing moves it: an answer under the priority order and
@@ -1239,28 +1238,27 @@ to the unread, through the read threads among it. A grouped list places each gro
 thread the list keeps, so without the filter a read thread can lift its group ahead of others; a
 grouped list is walked as it is, and there a read that lands before the walk reaches the thread, as
 it can past the first page or on a walk again after a failure, leaves the thread not in the list, so
-any thread needing the operator is next. Holding the page's first read until the walk passed the
-thread would close that gap, but a page closed meanwhile would then never send the read, so it is
-left open. When that walk failed, the next finding walks again, and after a change of list the walk
-is the new list's, each judging "ahead" from where the thread stands then, after any answering or
-replying the page did. Whether a thread needs the operator is the list's as it stands: finding the
-next walks afresh, with the list's own filters, and stops at the first thread needing them that is
-neither this one nor one that was ahead of it, usually on the first page, walking to the end only to
-go round, to the first needing them other than this one. Each walk stops at 100 pages; a finding
-that stops there with nothing found fails, rather than say none is left, and a walk on opening that
-stops there before reaching the thread counts it as not in the list. A walk on opening still going
-when the list changes or the page closes is abandoned (`request`'s `signal`); a finding under way
-when the list changes starts again on the list as it now stands, and one under way when the page
-closes finishes, and the page, closed, drops it. What is found carries the list it was found in,
-which the next thread's entry carries on. Next pushes that entry; Archive & next finds the next
-before archiving, so a failure to find it archives nothing, then replaces the archived thread's
+the list's first thread is next. Holding the page's first read until the walk passed the thread
+would close that gap, but a page closed meanwhile would then never send the read, so it is left
+open. When that walk failed, the next finding walks again, and after a change of list the walk is
+the new list's, each judging "ahead" from where the thread stands then, after any answering or
+replying the page did. What the list holds is the list's as it stands: finding the next walks
+afresh, with the list's own filters, and stops at the first thread that is neither this one nor one
+that was ahead of it, usually on the first page, walking to the end only to go round, to the list's
+first thread other than this one, which is on its first page. Each walk stops at 100 pages; a
+finding that stops there with nothing found fails, rather than say none is left, and a walk on
+opening that stops there before reaching the thread counts it as not in the list. A walk on opening
+still going when the list changes or the page closes is abandoned (`request`'s `signal`); a finding
+under way when the list changes starts again on the list as it now stands, and one under way when
+the page closes finishes, and the page, closed, drops it. What is found carries the list it was
+found in, which the next thread's entry carries on. Next pushes that entry; Archive & next finds the
+next before archiving, so a failure to find it archives nothing, then replaces the archived thread's
 entry with it, and when the list changed while the archive was under way, it finds the next again in
 the list as it now stands, staying on the thread, archived, with the failure shown, should that
 fail. That finding's walk of the new list for the threads ahead can miss the thread just archived,
-which a list without archived threads no longer holds, so it then takes the first thread needing the
-operator in the new list. With none, both go to the list, leaving it a notice to say so. While
-either is under way, or the page is leaving otherwise, neither starts again, and Next is marked
-busy.
+which a list without archived threads no longer holds, so it then takes the new list's first thread.
+With none, both go to the list, leaving it a notice to say so. While either is under way, or the
+page is leaving otherwise, neither starts again, and Next is marked busy.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
