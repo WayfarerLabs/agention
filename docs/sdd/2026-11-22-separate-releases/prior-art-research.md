@@ -106,8 +106,8 @@ U3, which put the signal in Agention.
 
 ## Sources
 
-| ID  | Source                                                                                       | Quality                     | Angle                     |
-| --- | -------------------------------------------------------------------------------------------- | --------------------------- | ------------------------- |
+| ID  | Source                                                                                         | Quality                     | Angle                     |
+| --- | ---------------------------------------------------------------------------------------------- | --------------------------- | ------------------------- |
 | S1  | <https://github.com/googleapis/release-please/blob/v17.6.0/docs/manifest-releaser.md>          | Official docs               | Manifest configuration    |
 | S2  | <https://github.com/googleapis/release-please/blob/v17.6.0/src/manifest.ts>                    | Source, pinned version      | Defaults, release lookup  |
 | S3  | <https://github.com/googleapis/release-please/blob/v17.6.0/src/util/tag-name.ts>               | Source, pinned version      | Tag parsing               |
