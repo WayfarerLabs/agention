@@ -66,10 +66,12 @@ API's read of the sessions view carries the same information.
 with a bridge that is behind in the sense of U2, the answer tells the agent so, in words it can
 relay to the operator, without failing the call or holding up the work.
 
-**U4. The signal covers every released bridge.** An older agent API version is recognized for any
-bridge, from the version every released bridge already states or, before the header existed, does
-not. An older release is recognized for bridges released from this effort on, which state their
-release; earlier bridges do not, so they are marked only by their agent API version.
+**U4. What reaches which bridge.** The sessions view's mark (U2) covers every released bridge: an
+older agent API version is recognized from the version every released bridge already states or,
+before the header existed, does not. An older release is recognized for bridges released from this
+effort on, which state their release; earlier bridges do not, so they are marked only by their agent
+API version. The register answer (U3) reaches agents whose bridge is released from this effort on,
+since every earlier bridge writes its register answer itself and relays nothing the server adds.
 
 ### An older server
 
