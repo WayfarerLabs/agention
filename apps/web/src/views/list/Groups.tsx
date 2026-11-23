@@ -2,10 +2,15 @@ import {
   composePresence,
   composeRollup,
   type GroupRef,
+  keepsAsks,
+  noGroup,
   type Presence,
+  type Priority,
+  priorityFilter,
   type Rollup,
   type ThreadGroups,
   type ThreadGrouping,
+  type ThreadsView,
 } from "@wayfarerlabs/agention-api";
 import type { ReactNode } from "react";
 import {
@@ -17,8 +22,15 @@ import {
   type Place,
 } from "../../components.tsx";
 import { type Folds, useFolds } from "../../device.ts";
-import { lastSeenWords, plural, priorityLabel, priorityTone, Since } from "../../format.tsx";
+import { plural, priorityLabel, priorityTone, Since } from "../../format.tsx";
 import { Mark, UnreadCount } from "../../icons.tsx";
+import {
+  BlockedFlag,
+  BlockedLink,
+  FilterLink,
+  type ListShown,
+  UnreadLink,
+} from "../filter-links.tsx";
 import type { ListedThread } from "./listing.ts";
 import { ThreadRow } from "./ThreadRow.tsx";
 
@@ -35,7 +47,13 @@ import { ThreadRow } from "./ThreadRow.tsx";
 // rolls up its whole group, loaded or not, from the roll-ups the list
 // carries, a session's and an agent's saying when it was last seen while it
 // is quiet, and starts expanded; the headers the operator collapses are kept
-// on this device for each grouping.
+// on this device for each grouping. A header's label, and each mark of its
+// roll-up that a filter matches, links to the list as it is with that
+// header's group added to its filters and the mark's own, its other filters,
+// order and grouping kept: the label and the count to the group's threads,
+// the envelope to its unread, and, while no filter on open asks is on,
+// Blocked on you to its blocking and the priority to its asks at that
+// priority or higher. No topic, which no filter names, links nothing.
 
 type SessionGroup = ThreadGroups["sessions"][number];
 
@@ -55,60 +73,92 @@ const groupHeader = (key: string) => `group:${key}`;
 
 // What a header heads, for the eye: each part of where its threads are behind
 // its badge, a topic named alone since its session is right above it, or no
-// topic in words; and for assistive technology, such as "Agent reviewer
-// Session main".
+// topic in words; for assistive technology, such as "Agent reviewer Session
+// main"; and as the filter keeping its threads alone, when one does.
 interface Headed {
   shown: ReactNode;
   spoken: string;
+  narrowing?: Partial<ThreadsView> | undefined;
 }
 
-// located heads a group by the parts of where its threads are.
-function located(place: Place): Headed {
+// located heads a group by the parts of where its threads are, with the
+// filter keeping them alone.
+function located(place: Place, narrowing: Partial<ThreadsView>): Headed {
   return {
     shown: <PathParts place={place} />,
     spoken: place.map(([kind, name]) => `${pathWord(kind)} ${name}`).join(" "),
+    narrowing,
   };
 }
 
-const bare = (text: string): Headed => ({ shown: text, spoken: text });
-
-// The words a roll-up is said in, after what it heads: "Agent reviewer
-// Session main, 12 threads, 3 unread, blocked on you, high priority, quiet,
-// last seen 14:02".
-function spokenRollup(label: string, rollup: Rollup, presence: Presence | undefined): string {
-  return [
-    label,
-    plural(rollup.threads, "thread"),
-    ...(rollup.unread > 0 ? [`${rollup.unread} unread`] : []),
-    ...(rollup.blocked ? ["blocked on you"] : []),
-    ...(rollup.priority === undefined ? [] : [priorityLabel[rollup.priority].toLowerCase()]),
-    ...(rollup.archived ? ["archived"] : []),
-    ...(presence?.quiet === true ? ["quiet", lastSeenWords(presence)] : []),
-  ].join(", ");
-}
+const bare = (text: string, narrowing?: Partial<ThreadsView>): Headed => ({
+  shown: text,
+  spoken: text,
+  narrowing,
+});
 
 const priorityShown = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" } as const;
 
-// RollupMarks shows a roll-up for the eye: how many threads, the closed
-// envelope with how many are unread or the open envelope when none is,
-// whether any is blocked on the operator, the highest priority open, the
-// archive box when all are archived, and, in the warning's tone while a
-// session or an agent is quiet, when it was last seen. Its header's name says
-// it.
-function RollupMarks({ rollup, presence }: { rollup: Rollup; presence: Presence | undefined }) {
+// The priorities a filter keeps asks at or above.
+const filtered = (level: Priority): level is (typeof priorityFilter.options)[number] =>
+  priorityFilter.safeParse(level).success;
+
+// RollupMarks shows a roll-up: how many threads, the closed envelope with how
+// many are unread or the open envelope when none is, whether any is blocked
+// on the operator, the highest priority open, the archive box when all are
+// archived, and, in the warning's tone while a session or an agent is quiet,
+// when it was last seen. With a header's filter, each mark a filter matches
+// links to its threads, named with what it shows and what the header heads,
+// as in "Blocked on you: threads of Agent reviewer". While a filter on open
+// asks is on, Blocked on you and the priority stay plain: they count every
+// open ask of the threads kept, while those filters keep a thread for one
+// ask meeting them all, so their own filter could replace the one on or
+// keep nothing.
+function RollupMarks({
+  rollup,
+  presence,
+  label,
+  list,
+}: {
+  rollup: Rollup;
+  presence: Presence | undefined;
+  label: Headed;
+  list: ListShown;
+}) {
+  const { narrowing, spoken } = label;
+  const scope = narrowing === undefined ? undefined : { narrowing, label: spoken, list };
+  const linked = (change: Partial<ThreadsView>, name: string, mark: ReactNode) =>
+    scope === undefined ? (
+      mark
+    ) : (
+      <FilterLink list={list} narrowing={{ ...scope.narrowing, ...change }} spoken={name}>
+        {mark}
+      </FilterLink>
+    );
+  const asks = keepsAsks(list.view);
+  const threads = plural(rollup.threads, "thread");
+  const { priority } = rollup;
+  const priorityMark = priority !== undefined && (
+    <span className={`flag ${priorityTone[priority] ?? ""}`}>{priorityShown[priority]}</span>
+  );
   return (
-    <span className="roll-up" aria-hidden="true">
-      <span className="roll-up-count">{plural(rollup.threads, "thread")}</span>
-      <UnreadCount unread={rollup.unread} />
-      {rollup.blocked && <span className="flag danger">Blocked on you</span>}
-      {rollup.priority !== undefined && (
-        <span className={`flag ${priorityTone[rollup.priority] ?? ""}`}>
-          {priorityShown[rollup.priority]}
-        </span>
+    <span className="roll-up">
+      {linked({}, `${threads} of ${spoken}`, <span className="roll-up-count">{threads}</span>)}
+      {scope === undefined ? (
+        <UnreadCount unread={rollup.unread} />
+      ) : (
+        <UnreadLink unread={rollup.unread} {...scope} />
       )}
+      {rollup.blocked &&
+        (scope === undefined || asks ? <BlockedFlag /> : <BlockedLink {...scope} />)}
+      {priority !== undefined &&
+        (filtered(priority) && !asks
+          ? linked({ priority }, `${priorityLabel[priority]} threads of ${spoken}`, priorityMark)
+          : priorityMark)}
       {rollup.archived && <Mark icon="archive" label="Archived" />}
       {presence?.quiet === true && (
         <span className="last-seen warning">
+          <span className="visually-hidden">Quiet, </span>
           {presence.last_seen_at === undefined ? (
             "never seen"
           ) : (
@@ -136,9 +186,10 @@ function under({ level, depth }: Placement): Placement {
   };
 }
 
-// GroupFold is a group under its header, named with the group's roll-up, and
-// a session's or an agent's presence, when the list carries them. A
-// collapsed header hides everything under it.
+// GroupFold is a group under its header, named for what it heads, with the
+// group's roll-up, and a session's or an agent's presence, when the list
+// carries them. A header with a filter links its label to the group's
+// threads. A collapsed header hides everything under it.
 function GroupFold({
   header,
   at,
@@ -146,6 +197,7 @@ function GroupFold({
   rollup,
   presence,
   folds,
+  list,
   children,
 }: {
   header: string;
@@ -154,15 +206,29 @@ function GroupFold({
   rollup: Rollup | undefined;
   presence?: Presence | undefined;
   folds: Folds;
+  list: ListShown;
   children: ReactNode;
 }) {
+  const { narrowing } = label;
   return (
     <Fold
       level={at.level}
       depth={at.depth}
-      label={label.shown}
-      marks={rollup !== undefined && <RollupMarks rollup={rollup} presence={presence} />}
-      spoken={rollup === undefined ? label.spoken : spokenRollup(label.spoken, rollup, presence)}
+      {...(narrowing === undefined
+        ? { label: label.spoken }
+        : {
+            name: label.spoken,
+            label: (
+              <FilterLink list={list} narrowing={narrowing} spoken={`Threads of ${label.spoken}`}>
+                {label.shown}
+              </FilterLink>
+            ),
+          })}
+      marks={
+        rollup !== undefined && (
+          <RollupMarks rollup={rollup} presence={presence} label={label} list={list} />
+        )
+      }
       folded={folds.has(header)}
       toggle={() => folds.toggle(header)}
     >
@@ -232,10 +298,12 @@ export function GroupedRows({
   threads,
   groups,
   grouping,
+  list,
 }: {
   threads: ListedThread[];
   groups: ThreadGroups | undefined;
   grouping: ThreadGrouping;
+  list: ListShown;
 }) {
   const folds = useFolds(`agention.collapsed-groups.${grouping}`);
   const heads = headsOf(groups);
@@ -256,13 +324,17 @@ export function GroupedRows({
             key={path}
             header={sessionHeader(path)}
             at={at}
-            label={located([
-              ["agent", first?.agent ?? ""],
-              ["session", first?.session ?? ""],
-            ])}
+            label={located(
+              [
+                ["agent", first?.agent ?? ""],
+                ["session", first?.session ?? ""],
+              ],
+              { session: [path] },
+            )}
             rollup={session?.rollup}
             presence={session?.presence}
             folds={folds}
+            list={list}
           >
             {branches
               ? topics.map(([, onTopic]) => {
@@ -272,9 +344,14 @@ export function GroupedRows({
                       key={topic ?? ""}
                       header={topicHeader(path, topic)}
                       at={inner}
-                      label={topic === undefined ? bare("No topic") : located([["topic", topic]])}
+                      label={
+                        topic === undefined
+                          ? bare("No topic")
+                          : located([["topic", topic]], { topic: [`${path}/${topic}`] })
+                      }
                       rollup={session?.topics?.find((each) => each.topic === topic)?.rollup}
                       folds={folds}
+                      list={list}
                     >
                       {rowsOf(onTopic, under(inner).level)}
                     </GroupFold>
@@ -301,11 +378,16 @@ export function GroupedRows({
           at={top}
           label={
             group === undefined
-              ? bare("No group")
-              : { shown: group.name, spoken: `Group ${group.name}` }
+              ? bare("No group", { session_group: [noGroup] })
+              : {
+                  shown: group.name,
+                  spoken: `Group ${group.name}`,
+                  narrowing: { session_group: [group.id] },
+                }
           }
           rollup={heads.group(key)}
           folds={folds}
+          list={list}
         >
           {sessionFolds(held, under(top))}
         </GroupFold>
@@ -323,10 +405,11 @@ export function GroupedRows({
         key={agent}
         header={agentHeader(agent)}
         at={top}
-        label={located([["agent", agent]])}
+        label={located([["agent", agent]], { agent: [agent] })}
         rollup={heads.agent(agent)?.rollup}
         presence={heads.agent(agent)?.presence}
         folds={folds}
+        list={list}
       >
         {branches
           ? sessions.map(([path, inSession]) => (
@@ -334,10 +417,11 @@ export function GroupedRows({
                 key={path}
                 header={sessionHeader(path)}
                 at={inner}
-                label={located([["session", inSession[0]?.session ?? ""]])}
+                label={located([["session", inSession[0]?.session ?? ""]], { session: [path] })}
                 rollup={heads.session(path)?.rollup}
                 presence={heads.session(path)?.presence}
                 folds={folds}
+                list={list}
               >
                 {rowsOf(inSession, under(inner).level)}
               </GroupFold>

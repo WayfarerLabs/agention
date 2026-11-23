@@ -25,6 +25,7 @@ import {
   unfiltered,
   useLocation,
 } from "../router.tsx";
+import type { ListShown } from "./filter-links.tsx";
 import { BulkActions } from "./list/BulkActions.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet, type SearchText } from "./list/FilterSheet.tsx";
@@ -37,8 +38,9 @@ import { ThreadRow } from "./list/ThreadRow.tsx";
 // filter that combines with the others. The head holds the order the list is
 // in beside the button that reverses it, how the list is grouped, and a
 // Filters button, which opens a sheet holding every filter; each filter that
-// is on shows beneath as a chip that removes it. All of it lives in the
-// address. The head stays put while the list below it loads afresh, so its
+// is on shows beneath as a chip that removes it. Grouped, each header's links
+// add its group, and a mark's filter, to the filters on. All of it lives in
+// the address. The head stays put while the list below it loads afresh, so its
 // controls keep focus.
 
 const sortLabel: Record<ThreadSort, string> = {
@@ -186,9 +188,19 @@ export function ThreadList() {
         reset={reset}
         onClose={() => setSheetOpen(false)}
       />
+      {/* A header's link followed to another list leaves the list it was
+          on gone, so focus moves to Filters, as removing a chip does. */}
       <ListBody
         key={location.search}
-        view={view}
+        list={{
+          view,
+          choose: (change) => {
+            if (listHref({ ...view, ...change }) !== here) {
+              choose(change);
+              opener.current?.focus();
+            }
+          },
+        }}
         empty={on > 0 ? "No threads match these filters." : "No threads to show."}
         onTotal={onTotal}
       />
@@ -319,14 +331,16 @@ function useSearchText(view: ThreadsView, apply: (search: string | undefined) =>
 // list is mounted afresh for each address, so a list chosen afresh starts
 // quiet.
 function ListBody({
-  view,
+  list,
   empty,
   onTotal,
 }: {
-  view: ThreadsView;
+  // The list on screen, which a grouped header's links choose changes to.
+  list: ListShown;
   empty: string;
   onTotal: (total: number) => void;
 }) {
+  const { view } = list;
   const [said, say] = useState("");
   useEffect(() => {
     const text = takeNotice();
@@ -334,12 +348,12 @@ function ListBody({
       say(text);
     }
   }, []);
-  const list = usePages<ListedThread, Omit<ThreadListAnswer, "threads" | "next">>((cursor) =>
+  const pages = usePages<ListedThread, Omit<ThreadListAnswer, "threads" | "next">>((cursor) =>
     request<ThreadListAnswer>("GET", `/threads${query({ ...queryOf(view), cursor })}`).then(
       ({ threads, ...rest }) => ({ ...rest, rows: threads }),
     ),
   );
-  const { data } = list;
+  const { data } = pages;
   const shown = useMemo(
     () => (data === undefined ? undefined : { ...data, rows: distinct(data.rows) }),
     [data],
@@ -352,7 +366,7 @@ function ListBody({
   return (
     <>
       <Status>{said}</Status>
-      <Loadable data={shown} failure={list.failure} retry={list.refresh}>
+      <Loadable data={shown} failure={pages.failure} retry={pages.refresh}>
         {({ rows, next, groups }) =>
           rows.length === 0 ? (
             <p className="empty">{empty}</p>
@@ -362,7 +376,7 @@ function ListBody({
                 view={view}
                 threads={rows}
                 more={next !== undefined}
-                refresh={list.refresh}
+                refresh={pages.refresh}
                 say={say}
               />
               {view.group === undefined ? (
@@ -376,9 +390,9 @@ function ListBody({
                   ))}
                 </ul>
               ) : (
-                <GroupedRows threads={rows} groups={groups} grouping={view.group} />
+                <GroupedRows threads={rows} groups={groups} grouping={view.group} list={list} />
               )}
-              <MoreButton next={next} loading={list.loading} more={list.more} />
+              <MoreButton next={next} loading={pages.loading} more={pages.more} />
             </>
           )
         }

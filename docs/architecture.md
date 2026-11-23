@@ -1129,7 +1129,25 @@ the list loads the operator's groups and tags while the sheet is open or a group
 on, to name the groups chosen and to say which group was removed and which tag nothing carries.
 Grouped by session group, the list folds the sessions under their groups only while the roll-ups or
 the rows loaded hold two or more, no group among them, and composes a group's roll-up from its
-sessions', as it does an agent's; this browser keeps a group's fold by the group's id.
+sessions', as it does an agent's; this browser keeps a group's fold by the group's id. A header's
+label and the marks of its roll-up that a filter matches link to the list's address with the
+header's own filter (its group by id, its session, topic or agent) and the mark's added to the view,
+and a plain click chooses that view in place, as the filters do, replacing the address and, when the
+view changes, moving focus to **Filters**. While a filter on open asks is on, Blocked on you and the
+priority stay plain: a roll-up counts every open ask of the threads kept, while those filters keep a
+thread for one ask meeting them all, so the mark's filter could replace the one on or keep nothing.
+A header of no topic, which no filter names, links nothing. The sessions view's header links are
+these same links (`src/views/filter-links.tsx`), starting from no filters instead of the list on
+screen.
+
+Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
+button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
+in a button; a header's heading takes the button's name alone, so a linked label does not repeat it.
+A header's roll-up and its links sit at the end of its heading's row, wrapping beneath it where the
+width ends, each wrapped row a touch's height from the next, and an options menu keeps the bar's
+right end. The button's box stretches under the whole header or row, beneath its links and controls,
+so a pointer anywhere else on it folds or unfolds it while keyboards and assistive technology use
+the button; the links reach across the bar's height, so a tap near one lands on it.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
@@ -1160,22 +1178,26 @@ sessions they show, none when the view or the agent left sessions out, each with
 thread list on those threads, the agent's within its group while the view folds by group; a row's
 and an agent's count of stranded threads, while there are any, link likewise to the stranded among
 them, by the list's stranded filter, an agent that left sessions out flagging them with no count.
-Blocked on the operator shows once, in the thread list's words and tone: a row's and an agent's open
-asks say it, as Blocked on you before how many are open, in the danger tone while any blocks and the
-attention tone otherwise, and a group's head, which has none, shows Blocked on you. Each session's
-row says when the session was last seen, from its presence, as quiet while it is and has not
-stopped, and beside it how long ago its status was updated, from the status's `updated_at`, since a
-session can go on being seen long after its status stopped saying what it does. Each session's row
-shows its group and tags, and each agent's header its tags, from the sessions view's page; the
-sheets that set them, and the Groups and tags sheet, load the operator's groups and tags while they
-are open, and reload the view once a change lands. While the operator is signed in, the navigation
-reads what waits on the operator, from `GET /attention`, and shows it as a badge on each tab while
-there is any: the unread threads on Threads and the registrations waiting for approval on Sessions.
-The counts refresh on an interval, on returning to the page, on going to another view, and at once
-after any change the page makes lands, which the web API client announces for every request but a
-read and signing in or out. Wherever a thread shows as stranded, the UI says why from the session's
-presence in the thread's summary: the stop the session reported, with its outcome; otherwise quiet,
-with when it was last seen; otherwise no active credential.
+Blocked on the operator shows once, in the thread list's words and tone, as Blocked on you in the
+danger tone, before a row's and an agent's open asks, in the attention tone, and on a group's head,
+which has none. Every mark that stands for threads links to the thread list with no other filter on:
+a group's, an agent's and a session's name and its envelope to its threads and its unread ones,
+Blocked on you to those holding a blocking ask, the open asks to the open ones, each within the
+header or row it sits on, and a group's or a tag's chip to the threads in that group or carrying
+that tag alone. Each session's row says when the session was last seen, from its presence, as quiet
+while it is and has not stopped, and beside it how long ago its status was updated, from the
+status's `updated_at`, since a session can go on being seen long after its status stopped saying
+what it does. Each session's row shows its group and tags, and each agent's header its tags, from
+the sessions view's page; the sheets that set them, and the Groups and tags sheet, load the
+operator's groups and tags while they are open, and reload the view once a change lands. While the
+operator is signed in, the navigation reads what waits on the operator, from `GET /attention`, and
+shows it as a badge on each tab while there is any: the unread threads on Threads and the
+registrations waiting for approval on Sessions. The counts refresh on an interval, on returning to
+the page, on going to another view, and at once after any change the page makes lands, which the web
+API client announces for every request but a read and signing in or out. Wherever a thread shows as
+stranded, the UI says why from the session's presence in the thread's summary: the stop the session
+reported, with its outcome; otherwise quiet, with when it was last seen; otherwise no active
+credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

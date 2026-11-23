@@ -146,12 +146,15 @@ export const plainClick = (event: MouseEvent<HTMLAnchorElement>) =>
 
 // Link is an anchor that navigates within the page on a plain click, and
 // leaves every other click (a new tab, a download) to the browser. state, when
-// given, says on the click what the new history entry records.
+// given, says on the click what the new history entry records. follow, when
+// given, is what a plain click does in place of navigating, such as choosing
+// a filter of the list on screen, which goes to the same address its own way.
 export function Link({
   to,
   state,
+  follow,
   ...rest
-}: { to: string; state?: () => unknown } & Omit<
+}: { to: string; state?: () => unknown; follow?: () => void } & Omit<
   AnchorHTMLAttributes<HTMLAnchorElement>,
   "href" | "onClick"
 >) {
@@ -160,7 +163,11 @@ export function Link({
       return;
     }
     event.preventDefault();
-    navigate(to, { state: state?.() });
+    if (follow === undefined) {
+      navigate(to, { state: state?.() });
+    } else {
+      follow();
+    }
   };
   return <a {...rest} href={to} onClick={onClick} />;
 }

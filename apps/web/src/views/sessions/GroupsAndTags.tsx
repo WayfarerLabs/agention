@@ -11,34 +11,35 @@ import { request } from "../../api.ts";
 import { ConfirmButton, Failure, LeftOut, Loadable, Sheet } from "../../components.tsx";
 import { useAction, useResource } from "../../data.ts";
 import { plural } from "../../format.tsx";
+import { FilterLink } from "../filter-links.tsx";
 
 // The operator's session groups and tags in the sessions view: the chips
-// that show them on sessions and agents; the sheet that sets a session's
-// group, and the one that sets an agent's or a session's tags, each opened
-// from its options menu; and the Groups and tags sheet, which lists every
-// group and tag with what it holds, to rename or remove. A sheet loads the
+// that show them on sessions and agents, each linking to its threads; the
+// sheet that sets a session's group, and the one that sets an agent's or a
+// session's tags, each opened from its options menu; and the Groups and tags
+// sheet, which lists every group and tag with what it holds, to rename or
+// remove. A sheet loads the
 // groups and tags while it is open, as it opens, and says when a change
 // lands by reloading the view.
 
 const loadGroupsAndTags = () => request<GroupsAndTags>("GET", "/groups-and-tags");
 
 // GroupChip shows a session's group, and TagChip one of a session's or an
-// agent's tags, each said with its kind.
+// agent's tags, each linking to the threads in that group or carrying that
+// tag on the thread list, with no other filter on.
 export function GroupChip({ group }: { group: GroupRef }) {
   return (
-    <span className="group-chip">
-      <span className="visually-hidden">Group </span>
-      {group.name}
-    </span>
+    <FilterLink narrowing={{ session_group: [group.id] }} spoken={`Threads in group ${group.name}`}>
+      <span className="group-chip">{group.name}</span>
+    </FilterLink>
   );
 }
 
 export function TagChip({ tag }: { tag: string }) {
   return (
-    <span className="tag-chip">
-      <span className="visually-hidden">Tag </span>
-      {tag}
-    </span>
+    <FilterLink narrowing={{ tag: [tag] }} spoken={`Threads tagged ${tag}`}>
+      <span className="tag-chip">{tag}</span>
+    </FilterLink>
   );
 }
 
