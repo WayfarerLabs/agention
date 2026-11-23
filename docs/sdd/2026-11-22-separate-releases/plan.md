@@ -23,7 +23,8 @@ split release.
 - [x] `contract-split-lld.md`: the new workspace package's name, the rule for what stays shared
       (what the bridge's bundle needs), the modules that move (API keys, settings, attention,
       passkeys, groups and tags, the operator schemas) and the files split rather than moved
-      (`sessions.ts`, `thread-lists.ts`, `registrations.ts`, `threads.ts`) (agention#73).
+      (`sessions.ts`, `thread-lists.ts`, `registrations.ts`; `threadStartInput` moving from
+      `threads.ts` to the sessions module) (agention#73).
 - [x] The modules moved into the new package, the server, web UI and OpenAPI generation importing
       them from it, `packages/api` keeping only what the bridge or both sides use; no behavior,
       route, schema or generated document changes (agention#73).

@@ -86,12 +86,12 @@ upload limits). A change to one releases both lines, the safe failure.
 `apps/bridge/src/bundle.test.ts` builds the bridge from `src/main.ts` through a new
 `bundleInputs(entry)` in `packages/build`, which shares `bundle`'s esbuild options
 (`packages/build/src/bundle.ts:37-45`), writes nothing, and returns the metafile's inputs as
-absolute paths. It resolves both contract packages by name through Node's resolution, to their real
-directories, and asserts that some input is in `packages/api` (so the paths compare) and none is in
-`packages/server-api`. Nothing else holds the line: npm links every workspace into the root
-`node_modules`, and the bridge devDepends on the server (`apps/bridge/package.json:33`), which
-depends on `packages/server-api`. The bridge now declares `packages/server-api` among its
-`devDependencies` too, since its tests derive registration codes.
+absolute paths. It finds both contract packages by their fixed paths in the repository, as other
+tests reach repository files, and asserts that some input is in `packages/api` (so the paths
+compare) and none is in `packages/server-api`. Nothing else holds the line: npm links every
+workspace into the root `node_modules`, and the bridge devDepends on the server
+(`apps/bridge/package.json:33`), which depends on `packages/server-api`. The bridge now declares
+`packages/server-api` among its `devDependencies` too, since its tests derive registration codes.
 
 ## Verification
 
