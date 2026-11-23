@@ -4,7 +4,7 @@ import {
   type Registration,
   type SessionSummary,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { type AgentList, type Agents, listSessions } from "../api.ts";
 import {

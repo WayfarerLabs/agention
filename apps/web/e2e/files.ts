@@ -4,7 +4,7 @@
 // to leave an attached file without its contents, as a future purge would.
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import type { PublicKey, UploadResult } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { deflateSync, crc32 } from "node:zlib";

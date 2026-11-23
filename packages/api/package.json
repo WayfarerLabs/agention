@@ -1,12 +1,10 @@
 {
   "name": "@wayfarerlabs/agention-api",
   "private": true,
-  "description": "The HTTP API contract shared by the server, the agent bridge and the web UI.",
+  "description": "The HTTP API contract the agent bridge shares with the server and the web UI.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./json-schemas": "./src/json-schemas.ts",
-    "./registration-code": "./src/registration-code.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -4,7 +4,7 @@ import type {
   priorityFilter,
   SessionGroupsFilter,
   ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { PathBadge, type PathKind, pathWord } from "../../components.tsx";
 import {
   effortLabel,

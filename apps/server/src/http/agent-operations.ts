@@ -1,7 +1,6 @@
 import {
   registrationState,
   registrationSubmitInput,
-  sessionParams,
   sessionStatus,
   sessionThreadsQuery,
   sessionUpdateInput,
@@ -11,6 +10,7 @@ import {
   waitResult,
   writeResult,
 } from "@wayfarerlabs/agention-api";
+import { sessionParams } from "@wayfarerlabs/agention-server-api";
 import { createThread, listSessionThreads, updateSession, waitForThreads } from "../store/index.ts";
 import { type Declaration, operation } from "./operations.ts";
 import { threadOperations } from "./thread-operations.ts";

@@ -1,12 +1,11 @@
 import {
   type AskSummary,
   maxListedAsks,
-  maxNarrowed,
   type OpenAsks,
-  type ThreadCounts,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { maxNarrowed, type ThreadCounts } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { absoluteTime, sinceTime } from "../format.tsx";
 import { Icon, type IconName } from "../icons.tsx";

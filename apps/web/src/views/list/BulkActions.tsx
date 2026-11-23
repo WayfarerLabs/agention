@@ -1,11 +1,11 @@
+import { type ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
   type BulkArchiveResult,
   type BulkMarkInput,
   type BulkReadResult,
   statusKept,
-  type ThreadSummary,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { request } from "../../api.ts";
 import { Failure } from "../../components.tsx";
 import { useAction } from "../../data.ts";

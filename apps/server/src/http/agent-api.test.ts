@@ -7,7 +7,7 @@ import {
   type ThreadPage,
   type WaitResult,
 } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { hour } from "../store/test-fixture.ts";

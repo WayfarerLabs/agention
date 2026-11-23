@@ -1,9 +1,5 @@
-import {
-  type SessionSummary,
-  type ThreadStartInput,
-  threadTitle,
-  type WriteResult,
-} from "@wayfarerlabs/agention-api";
+import { threadTitle, type WriteResult } from "@wayfarerlabs/agention-api";
+import { type SessionSummary, type ThreadStartInput } from "@wayfarerlabs/agention-server-api";
 import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { request, sessionPath } from "../../api.ts";
 import { Failure, PathParts, Sheet } from "../../components.tsx";

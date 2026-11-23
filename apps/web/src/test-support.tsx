@@ -1,22 +1,24 @@
 // Test support for the component tests: a fake web API behind fetch, and
 // fixtures shaped as the server answers.
 import {
-  type AttentionCounts,
   type ErrorBody,
   type ErrorCode,
-  type GroupsAndTags,
   type Message,
+  statusByErrorCode,
+  type ThreadGetResult,
+  type ThreadSummary,
+} from "@wayfarerlabs/agention-api";
+import { render } from "@testing-library/react";
+import {
+  type AttentionCounts,
+  type GroupsAndTags,
   type Registration,
   type SessionState,
   type SessionSummary,
   type SettingsResult,
-  statusByErrorCode,
   type ThreadCounts,
-  type ThreadGetResult,
   type ThreadList,
-  type ThreadSummary,
-} from "@wayfarerlabs/agention-api";
-import { render } from "@testing-library/react";
+} from "@wayfarerlabs/agention-server-api";
 import { vi } from "vitest";
 import { App } from "./App.tsx";
 

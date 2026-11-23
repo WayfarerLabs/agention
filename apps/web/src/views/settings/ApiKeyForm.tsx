@@ -7,7 +7,7 @@ import {
   maxApiKeyLifetimeDays,
   type Scope,
   scopes,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, describeFailure, request } from "../../api.ts";
 import { Failure } from "../../components.tsx";

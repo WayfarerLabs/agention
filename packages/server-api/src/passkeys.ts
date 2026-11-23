@@ -1,6 +1,5 @@
+import { name, singleLineText } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
-import { name } from "./names.ts";
-import { singleLineText } from "./text.ts";
 
 // The web UI's sign-in: passkeys, the browser session they open, the links
 // that register the operator's passkeys, and the operator's own list of them.

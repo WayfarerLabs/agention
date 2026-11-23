@@ -1,4 +1,4 @@
-import type { SettingsResult } from "@wayfarerlabs/agention-api";
+import type { SettingsResult } from "@wayfarerlabs/agention-server-api";
 import { request } from "../../api.ts";
 import { Loadable } from "../../components.tsx";
 import { useResource } from "../../data.ts";

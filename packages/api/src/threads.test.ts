@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { invalidInputBody } from "./errors.ts";
 import { namePattern } from "./names.ts";
 import { sessionThreadsQuery } from "./thread-lists.ts";
-import { messageSendInput, threadCreateInput, threadStartInput, unreadInput } from "./threads.ts";
+import { messageSendInput, threadCreateInput, unreadInput } from "./threads.ts";
 
 const ask = {
   question: "Which database?",
@@ -249,11 +249,6 @@ describe("attachments", () => {
       ...create,
       attachments,
     });
-  });
-
-  it("are no part of the operator's start of a thread", () => {
-    const start = { request_id: "r-1", title: "t", text: "Hello." };
-    expect(threadStartInput.parse({ ...start, attachments: [{ upload }] })).toEqual(start);
   });
 
   it.each([

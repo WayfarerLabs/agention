@@ -1,4 +1,4 @@
-import type { SessionState } from "@wayfarerlabs/agention-api";
+import type { SessionState } from "@wayfarerlabs/agention-server-api";
 import {
   createContext,
   type ReactNode,

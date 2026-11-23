@@ -1,12 +1,12 @@
+import { type Presence } from "@wayfarerlabs/agention-api";
 import {
   composePresence,
   composeRollup,
   type GroupRef,
-  type Presence,
   type Rollup,
   type ThreadGroups,
   type ThreadGrouping,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { ReactNode } from "react";
 import {
   Fold,

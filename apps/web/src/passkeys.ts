@@ -1,4 +1,4 @@
-import type { PasskeyOptions, SessionState } from "@wayfarerlabs/agention-api";
+import type { PasskeyOptions, SessionState } from "@wayfarerlabs/agention-server-api";
 import { PasskeyFailure, request } from "./api.ts";
 import { serverName } from "./server-name.ts";
 

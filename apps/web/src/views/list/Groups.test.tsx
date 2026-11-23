@@ -1,5 +1,6 @@
-import type { Rollup, ThreadGroups, ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadSummary } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { Rollup, ThreadGroups } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sinceTime } from "../../format.tsx";
 import type { ListedThread } from "./listing.ts";

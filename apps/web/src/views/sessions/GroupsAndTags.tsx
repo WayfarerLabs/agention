@@ -5,7 +5,7 @@ import {
   maxTags,
   noGroup,
   tagName,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import { ConfirmButton, Failure, LeftOut, Loadable, Sheet } from "../../components.tsx";

@@ -1,4 +1,4 @@
-import type { AttentionCounts } from "@wayfarerlabs/agention-api";
+import type { AttentionCounts } from "@wayfarerlabs/agention-server-api";
 import { createContext, type ReactNode, useContext, useEffect, useRef } from "react";
 import { changeLanded, request } from "./api.ts";
 import { type Resource, useResource } from "./data.ts";

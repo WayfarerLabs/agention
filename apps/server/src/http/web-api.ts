@@ -6,7 +6,7 @@ import {
   type SessionState,
   signInFinishInput,
   voiceSettingsInput,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createApiKey, listApiKeys, revokeApiKey } from "../auth/api-keys.ts";

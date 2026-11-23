@@ -3,7 +3,7 @@ import type {
   SessionLogMark,
   SessionSummary,
   SessionUpdate,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   type MouseEvent,
   type Ref,

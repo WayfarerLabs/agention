@@ -3,7 +3,7 @@ import type {
   PasskeyRemoved,
   PasskeySummary,
   SessionState,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type FormEvent, useId, useState } from "react";
 import { request } from "../../api.ts";
 import { ConfirmButton, Failure, Loadable, Status, Tags } from "../../components.tsx";

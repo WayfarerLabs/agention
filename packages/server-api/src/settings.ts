@@ -1,6 +1,5 @@
+import { fileTotals, multilineText } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
-import { fileTotals } from "./files.ts";
-import { multilineText } from "./text.ts";
 
 // The operator's settings on the web mount: voice, whose transcription
 // provider the server calls with the recordings the web UI sends it. A

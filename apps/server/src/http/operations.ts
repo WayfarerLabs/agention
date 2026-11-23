@@ -1,5 +1,5 @@
-import type { Scope } from "@wayfarerlabs/agention-api";
-import type { ApiSchema } from "@wayfarerlabs/agention-api/json-schemas";
+import type { Scope } from "@wayfarerlabs/agention-server-api";
+import type { ApiSchema } from "@wayfarerlabs/agention-server-api/json-schemas";
 import type { Context, Hono } from "hono";
 import { notFound } from "../errors.ts";
 import { holds, type Identity } from "../identity.ts";

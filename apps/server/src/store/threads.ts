@@ -6,14 +6,13 @@ import {
   pageLimit,
   parseTimestamp,
   type Reference,
-  type Scope,
   type ThreadCreateInput,
   type ThreadGetQuery,
   type ThreadGetResult,
-  type ThreadStartInput,
   type Withdrawal,
   type WriteResult,
 } from "@wayfarerlabs/agention-api";
+import { type Scope, type ThreadStartInput } from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notAllowed, notFound } from "../errors.ts";
 import { authorize, type Identity } from "../identity.ts";

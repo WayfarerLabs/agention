@@ -1,7 +1,6 @@
+import { singleLineText, timestamp } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
 import { scope } from "./scopes.ts";
-import { singleLineText } from "./text.ts";
-import { timestamp } from "./time.ts";
 
 // API keys, which the operator creates in Settings for a client to call the
 // operator API as them, within the key's scopes. Keys are managed only on the

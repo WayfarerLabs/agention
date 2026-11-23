@@ -1,4 +1,4 @@
-import type { RecordingType } from "@wayfarerlabs/agention-api";
+import type { RecordingType } from "@wayfarerlabs/agention-server-api";
 import type { TranscriptionConfig } from "../store/index.ts";
 
 // The server's one way to a transcription provider: transcribe a recording

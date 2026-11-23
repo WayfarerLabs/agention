@@ -9,7 +9,7 @@ import {
   type ThreadSort,
   type ThreadsView,
   threadSort,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";

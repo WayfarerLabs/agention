@@ -1,7 +1,4 @@
 import type {
-  BulkArchiveResult,
-  BulkMarkInput,
-  BulkReadResult,
   Cursors,
   CursorsResult,
   MarkInput,
@@ -9,6 +6,11 @@ import type {
   MarksResult,
   UnreadInput,
 } from "@wayfarerlabs/agention-api";
+import type {
+  BulkArchiveResult,
+  BulkMarkInput,
+  BulkReadResult,
+} from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";

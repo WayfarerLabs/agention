@@ -1,4 +1,4 @@
-import { threadFilters, threadsQuery } from "@wayfarerlabs/agention-api";
+import { threadFilters, threadsQuery } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { markRead } from "./marks.ts";
 import { seenStep } from "./presence.ts";

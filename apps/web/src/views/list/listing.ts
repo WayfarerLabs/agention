@@ -1,10 +1,10 @@
+import { type ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
   type GroupsAndTags,
   noGroup,
   type SessionGroupsFilter,
   type ThreadList,
-  type ThreadSummary,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 
 // The sessions and topics the list names, and the threads it loads.
 

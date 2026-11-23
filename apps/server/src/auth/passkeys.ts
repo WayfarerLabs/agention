@@ -11,7 +11,7 @@ import type {
   NewPasskeyInput,
   PasskeyOptions,
   SignInFinishInput,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { randomBytes } from "node:crypto";
 import type { Database } from "../database/database.ts";
 import { invalidInput, unauthenticated } from "../errors.ts";

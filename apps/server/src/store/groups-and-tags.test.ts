@@ -1,11 +1,11 @@
+import { sessionThreadsQuery } from "@wayfarerlabs/agention-api";
 import {
   groupNameInput,
   maxGroups,
   sessionsQuery,
-  sessionThreadsQuery,
   tagsInput,
   threadsQuery,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import type { Identity } from "../identity.ts";

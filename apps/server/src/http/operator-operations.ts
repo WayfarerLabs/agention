@@ -1,3 +1,4 @@
+import { writeResult } from "@wayfarerlabs/agention-api";
 import {
   agentParams,
   approveInput,
@@ -32,8 +33,7 @@ import {
   threadList,
   threadStartInput,
   threadsQuery,
-  writeResult,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   approveRegistration,
   bulkArchive,

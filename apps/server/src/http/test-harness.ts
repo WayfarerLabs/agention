@@ -1,14 +1,16 @@
 // An HTTP application over a fresh store, with an operator signed in on one
 // browser and helpers to sign agent requests, for the HTTP tests.
 import {
-  type ApiKeyCreated,
-  type ApiKeyExpiry,
   type ErrorBody,
   type PublicKey,
   publicKey,
   type RegistrationState,
-  type Scope,
 } from "@wayfarerlabs/agention-api";
+import {
+  type ApiKeyCreated,
+  type ApiKeyExpiry,
+  type Scope,
+} from "@wayfarerlabs/agention-server-api";
 import type { Hono } from "hono";
 import { SignJWT } from "jose";
 import { generateKeyPairSync, type KeyObject } from "node:crypto";

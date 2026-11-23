@@ -1,5 +1,10 @@
-import type { ApiKeyCreated, ApiKeyList, ApiKeySummary, Scope } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type {
+  ApiKeyCreated,
+  ApiKeyList,
+  ApiKeySummary,
+  Scope,
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   csrf,

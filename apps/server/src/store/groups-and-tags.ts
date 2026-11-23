@@ -1,14 +1,14 @@
+import { maxListed } from "@wayfarerlabs/agention-api";
 import {
   type GroupNameInput,
   type GroupRef,
   type GroupsAndTags,
   maxGroups,
-  maxListed,
   type Scope,
   type SessionGroupInput,
   type TagNameInput,
   type TagsInput,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notFound } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";

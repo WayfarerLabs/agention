@@ -7,7 +7,7 @@ import {
   unsatisfiableRangeStatus,
   unsizedBodyStatus,
 } from "@wayfarerlabs/agention-api";
-import { JsonSchemas } from "@wayfarerlabs/agention-api/json-schemas";
+import { JsonSchemas } from "@wayfarerlabs/agention-server-api/json-schemas";
 import { maxTokenLifetime } from "../auth/agent-tokens.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
 import {

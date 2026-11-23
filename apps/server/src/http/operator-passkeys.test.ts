@@ -1,4 +1,4 @@
-import type { PasskeyList, PasskeyRemoved } from "@wayfarerlabs/agention-api";
+import type { PasskeyList, PasskeyRemoved } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { recentSignIn } from "../auth/browser-sessions.ts";
 import { issuePasskeyLink } from "../auth/passkey-links.ts";

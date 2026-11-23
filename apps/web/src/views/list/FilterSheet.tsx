@@ -1,3 +1,4 @@
+import { threadStatus } from "@wayfarerlabs/agention-api";
 import {
   agentReadFilter,
   asksOff,
@@ -11,8 +12,7 @@ import {
   statusKept,
   type ThreadCounts,
   type ThreadsView,
-  threadStatus,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   type KeyboardEvent,
   type ReactNode,

@@ -1,5 +1,5 @@
 import { type PublicKey } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { decodeProtectedHeader } from "jose";
 import { createPrivateKey, generateKeyPairSync } from "node:crypto";
 import {

@@ -1,6 +1,7 @@
 // A server over a fresh database with no operator yet, and a browser that
 // keeps its cookies, for the passkey ceremonies' tests.
-import type { ErrorBody, SessionState } from "@wayfarerlabs/agention-api";
+import type { ErrorBody } from "@wayfarerlabs/agention-api";
+import type { SessionState } from "@wayfarerlabs/agention-server-api";
 import type { Hono } from "hono";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

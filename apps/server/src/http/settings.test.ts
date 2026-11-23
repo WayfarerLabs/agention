@@ -1,4 +1,5 @@
-import { type ErrorBody, type SettingsResult } from "@wayfarerlabs/agention-api";
+import { type ErrorBody } from "@wayfarerlabs/agention-api";
+import { type SettingsResult } from "@wayfarerlabs/agention-server-api";
 import { afterEach, describe, expect, it } from "vitest";
 import { recentSignIn } from "../auth/browser-sessions.ts";
 import type { VoiceEnvironment } from "../store/index.ts";

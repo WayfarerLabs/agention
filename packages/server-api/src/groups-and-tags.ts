@@ -1,7 +1,5 @@
+import { maxListed, name, sequence, singleLineText } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
-import { maxListed, sequence } from "./bounds.ts";
-import { name } from "./names.ts";
-import { singleLineText } from "./text.ts";
 
 // The operator's session groups and tags, which organize their views and
 // nothing else: no agent route reads or writes them, and they grant nothing.

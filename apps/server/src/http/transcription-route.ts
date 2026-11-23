@@ -3,7 +3,7 @@ import {
   type RecordingType,
   recordingTypes,
   type TranscriptionResult,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { Context } from "hono";
 import { ApiError, invalidInput } from "../errors.ts";
 import { type Store, transcriptionConfig, type VoiceEnvironment } from "../store/index.ts";

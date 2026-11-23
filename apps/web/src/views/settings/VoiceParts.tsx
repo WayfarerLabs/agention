@@ -1,4 +1,4 @@
-import { presetOf } from "@wayfarerlabs/agention-api";
+import { presetOf } from "@wayfarerlabs/agention-server-api";
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { ExternalLink } from "../../markdown/Markdown.tsx";
 import { recorderType, useDictation } from "../../voice/Dictation.tsx";

@@ -32,7 +32,7 @@ import type {
   ThreadGetResult,
   WriteResult,
 } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { Agent } from "./agent.ts";
 import { expect, hostName, secondServerName, serverName, test } from "./fixtures.ts";
 

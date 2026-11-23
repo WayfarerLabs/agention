@@ -6,9 +6,9 @@ import type {
   Message,
   ThreadGetResult,
   ThreadSummary,
-  ThreadsView,
   UnreadInput,
 } from "@wayfarerlabs/agention-api";
+import type { ThreadsView } from "@wayfarerlabs/agention-server-api";
 import {
   Fragment,
   useCallback,

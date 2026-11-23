@@ -1,10 +1,10 @@
+import { namePattern } from "@wayfarerlabs/agention-api";
 import {
   type ApproveInput,
-  namePattern,
   type Registration,
   type RegistrationResult,
   type RegistrationsPage,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type RefObject, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   type AgentList,

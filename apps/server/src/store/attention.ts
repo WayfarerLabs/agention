@@ -1,4 +1,4 @@
-import type { AttentionCounts } from "@wayfarerlabs/agention-api";
+import type { AttentionCounts } from "@wayfarerlabs/agention-server-api";
 import { authorizeScope, type Identity } from "../identity.ts";
 import { countPendingRegistrations } from "./registrations.ts";
 import type { Store } from "./store.ts";
