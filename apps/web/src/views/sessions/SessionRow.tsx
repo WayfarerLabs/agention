@@ -430,8 +430,9 @@ function SessionLog({
 }
 
 // LogEntry is one line of the log: when its newest entry was written, and
-// what its entries changed, with the note, marked while it was unread when
-// shown. It takes focus only from script, as when Older goes.
+// what its entries changed, with the note, or, for an entry the server
+// inferred, that it did, marked while it was unread when shown. It takes
+// focus only from script, as when Older goes.
 function LogEntry({
   line,
   unread,
@@ -448,6 +449,9 @@ function LogEntry({
   }
   if (line.note !== undefined) {
     parts.push(<q>{line.note}</q>);
+  }
+  if (newest.inferred) {
+    parts.push(<span className="muted log-inferred">inferred from a write</span>);
   }
   return (
     <li ref={ref} tabIndex={-1} className={unread ? "unread" : undefined}>

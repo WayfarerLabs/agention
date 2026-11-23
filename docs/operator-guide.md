@@ -154,13 +154,17 @@ now; **idle** while it has nothing left to do but wait, for your answers, CI or 
 keeps checking Agention; and **stopped** once it stops checking, with why: **completed** when the
 work is done, **withdrawn** when you called it off, or **stalled** when it cannot go on. A stopped
 session will not see what you write until something starts it again, and stays stopped until it
-reports working or idle. Whether a session waits on you is no state it reports: its open asks say
-so. A session whose agent never reported, such as one whose plugin predates session states, has no
-state. A thread whose agent has not read your latest messages while its session is quiet, has
-stopped or has no active credential is **stranded**: the agent will not see what you wrote until you
-resume it. An agent keeps checking for your answers while it has open asks or unread messages, so a
-thread stranded by a quiet session means the agent stopped without saying so, such as when its host
-ended the session, or is busy and has not checked.
+reports working or idle. An agent reports its state with an update of its own or beside a message it
+writes, and an idle session that writes to its threads without reporting a state or note, a message,
+a new thread, or marking one read, unread or archived, is working from then on, since it is plainly
+doing something: the server marks it so itself, logging that it did so, with no note. Checking for
+your answers changes nothing, and neither does anything you write. Whether a session waits on you is
+no state it reports: its open asks say so. A session whose agent never reported, such as one whose
+plugin predates session states, has no state. A thread whose agent has not read your latest messages
+while its session is quiet, has stopped or has no active credential is **stranded**: the agent will
+not see what you wrote until you resume it. An agent keeps checking for your answers while it has
+open asks or unread messages, so a thread stranded by a quiet session means the agent stopped
+without saying so, such as when its host ended the session, or is busy and has not checked.
 
 The data directory and the database must be private to the user running Agention, under the rule
 [SECURITY.md](../SECURITY.md#private-files) states. `agention serve` creates a missing data
@@ -646,8 +650,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     and when, or **Never seen**, in the warning's color while the session is quiet and has not
     stopped, and once it has reported a status, how long ago it last updated it, such as **status
     updated 2 hours ago**, since a session can go on checking Agention long after its status stopped
-    saying what it does. While a session reports **Working**, its bridge reminds it to update its
-    status once it has sent none for 20 minutes. The bridge counts from the session's own last
+    saying what it does; a session marked working because it wrote counts as an update then. While a
+    session is **Working**, its bridge reminds it to update its status once it has sent none for 20
+    minutes, counting a write that marked it working. The bridge counts from the session's own last
     update through it, not from the age you see, so the two differ when the bridge has restarted or
     another bridge shares the session. The third line, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
@@ -666,16 +671,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       or the open envelope when none is, the closed one opening it on the session's unread threads.
       **Blocked on you** shows once, before its open asks, as on an agent's header;
     - its unread updates, such as **2 new updates**;
-    - and its latest note, cut to fit.
+    - and its latest update's note, cut to fit, with none after the server marked it working.
 
     Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
     and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
-    each update changed, newest first, with its note. Consecutive updates that changed only the
-    percent show as one line, such as **Progress 20% → 60%**, and **Older** shows the updates
-    before. Unfolding reads the updates it shows, which stay marked unread until you fold the row
-    again. Rows start folded each time you open the view, and a row under an agent or a group you
-    folded reads nothing, since it is not shown. This browser keeps the agents you fold, under each
-    group apart.
+    each update changed, newest first, with its note, and **inferred from a write** on one the
+    server logged when the idle session wrote. Consecutive updates that changed only the percent
+    show as one line, such as **Progress 20% → 60%**, and **Older** shows the updates before.
+    Unfolding reads the updates it shows, which stay marked unread until you fold the row again.
+    Rows start folded each time you open the view, and a row under an agent or a group you folded
+    reads nothing, since it is not shown. This browser keeps the agents you fold, under each group
+    apart.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.

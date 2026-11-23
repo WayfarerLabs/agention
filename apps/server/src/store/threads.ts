@@ -1,8 +1,8 @@
 import {
+  type AgentMessageSendInput,
   type Ask,
   type Answer,
   type Attachment,
-  type MessageSendInput,
   pageLimit,
   parseTimestamp,
   type Reference,
@@ -13,6 +13,7 @@ import {
   type ThreadStartInput,
   type Withdrawal,
   type WriteResult,
+  type WriteStatus,
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notAllowed, notFound } from "../errors.ts";
@@ -25,6 +26,7 @@ import {
 } from "./attachments.ts";
 import { findOperator, resolveSession, sessionActorId } from "./directory.ts";
 import { writeDigest } from "./digest.ts";
+import { statusOnWrite } from "./sessions.ts";
 import type { Store } from "./store.ts";
 import { marksOf, partyCursors, readMessages, readThread } from "./thread-reads.ts";
 
@@ -32,7 +34,10 @@ import { marksOf, partyCursors, readMessages, readThread } from "./thread-reads.
 // shape are checked before any transaction opens. Each write reads the clock
 // and authorizes inside its transaction, then runs its checks in a fixed
 // order: replay of a request id, roles, staleness, then the rules that depend
-// on the thread's messages, the files it attaches last.
+// on the thread's messages, the files it attaches last. A write that lands
+// then applies what it says of its session's status (statusOnWrite), in the
+// same transaction, so a write that fails changes no status. A replay changes
+// nothing: the write it repeats applied its status with it.
 
 export interface SessionTarget {
   agent: string;
@@ -480,21 +485,23 @@ interface Roles {
 // requester and the audience are, and throws notAllowed for an identity that
 // may not start this thread. The thread takes the session's next number, its
 // first message raises the writer's read mark through it, and the session's
-// long polls wake once it commits.
+// long polls wake once it commits. The status the input reports is part of
+// the write, its digest included.
 function addThread(
   store: Store,
   identity: Identity,
   target: SessionTarget,
   operation: string,
-  input: Parts & { request_id: string; title: string },
+  input: Parts & WriteStatus & { request_id: string; title: string },
   roles: (db: Database, sessionId: number) => Roles,
 ): WriteResult {
   const { db } = store;
-  const { request_id: requestId, title, ...parts } = input;
+  const { request_id: requestId, title, state, outcome: stoppedWith, note, ...parts } = input;
+  const report = { state, outcome: stoppedWith, note };
   const outcome = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
-    const digest = writeDigest(operation, { session: sessionId }, { title, ...parts });
+    const digest = writeDigest(operation, { session: sessionId }, { title, ...parts, ...report });
     const prior = replayed(db, identity.actor, requestId, digest);
     if (prior !== undefined) {
       return { sessionId, appended: false, result: prior };
@@ -523,6 +530,7 @@ function addThread(
       attachments,
       now,
     });
+    statusOnWrite(db, identity, sessionId, report, now);
     return { sessionId, appended: true, result: { number, seq: 1 } };
   });
   if (outcome.appended) {
@@ -571,15 +579,24 @@ export function startThread(
   });
 }
 
-// sendMessage appends a message to a thread.
+// sendMessage appends a message to a thread, with what it reports of its
+// session's status, which only the agent mount takes.
 export function sendMessage(
   store: Store,
   identity: Identity,
   target: ThreadTarget,
-  input: MessageSendInput,
+  input: AgentMessageSendInput,
 ): WriteResult {
   const { db } = store;
-  const { seen_through: seenThrough, request_id: requestId, ...parts } = input;
+  const {
+    seen_through: seenThrough,
+    request_id: requestId,
+    state,
+    outcome: stoppedWith,
+    note,
+    ...parts
+  } = input;
+  const report = { state, outcome: stoppedWith, note };
   const outcome = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
@@ -587,7 +604,7 @@ export function sendMessage(
     const digest = writeDigest(
       "message_send",
       { session: sessionId, thread: target.thread },
-      parts,
+      { ...parts, ...report },
     );
     const prior = replayed(db, identity.actor, requestId, digest);
     if (prior !== undefined) {
@@ -638,6 +655,7 @@ export function sendMessage(
     );
     const seq = thread.last_seq + 1;
     appendMessage(db, thread, seq, identity, { requestId, digest, parts, attachments, now });
+    statusOnWrite(db, identity, sessionId, report, now);
     return { sessionId, appended: true, result: { number: thread.number, seq } };
   });
   if (outcome.appended) {

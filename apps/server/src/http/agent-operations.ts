@@ -1,4 +1,5 @@
 import {
+  agentMessageSendInput,
   registrationState,
   registrationSubmitInput,
   sessionParams,
@@ -68,7 +69,7 @@ export const agentOperations = [
     handler: ({ store, identity, params, query, signal }) =>
       waitForThreads(store, identity, params, query, signal),
   }),
-  ...threadOperations,
+  ...threadOperations(agentMessageSendInput),
 ];
 
 // Registration is the one agent route a key the operator has not approved may

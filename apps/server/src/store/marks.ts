@@ -12,6 +12,7 @@ import type {
 import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";
+import { statusOnWrite } from "./sessions.ts";
 import type { Store } from "./store.ts";
 import { marksOf, partyCursors } from "./thread-reads.ts";
 import {
@@ -24,7 +25,8 @@ import {
 
 // Marking read, marking unread and archiving move only the caller's own marks
 // on a thread. They write no message, so none of them conflicts with a write,
-// and they wake no one.
+// and they wake no one. Each is a write to the thread all the same, so a
+// session's own marks it working while idle (statusOnWrite).
 
 // checkThrough refuses a mark beyond the thread's latest message.
 function checkThrough(thread: StoredThread, through: number, field?: string): void {
@@ -62,8 +64,11 @@ export function markRead(
 ): CursorsResult {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
-    return { cursors: readThrough(db, identity, sessionId, target.thread, input.through) };
+    const now = store.clock();
+    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
+    const cursors = readThrough(db, identity, sessionId, target.thread, input.through);
+    statusOnWrite(db, identity, sessionId, {}, now);
+    return { cursors };
   });
 }
 
@@ -79,7 +84,8 @@ export function markUnread(
 ): CursorsResult {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
+    const now = store.clock();
+    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const thread = requireThread(db, sessionId, target.thread);
     if (input.from > thread.last_seq) {
       throw invalidInput("from", "is beyond the thread's latest message");
@@ -88,6 +94,7 @@ export function markUnread(
       `UPDATE thread_marks SET read_seq = :seq
        WHERE actor_id = :actor AND thread_id = :thread AND read_seq > :seq`,
     ).run({ seq: input.from - 1, actor: identity.actor, thread: thread.id });
+    statusOnWrite(db, identity, sessionId, {}, now);
     return { cursors: partyCursors(db, thread) };
   });
 }
@@ -160,7 +167,8 @@ export function archiveThread(
 ): MarksResult {
   const { db } = store;
   return db.transaction(() => {
-    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
+    const now = store.clock();
+    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const outcome = archiveThrough(db, identity, sessionId, target.thread, input.through);
     if ("openAsks" in outcome) {
       const [number] = outcome.openAsks;
@@ -169,6 +177,7 @@ export function archiveThread(
         `ask ${number} is open to you; answer or decline it before archiving`,
       );
     }
+    statusOnWrite(db, identity, sessionId, {}, now);
     return outcome;
   });
 }
