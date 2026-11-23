@@ -240,6 +240,7 @@ interface SessionRow {
   goal: string | null;
   percent: number | null;
   note: string | null;
+  updated_at: number | null;
   read_seq: number;
 }
 
@@ -253,14 +254,15 @@ const sessionOrder = `
 // listSessions pages through the agents in name order for the operator, each
 // with its sessions, at most maxListed of them, in their order. Each session
 // carries its presence, quiet as threadsSeen reads it; its approved
-// registrations; its status, with the latest entry's note; how many of its
-// log's entries the operator has not read; how many of its threads they have
-// not archived, with how many of those hold messages they have not read and
-// how many are stranded; and how many asks are open in all its threads, with
-// how many of those are blocking. The operator can never archive a thread
-// holding an ask open to them, as archiveThread refuses, so the thread list
-// shows every thread these asks are in. The thread counts and the ask counts
-// each come from one statement for every session of the page.
+// registrations; its status, with the latest entry's note and when that entry
+// was written; how many of its log's entries the operator has not read; how
+// many of its threads they have not archived, with how many of those hold
+// messages they have not read and how many are stranded; and how many asks
+// are open in all its threads, with how many of those are blocking. The
+// operator can never archive a thread holding an ask open to them, as
+// archiveThread refuses, so the thread list shows every thread these asks are
+// in. The thread counts and the ask counts each come from one statement for
+// every session of the page.
 export function listSessions(store: Store, identity: Identity, query: SessionsQuery): SessionsPage {
   const { db } = store;
   const position =
@@ -287,6 +289,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
            SELECT s.id, s.agent_id, s.name, s.created_at, s.last_seen_at,
              ${quietOf("s")} AS quiet,
              u.seq AS latest_seq, u.state, u.outcome, u.title, u.goal, u.percent, u.note,
+             u.created_at AS updated_at,
              COALESCE(m.read_seq, 0) AS read_seq,
              row_number() OVER (PARTITION BY s.agent_id ORDER BY ${sessionOrder}) AS place
            FROM sessions s
@@ -378,12 +381,15 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
         id: registration.id,
         code: registrationCode(registration.public_key),
       })),
-      ...(row.state === null
+      // The state and the time come from the latest entry, so both are
+      // absent together, until the session first reports.
+      ...(row.state === null || row.updated_at === null
         ? {}
         : {
             status: {
               ...toStatus({ ...row, state: row.state }),
               ...(row.note === null ? {} : { note: row.note }),
+              updated_at: formatTimestamp(row.updated_at),
             },
           }),
       unread_updates: (row.latest_seq ?? 0) - row.read_seq,

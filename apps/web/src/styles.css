@@ -1965,8 +1965,9 @@ button.session-fold[aria-expanded="true"] .session-title {
   z-index: 1;
 }
 
-/* When the session was last seen, set in under its name as its facts are,
-   in the warning's tone, as .last-seen.warning, while it is quiet. */
+/* When the session was last seen and its status updated, set in under its
+   name as its facts are, in the warning's tone, as .last-seen.warning, while
+   it is quiet. */
 .session-seen {
   margin: 0 0 var(--space-1);
   padding-left: calc(var(--icon-size) * 1.25 + var(--space-2));

@@ -8,6 +8,7 @@ import { AgentApi } from "./agent-api.ts";
 import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
+import { StatusReminder } from "./status-reminder.ts";
 import { type Connection, registerTools } from "./tools.ts";
 
 // The variables the bridge reads: the server's origin and where to open
@@ -24,7 +25,8 @@ export interface BridgeOptions {
   environment: BridgeEnvironment;
   // The home directory, under which the session's key lives.
   home: string;
-  // The clock tokens are minted by, in Unix milliseconds.
+  // The clock tokens are minted and the status reminder is timed by, in Unix
+  // milliseconds.
   clock?: () => number;
 }
 
@@ -109,8 +111,14 @@ function connect(options: BridgeOptions): Connection {
       };
     }
   }
-  const api = new AgentApi({ origin, connectAddress, clock: options.clock ?? Date.now });
-  return { api, session: new Session({ api, home, environment }), home };
+  const clock = options.clock ?? Date.now;
+  const api = new AgentApi({ origin, connectAddress, clock });
+  return {
+    api,
+    session: new Session({ api, home, environment }),
+    home,
+    statusReminder: new StatusReminder(clock),
+  };
 }
 
 // serveStdio runs the bridge for the agent host that started this process,

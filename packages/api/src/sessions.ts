@@ -161,15 +161,15 @@ export type SessionsQuery = z.infer<typeof sessionsQuery>;
 
 // A session as the operator's sessions view shows it: its presence; its
 // approved registrations, each by its id and code; its status with the latest
-// entry's note, absent until it first reports; how many of its log's entries
-// the operator has not read; how many of its threads the operator has not
-// archived, how many of those hold messages the operator has not read, and
-// how many are stranded; and how many asks are open in all its threads, and
-// how many of those are blocking, which is what waits on the operator. The
-// operator can never archive a thread holding an ask open to them, so their
-// thread list shows every thread these asks are in. It also
-// carries the operator's group for it, absent when it is in none, and its
-// tags, in name order.
+// entry's note and when that entry was written, absent until it first reports;
+// how many of its log's entries the operator has not read; how many of its
+// threads the operator has not archived, how many of those hold messages the
+// operator has not read, and how many are stranded; and how many asks are open
+// in all its threads, and how many of those are blocking, which is what waits
+// on the operator. The operator can never archive a thread holding an ask open
+// to them, so their thread list shows every thread these asks are in. It also
+// carries the operator's group for it, absent when it is in none, and its tags,
+// in name order.
 export const sessionSummary = z.object({
   session: name,
   created_at: z.string(),
@@ -179,7 +179,7 @@ export const sessionSummary = z.object({
   registrations: z.array(
     z.object({ id: registrationId, code: z.string().regex(registrationCodePattern) }),
   ),
-  status: sessionStatus.extend({ note: z.string().optional() }).optional(),
+  status: sessionStatus.extend({ note: z.string().optional(), updated_at: z.string() }).optional(),
   unread_updates: sequence,
   threads: z.object({ total: sequence, unread: sequence, stranded: sequence }),
   open_asks: z.object({ count: sequence, blocking_count: sequence }),

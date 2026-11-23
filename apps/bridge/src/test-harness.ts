@@ -115,6 +115,9 @@ export class BridgeHarness {
   // Runs before the server handles each request on the TLS listener, which
   // waits for it; a response it returns answers the request instead.
   beforeRequest: ((request: Request) => Response | void | Promise<Response | void>) | undefined;
+  // Runs once the server has answered each request on the TLS listener,
+  // before the answer goes out, which waits for it.
+  afterAnswer: ((request: Request) => void | Promise<void>) | undefined;
   #listening: Listening | undefined;
   #origin = "";
 
@@ -134,7 +137,9 @@ export class BridgeHarness {
       if (app === undefined) {
         throw new Error("the server is not ready");
       }
-      return app.fetch(c.req.raw, c.env);
+      const response = await app.fetch(c.req.raw, c.env);
+      await this.afterAnswer?.(c.req.raw);
+      return response;
     });
     this.#listening = await listen(
       front,

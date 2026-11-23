@@ -626,7 +626,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     row, so that many fit on a screen. Its first line holds the session's name, the title its agent
     gave this line of work, cut to fit, and its percent toward the goal; the second, **Last seen**
     and when, or **Never seen**, in the warning's color while the session is quiet and has not
-    stopped; the third, wrapping on a phone:
+    stopped, and once it has reported a status, how long ago it last updated it, such as **status
+    updated 2 hours ago**, since a session can go on checking Agention long after its status stopped
+    saying what it does. While a session reports **Working**, its bridge reminds it to update its
+    status once it has sent none for 20 minutes. The bridge counts from the session's own last
+    update through it, not from the age you see, so the two differ when the bridge has restarted or
+    another bridge shares the session. The third line, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
       has nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
       **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No

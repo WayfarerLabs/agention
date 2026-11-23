@@ -73,7 +73,8 @@ with each other or with what the product does, the disagreement is the finding.
   expired, revoked), each of the thread tools: `thread_create`, `message_send`, `thread_get`,
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, and `session_update` through a
   session's life: working once registered, idle, stopped with each outcome, working again on
-  resuming, a goal changed without a percent, and a note alone (`docs/architecture.md` "Agent
+  resuming, a goal changed without a percent, and a note alone, and the status reminder a host's
+  model sees once the status goes unreported past its threshold (`docs/architecture.md` "Agent
   bridge" and "Store"). `file_upload` with a file, an empty one, one at 100 MiB, and each refusal: a
   relative path, a directory, a FIFO, which must not hang, a file over 100 MiB, and a key file named
   directly and through a symlink; `file_get` of each served type, its file's name and mode, and its
@@ -94,40 +95,40 @@ with each other or with what the product does, the disagreement is the finding.
   replacements, mark unread from a message, archive through a message and archive all; Send and what
   answers it kept on a short screen while writing, and the way back under the composer; stranded's
   reasons, in the warning's color in both tabs; the sessions view, its group and agent folds and
-  folded rows with what each session reports, when it was last seen and whether it is quiet, its
-  open asks in the thread list's words and its threads' roll-up, the links from a row, an agent and
-  a group to the thread list filtered to them, and from a row's and an agent's stranded flag to
-  their stranded threads, a row unfolded to its log and marking it read, the Sessions tab's count of
-  registrations waiting falling as they are approved or rejected, the Threads tab's count of unread
-  threads falling as they are read or archived, and the folds kept, on a phone's width too; the
-  operator's session groups and tags: a session's group and an agent's and a session's tags set from
-  their options, the chips that show them, and the Groups and tags sheet's rename, its refusal of a
-  name another group or tag has, and its removal, asked first; a thread the operator starts there,
-  with the warning for a session not there to see it, and the agent's reply in it; registration
-  approval, rejection, and revocation from past requests and a session's options; diagrams, drawn in
-  light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons and
-  keys, on a phone's width too; Settings in sections, listed beside the open one on a wide screen
-  and listed first on a phone with each section's way back, with `/passkeys` leading to Passkeys;
-  API keys: one created with each expiry choice, the no-expiry warning and the list's flag, a scope
-  that a chosen one includes shown chosen with it, the secret shown once with Copy and gone once
-  dismissed, nowhere in storage or the address, the list's last use, Revoke asked first, creating
-  and revoking held back without a recent sign-in, and Create held back at 20 live keys, at a
-  phone's width too; and voice set up, with the write-only key shown masked but for its last four
-  characters, what the environment supplies shown read-only, Turn off and Try it; dictation through
-  Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
-  microphone and what it says beside Send on a short screen, its failures keeping the recording for
-  a retry, and a recording stopped when the page is hidden; and Read aloud and Stop, in WebKit too
-  where it installs; attachments: **Attach**, its menu on a touch device (each item's picker, Escape
-  and a tap elsewhere), a pasted image and a paste carrying text, progress, **Remove**, **Retry**
-  and **Upload again**, **Send** waiting on uploads, a message of files alone, an edit keeping and
-  removing files, each kind of file shown in place, **Show image** and **Show text**, a PDF's tab,
-  **Download**, an `attachment:` link, a missing file, the thread's **Files** fold, and **Storage**,
-  on a phone's width too (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice",
-  "Attachments" and "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while
-  writing, dictation with a real provider, diagrams and their viewer in iOS Safari, what each item
-  of Attach's menu opens on a real phone, and a photo from the phone read by an agent, with an
-  image, a PDF, a video and a text file an agent attached opened in Android Chrome and Windows Edge
-  or Chrome, are the operator's acceptance, not the tester's.
+  folded rows with what each session reports, when it was last seen and whether it is quiet, how old
+  its status is, its open asks in the thread list's words and its threads' roll-up, the links from a
+  row, an agent and a group to the thread list filtered to them, and from a row's and an agent's
+  stranded flag to their stranded threads, a row unfolded to its log and marking it read, the
+  Sessions tab's count of registrations waiting falling as they are approved or rejected, the
+  Threads tab's count of unread threads falling as they are read or archived, and the folds kept, on
+  a phone's width too; the operator's session groups and tags: a session's group and an agent's and
+  a session's tags set from their options, the chips that show them, and the Groups and tags sheet's
+  rename, its refusal of a name another group or tag has, and its removal, asked first; a thread the
+  operator starts there, with the warning for a session not there to see it, and the agent's reply
+  in it; registration approval, rejection, and revocation from past requests and a session's
+  options; diagrams, drawn in light and dark, with their Source toggle, their fallback, and the
+  viewer's gestures, buttons and keys, on a phone's width too; Settings in sections, listed beside
+  the open one on a wide screen and listed first on a phone with each section's way back, with
+  `/passkeys` leading to Passkeys; API keys: one created with each expiry choice, the no-expiry
+  warning and the list's flag, a scope that a chosen one includes shown chosen with it, the secret
+  shown once with Copy and gone once dismissed, nowhere in storage or the address, the list's last
+  use, Revoke asked first, creating and revoking held back without a recent sign-in, and Create held
+  back at 20 live keys, at a phone's width too; and voice set up, with the write-only key shown
+  masked but for its last four characters, what the environment supplies shown read-only, Turn off
+  and Try it; dictation through Chromium's fake microphone and a stub provider, its text at the
+  caret with nothing sent, the microphone and what it says beside Send on a short screen, its
+  failures keeping the recording for a retry, and a recording stopped when the page is hidden; and
+  Read aloud and Stop, in WebKit too where it installs; attachments: **Attach**, its menu on a touch
+  device (each item's picker, Escape and a tap elsewhere), a pasted image and a paste carrying text,
+  progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message of
+  files alone, an edit keeping and removing files, each kind of file shown in place, **Show image**
+  and **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
+  **Files** fold, and **Storage**, on a phone's width too (`docs/operator-guide.md` "Signing in",
+  "Using the web UI", "Voice", "Attachments" and "Approving agents"). Real-phone passkeys, Send
+  above a phone's keyboard while writing, dictation with a real provider, diagrams and their viewer
+  in iOS Safari, what each item of Attach's menu opens on a real phone, and a photo from the phone
+  read by an agent, with an image, a PDF, a video and a text file an agent attached opened in
+  Android Chrome and Windows Edge or Chrome, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -135,11 +136,11 @@ Compare what a surface reports with:
 
 - the database, opened read-only beside the running server: what each thread's messages derive (live
   messages, open asks, status, topic) against the log, each session's latest entry in its log
-  against the status `session_update` answered and the sessions view shows, registration rows and
-  states, browser sessions, used challenges, API keys holding only their secret's hash, each
-  message's position, files, their chunks and the attachments naming them, pending uploads against
-  the limits, and the database's vacuum mode and free pages after a sweep (`docs/architecture.md`
-  "Database");
+  against the status `session_update` answered and the sessions view shows, with its age,
+  registration rows and states, browser sessions, used challenges, API keys holding only their
+  secret's hash, each message's position, files, their chunks and the attachments naming them,
+  pending uploads against the limits, and the database's vacuum mode and free pages after a sweep
+  (`docs/architecture.md` "Database");
 - files and permissions: the data directory and database stay private whatever the umask, and the
   bridge's key directories under `~/.config/agention/<server>/<agent>/<session>/` are `0700` with a
   `0600` `key.pem`, where `<server>` is the origin's host, with its port when not 443, and the

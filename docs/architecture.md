@@ -322,14 +322,15 @@ lowers; the entries above it are the session's unread updates.
 The sessions view's page lists the agents in name order for the operator, each with at most 500 of
 its sessions: those working or idle first, then those that never reported, then stopped ones, each
 latest seen first. Each session carries its presence, by the formula threads use; its approved
-registrations, with their ids and codes; its status with the latest entry's note; its unread
-updates; how many of its threads the operator has not archived, with how many of those hold messages
-the operator has not read and how many are stranded, counted for every session of the page in one
-statement grouped over the threads as the operator sees them; and how many asks are open in all its
-threads, with how many of those are blocking, which is what waits on the operator, counted in one
-statement grouped over the open asks. The operator can never archive a thread holding an ask open to
-them, so their thread list shows every thread counted. A separate read counts the sessions whose log
-holds entries the operator has not read, which the web UI's navigation shows.
+registrations, with their ids and codes; its status with the latest entry's note, and as
+`updated_at` when that entry was written; its unread updates; how many of its threads the operator
+has not archived, with how many of those hold messages the operator has not read and how many are
+stranded, counted for every session of the page in one statement grouped over the threads as the
+operator sees them; and how many asks are open in all its threads, with how many of those are
+blocking, which is what waits on the operator, counted in one statement grouped over the open asks.
+The operator can never archive a thread holding an ask open to them, so their thread list shows
+every thread counted. A separate read counts the sessions whose log holds entries the operator has
+not read, which the web UI's navigation shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
 them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration
@@ -1020,13 +1021,32 @@ its key file, its tokens and where its requests may go.
   does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
   silently, while the server's request schemas ignore unknown fields, and the agent API version
   keeps a newer bridge from relying on that against an older server. An answer is the API's JSON as
-  text, and a call the server refuses is an error result holding the API's error JSON. A problem the
-  bridge finds itself, such as its configuration, an unreachable server, missing names or a
-  cancelled call, is an error result in plain text, worded for the agent: what to do, or, for what
-  only the operator can fix, to tell them at the terminal what to change and whether the session
-  must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error but
-  `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's start,
-  so an agent that waits again at once does not call a server it cannot use in a tight loop.
+  text, followed by the status reminder when one is due, and a call the server refuses is an error
+  result holding the API's error JSON. A problem the bridge finds itself, such as its configuration,
+  an unreachable server, missing names or a cancelled call, is an error result in plain text, worded
+  for the agent: what to do, or, for what only the operator can fix, to tell them at the terminal
+  what to change and whether the session must restart. `apps/bridge/src/errors.ts` words those.
+  `message_wait` gives every error but `invalid_input` no sooner than its `wait_seconds` would have
+  ended, counted from the call's start, so an agent that waits again at once does not call a server
+  it cannot use in a tight loop.
+- **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
+  when it last sent a `session_update` the server logged (one with a note, one whose answered status
+  differs from the last it answered, or its first), or, until then, when a tool first answered in
+  the session, which needs approval. While the session last reported `working` through this bridge,
+  or has reported nothing through it, and that is more than 20 minutes ago, the next successful
+  answer of any tool but `register` and `session_update` ends with one more text block after the
+  API's JSON, saying how many minutes this bridge has gone without sending a status update and to
+  report what the agent is doing with `session_update` and a note, which the server logs even when
+  the status is unchanged. Another comes each further 20 minutes until the bridge sends an update
+  the server logs, so an agent that checks Agention every half minute is not told on every answer.
+  An idle or stopped status gets none: it holds while the session waits or has stopped, and the
+  sessions view shows its age. No reminder comes on an error result. The bridge knows only its own
+  updates, since the agent API offers no reading of the status: a bridge started anew counts from
+  its own first answer, one sharing a session with another bridge does not see that bridge's
+  updates, and a key revoked and approved again keeps the count it had. A bridge sends its
+  `session_update` calls one at a time, recording each once answered, so what it records follows the
+  order the server committed them in. The clock is the one tokens are minted by, which tests
+  replace.
 - **File tools** (`apps/bridge/src/file-tools.ts`). `file_upload` takes an absolute path and an
   optional name, by default the path's last segment, and declares the type `typeOfName` gives the
   name, reading nothing of the file to choose it. It opens the path with `O_RDONLY`, `O_NONBLOCK`
@@ -1049,27 +1069,29 @@ its key file, its tokens and where its requests may go.
   served type, and when the file is a PNG, JPEG, GIF or WebP of at most 3.5 MiB whose leading bytes
   carry that type's signature, an `image` block of it after the text, which both hosts show the
   model; a larger image's answer says to read the file at its path. Answers are text, with that
-  block alone beside it: no `resource_link` or `structuredContent`.
+  block alone beside it, and the status reminder after both when one is due: no `resource_link` or
+  `structuredContent`.
 - **Answer cap.** `apps/bridge/src/fit.ts` keeps a result, and separately an error's text, within
   sizes in UTF-8 bytes that both hosts pass to the model whole; each tool also declares the result
-  size to Claude Code in its `_meta`. A page of messages or threads over the limit is asked for
-  again with half as many elements as the smaller of the last page size and what the answer held,
-  down to one; `message_wait` asks for those smaller pages with no wait. The bridge gives a server
-  30 seconds to answer a request beyond any wait it asks for, and a whole `message_wait` call, its
-  credential lookup and every request included, the same 30 seconds beyond its `wait_seconds`, so it
-  ends within 55 seconds, under Codex's 60-second tool timeout, and answers that the server did not
-  answer in time if it runs out. An answer still over it at one element leaves out its largest
-  text-bearing fields, largest first, until it fits: texts (each answer's own words included) and
-  details, references, a message's attachments whole, each ask's fallback text, question and
-  suggested answers, the question each answer carries, and the reasons of withdrawals, the thread's
-  and each ask's included, each named in `omitted` as a dotted path, such as
-  `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not escape always
-  comes back whole beside its text, unless the message's other fields are large too; one in other
-  scripts can be left out and named in `omitted`, from roughly 19,000 code points in a two-byte
-  script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale` error lists
-  only the leading missed messages that fit and says from which sequence to read the rest, or that
-  none fits; every other error stays within its limit by construction, quoting at most 100
-  characters of any configured value.
+  size to Claude Code in its `_meta`: the cap, 40,000 bytes, and 500 more for the status reminder,
+  since how Claude Code measures a result of several blocks is not documented. A page of messages or
+  threads over the limit is asked for again with half as many elements as the smaller of the last
+  page size and what the answer held, down to one; `message_wait` asks for those smaller pages with
+  no wait. The bridge gives a server 30 seconds to answer a request beyond any wait it asks for, and
+  a whole `message_wait` call, its credential lookup and every request included, the same 30 seconds
+  beyond its `wait_seconds`, so it ends within 55 seconds, under Codex's 60-second tool timeout, and
+  answers that the server did not answer in time if it runs out. An answer still over it at one
+  element leaves out its largest text-bearing fields, largest first, until it fits: texts (each
+  answer's own words included) and details, references, a message's attachments whole, each ask's
+  fallback text, question and suggested answers, the question each answer carries, and the reasons
+  of withdrawals, the thread's and each ask's included, each named in `omitted` as a dotted path,
+  such as `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not escape
+  always comes back whole beside its text, unless the message's other fields are large too; one in
+  other scripts can be left out and named in `omitted`, from roughly 19,000 code points in a
+  two-byte script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale`
+  error lists only the leading missed messages that fit and says from which sequence to read the
+  rest, or that none fits; every other error stays within its limit by construction, quoting at most
+  100 characters of any configured value.
 
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
@@ -1140,16 +1162,18 @@ Blocked on the operator shows once, in the thread list's words and tone: a row's
 asks say it, as Blocked on you before how many are open, in the danger tone while any blocks and the
 attention tone otherwise, and a group's head, which has none, shows Blocked on you. Each session's
 row says when the session was last seen, from its presence, as quiet while it is and has not
-stopped. Each session's row shows its group and tags, and each agent's header its tags, from the
-sessions view's page; the sheets that set them, and the Groups and tags sheet, load the operator's
-groups and tags while they are open, and reload the view once a change lands. While the operator is
-signed in, the navigation reads what waits on the operator, from `GET /attention`, and shows it as a
-badge on each tab while there is any: the unread threads on Threads and the registrations waiting
-for approval on Sessions. The counts refresh on an interval, on returning to the page, on going to
-another view, and at once after any change the page makes lands, which the web API client announces
-for every request but a read and signing in or out. Wherever a thread shows as stranded, the UI says
-why from the session's presence in the thread's summary: the stop the session reported, with its
-outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
+stopped, and beside it how long ago its status was updated, from the status's `updated_at`, since a
+session can go on being seen long after its status stopped saying what it does. Each session's row
+shows its group and tags, and each agent's header its tags, from the sessions view's page; the
+sheets that set them, and the Groups and tags sheet, load the operator's groups and tags while they
+are open, and reload the view once a change lands. While the operator is signed in, the navigation
+reads what waits on the operator, from `GET /attention`, and shows it as a badge on each tab while
+there is any: the unread threads on Threads and the registrations waiting for approval on Sessions.
+The counts refresh on an interval, on returning to the page, on going to another view, and at once
+after any change the page makes lands, which the web API client announces for every request but a
+read and signing in or out. Wherever a thread shows as stranded, the UI says why from the session's
+presence in the thread's summary: the stop the session reported, with its outcome; otherwise quiet,
+with when it was last seen; otherwise no active credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

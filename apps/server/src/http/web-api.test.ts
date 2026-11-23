@@ -313,6 +313,7 @@ describe("the sessions view", () => {
               goal: "Drop the table",
               percent: 40,
               note: "Backfill under way.",
+              updated_at: expect.any(String),
             },
             unread_updates: 2,
             threads: { total: 1, unread: 1, stranded: 0 },

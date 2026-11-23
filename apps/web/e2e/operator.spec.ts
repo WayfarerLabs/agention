@@ -614,8 +614,10 @@ test("the sessions view shows a session's status and log, and starts a thread th
   const row = page.getByRole("listitem").filter({ has: fold });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(row.getByText("Idle", { exact: true })).toBeVisible();
-  // It was seen just now, on the line under its head, so it is not quiet.
-  await expect(row.locator(".session-seen:not(.warning) time")).toBeVisible();
+  // It was seen just now, on the line under its head, so it is not quiet,
+  // and the line says how old its status is too.
+  await expect(row.locator(".session-seen:not(.warning) > time")).toBeVisible();
+  await expect(row.locator(".session-seen .session-status-age time")).toBeVisible();
   await expect(row.getByText("4 new updates")).toBeVisible();
   await expect(row.getByText("Waiting on CI")).toBeVisible();
 

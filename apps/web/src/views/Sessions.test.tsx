@@ -36,6 +36,7 @@ afterEach(() => {
 });
 
 const time = "2026-10-27T12:00:00.000Z";
+const earlier = "2026-10-27T10:00:00.000Z";
 
 type Agents = SessionsPage["agents"];
 
@@ -250,17 +251,18 @@ describe("the sessions view", () => {
             title: "Retire invoices",
             percent: 62,
             note: "Backfill 62% done",
+            updated_at: earlier,
           },
           open_asks: { count: 3, blocking_count: 2 },
           unread_updates: 2,
           threads: { total: 4, unread: 1, stranded: 1 },
         }),
-        sessionSummary({ session: "review", status: { state: "idle" } }),
+        sessionSummary({ session: "review", status: { state: "idle", updated_at: time } }),
         sessionSummary({
           session: "docs",
           presence: { last_seen_at: time, quiet: true },
           registrations: [],
-          status: { state: "stopped", outcome: "completed" },
+          status: { state: "stopped", outcome: "completed", updated_at: time },
         }),
         sessionSummary({ session: "nightly", presence: { last_seen_at: time, quiet: true } }),
         sessionSummary({ session: "spare", presence: { quiet: true } }),
@@ -325,6 +327,15 @@ describe("the sessions view", () => {
       // The facts hold nothing of when it was seen.
       expect(row(session).querySelector(".session-facts time")).toBeNull();
     }
+    // Beside its presence, the line says how old a session's status is, by
+    // the time of its latest update, once it has reported one.
+    const statusAge = (session: string) =>
+      seen(session)?.querySelector(".session-status-age time")?.getAttribute("dateTime");
+    expect(statusAge("main")).toBe(earlier);
+    expect(statusAge("review")).toBe(time);
+    expect(statusAge("docs")).toBe(time);
+    expect(statusAge("nightly")).toBeUndefined();
+    expect(statusAge("spare")).toBeUndefined();
   });
 
   it("goes to the session's open threads from its open asks, none blocking", async () => {
@@ -562,7 +573,13 @@ describe("a session unfolded", () => {
     entry(7, { title: "Retire invoices", goal: "Drop the table", percent: 62, note: "CI passed" }),
   ];
   const reported = sessionSummary({
-    status: { state: "working", title: "Retire invoices", goal: "Drop the table", percent: 62 },
+    status: {
+      state: "working",
+      title: "Retire invoices",
+      goal: "Drop the table",
+      percent: 62,
+      updated_at: time,
+    },
     unread_updates: 2,
   });
 
@@ -794,7 +811,7 @@ describe("the new-thread sheet", () => {
   const sheet = () => screen.getByRole("dialog", { name: "New thread" });
 
   async function openSheet(
-    session: SessionSummary = sessionSummary({ status: { state: "working" } }),
+    session: SessionSummary = sessionSummary({ status: { state: "working", updated_at: time } }),
   ) {
     await open([agent("builder", [session])]);
     fireEvent.click(options("builder/main"));
@@ -843,7 +860,7 @@ describe("the new-thread sheet", () => {
   it.each([
     [
       "has stopped, saying how",
-      sessionSummary({ status: { state: "stopped", outcome: "stalled" } }),
+      sessionSummary({ status: { state: "stopped", outcome: "stalled", updated_at: time } }),
       "stalled",
     ],
     [
@@ -865,7 +882,7 @@ describe("the new-thread sheet", () => {
   });
 
   it("follows the session as the view refreshes", async () => {
-    const working = sessionSummary({ status: { state: "working" } });
+    const working = sessionSummary({ status: { state: "working", updated_at: time } });
     const state = serve([agent("builder", [working])]);
     renderAt("/sessions");
     await screen.findByRole("button", { name: /^Agent builder/ });
@@ -873,7 +890,9 @@ describe("the new-thread sheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "New thread" }));
     expect(sheet().querySelector(".notice.warning")).toBeNull();
     state.agents = [
-      agent("builder", [{ ...working, status: { state: "stopped", outcome: "withdrawn" } }]),
+      agent("builder", [
+        { ...working, status: { state: "stopped", outcome: "withdrawn", updated_at: time } },
+      ]),
     ];
     window.dispatchEvent(new Event("focus"));
     await waitFor(() => expect(sheet().querySelector(".notice.warning")).not.toBeNull());

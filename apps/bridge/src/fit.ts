@@ -4,8 +4,8 @@ import type { ErrorBody } from "@wayfarerlabs/agention-api";
 // agent host passes it to the model whole: Codex keeps about 48,000 bytes of
 // a tool's output, Claude Code keeps a result of up to 50,000 characters
 // inline and about 11,000 characters of error text. Each tool declares the
-// result limit to Claude Code, which then also exempts it from its token
-// limit.
+// result limit, with room for the status reminder, to Claude Code, which then
+// also exempts it from its token limit.
 export const maxResultBytes = 40_000;
 export const maxErrorBytes = 10_000;
 

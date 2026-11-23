@@ -34,12 +34,14 @@ import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
 import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
 import type { Session } from "./session.ts";
+import { maxReminderBytes, type StatusReminder } from "./status-reminder.ts";
 
-// What the tools act through: the server's API, the session, and the home
-// directory the bridge keeps its files under, or why the bridge cannot reach
-// them.
+// What the tools act through: the server's API, the session, the home
+// directory the bridge keeps its files under and what reminds the agent to
+// report the session's status, or why the bridge cannot reach them.
 export type Connection =
-  { api: AgentApi; session: Session; home: string } | { problem: BridgeError };
+  | { api: AgentApi; session: Session; home: string; statusReminder: StatusReminder }
+  | { problem: BridgeError };
 export type Connected = Exclude<Connection, { problem: BridgeError }>;
 
 // What a tool makes its requests in the session with: the API, the key on
@@ -83,8 +85,12 @@ export const toolAnnotations: ToolAnnotations = {
 };
 
 // Every tool declares the most its result takes, so Claude Code passes it to
-// the model whole.
-export const toolMeta = { "anthropic/maxResultSizeChars": maxResultBytes };
+// the model whole: its JSON, within the cap, and the status reminder that
+// may follow it. How Claude Code measures a result of several blocks against
+// the declaration is not documented, so it counts both.
+export const toolMeta = {
+  "anthropic/maxResultSizeChars": maxResultBytes + maxReminderBytes,
+};
 
 // Inputs several tools share, in the API's own bounds.
 const thread = threadNumber.describe("The thread's number in this session.");
@@ -112,6 +118,20 @@ const attachingText =
 // is one request on the agent API, apart from asking again for a smaller page
 // to stay within the cap.
 export function registerTools(server: McpServer, connection: Connection): void {
+  // reminderBlocks gives the blocks a successful answer ends with: a
+  // reminder to send a status update, in plain text after the answer, when
+  // one is due. Every tool but register and session_update answers only in
+  // an approved session; register can answer before approval, and
+  // session_update's own answer is the update. The size each tool declares
+  // counts the reminder beside the answer's JSON (toolMeta).
+  const reminderBlocks = (toolName: string): ContentBlock[] => {
+    if ("problem" in connection || toolName === "register" || toolName === "session_update") {
+      return [];
+    }
+    const text = connection.statusReminder.remind();
+    return text === undefined ? [] : [{ type: "text", text }];
+  };
+
   // tool registers one tool. The SDK advertises the input's JSON Schema; the
   // tool parses the arguments itself, so input outside a bound is answered
   // as the server would answer it, and refuses a field it does not know.
@@ -135,12 +155,11 @@ export function registerTools(server: McpServer, connection: Connection): void {
         }
         try {
           const answer = await run(parsed.data, context.mcpReq.signal);
-          if (answer instanceof WithContent) {
-            return {
-              content: [{ type: "text", text: JSON.stringify(answer.answer) }, ...answer.content],
-            };
-          }
-          return { content: [{ type: "text", text: JSON.stringify(answer) }] };
+          const content: ContentBlock[] =
+            answer instanceof WithContent
+              ? [{ type: "text", text: JSON.stringify(answer.answer) }, ...answer.content]
+              : [{ type: "text", text: JSON.stringify(answer) }];
+          return { content: [...content, ...reminderBlocks(toolName)] };
         } catch (error) {
           if (error instanceof ApiFailure) {
             return failed(JSON.stringify(trimMissed(error.body)));
@@ -168,6 +187,9 @@ export function registerTools(server: McpServer, connection: Connection): void {
     const { key, granted } = await session.credential(signal);
     return { api, key, sessionPath: `/s/${granted.agent}/${granted.session}` };
   };
+
+  // The session_update calls under way, in the order they were made.
+  let statusUpdates: Promise<unknown> = Promise.resolve();
 
   // onSession makes a request in the session.
   const onSession = async (
@@ -424,8 +446,23 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "else you wait on, such as CI or a review, in the note. An update that changes nothing " +
       "and has no note is not recorded. Answers with the session's status.",
     sessionUpdateInput,
-    (input, signal) =>
-      onSession(signal, (path) => ({ method: "POST", path: `${path}/status`, body: input })),
+    // Updates run one at a time, each request and its record together, so
+    // the status the reminder last records is the one the server committed
+    // last, however the answers of overlapping calls would arrive. A failed
+    // update frees the next as a successful one does.
+    (input, signal) => {
+      const update = statusUpdates.then(async () => {
+        const answer = await onSession(signal, (path) => ({
+          method: "POST",
+          path: `${path}/status`,
+          body: input,
+        }));
+        connected().statusReminder.reported(input.note, answer);
+        return answer;
+      });
+      statusUpdates = update.catch(() => undefined);
+      return update;
+    },
   );
 
   registerFileTools(tool, connected, inSession);

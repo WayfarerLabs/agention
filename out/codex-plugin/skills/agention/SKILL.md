@@ -83,7 +83,13 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    When something starts you again, such as the operator at your terminal or in Agention, report
    `working` first.
 
-Report a rough `percent` toward the goal at natural points, never on every step.
+**Keep your status current** with `session_update`, with a `note` on what just happened, at each
+checkpoint of your work: when you open a pull request or mark one ready, when CI or a review
+reports, when you hand work to a subagent or take it back, and when you start or end a wait. The
+operator reads it to know what you are doing without asking, and a status hours old tells them
+nothing. Report a rough `percent` toward the goal at those points too, never on every step. While
+you are `working` and your status has gone a while without an update, a tool's answer ends with a
+reminder to send one.
 
 ## Files
 
