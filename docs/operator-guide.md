@@ -1061,26 +1061,28 @@ one.
 ### Installing the plugins
 
 Install the Agention plugin on each machine where your agents run, from the plugin marketplace in
-Agention's repository. Pinning the marketplace to a release's tag is the safer choice: the plugin's
-skill then describes exactly the bridge it runs. Between releases, `main`'s skill can describe what
-the bridge it pins does not do yet, so install from `main`, unpinned, only to follow changes as they
+Agention's repository. The plugin and the bridge it runs are released together, with a version of
+their own, apart from the server's ([Upgrading](#upgrading)), and each of their releases is tagged
+`agention-mcp-vX.Y.Z`. Pinning the marketplace to such a tag is the safer choice: the plugin's skill
+then describes exactly the bridge it runs. Between releases, `main`'s skill can describe what the
+bridge it pins does not do yet, so install from `main`, unpinned, only to follow changes as they
 merge.
 
-To pin it to a release, here 0.1.0, in Claude Code:
+To pin it to a release, here 0.6.0, in Claude Code:
 
 ```bash
-claude plugin marketplace add WayfarerLabs/agention#v0.1.0
+claude plugin marketplace add WayfarerLabs/agention#agention-mcp-v0.6.0
 claude plugin install agention@agention
 ```
 
 In Codex:
 
 ```bash
-codex plugin marketplace add WayfarerLabs/agention --ref v0.1.0
+codex plugin marketplace add WayfarerLabs/agention --ref agention-mcp-v0.6.0
 codex plugin add agention@agention
 ```
 
-To install from `main` instead, leave out `#v0.1.0` or `--ref v0.1.0`.
+To install from `main` instead, leave out `#agention-mcp-v0.6.0` or `--ref agention-mcp-v0.6.0`.
 
 Sessions started after that have the plugin. It carries the skill that tells an agent how to use
 Agention, and runs the bridge with `npx` at the version it pins, which npm fetches the first time.
@@ -1284,20 +1286,38 @@ registered are not affected.
 
 ## Upgrading
 
-One version covers the server, the bridge and the plugins, so upgrade the server first and the
-plugins after it. [Back up](#backing-up) before upgrading the server: it migrates its database
-forward when it starts, and refuses a database a newer release wrote, so going back to an earlier
-release means installing that release and restoring a copy made before the upgrade.
+The server and the plugin are released apart, each with a version of its own: the server's releases
+are tagged `agention-vX.Y.Z`, and the plugin's, with the bridge it runs, `agention-mcp-vX.Y.Z`.
+Their versions need not match. One rule covers both:
+
+- **Upgrade the server whenever you choose.** It serves every plugin released before it, so your
+  agents keep working.
+- **Update the plugin when Agention tells you to.** The [sessions view](#using-the-web-ui) marks
+  each session whose plugin is behind the server, and an agent whose plugin is new enough to know
+  tells you so when its session registers. A plugin that is not marked has nothing to gain from an
+  update.
+
+[Back up](#backing-up) before upgrading the server: it migrates its database forward when it starts,
+and refuses a database a newer release wrote, so going back to an earlier release means installing
+that release and restoring a copy made before the upgrade.
 
 The bridge and the server state on every call the version of the agent API they speak, which a
-release changes when it changes what agents send or read. A server serves the bridges of earlier
-releases, so agents keep working while their plugins catch up with an upgraded server. A bridge
-refuses a server older than itself, and a server refuses a bridge older than the oldest it still
-serves; either way, the agent tells you at its terminal what to update: the server to the plugin's
-release or later, or the plugin to the server's release. A new session that meets an older server
-leaves a registration waiting for approval whose code its agent never gives you; it expires
-unapproved. A session runs the bridge its plugin pinned when it started, so after updating a plugin,
-restart its sessions, resuming each to keep its conversation.
+release changes when it changes what agents send or read. A server serves every version from the
+oldest it keeps to its own, so agents keep working while their plugins catch up with an upgraded
+server. A plugin is never released before a server that serves its version, but a plugin can still
+meet an older server, such as when Codex refreshes it on its own. A bridge refuses a server older
+than itself: every tool call fails, and the agent tells you at its terminal which version each
+speaks, and to upgrade the server to its newest release. A server refuses a bridge older than the
+oldest it still serves, and the agent tells you to update the plugin to its newest release. A
+session runs the bridge its plugin pinned when it started, so after updating a plugin, restart its
+sessions, resuming each to keep its conversation.
+
+Servers before 0.3.0 state no agent API version, so they act on a call before a newer bridge can
+refuse their answer. A new session's registration waits there for approval, though its agent never
+gives you its code, and expires unapproved within the hour; a session already approved there has its
+call carried out, without the fields that server does not know, and its agent told it failed.
+Upgrade such a server before updating its plugins. From 0.3.0 on, a server refuses a newer bridge's
+call before it records or does anything.
 
 To upgrade the server, stop it, install the release, and start it again. On Linux:
 
@@ -1318,18 +1338,19 @@ starts anyway, nothing lost: until it succeeds, space that removed uploads free 
 database file for reuse rather than going back to the disk, and each start tries again. A database
 restored from an older release's backup is rewritten the same way.
 
-`@latest` installs the newest release; a version, such as `@0.2.0`, installs that one. On macOS,
-stop the server with `launchctl bootout gui/$UID/com.wayfarerlabs.agention` and start it with
+`@latest` installs the newest server release; a version, such as `@0.2.0`, installs that one. On
+macOS, stop the server with `launchctl bootout gui/$UID/com.wayfarerlabs.agention` and start it with
 `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.wayfarerlabs.agention.plist`. Run by hand,
 stop it with Ctrl-C and run it again.
 
-To move a pinned plugin to another release, pin its marketplace to that release's tag. Claude Code
+To update the plugin, find its newest release among the repository's `agention-mcp-vX.Y.Z` tags. To
+move a pinned plugin to it, pin its marketplace to that release's tag, here 0.7.0. Claude Code
 refuses to add a marketplace again from another tag, so remove it, which uninstalls the plugin, then
 add it and install the plugin again:
 
 ```bash
 claude plugin marketplace remove agention
-claude plugin marketplace add WayfarerLabs/agention#v0.2.0
+claude plugin marketplace add WayfarerLabs/agention#agention-mcp-v0.7.0
 claude plugin install agention@agention
 ```
 
@@ -1337,22 +1358,22 @@ In Codex:
 
 ```bash
 codex plugin marketplace remove agention
-codex plugin marketplace add WayfarerLabs/agention --ref v0.2.0
+codex plugin marketplace add WayfarerLabs/agention --ref agention-mcp-v0.7.0
 codex plugin add agention@agention
 ```
 
 The bridge keeps its keys outside the plugin, in `~/.config/agention`, so its sessions stay
-registered. To bring a plugin installed from `main` up to date, refresh the marketplace and install
-the plugin again. The hosts replace an installed plugin only when its version changes, which happens
-at each release, so installing it again is what takes the changes merged since. In Claude Code:
+registered. To bring a plugin installed from `main` up to its newest release, refresh the
+marketplace and update the plugin. Claude Code replaces an installed plugin only when its version
+changes, which a release of the plugin does:
 
 ```bash
 claude plugin marketplace update agention
-claude plugin uninstall agention@agention
-claude plugin install agention@agention
+claude plugin update agention@agention
 ```
 
-In Codex:
+Codex may also refresh a plugin installed from `main` by itself as a session starts, once the
+marketplace has moved, whatever the plugin's version. To refresh it yourself:
 
 ```bash
 codex plugin marketplace upgrade agention
@@ -1360,7 +1381,11 @@ codex plugin remove agention@agention
 codex plugin add agention@agention
 ```
 
-Each plugin pins its bridge's version, so sessions started after the upgrade run the bridge it pins,
+To take changes merged to `main` since the plugin's last release, which leave its version as it was,
+uninstall and install the plugin again after refreshing the marketplace, in Claude Code with
+`claude plugin uninstall agention@agention` and `claude plugin install agention@agention`.
+
+Each plugin pins its bridge's version, so sessions started after the update run the bridge it pins,
 which `npx` fetches as the first of them starts.
 
 ## Backing up
