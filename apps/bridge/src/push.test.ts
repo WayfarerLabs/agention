@@ -181,6 +181,20 @@ describe("push", () => {
     expect(integersOf(await eventually(takeWake, "the next wake file"))).toEqual([thread, 2]);
   });
 
+  it("resumes after a bridge restart at the first thread tool call, without register", async () => {
+    markHost();
+    const { bridge } = await registered();
+    const thread = await threadWith(bridge);
+    await bridge.close();
+    const waits = countWaits();
+    const restarted = await claudeBridge();
+    await delay(300);
+    expect(waits()).toBe(0);
+    await restarted.ok("thread_list");
+    await harness.operatorWrites(thread, { text: "Still with me?" });
+    expect(integersOf(await eventually(takeWake, "the wake file"))).toEqual([thread, 1]);
+  });
+
   it("starts once the operator approves, with no tool call", async () => {
     markHost();
     const bridge = await claudeBridge();

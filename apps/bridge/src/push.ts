@@ -187,6 +187,17 @@ export class Push {
     void this.#run(this.#host, this.#closed.signal).finally(() => (this.#running = false));
   }
 
+  // resume starts push, where it can work, for a session a tool finds
+  // approved without register, as after the bridge restarts. register would
+  // have told the agent its answers are pushed, so a lapse is said too.
+  resume(): void {
+    if (this.#running || !this.available()) {
+      return;
+    }
+    this.#told = true;
+    this.start();
+  }
+
   // told records that register has told the agent its answers are pushed.
   told(): void {
     this.#told = true;
