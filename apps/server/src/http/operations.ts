@@ -1,3 +1,4 @@
+import type { HttpBindings } from "@hono/node-server";
 import type { Scope } from "@wayfarerlabs/agention-server-api";
 import type { ApiSchema } from "@wayfarerlabs/agention-server-api/json-schemas";
 import type { Context, Hono } from "hono";
@@ -71,7 +72,11 @@ export interface Declaration {
 // input its schemas parsed. signal aborts when the client goes away or the
 // server shuts down, for an operation that waits. request is the request
 // itself, which only an operation whose body or answer is bytes reads, and
-// log is where it writes a failure it carries on past.
+// log is where it writes a failure it carries on past. dropConnection ends
+// the connection the request arrived on at once, for an answer of bytes that
+// fails after it started, so its client sees the answer cut short rather
+// than ended; it is undefined when the app answers in process, through
+// app.request, with no connection.
 export interface OperationInput<P, Q, B> {
   store: Store;
   identity: Identity;
@@ -81,6 +86,7 @@ export interface OperationInput<P, Q, B> {
   readonly signal: AbortSignal;
   request: Request;
   log: (message: string) => void;
+  dropConnection: (() => void) | undefined;
 }
 
 // Operation is a declaration with the handler that answers it.
@@ -148,6 +154,9 @@ export function addOperations(
       const query = each.query === undefined ? undefined : parseQuery(c, each.query);
       const body =
         each.body === undefined || isBytes(each.body) ? undefined : await parseBody(c, each.body);
+      // The adapter's bindings, which the app has only when the listener
+      // serves it.
+      const outgoing = (c.env as HttpBindings | undefined)?.outgoing;
       const result = await each.handler({
         store,
         identity,
@@ -160,6 +169,7 @@ export function addOperations(
         },
         request: c.req.raw,
         log,
+        dropConnection: outgoing === undefined ? undefined : () => outgoing.destroy(),
       });
       return isBytes(each.response) ? (result as Response) : c.json(result);
     });

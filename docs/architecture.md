@@ -705,8 +705,10 @@ share the operator's pending limits, and the web UI can name one in a message.
   transaction, which confirms the scope as every store call does and re-checks the credential, so a
   revoked or expired agent's registration, browser session or API key stops it within one chunk; the
   first chunk is read before the answer starts, so a credential revoked meanwhile or a chunk that is
-  gone is answered as any refusal is, and a chunk missing later cuts the body short, which is
-  logged.
+  gone is answered as any refusal is. A read that fails later, at a refused credential, a missing
+  chunk or anything else, is logged once through the server's log, naming the file, the chunk and
+  why (an internal error with its stack, as every internal error is logged), and drops its
+  connection, so the client sees the body cut short rather than ended.
 - **A file's headers.** `Content-Type` is the served type: the declared type when it is PNG, JPEG,
   GIF, WebP or SVG (`image/svg+xml`), PDF, `video/mp4`, `video/webm` or `video/ogg`, or
   `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/webm`, `audio/wav` or `audio/flac`;
