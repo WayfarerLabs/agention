@@ -71,9 +71,9 @@ release-please gives only a root package the commits outside every package's pat
 is the root package of its own configuration, excluding what it does not ship (F3):
 
 - `release-please-config.json` and `.release-please-manifest.json`: the server line, release type
-  `node`, component `agention`, the changelog `CHANGELOG.md` (which keeps the history through
-  0.6.0), and `extra-files` for `apps/server/package.json` and its lockfile entry. The root
-  `package.json` version, which the `node` type writes, follows the server line.
+  `node`, component `agention`, the changelog `CHANGELOG.md` (which keeps the history through the
+  last combined release), and `extra-files` for `apps/server/package.json` and its lockfile entry.
+  The root `package.json` version, which the `node` type writes, follows the server line.
 - `release-please-config.agent.json` and `.release-please-manifest.agent.json`: the agent line,
   release type `simple` (so it writes no root `package.json`, F4), component `agention-mcp`, the
   changelog `apps/bridge/CHANGELOG.md`, its own `label` and `release-label`, and `extra-files` for
@@ -141,16 +141,17 @@ plugin that is not yet released lasts minutes (U4).
 
 ### Migration
 
-0.6.0 released under the current configuration on 2026-11-23, UTC (`v0.6.0`). No release pull
-request merges from then until the release-lines pull request does, so 0.6.0 stays the last release
-covering all three (R4); an open one is harmless, since the server configuration's component keeps
-the release branch's name and takes it over. A release needed sooner would move the migration's
-starting point, and is an amendment of R4 for the operator.
+Both lines start from the last combined release, `vX.Y.Z` below: 0.6.0 (released 2026-11-23, UTC),
+or a later one cut before the switch (R4, FRD ruling 3). Releases go on as usual until the operator
+starts step 1. From then until the release-lines pull request merges, a matter of hours, no release
+pull request merges, since a combined release cut after step 2 would need tags only the release App
+could then create. An open release pull request is harmless: the server configuration's component
+keeps the release branch's name and takes it over.
 
 1. The operator creates `agention-vX.Y.Z` and `agention-mcp-vX.Y.Z` on the commit of every `v*`
-   release, 0.1.0 to 0.6.0, since each published both packages. That starts no run while the
+   release, 0.1.0 to `vX.Y.Z`, since each published both packages. That starts no run while the
    workflow triggers on `v*` only, and the tag ruleset, whose only bypass actor is the release App,
-   does not yet cover them. The 0.6.0 pair seeds each line's history, so release-please neither
+   does not yet cover them. The `vX.Y.Z` pair seeds each line's history, so release-please neither
    walks back 500 commits nor compares the first changelog against a tag that does not exist (F6),
    and the rest let every gate read one prefix per line, never the legacy `v*` beside it.
 2. The operator extends both tag rulesets to `agention-v*` and `agention-mcp-v*`: the one that
@@ -163,7 +164,7 @@ starting point, and is an amendment of R4 for the operator.
    action bundles and installed from a lock, against a scratch branch of fixture commits
    (server-only, agent-only, shared, docs-only, and one that changes no shipped path), since the
    two-configuration pattern rests on reading the source (F3). The branch is deleted afterwards.
-4. The release-lines pull request merges, with both manifests at 0.6.0.
+4. The release-lines pull request merges, with both manifests at `X.Y.Z`.
 
 ## 2. A newer bridge against an older server
 
@@ -194,10 +195,10 @@ agent API tests). Servers before 0.3.0, current for two days, state no version, 
 call before the bridge refuses their answer: a new key's registration is recorded pending, and
 expires unapproved within the hour; a session already approved there has its call carried out,
 without the fields that server does not know, and then reported as failed. The bridge could prevent
-both by checking the server's version once when it starts, before its first call, with a request
-that changes nothing; that costs a request per bridge start, and code and tests, for three releases
-current two days. Without it, the operator guide says so, narrowing its statement that any older
-server leaves a registration waiting to servers before 0.3.0. The operator decides which.
+both by checking the server's version once when it starts, but the operator chose to accept and
+document it as a known limit of those three releases (FRD ruling 3), so the bridge does not change;
+the operator guide says so, narrowing its statement that any older server leaves a registration
+waiting to servers before 0.3.0.
 
 ### The server compatibility gate (C5)
 
@@ -251,8 +252,9 @@ as 1, so this covers them all (U2).
   unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
   catalog's ref becomes one more thing each release stamps. Not needed for this effort's
   requirements; a later change can adopt it.
-- **A version check when the bridge starts**: see "Servers before 0.3.0", which leaves it to the
-  operator.
+- **A version check when the bridge starts**: it would spare servers before 0.3.0 both their pending
+  registrations and their carried-out calls, at a request per bridge start; the operator chose to
+  document the limit instead (FRD ruling 3).
 - **A separate plugin version**: the FRD excludes it.
 
 ## Documentation

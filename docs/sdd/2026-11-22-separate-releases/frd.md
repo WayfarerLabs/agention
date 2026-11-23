@@ -1,6 +1,6 @@
 # Separate releases: Functional Requirements
 
-- Status: Accepted by the operator, 2026-11-22 (ruling 2)
+- Status: Accepted by the operator, 2026-11-22 (ruling 2); C3 and R4 amended by ruling 3
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -49,9 +49,10 @@ to them releases only the server line (ruling 2).
 human approval, after which CI publishes what released and nothing else. Each release is tagged and
 described as its line's, with a changelog per line.
 
-**R4. Continuity from 0.6.0.** 0.6.0 is the last release covering all three. Both lines continue
-from it, so the first release on each line follows 0.6.0 in version order, and nothing an operator
-installed at 0.6.0 or earlier stops working because of the split.
+**R4. Continuity from the last combined release.** The last release covering all three, 0.6.0 or a
+later one cut before the switch, is where both lines start (ruling 3). The first release on each
+line follows it in version order, and nothing an operator installed at it or earlier stops working
+because of the split. Releases go on as usual until the switch.
 
 ### Knowing when to update
 
@@ -88,7 +89,11 @@ operator's current server, as long as that server is the newest release.
 not serve its agent API version, every tool call fails before anything it sent could be dropped
 silently, with a message the agent can relay that names the problem and the operator's fix in terms
 that hold when the two lines have different versions: upgrade the Agention server to its newest
-release, which by C2 serves every released bridge, and restart the session.
+release, which by C2 serves every released bridge, and restart the session. Servers before 0.3.0
+state no agent API version and act on a call before the bridge can refuse their answer, so against
+them an approved session's call is carried out, without the fields those servers do not know, and
+reported as failed; that is a known limit of those three releases, which the operator guide states
+(ruling 3).
 
 **C4. A failed registration leaves nothing the operator must act on.** A server from 0.3.0 on
 refuses a newer bridge before recording anything, so no pending registration appears whose code the
@@ -144,11 +149,21 @@ gate work with each line's tags, and a release refuses a tag that does not match
    which R2 holds and the build enforces it. Taken: this FRD as accepted, R2's note on the server's
    part of the contract, and the out-of-scope bridge-only fixes.
 
+3. (2026-11-22) Asked whether, against servers 0.1.0 to 0.2.1, to accept and document that an
+   approved session's call is carried out before the bridge can refuse, or have the bridge check the
+   server's version at start, the operator chose "Accept and document (recommended)". Asked whether
+   to hold all release pull requests until the release split merges, so 0.6.0 stays the last
+   combined release, they answered: "Do we really need to lock this down? I assume whenever we
+   switch over, both release groups just get the current shared version as a starting point, right?
+   Is this a bigger deal than it seems?" It is not: the lines can start from whichever combined
+   release is last at the switch. Taken: C3's known limit for servers before 0.3.0, and R4 starting
+   both lines from the last combined release, with releases going on as usual until the switch.
+
 ## Definition of done
 
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
-- After 0.6.0, at least one release ships on a line alone, and its tag, changelog and npm packages
-  are that line's alone.
+- After the switch, at least one release ships on a line alone, and its tag, changelog and npm
+  packages are that line's alone.
 - Live on Claude Code: a session whose plugin speaks an older agent API version than the server is
   marked in the sessions view, and a session on a plugin released by this effort is told at register
   when it is behind.
