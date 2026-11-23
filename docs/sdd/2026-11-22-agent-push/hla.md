@@ -89,10 +89,12 @@ behind.
   at a time and never sooner than a second after the last began (C2). A round with threads saves the
   new cursor first, then reads every thread with unread messages from the operator at once and
   writes the notice from that, so a message is never pushed twice, even if the agent leaves it
-  unread or the bridge restarts (P3); the notice names the round's threads and every other thread
-  unread when it is written, and the fresh read's position is saved too when it is complete, so a
-  message arriving between the two is not pushed again. A cursor saved under other granted names, or
-  one the server refuses, is discarded.
+  unread or the bridge restarts (P3). The fresh read asks for one thread more than a notice names:
+  when it is complete, its threads alone make the notice, none means no wake, and its position is
+  saved, so a thread read meanwhile is not named and a message arriving between the two reads is not
+  pushed again; when it is truncated, past fifty unread threads, the notice names the round's
+  threads first and the round's position stays, the one case a message can be pushed twice. A cursor
+  saved under other granted names, or one the server refuses, is discarded.
 - **Failures.** An unreachable server, a restart, a lost connection, a host directory that cannot be
   written, or a server that no longer serves the bridge's agent API version is retried with backoff,
   so push recovers on its own (H4). A rejected or revoked registration, or one that expired pending,
