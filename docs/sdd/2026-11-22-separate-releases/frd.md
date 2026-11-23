@@ -39,8 +39,8 @@ and the plugins share one version, and each plugin release runs the bridge of th
 
 **R2. A line releases only when what it ships changes.** A change that affects only the server
 releases only the server line; one that affects only the bridge or the plugins (their tools, the
-usage skill, the plugin definition) releases only the agent line; one that affects both, such as a
-change to the shared API contract that each side uses, releases both, together.
+usage skill, the plugin definition) releases only the agent line; one that changes what both share,
+such as the API contract, releases both, in the order C2 sets.
 
 **R3. Releasing stays one approval.** As today, merging a release pull request is a release's one
 human approval, after which CI publishes what released and nothing else. Each release is tagged and
