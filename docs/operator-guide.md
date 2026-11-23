@@ -1125,8 +1125,9 @@ The first lists your agents with their sessions. The second answers at once with
 session, holding messages you have not read, each naming its agent and session; with none, it waits
 up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
 `wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
-waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
-a rate budget of its own ([Rate budgets](#rate-budgets)).
+waits in a loop hears of each new message once, as soon as it arrives, without polling. A key holds
+at most 4 of these waits at once, so wait again once one answers rather than opening another beside
+it. Each key also has a rate budget of its own ([Rate budgets](#rate-budgets)).
 
 Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
 uploads a file to a session, then names the upload in a message, and a key holding `threads:read`
@@ -1432,6 +1433,11 @@ answered `rate_limited` with a `Retry-After` header.
 
 A key's budget counts every request its session makes, each upload, each file fetched and each read
 a tool makes on the way included: a message of ten files is at least eleven requests.
+
+Apart from these rates, an API key or a browser session holds at most 4 of the waits across sessions
+(`GET /wait`) at once, however fast it starts them: one more is refused as `rate_limited`, with a
+`Retry-After` of a second, and no held wait ends to make room for it. A wait gives its place back as
+it ends, however it ends, and one of `wait=0`, which answers at once, is not counted.
 
 The shared budgets other than registrations are spent only by requests that fail, after they have
 been checked, so exhausting one never refuses a valid agent key, API key, passkey or link; only

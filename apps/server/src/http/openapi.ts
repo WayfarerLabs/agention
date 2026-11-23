@@ -188,6 +188,7 @@ function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaratio
   return {
     operationId: `${mount.tag}${name}`,
     summary: declaration.summary,
+    ...(declaration.description === undefined ? {} : { description: declaration.description }),
     tags: [mount.tag],
     security: mount.security === undefined ? [] : [{ [mount.security]: scopes }],
     ...(parameters.length === 0 ? {} : { parameters }),

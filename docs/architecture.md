@@ -546,7 +546,14 @@ a full page continues with the threads it left out; a `since` past the latest po
 none, as a session's own does. It waits on the notifier's channel across every session, which every
 session's notification wakes, and the end of an API key or a browser session too, and it polls again
 when its credential expires, so an expiry ends the wait with the credential's refusal, as a
-revocation does.
+revocation does. Every message wakes every such wait to poll again, so one credential, an API key or
+a browser session, holds at most 4 at once, which the store's `OperatorWaits`
+(`apps/server/src/store/operator-waits.ts`) counts in the server process, as the notifier holds the
+waits. The operation takes a place once the request is authenticated and its input read, for a wait
+longer than 0, which answers at once and takes none, and gives it back however the wait ends:
+answered, run out, left by its client, ended by its credential's end or failed. One past the limit
+is refused at once as `rate_limited`, with a `Retry-After` of a second, and no held wait ends to
+make room, since clients that each wait again would then push each other out.
 
 ## HTTP API
 
@@ -934,8 +941,9 @@ else spends one budget per class: registrations of new keys, failed agent authen
 key authentication (`failedKeyAuth`), failed passkey sign-ins and failed passkey links. Every class
 but new registrations is charged only for a request that failed, after it was checked, so draining
 one never refuses a valid key, passkey or link, and beginning a ceremony costs nothing. An exhausted
-budget answers `rate_limited`, with a `Retry-After` header. The
-[operator guide](operator-guide.md#rate-budgets) lists the rates.
+budget answers `rate_limited`, with a `Retry-After` header, as does a wait across sessions past its
+credential's limit ([Store](#store)). The [operator guide](operator-guide.md#rate-budgets) lists the
+rates.
 
 ## Serving
 
