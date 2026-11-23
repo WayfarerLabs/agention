@@ -1315,9 +1315,13 @@ is signed in, the navigation reads what waits on the operator, from `GET /attent
 as a badge on each tab while there is any: the unread threads on Threads and the registrations
 waiting for approval on Sessions. The counts refresh on an interval, on returning to the page, on
 going to another view, and at once after any change the page makes lands, which the web API client
-announces for every request but a read and signing in or out. Wherever a thread shows as stranded,
-the UI says why from the session's presence in the thread's summary: the stop the session reported,
-with its outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
+announces for every request but a read and signing in or out. From the moment the operator starts
+ending the session, by signing out or by removing the passkey that signed this browser in, the page
+asks nothing more that needs the session on its own: no view refreshes, no count is read and a load
+under way stops before it asks again, since the server may sign the browser out before anything sent
+meanwhile arrives and would refuse it. Wherever a thread shows as stranded, the UI says why from the
+session's presence in the thread's summary: the stop the session reported, with its outcome;
+otherwise quiet, with when it was last seen; otherwise no active credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

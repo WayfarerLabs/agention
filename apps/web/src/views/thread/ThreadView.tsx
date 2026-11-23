@@ -131,10 +131,10 @@ function useThread(target: ThreadTarget) {
   // The latest message the operator has seen outside the log, which a load
   // shows only once it finishes.
   const [reached, setReached] = useState(0);
-  const resource = useResource<LoadedThread>(async () => {
+  const resource = useResource<LoadedThread>(async (signal) => {
     if (span.current === undefined) {
       span.current = openingSpan(
-        await request<ThreadGetResult>("GET", `${path}${query({ limit: 1 })}`),
+        await request<ThreadGetResult>("GET", `${path}${query({ limit: 1 })}`, { signal }),
       );
     }
     const { start, end } = span.current;
@@ -144,7 +144,9 @@ function useThread(target: ThreadTarget) {
     let answer: ThreadGetResult;
     do {
       const limit = Math.min(requestLimit, through - after);
-      answer = await request<ThreadGetResult>("GET", `${path}${query({ after, limit })}`);
+      answer = await request<ThreadGetResult>("GET", `${path}${query({ after, limit })}`, {
+        signal,
+      });
       messages.push(...answer.messages);
       after = messages.at(-1)?.seq ?? after;
     } while (answer.messages.length > 0 && after < Math.min(through, answer.thread.last_seq));

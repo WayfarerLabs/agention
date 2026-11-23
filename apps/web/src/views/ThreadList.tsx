@@ -304,10 +304,11 @@ function ListBody({
   useEffect(() => {
     say(takeNotice() ?? "");
   }, [pathname]);
-  const pages = usePages<ListedThread, Omit<ThreadListAnswer, "threads" | "next">>((cursor) =>
-    request<ThreadListAnswer>("GET", `/threads${query({ ...queryOf(view), cursor })}`).then(
-      ({ threads, ...rest }) => ({ ...rest, rows: threads }),
-    ),
+  const pages = usePages<ListedThread, Omit<ThreadListAnswer, "threads" | "next">>(
+    (cursor, signal) =>
+      request<ThreadListAnswer>("GET", `/threads${query({ ...queryOf(view), cursor })}`, {
+        signal,
+      }).then(({ threads, ...rest }) => ({ ...rest, rows: threads })),
   );
   const beside = useContext(ListBeside) !== undefined;
   const { refresh } = pages;

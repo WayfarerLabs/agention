@@ -13,10 +13,14 @@ export function SignOutSection() {
   const session = useSession();
   const action = useAction();
   const leave = async () => {
+    // From here the page asks nothing more that needs the session.
+    const release = session.signingOut();
     const state = await action.run((csrf) =>
       request<SessionState>("POST", "/auth/signout", { csrf }),
     );
-    if (state !== undefined) {
+    if (state === undefined) {
+      release();
+    } else {
       forgetDrafts();
       navigate("/sign-in", { replace: true });
       session.update(state);

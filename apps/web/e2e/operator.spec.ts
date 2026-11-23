@@ -1249,16 +1249,36 @@ test("Settings orders the groups by their buttons and by dragging, keeping the o
 test("signing in with the passkey returns to the page that needed it", async () => {
   await page.getByRole("link", { name: "Settings" }).click();
   await settings().getByRole("link", { name: "Sign out" }).click();
-  // Signing out reads the tabs' counts no more, and nothing answers the page
-  // unauthenticated.
+  // Once the operator signs out, the page asks nothing that needs the session:
+  // from the sign-out request the click sends until the Sign in page, it reads
+  // the tabs' counts no more, and nothing it asks is answered unauthenticated,
+  // though the server may sign the browser out before anything sent meanwhile
+  // arrives. The window regains focus as the click lands, which sets off every
+  // poll the page has at once, rather than leaving them to an interval that
+  // rarely falls in that window.
+  await page.evaluate(() => {
+    window.addEventListener("click", () => window.dispatchEvent(new Event("focus")), {
+      once: true,
+    });
+  });
   const strays: string[] = [];
+  let out = false;
+  const asked = new Set<Request>();
   const counted = (request: Request) => {
+    if (new URL(request.url()).pathname === "/api/web/auth/signout") {
+      out = true;
+      return;
+    }
+    if (!out) {
+      return;
+    }
+    asked.add(request);
     if (new URL(request.url()).pathname === "/api/web/attention") {
       strays.push(`read ${request.url()}`);
     }
   };
   const refused = (response: Response) => {
-    if (response.status() === 401) {
+    if (asked.has(response.request()) && response.status() === 401) {
       strays.push(`401 ${response.url()}`);
     }
   };
