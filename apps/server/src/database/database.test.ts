@@ -63,6 +63,9 @@ describe("Database.open", () => {
       expect(pragma("application_id")).toBe(applicationId);
       expect(pragma("journal_mode")).toBe("wal");
       expect(pragma("foreign_keys")).toBe(1);
+      // FULL, which SQLite reports as 2: the store's test fixture turns it
+      // off, so this is what guards the server's own setting.
+      expect(pragma("synchronous")).toBe(2);
       const tables = database
         .prepare(
           "SELECT name, strict FROM pragma_table_list WHERE schema = 'main' AND type = 'table'",
