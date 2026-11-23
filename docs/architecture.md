@@ -1025,44 +1025,50 @@ its key file, its tokens and where its requests may go.
   the session's status, and two file tools, `file_upload` and `file_get`, each annotated neither
   read-only nor destructive and as acting on a closed world. `thread_create` and `message_send` take
   a message's detail beside its text, refusing detail without text as the server does, and its
-  `attachments`, which may be all a message carries. A session never answers an ask, so
-  `message_send` takes no answers; it takes the withdrawals of the session's own open asks.
-  `message_wait` waits for nothing by default and answers at once, which is how an agent checks for
-  answers as it works; a longer wait is for an agent with no other work and open asks or unread
-  messages, or for a waiter of its own. `register`'s answer, once approved, says how answers reach
-  the agent: when it checks. No tool marks a thread unread, which agents have no use for, though the
-  agent API offers it as the web API does. The SDK advertises each tool's JSON Schema, generated
-  from the shared schemas, but the bridge parses the arguments itself, so input outside a bound is
-  `invalid_input` naming the field, as the server would answer it. A tool also refuses a field it
-  does not know, at any depth, as `invalid_input` naming it, so a misspelled field never drops
-  silently, while the server's request schemas ignore unknown fields, and the agent API version
-  keeps a newer bridge from relying on that against an older server. An answer is the API's JSON as
-  text, followed by the status reminder when one is due, and a call the server refuses is an error
-  result holding the API's error JSON. A problem the bridge finds itself, such as its configuration,
-  an unreachable server, missing names or a cancelled call, is an error result in plain text, worded
-  for the agent: what to do, or, for what only the operator can fix, to tell them at the terminal
-  what to change and whether the session must restart. `apps/bridge/src/errors.ts` words those.
-  `message_wait` gives every error but `invalid_input` no sooner than its `wait_seconds` would have
-  ended, counted from the call's start, so an agent that waits again at once does not call a server
-  it cannot use in a tight loop.
+  `attachments`, which may be all a message carries, and the session's `state`, with its `outcome`,
+  and a `note`, which report its status with the write, refusing an outcome apart from `stopped` as
+  `session_update` does. A session never answers an ask, so `message_send` takes no answers; it
+  takes the withdrawals of the session's own open asks. `message_wait` waits for nothing by default
+  and answers at once, which is how an agent checks for answers as it works; a longer wait is for an
+  agent with no other work and open asks or unread messages, or for a waiter of its own.
+  `register`'s answer, once approved, says how answers reach the agent: when it checks. No tool
+  marks a thread unread, which agents have no use for, though the agent API offers it as the web API
+  does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but the
+  bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the field,
+  as the server would answer it. A tool also refuses a field it does not know, at any depth, as
+  `invalid_input` naming it, so a misspelled field never drops silently, while the server's request
+  schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying on that
+  against an older server. An answer is the API's JSON as text, followed by the status reminder when
+  one is due, and a call the server refuses is an error result holding the API's error JSON. A
+  problem the bridge finds itself, such as its configuration, an unreachable server, missing names
+  or a cancelled call, is an error result in plain text, worded for the agent: what to do, or, for
+  what only the operator can fix, to tell them at the terminal what to change and whether the
+  session must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error
+  but `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's
+  start, so an agent that waits again at once does not call a server it cannot use in a tight loop.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
-  when it last sent a `session_update` the server logged (one with a note, one whose answered status
-  differs from the last it answered, or its first), or, until then, when a tool first answered in
-  the session, which needs approval. While the session last reported `working` through this bridge,
-  or has reported nothing through it, and that is more than 20 minutes ago, the next successful
-  answer of any tool but `register` and `session_update` ends with one more text block after the
-  API's JSON, saying how many minutes this bridge has gone without sending a status update and to
-  report what the agent is doing with `session_update` and a note, which the server logs even when
-  the status is unchanged. Another comes each further 20 minutes until the bridge sends an update
-  the server logs, so an agent that checks Agention every half minute is not told on every answer.
-  An idle or stopped status gets none: it holds while the session waits or has stopped, and the
-  sessions view shows its age. No reminder comes on an error result. The bridge knows only its own
-  updates, since the agent API offers no reading of the status: a bridge started anew counts from
-  its own first answer, one sharing a session with another bridge does not see that bridge's
-  updates, and a key revoked and approved again keeps the count it had. A bridge sends its
-  `session_update` calls one at a time, recording each once answered, so what it records follows the
-  order the server committed them in. The clock is the one tokens are minted by, which tests
-  replace.
+  when it last sent a status update the server logged (one with a note, one whose status differs
+  from the last it knew, or its first), or, until then, when a tool first answered in the session,
+  which needs approval. A `session_update` answers with the status, which the bridge compares; a
+  write's answer carries none, so for a write the bridge applies the server's rule to the status it
+  last knew: the state and note the write gave, or, for a write that reports neither, `working`
+  while the status was `idle`. A write that reports nothing therefore restarts the count only when
+  it ends an idle status, as the server then logs an inferred entry, and the reminder comes again
+  once that `working` has gone unreported past the threshold, since an inferred entry carries no
+  note on what the session does. While the status the bridge last knew is `working`, or it knows
+  none, and its last logged update is more than 20 minutes ago, the next successful answer of any
+  tool but `register` and `session_update` ends with one more text block after the API's JSON,
+  saying how many minutes this bridge has gone without sending a status update and to report what
+  the agent is doing with `session_update` and a note, which the server logs even when the status is
+  unchanged. Another comes each further 20 minutes until the bridge sends an update the server logs,
+  so an agent that checks Agention every half minute is not told on every answer. An idle or stopped
+  status gets none: it holds while the session waits or has stopped, and the sessions view shows its
+  age. No reminder comes on an error result. The bridge knows only its own updates, since the agent
+  API offers no reading of the status: a bridge started anew counts from its own first answer, one
+  sharing a session with another bridge does not see that bridge's updates, and a key revoked and
+  approved again keeps the count it had. A bridge sends its `session_update` calls and its writes to
+  threads one at a time, recording each once answered, so what it records follows the order the
+  server committed them in. The clock is the one tokens are minted by, which tests replace.
 - **File tools** (`apps/bridge/src/file-tools.ts`). `file_upload` takes an absolute path and an
   optional name, by default the path's last segment, and declares the type `typeOfName` gives the
   name, reading nothing of the file to choose it. It opens the path with `O_RDONLY`, `O_NONBLOCK`

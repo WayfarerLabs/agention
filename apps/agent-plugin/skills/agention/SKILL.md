@@ -33,7 +33,8 @@ your terminal, ask for that through Agention too. Only the operator can tell you
   operator's answers, CI or a review, and you still check Agention; or `stopped`, with an outcome,
   once you stop checking. Your open asks already tell the operator what waits on them, so a session
   working on one thing while an ask on another is open stays `working`. The note names anything else
-  you wait on.
+  you wait on. Any write to your threads that reports no status marks an idle session `working`, so
+  you report `idle` yourself whenever you start waiting.
 - **Thread**: a conversation with the operator about one matter.
 - **Message**: an entry in a thread, yours or the operator's. It tells, and may also carry asks.
 - **Ask**: a request in a message for the operator's answer, decision, approval or action. Its
@@ -73,23 +74,28 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    hold.
 5. **Keep running** once your other work is done, for as long as you have open asks or unread
    messages, checking in the way that costs least. Report `idle`, with a note, when you start
-   waiting with nothing else to do, and `working` when you pick work up again. Where your host can
-   run a waiter of your own in the background and bring you its report, such as a subagent calling
-   `message_wait`, let it wait. Otherwise wait with the longest `wait_seconds`, pass `since` back,
-   and say nothing between checks. Stop when none remain, or when the operator tells you to.
+   waiting with nothing else to do, with or after your last write of any kind: give `state` and
+   `note` on your last message, or call `session_update`. Every write to your threads that reports
+   no status, marking read and archiving included, marks you `working` again, so a `thread_read` or
+   `thread_archive` after the message that reported `idle` undoes it; after those, report `idle`
+   with `session_update`. When you pick work up without writing, report `working` yourself. Where
+   your host can run a waiter of your own in the background and bring you its report, such as a
+   subagent calling `message_wait`, let it wait. Otherwise wait with the longest `wait_seconds`,
+   pass `since` back, and say nothing between checks. Stop when none remain, or when the operator
+   tells you to.
 6. **Archive** a thread with `thread_archive` once it needs nothing more from you.
-7. **Report `stopped`** with `session_update` before you stop, with its outcome: `completed` when
-   the work is done, `withdrawn` when the operator called it off, `stalled` when you cannot go on.
-   When something starts you again, such as the operator at your terminal or in Agention, report
-   `working` first.
+7. **Report `stopped`** before you stop, with its outcome, on your last message or with
+   `session_update`: `completed` when the work is done, `withdrawn` when the operator called it off,
+   `stalled` when you cannot go on. When something starts you again, such as the operator at your
+   terminal or in Agention, report `working` first.
 
-**Keep your status current** with `session_update`, with a `note` on what just happened, at each
-checkpoint of your work: when you open a pull request or mark one ready, when CI or a review
-reports, when you hand work to a subagent or take it back, and when you start or end a wait. The
-operator reads it to know what you are doing without asking, and a status hours old tells them
-nothing. Report a rough `percent` toward the goal at those points too, never on every step. While
-you are `working` and your status has gone a while without an update, a tool's answer ends with a
-reminder to send one.
+**Keep your status current** with `session_update`, or on a message you send at the time, with a
+`note` on what just happened, at each checkpoint of your work: when you open a pull request or mark
+one ready, when CI or a review reports, when you hand work to a subagent or take it back, and when
+you start or end a wait. The operator reads it to know what you are doing without asking, and a
+status hours old tells them nothing. Report a rough `percent` toward the goal at those points too,
+never on every step. While you are `working` and your status has gone a while without an update, a
+tool's answer ends with a reminder to send one.
 
 ## Files
 
@@ -186,32 +192,40 @@ thread_create {
 
 (you say in your output what you asked, and carry on with the backfill, checking Agention
 between steps; the backfill finishes with both asks still open and nothing else to do, so you
-keep checking; your open asks tell the operator what you wait on)
+tell the operator and report that you wait, and keep checking; your open asks tell them what you
+wait on)
 
-session_update {"state": "idle", "note": "Backfill done."}
+message_send {
+  "thread": 4,
+  "request_id": "5d7c2a91-3e4f-4b8a-9c1d-2f6e8a0b7c35",
+  "seen_through": 1,
+  "text": "The backfill is done. The table stays until you answer ask 1.",
+  "state": "idle",
+  "note": "Backfill done."
+}
+→ message 2
 
 message_wait {"wait_seconds": 25, "since": "<since from the last answer>"}
 → thread 4 has an unread message, and the next since
 
-thread_get {"thread": 4, "after": 1}
-→ message 2, the operator's answer to ask 1: they picked "After the backfill"
+thread_get {"thread": 4, "after": 2}
+→ message 3, the operator's answer to ask 1: they picked "After the backfill"
 
-thread_read {"thread": 4, "through": 2}
+thread_read {"thread": 4, "through": 3}
 
-session_update {"state": "working"}
-
-(you drop the table; the nightly archive job was retired meanwhile, so ask 2 needs no answer)
+(marking it read is a write, so your session is working again; you drop the table, and the
+nightly archive job was retired meanwhile, so ask 2 needs no answer)
 
 message_send {
   "thread": 4,
   "request_id": "a8e1d6f0-2c4b-4a9e-9f3d-7b5c1e8d2a60",
-  "seen_through": 2,
+  "seen_through": 3,
   "text": "Dropped after the backfill finished.",
   "withdrawals": [{"ask": 2, "reason": "The nightly archive job was retired; nothing to keep."}]
 }
-→ message 3
+→ message 4
 
-thread_archive {"thread": 4, "through": 3}
+thread_archive {"thread": 4, "through": 4}
 
 (no open asks or unread messages remain, so you report that you stop, and then stop)
 
