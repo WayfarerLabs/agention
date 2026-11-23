@@ -52,10 +52,11 @@ watcher learns the pid from `CLAUDE_PID`, which Claude Code sets for the hooks i
 takes its nearest ancestor whose command name is `claude`, and never looks further up, so a Claude
 Code started from another's shell, whose own hooks do not run, never borrows the outer one's
 directory; with no such ancestor there is no push. The machine's host name keeps two machines or
-containers sharing a home directory apart. Both are undocumented by Claude Code, and the spike
-confirmed both on 2.1.330. A host session's id is not used: `/clear` gives hooks a new `session_id`
-while the bridge, which Claude Code does not restart, keeps the old one in its environment (the
-spike).
+containers sharing a home directory apart. The bridge reads the host name again each round, so a
+rename mid-session moves push to the directory the next watcher marks, with the lapse line while
+none has. Both are undocumented by Claude Code, and the spike confirmed both on 2.1.330. A host
+session's id is not used: `/clear` gives hooks a new `session_id` while the bridge, which Claude
+Code does not restart, keeps the old one in its environment (the spike).
 
 The directory holds:
 
@@ -80,10 +81,10 @@ behind.
   nothing (C2). It starts at `register`, and a restarted bridge resumes at the agent's first
   Agention call that finds the session's credential.
 - **Learning of approval.** While the session's registration is pending, the bridge reads its state
-  every 15 seconds with the request `register` already makes, only until the `expires_at` that state
-  gave, so push starts once the operator approves even if the agent's turn has ended (P4), and a
-  background read never recreates an expired registration. It never submits a key that is absent
-  from disk.
+  every 15 seconds with the request `register` already makes, only until two minutes, the clock skew
+  the agent API tolerates, before the `expires_at` that state gave, so push starts once the operator
+  approves even if the agent's turn has ended (P4), and a background read never recreates an expired
+  registration. It never submits a key that is absent from disk.
 - **The loop.** It long-polls the wait for 25 seconds at a time from the saved cursor, one request
   at a time and never sooner than a second after the last began (C2). A round with threads saves the
   new cursor first, then reads every thread with unread messages from the operator at once and
