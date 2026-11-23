@@ -25,5 +25,13 @@
       "NODE_EXTRA_CA_CERTS"
     ],
     "toolTimeoutSeconds": 600
+  },
+  "claudeWakeHook": {
+    "script": "agention-watcher.sh",
+    "events": [
+      "SessionStart",
+      "Stop"
+    ],
+    "timeoutSeconds": 86400
   }
 }

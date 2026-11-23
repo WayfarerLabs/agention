@@ -5,10 +5,15 @@ import { type FileContent, isExecutable, requireRealDirs } from "./output.ts";
 // Repository-relative locations of the canonical sources.
 export const definitionPath = "apps/agent-plugin/plugin.json";
 export const skillsPath = "apps/agent-plugin/skills";
+export const hooksPath = "apps/agent-plugin/hooks";
 
 // Plugin and skill names are lowercase words joined by hyphens, which every
 // host accepts as a directory name and an identifier.
 const namePattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// A hook script is named like a plugin, as a POSIX shell script.
+const scriptPattern = /^[a-z0-9]+(-[a-z0-9]+)*\.sh$/;
+// Claude Code names its hook events in PascalCase, such as SessionStart.
+const eventPattern = /^[A-Z][a-z]+([A-Z][a-z]+)*$/;
 // Release versions are plain semantic versions; release-please writes them.
 const versionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$/;
 // npm package names, optionally scoped, in the lowercase form npm publishes.
@@ -27,6 +32,22 @@ export interface Definition {
   license?: string;
   keywords?: string[];
   mcpServer: McpServer;
+  // The hook that wakes an agent at Claude Code's prompt when the MCP server
+  // writes a wake file, which only the Claude Code plugin carries: Codex
+  // offers a plugin no way to wake an open session.
+  claudeWakeHook?: WakeHook;
+}
+
+// A command hook Claude Code runs in the background (asyncRewake), which
+// wakes the agent by exiting 2.
+export interface WakeHook {
+  // The script, a file in apps/agent-plugin/hooks/, which the plugin carries
+  // at hooks/ with its executable bit.
+  script: string;
+  // The Claude Code hook events that start it.
+  events: string[];
+  // How long Claude Code lets one run, in seconds.
+  timeoutSeconds: number;
 }
 
 // The MCP server the plugin starts, an npm package that every host runs with
@@ -56,9 +77,12 @@ const definitionFields = new Set([
   "license",
   "keywords",
   "mcpServer",
+  "claudeWakeHook",
 ]);
 
 const mcpServerFields = new Set(["name", "package", "environment", "toolTimeoutSeconds"]);
+
+const wakeHookFields = new Set(["script", "events", "timeoutSeconds"]);
 
 // Everything rendering needs, loaded and validated.
 export interface Sources {
@@ -66,6 +90,8 @@ export interface Sources {
   // Each skill file's slash-separated path under skills/, mapped to its
   // content and executable bit, both copied into each host's plugin.
   skills: Map<string, FileContent>;
+  // The wake hook's script, when the definition has a wake hook.
+  wakeHookScript?: FileContent;
 }
 
 // loadSources reads and validates the canonical definition and skills under
@@ -74,7 +100,7 @@ export interface Sources {
 export function loadSources(root: string): Sources {
   // The sources must live in the tree itself: a symlinked source directory or
   // definition would pull content from outside the repository.
-  for (const rel of [posix.dirname(definitionPath), skillsPath]) {
+  for (const rel of [posix.dirname(definitionPath), skillsPath, hooksPath]) {
     try {
       requireRealDirs(root, rel);
     } catch (error) {
@@ -85,10 +111,28 @@ export function loadSources(root: string): Sources {
   if (lstatSync(definitionFile, { throwIfNoEntry: false })?.isFile() === false) {
     throw new Error(`plugin sources: ${definitionFile} is not a regular file`);
   }
+  const definition = loadDefinition(definitionFile);
+  const hook = definition.claudeWakeHook;
   return {
-    definition: loadDefinition(definitionFile),
+    definition,
     skills: loadSkills(join(root, skillsPath)),
+    ...(hook === undefined ? {} : { wakeHookScript: loadHookScript(root, hook.script) }),
   };
+}
+
+// loadHookScript reads a hook's script: a regular, executable file in the
+// hooks directory, never a symlink, which could pull content from outside the
+// tree.
+function loadHookScript(root: string, script: string): FileContent {
+  const file = join(root, hooksPath, script);
+  const stats = lstatSync(file, { throwIfNoEntry: false });
+  if (stats === undefined || !stats.isFile()) {
+    throw new Error(`plugin sources: hook script ${file} is not a regular file`);
+  }
+  if (!isExecutable(stats.mode)) {
+    throw new Error(`plugin sources: hook script ${file} is not executable`);
+  }
+  return { data: readFileSync(file), executable: true };
 }
 
 function loadDefinition(file: string): Definition {
@@ -144,6 +188,39 @@ function definitionProblems(raw: unknown): string[] {
     problems.push("keywords must be a non-empty list of non-empty strings when present");
   }
   problems.push(...mcpServerProblems(raw.mcpServer));
+  if (raw.claudeWakeHook !== undefined) {
+    problems.push(...wakeHookProblems(raw.claudeWakeHook));
+  }
+  return problems;
+}
+
+// wakeHookProblems describes everything wrong with the wake hook.
+function wakeHookProblems(raw: unknown): string[] {
+  if (!isRecord(raw)) {
+    return ["claudeWakeHook must be an object when present"];
+  }
+  const problems = Object.keys(raw)
+    .filter((key) => !wakeHookFields.has(key))
+    .map((key) => `unknown field ${JSON.stringify(`claudeWakeHook.${key}`)}`);
+  if (typeof raw.script !== "string" || !scriptPattern.test(raw.script)) {
+    problems.push(
+      `claudeWakeHook.script ${JSON.stringify(raw.script)} must be lowercase words joined by ` +
+        "hyphens, ending in .sh",
+    );
+  }
+  const { events } = raw;
+  if (!(
+    Array.isArray(events) &&
+    events.length > 0 &&
+    events.every((event) => typeof event === "string" && eventPattern.test(event)) &&
+    new Set(events).size === events.length
+  )) {
+    problems.push("claudeWakeHook.events must be a non-empty list of distinct hook event names");
+  }
+  const { timeoutSeconds } = raw;
+  if (!(Number.isSafeInteger(timeoutSeconds) && (timeoutSeconds as number) > 0)) {
+    problems.push("claudeWakeHook.timeoutSeconds must be a positive whole number");
+  }
   return problems;
 }
 

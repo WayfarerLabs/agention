@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -16,7 +17,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { run } from "./cli.ts";
-import { definitionPath, loadSources, skillsPath, unscopedName } from "./definition.ts";
+import { definitionPath, hooksPath, loadSources, skillsPath, unscopedName } from "./definition.ts";
 import { check, write } from "./output.ts";
 import {
   claudeCatalogPath,
@@ -67,6 +68,27 @@ function newRepo(definition = validDefinition): string {
   return root;
 }
 
+// A definition with a wake hook, and a repository holding its script.
+const hookedDefinition = validDefinition.replace(
+  /\n}\n$/,
+  `,
+  "claudeWakeHook": {
+    "script": "example-watcher.sh",
+    "events": ["SessionStart", "Stop"],
+    "timeoutSeconds": 86400
+  }
+}
+`,
+);
+
+function newHookedRepo(definition = hookedDefinition): string {
+  const root = newRepo(definition);
+  const script = join(root, hooksPath, "example-watcher.sh");
+  mustWrite(script, "#!/bin/sh\nexit 0\n");
+  chmodSync(script, 0o755);
+  return root;
+}
+
 function generate(root: string): Generated {
   return render(loadSources(root));
 }
@@ -90,6 +112,13 @@ function snapshot(dir: string): Map<string, string> {
   };
   walk(dir);
   return entries;
+}
+
+// snapshotBelow is a snapshot of a directory under root, keyed by the path
+// below it, so two repositories' outputs compare.
+function snapshotBelow(root: string, dir: string): Map<string, string> {
+  const base = join(root, dir);
+  return new Map([...snapshot(base)].map(([name, entry]) => [relative(base, name), entry]));
 }
 
 function readJSON(name: string): Record<string, unknown> {
@@ -300,6 +329,79 @@ describe("generation", () => {
         },
       },
     });
+  });
+});
+
+// Only Claude Code offers a plugin a hook that wakes an open session, so only
+// its plugin carries the wake hook.
+describe("the wake hook", () => {
+  it("is rendered into the Claude Code plugin alone, executable", () => {
+    const root = newHookedRepo();
+    write(root, generate(root));
+    const script = join(root, claudePluginDir, "hooks", "example-watcher.sh");
+    expect(readFileSync(script, "utf8")).toBe("#!/bin/sh\nexit 0\n");
+    expect(statSync(script).mode & 0o777).toBe(0o755);
+    expect(readJSON(join(root, claudePluginDir, "hooks", "hooks.json"))).toMatchObject({
+      hooks: Object.fromEntries(
+        ["SessionStart", "Stop"].map((event) => [
+          event,
+          [
+            {
+              hooks: [
+                {
+                  type: "command",
+                  command: '"${CLAUDE_PLUGIN_ROOT}/hooks/example-watcher.sh"',
+                  asyncRewake: true,
+                  timeout: 86400,
+                },
+              ],
+            },
+          ],
+        ]),
+      ),
+    });
+    expect(existsSync(join(root, codexPluginDir, "hooks"))).toBe(false);
+    expect(check(root, generate(root))).toEqual([]);
+  });
+
+  it("leaves the Codex plugin as it is without one", () => {
+    const plain = newRepo();
+    const hooked = newHookedRepo();
+    write(plain, generate(plain));
+    write(hooked, generate(hooked));
+    expect(snapshotBelow(hooked, codexPluginDir)).toEqual(snapshotBelow(plain, codexPluginDir));
+  });
+
+  it.each<[string, (definition: string) => string]>([
+    ["an unknown field", (d) => d.replace(`"timeoutSeconds"`, `"matcher": "x", "timeoutSeconds"`)],
+    ["a script outside the hooks directory", (d) => d.replace(`"example-watcher.sh"`, `"../x.sh"`)],
+    ["a script that is not a shell script", (d) => d.replace(`"example-watcher.sh"`, `"run"`)],
+    ["no events", (d) => d.replace(`["SessionStart", "Stop"]`, `[]`)],
+    ["a repeated event", (d) => d.replace(`["SessionStart", "Stop"]`, `["Stop", "Stop"]`)],
+    ["a bad event", (d) => d.replace(`"Stop"]`, `"stop"]`)],
+    ["no timeout", (d) => d.replace(`,\n    "timeoutSeconds": 86400`, "")],
+    ["a fractional timeout", (d) => d.replace(`86400`, `0.5`)],
+  ])("rejects a wake hook with %s", (_, edit) => {
+    expect(() => loadSources(newHookedRepo(edit(hookedDefinition)))).toThrow();
+  });
+
+  it.each<[string, (script: string) => void]>([
+    ["a missing script", (script) => rmSync(script)],
+    ["a script that is not executable", (script) => chmodSync(script, 0o644)],
+    [
+      "a symlinked script",
+      (script) => {
+        const target = join(tempDir(), "outside.sh");
+        mustWrite(target, "#!/bin/sh\n");
+        chmodSync(target, 0o755);
+        rmSync(script);
+        symlinkSync(target, script);
+      },
+    ],
+  ])("rejects %s", (_, setup) => {
+    const root = newHookedRepo();
+    setup(join(root, hooksPath, "example-watcher.sh"));
+    expect(() => loadSources(root)).toThrow();
   });
 });
 
