@@ -7,6 +7,7 @@ import {
   registrationStatus,
 } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
+import { groupId, tagList } from "./groups-and-tags.ts";
 
 // Registrations as the operator reads and decides them: the list of them, and
 // approval.
@@ -48,7 +49,8 @@ export type RegistrationsPage = z.infer<typeof registrationsPage>;
 
 // Approval names the agent and session to grant, which may differ from the
 // proposed ones, and says whether each already exists, so granting an existing
-// session's history is always deliberate.
+// session's history is always deliberate. It may also put the session in a
+// group and set its tags, with the approval, which need sessions:write too.
 export const approveInput = z.object({
   agent: z.object({
     name,
@@ -68,6 +70,19 @@ export const approveInput = z.object({
           "false creates it; a mismatch is refused as invalid_input on session.name. " +
           "Approving onto an existing session grants the new key that session's whole " +
           "history, every thread and message in it",
+      ),
+    group: groupId
+      .nullable()
+      .optional()
+      .describe(
+        "The id of an existing group to put the session in, or null for none, as the approval " +
+          "grants it; left out, the session's group is unchanged. Needs sessions:write",
+      ),
+    tags: tagList
+      .optional()
+      .describe(
+        "The session's tags, the whole set, as the approval grants it; a name no tag has " +
+          "creates that tag. Left out, the session's tags are unchanged. Needs sessions:write",
       ),
   }),
 });

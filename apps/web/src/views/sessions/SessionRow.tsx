@@ -46,9 +46,11 @@ export function SessionRow({
   refresh,
   newThread,
   organize,
+  alone = false,
 }: {
-  // The level of the row's heading, one below its agent's.
-  level: 4 | 5;
+  // The level of the row's heading, one below its agent's, or the agents'
+  // own when it stands alone.
+  level: 3 | 4 | 5;
   agent: string;
   session: SessionSummary;
   unfolded: boolean;
@@ -61,6 +63,9 @@ export function SessionRow({
   // Opens the sheet that sets the session's group or its tags, focus
   // returning to the control given when it closes.
   organize: (what: "group" | "tags", opener: HTMLElement | null) => void;
+  // Whether it stands alone, with no agent's header above it, so it names
+  // its agent too.
+  alone?: boolean;
 }) {
   const detail = useId();
   const fold = useId();
@@ -85,7 +90,7 @@ export function SessionRow({
               className="session-fold"
               aria-expanded={unfolded}
               aria-controls={unfolded ? detail : undefined}
-              aria-label={`Session ${session.session}`}
+              aria-label={`Session ${alone ? path : session.session}`}
               onClick={toggle}
             >
               <Icon name="expand" />
@@ -95,7 +100,7 @@ export function SessionRow({
               narrowing={{ session: [path] }}
               spoken={`Threads of session ${path}`}
             >
-              {session.session}
+              {alone ? path : session.session}
             </FilterLink>{" "}
             {status?.title !== undefined && <span className="session-title">{status.title}</span>}{" "}
             {status?.percent !== undefined && (

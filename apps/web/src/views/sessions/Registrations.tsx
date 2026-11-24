@@ -24,10 +24,12 @@ import {
 } from "../../components.tsx";
 import { type Resource, useAction } from "../../data.ts";
 import { absoluteTime, Time } from "../../format.tsx";
+import { useOrganize } from "./Organize.tsx";
 
 // The registrations the sessions view shows: one waiting for approval, which
 // the operator approves after matching the code the agent relayed, onto an
-// agent and a session chosen among those the view lists, or rejects; and one
+// agent and a session chosen among those the view lists, perhaps putting the
+// session in a group and giving it tags as it does, or rejects; and one
 // already decided, whose credential the operator can revoke.
 
 // loadRegistrations reads a page of registrations, only those waiting for
@@ -97,6 +99,13 @@ export function PendingRegistration({
 
 type Choice = "existing" | "new";
 
+// The session an approval grants, as the form names it: an existing one, or
+// a new one, by its name.
+interface Destination {
+  existing: boolean;
+  session: string;
+}
+
 // newNameProblem says what is wrong with a name for a new agent or session.
 function newNameProblem(value: string, taken: string[], kind: string): string | undefined {
   if (!namePattern.test(value)) {
@@ -125,7 +134,12 @@ function describedBy(id: string, error: string | undefined, errorId: string): st
 }
 
 // ApproveForm grants a pending registration an agent and a session, each
-// either an existing one or a new one, under the proposed names or others.
+// either an existing one or a new one, under the proposed names or others,
+// and the session's group and tags when the operator picks them, which the
+// approval applies with the grant. A group picked new is created as it is
+// picked, since an approval names its group by id. What is not picked stays
+// as it is: none for a new session, and an existing session's own, which
+// the pickers start from; choosing another session starts the picks over.
 function ApproveForm({
   registration,
   directory,
@@ -167,6 +181,25 @@ function ApproveForm({
     session?: string | undefined;
   }>({});
   const approve = useAction();
+  // The session chosen to approve onto, new or existing, as SessionFields
+  // says once it changes, under the agent it was chosen for, which another
+  // agent starts over, as it does SessionFields.
+  const sessionKey = `${agentChoice}:${agentName}`;
+  const [onto, setOnto] = useState<{ key: string } & Destination>();
+  if (onto !== undefined && onto.key !== sessionKey) {
+    setOnto(undefined);
+  }
+  const own = onto?.existing
+    ? agentSessions.find((entry) => entry.session === onto.session)
+    : undefined;
+  const organize = useOrganize({
+    id,
+    label: `registration ${registration.code}`,
+    // A new session has nothing of its own, so it keeps its picks however
+    // it is named; an existing one is itself.
+    destination: onto?.existing ? `${sessionKey}/existing:${onto.session}` : `${sessionKey}/new`,
+    own,
+  });
 
   const submit = async (form: HTMLFormElement) => {
     const session = sessionPick(form);
@@ -190,7 +223,11 @@ function ApproveForm({
     }
     const input: ApproveInput = {
       agent: { name: agentName, existing: agentChoice === "existing" },
-      session: { name: session.name, existing: session.choice === "existing" },
+      session: {
+        name: session.name,
+        existing: session.choice === "existing",
+        ...organize.picked,
+      },
     };
     const result = await approve.run((csrf) =>
       request<RegistrationResult>("POST", `/registrations/${registration.id}/approve`, {
@@ -283,17 +320,19 @@ function ApproveForm({
       </fieldset>
       <SessionFields
         // Another agent starts the session choice over.
-        key={`${agentChoice}:${agentName}`}
+        key={sessionKey}
         id={id}
         agentName={agentName}
         sessions={agentSessions}
         truncated={held?.truncated === true}
         proposed={registration.proposed_session}
         error={sessionError}
+        onTarget={(destination) => setOnto({ key: sessionKey, ...destination })}
       />
       <p className="hint" id={`${id}-name-hint`}>
         Names are 1 to 63 of a-z, 0-9, _ and -, starting with a letter or digit.
       </p>
+      {organize.fields}
       <Failure failure={formFailure} />
       <div className="actions">
         <button type="submit" disabled={approve.pending}>
@@ -306,7 +345,8 @@ function ApproveForm({
 
 // SessionFields chooses the session to grant among one agent's sessions, by
 // name, saying when the list left some of them out; the form reads the choice
-// from its fields when it is sent. When the agent
+// from its fields when it is sent, and onTarget says which session is
+// chosen, new or existing, by its name, as it changes. When the agent
 // already has the proposed session, the choice starts undecided: approving
 // onto an existing session gives the credential its whole history, so that is
 // never chosen for the operator.
@@ -317,6 +357,7 @@ function SessionFields({
   truncated,
   proposed,
   error,
+  onTarget,
 }: {
   id: string;
   agentName: string;
@@ -324,6 +365,7 @@ function SessionFields({
   truncated: boolean;
   proposed: string;
   error: string | undefined;
+  onTarget: (destination: Destination) => void;
 }) {
   const byName = [...sessions].sort((a, b) =>
     a.session < b.session ? -1 : a.session > b.session ? 1 : 0,
@@ -347,7 +389,10 @@ function SessionFields({
               name="session-choice"
               value="existing"
               checked={choice === "existing"}
-              onChange={() => setChoice("existing")}
+              onChange={() => {
+                setChoice("existing");
+                onTarget({ existing: true, session: existing });
+              }}
             />
             An existing session of {agentName}
           </label>
@@ -356,7 +401,10 @@ function SessionFields({
             name="existing-session"
             value={existing}
             disabled={choice !== "existing"}
-            onChange={(event) => setExisting(event.target.value)}
+            onChange={(event) => {
+              setExisting(event.target.value);
+              onTarget({ existing: true, session: event.target.value });
+            }}
           >
             {byName.map((entry) => (
               <option key={entry.session} value={entry.session}>
@@ -375,7 +423,10 @@ function SessionFields({
             name="session-choice"
             value="new"
             checked={choice === "new"}
-            onChange={() => setChoice("new")}
+            onChange={() => {
+              setChoice("new");
+              onTarget({ existing: false, session: fresh });
+            }}
           />
           A new session
         </label>
@@ -390,7 +441,10 @@ function SessionFields({
           maxLength={63}
           aria-invalid={choice === "new" && error !== undefined ? true : undefined}
           aria-describedby={describedBy(id, error, `${id}-session-error`)}
-          onChange={(event) => setFresh(event.target.value)}
+          onChange={(event) => {
+            setFresh(event.target.value);
+            onTarget({ existing: false, session: event.target.value });
+          }}
         />
       </div>
       {choice === "existing" && (
