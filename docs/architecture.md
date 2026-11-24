@@ -226,11 +226,13 @@ value and is never reused, so positions never go backwards. A trigger gives each
 position as it is written, triggers refuse every update and delete of a position, and the migration
 that added the table numbered the messages already written in the order they were stored.
 
-A test freezes the text of every migration a release has shipped, by its SHA-256, so a schema change
-is always a new migration. Others open a database the first migration alone wrote, and those the
-first two, three and four wrote, under every later one: the tables they had keep their rows, the new
-ones start empty but for the positions of the messages written before, in the order they were
-written, and a message written before the full-text index of messages existed is found by it.
+A test freezes the text of every migration by its SHA-256. A migration a release has shipped is
+never edited, so a schema change is always a new migration, which adds its hash; an edit to a
+migration no release has shipped updates its hash. Others open a database the first migration alone
+wrote, and those the first two, three and four wrote, under every later one: the tables they had
+keep their rows, the new ones start empty but for the positions of the messages written before, in
+the order they were written, and a message written before the full-text index of messages existed is
+found by it.
 
 `agention backup` (`apps/server/src/database/backup.ts`) copies the database without the `Database`
 class, so it never migrates it: it checks the database file as opening does, refusing a missing one,
