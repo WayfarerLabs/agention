@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { describeFailure, PageFailure } from "../../api.ts";
+import { PageFailure } from "../../api.ts";
 import { type Action, useAction } from "../../data.ts";
 import { leaveNotice } from "../../notice.ts";
 import { currentListView, listHref, navigate, threadHref } from "../../router.tsx";
@@ -63,10 +63,6 @@ const findingWords = "Finding the thread to open";
 // operator keeps changing the list it is found in.
 const findingTries = 3;
 
-// failedWords says which action on the thread failed, and why.
-export const failedWords = (action: string, failure: unknown) =>
-  `${action} failed: ${describeFailure(failure)}`;
-
 // An Archive all under way: where it goes once archived, what the send that
 // started it sent, if one did, and the message it archives through at least,
 // the one that send wrote, which can lie past the latest the page has loaded.
@@ -93,15 +89,12 @@ interface Leaving {
   unread: Action;
   marking: boolean;
   clearMarking: () => void;
-  // Posts a mark and, once it lands with the page still open, goes onward.
-  leaveWith: (
-    action: Action,
-    route: "/archive",
-    body: { through: number },
-    onward: () => void,
-  ) => Promise<void>;
+  // Archives the thread through a message, as archive's action, and, once
+  // that lands with the page still open, goes onward.
+  archiveAndLeave: (through: number, onward: () => void) => Promise<void>;
   stillOpen: () => boolean;
-  // Whether a send is on its way, and where a send takes the page.
+  // Whether a send is on its way, and where a send takes the page, as the
+  // operator has it chosen now.
   sendPending: boolean;
   after: AfterSending;
 }
@@ -118,7 +111,7 @@ export function useLeaving({
   unread,
   marking,
   clearMarking,
-  leaveWith,
+  archiveAndLeave,
   stillOpen,
   sendPending,
   after,
@@ -142,17 +135,21 @@ export function useLeaving({
   const failedBefore = useRef<unknown>(undefined);
   const moving = unread.pending || archive.pending || finding.pending || archivingAll !== undefined;
   const sendGoing = sendPending && after !== "stay";
-  // moving and sendGoing as they stand now, not as this render saw them, for
-  // a way on started from an action held since, as a send's once it lands:
-  // each way on that starts marks moving at once, before the page renders it.
+  // moving and after as they stand now, not as this render saw them, for a
+  // send's way on, which runs from the render that sent the message once the
+  // server accepts it, and goes by the choice as it stands then. Each way on
+  // that starts marks moving at once, before the page renders it. sendGoing
+  // needs no such copy: only the operator's own ways on read it, from
+  // handlers the page's latest render built.
   const movingNow = useRef(moving);
   movingNow.current = moving;
-  const sendGoingNow = useRef(sendGoing);
-  sendGoingNow.current = sendGoing;
-  // start starts a way on, unless another holds it back; one a send starts,
-  // which says what it sent, waits only for the others.
-  const start = (sent: string | undefined) => {
-    if (movingNow.current || (sent === undefined && sendGoingNow.current)) {
+  const afterNow = useRef(after);
+  afterNow.current = after;
+  // start starts a way on, unless another holds it back; a send's own waits
+  // only for the others. bySend says so outright, though the render a send's
+  // way on comes from never sees that send on its way.
+  const start = (bySend: boolean) => {
+    if (movingNow.current || (!bySend && sendGoing)) {
       return false;
     }
     movingNow.current = true;
@@ -188,18 +185,22 @@ export function useLeaving({
       goToNeighbor(found.thread, direction, found.from, replace, sent);
     }
   };
-  const archiveAll = (sent?: string, atLeast = 0) => {
-    if (!start(sent)) {
-      return;
-    }
+  // startArchiving starts Archive all once start lets it, saying what a send
+  // that started it sent, through the message that send wrote at least.
+  const startArchiving = (sent: string | undefined, atLeast: number) => {
     clearMarking();
     failedBefore.current = loadFailure;
     setArchivingAll({ to: autoAdvance, sent, atLeast });
     show(Math.max(last, atLeast));
   };
-  const openNeighbor = (direction: Direction, sent?: string) => {
-    if (start(sent)) {
-      void find(direction, false, sent);
+  const archiveAll = () => {
+    if (start(false)) {
+      startArchiving(undefined, 0);
+    }
+  };
+  const openNeighbor = (direction: Direction) => {
+    if (start(false)) {
+      void find(direction, false, undefined);
     }
   };
   useEffect(() => {
@@ -212,7 +213,7 @@ export function useLeaving({
       setShowingFailure(loadFailure);
     } else if (!later && last >= atLeast) {
       setArchivingAll(undefined);
-      void leaveWith(archive, "/archive", { through: last }, () => {
+      void archiveAndLeave(last, () => {
         if (to !== "list") {
           void find(to, true, sent);
         } else {
@@ -224,24 +225,33 @@ export function useLeaving({
       });
     }
   }, [archivingAll, last, later, loadFailure]);
-  // A send's way on, once the server accepts the message.
-  const sentOnward = (where: Exclude<AfterSending, "stay">, sent: string, written: number) => {
+  // A send's way on, once the server accepts the message written, with the
+  // page still open: where After sending says, saying there what was sent.
+  const sentOnward = (sent: string, written: number) => {
+    const where = afterNow.current;
+    if (where === "stay" || !stillOpen() || !start(true)) {
+      return;
+    }
     if (where === "list") {
-      if (start(sent)) {
-        leaveNotice(sent);
-        returnToList();
-      }
+      leaveNotice(sent);
+      returnToList();
     } else if (where === "archive") {
       // Run as Archive all is, through the message sent at least, but left
       // to the server to refuse while an ask is open, since what was just
       // sent may have answered it; a refusal shows, naming the ask.
-      archiveAll(sent, written);
+      startArchiving(sent, written);
     } else {
-      openNeighbor(where, sent);
+      void find(where, false, sent);
     }
   };
-  // A mark from a message says its own failure there.
+  // A mark from a message says its own failure there, not here.
   const archiveFailure = marking ? undefined : (archive.failure ?? showingFailure);
+  const onwardFailure =
+    finding.failure !== undefined
+      ? { action: findingWords, failure: finding.failure }
+      : archiveFailure !== undefined
+        ? { action: archivingWords, failure: archiveFailure }
+        : undefined;
   return {
     // Whether a way on holds the page, or a send that will take it somewhere
     // is on its way.
@@ -252,13 +262,9 @@ export function useLeaving({
     archiveAll,
     openNeighbor,
     sentOnward,
-    // Why the way on last failed, which the head says, and the composer too,
+    // Why the way on last failed, as the action that failed and its failure,
+    // which the head says, and the composer too,
     // since a phone's keyboard can hide the head.
-    onwardFailure:
-      finding.failure !== undefined
-        ? failedWords(findingWords, finding.failure)
-        : archiveFailure !== undefined
-          ? failedWords(archivingWords, archiveFailure)
-          : undefined,
+    onwardFailure,
   };
 }
