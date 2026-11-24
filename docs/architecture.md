@@ -209,8 +209,9 @@ also sets `journal_size_limit` to 16 MiB, so a log that a backup's long read let
 
 `voice_settings` holds at most one row, what the operator's Settings last saved for voice: the base
 URL and model in effect when it was saved, the environment's included, so the row always records the
-address its key was entered for, an optional prompt, and an optional key. Turning voice off deletes
-the row. Which provider it means is worked out from its base URL, never stored apart from it.
+address its key was entered for, an optional prompt (Settings' additional context), and an optional
+key. Turning voice off deletes the row. Which provider it means is worked out from its base URL,
+never stored apart from it.
 
 `api_keys` holds the operator's API keys: each one's name, its scopes as a JSON array, the SHA-256
 of its secret, which is unique, and when it was created, when it expires (null for a key without an
@@ -912,6 +913,9 @@ refused (401 or 403), rate limited (429), the request refused (400 or 404), anot
 answer that is not a transcript. `POST /transcriptions` answers it as `provider_failed`, status 502,
 with a message naming the kind and never the provider's body, and logs only the kind and status. An
 upload the browser abandons before it arrives whole is logged as cancelled too.
+
+A transcript that is the prompt sent, ignoring case, punctuation and the spacing between words, is
+answered as empty, since Whisper sometimes answers silence with its prompt.
 
 ## Rate budgets
 
