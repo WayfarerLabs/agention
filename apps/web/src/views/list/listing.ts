@@ -57,8 +57,9 @@ export function groupNamed(
   return known.groups.find((group) => group.id === value)?.name ?? removedGroup;
 }
 
-// tagCarried says whether something carries a tag, as the operator's groups
-// and tags say; while they are not known, or leave tags out, it is taken to.
-export function tagCarried(tag: string, known: GroupsAndTags | undefined): boolean {
+// tagKept says whether a tag is there, not removed, as the operator's groups
+// and tags say, which list every tag, those nothing carries among them; while
+// they are not known, or leave tags out, it is taken to be.
+export function tagKept(tag: string, known: GroupsAndTags | undefined): boolean {
   return known === undefined || known.truncated || known.tags.some((each) => each.name === tag);
 }

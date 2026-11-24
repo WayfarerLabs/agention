@@ -813,10 +813,21 @@ describe("a database an earlier release wrote", () => {
     try {
       const after = rowsOf(database);
       expect(Object.keys(after)).toEqual(
-        expect.arrayContaining([...Object.keys(before), "voice_settings"]),
+        expect.arrayContaining([...Object.keys(before), "voice_settings", "tags"]),
       );
       expect(earlier(after, before)).toEqual(before);
+      // The group gains its color and place, and the tags it carried their rows.
+      expect(
+        after.session_groups?.map((row) => {
+          const { color, position } = JSON.parse(row) as { color: string; position: number };
+          return { color, position };
+        }),
+      ).toEqual([{ color: "gray", position: 1 }]);
       expect(after.voice_settings).toEqual([]);
+      expect(after.tags).toEqual([
+        JSON.stringify({ name: "infra", color: "gray" }),
+        JSON.stringify({ name: "release", color: "red" }),
+      ]);
     } finally {
       database.close();
     }
@@ -860,6 +871,7 @@ describe("a database an earlier release wrote", () => {
           "files",
           "api_keys",
           "message_positions",
+          "tags",
         ].sort(),
       );
       expect(earlier(after, before)).toEqual(before);
@@ -904,6 +916,99 @@ describe("a database an earlier release wrote", () => {
         { agent_api_version: null },
         { agent_api_version: null },
       ]);
+    } finally {
+      database.close();
+    }
+  });
+});
+
+describe("a database with groups and tags in use", () => {
+  // Opening one logs its switch to incremental vacuuming; these opens keep
+  // that out of the run's output.
+  const quiet = { log: () => {} };
+
+  // A database as the release before colors and tag rows wrote it, with
+  // groups made out of name order and tags carried by agents and sessions.
+  function earlierWithTags(file: string): void {
+    withRaw(file, (connection) => {
+      connection.exec(`PRAGMA application_id = ${applicationId}`);
+      for (const migration of migrations.slice(0, 8)) {
+        connection.exec(migration);
+      }
+      connection.exec("PRAGMA user_version = 8");
+      connection.exec(`
+        INSERT INTO people (name, created_at) VALUES ('operator', 1);
+        INSERT INTO agents (name, created_at) VALUES ('builder', 1), ('reviewer', 1);
+        INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 'main', 1), (2, 'main', 1);
+        INSERT INTO session_groups (name, created_at) VALUES ('work', 1), ('Archive', 2),
+          ('Play', 3);
+        INSERT INTO session_group_members (session_id, group_id) VALUES (1, 1), (2, 3);
+        INSERT INTO agent_tags (agent_id, name) VALUES (1, 'ops'), (2, 'infra');
+        INSERT INTO session_tags (session_id, name) VALUES (1, 'infra'), (2, 'urgent');
+      `);
+      return undefined;
+    });
+    chmodSync(file, 0o600);
+  }
+
+  it("keeps every tag carried as a row, colored in turn by name, and orders groups by name", () => {
+    const file = path.join(root, "agention.db");
+    earlierWithTags(file);
+    const database = Database.open(file, quiet);
+    try {
+      expect(database.prepare("SELECT name, color FROM tags ORDER BY name").all()).toEqual([
+        { name: "infra", color: "gray" },
+        { name: "ops", color: "red" },
+        { name: "urgent", color: "orange" },
+      ]);
+      // Groups keep the name order they were listed in, and take colors by id.
+      expect(
+        database.prepare("SELECT id, name, color FROM session_groups ORDER BY position").all(),
+      ).toEqual([
+        { id: 2, name: "Archive", color: "red" },
+        { id: 3, name: "Play", color: "orange" },
+        { id: 1, name: "work", color: "gray" },
+      ]);
+      expect(
+        database
+          .prepare(
+            `SELECT 'agent' AS kind, agent_id AS id, name FROM agent_tags
+             UNION ALL SELECT 'session', session_id, name FROM session_tags ORDER BY 1, 2, 3`,
+          )
+          .all(),
+      ).toEqual([
+        { kind: "agent", id: 1, name: "ops" },
+        { kind: "agent", id: 2, name: "infra" },
+        { kind: "session", id: 1, name: "infra" },
+        { kind: "session", id: 2, name: "urgent" },
+      ]);
+      // A tag's rename and removal reach everything carrying it.
+      database.prepare("UPDATE tags SET name = 'platform' WHERE name = 'infra'").run();
+      database.prepare("DELETE FROM tags WHERE name = 'urgent'").run();
+      expect(
+        database
+          .prepare("SELECT name FROM agent_tags UNION ALL SELECT name FROM session_tags")
+          .all(),
+      ).toEqual([{ name: "ops" }, { name: "platform" }, { name: "platform" }]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("refuses a tag carried that is no row, a color off the palette and a place held twice", () => {
+    const file = path.join(root, "agention.db");
+    earlierWithTags(file);
+    const database = Database.open(file, quiet);
+    try {
+      for (const statement of [
+        "INSERT INTO agent_tags (agent_id, name) VALUES (1, 'nowhere')",
+        "INSERT INTO session_tags (session_id, name) VALUES (1, 'nowhere')",
+        "UPDATE tags SET color = 'pink'",
+        "UPDATE session_groups SET color = 'pink'",
+        "UPDATE session_groups SET position = 1",
+      ]) {
+        expect(() => database.prepare(statement).run(), statement).toThrow();
+      }
     } finally {
       database.close();
     }

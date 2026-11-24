@@ -13,7 +13,8 @@ export const scope = z
       "archived; sessions:read reads the sessions view, a session's log, groups and tags, and " +
       "agents' registrations; " +
       "sessions:write also marks a session's log read and manages groups and tags; " +
-      "sessions:approve also approves, rejects and revokes agents' registrations",
+      "sessions:approve also approves, rejects and revokes agents' registrations, and with " +
+      "sessions:write gives an approved session its group and tags",
   );
 export type Scope = z.infer<typeof scope>;
 

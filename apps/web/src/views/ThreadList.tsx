@@ -14,8 +14,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
 import { useFollowing, usePages } from "../data.ts";
-import { Icon, type IconName } from "../icons.tsx";
+import { Icon } from "../icons.tsx";
 import { takeNotice } from "../notice.ts";
+import { PaletteProvider } from "../organizing.tsx";
 import {
   arrangementOf,
   listHref,
@@ -27,6 +28,7 @@ import {
 } from "../router.tsx";
 import type { ListShown } from "./filter-links.tsx";
 import { BulkActions } from "./list/BulkActions.tsx";
+import { DirectionButton, HeadSelect } from "./list-head.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet, type SearchText } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
@@ -119,16 +121,18 @@ export function ThreadList() {
   const counts = useFollowing(filters, sheetOpen, () =>
     request<ThreadCounts>("GET", `/threads/counts${filters}`),
   );
-  // The operator's groups and tags, which name the groups chosen and say
-  // which are gone, loaded while the sheet is open or either filter is on.
-  const naming = view.session_group !== undefined || view.tag !== undefined;
+  // The operator's groups and tags, which name the groups chosen, say which
+  // groups and tags are gone and color them, loaded while the sheet is open,
+  // either filter is on or the list is grouped by session group.
+  const naming =
+    view.session_group !== undefined || view.tag !== undefined || view.group === "session_group";
   const known = useFollowing(`${filters}|${sheetOpen}`, sheetOpen || naming, () =>
     request<GroupsAndTags>("GET", "/groups-and-tags"),
   );
   const chips = chipsOf(view, known);
   const on = chips.length;
   return (
-    <>
+    <PaletteProvider known={known}>
       <PageHeading visuallyHidden>Threads</PageHeading>
       <div className="list-head">
         {/* Choosing another order takes it in its own direction. */}
@@ -143,7 +147,7 @@ export function ThreadList() {
             }
           />
           <DirectionButton
-            sort={view.sort}
+            labels={directionLabel[view.sort]}
             reverse={view.reverse}
             onReverse={() => choose({ reverse: !view.reverse })}
           />
@@ -213,65 +217,7 @@ export function ThreadList() {
         empty={on > 0 ? "No threads match these filters." : "No threads to show."}
         onTotal={onTotal}
       />
-    </>
-  );
-}
-
-// HeadSelect is one of the head's choices beside its icon, a native select,
-// which a phone shows as its own picker.
-function HeadSelect({
-  icon,
-  label,
-  value,
-  options,
-  choose,
-}: {
-  icon: IconName;
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  choose: (value: string) => void;
-}) {
-  return (
-    <div className="head-select">
-      <Icon name={icon} />
-      <select aria-label={label} value={value} onChange={(event) => choose(event.target.value)}>
-        {options.map((each) => (
-          <option key={each.value} value={each.value}>
-            {each.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-// DirectionButton names the direction the list's order runs in, in words
-// beside an arrow, and reverses it when pressed. It is a plain button, not a
-// toggle: what it shows is the order the list is in, so its name starts with
-// those words, as speech input hears them, and goes on to say what pressing
-// it does, as in "Newest first, reverse to oldest first".
-function DirectionButton({
-  sort,
-  reverse,
-  onReverse,
-}: {
-  sort: ThreadSort;
-  reverse: boolean;
-  onReverse: () => void;
-}) {
-  const [own, reversed] = directionLabel[sort];
-  const [current, other] = reverse ? [reversed, own] : [own, reversed];
-  return (
-    <button
-      type="button"
-      className="secondary direction-button"
-      aria-label={`${current}, reverse to ${other.toLowerCase()}`}
-      onClick={onReverse}
-    >
-      <Icon name={reverse ? "arrow-up" : "arrow-down"} />
-      {current}
-    </button>
+    </PaletteProvider>
   );
 }
 

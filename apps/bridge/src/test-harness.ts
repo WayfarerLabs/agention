@@ -109,8 +109,9 @@ export class TestBridge {
 
 // startBridgeProcess starts a bridge as an agent host starts one: a process of
 // its own, from entry, speaking MCP on standard input and output, configured
-// only by its environment, with home as HOME, and trusting the certificate
-// authority in the file authority names through NODE_EXTRA_CA_CERTS.
+// only by its environment, with home as HOME and the run's own TMPDIR, and
+// trusting the certificate authority in the file authority names through
+// NODE_EXTRA_CA_CERTS.
 export async function startBridgeProcess(options: {
   entry: string;
   home: string;
@@ -123,6 +124,8 @@ export async function startBridgeProcess(options: {
     env: {
       PATH: process.env.PATH ?? "",
       HOME: options.home,
+      // The run's own temporary directory, as an agent host passes its own.
+      TMPDIR: tmpdir(),
       ...options.environment,
       ...(options.authority === undefined ? {} : { NODE_EXTRA_CA_CERTS: options.authority }),
     },

@@ -31,7 +31,11 @@ export interface Resource<T> {
   // Why the latest load failed, until one succeeds.
   failure: unknown;
   loading: boolean;
-  refresh(): void;
+  // Loads afresh, settling once that load's answer, or its failure, has
+  // applied or been passed over for a newer one's. It settles true when the
+  // data shown then is at least as new as that load, brought by it or by a
+  // newer one, and false when it is older, as when the load failed.
+  refresh(): Promise<boolean>;
 }
 
 // useResource loads what load returns, and refreshes it on an interval while
@@ -46,6 +50,8 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
   loadRef.current = load;
   const started = useRef(0);
   const applied = useRef(0);
+  // The sequence of the load whose data is shown, 0 before any.
+  const shown = useRef(0);
   const running = useRef(0);
   const onFailure = useUnauthenticatedCheck();
 
@@ -53,14 +59,16 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
     const sequence = ++started.current;
     running.current++;
     setLoading(true);
-    loadRef
+    return loadRef
       .current()
       .then(
         (data) => {
           if (sequence > applied.current) {
             applied.current = sequence;
+            shown.current = sequence;
             setState({ data });
           }
+          return shown.current >= sequence;
         },
         (failure: unknown) => {
           if (sequence > applied.current) {
@@ -68,6 +76,7 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
             setState((current) => ({ ...current, failure }));
             onFailure(failure);
           }
+          return shown.current >= sequence;
         },
       )
       .finally(() => {

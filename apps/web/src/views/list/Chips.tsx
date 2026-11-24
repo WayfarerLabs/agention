@@ -1,4 +1,5 @@
 import type {
+  Color,
   GroupsAndTags,
   impactFilter,
   priorityFilter,
@@ -14,7 +15,8 @@ import {
   statusLabel,
   type TerseLabel,
 } from "../../format.tsx";
-import { groupNamed, removedGroup, sessionOf, tagCarried, topicShown } from "./listing.ts";
+import { Swatch } from "../../organizing.tsx";
+import { groupNamed, removedGroup, sessionOf, tagKept, topicShown } from "./listing.ts";
 
 // The filters that are on, each a chip beneath the list's head that removes
 // it.
@@ -37,6 +39,8 @@ export const impactShown: Record<(typeof impactFilter.options)[number], string> 
 interface Chip {
   key: string;
   kind?: PathKind;
+  // The color of the one group or tag a chip names, when known.
+  color?: Color | undefined;
   label: TerseLabel;
   remove: Partial<ThreadsView>;
 }
@@ -74,20 +78,26 @@ function groupsLabel(groups: SessionGroupsFilter, known: GroupsAndTags | undefin
 }
 
 // tagsLabel labels the tags chosen: the one tag by its name, or how many,
-// saying how many nothing carries any more, since such a tag keeps nothing.
-// A label that says so leads with it, as a removed group's does.
+// saying how many were removed, since a removed tag keeps nothing. A label
+// that says so leads with it, as a removed group's does.
 function tagsLabel(tags: string[], known: GroupsAndTags | undefined): TerseLabel {
-  const unused = tags.filter((tag) => !tagCarried(tag, known)).length;
+  const removed = tags.filter((tag) => !tagKept(tag, known)).length;
   const [one] = tags;
   if (tags.length === 1 && one !== undefined) {
-    return unused === 0
+    return removed === 0
       ? { shown: `Tag: ${one}`, spoken: `Tag ${one}` }
-      : { shown: `Unused tag: ${one}`, spoken: `Unused tag ${one}, on nothing, keeping nothing` };
+      : { shown: `Removed tag: ${one}`, spoken: `Removed tag ${one}, keeping nothing` };
   }
   const several = plural(tags.length, "tag");
-  return unused === 0
+  return removed === 0
     ? plain(several)
-    : { shown: `${several}, ${unused} unused`, spoken: `${several}, ${unused} on nothing` };
+    : { shown: `${several}, ${removed} removed`, spoken: `${several}, ${removed} removed` };
+}
+
+// oneOf gives the color of the one value chosen, or none for several.
+function oneOf<T>(values: T[], color: (value: T) => Color | undefined): Color | undefined {
+  const [one] = values;
+  return values.length === 1 && one !== undefined ? color(one) : undefined;
 }
 
 // chip gives a filter's chip while it is on: on is true, or the value it is
@@ -161,11 +171,13 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
     })),
     ...chip(view.session_group, (groups) => ({
       key: "session_group",
+      color: oneOf(groups, (group) => known?.groups.find((each) => each.id === group)?.color),
       label: groupsLabel(groups, known),
       remove: { session_group: undefined },
     })),
     ...chip(view.tag, (tags) => ({
       key: "tag",
+      color: oneOf(tags, (tag) => known?.tags.find((each) => each.name === tag)?.color),
       label: tagsLabel(tags, known),
       remove: { tag: undefined },
     })),
@@ -219,6 +231,7 @@ export function Chips({ chips, remove }: { chips: Chip[]; remove: (chip: Chip) =
               <PathBadge kind={chip.kind} />{" "}
             </>
           )}
+          <Swatch color={chip.color} />
           {chipText(chip.label.shown, chip.kind !== undefined)}
           <span aria-hidden="true"> ×</span>
         </button>

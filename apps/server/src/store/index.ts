@@ -17,7 +17,11 @@ export {
 } from "./files.ts";
 export {
   createGroup,
+  createTag,
   listGroupsAndTags,
+  orderGroups,
+  recolorGroup,
+  recolorTag,
   removeGroup,
   removeTag,
   renameGroup,

@@ -95,6 +95,112 @@ describe("useResource", () => {
     expect(api.unhandled).toEqual([]);
   });
 
+  // Holder hands the test the resource's refresh, to read what it returns.
+  function Holder({
+    load,
+    take,
+  }: {
+    load: () => Promise<string>;
+    take: (refresh: () => Promise<boolean>) => void;
+  }) {
+    const resource = useResource(load);
+    take(resource.refresh);
+    return <p>{resource.data ?? "nothing"}</p>;
+  }
+
+  it("settles a refresh, as bringing data, once a newer load's answer passed its own over", async () => {
+    const answers: ((value: string) => void)[] = [];
+    const load = () => new Promise<string>((resolve) => answers.push(resolve));
+    let refresh = (): Promise<boolean> => Promise.resolve(false);
+    render(
+      <SessionProvider>
+        <Holder load={load} take={(each) => (refresh = each)} />
+      </SessionProvider>,
+    );
+    await flush();
+    let settled: boolean | undefined;
+    await act(async () => {
+      void refresh().then((brought) => {
+        settled = brought;
+      });
+      void refresh();
+    });
+    expect(answers).toHaveLength(3);
+    await act(async () => {
+      answers[2]?.("newest");
+    });
+    expect(screen.getByText("newest")).toBeTruthy();
+    await act(async () => {
+      answers[1]?.("older");
+    });
+    expect(settled).toBe(true);
+    expect(screen.getByText("newest")).toBeTruthy();
+  });
+
+  it("settles a refresh as older when a newer load failed and passed its own over", async () => {
+    const answers: { resolve: (value: string) => void; reject: (error: Error) => void }[] = [];
+    const load = () => new Promise<string>((resolve, reject) => answers.push({ resolve, reject }));
+    let refresh = (): Promise<boolean> => Promise.resolve(true);
+    render(
+      <SessionProvider>
+        <Holder load={load} take={(each) => (refresh = each)} />
+      </SessionProvider>,
+    );
+    await flush();
+    await act(async () => {
+      answers[0]?.resolve("first");
+    });
+    let settled: boolean | undefined;
+    await act(async () => {
+      void refresh().then((brought) => {
+        settled = brought;
+      });
+      void refresh();
+    });
+    await act(async () => {
+      answers[2]?.reject(new Error("unreachable"));
+    });
+    await act(async () => {
+      answers[1]?.resolve("passed over");
+    });
+    // What is shown is older than the load: the first answer still.
+    expect(settled).toBe(false);
+    expect(screen.getByText("first")).toBeTruthy();
+  });
+
+  it("settles a refresh, as bringing nothing rather than failing, once its load fails", async () => {
+    let fail = false;
+    const load = async () => {
+      if (fail) {
+        throw new Error("unreachable");
+      }
+      return "loaded";
+    };
+    let refresh = (): Promise<boolean> => Promise.resolve(false);
+    render(
+      <SessionProvider>
+        <Holder load={load} take={(each) => (refresh = each)} />
+      </SessionProvider>,
+    );
+    await flush();
+    let outcome = "pending";
+    const settle = () =>
+      refresh().then(
+        (brought) => {
+          outcome = brought ? "brought" : "kept";
+        },
+        () => {
+          outcome = "failed";
+        },
+      );
+    await act(settle);
+    expect(outcome).toBe("brought");
+    fail = true;
+    await act(settle);
+    expect(outcome).toBe("kept");
+    expect(screen.getByText("loaded")).toBeTruthy();
+  });
+
   it("skips a poll while a load is still under way, but not a refresh", async () => {
     const answers: ((value: string) => void)[] = [];
     const load = vi.fn(() => new Promise<string>((resolve) => answers.push(resolve)));

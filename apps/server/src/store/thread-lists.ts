@@ -567,8 +567,9 @@ function listedOf<T>(rows: T[]): { rows: T[]; truncated: boolean } {
 // counted in one statement, grouped by them, with that filter's own condition
 // off: every agent, session, topic and group holding a thread, no group
 // among them, and every tag a session holding a thread or its agent carries.
-// Each lists at most maxListed, in name order, and says when it leaves any
-// out; there are never more groups than that.
+// Each lists at most maxListed, in name order but the groups, which come in
+// the operator's order, and says when it leaves any out; there are never more
+// groups than that.
 export function countThreads(store: Store, identity: Identity, query: ThreadFilters): ThreadCounts {
   const { db } = store;
   return db.transaction(() => {
@@ -623,14 +624,15 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
          ORDER BY th.session_name, th.topic, th.agent_name LIMIT :listed`,
       ).all(parameters) as { agent: string; session: string; topic: string; total: number }[],
     );
-    // Each group holding a thread, no group among them, with the threads it
-    // keeps.
+    // Each group holding a thread, in the operator's order, no group among
+    // them, with the threads it keeps.
     const groups = listStatement(
       db,
       `${threadsSeen(reached, leadOf(query, defaultSort))}
        SELECT th.group_id AS id, th.group_name AS name,
          count(*) FILTER (WHERE ${where({ ...query, session_group: undefined })}) AS total
-       FROM seen th GROUP BY th.group_id ORDER BY th.group_name, th.group_id`,
+       FROM seen th LEFT JOIN session_groups placed ON placed.id = th.group_id
+       GROUP BY th.group_id ORDER BY placed.position`,
     ).all(parameters) as { id: number | null; name: string | null; total: number }[];
     // Each tag a session holding a thread carries, or its agent does, with
     // the threads it keeps.
