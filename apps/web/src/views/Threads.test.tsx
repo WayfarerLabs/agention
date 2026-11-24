@@ -82,7 +82,7 @@ const focusInThread = () => threadPane().contains(document.activeElement);
 const noThread = () => threadPane().querySelector(".empty") !== null;
 
 // The list's own loads, not the walks of its pages a thread's page makes to
-// find its next thread, which ask for the most a page holds.
+// find the thread above or below, which ask for the most a page holds.
 const listLoads = () =>
   api.callsTo("GET", "/threads").filter((call) => !call.url.searchParams.has("limit"));
 // Those walks, which the thread open makes of the list it returns to.
@@ -129,13 +129,13 @@ describe("side by side", () => {
     expect(listLoads()).toHaveLength(loads);
   });
 
-  it("opens the next thread beside the list, which stays mounted, its row current", async () => {
+  it("opens the thread below beside the list, which stays mounted, its row current", async () => {
     await openList();
     const list = listPane().querySelector("ul.threads");
     await openFromList("First");
     // The page has walked the list for where its thread stands.
     await waitFor(() => expect(walks()).toHaveLength(1));
-    fireEvent.click(within(threadPane()).getByRole("button", { name: "Next thread" }));
+    fireEvent.click(within(threadPane()).getByRole("button", { name: "Thread below" }));
     await waitFor(() => expect(titleOf(threadHeading())).toBe("Second"));
     expect(window.location.pathname).toBe(threadPath(2));
     expect(listPane().querySelector("ul.threads")).toBe(list);

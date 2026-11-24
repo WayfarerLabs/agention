@@ -693,7 +693,7 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
   const listsAsked: string[] = [];
   // Each list asked for, the size of its pages aside, which the thread
-  // page's walk for its next thread asks for too.
+  // page's walks for the threads around it ask for too.
   const askedFor = (request: Request) => {
     const url = new URL(request.url());
     if (url.pathname === "/api/web/threads") {
@@ -1249,8 +1249,8 @@ test("Settings orders the groups by their buttons and by dragging, keeping the o
   await expect(alpha).toHaveCount(0);
 });
 
-test("Next opens the next thread in the list and Archive & next archives the thread and moves on, beside the list and on a phone", async () => {
-  for (const name of ["one", "two", "three"]) {
+test("Thread above and Thread below open the rows around a thread, and Archive & move on archives it and moves on as Settings chooses, beside the list and on a phone", async () => {
+  for (const name of ["one", "two", "three", "four"]) {
     await agent.send<WriteResult>("POST", threads, {
       request_id: `create-hopscotch-${name}`,
       title: `Hopscotch ${name}`,
@@ -1265,17 +1265,18 @@ test("Next opens the next thread in the list and Archive & next archives the thr
   const list = page.getByRole("region", { name: "Thread list" });
   const pane = page.getByRole("region", { name: "Thread", exact: true });
   const rows = page.locator("ul.threads").getByRole("link");
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(4);
   const titles = await Promise.all(
-    [0, 1, 2].map(
+    [0, 1, 2, 3].map(
       async (index) => (await rows.nth(index).getByRole("heading").textContent()) ?? "",
     ),
   );
+  const title = (index: number) => titles[index] ?? "";
 
-  // Beside the list, ] opens the next thread in it, and the list keeps its
+  // Beside the list, ] opens the thread below, and the list keeps its
   // scroll, its row marked current.
   await rows.nth(0).click();
-  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(title(0));
   const shown = await list.locator("ul.threads").elementHandle();
   const scrolled = await list.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
@@ -1283,22 +1284,32 @@ test("Next opens the next thread in the list and Archive & next archives the thr
   });
   expect(scrolled).toBeGreaterThan(0);
   await page.keyboard.press("]");
-  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(title(1));
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "page");
   expect(await shown?.evaluate((element) => element.isConnected)).toBe(true);
   expect(await list.evaluate((element) => element.scrollTop)).toBe(scrolled);
+  // [ opens the thread above, going round past the list's first row to its
+  // last, and ] goes round past the last to the first.
+  await page.keyboard.press("[");
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(title(0));
+  await page.keyboard.press("[");
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(title(3));
+  await expect(rows.nth(3)).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("]");
+  await expect(pane.getByRole("heading", { level: 1 })).toHaveText(title(0));
 
-  // On a phone the thread's head holds Next and Archive & next within its
-  // width, and Archive & next archives the thread and opens the next in its
-  // place.
+  // On a phone the thread's head holds its controls within its width, and
+  // Archive & move on archives the thread and opens the thread above in its
+  // place, by default: from the first row, the last.
   await resize(page, { width: 390, height: 844 });
   await expect(list).toHaveCount(0);
   const head = page.locator(".thread-bar");
   for (const control of [
     head.getByRole("link", { name: "Back to threads" }),
-    head.getByRole("button", { name: "Next thread" }),
+    head.getByRole("button", { name: "Thread above" }),
+    head.getByRole("button", { name: "Thread below" }),
     head.getByRole("button", { name: "Archive all", exact: true }),
-    head.getByRole("button", { name: "Archive & next" }),
+    head.getByRole("button", { name: "Archive & move on" }),
   ]) {
     const box = await control.boundingBox();
     expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
@@ -1309,33 +1320,75 @@ test("Next opens the next thread in the list and Archive & next archives the thr
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     ),
   ).toBe(true);
-  const entries = await page.evaluate(() => window.history.length);
-  await head.getByRole("button", { name: "Archive & next" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[2] ?? "");
+  let entries = await page.evaluate(() => window.history.length);
+  await head.getByRole("button", { name: "Archive & move on" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title(3));
   expect(await page.evaluate(() => window.history.length)).toBe(entries);
 
-  // From the last row, a reply sent with After sending at Archive & next
-  // archives this thread once it lands and goes round to the first, in its
-  // place; the choice fits the phone's width beside Send.
-  const reply = page.getByRole("region", { name: "Reply" });
-  const after = reply.getByRole("combobox", { name: "After sending" });
-  const chosenBefore = await after.inputValue();
-  await after.selectOption("Archive & next");
-  const afterBox = await after.boundingBox();
-  expect((afterBox?.x ?? 0) + (afterBox?.width ?? 0)).toBeLessThanOrEqual(390);
-  await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
-  await reply.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
-  expect(await page.evaluate(() => window.history.length)).toBe(entries);
-  await after.selectOption(chosenBefore);
+  // The choices this browser keeps go back to what they were, for the tests
+  // after this one, however this one ends.
+  const choices = ["agention.move-on-to", "agention.after-sending"];
+  const kept = await page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), choices);
+  try {
+    // Settings chooses to move on to the thread below instead, and the thread
+    // page, gone back to, follows it.
+    await tab("Settings").click();
+    await settings().getByRole("link", { name: "Threads" }).click();
+    const moveOnTo = page.getByRole("combobox", { name: "Move on to" });
+    await moveOnTo.selectOption("The thread below");
+    await page.goBack();
+    await page.goBack();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title(3));
+    entries = await page.evaluate(() => window.history.length);
 
-  // From there, with no other thread left in the list, E archives it and
-  // goes back to the list, which says so, empty.
-  await page.keyboard.press("E");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
-  await expect(page).toHaveURL(/\/\?search=Hopscotch&sort=created$/);
-  await expect(page.getByRole("status")).not.toBeEmpty();
-  await expect(rows).toHaveCount(0);
+    // From the last row, a reply sent with After sending at Archive & move on
+    // archives this thread once it lands and goes round to the first left, in
+    // its place; the choice fits the phone's width beside Send.
+    const reply = page.getByRole("region", { name: "Reply" });
+    const after = reply.getByRole("combobox", { name: "After sending" });
+    await after.selectOption("Archive & move on");
+    const afterBox = await after.boundingBox();
+    expect((afterBox?.x ?? 0) + (afterBox?.width ?? 0)).toBeLessThanOrEqual(390);
+    await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
+    await reply.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title(1));
+    expect(await page.evaluate(() => window.history.length)).toBe(entries);
+
+    // E archives it and moves on below, and from there, with no other thread
+    // left in the list, archives the last and goes back to the list, which
+    // says so, empty. E acts only while Archive & move on could, so not while
+    // the page marks the thread read, which the thread below, never opened,
+    // needs on arrival.
+    const archiveAndMoveOn = head.getByRole("button", { name: "Archive & move on" });
+    const markedRead = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/read"),
+    );
+    await expect(archiveAndMoveOn).toBeEnabled();
+    await page.keyboard.press("E");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title(2));
+    await markedRead;
+    await expect(archiveAndMoveOn).toBeEnabled();
+    await page.keyboard.press("E");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+    await expect(page).toHaveURL(/\/\?search=Hopscotch&sort=created$/);
+    await expect(page.getByRole("status")).not.toBeEmpty();
+    await expect(rows).toHaveCount(0);
+  } finally {
+    await page.evaluate(
+      ([keys, values]) =>
+        keys.forEach((key, index) => {
+          const value = values[index];
+          if (value === null || value === undefined) {
+            localStorage.removeItem(key);
+          } else {
+            localStorage.setItem(key, value);
+          }
+        }),
+      [choices, kept] as const,
+    );
+  }
   if (wide !== null) {
     await resize(page, wide);
   }

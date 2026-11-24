@@ -501,11 +501,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
   thread says why its session has not read your latest messages: it stopped, and how, or its agent
   was last seen when, or never; a session with no active credential says so in a notice under the
-  head. **Threads** stays marked in the navigation. The head holds **Next** beside **Threads**,
-  **Archive all** and **Archive & next**, and **Jump to unread** while anything is unread or an ask
-  is open to you, and shows the archive box while the thread is archived. The messages open on the
-  newest ones, or on the first one you had not read after those you archived when that comes before
-  them, and show earlier and later ones when you ask.
+  head. **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread
+  below**, arrows up and down, beside **Threads**, **Archive all** and **Archive & move on**, and
+  **Jump to unread** while anything is unread or an ask is open to you, and shows the archive box
+  while the thread is archived. The messages open on the newest ones, or on the first one you had
+  not read after those you archived when that comes before them, and show earlier and later ones
+  when you ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page, and
@@ -526,26 +527,30 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     archives through it, taking the thread off your list until the agent writes to it again, and
     returns to the list; while an ask is open to you, answer or decline it first. Writing to a
     thread you archived keeps it archived, and what you archived never counts as unread.
-  - **Next** opens the next thread in the list you opened this one from: the next row after it, with
-    that list's filters, order and grouping, read or not, as `j` moves to in the list, going round
-    past the list's end. Unlike `j`, it opens threads under folded groups too. "After this thread"
-    is where it stood when you opened it, so answering, replying or reading here does not move what
-    comes next; what the list holds is the list as it stands when you press **Next**, so a thread
-    archived on another device since is passed over. A thread that was not ahead of this one when
-    you opened it is taken where it stands now, so it can come first: one new to the list since, or
-    one that was after this one and has since moved above it, such as one an agent wrote to under
-    **Latest message**. In a grouped list kept to the unread, reading this thread can now and then
-    take it out of the list before **Next** has found where it stood, and then the list's first
-    thread comes next. **Next** looks through up to 10,000 threads of the list; in a longer one, if
-    it finds none there, it says it could not find the next rather than that none is left. With no
-    other thread in the list, **Next** goes back to the list, which says so. **Back** returns to
-    this thread. Side by side, the next thread opens beside the list, which keeps its scroll, the
-    next thread's row outlined.
-  - **Archive & next** does what **Archive all** does, then opens the next thread in the list in its
-    place, as **Next** would have, or, with none, goes back to the list, which says so; **Back**
-    does not return to the thread archived. If you change the list beside the thread while it
-    archives, it opens the next thread of the list as you changed it. While an ask is open to you,
-    answer or decline it first.
+  - **Thread above** and **Thread below** open the row above or below this one in the list you
+    opened it from, with that list's filters, order and grouping, read or not, as `k` and `j` move
+    to in the list, going round past either end: above the first row is the last, and below the last
+    the first. Unlike `k` and `j`, they open threads under folded groups too. Where this thread
+    stands is where it stood when you opened it, so answering, replying or reading here does not
+    move it; what the list holds is the list as it stands when you press, so a thread archived on
+    another device since is passed over. Above and below follow where this thread sat among the
+    threads around it when you opened it, even as the list moves: it keeps the place that leaves the
+    fewest threads on the wrong side of it: those that were above it but now stand below that place,
+    and the others that stand above it. A thread new to the list since counts where it now stands.
+    In a grouped list kept to the unread, reading this thread can now and then take it out of the
+    list before the page has found where it stood, and then the list's first thread is below it and
+    its last above. Each looks through up to 10,000 threads of the list; in a longer one, if that is
+    not enough to settle which thread it is, it says it could not find it rather than that none is
+    left. Each looks to the list's end when it goes round, or when a thread that was above this one
+    has left the list since, as every read thread above it has from a list kept to the unread. With
+    no other thread in the list, either goes back to the list, which says so. **Back** returns to
+    this thread. Side by side, the thread opens beside the list, which keeps its scroll, its row
+    outlined.
+  - **Archive & move on** does what **Archive all** does, then opens the thread above in its place,
+    as **Thread above** would have, or the thread below if you chose it in **Settings** under
+    **Threads**, or, with none, goes back to the list, which says so; **Back** does not return to
+    the thread archived. If you change the list beside the thread while it archives, it opens that
+    thread of the list as you changed it. While an ask is open to you, answer or decline it first.
   - The messages you archived fold into one line at the top, **N archived messages**, which shows
     them, each with the archive box. The page never reads them while they are folded. A message you
     send to an archived thread is archived with the rest, but stays in view until you leave the
@@ -636,21 +641,22 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     composer works as before.
   - Beside **Send**, **After sending** chooses where sending takes you once a message is sent:
     **Back to the list**, as **Threads** does, where the list says what was sent; **Stay here**;
-    **Next thread**, as **Next** does; or **Archive & next**, which archives this thread once the
-    message lands and then opens the next, as **Archive & next** does, so a reply that answers the
-    last ask open to you can archive the thread too. Either way, the next thread says beside its
-    **Send** what you sent, or, with no other thread in the list, the list says so too. If an ask is
-    still open to you, the archive is refused and you stay on the thread, and beside **Send**, after
-    what was sent, the page says which ask to answer or decline first; when the next thread cannot
+    **Move on**, which opens the thread above or below as **Archive & move on** would, without
+    archiving; or **Archive & move on**, which archives this thread once the message lands and then
+    moves on, as **Archive & move on** does, so a reply that answers the last ask open to you can
+    archive the thread too. Either way, the thread you move on to says beside its **Send** what you
+    sent, or, with no other thread in the list, the list says so too. If an ask is still open to
+    you, the archive is refused and you stay on the thread, and beside **Send**, after what was
+    sent, the page says which ask to answer or decline first; when the thread to move on to cannot
     be found, it says that there instead. While a message that will take you somewhere is on its
-    way, **Next**, **Archive all** and **Archive & next** wait for it. A message that fails to send
-    stays on the page with your draft. It is **Back to the list** until you choose otherwise, and
-    this browser keeps your choice. While you write, **Send** and its option stay at the foot of the
-    screen, above a phone's keyboard, with what answers **Send** beside it: why a message failed to
-    send above it, and what was sent after it. While voice is on, **Dictate** sits there too, and
-    what it says goes in the same places: why dictation failed above, and anything else after. While
-    a recording, its transcription or its **Retry** is there, **After sending** moves just below the
-    row, so the row stays short above a phone's keyboard.
+    way, **Thread above**, **Thread below**, **Archive all** and **Archive & move on** wait for it.
+    A message that fails to send stays on the page with your draft. It is **Back to the list** until
+    you choose otherwise, and this browser keeps your choice. While you write, **Send** and its
+    option stay at the foot of the screen, above a phone's keyboard, with what answers **Send**
+    beside it: why a message failed to send above it, and what was sent after it. While voice is on,
+    **Dictate** sits there too, and what it says goes in the same places: why dictation failed
+    above, and anything else after. While a recording, its transcription or its **Retry** is there,
+    **After sending** moves just below the row, so the row stays short above a phone's keyboard.
   - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
     thread you read without replying, and without scrolling back up.
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
@@ -772,8 +778,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
-  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Groups and
-  tags** (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
+  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Threads**
+  (`/settings/threads`), whose **Move on to** chooses whether **Archive & move on**, and **After
+  sending**'s **Move on** and **Archive & move on**, go to **The thread above**, as they do unless
+  you choose otherwise, or **The thread below**, a choice this browser keeps, **Groups and tags**
+  (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
   (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as
   [Attachments](#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
   [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`),
@@ -867,8 +876,8 @@ counts as none. On a phone without a keyboard nothing changes. Press `?` anywher
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
 | A thread        | `e`                         | **Archive all**, while it is available                                                                                    |
-| A thread        | `E`                         | **Archive & next**, while it is available                                                                                 |
-| A thread        | `]`                         | **Next**: opens the next thread in the list                                                                               |
+| A thread        | `E`                         | **Archive & move on**, while it is available                                                                              |
+| A thread        | `[` and `]`                 | **Thread above** and **Thread below**: open the row above or below in the list                                            |
 | A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
 | A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
 | The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |

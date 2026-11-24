@@ -7,6 +7,7 @@ import {
   settingsNavigation,
   settingsSections,
 } from "./settings/sections.ts";
+import { moveOnChoice } from "./thread/neighbor-thread.ts";
 
 let api: FakeApi;
 
@@ -137,5 +138,19 @@ describe("Settings' sections", () => {
     await screen.findByRole("heading", { level: 2, name: "Passkeys" });
     expect(window.location.pathname).toBe("/settings/passkeys");
     expect(window.history.length).toBe(entries);
+  });
+});
+
+describe("Settings' threads", () => {
+  const moveOnTo = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Move on to" });
+
+  it("move on to the thread above unless this browser keeps another choice, which it keeps", async () => {
+    await open("/settings/threads", "Threads");
+    expect(moveOnTo().value).toBe("above");
+    fireEvent.change(moveOnTo(), { target: { value: "below" } });
+    expect(window.localStorage.getItem(moveOnChoice)).toBe("below");
+    cleanup();
+    await open("/settings/threads", "Threads");
+    expect(moveOnTo().value).toBe("below");
   });
 });

@@ -62,7 +62,12 @@ import { afterSendingChoice, afterSendingOptions, Composer, goBackChoice } from 
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
-import { type NextFound, useNextThread } from "./next-thread.ts";
+import {
+  type Direction,
+  type FoundNeighbor,
+  useMoveOnDirection,
+  useNeighborThread,
+} from "./neighbor-thread.ts";
 import {
   blank,
   type Staged,
@@ -461,28 +466,31 @@ function ThreadPage({
       onward();
     }
   };
-  // Next opens the next thread, the next row in the list the page
-  // returns to (useNextThread), as a new history entry, so going back
-  // returns to this thread; with none, it goes back to that list, which says
-  // so. It moves on only if the page is still open once the next is found,
-  // and does nothing while the page is busy, which it shows.
-  const nextThread = useNextThread(target, origin);
+  // Thread above and Thread below open the row above or below this one in
+  // the list the page returns to (useNeighborThread), as a new history
+  // entry, so going back returns to this thread; with none, they go back to
+  // that list, which says so. Each moves on only if the page is still open
+  // once the thread is found, and does nothing while the page is busy, which
+  // it shows.
+  const neighborThread = useNeighborThread(target, origin);
+  const [moveOnTo] = useMoveOnDirection();
   const finding = useAction();
-  const findNext = () => finding.run(nextThread);
+  const findNeighborThread = (direction: Direction) => finding.run(() => neighborThread(direction));
   // Archive all first shows every message through the thread's latest,
   // loading later pages as needed, so it never archives a message the page
   // has not shown, then archives through the latest. When loading them
   // fails, it stops and says so, until the operator chooses it again.
-  // Archive & next does all of that, finding the next thread before it
-  // archives, so a failure to find it archives nothing, then opens the next
-  // thread in place of this one, or, with none, goes back to the list as
-  // Archive all does, which says so. When the list the page returns to
-  // changed while the archive was under way, as the list beside the thread
-  // can, it finds the next again in the list as it now stands, so it opens
-  // one of that list; should that fail, it stays on the thread, archived,
-  // and says so, and Next finds it again. archivingAll is where the one
-  // under way goes.
-  const [archivingAll, setArchivingAll] = useState<"list" | "next">();
+  // Archive & move on does all of that, finding the thread above or below,
+  // as this device moves on (useMoveOnDirection), before it archives, so a
+  // failure to find it archives nothing, then opens that thread in place of
+  // this one, or, with none, goes back to the list as Archive all does,
+  // which says so. When the list the page returns to changed while the
+  // archive was under way, as the list beside the thread can, it finds the
+  // thread again in the list as it now stands, so it opens one of that list;
+  // should that fail, it stays on the thread, archived, and says so, and
+  // Thread above or Thread below finds it again. archivingAll is where the
+  // one under way goes: the list, or the thread above or below.
+  const [archivingAll, setArchivingAll] = useState<"list" | Direction>();
   // The message an archive after sending archives through at least: the one
   // just sent, which a stale send's retry can place past the latest the page
   // has loaded.
@@ -527,7 +535,7 @@ function ThreadPage({
     setShowingFailure(undefined);
     return true;
   };
-  const archiveAll = (onward: "list" | "next", sent?: string, atLeast = 0) => {
+  const archiveAll = (onward: "list" | Direction, sent?: string, atLeast = 0) => {
     if (!start(sent)) {
       return;
     }
@@ -537,25 +545,26 @@ function ThreadPage({
     setArchivingAll(onward);
     show(Math.max(thread.last_seq, atLeast));
   };
-  const archiveAndNext = async (through: number) => {
-    const found = await findNext();
+  const archiveAndMoveOn = async (through: number, direction: Direction) => {
+    const found = await findNeighborThread(direction);
     if (found !== undefined && stillOpen()) {
-      await leaveWith(archive, "/archive", { through }, () => void moveOnFrom(found));
+      await leaveWith(archive, "/archive", { through }, () => void moveOnFrom(found, direction));
     }
   };
-  const moveOnFrom = async (found: NextFound) => {
-    const now = found.from === listHref(currentListView()) ? found : await findNext();
+  const moveOnFrom = async (found: FoundNeighbor, direction: Direction) => {
+    const now =
+      found.from === listHref(currentListView()) ? found : await findNeighborThread(direction);
     if (now !== undefined && stillOpen()) {
-      goToNext(now, true, sentNow.current);
+      goToNeighbor(now, true, sentNow.current);
     }
   };
-  const openNext = async (sent?: string) => {
+  const openNeighbor = async (direction: Direction, sent?: string) => {
     if (!start(sent)) {
       return;
     }
-    const found = await findNext();
+    const found = await findNeighborThread(direction);
     if (found !== undefined && stillOpen()) {
-      goToNext(found, false, sentNow.current);
+      goToNeighbor(found, false, sentNow.current);
     }
   };
   useEffect(() => {
@@ -570,7 +579,7 @@ function ThreadPage({
       const through = Math.max(data.thread.last_seq, archiveAtLeast.current);
       void (archivingAll === "list"
         ? leaveWith(archive, "/archive", { through })
-        : archiveAndNext(through));
+        : archiveAndMoveOn(through, archivingAll));
     }
   }, [archivingAll, data, loaded.failure]);
   // Archiving through a message stays on the page, where the messages
@@ -856,12 +865,13 @@ function ThreadPage({
   // while that control could; choosing a suggestion picks it as a press of
   // its control does, and moves focus there.
   const canArchiveAll = !leaving && openCount === 0;
-  // Why archiving all, or finding the next thread, last failed, in the head's
-  // words, which the composer says too after a send whose way on failed.
+  // Why archiving all, or finding the thread above or below, last failed, in
+  // the head's words, which the composer says too after a send whose way on
+  // failed.
   const archiveFailure = markedFrom === undefined ? (archive.failure ?? showingFailure) : undefined;
   const onwardFailure =
     finding.failure !== undefined
-      ? failedWords(findingNext, finding.failure)
+      ? failedWords(findingThread, finding.failure)
       : archiveFailure !== undefined
         ? failedWords(archiving, archiveFailure)
         : undefined;
@@ -874,12 +884,13 @@ function ThreadPage({
         archiveAll("list");
       }
     },
-    archiveAndNext: () => {
+    archiveAndMoveOn: () => {
       if (canArchiveAll) {
-        archiveAll("next");
+        archiveAll(moveOnTo);
       }
     },
-    openNext: () => void openNext(),
+    openAbove: () => void openNeighbor("above"),
+    openBelow: () => void openNeighbor("below"),
     jump: () => {
       if (jumpTo !== undefined) {
         setSeeking({ failedBefore: loaded.failure });
@@ -901,12 +912,23 @@ function ThreadPage({
             <BackToThreads origin={origin} />
             <button
               type="button"
-              className="secondary"
-              aria-label="Next thread"
+              className="secondary icon-button"
+              aria-label="Thread above"
+              title="Thread above"
               disabled={busy}
-              onClick={() => void openNext()}
+              onClick={() => void openNeighbor("above")}
             >
-              Next
+              <Icon name="arrow-up" />
+            </button>
+            <button
+              type="button"
+              className="secondary icon-button"
+              aria-label="Thread below"
+              title="Thread below"
+              disabled={busy}
+              onClick={() => void openNeighbor("below")}
+            >
+              <Icon name="arrow-down" />
             </button>
           </div>
           <div className="thread-actions">
@@ -925,16 +947,16 @@ function ThreadPage({
               className="secondary"
               disabled={!canArchiveAll}
               aria-describedby={openCount > 0 ? archiveAllHint : undefined}
-              onClick={() => archiveAll("next")}
+              onClick={() => archiveAll(moveOnTo)}
             >
-              Archive &amp; next
+              Archive &amp; move on
             </button>
           </div>
         </div>
         {openCount > 0 && (
           <p id={archiveAllHint} className="hint">
-            Archive all and Archive &amp; next are available once every ask open to you is answered
-            or declined.
+            Archive all and Archive &amp; move on are available once every ask open to you is
+            answered or declined.
           </p>
         )}
         <PageHeading>
@@ -967,7 +989,7 @@ function ThreadPage({
         )}
         <HeadFailure action={archiving} failure={archiveFailure} />
         <HeadFailure action="Reading this thread" failure={reading.failure} />
-        <HeadFailure action={findingNext} failure={finding.failure} />
+        <HeadFailure action={findingThread} failure={finding.failure} />
       </header>
 
       <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
@@ -1029,14 +1051,14 @@ function ThreadPage({
               leaveNotice(sent);
               returnToList();
             }
-          } else if (where === "next") {
-            void openNext(sent);
+          } else if (where === "move-on") {
+            void openNeighbor(moveOnTo, sent);
           } else {
-            // Run as Archive & next is, through the message sent at least,
-            // but left to the server to refuse while an ask is open, since
-            // what was just sent may have answered it; a refusal shows,
+            // Run as Archive & move on is, through the message sent at
+            // least, but left to the server to refuse while an ask is open,
+            // since what was just sent may have answered it; a refusal shows,
             // naming the ask.
-            archiveAll("next", sent, written);
+            archiveAll(moveOnTo, sent, written);
           }
         }}
         onwardFailure={fromSend ? onwardFailure : undefined}
@@ -1070,22 +1092,25 @@ function returnToList(): void {
   navigate(listHref(currentListView()), { replace: true });
 }
 
-// The list's status, once Next or Archive & next went back to it for want of
-// another thread in it.
+// The list's status, once Thread above, Thread below or Archive & move on
+// went back to it for want of another thread in it.
 export const noOtherThread = "No other thread in this list.";
 
-// goToNext leaves the thread page for the next thread, carrying on the list
-// it was found in, or, with none, for that list, which says so. What a send
-// that goes on so sent is said where it goes.
-function goToNext({ next, from }: NextFound, replace: boolean, sent?: string): void {
-  if (next === undefined) {
+// goToNeighbor leaves the thread page for the thread found above or below,
+// carrying on the list it was found in, or, with none, for that list, which
+// says so. What a send that goes on so sent is said where it goes.
+function goToNeighbor({ thread, from }: FoundNeighbor, replace: boolean, sent?: string): void {
+  if (thread === undefined) {
     leaveNotice(sent === undefined ? noOtherThread : `${sent} ${noOtherThread}`);
     navigate(from, { replace });
   } else {
     if (sent !== undefined) {
       leaveNotice(sent, "thread");
     }
-    navigate(threadHref(next.agent, next.session, next.number), { replace, state: { from } });
+    navigate(threadHref(thread.agent, thread.session, thread.number), {
+      replace,
+      state: { from },
+    });
   }
 }
 
@@ -1130,7 +1155,7 @@ function HeadFailure({ action, failure }: { action: string; failure: unknown }) 
 
 // The actions on the thread whose failures a send's way on can meet.
 const archiving = "Archiving this thread";
-const findingNext = "Finding the next thread";
+const findingThread = "Finding the thread to open";
 
 // failedWords says which action on the thread failed, and why.
 const failedWords = (action: string, failure: unknown) =>

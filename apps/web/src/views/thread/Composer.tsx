@@ -100,16 +100,16 @@ function describeDropped(dropped: number[]): string {
 }
 
 // Where Send takes the operator once the server accepts the message: nowhere,
-// staying on the thread; back to the list; on to the next thread; or on to
-// the next thread once this one is archived.
-export const afterSendingOptions = ["stay", "list", "next", "archive-next"] as const;
+// staying on the thread; back to the list; on to the thread above or below,
+// as this device moves on; or on to it once this one is archived.
+export const afterSendingOptions = ["stay", "list", "move-on", "archive-move-on"] as const;
 export type AfterSending = (typeof afterSendingOptions)[number];
 
 const afterSendingLabels: Record<AfterSending, string> = {
   stay: "Stay here",
   list: "Back to the list",
-  next: "Next thread",
-  "archive-next": "Archive & next",
+  "move-on": "Move on",
+  "archive-move-on": "Archive & move on",
 };
 
 // Where this device keeps where to go after sending.
@@ -207,8 +207,8 @@ export function Composer({
   // Goes where the operator chose to go after sending, once a message
   // lands: back to the list the page came from, in place of the page in
   // history as Archive does, having the list say what was sent; on to the
-  // next thread, as Next does; or on to it once this thread is archived, as
-  // Archive & next does.
+  // thread above or below, as this device moves on; or on to it once this
+  // thread is archived, as Archive & move on does.
   // written is the message the server accepted, which an archive after
   // sending goes through at least.
   onward: (where: Exclude<AfterSending, "stay">, sent: string, written: number) => void;

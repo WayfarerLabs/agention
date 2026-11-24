@@ -5,6 +5,7 @@ import { KeyboardSection } from "./Keyboard.tsx";
 import { PasskeysSection } from "./Passkeys.tsx";
 import { SignOutSection } from "./SignOut.tsx";
 import { StorageSection } from "./Storage.tsx";
+import { ThreadsSection } from "./Threads.tsx";
 import { VoiceSection } from "./Voice.tsx";
 
 // Settings' sections, declared once: the navigation and each section's page,
@@ -38,6 +39,7 @@ export interface SettingsSection {
 export const settingsSections: readonly SettingsSection[] = [
   { slug: "passkeys", title: "Passkeys", group: "Access", component: PasskeysSection },
   { slug: "api-keys", title: "API keys", group: "Access", component: ApiKeysSection },
+  { slug: "threads", title: "Threads", group: "Features", component: ThreadsSection },
   {
     slug: "groups-and-tags",
     title: "Groups and tags",

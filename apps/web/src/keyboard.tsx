@@ -84,16 +84,14 @@ export const shortcuts = {
   backToList: { place: "Thread", keys: ["u", "Escape"], description: "Back to the thread list" },
   reply: { place: "Thread", keys: ["r"], description: "Write in the composer" },
   archive: { place: "Thread", keys: ["e"], description: "Archive all of the thread" },
-  archiveAndNext: {
+  archiveAndMoveOn: {
     place: "Thread",
     keys: ["E"],
-    description: "Archive all of the thread and open the next thread in the list",
+    description:
+      "Archive all of the thread and move on to the thread above or below, as Settings chooses",
   },
-  openNext: {
-    place: "Thread",
-    keys: ["]"],
-    description: "Open the next thread in the list",
-  },
+  openAbove: { place: "Thread", keys: ["["], description: "Open the thread above in the list" },
+  openBelow: { place: "Thread", keys: ["]"], description: "Open the thread below in the list" },
   jump: {
     place: "Thread",
     keys: ["n"],

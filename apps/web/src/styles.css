@@ -1388,7 +1388,7 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin-bottom: var(--space-3);
 }
 
-/* The way back to the list, and on to the next thread, together. */
+/* The way back to the list, and to the threads above and below, together. */
 .thread-nav {
   display: flex;
   flex-wrap: wrap;

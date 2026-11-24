@@ -22,6 +22,7 @@ import {
   threadSummary,
 } from "../../test-support.tsx";
 import { afterSendingChoice, goBackChoice } from "./Composer.tsx";
+import { moveOnChoice } from "./neighbor-thread.ts";
 import { noOtherThread } from "./ThreadView.tsx";
 import {
   detailsBox,
@@ -1736,14 +1737,15 @@ describe("where sending goes", () => {
     return state;
   }
 
-  // serveNext serves the list the thread returns to, holding it and thread
-  // 2 after it, and thread 2.
-  function serveNext(): void {
-    const next = threadSummary({ number: 2, title: "The next one", unread: 0 });
+  // serveOther serves the list the thread returns to, holding it and thread
+  // 2 after it, and thread 2, which is both above it, going round, and below
+  // it.
+  function serveOther(): void {
+    const other = threadSummary({ number: 2, title: "The other one", unread: 0 });
     page.api.on("GET", "/threads", {
-      body: { threads: [threadSummary({ unread: 0 }), next], total: 2 },
+      body: { threads: [threadSummary({ unread: 0 }), other], total: 2 },
     });
-    page.api.on("GET", "/s/builder/main/threads/2", { body: threadAnswer(next, [message(1)]) });
+    page.api.on("GET", "/s/builder/main/threads/2", { body: threadAnswer(other, [message(1)]) });
   }
 
   afterEach(() => {
@@ -1793,9 +1795,9 @@ describe("where sending goes", () => {
     },
   );
 
-  it("opens the next thread in the list once the server accepts the message, as Next does", async () => {
-    await opened("next");
-    serveNext();
+  it("moves on to the thread above or below in the list once the server accepts the message", async () => {
+    await opened("move-on");
+    serveOther();
     const entries = window.history.length;
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
@@ -1803,13 +1805,47 @@ describe("where sending goes", () => {
     expect(window.history.length).toBe(entries + 1);
     expect(window.history.state).toMatchObject({ from: list });
     expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
-    // The next thread's composer says what was sent.
-    await screen.findByRole("heading", { level: 1, name: /The next one/ });
+    // The composer of the thread moved on to says what was sent.
+    await screen.findByRole("heading", { level: 1, name: /The other one/ });
     await waitFor(() => expect(composerSays()).not.toBe(""));
   });
 
+  it.each([
+    ["move-on", "above", 2],
+    ["move-on", "below", 3],
+    ["archive-move-on", "above", 2],
+    ["archive-move-on", "below", 3],
+  ] as const)(
+    "with %s, goes to the thread %s, as this device moves on",
+    async (choice, direction, number) => {
+      window.localStorage.setItem(moveOnChoice, direction);
+      window.localStorage.setItem(afterSendingChoice, choice);
+      // The list holds thread 2 above this one and thread 3 below it.
+      const threads = [2, 1, 3].map((each) =>
+        threadSummary({ number: each, title: `Thread ${each}`, unread: 0 }),
+      );
+      page.api.on("GET", "/threads", { body: { threads, total: threads.length } });
+      for (const thread of threads) {
+        page.api.on("GET", `/s/builder/main/threads/${thread.number}`, {
+          body: threadAnswer(thread, [message(1)]),
+        });
+      }
+      const state = await page.open(
+        { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+        { from: list },
+      );
+      page.serveWrites(state);
+      fireEvent.change(textBox(), { target: { value: "Noted." } });
+      fireEvent.click(sendButton());
+      await waitFor(() => expect(where()).toBe(`/s/builder/main/threads/${number}`));
+      expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(
+        choice === "archive-move-on" ? 1 : 0,
+      );
+    },
+  );
+
   it("says both what was sent and that no other thread is left, on the list", async () => {
-    await opened("next");
+    await opened("move-on");
     page.api.on("GET", "/threads", {
       body: { threads: [threadSummary({ unread: 0 })], total: 1 },
     });
@@ -1819,8 +1855,8 @@ describe("where sending goes", () => {
     await waitFor(() => expect(listSays()).toMatch(new RegExp(`. ${noOtherThread}$`)));
   });
 
-  it("stays on the thread and says why beside Send when the next thread cannot be found", async () => {
-    await opened("next");
+  it("stays on the thread and says why beside Send when the thread to move on to cannot be found", async () => {
+    await opened("move-on");
     const { reply, described } = refusal("internal", "the list broke");
     page.api.on("GET", "/threads", reply);
     fireEvent.change(textBox(), { target: { value: "Noted." } });
@@ -1829,9 +1865,9 @@ describe("where sending goes", () => {
     expect(where()).toBe(path);
   });
 
-  it("archives the thread once the server accepts the message, then opens the next in its place, as Archive & next does", async () => {
-    await opened("archive-next");
-    serveNext();
+  it("archives the thread once the server accepts the message, then moves on in its place, as Archive & move on does", async () => {
+    await opened("archive-move-on");
+    serveOther();
     const entries = window.history.length;
     fireEvent.click(choice(/^SQLite/));
     fireEvent.click(sendButton());
@@ -1845,8 +1881,8 @@ describe("where sending goes", () => {
   });
 
   it("stays on the thread, saying why, when the server refuses the archive for an ask still open", async () => {
-    await opened("archive-next");
-    serveNext();
+    await opened("archive-move-on");
+    serveOther();
     const { reply, described } = refusal(
       "invalid_input",
       "ask 1 is open to you; answer or decline it before archiving",
@@ -1862,16 +1898,16 @@ describe("where sending goes", () => {
   });
 
   it("archives once when another message lands while the first's archive and move on are under way", async () => {
-    await opened("archive-next");
-    serveNext();
-    // The walk for the next thread is held once the page has walked the list
-    // on opening.
+    await opened("archive-move-on");
+    serveOther();
+    // The walk for the thread to move on to is held once the page has walked
+    // the list on opening.
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
-    const next = threadSummary({ number: 2, title: "The next one", unread: 0 });
+    const other = threadSummary({ number: 2, title: "The other one", unread: 0 });
     page.api.on("GET", "/threads", async () => {
       await held;
-      return { body: { threads: [threadSummary({ unread: 0 }), next], total: 2 } };
+      return { body: { threads: [threadSummary({ unread: 0 }), other], total: 2 } };
     });
     fireEvent.change(textBox(), { target: { value: "First." } });
     fireEvent.click(sendButton());
@@ -1895,42 +1931,42 @@ describe("where sending goes", () => {
       { from: list },
     );
     page.serveWrites(state);
-    serveNext();
+    serveOther();
     return state;
   }
 
   // holdList holds the list's answers from now on until released, for a
-  // walk to find the next thread.
+  // walk to find the thread to move on to.
   function holdList(): () => void {
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
-    const next = threadSummary({ number: 2, title: "The next one", unread: 0 });
+    const other = threadSummary({ number: 2, title: "The other one", unread: 0 });
     page.api.on("GET", "/threads", async () => {
       await held;
-      return { body: { threads: [threadSummary({ unread: 0 }), next], total: 2 } };
+      return { body: { threads: [threadSummary({ unread: 0 }), other], total: 2 } };
     });
     return () => release();
   }
 
-  // pressNext presses ] with focus on the thread's heading, outside the
-  // composer's fields.
-  function pressNext(): void {
+  // pressBelow presses ], for the thread below, with focus on the thread's
+  // heading, outside the composer's fields.
+  function pressBelow(): void {
     screen.getByRole("heading", { level: 1 }).focus();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "]" });
   }
 
-  it("lets Next go on while a message that stays on the thread is on its way", async () => {
+  it("lets Thread below go on while a message that stays on the thread is on its way", async () => {
     await openPlain("stay");
     holdWrites();
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
-    pressNext();
+    pressBelow();
     await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
   });
 
   it("says beside Send nothing of a failure before the send's own way on", async () => {
-    await openPlain("next");
+    await openPlain("move-on");
     const { reply, described } = refusal("internal", "the archive broke");
     page.api.on("POST", `${path}/archive`, reply);
     fireEvent.click(screen.getByRole("button", { name: "Archive all" }));
@@ -1947,7 +1983,7 @@ describe("where sending goes", () => {
   });
 
   it("says beside Send nothing of an earlier send's failure once another is sent", async () => {
-    await openPlain("archive-next");
+    await openPlain("archive-move-on");
     const { reply, described } = refusal("internal", "the archive broke");
     page.api.on("POST", `${path}/archive`, reply);
     fireEvent.change(textBox(), { target: { value: "Noted." } });
@@ -1963,7 +1999,7 @@ describe("where sending goes", () => {
   });
 
   it("says beside Send why a send's way on failed, though another message was sent meanwhile", async () => {
-    await openPlain("next");
+    await openPlain("move-on");
     const { reply, described } = refusal("internal", "the list broke");
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
@@ -1987,7 +2023,7 @@ describe("where sending goes", () => {
   it("goes back to the list after sending only once no other way on is under way", async () => {
     await openPlain("list");
     const release = holdList();
-    pressNext();
+    pressBelow();
     await waitFor(() =>
       expect(
         page.api.callsTo("GET", "/threads").filter((call) => call.url.searchParams.has("limit"))
@@ -2003,20 +2039,20 @@ describe("where sending goes", () => {
     await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
   });
 
-  it("holds Next back while a message that will archive and move on is on its way", async () => {
-    window.localStorage.setItem(afterSendingChoice, "archive-next");
+  it("holds Thread below back while a message that will archive and move on is on its way", async () => {
+    window.localStorage.setItem(afterSendingChoice, "archive-move-on");
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: list },
     );
     page.serveWrites(state);
-    serveNext();
+    serveOther();
     const release = holdWrites();
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
-    const next = screen.getByRole<HTMLButtonElement>("button", { name: "Next thread" });
-    expect(next.disabled).toBe(true);
+    const below = screen.getByRole<HTMLButtonElement>("button", { name: "Thread below" });
+    expect(below.disabled).toBe(true);
     screen.getByRole("heading", { level: 1 }).focus();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "]" });
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2027,13 +2063,13 @@ describe("where sending goes", () => {
   });
 
   it("archives through the message a stale send's retry placed past what the page had loaded", async () => {
-    window.localStorage.setItem(afterSendingChoice, "archive-next");
+    window.localStorage.setItem(afterSendingChoice, "archive-move-on");
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: list },
     );
     page.serveWrites(state);
-    serveNext();
+    serveOther();
     // The agent wrote meanwhile, and the page has not loaded it.
     state.thread = { ...state.thread, last_seq: 2, message_count: 2 };
     state.messages = [...state.messages, message(2, { text: "Agent note" })];
@@ -2061,13 +2097,13 @@ describe("where sending goes", () => {
 
   it("archives nothing with E while a message is on its way, then archives once it lands", async () => {
     // No ask is open, so E could archive but for the message on its way.
-    window.localStorage.setItem(afterSendingChoice, "archive-next");
+    window.localStorage.setItem(afterSendingChoice, "archive-move-on");
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: list },
     );
     page.serveWrites(state);
-    serveNext();
+    serveOther();
     const release = holdWrites();
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
@@ -2091,8 +2127,8 @@ describe("where sending goes", () => {
       await opened(undefined);
       expect(after().value).toBe(carried);
       // Chosen again, it is kept in its own place.
-      choose("next");
-      expect(window.localStorage.getItem(afterSendingChoice)).toBe("next");
+      choose("move-on");
+      expect(window.localStorage.getItem(afterSendingChoice)).toBe("move-on");
     },
   );
 

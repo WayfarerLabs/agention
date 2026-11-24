@@ -95,38 +95,39 @@ with each other or with what the product does, the disagreement is the finding.
   said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
   by agent, each header's label and marks adding their filters to the list and its bar folding but
   on a link; the thread page's numbered asks answered several at once, a message's details,
-  replacements, mark unread from a message, archive through a message and archive all, and Next and
-  Archive & next from a thread, with `]` and `E`, to the next thread in the list it was opened from,
-  going round past its end, and back to the list, which says so, once it holds no other; Send and
-  what answers it kept on a short screen while writing, After sending's choices, back to the list,
-  staying, the next thread and archiving then the next, refused while an ask stays open, and the way
-  back under the composer; the compact sizes with a mouse and the full ones by touch, a touchscreen
-  laptop among them; the Threads tab side by side at a desktop's width, filling it, the list kept as
-  chosen beside each thread opened, the open thread's row marked, Back from thread to thread, focus
-  back on the row left, and one at a time below that width; stranded's reasons, in the warning's
-  color in both tabs; the sessions view, its group and agent folds and folded rows with what each
-  session reports, when it was last seen and whether it is quiet, how old its status is, its open
-  asks in the thread list's words and its threads' roll-up, the links from a row, an agent and a
-  group, their names and every chip standing for threads among them, to the thread list filtered to
-  them, folding nothing, and from a row's and an agent's stranded flag to their stranded threads, a
-  row unfolded to its log and marking it read, the Sessions tab's count of registrations waiting
-  falling as they are approved or rejected, the Threads tab's count of unread threads falling as
-  they are read or archived, and the folds kept, on a phone's width too; the operator's session
-  groups and tags: a session's group and an agent's and a session's tags picked from their options,
-  each pick applied at once, by pointer and by the keys, the pickers beside the menu on a wide
-  screen and as a sheet on a phone, the chips that show them in their colors in both color schemes,
-  and Settings' groups and tags, with create, rename, its refusal of a name another group or tag
-  has, recolor, removal, asked first, and the groups' order by their buttons and by dragging,
-  followed by the sessions view; the sessions view's arrangement, grouped by group, by agent and by
-  session, sorted alphabetically, by registration time and manually, each way, no group last, its
-  groups moved in the manual order by their buttons and by dragging, and the arrangement kept in the
-  address through a reload, Back and a shared link; a thread the operator starts there, with the
-  warning for a session not there to see it, and the agent's reply in it; registration approval,
-  with a group and tags picked, rejection, and revocation from past requests and a session's
-  options; diagrams, drawn in light and dark, with their Source toggle, their fallback, and the
-  viewer's gestures, buttons and keys, on a phone's width too; Settings in sections, listed beside
-  the open one on a wide screen and listed first on a phone with each section's way back, with
-  `/passkeys` leading to Passkeys; API keys: one created with each expiry choice, the no-expiry
+  replacements, mark unread from a message, archive through a message and archive all, Thread above
+  and Thread below from a thread, with `[` and `]`, to the row above or below in the list it was
+  opened from, going round past either end, and back to the list, which says so, once it holds no
+  other, and Archive & move on, with `E`, each way Settings' Threads chooses; Send and what answers
+  it kept on a short screen while writing, After sending's choices, back to the list, staying,
+  moving on and archiving then moving on, each way Settings chooses, refused while an ask stays
+  open, and the way back under the composer; the compact sizes with a mouse and the full ones by
+  touch, a touchscreen laptop among them; the Threads tab side by side at a desktop's width, filling
+  it, the list kept as chosen beside each thread opened, the open thread's row marked, Back from
+  thread to thread, focus back on the row left, and one at a time below that width; stranded's
+  reasons, in the warning's color in both tabs; the sessions view, its group and agent folds and
+  folded rows with what each session reports, when it was last seen and whether it is quiet, how old
+  its status is, its open asks in the thread list's words and its threads' roll-up, the links from a
+  row, an agent and a group, their names and every chip standing for threads among them, to the
+  thread list filtered to them, folding nothing, and from a row's and an agent's stranded flag to
+  their stranded threads, a row unfolded to its log and marking it read, the Sessions tab's count of
+  registrations waiting falling as they are approved or rejected, the Threads tab's count of unread
+  threads falling as they are read or archived, and the folds kept, on a phone's width too; the
+  operator's session groups and tags: a session's group and an agent's and a session's tags picked
+  from their options, each pick applied at once, by pointer and by the keys, the pickers beside the
+  menu on a wide screen and as a sheet on a phone, the chips that show them in their colors in both
+  color schemes, and Settings' groups and tags, with create, rename, its refusal of a name another
+  group or tag has, recolor, removal, asked first, and the groups' order by their buttons and by
+  dragging, followed by the sessions view; the sessions view's arrangement, grouped by group, by
+  agent and by session, sorted alphabetically, by registration time and manually, each way, no group
+  last, its groups moved in the manual order by their buttons and by dragging, and the arrangement
+  kept in the address through a reload, Back and a shared link; a thread the operator starts there,
+  with the warning for a session not there to see it, and the agent's reply in it; registration
+  approval, with a group and tags picked, rejection, and revocation from past requests and a
+  session's options; diagrams, drawn in light and dark, with their Source toggle, their fallback,
+  and the viewer's gestures, buttons and keys, on a phone's width too; Settings in sections, listed
+  beside the open one on a wide screen and listed first on a phone with each section's way back,
+  with `/passkeys` leading to Passkeys; API keys: one created with each expiry choice, the no-expiry
   warning and the list's flag, a scope that a chosen one includes shown chosen with it, the secret
   shown once with Copy and gone once dismissed, nowhere in storage or the address, the list's last
   use, Revoke asked first, creating and revoking held back without a recent sign-in, and Create held

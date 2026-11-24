@@ -1225,42 +1225,52 @@ while it holds focus passes it to the page's heading, and crossing the breakpoin
 what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
 and the list's pane is sticky and scrolls on its own.
 
-A thread page's **Next** and **Archive & next** go to the next thread
-(`src/views/thread/next-thread.ts`): the next row after it in the list it returns to, as the list's
-`j` moves to, going round past the list's end. The page walks that list's pages through
-`GET /threads` with the list's own query, at the most a page holds (`largestPage`); the list arrives
-in the order it shows, grouped or not, so no query of its own is needed. "After it" is where the
-thread stood on opening, since the page's own doing moves it: an answer under the priority order and
-a reply under the latest message's. So on opening, and again when the list it returns to changes,
-the page walks until it reaches the thread and keeps the threads ahead of it. Reading the thread
-takes it out of a list kept to the unread, and can do so before the walk reaches it, so a flat list
-is walked with its unread filter off: no order goes by what is unread, so the threads the filter
-keeps stand in the same order without it. The price is a longer walk on opening in a flat list kept
-to the unread, through the read threads among it. A grouped list places each group by its first
-thread the list keeps, so without the filter a read thread can lift its group ahead of others; a
-grouped list is walked as it is, and there a read that lands before the walk reaches the thread, as
-it can past the first page or on a walk again after a failure, leaves the thread not in the list, so
-the list's first thread is next. Holding the page's first read until the walk passed the thread
-would close that gap, but a page closed meanwhile would then never send the read, so it is left
-open. When that walk failed, the next finding walks again, and after a change of list the walk is
-the new list's, each judging "ahead" from where the thread stands then, after any answering or
-replying the page did. What the list holds is the list's as it stands: finding the next walks
-afresh, with the list's own filters, and stops at the first thread that is neither this one nor one
-that was ahead of it, usually on the first page, walking to the end only to go round, to the list's
-first thread other than this one, which is on its first page. Each walk stops at 100 pages; a
-finding that stops there with nothing found fails, rather than say none is left, and a walk on
-opening that stops there before reaching the thread counts it as not in the list. A walk on opening
-still going when the list changes or the page closes is abandoned (`request`'s `signal`); a finding
-under way when the list changes starts again on the list as it now stands, and one under way when
-the page closes finishes, and the page, closed, drops it. What is found carries the list it was
-found in, which the next thread's entry carries on. Next pushes that entry; Archive & next finds the
-next before archiving, so a failure to find it archives nothing, then replaces the archived thread's
-entry with it, and when the list changed while the archive was under way, it finds the next again in
-the list as it now stands, staying on the thread, archived, with the failure shown, should that
-fail. That finding's walk of the new list for the threads ahead can miss the thread just archived,
-which a list without archived threads no longer holds, so it then takes the new list's first thread.
-With none, both go to the list, leaving it a notice to say so. While either is under way, or the
-page is leaving otherwise, neither starts again, and Next is marked busy.
+A thread page's **Thread above** and **Thread below** go to the row above or below the thread
+(`src/views/thread/neighbor-thread.ts`) in the list it returns to, as the list's `k` and `j` move
+to, going round past either end; **Archive & move on**, and After sending's **Move on** and
+**Archive & move on**, go the way the browser keeps under Settings' Threads (`useMoveOnDirection`,
+through `useDeviceOption` in `src/device.ts`), above unless the operator chooses below. The page
+walks that list's pages through `GET /threads` with the list's own query, at the most a page holds
+(`largestPage`); the list arrives in the order it shows, grouped or not, so no query of its own is
+needed. Where the thread stands is where it stood on opening, since the page's own doing moves it:
+an answer under the priority order and a reply under the latest message's. So on opening, and again
+when the list it returns to changes, the page walks until it reaches the thread and keeps the
+threads ahead of it. Reading the thread takes it out of a list kept to the unread, and can do so
+before the walk reaches it, so a flat list is walked with its unread filter off: no order goes by
+what is unread, so the threads the filter keeps stand in the same order without it. The price is a
+longer walk on opening in a flat list kept to the unread, through the read threads among it. A
+grouped list places each group by its first thread the list keeps, so without the filter a read
+thread can lift its group ahead of others; a grouped list is walked as it is, and there a read that
+lands before the walk reaches the thread, as it can past the first page or on a walk again after a
+failure, leaves the thread not in the list, with none ahead of it. Holding the page's first read
+until the walk passed the thread would close that gap, but a page closed meanwhile would then never
+send the read, so it is left open. When that walk failed, the next finding walks again, and after a
+change of list the walk is the new list's, each judging "ahead" from where the thread stands then,
+after any answering or replying the page did. What the list holds is the list's as it stands: each
+finding walks afresh, with the list's own filters, and every other thread counts where it stands
+now. One rule places the thread for both directions: it sits at the cut in the list as it stands
+that leaves the fewest threads on the wrong side, those that were ahead of it after the cut and the
+others before it, the later of cuts that tie. Above is the last thread before the cut and below the
+first after it, other than this one, so the two follow where the thread sat among the threads around
+it, even as some of them move. With none, above goes round to the list's last thread other than this
+one, and below to its first. Past the last thread that was ahead, every thread adds to the count, so
+either walk stops once it has met every thread ahead that the list still holds and the one it seeks:
+about as far as the thread's own place, but to the list's end when one has left the list since, as
+every read one has from a flat list kept to the unread, and when it goes round. Each walk stops at
+100 pages; a finding that stops there without settling which thread it is fails, rather than say
+none is left, and a walk on opening that stops there before reaching the thread counts it as not in
+the list, with none ahead of it. A walk on opening still going when the list changes or the page
+closes is abandoned (`request`'s `signal`); a finding under way when the list changes starts again
+on the list as it now stands, and one under way when the page closes is abandoned too. What is found
+carries the list it was found in, which the found thread's entry carries on. Thread above and Thread
+below push that entry; Archive & move on finds the thread before archiving, so a failure to find it
+archives nothing, then replaces the archived thread's entry with it, and when the list changed while
+the archive was under way, it finds the thread again in the list as it now stands, staying on the
+thread, archived, with the failure shown, should that fail. That finding's walk of the new list for
+the threads ahead can miss the thread just archived, which a list without archived threads no longer
+holds, so it then takes the new list's first thread, or its last. With none, each goes to the list,
+leaving it a notice to say so. While one is under way, or the page is leaving otherwise, none starts
+again, and Thread above and Thread below are marked busy.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
@@ -1416,18 +1426,19 @@ The composer's After sending is where a message the server accepts takes the ope
 browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
 release kept, going back or staying, stands in its place. A message that lands while the page is
 still open goes by the choice as it stands then (the composer's `onward`): back to the list, which
-says what was sent; to the next thread, as Next goes; or to Archive & next's own path, run without
-the page's check for asks open to the operator, since the message may have answered them, so the
-server's refusal, naming the ask, shows instead and the page stays. What was sent goes with the
-operator: the next thread's composer says it beside Send (`leaveNotice` for the thread, in
-`src/notice.ts`), and a list gone back to for want of another thread says it before saying so. When
-a send's way on fails, its composer says so beside Send, after what was sent, in the head's own
-words, which a phone's keyboard can hide. An archive after sending goes through the message sent at
-least, which a stale send's retry can place past the latest the page has loaded. One rule holds for
-leaving the page: while a way on is under way, or a message that will take the page somewhere is on
-its way, no other way on starts, Next, Archive all, Archive & next or a send's; a send's own way on,
-once it lands, waits only for the others. Each way on checks and marks it as it stands when it
-starts (`start`), not as the render that set it up saw it, and Next is disabled meanwhile, as the
+says what was sent; on to the thread above or below, as Archive & move on goes, without archiving;
+or to Archive & move on's own path, run without the page's check for asks open to the operator,
+since the message may have answered them, so the server's refusal, naming the ask, shows instead and
+the page stays. What was sent goes with the operator: the composer of the thread moved on to says it
+beside Send (`leaveNotice` for the thread, in `src/notice.ts`), and a list gone back to for want of
+another thread says it before saying so. When a send's way on fails, its composer says so beside
+Send, after what was sent, in the head's own words, which a phone's keyboard can hide. An archive
+after sending goes through the message sent at least, which a stale send's retry can place past the
+latest the page has loaded. One rule holds for leaving the page: while a way on is under way, or a
+message that will take the page somewhere is on its way, no other way on starts, Thread above,
+Thread below, Archive all, Archive & move on or a send's; a send's own way on, once it lands, waits
+only for the others. Each way on checks and marks it as it stands when it starts (`start`), not as
+the render that set it up saw it, and Thread above and Thread below are disabled meanwhile, as the
 archives are.
 
 The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
@@ -1454,22 +1465,22 @@ separating servers. The thread list marks a thread with a kept draft from the sa
   has changed since keeps none again.
 
 Settings is a list of sections, declared once in `src/views/settings/sections.ts`, each with a slug,
-a title, the group it is listed under and its component: Passkeys and API keys under Access, Voice,
-Storage and Keyboard under Features, and Sign out after the groups. The navigation and
-`/settings/<slug>` are built from that list, so a new section is one entry and one component, and a
-slug no section has is Not found. `/passkeys`, where passkeys had a page of their own, redirects to
-`/settings/passkeys`, replacing the history entry. The layout is decided in CSS alone: below the
-layout's `40rem` breakpoint `/settings` shows the navigation as a list and a section's page shows a
-back link to it; above it the navigation is a column beside the open section, and `/settings` opens
-the first section, which it mounts, and so loads, on every width, hidden below the breakpoint. Each
-section loads only its own data, and a section that changes a secret, Passkeys, API keys and Voice,
-offers to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads
-`recent` from the key list, and Passkeys and Voice from the passkey list. The voice form starts
-afresh from what the server holds whenever that changes, and normalizes a base URL with the API's
-own reader; which hosts it may reach is the server's to judge, when it is saved. After a save or a
-clear, focus waits for the settings the server then holds before moving to the control that shows
-them, and moves only from the control pressed. Signing in again moves focus to the open section's
-heading.
+a title, the group it is listed under and its component: Passkeys and API keys under Access,
+Threads, Groups and tags, Voice, Storage and Keyboard under Features, and Sign out after the groups.
+The navigation and `/settings/<slug>` are built from that list, so a new section is one entry and
+one component, and a slug no section has is Not found. `/passkeys`, where passkeys had a page of
+their own, redirects to `/settings/passkeys`, replacing the history entry. The layout is decided in
+CSS alone: below the layout's `40rem` breakpoint `/settings` shows the navigation as a list and a
+section's page shows a back link to it; above it the navigation is a column beside the open section,
+and `/settings` opens the first section, which it mounts, and so loads, on every width, hidden below
+the breakpoint. Each section loads only its own data, and a section that changes a secret, Passkeys,
+API keys and Voice, offers to sign in again while the sign-in is not recent (`RecentSignIn.tsx`):
+API keys reads `recent` from the key list, and Passkeys and Voice from the passkey list. The voice
+form starts afresh from what the server holds whenever that changes, and normalizes a base URL with
+the API's own reader; which hosts it may reach is the server's to judge, when it is saved. After a
+save or a clear, focus waits for the settings the server then holds before moving to the control
+that shows them, and moves only from the control pressed. Signing in again moves focus to the open
+section's heading.
 
 The API keys section (`src/views/settings/ApiKeys.tsx`) lists the keys as the server does, each with
 its scopes and when it was created, expires and was last used, flagged while it is live with no

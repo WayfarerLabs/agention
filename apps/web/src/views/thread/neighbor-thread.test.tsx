@@ -11,13 +11,13 @@ import {
   titleOf,
 } from "../../test-support.tsx";
 import { listViewOf, showList } from "../../router.tsx";
-import { mostPages } from "./next-thread.ts";
+import { type Direction, mostPages, moveOnChoice } from "./neighbor-thread.ts";
 import { path, shownMessages, ThreadPageTest } from "./thread-test-support.tsx";
 import { noOtherThread } from "./ThreadView.tsx";
 
-// Next and Archive & next on a thread's page: the thread open is builder/main
-// #1, and the list it returns to is served a few threads a page, so finding
-// the next walks its pages.
+// Thread above, Thread below and Archive & move on on a thread's page: the
+// thread open is builder/main #1, and the list it returns to is served a few
+// threads a page, so finding the thread above or below walks its pages.
 
 let page: ThreadPageTest;
 
@@ -83,7 +83,7 @@ const walked = () =>
     .filter((query) => query.has("limit"));
 
 // openThread opens builder/main #1, returning to the list given, and waits
-// for the page to have walked the list for its next thread.
+// for the page to have walked the list for the threads ahead of it.
 async function openThread(
   overrides: Partial<ThreadSummary> = {},
   from = "/",
@@ -97,9 +97,15 @@ async function openThread(
   return state;
 }
 
-const nextButton = () => screen.getByRole<HTMLButtonElement>("button", { name: "Next thread" });
-const archiveAndNext = () =>
-  screen.getByRole<HTMLButtonElement>("button", { name: "Archive & next" });
+const belowButton = () => screen.getByRole<HTMLButtonElement>("button", { name: "Thread below" });
+const aboveButton = () => screen.getByRole<HTMLButtonElement>("button", { name: "Thread above" });
+const archiveAndMoveOn = () =>
+  screen.getByRole<HTMLButtonElement>("button", { name: "Archive & move on" });
+// moveOnTo chooses, as Settings does, which way this device moves on, before
+// the thread opens.
+const moveOnTo = (direction: Direction) => window.localStorage.setItem(moveOnChoice, direction);
+// headFailed waits for the thread's head to say that an action on it failed.
+const headFailed = () => within(threadHeader()).findByRole("alert");
 const threadHeader = () =>
   screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
 
@@ -164,12 +170,12 @@ const toNarrowed = () => act(() => showList(listViewOf(new URLSearchParams("sear
 // The walks of the whole list, not the narrowed one.
 const wholeWalks = () => walked().filter((query) => !query.has("search")).length;
 
-describe("Next", () => {
-  it("opens the next row after this one in the list it returns to, read or not, as a new entry", async () => {
+describe("Thread below", () => {
+  it("opens the row below this one in the list it returns to, read or not, as a new entry", async () => {
     serveList([unread(4), read(1), read(3), read(2), unread(5)]);
     await openThread({}, "/?sort=latest&group=session");
     const length = window.history.length;
-    fireEvent.click(nextButton());
+    fireEvent.click(belowButton());
     await landedOn(3);
     expect(window.history.length).toBe(length + 1);
     expect(window.history.state).toMatchObject({ from: "/?sort=latest&group=session" });
@@ -210,13 +216,50 @@ describe("Next", () => {
     await landedOn(3);
   });
 
-  it("counts a thread new since the thread opened where it stands now", async () => {
-    const list = serveList([read(1), unread(3), unread(9)]);
-    list.threads = [read(1), unread(3)];
+  it("counts a thread new since the thread opened where it stands now, below it or not", async () => {
+    const list = serveList([unread(2), read(1), unread(3), unread(8), unread(9)]);
+    list.threads = [unread(2), read(1), unread(3)];
     await openThread();
-    list.threads = [unread(9), read(1), unread(3)];
+    // Thread 9 arrived at the top, above where this thread sits, and thread
+    // 8 just below it.
+    list.threads = [unread(9), unread(2), unread(8), read(1), unread(3)];
     press("]");
-    await landedOn(9);
+    await landedOn(8);
+  });
+
+  it("opens no thread drawn above where this one sits, as one that moved up since", async () => {
+    const list = serveList([unread(2), read(1), unread(3), unread(4)]);
+    await openThread();
+    // An agent wrote to thread 3, which went to the top under the latest
+    // message's order.
+    list.threads = [unread(3), unread(2), read(1), unread(4)];
+    press("]");
+    await landedOn(4);
+  });
+
+  it.each([
+    ["]", "below", 3],
+    ["[", "above", 6],
+  ])(
+    "with %s opens the thread %s it, though one that was above it moved to the end",
+    async (key, _, number) => {
+      // Oldest first, an agent wrote to thread 2, which went to the end.
+      const list = serveList([unread(6), unread(2), read(1), unread(3), unread(4)]);
+      await openThread({}, "/?sort=latest&reverse=true");
+      list.threads = [unread(6), read(1), unread(3), unread(4), unread(2)];
+      press(key);
+      await landedOn(number);
+    },
+  );
+
+  it("passes over no thread below it when one that was above it moved below them", async () => {
+    // Under the priority order, thread 2's ask closed, so it fell below the
+    // threads with asks open.
+    const list = serveList([unread(2), read(1), unread(3), unread(4), unread(5)]);
+    await openThread({}, "/?sort=priority");
+    list.threads = [read(1), unread(3), unread(4), unread(2), unread(5)];
+    press("]");
+    await landedOn(3);
   });
 
   it("reads one page on opening and one on a press when what it seeks is on the first", async () => {
@@ -229,16 +272,16 @@ describe("Next", () => {
     await waitFor(() => expect(walked().length).toBe(opened + 2));
   });
 
-  it("starts once for a press made again while it is finding the next thread", async () => {
+  it("starts once for a press made again while it is finding the thread below", async () => {
     const list = serveList([read(1), unread(2), unread(3)]);
     await openThread();
     const held = holdList(list);
     const length = window.history.length;
     press("]");
     await waitFor(() => expect(held.asked()).toBe(1));
-    expect(nextButton().disabled).toBe(true);
+    expect(belowButton().disabled).toBe(true);
     press("]");
-    fireEvent.click(nextButton());
+    fireEvent.click(belowButton());
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(held.asked()).toBe(1);
     held.release();
@@ -273,7 +316,38 @@ describe("Next", () => {
       expect(wholeWalks()).toBe(2);
     });
 
-    it("while the press walks it for the next thread", async () => {
+    it("abandoning the walk again for the threads ahead in the list before", async () => {
+      const list = serveList([unread(2), unread(3), unread(4), unread(5), read(1)]);
+      page.api.on("GET", "/threads", { status: 502, text: "<h1>Bad gateway</h1>" });
+      await openThread();
+      let release: () => void = () => {};
+      const released = new Promise<void>((resolve) => (release = resolve));
+      page.api.on("GET", "/threads", async (call: Call) => {
+        if (call.url.searchParams.has("search")) {
+          return { body: { threads: [unread(3)], total: 1 } };
+        }
+        await released;
+        const from = Number(call.url.searchParams.get("cursor") ?? "0");
+        const to = from + listPage;
+        return {
+          body: {
+            threads: list.threads.slice(from, to),
+            total: list.threads.length,
+            ...(to < list.threads.length ? { next: String(to) } : {}),
+          },
+        };
+      });
+      press("]");
+      await waitFor(() => expect(wholeWalks()).toBe(2));
+      toNarrowed();
+      release();
+      await landedOn(3);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      // The walk again read no page of the whole list past its first.
+      expect(wholeWalks()).toBe(2);
+    });
+
+    it("while the press walks it for the thread below", async () => {
       serveList([read(1), unread(2), unread(3)]);
       await openThread();
       const release = holdLists();
@@ -286,13 +360,11 @@ describe("Next", () => {
     });
   });
 
-  it("stops at its most pages in a list that goes on, and says it could not find the next rather than that none is left", async () => {
+  it("stops at its most pages in a list that goes on, and says it could not find the thread below rather than that none is left", async () => {
     serveEndless();
     await openThread();
     press("]");
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Finding the next thread/,
-    );
+    await headFailed();
     // One page on opening, which held the thread, and the most on the press.
     expect(walked()).toHaveLength(1 + mostPages);
     expect(window.location.pathname).toBe(path);
@@ -340,7 +412,7 @@ describe("Next", () => {
     await landedOn(2);
   });
 
-  it("archives nothing with e while it is finding the next thread", async () => {
+  it("archives nothing with e while it is finding the thread below", async () => {
     const list = serveList([read(1), unread(2)]);
     await openThread();
     const held = holdList(list);
@@ -405,25 +477,175 @@ describe("Next", () => {
     expect(window.location.pathname).toBe("/");
   });
 
-  it("says so and stays when finding the next thread fails", async () => {
+  it("says so and stays when finding the thread below fails", async () => {
     page.api.on("GET", "/threads", { status: 502, text: "<h1>Bad gateway</h1>" });
     await openThread();
-    fireEvent.click(nextButton());
-    // Only its words say which action on the thread failed.
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Finding the next thread/,
-    );
+    fireEvent.click(belowButton());
+    await headFailed();
     expect(window.location.pathname).toBe(path);
     // Chosen again, it looks again, at the list as it stands.
     serveList([read(1), unread(2)]);
-    fireEvent.click(nextButton());
+    fireEvent.click(belowButton());
     await landedOn(2);
   });
 });
 
-describe("Archive & next", () => {
-  it("archives all of the thread once it shows every message, then opens what came after it in its place", async () => {
-    const list = serveList([read(1), read(2), unread(3)]);
+describe("Thread above", () => {
+  it("opens the row above this one in the list it returns to, as a new entry, reading no further than every thread ahead", async () => {
+    serveList([unread(4), read(2), read(3), read(1), unread(5), unread(6)]);
+    await openThread({}, "/?sort=latest&group=session");
+    const opened = walked().length;
+    const length = window.history.length;
+    fireEvent.click(aboveButton());
+    await landedOn(3);
+    expect(window.history.length).toBe(length + 1);
+    expect(window.history.state).toMatchObject({ from: "/?sort=latest&group=session" });
+    // The press read the first two pages, which hold every thread ahead, and
+    // not the third.
+    const press = walked().slice(opened, opened + 2);
+    expect(press.map((query) => query.get("cursor"))).toEqual([null, "2"]);
+    expect(press.every((query) => query.get("group") === "session")).toBe(true);
+    expect(
+      walked()
+        .slice(opened)
+        .filter((query) => query.get("cursor") === "4"),
+    ).toHaveLength(0);
+  });
+
+  it("goes round past the start of the list to its last thread, reading the list to its end", async () => {
+    serveList([read(1), unread(2), unread(3), unread(4), unread(5)]);
+    await openThread();
+    press("[");
+    await landedOn(5);
+  });
+
+  it("goes on from where the thread stood when it opened, though the page moved it since", async () => {
+    const list = serveList([unread(2), unread(3), read(1), unread(4)]);
+    await openThread();
+    // Answering here moved this thread to the top.
+    list.threads = [read(1), unread(2), unread(3), unread(4)];
+    press("[");
+    await landedOn(3);
+  });
+
+  it("passes over a thread gone from the list since the thread opened", async () => {
+    const list = serveList([unread(2), unread(3), read(1), unread(4)]);
+    await openThread();
+    // Thread 3 was archived on another device.
+    list.threads = [unread(2), read(1), unread(4)];
+    press("[");
+    await landedOn(2);
+  });
+
+  it("counts a thread new since the thread opened where it stands now, above it or not", async () => {
+    const list = serveList([unread(2), read(1), unread(8), unread(9)]);
+    list.threads = [unread(2), read(1)];
+    await openThread();
+    // Thread 9 arrived at the top, and thread 8 just below where this thread
+    // sits.
+    list.threads = [unread(9), unread(2), unread(8), read(1)];
+    press("[");
+    await landedOn(2);
+  });
+
+  it("takes the last of the threads ahead as the list orders them now, though one moved in among them", async () => {
+    // Under the priority order, thread 4 rose in among those ahead.
+    const list = serveList([unread(2), unread(3), read(1), unread(4)]);
+    await openThread({}, "/?sort=priority");
+    list.threads = [unread(2), unread(4), unread(3), read(1)];
+    press("[");
+    await landedOn(3);
+  });
+
+  it("goes on from where the thread stood under the unread filter, though read threads ahead left that list", async () => {
+    // Thread 2 and this one are read, so the unread list holds neither.
+    page.api.on("GET", "/threads", (call: Call) => {
+      const threads = call.url.searchParams.has("unread")
+        ? [unread(3), unread(4)]
+        : [read(2), unread(3), read(1), unread(4)];
+      return { body: { threads, total: threads.length } };
+    });
+    for (const number of [3, 4]) {
+      page.api.on("GET", threadPath(number), { body: threadAnswer(unread(number), [message(1)]) });
+      page.api.on("POST", `${threadPath(number)}/read`, {
+        body: { cursors: { requester: 1, audience: 1 } },
+      });
+    }
+    await openThread({}, "/?unread=true");
+    press("[");
+    await landedOn(3);
+    expect(window.history.state).toMatchObject({ from: "/?unread=true" });
+    expect(
+      walked()
+        .slice(0, 2)
+        .map((query) => query.has("unread")),
+    ).toEqual([false, true]);
+  });
+
+  it("abandons its walk when the page closes meanwhile", async () => {
+    const list = serveList([read(1), ...[2, 3, 4, 5, 6, 7, 8].map(unread)]);
+    await openThread();
+    const held = holdList(list);
+    // Going round from the first row reads to the list's end, four pages.
+    press("[");
+    await waitFor(() => expect(held.asked()).toBe(1));
+    cleanup();
+    held.release();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(held.asked()).toBe(1);
+  });
+
+  it("gives no thread it found before its most pages while a thread ahead may lie further on", async () => {
+    const list = serveList([read(2), read(5), read(1)]);
+    await openThread();
+    // Thread 5 left the list, which now goes on past the most pages a walk
+    // reads, so a later page could hold a thread ahead lower than thread 2.
+    list.threads = [];
+    page.api.on("GET", "/threads", (call: Call) => {
+      const at = Number(call.url.searchParams.get("cursor") ?? "0");
+      return {
+        body: {
+          threads: at === 0 ? [read(2), read(1)] : [unread(100 + at)],
+          total: 1000,
+          next: String(at + 1),
+        },
+      };
+    });
+    const opened = walked().length;
+    press("[");
+    await headFailed();
+    expect(walked().length - opened).toBe(mostPages);
+    expect(window.location.pathname).toBe(path);
+  });
+
+  it("follows a thread the list does not hold with the list's last thread", async () => {
+    serveList([read(2), unread(3), unread(4)]);
+    await openThread();
+    press("[");
+    await landedOn(4);
+  });
+
+  it("goes back to the list when it holds no other thread, and the list says so", async () => {
+    serveList([unread(1)]);
+    await openThread({ unread: 1 });
+    press("[");
+    expect(await listSays()).toBe(noOtherThread);
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("stops at its most pages going round a list that goes on, and says it could not find the thread above rather than that none is left", async () => {
+    serveEndless();
+    await openThread();
+    press("[");
+    await headFailed();
+    expect(walked()).toHaveLength(1 + mostPages);
+    expect(window.location.pathname).toBe(path);
+  });
+});
+
+describe("Archive & move on", () => {
+  it("archives all of the thread once it shows every message, then opens the thread above in its place", async () => {
+    const list = serveList([read(2), read(1), unread(3)]);
     const messages = Array.from({ length: 120 }, (_, index) =>
       message(index + 1, { text: `Message ${index + 1}` }),
     );
@@ -435,12 +657,34 @@ describe("Archive & next", () => {
       list.threads = [read(2), unread(3)];
       return { body: { marks: { read_through: 120, archived_through: 120 } } };
     });
-    fireEvent.click(archiveAndNext());
+    fireEvent.click(archiveAndMoveOn());
     await landedOn(2);
     expect(page.api.callsTo("POST", `${path}/archive`).map((call) => call.body)).toEqual([
       { through: 120 },
     ]);
     expect(window.history.length).toBe(length);
+  });
+
+  it("opens the thread below in its place once this device moves on to it", async () => {
+    moveOnTo("below");
+    const list = serveList([read(2), read(1), unread(3)]);
+    await openThread();
+    page.api.on("POST", `${path}/archive`, () => {
+      list.threads = [read(2), unread(3)];
+      return { body: { marks: { read_through: 1, archived_through: 1 } } };
+    });
+    press("E");
+    await landedOn(3);
+  });
+
+  it("goes round past the start of the list to its last thread, moving on above", async () => {
+    serveList([read(1), unread(2), unread(3)]);
+    page.api.on("POST", `${path}/archive`, {
+      body: { marks: { read_through: 1, archived_through: 1 } },
+    });
+    await openThread();
+    press("E");
+    await landedOn(3);
   });
 
   it("goes back to the list once archived when it holds no other thread, and the list says so", async () => {
@@ -458,8 +702,8 @@ describe("Archive & next", () => {
       "/",
       [message(1, { asks: [ask()] })],
     );
-    expect(archiveAndNext().disabled).toBe(true);
-    const hint = document.getElementById(archiveAndNext().getAttribute("aria-describedby") ?? "");
+    expect(archiveAndMoveOn().disabled).toBe(true);
+    const hint = document.getElementById(archiveAndMoveOn().getAttribute("aria-describedby") ?? "");
     expect(hint?.textContent).not.toBe("");
     press("E");
     expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
@@ -475,14 +719,13 @@ describe("Archive & next", () => {
       `${path}/archive`,
       failure("invalid_input", "ask 2 is open to you; answer or decline it before archiving"),
     );
-    fireEvent.click(archiveAndNext());
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Archiving this thread/,
-    );
+    fireEvent.click(archiveAndMoveOn());
+    await headFailed();
     expect(window.location.pathname).toBe(path);
   });
 
-  it("finds the next again in the list as it now stands when the list changed while the archive was under way", async () => {
+  it("finds the thread again in the list as it now stands when the list changed while the archive was under way", async () => {
+    moveOnTo("below");
     serveList([read(1), unread(2), unread(3)]);
     await openThread();
     let release: () => void = () => {};
@@ -491,7 +734,7 @@ describe("Archive & next", () => {
       await released;
       return { body: { marks: { read_through: 1, archived_through: 1 } } };
     });
-    fireEvent.click(archiveAndNext());
+    fireEvent.click(archiveAndMoveOn());
     await waitFor(() => expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1));
     // Thread 2 was found next in the whole list; the narrowed one leaves it out.
     const releaseLists = holdLists();
@@ -502,7 +745,8 @@ describe("Archive & next", () => {
     expect(window.history.state).toMatchObject({ from: narrowed });
   });
 
-  it("stays on the thread, archived, and says so when finding the next again fails after the list changed", async () => {
+  it("stays on the thread, archived, and says so when finding the thread again fails after the list changed", async () => {
+    moveOnTo("below");
     serveList([read(1), unread(2), unread(3)]);
     await openThread();
     let release: () => void = () => {};
@@ -511,35 +755,29 @@ describe("Archive & next", () => {
       await released;
       return { body: { marks: { read_through: 1, archived_through: 1 } } };
     });
-    fireEvent.click(archiveAndNext());
+    fireEvent.click(archiveAndMoveOn());
     await waitFor(() => expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1));
     page.api.on("GET", "/threads", { status: 502, text: "<h1>Bad gateway</h1>" });
     toNarrowed();
     release();
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Finding the next thread/,
-    );
+    await headFailed();
     expect(window.location.pathname).toBe(path);
     expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1);
   });
 
-  it("archives nothing when it cannot look through the whole list for the next thread", async () => {
+  it("archives nothing when it cannot look through the whole list for the thread above", async () => {
     serveEndless();
     await openThread();
-    fireEvent.click(archiveAndNext());
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Finding the next thread/,
-    );
+    fireEvent.click(archiveAndMoveOn());
+    await headFailed();
     expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
   });
 
-  it("archives nothing when finding the next thread fails", async () => {
+  it("archives nothing when finding the thread above fails", async () => {
     page.api.on("GET", "/threads", { status: 502, text: "<h1>Bad gateway</h1>" });
     await openThread();
-    fireEvent.click(archiveAndNext());
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Finding the next thread/,
-    );
+    fireEvent.click(archiveAndMoveOn());
+    await headFailed();
     expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
     expect(window.location.pathname).toBe(path);
   });

@@ -1,10 +1,11 @@
 // A notice one page leaves for the next, said once there: the thread page
 // that goes back to the list after sending says what it sent, and one that
-// goes on to the next thread after sending leaves it for that thread's page.
+// moves on to another thread after sending leaves it for that thread's page.
 // It lives only in this page's memory, so a reload or a later visit never
 // repeats it.
 
-// Where a notice is said: the thread list, or the next thread's page.
+// Where a notice is said: the thread list, or the page of the thread moved
+// on to.
 export type NoticePlace = "list" | "thread";
 
 const pending: Partial<Record<NoticePlace, string>> = {};
