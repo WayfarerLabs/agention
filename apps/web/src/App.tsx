@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import { AttentionProvider, useAttention } from "./attention.tsx";
-import { ErrorBoundary } from "./boundary.tsx";
-import { Failure, PageHeading } from "./components.tsx";
+import { ErrorBoundary, PageFailed } from "./boundary.tsx";
+import { Failure, focusLanding, PageHeading } from "./components.tsx";
 import { plural, Spoken } from "./format.tsx";
 import { KeyboardProvider } from "./keyboard.tsx";
 import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
@@ -13,8 +13,7 @@ import { Sessions } from "./views/Sessions.tsx";
 import { Settings } from "./views/Settings.tsx";
 import { sectionBySlug } from "./views/settings/sections.ts";
 import { SignIn } from "./views/SignIn.tsx";
-import { ThreadList } from "./views/ThreadList.tsx";
-import { ThreadView } from "./views/thread/ThreadView.tsx";
+import { Threads } from "./views/Threads.tsx";
 
 // The application: the browser's session, and the route's view.
 export function App() {
@@ -81,16 +80,22 @@ function Shell() {
   }
   const operatorExists = state.signed_in || state.operator_exists;
   const nav = state.signed_in ? <Navigation route={route} /> : undefined;
+  // Each route gets a view of its own, loaded afresh, except that the thread
+  // list and the threads share one, the Threads tab, which mounts afresh
+  // what it shows. A query alone, such as the thread list's filter, is the
+  // view's to follow.
+  const threadsTab = route.name === "threads" || route.name === "thread";
+  const view = threadsTab ? "threads" : location.pathname;
   const frame = (
-    <Frame nav={nav}>
+    <Frame nav={nav} view={view}>
       {route.name === "sign-in" ? (
         <SignIn operatorExists={operatorExists} />
       ) : route.name === "link" ? (
         <LinkPage operatorExists={operatorExists} />
+      ) : threadsTab ? (
+        <Threads thread={route.name === "thread" ? route : undefined} />
       ) : (
-        // Each route gets a view of its own, loaded afresh. A query alone,
-        // such as the thread list's filter, is the view's to follow.
-        <View route={route} key={location.pathname} />
+        <View route={route} key={view} />
       )}
     </Frame>
   );
@@ -105,10 +110,6 @@ function Shell() {
 
 function View({ route }: { route: Route }) {
   switch (route.name) {
-    case "threads":
-      return <ThreadList />;
-    case "thread":
-      return <ThreadView agent={route.agent} session={route.session} thread={route.thread} />;
     case "sessions":
       return <Sessions />;
     case "settings":
@@ -185,9 +186,11 @@ function Badge({ count, spoken }: { count: number; spoken: string }) {
 }
 
 // Frame is the page around every view, under a banner led by the server's
-// name. After a navigation, focus moves to the new view's heading, or to the
-// content while it loads, so keyboard and screen reader users start there.
-function Frame({ nav, children }: { nav?: ReactNode; children: ReactNode }) {
+// name. After a navigation, focus moves to where it lands (focusLanding): the
+// new view's heading, or the content while it loads, so keyboard and screen
+// reader users start there. view names the view on screen, which a page that
+// failed to render gives way to when it changes.
+function Frame({ nav, view, children }: { nav?: ReactNode; view?: string; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   const first = useRef(true);
@@ -196,7 +199,9 @@ function Frame({ nav, children }: { nav?: ReactNode; children: ReactNode }) {
       first.current = false;
       return;
     }
-    (main.current?.querySelector("h1") ?? main.current)?.focus();
+    if (main.current !== null) {
+      focusLanding(main.current);
+    }
   }, [pathname]);
   return (
     <>
@@ -212,24 +217,10 @@ function Frame({ nav, children }: { nav?: ReactNode; children: ReactNode }) {
       <main id="main" ref={main} tabIndex={-1}>
         {/* A page that fails to render leaves the navigation standing, and
             going elsewhere starts afresh. */}
-        <ErrorBoundary key={pathname} fallback={<PageFailed />}>
+        <ErrorBoundary key={view ?? pathname} fallback={<PageFailed />}>
           {children}
         </ErrorBoundary>
       </main>
-    </>
-  );
-}
-
-function PageFailed() {
-  return (
-    <>
-      <PageHeading>Something went wrong</PageHeading>
-      <p>Agention could not show this page.</p>
-      <div className="actions">
-        <button type="button" onClick={() => window.location.reload()}>
-          Reload
-        </button>
-      </div>
     </>
   );
 }

@@ -49,7 +49,14 @@ import {
 import { Icon, Mark } from "../../icons.tsx";
 import { useShortcuts } from "../../keyboard.tsx";
 import { leaveNotice } from "../../notice.ts";
-import { Link, listHref, navigate, originOf, threadPathParts } from "../../router.tsx";
+import {
+  currentListView,
+  Link,
+  listHref,
+  navigate,
+  threadPathParts,
+  useListView,
+} from "../../router.tsx";
 import { Composer } from "./Composer.tsx";
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
@@ -260,9 +267,9 @@ export function ThreadView({
   thread: number;
 }) {
   const target = useMemo(() => ({ agent, session, number }), [agent, session, number]);
-  // The shell mounts the page afresh for each thread, so its history entry's
-  // state is read once.
-  const [origin] = useState(() => originOf(window.history.state));
+  // The list the page returns to, which the list beside it side by side can
+  // change while it is open.
+  const origin = useListView();
   const loaded = useThread(target);
   // Whether the messages the operator archived are unfolded.
   const [unfolded, setUnfolded] = useState(false);
@@ -407,7 +414,9 @@ function ThreadPage({
   // the list, as email does, so the page does not read the thread again at
   // once; the page they leave is replaced, so going back does not either.
   // One that lands after the operator moved on to another page leaves them
-  // there. Archiving through a message stays on the page.
+  // there. Archiving through a message stays on the page. Each goes to the
+  // list as it stands once the change lands (returnToList), which side by
+  // side the list beside the thread may have changed meanwhile.
   const stillOpen = useStillOpen();
   // The message the latest mark from a message was made from, and the mark.
   const [markedFrom, setMarkedFrom] = useState<{ seq: number; mark: "unread" | "archive" }>();
@@ -424,7 +433,7 @@ function ThreadPage({
       ),
     );
     if (done !== undefined && stillOpen()) {
-      navigate(listHref(origin), { replace: true });
+      returnToList();
     }
   };
   // Archive all first shows every message through the thread's latest,
@@ -863,7 +872,7 @@ function ThreadPage({
         wrote={(seq) => setWrittenHere((current) => new Set([...current, seq]))}
         back={(notice) => {
           leaveNotice(notice);
-          navigate(listHref(origin), { replace: true });
+          returnToList();
         }}
         shown={shown}
         text={text}
@@ -886,6 +895,13 @@ function ThreadPage({
       </div>
     </article>
   );
+}
+
+// returnToList leaves the thread page for the list it returns to, as it
+// stands when called, replacing the page's history entry, so going back does
+// not open the thread again.
+function returnToList(): void {
+  navigate(listHref(currentListView()), { replace: true });
 }
 
 // BackToThreads is the back button to the thread list as the operator left

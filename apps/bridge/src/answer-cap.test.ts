@@ -374,8 +374,7 @@ describe("a result over the cap", () => {
     expect((answer.json as { omitted: string[] }).omitted).toEqual([path]);
   });
 
-  // Building thousands of asks takes hundreds of round trips through the bridge.
-  it("keeps a thread with thousands of open asks within the cap", { timeout: 30_000 }, async () => {
+  it("keeps a thread with thousands of open asks within the cap", async () => {
     const asks = Array.from({ length: 10 }, () => ({ question: astral(300) }));
     await startThread("r1", { asks });
     for (let seq = 1; seq < 200; seq++) {

@@ -8,8 +8,9 @@ import { BlockList, isIP } from "node:net";
 // only localhost and IP addresses on the operator's own network, since the
 // key and the audio cross it unencrypted. Never reached, over either scheme:
 // link-local addresses, the cloud metadata addresses outside them, the
-// unspecified address and multicast. A host name other than localhost is not
-// resolved here: over https, the provider's certificate is what binds it.
+// unspecified address, multicast and the NAT64 local-use prefix. A host name
+// other than localhost is not resolved here: over https, the provider's
+// certificate is what binds it.
 
 // Addresses no base URL may name. An IPv4-mapped IPv6 address is judged as
 // the IPv4 address it maps, and one in the NAT64 well-known prefix is
@@ -44,6 +45,13 @@ own.addSubnet("fc00::", 7, "ipv6");
 const nat64 = new BlockList();
 nat64.addSubnet("64:ff9b::", 96, "ipv6");
 
+// The NAT64 local-use prefix, 64:ff9b:1::/48 (RFC 8215), within which a
+// network chooses its own translator's prefix, from /48 to /96. Where the IPv4
+// address sits depends on that choice, so an address here cannot be judged by
+// the address it embeds, and is refused outright.
+const localNat64 = new BlockList();
+localNat64.addSubnet("64:ff9b:1::", 48, "ipv6");
+
 // embeddedIpv4 gives the IPv4 address an IPv6 address in the NAT64 prefix
 // embeds, or undefined for any other address.
 function embeddedIpv4(host: string): string | undefined {
@@ -73,6 +81,13 @@ export function checkBaseUrl(value: string): BaseUrlCheck {
   const host = url.hostname.replace(/^\[(.*)\]$/, "$1");
   const version = isIP(host);
   const family = version === 4 ? "ipv4" : version === 6 ? "ipv6" : undefined;
+  if (version === 6 && localNat64.check(host, "ipv6")) {
+    return {
+      problem:
+        "must not be a local-use NAT64 address, since the IPv4 address it reaches depends on " +
+        "your network's translator; give a host name over https, or the IPv4 address itself, instead",
+    };
+  }
   // An address in the NAT64 prefix is refused as the IPv4 address it
   // embeds would be, but is never the operator's own network: a translator
   // carries it across networks they may not control.

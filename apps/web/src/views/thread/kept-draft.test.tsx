@@ -1,4 +1,12 @@
-import { cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   draftDays,
@@ -171,6 +179,25 @@ describe("a draft kept in the browser", () => {
     answer(written(2));
     await waitFor(() => expect(window.location.pathname).toBe("/"));
     expect(readDraft(thread)).toMatchObject({ text: "First. And second.", basis: 2 });
+  });
+
+  it("stays as edited since when a write sent before the thread was left lands", async () => {
+    const state = await page.openLog({ last_seq: 1 });
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise<Reply>((resolve) => (answer = resolve)),
+    );
+    fireEvent.change(textBox(), { target: { value: "First." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.change(textBox(), { target: { value: "First. And second." } });
+    await reopen(state);
+    fireEvent.change(textBox(), { target: { value: "First. And a newer second." } });
+    await act(async () => answer(written(2)));
+    await reopen(state);
+    expect(textBox().value).toBe("First. And a newer second.");
   });
 
   it("is forgotten when the page goes back as the write sending it lands", async () => {
@@ -480,11 +507,12 @@ describe("the drafts the browser keeps", () => {
 });
 
 describe("two pages keeping a thread's draft", () => {
+  type Typed = { text: string; basis?: number };
   const typing = (text: string) =>
     renderHook(
-      ({ text: typed }: { text: string }) =>
-        useKeptDraft(thread, { ...draft, text: typed }, typed !== ""),
-      { initialProps: { text } },
+      ({ text: typed, basis = draft.basis }: Typed) =>
+        useKeptDraft(thread, { ...draft, text: typed, basis }, typed !== ""),
+      { initialProps: { text } as Typed },
     );
 
   it("keep the draft typed last, which emptying the other leaves alone", () => {
@@ -501,5 +529,16 @@ describe("two pages keeping a thread's draft", () => {
     typing("From the second");
     first.result.current("", "", 2, false);
     expect(readDraft(thread)).toMatchObject({ text: "From the second" });
+  });
+
+  it("keep the draft typed last when the other's write lands with some left, until it is typed on", () => {
+    const first = typing("Left of the first");
+    typing("From the second");
+    first.result.current("Left of the first", "", 2, false);
+    // The page then counts from the message written, which changes its draft.
+    first.rerender({ text: "Left of the first", basis: 2 });
+    expect(readDraft(thread)).toMatchObject({ text: "From the second" });
+    first.rerender({ text: "Left of the first, typed on", basis: 2 });
+    expect(readDraft(thread)).toMatchObject({ text: "Left of the first, typed on", basis: 2 });
   });
 });
