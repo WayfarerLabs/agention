@@ -11,7 +11,7 @@ import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agen
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { StubProvider } from "../../server/src/transcription/test-provider.ts";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, test } from "./fixtures.ts";
+import { type Agention, expect, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -159,7 +159,7 @@ test("Settings at a desktop's width opens the first section beside the navigatio
 });
 
 test("Settings at a phone's width lists the sections alone, and a section leads back to them", async () => {
-  await page.setViewportSize(phone);
+  await resize(page, phone);
   try {
     await settingsTab().click();
     await expect(page).toHaveURL(/\/settings$/);
@@ -186,7 +186,7 @@ test("Settings at a phone's width lists the sections alone, and a section leads 
     }
     await expect(page.getByRole("banner").getByRole("button")).toHaveCount(0);
   } finally {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
 });
 
@@ -215,7 +215,7 @@ test("voice set up to the operator's own server transcribes through Try it", asy
 
 test("dictation puts its text at the caret, and sends nothing, at a desktop's width and a phone's", async () => {
   for (const [index, size] of [wide, phone].entries()) {
-    await page.setViewportSize(size);
+    await resize(page, size);
     const created = await agent.send<WriteResult>("POST", threads, {
       request_id: `voice-${index}`,
       title: `Pick a database ${index}`,
@@ -244,12 +244,12 @@ test("dictation puts its text at the caret, and sends nothing, at a desktop's wi
     const thread = await agent.send<ThreadGetResult>("GET", `${threads}/${created.body.number}`);
     expect(thread.body.messages).toHaveLength(1);
   }
-  await page.setViewportSize(wide);
+  await resize(page, wide);
 });
 
 test("on a short phone's screen, typed lines stay clear of the row while recording and after a failure", async () => {
   const short = { width: 390, height: 500 };
-  await page.setViewportSize(short);
+  await resize(page, short);
   const created = await agent.send<WriteResult>("POST", threads, {
     request_id: "voice-short",
     title: "Short screen",
@@ -300,11 +300,11 @@ test("on a short phone's screen, typed lines stay clear of the row while recordi
   await expect(reply.getByRole("button", { name: "Retry" })).toBeInViewport();
   await reply.getByRole("button", { name: "Discard" }).click();
   stub.answer = () => ({ status: 200, body: JSON.stringify({ text: "SQLite" }) });
-  await page.setViewportSize(wide);
+  await resize(page, wide);
 });
 
 test("typing while the microphone opens keeps focus and every key in the message box", async () => {
-  await page.setViewportSize({ width: 390, height: 500 });
+  await resize(page, { width: 390, height: 500 });
   const created = await agent.send<WriteResult>("POST", threads, {
     request_id: "voice-typing",
     title: "Typing while it opens",
@@ -333,7 +333,7 @@ test("typing while the microphone opens keeps focus and every key in the message
   await page.waitForTimeout(1500);
   await reply.getByRole("button", { name: "Stop" }).click();
   await expect(box).toHaveValue("abc\n\nOne\nTwo\nThree\nFour\nFive SQLite");
-  await page.setViewportSize(wide);
+  await resize(page, wide);
 });
 
 test("a message read aloud speaks until stopped", async () => {

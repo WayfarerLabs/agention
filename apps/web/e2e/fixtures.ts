@@ -11,7 +11,7 @@
 // by its public key (--ignore-certificate-errors-spki-list). Trusting that one
 // key makes the page a real secure context, where ignoring certificate errors
 // altogether would only bypass them.
-import { test as base } from "@playwright/test";
+import { test as base, type CDPSession, type Page } from "@playwright/test";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -233,3 +233,27 @@ export const test = base.extend<
 });
 
 export { expect } from "@playwright/test";
+
+// Below the web UI's phone breakpoint (40rem, styles.css).
+const phoneWidth = 640;
+
+// Each page's session with Chromium for touch emulation, kept open since
+// closing it ends the emulation.
+const devtools = new WeakMap<Page, CDPSession>();
+
+// Sizes the window as a test's device: below a phone's width the main pointer
+// is a touch screen, as on a phone, so the page takes the sizes it gives a
+// fingertip; at a wider one it is the mouse Playwright's Chromium has, which
+// takes the denser sizes (styles.css, pointer: fine).
+export async function resize(page: Page, size: { width: number; height: number }): Promise<void> {
+  let session = devtools.get(page);
+  if (session === undefined) {
+    session = await page.context().newCDPSession(page);
+    devtools.set(page, session);
+  }
+  await session.send("Emulation.setTouchEmulationEnabled", {
+    enabled: size.width < phoneWidth,
+    maxTouchPoints: 1,
+  });
+  await page.setViewportSize(size);
+}
