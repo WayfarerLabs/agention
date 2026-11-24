@@ -100,7 +100,8 @@ with each other or with what the product does, the disagreement is the finding.
   going round past its end, and back to the list, which says so, once it holds no other; Send and
   what answers it kept on a short screen while writing, After sending's choices, back to the list,
   staying, the next thread and archiving then the next, refused while an ask stays open, and the way
-  back under the composer; the Threads tab side by side at a desktop's width, the list kept as
+  back under the composer; the compact sizes with a mouse and the full ones by touch, a touchscreen
+  laptop among them; the Threads tab side by side at a desktop's width, filling it, the list kept as
   chosen beside each thread opened, the open thread's row marked, Back from thread to thread, focus
   back on the row left, and one at a time below that width; stranded's reasons, in the warning's
   color in both tabs; the sessions view, its group and agent folds and folded rows with what each

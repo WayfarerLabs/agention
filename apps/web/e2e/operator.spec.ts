@@ -43,7 +43,7 @@ import type {
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { expect, hostName, secondServerName, serverName, test } from "./fixtures.ts";
+import { expect, hostName, resize, secondServerName, serverName, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -332,7 +332,7 @@ test("a draft comes back after the Sessions tab and a reload, until Discard draf
 
 test("Send stays on a short phone's screen while the message box is at its foot, within the composer", async () => {
   const wide = page.viewportSize();
-  await page.setViewportSize({ width: 390, height: 500 });
+  await resize(page, { width: 390, height: 500 });
   // The thread, side by side at the width before, shows alone.
   await expect(page.getByRole("region", { name: "Thread list" })).toHaveCount(0);
   const box = page.getByLabel("Message", { exact: true });
@@ -389,7 +389,7 @@ test("Send stays on a short phone's screen while the message box is at its foot,
   const bar = await boxOf(row);
   expect((await boxOf(back)).y).toBeGreaterThanOrEqual(bar.y + bar.height);
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
   await expect(page.getByRole("region", { name: "Thread list" })).toBeVisible();
 });
@@ -731,7 +731,7 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
   await pane.focus();
   const wide = page.viewportSize();
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   await expect(list).toHaveCount(0);
   await expect(page.locator("ul.threads")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
@@ -744,7 +744,7 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await page.keyboard.press("u");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
   await sort.selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);
@@ -832,7 +832,7 @@ test("the sessions view shows a session's status and log, and starts a thread th
 
   // At a phone's width, the view and its sheet scroll only up and down.
   const wide = page.viewportSize();
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   const scrollsSideways = () =>
     page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(await scrollsSideways()).toBe(false);
@@ -848,7 +848,7 @@ test("the sessions view shows a session's status and log, and starts a thread th
   await sheet.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Keep the archive$/);
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
   const number = Number(new URL(page.url()).pathname.split("/").at(-1));
 
@@ -885,7 +885,7 @@ test("a session's options menu lies over the next agent's header, at a phone's w
   const wide = page.viewportSize();
   for (const size of [wide, { width: 390, height: 844 }]) {
     if (size !== null) {
-      await page.setViewportSize(size);
+      await resize(page, size);
     }
     const options = page.getByRole("button", { name: "Options for builder/main" });
     await options.click();
@@ -922,7 +922,7 @@ test("a session's options menu lies over the next agent's header, at a phone's w
   await expect(tags).toBeHidden();
   await builder.click();
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
 });
 
@@ -981,7 +981,7 @@ test("the sessions view folds by group, each group's head linking to its threads
       .evaluate((chip) => chip.getBoundingClientRect().height);
   for (const size of [wide, { width: 390, height: 844 }]) {
     if (size !== null) {
-      await page.setViewportSize(size);
+      await resize(page, size);
     }
     expect(await scrollsSideways()).toBe(false);
     // A tag is one chip, as tall in its agent's header as in its session's
@@ -1068,7 +1068,7 @@ test("the sessions view folds by group, each group's head linking to its threads
     }
   }
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
   await agent.send("POST", "/s/builder/main/status", { state: "working" });
 });
@@ -1169,7 +1169,7 @@ test("the last session's options menu lies over the folds below it, grouped or n
   const check = async () => {
     for (const size of [wide, { width: 390, height: 844 }]) {
       if (size !== null) {
-        await page.setViewportSize(size);
+        await resize(page, size);
       }
       for (const expanded of ["false", "true"]) {
         if ((await pastRequests.getAttribute("aria-expanded")) !== expanded) {
@@ -1187,7 +1187,7 @@ test("the last session's options menu lies over the folds below it, grouped or n
   await check();
   // With builder/main back in no group, the view folds by agent alone.
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
   await page.getByRole("button", { name: "Options for builder/main" }).click();
   await page.getByRole("button", { name: /^Group: / }).click();
@@ -1197,7 +1197,7 @@ test("the last session's options menu lies over the folds below it, grouped or n
   await expect(page.getByRole("button", { name: /^No group/ })).toHaveCount(0);
   await check();
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
 });
 
@@ -1258,8 +1258,9 @@ test("Next opens the next thread in the list and Archive & next archives the thr
     });
   }
   const wide = page.viewportSize();
-  // A short window, so the list beside the thread scrolls.
-  await page.setViewportSize({ width: wide?.width ?? 1280, height: 420 });
+  // A short window, so the list beside the thread scrolls, at the compact
+  // sizes too.
+  await resize(page, { width: wide?.width ?? 1280, height: 320 });
   await page.goto("/?search=Hopscotch&sort=created");
   const list = page.getByRole("region", { name: "Thread list" });
   const pane = page.getByRole("region", { name: "Thread", exact: true });
@@ -1290,7 +1291,7 @@ test("Next opens the next thread in the list and Archive & next archives the thr
   // On a phone the thread's head holds Next and Archive & next within its
   // width, and Archive & next archives the thread and opens the next in its
   // place.
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   await expect(list).toHaveCount(0);
   const head = page.locator(".thread-bar");
   for (const control of [
@@ -1336,7 +1337,7 @@ test("Next opens the next thread in the list and Archive & next archives the thr
   await expect(page.getByRole("status")).not.toBeEmpty();
   await expect(rows).toHaveCount(0);
   if (wide !== null) {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
   await page.goto("/");
 });
