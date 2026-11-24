@@ -213,6 +213,8 @@ export class BridgeHarness {
       env: {
         PATH: process.env.PATH ?? "",
         HOME: this.home,
+        // The run's own temporary directory, as an agent host passes its own.
+        TMPDIR: tmpdir(),
         AGENTION_URL: this.#origin,
         AGENTWORKS_AGENT: agent,
         AGENTWORKS_SESSION: session,

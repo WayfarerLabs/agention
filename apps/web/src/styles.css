@@ -28,6 +28,24 @@
   --color-success-bg: #e3f2e8;
   --color-attention: #6a3d9a;
   --color-attention-bg: #f0e9f8;
+  /* The palette of groups' and tags' colors: each a tone for text and marks
+     over its own background, at AA contrast with it in both themes. */
+  --tone-gray: #4a5361;
+  --tone-gray-bg: #eceff3;
+  --tone-red: #a3221b;
+  --tone-red-bg: #fde8e6;
+  --tone-orange: #8a4300;
+  --tone-orange-bg: #fdebd8;
+  --tone-yellow: #6b5300;
+  --tone-yellow-bg: #fbf2c9;
+  --tone-green: #1d6b3c;
+  --tone-green-bg: #e1f3e7;
+  --tone-teal: #0f6466;
+  --tone-teal-bg: #ddf3f2;
+  --tone-blue: #2a4fb8;
+  --tone-blue-bg: #e4ebfb;
+  --tone-purple: #6a3d9a;
+  --tone-purple-bg: #efe7f8;
 
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -75,6 +93,22 @@
     --color-success-bg: #16301f;
     --color-attention: #cfaaf7;
     --color-attention-bg: #2b2139;
+    --tone-gray: #c3cad4;
+    --tone-gray-bg: #2a3038;
+    --tone-red: #ffa198;
+    --tone-red-bg: #3d1e1b;
+    --tone-orange: #f6b26b;
+    --tone-orange-bg: #3a2510;
+    --tone-yellow: #ecd06b;
+    --tone-yellow-bg: #332b0c;
+    --tone-green: #86d6a0;
+    --tone-green-bg: #15301e;
+    --tone-teal: #7fd6d3;
+    --tone-teal-bg: #11302f;
+    --tone-blue: #9cb8ff;
+    --tone-blue-bg: #1d2a4a;
+    --tone-purple: #cfaaf7;
+    --tone-purple-bg: #2c2140;
   }
 }
 
@@ -1253,6 +1287,26 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0;
 }
 
+/* A group's moves on its head in the sessions view's manual order: its
+   handle and buttons, over the bar's fold button, as its links are. */
+.group-moves {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: calc(var(--space-2) * -1) 0;
+}
+
+.group.dragging {
+  opacity: 0.5;
+}
+
+.group.drop-over > .fold-head > .group-head {
+  border-top-color: var(--color-accent);
+  box-shadow: inset 0 2px 0 var(--color-accent);
+}
+
 .roll-up-count {
   color: var(--color-muted);
 }
@@ -2380,18 +2434,59 @@ button.older[aria-disabled="true"] {
 }
 
 /* The operator's session groups and tags: a group as a chip with a dashed
-   border, and a tag as one led by a muted hash, wherever a session or an
-   agent shows them. Their own line height, a chip's, keeps them one height
-   in a heading and in a row, their border the only difference from a
-   chip's. */
+   border, and a tag as one led by a hash, wherever a session or an agent
+   shows them, each in its color's tone over its background. Their own line
+   height, a chip's, keeps them one height in a heading and in a row, their
+   border the only difference from a chip's. */
+.tone-gray {
+  --tone: var(--tone-gray);
+  --tone-bg: var(--tone-gray-bg);
+}
+
+.tone-red {
+  --tone: var(--tone-red);
+  --tone-bg: var(--tone-red-bg);
+}
+
+.tone-orange {
+  --tone: var(--tone-orange);
+  --tone-bg: var(--tone-orange-bg);
+}
+
+.tone-yellow {
+  --tone: var(--tone-yellow);
+  --tone-bg: var(--tone-yellow-bg);
+}
+
+.tone-green {
+  --tone: var(--tone-green);
+  --tone-bg: var(--tone-green-bg);
+}
+
+.tone-teal {
+  --tone: var(--tone-teal);
+  --tone-bg: var(--tone-teal-bg);
+}
+
+.tone-blue {
+  --tone: var(--tone-blue);
+  --tone-bg: var(--tone-blue-bg);
+}
+
+.tone-purple {
+  --tone: var(--tone-purple);
+  --tone-bg: var(--tone-purple-bg);
+}
+
 .group-chip,
 .tag-chip {
   display: inline-block;
   padding: 0.125rem var(--space-2);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--tone, var(--color-border));
+  border-color: color-mix(in srgb, var(--tone, var(--color-border)) 45%, transparent);
   border-radius: var(--radius-small);
-  background: var(--color-surface-2);
-  color: var(--color-text);
+  background: var(--tone-bg, var(--color-surface-2));
+  color: var(--tone, var(--color-text));
   font-size: var(--text-tag);
   font-weight: 400;
   line-height: 1.5;
@@ -2405,21 +2500,159 @@ button.older[aria-disabled="true"] {
 .tag-chip::before {
   content: "#";
   margin-right: 0.125rem;
-  color: var(--color-muted);
+  color: var(--tone, var(--color-muted));
 }
 
-/* Actions on a whole view, at its top, such as the sessions view's Groups
-   and tags. */
-.view-actions {
+/* A color for the eye alone, as a dot before a group's name. */
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-right: 0.375rem;
+  border-radius: 50%;
+  background: var(--tone);
+  vertical-align: 0.05em;
+}
+
+/* The picker: a sheet rising from the bottom on a phone, and on a wide
+   screen a popover beside the control that opened it, which the page
+   places. A search box leads, over the list it narrows, each item on a line
+   of its own, a check marking the chosen, the item the keys are on
+   highlighted. */
+.labels-picker {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  max-height: 85dvh;
+  margin: auto 0 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large) var(--radius-large) 0 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.labels-picker[open] {
+  display: flex;
+}
+
+.labels-picker::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.labels-picker-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: var(--space-3);
+}
+
+.labels-picker-body input[type="search"] {
+  width: 100%;
+}
+
+.labels-picker-body p {
+  margin: 0;
+}
+
+.labels-picker-list {
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.labels-picker-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.labels-picker-item.active {
+  background: var(--color-accent-bg);
+}
+
+.labels-picker-item[aria-disabled="true"] {
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.labels-picker-check {
+  display: inline-flex;
+  flex: none;
+  width: 1.25rem;
+  color: var(--color-accent);
+}
+
+.labels-picker-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 40rem) {
+  .labels-picker {
+    position: fixed;
+    inset: auto;
+    top: 15vh;
+    left: calc(50% - 11rem);
+    width: 22rem;
+    max-height: min(28rem, 70dvh);
+    margin: 0;
+    border-radius: var(--radius-large);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  }
+
+  .labels-picker::backdrop {
+    background: transparent;
+  }
+}
+
+/* A registration's group and tags as its approval would give them: each
+   control beside what is picked. */
+.organize-pick {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.organize-picked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+/* Settings' groups and tags: each list under its search box and New, each
+   group or tag on a line of its own with what it holds, and its Rename,
+   color and Remove beneath; a group with its moves at the line's end and a
+   handle a mouse drags it by. */
+.organizer-head {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
 }
 
-/* The Groups and tags sheet: each group or tag on a line of its own with what
-   it holds, and its Rename and Remove beneath. */
+.organizer-head input[type="search"] {
+  flex: 1 1 12rem;
+}
+
+.organizer-section + .organizer-section {
+  margin-top: var(--space-5);
+}
+
 .organizer {
   margin: 0 0 var(--space-3);
   padding: 0;
@@ -2428,22 +2661,73 @@ button.older[aria-disabled="true"] {
 
 .organized {
   padding: var(--space-2) 0;
+  border-top: 2px solid transparent;
   border-bottom: 1px solid var(--color-border);
 }
 
-.organized p {
-  margin: 0;
-  overflow-wrap: anywhere;
+.organized-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.organized .tag-name::before {
-  content: "#";
+.organized-holds {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  font-size: var(--text-small);
+}
+
+.organized-moves {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch);
+  padding: 0;
+}
+
+.drag-handle {
+  display: inline-flex;
   color: var(--color-muted);
+  cursor: grab;
 }
 
-.organized .group-name,
-.organized .tag-name {
-  font-weight: 600;
+/* A touch screen moves groups by their buttons alone. */
+@media (hover: none) {
+  .drag-handle {
+    display: none;
+  }
+}
+
+.organized.dragging {
+  opacity: 0.5;
+}
+
+.organized.drop-over {
+  border-top-color: var(--color-accent);
+}
+
+/* A group's moves and color while a change is under way: they take no other,
+   yet keep focus, as disabled ones would not. */
+.organized [aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* A group's or a tag's color, chosen beside its Rename and Remove. */
+.organized .actions select {
+  width: auto;
+}
+
+.name-form {
+  margin: var(--space-2) 0;
 }
 
 /* Diagrams: the image the page makes from the diagram frame's answer, at its

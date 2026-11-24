@@ -10,12 +10,17 @@
 // a thread and returning from the keyboard, an ask the agent withdraws and the
 // way back under the composer, the sessions view with a session's status and
 // log, at a phone's width too, a thread the operator starts there and
-// stranded's reason, a session's options menu over the next agent's header, the
-// sessions view folded by group, its headers folding by a click on their bars
-// but for their chips, which link to their threads, as a group's, a tag's and
-// the stranded threads' do, and a tag as tall in a header as in a row, at a
-// phone's width too, the last session's options menu over the folds below it, grouped
-// or not, signing out from Settings and in again, a second passkey that takes
+// stranded's reason, a session's options menu over the next agent's header and
+// the picker it opens beside it on a wide screen and as a sheet on a phone,
+// the sessions view folded by group, a group created and tags picked in the
+// pickers, its headers folding by a click on their bars but for their chips,
+// which link to their threads, as a group's, a tag's and the stranded threads'
+// do, and a tag as tall in a header as in a row, at a phone's width too, its
+// groups moved in their manual order and its grouping and sort chosen, kept
+// in the address through a reload and Back, the
+// last session's options menu over the folds below it, grouped or not,
+// Settings' groups ordered by their buttons and by dragging, signing out from
+// Settings and in again, a second passkey that takes
 // over from the first in Settings' passkeys, which /passkeys leads to, and a
 // second server on another port of the host signed in beside the first. CDP
 // virtual authenticators stand in for the operator's devices; one page carries
@@ -770,6 +775,19 @@ test("a session's options menu lies over the next agent's header, at a phone's w
     await page.getByRole("button", { name: /^Group: / }).click();
     const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
     await expect(sheet).toBeVisible();
+    // The picker lies beside the options it was opened from on a wide
+    // screen, and rises from the bottom as a sheet on a phone.
+    const [at, box] = await Promise.all([options.boundingBox(), sheet.boundingBox()]);
+    expect(at).not.toBeNull();
+    expect(box).not.toBeNull();
+    if (at !== null && box !== null && size !== null) {
+      if (size.width >= 640) {
+        expect(Math.abs(box.y - (at.y + at.height))).toBeLessThan(16);
+        expect(Math.abs(box.x + box.width - (at.x + at.width))).toBeLessThan(16);
+      } else {
+        expect(Math.abs(box.y + box.height - size.height)).toBeLessThan(2);
+      }
+    }
     await page.keyboard.press("Escape");
     await expect(sheet).toBeHidden();
     await expect(options).toBeFocused();
@@ -797,9 +815,11 @@ test("the sessions view folds by group, each group's head linking to its threads
   // builder/main goes into a new group, Work; deployer/main stays in none.
   await page.getByRole("button", { name: "Options for builder/main" }).click();
   await page.getByRole("button", { name: /^Group: / }).click();
+  // The picker creates a group named as typed, and puts the session in it
+  // at once, with no Save.
   const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
-  await sheet.getByLabel("New group's name").fill("Work");
-  await sheet.getByRole("button", { name: "Save" }).click();
+  await sheet.getByRole("combobox").fill("Work");
+  await sheet.getByRole("option", { name: "Create group “Work”" }).click();
   await expect(sheet).toBeHidden();
   const work = page.getByRole("button", { name: "Group Work" });
   const none = page.getByRole("button", { name: "No group" });
@@ -807,20 +827,32 @@ test("the sessions view folds by group, each group's head linking to its threads
   await expect(none).toBeVisible();
   const builder = page.getByRole("button", { name: /^Agent builder/ });
   await expect(builder).toHaveCount(1);
-  // builder takes a new tag, example, and builder/main the same tag.
+  // builder takes a new tag, example, typed and created by the keys, and
+  // builder/main the same tag, picked; each pick applies at once.
   for (const path of ["builder", "builder/main"]) {
     await page.getByRole("button", { name: `Options for ${path}`, exact: true }).click();
     await page.getByRole("button", { name: /^Tags: / }).click();
     const tags = page.getByRole("dialog", { name: `Tags for ${path}` });
+    const search = tags.getByRole("combobox", { name: "Search or create tags" });
     if (path === "builder") {
-      await tags.getByRole("searchbox", { name: "Search or add tags" }).fill("example");
-      await tags.getByRole("button", { name: "Add tag example" }).click();
+      await expect(search).toBeFocused();
+      await search.fill("example");
+      await page.keyboard.press("Enter");
+      await expect(search).toHaveValue("");
     } else {
-      await tags.getByRole("checkbox", { name: "example" }).check();
+      await tags.getByRole("option", { name: "example" }).click();
     }
-    await tags.getByRole("button", { name: "Save" }).click();
+    await expect(tags.getByRole("option", { name: "example" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await tags.getByRole("button", { name: "Done" }).click();
     await expect(tags).toBeHidden();
   }
+  // The tag shows on the agent's header in its color.
+  await expect(page.locator(".fold-head .tag-chip", { hasText: "example" })).toHaveClass(
+    /\btone-[a-z]+\b/,
+  );
 
   const wide = page.viewportSize();
   const scrollsSideways = () =>
@@ -923,6 +955,71 @@ test("the sessions view folds by group, each group's head linking to its threads
   await agent.send("POST", "/s/builder/main/status", { state: "working" });
 });
 
+test("the sessions view moves its groups in their manual order, and groups and sorts as chosen, in the address", async () => {
+  // deployer/main goes into a new group, Ops, which goes last in the order.
+  await page.getByRole("button", { name: "Options for deployer/main" }).click();
+  await page.getByRole("button", { name: /^Group: / }).click();
+  const sheet = page.getByRole("dialog", { name: "Group for deployer/main" });
+  await sheet.getByRole("combobox").fill("Ops");
+  await sheet.getByRole("option", { name: "Create group “Ops”" }).click();
+  await expect(sheet).toBeHidden();
+  const heads = () =>
+    page
+      .locator(".group-head > .fold-main > h3 > .fold-toggle")
+      .evaluateAll((buttons) =>
+        buttons
+          .map((button) => button.getAttribute("aria-label") ?? "")
+          .filter((label) => label.startsWith("Group ")),
+      );
+  await expect.poll(heads).toEqual(["Group Work", "Group Ops"]);
+  // Move up moves it at the top, where focus goes on to its Move down, and
+  // the order holds once the page loads again.
+  await page.getByRole("button", { name: "Move Ops up" }).focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(heads).toEqual(["Group Ops", "Group Work"]);
+  await expect(page.getByRole("button", { name: "Move Ops down" })).toBeFocused();
+  await page.reload();
+  await expect.poll(heads).toEqual(["Group Ops", "Group Work"]);
+  // With a mouse, a group dragged by its handle onto another takes its place.
+  await page
+    .locator(".group")
+    .filter({ has: page.getByRole("button", { name: "Group Ops" }) })
+    .locator(".drag-handle")
+    .dragTo(page.getByRole("button", { name: "Group Work" }));
+  await expect.poll(heads).toEqual(["Group Work", "Group Ops"]);
+  // Sorted by name, either way, the address keeping it.
+  await page.getByRole("combobox", { name: "Sort" }).selectOption("alphabetic");
+  await expect.poll(heads).toEqual(["Group Ops", "Group Work"]);
+  await expect(page.getByRole("button", { name: /^Move / })).toHaveCount(0);
+  await page.getByRole("button", { name: "A to Z, reverse to z to a" }).click();
+  await expect.poll(heads).toEqual(["Group Work", "Group Ops"]);
+  await expect(page).toHaveURL(/\/sessions\?sort=alphabetic&reverse=true$/);
+  // Grouped by session, the sessions stand alone, the sort held, through a
+  // reload and back from the thread list.
+  await page.getByRole("combobox", { name: "Group" }).selectOption("session");
+  await expect(page).toHaveURL(/\/sessions\?group=session&reverse=true$/);
+  await expect(page.getByRole("button", { name: "Session deployer/main" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Agent / })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Session deployer/main" })).toBeVisible();
+  await page.getByRole("link", { name: "Threads of session builder/main" }).click();
+  await expect(page).toHaveURL(/\/\?session=builder\/main$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/sessions\?group=session&reverse=true$/);
+  await expect(page.getByRole("combobox", { name: "Group" })).toHaveValue("session");
+  // Ops goes again, in Settings, leaving deployer/main in no group, and the
+  // Sessions tab opens on its default arrangement.
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Groups and tags" }).click();
+  const ops = page.getByRole("article", { name: "Group Ops" });
+  await ops.getByRole("button", { name: "Remove" }).click();
+  await ops.getByRole("button", { name: "Remove this group" }).click();
+  await expect(ops).toHaveCount(0);
+  await page.getByRole("link", { name: /^Sessions/ }).click();
+  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(page.getByRole("button", { name: /^No group/ })).toBeVisible();
+});
+
 // menuLiesOnTop opens a session's options menu, brings each of its items
 // into view and checks that the item is what lies at its own center, so
 // nothing on the page, such as the head of a fold below, covers it, then
@@ -977,8 +1074,7 @@ test("the last session's options menu lies over the folds below it, grouped or n
   await page.getByRole("button", { name: "Options for builder/main" }).click();
   await page.getByRole("button", { name: /^Group: / }).click();
   const sheet = page.getByRole("dialog", { name: "Group for builder/main" });
-  await sheet.getByRole("radio", { name: "No group" }).check();
-  await sheet.getByRole("button", { name: "Save" }).click();
+  await sheet.getByRole("option", { name: "Clear group" }).click();
   await expect(sheet).toBeHidden();
   await expect(page.getByRole("button", { name: /^No group/ })).toHaveCount(0);
   await check();
@@ -1022,6 +1118,54 @@ test("a session whose plugin is behind the server says so on its row until the p
   await calls(String(agentApi.version));
   await reload();
   await expect(notice("builder/main")).toHaveCount(0);
+});
+
+test("Settings orders the groups by their buttons and by dragging, keeping the order", async () => {
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Groups and tags" }).click();
+  const groups = page.getByRole("region", { name: "Groups", exact: true });
+  const names = () =>
+    groups
+      .getByRole("article")
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+  await expect(groups.getByRole("article", { name: "Group Work" })).toBeVisible();
+  // A new group goes last.
+  await groups.getByRole("button", { name: "New group" }).click();
+  await groups.getByLabel("New group's name").fill("Alpha");
+  await groups.getByRole("button", { name: "Create group" }).click();
+  await expect(groups.getByRole("article", { name: "Group Alpha" })).toBeVisible();
+  expect(await names()).toEqual(["Group Work", "Group Alpha"]);
+  // Move up moves it, and the order holds once the page loads again. At the
+  // top, it can go no further up, so focus goes to its Move down.
+  const up = groups.getByRole("button", { name: "Move Alpha up" });
+  await up.focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(names).toEqual(["Group Alpha", "Group Work"]);
+  await expect(groups.getByRole("button", { name: "Move Alpha down" })).toBeFocused();
+  // A color chosen by keyboard applies, focus staying on it.
+  const color = groups.getByRole("combobox", { name: "Color of Alpha" });
+  const before = await color.inputValue();
+  await color.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(color).not.toHaveValue(before);
+  await expect(color).not.toHaveAttribute("aria-disabled", "true");
+  await expect(color).toBeFocused();
+  await page.reload();
+  await expect.poll(names).toEqual(["Group Alpha", "Group Work"]);
+  // With a mouse, dragging a group by its handle onto another puts it in
+  // that one's place.
+  await groups
+    .getByRole("article", { name: "Group Alpha" })
+    .locator(".drag-handle")
+    .dragTo(groups.getByRole("article", { name: "Group Work" }));
+  await expect.poll(names).toEqual(["Group Work", "Group Alpha"]);
+  await page.reload();
+  await expect.poll(names).toEqual(["Group Work", "Group Alpha"]);
+  // Remove asks first, then takes the group away.
+  const alpha = groups.getByRole("article", { name: "Group Alpha" });
+  await alpha.getByRole("button", { name: "Remove" }).click();
+  await alpha.getByRole("button", { name: "Remove this group" }).click();
+  await expect(alpha).toHaveCount(0);
 });
 
 test("signing in with the passkey returns to the page that needed it", async () => {
