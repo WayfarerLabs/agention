@@ -62,8 +62,9 @@ inferred types the server, the bridge and the web UI share:
   or infer; the sessions view's page of agents, each with its tags and its sessions; how many
   sessions have updates the operator has not read; a session's log and the operator's read mark on
   it; and the operator's start of a thread on a session;
-- the operator's session groups and tags: the list of them, creating, renaming and removing a group,
-  renaming and removing a tag, and setting a session's group and an agent's or a session's tags;
+- the operator's session groups and tags: the list of them, creating, renaming, recoloring, ordering
+  and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
+  group and an agent's or a session's tags, on their own or with an approval;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
@@ -160,17 +161,20 @@ an outcome exactly beside the stopped state, and an inferred entry only as worki
 thread.
 
 The operator's session groups are rows of their own, `session_groups`, each with a name unique
-ignoring the case of ASCII letters, since a group can be empty and renamed. A group keeps its id
-when renamed, and ids never repeat, so a filter or fold naming a removed group never reaches a later
-one. `session_group_members` is keyed on the session, so a session sits in at most one group, and
-removing a group takes its memberships with it by a cascade. A tag is only a name on an agent
-(`agent_tags`) or a session (`session_tags`), as a topic is a name on a thread: it exists while
-something carries it. Agents and sessions are never deleted, so no membership or tag outlives what
-it is on. A second full-text index, `message_texts`, holds the text and detail of every message that
-has text, matched as titles are. It keeps no copy of them, only each message's thread and sequence,
-since a message has no integer key of its own for an external-content index to rest on; a trigger
-fills it as a message is written, since messages are append-only, and a search joins its rows to
-`live_messages`, so a replaced message no longer matches.
+ignoring the case of ASCII letters, since a group can be empty and renamed, a color, and a position
+in the operator's order, unique by an index. A group keeps its id when renamed, and ids never
+repeat, so a filter or fold naming a removed group never reaches a later one.
+`session_group_members` is keyed on the session, so a session sits in at most one group, and
+removing a group takes its memberships with it by a cascade. A tag is a row of its own too, `tags`,
+with a unique name and a color, and exists until it is removed; an agent (`agent_tags`) or a session
+(`session_tags`) carries it by its name, a foreign key whose cascades rename it everywhere it is
+carried and take it off everything when it is removed. A check holds each color to the palette.
+Agents and sessions are never deleted, so no membership or tag outlives what it is on. A second
+full-text index, `message_texts`, holds the text and detail of every message that has text, matched
+as titles are. It keeps no copy of them, only each message's thread and sequence, since a message
+has no integer key of its own for an external-content index to rest on; a trigger fills it as a
+message is written, since messages are append-only, and a search joins its rows to `live_messages`,
+so a replaced message no longer matches.
 
 Files have three tables. `files` holds one row per upload: its random reference, the name and
 declared type it was uploaded with, its size, as its `Content-Length` declared it before any byte
@@ -350,14 +354,31 @@ holds, so to an agent none exists. A group's name is plain text on one line, tri
 points, unique ignoring the case of ASCII letters; a tag's is a name, as a topic's is. An instance
 holds at most 200 groups, and an agent or a session carries at most 20 tags; past either bound a
 write is `invalid_input`. A name another group or tag already has is refused as `conflict`, naming
-`name`, whether a group is created or either is renamed. A group's rename changes its name only, so
-a filter by its id keeps working, and removing it leaves its sessions in no group. Renaming a tag
-rewrites it on every agent and session carrying it, and removing one takes it off all of them, each
-in one transaction. Setting a session's group names it by id, or none; setting an agent's or a
-session's tags gives the whole set. The list of them gives every group in name order, with how many
-sessions each holds, and every tag carried, at most 500, in name order, with how many agents and how
-many sessions carry it, saying when it leaves any out. The sessions view's page carries each agent's
-tags, and each session's group and tags.
+`name`, whether either is created or renamed. A color is one of a fixed palette of eight named
+tones, `gray`, `red`, `orange`, `yellow`, `green`, `teal`, `blue` and `purple`, which each client
+draws to suit its themes; any other is `invalid_input`. A group or a tag created without a color
+takes the palette's in turn, each kind its own: the color after as many as there are groups, or
+tags, already. A tag is a row keyed by its name, which the tags agents and sessions carry name by a
+foreign key, and an instance keeps at most 500, so the list of them is whole unless an upgrade
+carried more tags in use than that, which it then says it left out; creating one past the cap,
+directly or by setting tags, is `invalid_input`. A new group goes last in the operator's order, and
+ordering the groups gives every group's id once, in the order wanted: a list naming any other set,
+as when another client created or removed a group since, is `invalid_input` on `groups` and changes
+nothing, so two clients' orders never interleave, and the later whole order stands. A group's rename
+changes its name only, so a filter by its id keeps working, and removing it leaves its sessions in
+no group. Renaming a tag renames it on every agent and session carrying it, and removing one takes
+it off all of them. Setting a session's group names it by id, or none; setting an agent's or a
+session's tags gives the whole set, and creates, with its color in turn, any tag it names that does
+not exist. Approving a registration may also give the session's group, by id or none, and its tags,
+which apply in the approval's transaction, so a new session never shows without them, and which need
+`sessions:write` beside `sessions:approve`: to an identity without it, they are `not_found`, naming
+the field, and nothing applies. A group is named by its id there as everywhere, so a client creates
+a new one first; a tag by its name, which creates it as setting tags does. Agents' tags are set on
+their own, since an agent's tags count for every session it has. The list of them gives every group
+in the operator's order, with its color and how many sessions it holds, and every tag, at most 500,
+in name order, with its color and how many agents and how many sessions carry it, none for a tag
+nothing carries, saying when it leaves any out. The sessions view's page carries each agent's tags,
+and each session's group and tags.
 
 The operator starts a thread on a session with a title and a first message of text, with its detail.
 The session stays the thread's requester and the operator its audience, so the operator's request
@@ -439,9 +460,10 @@ message of the operator's that the session has not read) or `stranded` (such a m
 session is quiet, has no active credential or has stopped); `agent` and `session`, up to 50 of each,
 a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id, `none`
 naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A
-group that was removed, or a tag nothing carries, keeps nothing. The filters on asks together keep
-the threads holding one open ask that meets them all, so any of them keeps only open threads. One
-definition of each filter's condition serves the list, its total, its counts and its roll-ups.
+group that was removed, or a tag nothing carries or that was removed, keeps nothing. The filters on
+asks together keep the threads holding one open ask that meets them all, so any of them keeps only
+open threads. One definition of each filter's condition serves the list, its total, its counts and
+its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -499,9 +521,9 @@ status, and every status but `open`, with the filters on asks off, as choosing i
 and each value of a filter on asks with `open` chosen, as choosing it chooses `open`. Each agent,
 session and topic holding a thread has its own count, whatever that filter's own choices are, each
 kind counted in one statement grouped by it with that filter's condition off; so does each group
-holding a thread, beside the count of threads in no group, and each tag that a session holding a
-thread, or its agent, carries, a thread counting once for a tag both carry. `reset` is the total
-with no filter on.
+holding a thread, in the operator's order, beside the count of threads in no group, and each tag
+that a session holding a thread, or its agent, carries, a thread counting once for a tag both carry.
+`reset` is the total with no filter on.
 
 Counts and roll-ups list at most 500 agents, sessions, topics and tags each, the first in name order
 or in the list's, and say when they leave any out; the sessions view's page pages agents, each with
@@ -557,12 +579,14 @@ built from the same lists ([API documentation](#api-documentation)).
   a pending upload; `sessions:read` the sessions view (`GET /sessions`), a session's log
   (`GET /s/:agent/:session/updates`), the groups and tags (`GET /groups-and-tags`) and the
   registrations (`GET /registrations`); `sessions:write` the log's read mark and the groups' and
-  tags' writes, each a POST naming its action (`/groups`, `/groups/:id/name`, `/groups/:id/remove`,
-  `/tags/:tag/name`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
-  `/agents/:agent/tags`); and `sessions:approve` approving, rejecting and revoking a registration. A
-  write or approve scope includes its resource's read, and neither includes the other. A test over
-  the list holds every operation a read scope grants to a `GET` without a body whose store work
-  writes nothing.
+  tags' writes, each a POST naming its action (`/groups`, `/groups/order`, `/groups/:id/name`,
+  `/groups/:id/color`, `/groups/:id/remove`, `/tags`, `/tags/:tag/name`, `/tags/:tag/color`,
+  `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and
+  `/agents/:agent/tags`); and `sessions:approve` approving, rejecting and revoking a registration,
+  with `sessions:write` too for an approval that gives the session's group or tags. A write or
+  approve scope includes its resource's read, and neither includes the other. A test over the list
+  holds every operation a read scope grants to a `GET` without a body whose store work writes
+  nothing.
 - **Agent operations** (`agent-operations.ts`) are the agent mount's: a session's status, starting a
   thread in it, its thread list and its long poll, and the operations on one thread and on its
   session's uploads (`thread-operations.ts`), which every mount shares under `/s/:agent/:session`,
@@ -1128,38 +1152,39 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                 |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                  |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                               |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                   |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
 filters on open asks and the status they keep. A session group is named in the address by its id, so
-the list loads the operator's groups and tags while the sheet is open or a group or tag filter is
-on, to name the groups chosen and to say which group was removed and which tag nothing carries.
-Grouped by session group, the list folds the sessions under their groups only while the roll-ups or
-the rows loaded hold two or more, no group among them, and composes a group's roll-up from its
-sessions', as it does an agent's; this browser keeps a group's fold by the group's id. A header's
-label and the marks of its roll-up that a filter matches link to the list's address with the
-header's own filter (its group by id, its session, topic or agent) and the mark's added to the view,
-and a plain click chooses that view in place, as the filters do, replacing the address and, when the
-view changes, moving focus to **Filters**. While a filter on open asks is on, Blocked on you and the
-priority stay plain: a roll-up counts every open ask of the threads kept, while those filters keep a
-thread for one ask meeting them all, so the mark's filter could replace the one on or keep nothing.
-A header of no topic, which no filter names, links nothing. The sessions view's header links are
-these same links (`src/views/filter-links.tsx`), starting from no filters instead of the list on
-screen.
+the list loads the operator's groups and tags while the sheet is open, a group or tag filter is on
+or the list is grouped by session group, to name the groups chosen, to say which group or tag was
+removed, and to color them. A tag the operator's groups and tags do not list was removed, since they
+list every tag, those nothing carries among them. Grouped by session group, the list folds the
+sessions under their groups only while the roll-ups or the rows loaded hold two or more, no group
+among them, and composes a group's roll-up from its sessions', as it does an agent's; this browser
+keeps a group's fold by the group's id. A header's label and the marks of its roll-up that a filter
+matches link to the list's address with the header's own filter (its group by id, its session, topic
+or agent) and the mark's added to the view, and a plain click chooses that view in place, as the
+filters do, replacing the address and, when the view changes, moving focus to **Filters**. While a
+filter on open asks is on, Blocked on you and the priority stay plain: a roll-up counts every open
+ask of the threads kept, while those filters keep a thread for one ask meeting them all, so the
+mark's filter could replace the one on or keep nothing. A header of no topic, which no filter names,
+links nothing. The sessions view's header links are these same links (`src/views/filter-links.tsx`),
+starting from no filters instead of the list on screen.
 
 Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
 button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
@@ -1190,27 +1215,43 @@ unfolded log marks the operator's read through its newest entry whenever that is
 with the read marking the thread page uses for its messages. The agents a browser folds, and whether
 it shows the past requests, are kept in its local storage, as the thread list's groups are, and a
 session's row starts folded on every visit. Once any session carries a group, the view folds the
-agents under their groups, splitting each agent's sessions by the group each carries, groups in name
-order ignoring the case of ASCII letters, as the server compares them, and no group last; this
-browser keeps a group's fold by its id, and an agent's under a group by the group's id and the
-agent's name. Each heading sits a level below the one it folds under. Each session's row shows its
-threads' roll-up from its summary, and an agent's header and a group's head compose theirs from the
-sessions they show, none when the view or the agent left sessions out, each with a link opening the
-thread list on those threads, the agent's within its group while the view folds by group; a row's
-and an agent's count of stranded threads, while there are any, link likewise to the stranded among
-them, by the list's stranded filter, an agent that left sessions out flagging them with no count.
-Blocked on the operator shows once, in the thread list's words and tone, as Blocked on you in the
-danger tone, before a row's and an agent's open asks, in the attention tone, and on a group's head,
-which has none. Every mark that stands for threads links to the thread list with no other filter on:
-a group's, an agent's and a session's name and its envelope to its threads and its unread ones,
+agents under their groups, splitting each agent's sessions by the group each carries, groups in the
+operator's order as `GET /groups-and-tags` lists them, which the view loads beside its sessions, a
+group it does not list yet after those in name order, and no group last; this browser keeps a
+group's fold by its id, and an agent's under a group by the group's id and the agent's name. Each
+heading sits a level below the one it folds under. Each session's row shows its threads' roll-up
+from its summary, and an agent's header and a group's head compose theirs from the sessions they
+show, none when the view or the agent left sessions out, each with a link opening the thread list on
+those threads, the agent's within its group while the view folds by group; a row's and an agent's
+count of stranded threads, while there are any, link likewise to the stranded among them, by the
+list's stranded filter, an agent that left sessions out flagging them with no count. Blocked on the
+operator shows once, in the thread list's words and tone, as Blocked on you in the danger tone,
+before a row's and an agent's open asks, in the attention tone, and on a group's head, which has
+none. Every mark that stands for threads links to the thread list with no other filter on: a
+group's, an agent's and a session's name and its envelope to its threads and its unread ones,
 Blocked on you to those holding a blocking ask, the open asks to the open ones, each within the
 header or row it sits on, and a group's or a tag's chip to the threads in that group or carrying
 that tag alone. Each session's row says when the session was last seen, from its presence, as quiet
 while it is and has not stopped, and beside it how long ago its status was updated, from the
 status's `updated_at`, since a session can go on being seen long after its status stopped saying
 what it does. Each session's row shows its group and tags, and each agent's header its tags, from
-the sessions view's page; the sheets that set them, and the Groups and tags sheet, load the
-operator's groups and tags while they are open, and reload the view once a change lands. While the
+the sessions view's page, in the colors the operator's groups and tags give them, which views that
+show groups and tags pass down through a palette (`src/organizing.tsx`); the stylesheet draws each
+of the API's named colors as a tone and a background for each color scheme, at AA contrast. A
+session's group and an agent's or a session's tags are set in pickers (`views/sessions/Picker.tsx`),
+modal dialogs placed beside the control that opened them on a wide screen and rising as a sheet on a
+phone, whose search box is a combobox owning a listbox of the groups or tags, the item the arrow
+keys are on its active descendant. Each pick applies at once, a picker taking one at a time, its
+items unavailable until the change settles, so tags picked fast never land out of order; a failed
+change shows the tags as last applied, and the view reloads with the groups and tags once a change
+lands. The same pickers, in a registration's approval (`views/sessions/Organize.tsx`), keep their
+picks for the approval request, starting from an existing session's own group and tags and over for
+another agent or session, a new session keeping them as it is named, dropping a pick that lands
+after they changed, and create a group picked new at once since the approval names its group by id.
+Settings' groups and tags (`views/settings/`) list them to create, rename, recolor, remove and, for
+groups, order, each move sending the whole order to `POST /groups/order`, which refuses one that
+does not name every group, so a stale order reloads the list. A move or a color under way marks its
+controls `aria-disabled` rather than disabling them, so keyboard focus stays where it was. While the
 operator is signed in, the navigation reads what waits on the operator, from `GET /attention`, and
 shows it as a badge on each tab while there is any: the unread threads on Threads and the
 registrations waiting for approval on Sessions. The counts refresh on an interval, on returning to

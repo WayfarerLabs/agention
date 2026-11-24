@@ -16,6 +16,7 @@ import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../comp
 import { useFollowing, usePages } from "../data.ts";
 import { Icon, type IconName } from "../icons.tsx";
 import { takeNotice } from "../notice.ts";
+import { PaletteProvider } from "../organizing.tsx";
 import {
   arrangementOf,
   listHref,
@@ -119,16 +120,18 @@ export function ThreadList() {
   const counts = useFollowing(filters, sheetOpen, () =>
     request<ThreadCounts>("GET", `/threads/counts${filters}`),
   );
-  // The operator's groups and tags, which name the groups chosen and say
-  // which are gone, loaded while the sheet is open or either filter is on.
-  const naming = view.session_group !== undefined || view.tag !== undefined;
+  // The operator's groups and tags, which name the groups chosen, say which
+  // groups and tags are gone and color them, loaded while the sheet is open,
+  // either filter is on or the list is grouped by session group.
+  const naming =
+    view.session_group !== undefined || view.tag !== undefined || view.group === "session_group";
   const known = useFollowing(`${filters}|${sheetOpen}`, sheetOpen || naming, () =>
     request<GroupsAndTags>("GET", "/groups-and-tags"),
   );
   const chips = chipsOf(view, known);
   const on = chips.length;
   return (
-    <>
+    <PaletteProvider known={known}>
       <PageHeading visuallyHidden>Threads</PageHeading>
       <div className="list-head">
         {/* Choosing another order takes it in its own direction. */}
@@ -213,7 +216,7 @@ export function ThreadList() {
         empty={on > 0 ? "No threads match these filters." : "No threads to show."}
         onTotal={onTotal}
       />
-    </>
+    </PaletteProvider>
   );
 }
 

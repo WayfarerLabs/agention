@@ -1,6 +1,7 @@
 import {
   groupNameInput,
   maxGroups,
+  maxTagsKept,
   sessionsQuery,
   sessionThreadsQuery,
   tagsInput,
@@ -11,7 +12,11 @@ import { ApiError } from "../errors.ts";
 import type { Identity } from "../identity.ts";
 import {
   createGroup,
+  createTag,
   listGroupsAndTags,
+  orderGroups,
+  recolorGroup,
+  recolorTag,
   removeGroup,
   removeTag,
   renameGroup,
@@ -79,7 +84,7 @@ function organized() {
 }
 
 describe("groups", () => {
-  it("are listed in name order with the sessions each holds, empty ones included", () => {
+  it("are listed in the order made, with the sessions each holds, empty ones included", () => {
     const work = create("Work: billing");
     const play = create("personal");
     const archive = create("Archive");
@@ -87,9 +92,9 @@ describe("groups", () => {
     group(side, work.id);
     group(reviewer, play.id);
     expect(listed().groups).toEqual([
-      { id: archive.id, name: "Archive", sessions: 0 },
-      { id: play.id, name: "personal", sessions: 1 },
-      { id: work.id, name: "Work: billing", sessions: 2 },
+      { id: work.id, name: "Work: billing", color: "gray", sessions: 2 },
+      { id: play.id, name: "personal", color: "red", sessions: 1 },
+      { id: archive.id, name: "Archive", color: "orange", sessions: 0 },
     ]);
     expect(organized()).toEqual([
       {
@@ -117,15 +122,16 @@ describe("groups", () => {
     expect(renameGroup(store(), operator(), work.id, { name: "WORK" })).toEqual({
       id: work.id,
       name: "WORK",
+      color: "gray",
     });
-    expect(listed().groups.map((each) => each.name)).toEqual(["Play", "WORK"]);
+    expect(listed().groups.map((each) => each.name)).toEqual(["WORK", "Play"]);
   });
 
   it("keep their sessions and their id when renamed", () => {
     const work = create("Work");
     group(builder, work.id);
     renameGroup(store(), operator(), work.id, { name: "Billing" });
-    expect(listed().groups).toEqual([{ id: work.id, name: "Billing", sessions: 1 }]);
+    expect(listed().groups).toEqual([{ id: work.id, name: "Billing", color: "gray", sessions: 1 }]);
   });
 
   it("leave their sessions in no group when removed", () => {
@@ -134,7 +140,7 @@ describe("groups", () => {
     group(builder, work.id);
     group(side, play.id);
     removeGroup(store(), operator(), work.id);
-    expect(listed().groups).toEqual([{ id: play.id, name: "Play", sessions: 1 }]);
+    expect(listed().groups).toEqual([{ id: play.id, name: "Play", color: "red", sessions: 1 }]);
     expect(fixture.db.prepare("SELECT session_id FROM session_group_members").all()).toEqual([
       { session_id: side.sessionId },
     ]);
@@ -165,7 +171,7 @@ describe("groups", () => {
     const play = create("Play");
     group(builder, work.id);
     group(builder, play.id);
-    expect(listed().groups.map((each) => each.sessions)).toEqual([1, 0]);
+    expect(listed().groups.map((each) => each.sessions)).toEqual([0, 1]);
     group(builder, null);
     expect(listed().groups.map((each) => each.sessions)).toEqual([0, 0]);
     expect(organized()[0]?.sessions[0]?.group).toBeUndefined();
@@ -227,13 +233,18 @@ describe("tags", () => {
     ]);
   });
 
-  it("are set whole, so a tag left out comes off and none clears them", () => {
+  it("are set whole, so a tag left out comes off, none clears them, and each stays", () => {
     sessionTags(builder, ["a", "b"]);
     sessionTags(builder, ["b", "c"]);
     expect(organized()[0]?.sessions[0]?.tags).toEqual(["b", "c"]);
     sessionTags(builder, []);
     expect(organized()[0]?.sessions[0]?.tags).toEqual([]);
-    expect(listed().tags).toEqual([]);
+    // A tag nothing carries exists until it is removed.
+    expect(listed().tags).toEqual([
+      { name: "a", color: "gray", agents: 0, sessions: 0 },
+      { name: "b", color: "red", agents: 0, sessions: 0 },
+      { name: "c", color: "orange", agents: 0, sessions: 0 },
+    ]);
   });
 
   it("are renamed everywhere they are carried, onto a name no tag has", () => {
@@ -241,8 +252,8 @@ describe("tags", () => {
     sessionTags(reviewer, ["infra", "ops"]);
     renameTag(store(), operator(), "infra", { name: "platform" });
     expect(listed().tags).toEqual([
-      { name: "ops", agents: 0, sessions: 1 },
-      { name: "platform", agents: 1, sessions: 1 },
+      { name: "ops", color: "red", agents: 0, sessions: 1 },
+      { name: "platform", color: "gray", agents: 1, sessions: 1 },
     ]);
     expect(failure(() => renameTag(store(), operator(), "ops", { name: "platform" }))).toEqual({
       code: "conflict",
@@ -261,7 +272,14 @@ describe("tags", () => {
     agentTags("builder", ["infra", "billing"]);
     sessionTags(builder, ["infra"]);
     removeTag(store(), operator(), "infra");
-    expect(listed().tags).toEqual([{ name: "billing", agents: 1, sessions: 0 }]);
+    expect(listed().tags).toEqual([{ name: "billing", color: "red", agents: 1, sessions: 0 }]);
+    expect(organized()[0]).toMatchObject({
+      tags: ["billing"],
+      sessions: [
+        { session: "main", tags: [] },
+        { session: "side", tags: [] },
+      ],
+    });
     expect(failure(() => removeTag(store(), operator(), "infra"))).toEqual({
       code: "not_found",
       field: "tag",
@@ -276,6 +294,18 @@ describe("tags", () => {
       ).code,
     ).toBe("not_found");
   });
+
+  it(`number at most ${maxTagsKept}, however one is made, so every one is listed`, () => {
+    for (let index = 0; index < maxTagsKept; index++) {
+      createTag(store(), operator(), { name: `tag-${index}` });
+    }
+    expect(failure(() => createTag(store(), operator(), { name: "one-more" })).code).toBe(
+      "invalid_input",
+    );
+    expect(failure(() => agentTags("builder", ["one-more"])).code).toBe("invalid_input");
+    const listed = listGroupsAndTags(store(), operator());
+    expect([listed.tags.length, listed.truncated]).toEqual([maxTagsKept, false]);
+  });
 });
 
 describe("an agent", () => {
@@ -287,8 +317,12 @@ describe("an agent", () => {
       () => listGroupsAndTags(store(), agent),
       () => create("Mine", agent),
       () => renameGroup(store(), agent, work.id, { name: "Mine" }),
+      () => recolorGroup(store(), agent, work.id, { color: "red" }),
+      () => orderGroups(store(), agent, { groups: [work.id] }),
       () => removeGroup(store(), agent, work.id),
+      () => createTag(store(), agent, { name: "mine" }),
       () => renameTag(store(), agent, "infra", { name: "mine" }),
+      () => recolorTag(store(), agent, "infra", { color: "red" }),
       () => removeTag(store(), agent, "infra"),
       () => setSessionGroup(store(), agent, builder.target, { group: work.id }),
       () => setSessionTags(store(), agent, builder.target, { tags: ["mine"] }),
@@ -297,8 +331,8 @@ describe("an agent", () => {
       expect(failure(fn).code).toBe("not_found");
     }
     expect(listed()).toEqual({
-      groups: [{ id: work.id, name: "Work", sessions: 0 }],
-      tags: [{ name: "infra", agents: 1, sessions: 0 }],
+      groups: [{ id: work.id, name: "Work", color: "gray", sessions: 0 }],
+      tags: [{ name: "infra", color: "gray", agents: 1, sessions: 0 }],
       truncated: false,
     });
   });

@@ -136,6 +136,427 @@ describe("the sessions view's registrations", () => {
     expect(api.callsTo("POST", "/registrations/1/approve")[0]?.headers["x-csrf-token"]).toBe(csrf);
   });
 
+  it("approves with the group and tags picked, a group picked new created first", async () => {
+    const state = await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", {
+      body: {
+        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
+        tags: [{ name: "infra", color: "teal", agents: 0, sessions: 0 }],
+        truncated: false,
+      },
+    });
+    api.on("POST", "/groups", { body: { id: 6, name: "Release", color: "purple" } });
+    api.on("POST", "/registrations/1/approve", () => {
+      state.registrations = [];
+      return { body: { registration: registration({ status: "approved" }) } };
+    });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const options = (open: HTMLElement) =>
+      within(open)
+        .queryAllByRole("option")
+        .map((item) => item.textContent);
+    // A group picked from those there is kept for the approval, sending
+    // nothing yet.
+    fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
+    let picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    await waitFor(() => expect(options(picker)).toEqual(["Billing"]));
+    fireEvent.click(within(picker).getByRole("option", { name: "Billing" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(within(pending).getByText("Billing").closest(".group-chip")).not.toBeNull();
+    // A new one is created as it is picked, since an approval names its group
+    // by id.
+    fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
+    picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    await waitFor(() => expect(options(picker)).toHaveLength(2));
+    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "Release" } });
+    fireEvent.click(within(picker).getByRole("option", { name: "Create group “Release”" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.callsTo("POST", "/groups").map((call) => call.body)).toEqual([{ name: "Release" }]);
+    // Tags, a new one among them, are kept for the approval too.
+    fireEvent.click(within(pending).getByRole("button", { name: "Tags" }));
+    picker = screen.getByRole("dialog", { name: "Tags for registration 7KQ2M-X9DPA" });
+    await waitFor(() => expect(options(picker)).toEqual(["infra"]));
+    fireEvent.click(within(picker).getByRole("option", { name: "infra" }));
+    // The picker takes the next pick once that one has applied.
+    await waitFor(() =>
+      expect(
+        within(picker).getByRole("option", { name: "infra" }).hasAttribute("aria-disabled"),
+      ).toBe(false),
+    );
+    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "ops" } });
+    fireEvent.click(within(picker).getByRole("option", { name: "Create tag “ops”" }));
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(approvals()).toEqual([]);
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(approvals()).toEqual([
+        {
+          agent: { name: "builder", existing: false },
+          session: { name: "main", existing: false, group: 6, tags: ["infra", "ops"] },
+        },
+      ]),
+    );
+  });
+
+  it("approves into no group when Clear group was picked", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", {
+      body: {
+        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
+        tags: [],
+        truncated: false,
+      },
+    });
+    api.on("POST", "/registrations/1/approve", { body: { registration: registration() } });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const pick = async (name: string) => {
+      fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
+      const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+      fireEvent.click(await within(picker).findByRole("option", { name }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    };
+    await pick("Billing");
+    await pick("Clear group");
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(approvals()).toEqual([
+        {
+          agent: { name: "builder", existing: false },
+          session: { name: "main", existing: false, group: null },
+        },
+      ]),
+    );
+  });
+
+  it("starts the pickers from an existing session's own group and tags, and over for another", async () => {
+    api
+      .on("GET", "/registrations", { body: { registrations: [registration()] } })
+      .on("GET", "/sessions", {
+        body: {
+          agents: [
+            {
+              agent: "builder",
+              tags: [],
+              sessions: [
+                sessionSummary({
+                  session: "main",
+                  group: { id: 4, name: "Billing" },
+                  tags: ["infra"],
+                }),
+                sessionSummary({ session: "side" }),
+              ],
+              truncated: false,
+            },
+          ],
+        },
+      })
+      .on("GET", "/groups-and-tags", {
+        body: {
+          groups: [{ id: 4, name: "Billing", color: "blue", sessions: 1 }],
+          tags: [
+            { name: "infra", color: "teal", agents: 0, sessions: 1 },
+            { name: "urgent", color: "red", agents: 0, sessions: 0 },
+          ],
+          truncated: false,
+        },
+      })
+      .on("POST", "/registrations/1/approve", { body: { registration: registration() } });
+    renderAt("/registrations");
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    const picked = () =>
+      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
+        (each) => each.textContent,
+      );
+    const choose = (name: string) =>
+      fireEvent.change(within(pending).getByRole("combobox", { name: "Existing session" }), {
+        target: { value: name },
+      });
+    expect(picked()).toEqual(["No group", "No tags"]);
+    fireEvent.click(within(pending).getByRole("radio", { name: /An existing session of builder/ }));
+    expect(picked()).toEqual(["Group Billing", "Tag infra"]);
+    // Its group can be cleared, and its tags changed from its own.
+    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+    let picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    fireEvent.click(await within(picker).findByRole("option", { name: "Clear group" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(within(organize).getByRole("button", { name: "Tags" }));
+    picker = screen.getByRole("dialog", { name: "Tags for registration 7KQ2M-X9DPA" });
+    const infra = await within(picker).findByRole("option", { name: "infra" });
+    expect(infra.getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(within(picker).getByRole("option", { name: "urgent" }));
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(picked()).toEqual(["No group", "Tag infraTag urgent"]);
+    // Another session starts the picks over, from its own.
+    choose("side");
+    expect(picked()).toEqual(["No group", "No tags"]);
+    choose("main");
+    expect(picked()).toEqual(["Group Billing", "Tag infra"]);
+    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+    picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    fireEvent.click(await within(picker).findByRole("option", { name: "Clear group" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(approvals()).toEqual([
+        {
+          agent: { name: "builder", existing: true },
+          session: { name: "main", existing: true, group: null },
+        },
+      ]),
+    );
+  });
+
+  it("starts the session and its group and tags over when the agent changes and back", async () => {
+    api
+      .on("GET", "/registrations", { body: { registrations: [registration()] } })
+      .on("GET", "/sessions", {
+        body: {
+          agents: [
+            {
+              agent: "builder",
+              tags: [],
+              sessions: [sessionSummary({ session: "main", tags: ["infra"] })],
+              truncated: false,
+            },
+            {
+              agent: "other",
+              tags: [],
+              sessions: [sessionSummary({ session: "x" })],
+              truncated: false,
+            },
+          ],
+        },
+      });
+    renderAt("/registrations");
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    const picked = () =>
+      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
+        (each) => each.textContent,
+      );
+    const existing = () =>
+      within(pending).getByRole<HTMLInputElement>("radio", { name: /An existing session of/ });
+    const agentTo = (name: string) =>
+      fireEvent.change(within(pending).getByRole("combobox", { name: "Existing agent" }), {
+        target: { value: name },
+      });
+    fireEvent.click(existing());
+    expect(picked()).toEqual(["No group", "Tag infra"]);
+    agentTo("other");
+    agentTo("builder");
+    expect(existing().checked).toBe(false);
+    expect(picked()).toEqual(["No group", "No tags"]);
+  });
+
+  it("keeps a new session's picks as it is named, and starts them over for another agent", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", {
+      body: {
+        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
+        tags: [],
+        truncated: false,
+      },
+    });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    const picked = () =>
+      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
+        (each) => each.textContent,
+      );
+    const pick = async () => {
+      fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+      const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+      fireEvent.click(await within(picker).findByRole("option", { name: "Billing" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(picked()).toEqual(["Group Billing", "No tags"]);
+    };
+    await pick();
+    fireEvent.change(within(pending).getByLabelText("New session name"), {
+      target: { value: "night-shift" },
+    });
+    expect(picked()).toEqual(["Group Billing", "No tags"]);
+    fireEvent.change(within(pending).getByLabelText("New agent name"), {
+      target: { value: "deployer" },
+    });
+    expect(picked()).toEqual(["No group", "No tags"]);
+  });
+
+  it("drops a group created for a session the form no longer names", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", { body: { groups: [], tags: [], truncated: false } });
+    let answer = () => undefined as void;
+    api.on("POST", "/groups", async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      return { body: { id: 6, name: "Release", color: "purple" } };
+    });
+    api.on("POST", "/registrations/1/approve", { body: { registration: registration() } });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+    const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    const search = within(picker).getByRole("combobox");
+    fireEvent.change(search, { target: { value: "Release" } });
+    await within(picker).findByRole("option", { name: "Create group “Release”" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
+    // Done closes the picker while the group is created, and another agent
+    // is named before it is.
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.change(within(pending).getByLabelText("New agent name"), {
+      target: { value: "deployer" },
+    });
+    answer();
+    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBeGreaterThan(1));
+    expect(organize.querySelector(".organize-pick > span")?.textContent).toBe("No group");
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(approvals()).toEqual([
+        {
+          agent: { name: "deployer", existing: false },
+          session: { name: "main", existing: false },
+        },
+      ]),
+    );
+  });
+
+  it("drops a group created before the form left its session and came back", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", { body: { groups: [], tags: [], truncated: false } });
+    let answer = () => undefined as void;
+    api.on("POST", "/groups", async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      return { body: { id: 6, name: "Release", color: "purple" } };
+    });
+    api.on("POST", "/registrations/1/approve", { body: { registration: registration() } });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+    const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    const search = within(picker).getByRole("combobox");
+    fireEvent.change(search, { target: { value: "Release" } });
+    await within(picker).findByRole("option", { name: "Create group “Release”" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
+    // Done closes the picker while the group is created, and another agent
+    // is named, then this one again, before it is.
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    for (const value of ["deployer", "builder"]) {
+      fireEvent.change(within(pending).getByLabelText("New agent name"), { target: { value } });
+    }
+    answer();
+    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBeGreaterThan(1));
+    expect(organize.querySelector(".organize-pick > span")?.textContent).toBe("No group");
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(approvals()).toEqual([
+        {
+          agent: { name: "builder", existing: false },
+          session: { name: "main", existing: false },
+        },
+      ]),
+    );
+  });
+
+  it("keeps a group picked since a group created earlier, which lands after", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", {
+      body: {
+        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
+        tags: [],
+        truncated: false,
+      },
+    });
+    let answer = () => undefined as void;
+    api.on("POST", "/groups", async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      return { body: { id: 6, name: "Release", color: "purple" } };
+    });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    const shown = () => organize.querySelector(".organize-pick > span")?.textContent;
+    const opened = () => {
+      fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+      return screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    };
+    let picker = opened();
+    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "Release" } });
+    fireEvent.click(await within(picker).findByRole("option", { name: "Create group “Release”" }));
+    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    picker = opened();
+    fireEvent.click(await within(picker).findByRole("option", { name: "Billing" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(shown()).toBe("Group Billing");
+    answer();
+    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBeGreaterThan(2));
+    expect(shown()).toBe("Group Billing");
+  });
+
+  it("keeps a group created earlier, which lands after, when tags are picked meanwhile", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", {
+      body: { groups: [], tags: [{ name: "infra", color: "teal", sessions: 0 }], truncated: false },
+    });
+    let answer = () => undefined as void;
+    api.on("POST", "/groups", async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      return { body: { id: 6, name: "Release", color: "purple" } };
+    });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const organize = within(pending).getByRole("group", { name: "Group and tags" });
+    const picked = () =>
+      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
+        (each) => each.textContent,
+      );
+    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
+    let picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "Release" } });
+    fireEvent.click(await within(picker).findByRole("option", { name: "Create group “Release”" }));
+    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(within(organize).getByRole("button", { name: "Tags" }));
+    picker = screen.getByRole("dialog", { name: "Tags for registration 7KQ2M-X9DPA" });
+    fireEvent.click(await within(picker).findByRole("option", { name: "infra" }));
+    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    answer();
+    await waitFor(() => expect(picked()).toEqual(["Group Release", "Tag infra"]));
+  });
+
+  it("picks nothing by Enter while an input method composes", async () => {
+    await open({ registrations: [registration()], sessions: [] });
+    api.on("GET", "/groups-and-tags", { body: { groups: [], tags: [], truncated: false } });
+    api.on("POST", "/groups", { body: { id: 6, name: "Release", color: "purple" } });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
+    const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
+    const search = within(picker).getByRole("combobox");
+    fireEvent.change(search, { target: { value: "Release" } });
+    await within(picker).findByRole("option", { name: "Create group “Release”" });
+    // Composing, and WebKit's Enter that commits what was composed, which
+    // says it is no longer composing but carries the key code 229.
+    fireEvent.keyDown(search, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(search, { key: "Enter", keyCode: 229 });
+    expect(api.callsTo("POST", "/groups")).toHaveLength(0);
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
+  });
+
   it("approves under other names than proposed", async () => {
     await open({ registrations: [registration()], sessions: [] });
     api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));

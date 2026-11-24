@@ -437,9 +437,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       only their agents' topics, with any you already chose. Each lists at most 500, and says so
       when there are more. Escape, **Done** or a tap outside closes the list.
     - **Group** and **Tag** open such lists too: **Group** of your session groups holding a thread,
-      and **No group** for the sessions in none; **Tag** of the tags on a session holding a thread
-      or on its agent. A thread is kept when its session is in a group you chose, or when its
-      session or its agent carries a tag you chose.
+      in your order, each beside its color, and **No group** for the sessions in none; **Tag** of
+      the tags on a session holding a thread or on its agent. A thread is kept when its session is
+      in a group you chose, or when its session or its agent carries a tag you chose.
     - **Archived**: **Show** adds the threads you archived.
 
     The list behind the sheet follows each change. **Reset filters** turns every filter off, saying
@@ -450,11 +450,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     Withdrawn**; an agent, session or topic shows behind its badge, such as **builder**, a topic as
     `session/topic`, or **2 agents** when you chose several. A group or a tag shows by its name now,
     such as **Group: Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed
-    keeps nothing, and its chip says **Removed group**; so does a tag nothing carries any more,
-    whose chip begins **Unused tag**. A long label is cut short, at its front for an agent, session
-    or topic, so its end stays; holding the pointer over a chip says it whole. Choosing a chip
-    removes its filter. The grouping, the order and its direction are no filters, so they stay when
-    filters go.
+    keeps nothing, and its chip says **Removed group**; so does a tag you have removed, whose chip
+    begins **Removed tag**. A single group's or tag's chip shows its color. A long label is cut
+    short, at its front for an agent, session or topic, so its end stays; holding the pointer over a
+    chip says it whole. Choosing a chip removes its filter. The grouping, the order and its
+    direction are no filters, so they stay when filters go.
   - The page's address holds the filters, the order, its direction and the grouping, so a list you
     bookmark or share opens as you left it.
   - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -638,8 +638,6 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
   what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
-  - **Groups and tags** opens the sheet listing your session groups and tags, as
-    [Groups and tags](#groups-and-tags) describes.
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes. The **Sessions** tab counts them, and approving
     or rejecting them clears the count.
@@ -656,7 +654,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     threads, and the agent's tags. At the header's end, its threads open the thread list on the
     agent's threads; how many of them are stranded, flagged while any are, opens it on those, as the
     **Stranded** filter does; and the **⋯** button opens **Tags**. Once you have put any session in
-    a group, the agents fold under their groups, groups in name order and **No group** last, each
+    a group, the agents fold under their groups, groups in your order and **No group** last, each
     group's head showing what its sessions add up to, with **Blocked on you** when an ask in them
     blocks an agent's work on your answer, and a link opening the thread list on the group's
     threads. An agent with sessions in two groups shows under each with that group's sessions, and
@@ -715,7 +713,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
-  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Voice**
+  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Groups and
+  tags** (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
   (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as
   [Attachments](#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
   [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`),
@@ -756,22 +755,40 @@ counts for each of its sessions. The thread list filters by both and, grouped by
 the sessions under their groups, and the sessions view folds the agents under their groups, as
 [Using the web UI](#using-the-web-ui) says.
 
-- **Group**, in a session's options, opens a sheet listing your groups, **No group** and **New
-  group** with a field for its name, up to 100 characters on one line; **Save** puts the session in
-  the one chosen, creating a new group first. A group's name is unique, whatever the case of its
-  letters, and you can have up to 200 groups.
-- **Tags**, in a session's options or at the end of an agent's header, opens a sheet checking the
-  tags it carries among every tag, with a search box that narrows them as you type. Typing a name no
-  tag has offers **Add tag**. A tag is a name like a topic's: up to 63 lowercase letters, digits,
-  `-` and `_`, starting with a letter or digit. An agent or a session carries up to 20 tags, and
-  **Save** sets them.
-- **Groups and tags**, at the top of the sessions view, lists each group with how many sessions it
-  holds, and each tag with how many agents and sessions carry it, with **Rename** and **Remove**.
+Each group and each tag has a color, one of gray, red, orange, yellow, green, teal, blue and purple,
+which its chip shows wherever it appears; a new one takes the next color in turn until you choose
+another. Your groups keep the order you give them, which the sessions view and the thread list's
+**Group** filter follow; a new group goes last.
+
+- **Group**, in a session's options, opens a picker beside the menu, or rising from the bottom on a
+  phone: a search box over your groups in your order, each a chip, the session's own checked.
+  Choosing one puts the session in it at once and closes the picker; there is no **Save**. **Clear
+  group**, shown while the session is in one, puts it in none. Typing a name no group has offers
+  **Create group** with it, which creates the group and puts the session in it. A group's name is up
+  to 100 characters on one line and unique, whatever the case of its letters, and you can have up to
+  200 groups.
+- **Tags**, in a session's options or at the end of an agent's header, opens a picker of every tag,
+  those it carries checked. Choosing a tag puts it on or takes it off at once, and the picker stays
+  open for more, taking your next choice once that one has applied. When one fails, the picker says
+  why and shows the tags as they are. Typing a name no tag has offers **Create tag** with it. A tag
+  is a name like a topic's: up to 63 lowercase letters, digits, `-` and `_`, starting with a letter
+  or digit. An agent or a session carries up to 20 tags, and you can keep up to 500 tags in all.
+- In either picker the arrow keys move through the list from the search box and Enter chooses.
+  Escape clears what you typed, or, with nothing typed, closes the picker, as **Done** or a tap
+  outside does, every choice already made.
+- **Settings**, under **Groups and tags** (`/settings/groups-and-tags`), lists your groups in your
+  order and your tags in name order, each list with a search box and **New**. Each shows as its chip
+  with what it holds, how many sessions a group holds or how many agents and sessions carry a tag,
+  which opens the thread list on those threads, and with **Rename**, its color and **Remove**.
   Renaming keeps a group's sessions, and the thread list's filters and folds on it keep working; a
   name another group or tag has is refused. Renaming a tag renames it everywhere it is carried.
-  **Remove** asks first, saying what it takes the group or tag off: removing a group leaves its
-  sessions in no group, and removing a tag takes it off everything that carries it. A tag nothing
-  carries is gone, as a topic no thread carries is.
+  Choosing a color applies it at once. **Remove** asks first, saying what it takes the group or tag
+  off: removing a group leaves its sessions in no group, and removing a tag takes it off everything
+  that carries it. A tag nothing carries stays until you remove it. Each group's **Move up** and
+  **Move down** buttons move it in the order, and with a mouse you can drag a group by its handle
+  onto another to put it in that one's place; while a search narrows the list, groups do not move.
+  When another browser changed the groups since the list loaded, the move is refused and the list
+  shows them as they are.
 
 ### Keyboard shortcuts
 
@@ -963,13 +980,13 @@ under **API keys**. **Create an API key** asks for:
 - **Name**: up to 50 characters on one line, such as the program that will hold the key.
 - **Scopes**: what the key may do, as you, at least one of them:
 
-  | Scope              | What it grants                                                                                                                                                                                        |
-  | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                       |
-  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk             |
-  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                             |
-  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming and removing groups, renaming and removing tags, and setting a session's group and an agent's or a session's tags |
-  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations                                                                                                                                          |
+  | Scope              | What it grants                                                                                                                                                                                                                                    |
+  | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                                                                   |
+  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                         |
+  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                         |
+  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags |
+  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                    |
 
   A write or approve scope includes its resource's read, so choosing `threads:write` chooses
   `threads:read` with it; `sessions:write` and `sessions:approve` include neither the other.
@@ -1310,7 +1327,12 @@ names the agent proposed or others you type. Approving onto an existing session 
 that session's whole history and lets it act as the session, so do that only to replace a credential
 an agent lost; when the proposed session already exists, you choose between it and a new one. When
 there are too many agents, or too many sessions of an agent, to list them all, the form says so
-beside them. **Reject** refuses a registration.
+beside them. **Group** and **Tags** open the pickers that [Groups and tags](#groups-and-tags)
+describes, and what you choose there is applied with the approval, not before; a group you create in
+the picker is created as you pick it. What you leave unpicked stays as it is: a new session has no
+group or tags, and an existing one keeps its own, which the pickers start from once you choose it.
+Choosing another session or another agent, or naming the new agent otherwise, starts your choices
+over; a new session keeps them however you name it. **Reject** refuses a registration.
 
 **Revoke**, in a session's options or under **Credentials and past requests**, ends an approved
 credential at once. The session and its threads stay, and you can still read, answer and archive

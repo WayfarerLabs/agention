@@ -588,4 +588,59 @@ export const migrations: readonly string[] = [
   ALTER TABLE session_updates ADD COLUMN inferred INTEGER NOT NULL DEFAULT 0
     CHECK (inferred = 0 OR (inferred = 1 AND state = 'working' AND note IS NULL));
   `,
+  `
+  -- Colors and the operator's order for groups, and tags as rows of their
+  -- own. A color is one of a fixed palette. Groups keep the order they were
+  -- listed in, by name, as their positions, unique and counted from 1, and
+  -- each takes the palette's colors in turn by its id. A tag exists until it
+  -- is removed: every tag carried becomes a row, keyed by its name, taking
+  -- the palette's colors in turn in name order, and agent_tags and
+  -- session_tags, rebuilt to name it by a foreign key, follow its renaming
+  -- and its removal.
+  ALTER TABLE session_groups ADD COLUMN color TEXT NOT NULL DEFAULT 'gray'
+    CHECK (color IN ('gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple'));
+  ALTER TABLE session_groups ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+  UPDATE session_groups SET
+    color = json_extract(
+      '["gray", "red", "orange", "yellow", "green", "teal", "blue", "purple"]',
+      '$[' || ((id - 1) % 8) || ']'
+    ),
+    position = ordered.place
+  FROM (SELECT id AS ordered_id, row_number() OVER (ORDER BY name, id) AS place
+        FROM session_groups) ordered
+  WHERE ordered.ordered_id = session_groups.id;
+  CREATE UNIQUE INDEX session_groups_positions ON session_groups (position);
+
+  CREATE TABLE tags (
+    name TEXT PRIMARY KEY,
+    color TEXT NOT NULL
+      CHECK (color IN ('gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple'))
+  ) STRICT, WITHOUT ROWID;
+  INSERT INTO tags (name, color)
+    SELECT name, json_extract(
+      '["gray", "red", "orange", "yellow", "green", "teal", "blue", "purple"]',
+      '$[' || ((row_number() OVER (ORDER BY name) - 1) % 8) || ']'
+    )
+    FROM (SELECT name FROM agent_tags UNION SELECT name FROM session_tags);
+
+  CREATE TABLE carried_agent_tags (
+    agent_id INTEGER NOT NULL REFERENCES agents (id),
+    name TEXT NOT NULL REFERENCES tags (name) ON UPDATE CASCADE ON DELETE CASCADE,
+    PRIMARY KEY (agent_id, name)
+  ) STRICT, WITHOUT ROWID;
+  INSERT INTO carried_agent_tags (agent_id, name) SELECT agent_id, name FROM agent_tags;
+  DROP TABLE agent_tags;
+  ALTER TABLE carried_agent_tags RENAME TO agent_tags;
+  CREATE INDEX agent_tags_names ON agent_tags (name);
+
+  CREATE TABLE carried_session_tags (
+    session_id INTEGER NOT NULL REFERENCES sessions (id),
+    name TEXT NOT NULL REFERENCES tags (name) ON UPDATE CASCADE ON DELETE CASCADE,
+    PRIMARY KEY (session_id, name)
+  ) STRICT, WITHOUT ROWID;
+  INSERT INTO carried_session_tags (session_id, name) SELECT session_id, name FROM session_tags;
+  DROP TABLE session_tags;
+  ALTER TABLE carried_session_tags RENAME TO session_tags;
+  CREATE INDEX session_tags_names ON session_tags (name);
+  `,
 ];
