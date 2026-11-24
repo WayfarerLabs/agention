@@ -39,11 +39,15 @@ message, and the one key that submits it, the only exception.
 
 - **At its prompt**: an agent whose turn has ended and whose host session is open, waiting for
   input. This is the host's condition, not the session's reported state.
-- **The pane**: the terminal pane the agent's host runs in, as the bridge's configuration names it.
+- **The pane**: the terminal pane the agent's host runs in: the one pane of the tmux server the
+  bridge's configuration names.
+- **Profile**: what the bridge knows about one host, which decides whether the pane is at its prompt
+  and how to clear what the bridge put there. A host's own profile knows the most; generic profiles,
+  a strict and a lenient one, make what sense they can of a host with none.
 - **Pane state**: what the pane shows, one of: **running**, a turn in progress; **at its prompt**,
-  the host's input line at rest, which the bridge recognizes only on hosts it knows; **waiting**, at
-  rest but not at its prompt, such as a permission dialog, a pager or a prompt the bridge does not
-  know; and **unknown**, when the bridge cannot read the pane.
+  the host's input line at rest, as the profile decides; **waiting**, at rest but not at its prompt,
+  such as a permission dialog, a pager or an editor; and **unknown**, when the bridge cannot read
+  the pane.
 - **Nudge**: the bridge submitting one fixed message at the agent's prompt, as if typed, so the
   agent takes a turn and checks in with Agention.
 - **Checking in**: the agent calling an Agention tool. The bridge's own background requests are not
@@ -97,28 +101,36 @@ and nothing else.
 **N1. When.** When a message the operator wrote lands in one of a session's threads and the agent
 has not checked in since, the bridge nudges the agent, whatever state its session reported, since
 the operator writing to a stopped session is how they start it again. A bridge whose registration is
-not approved, or whose nudge is off, nudges nothing.
+not approved, or whose nudge is off, nudges nothing. When the operator approves a registration while
+the agent sits at its prompt, presence and the nudge start without the agent calling a tool (ruling
+2).
 
-**N2. One canned text.** Everything a nudge puts in the pane is one fixed text, the same every time,
-which warns that a nudge is coming and that typing anything stops it, and tells the agent to check
-in with Agention: read its unread threads and bring its session's status up to date. It names no
-thread and carries nothing from the server, so nothing the operator, an agent or anyone else wrote
-reaches the agent's prompt through it, and the bridge submits only that text. The messages, their
-authors and what was read reach the agent only through Agention's tools, as today.
+**N2. A warning, then one canned message.** A nudge puts two texts in the pane, one after the other.
+First a warning, saying a nudge is coming and that typing anything stops it, which the bridge
+removes and never submits; it carries a token unique to that nudge, made by the bridge, so the
+bridge can tell its own warning from anything else on the screen. Then the message, the same every
+time, telling the agent to check in with Agention: read its unread threads and bring its session's
+status up to date. Neither names a thread or carries anything from the server, so nothing the
+operator, an agent or anyone else wrote reaches the agent's prompt through a nudge, and the bridge
+submits only the message. The messages, their authors and what was read reach the agent only through
+Agention's tools, as today.
 
 **N3. Once until the agent checks in.** A session is nudged at most once until the agent next checks
 in, whether that nudge was submitted, stopped by someone typing (N5) or failed its checks (N6).
 
-**N4. Only at its prompt, and only when still.** The bridge nudges only when the pane is at its
-prompt, has shown no change for a while, no one has typed into it recently, and it is not in a mode
-where keys do not reach the host (such as tmux's copy mode). Any other pane state, a dialog the
-bridge has never seen included, means it waits and tries again. On a host whose prompt it does not
-recognize, it does not nudge.
+**N4. Only at its prompt, and only when still.** The bridge nudges only when the host itself has the
+terminal (not an editor, pager, shell or password prompt it started), the profile finds the pane at
+its prompt, the pane has shown no change for a while, no one has typed into it recently, and it is
+not in a mode where keys do not reach the host (such as tmux's copy mode). Anything else means it
+waits and tries again. Which profile applies is configurable, defaulting to the host's own where the
+bridge has one; adding a host's profile is a change to the profiles alone.
 
-**N5. Visible first, and the operator can stop it.** The text sits at the prompt for a few seconds
-before it is submitted. If it is then not exactly as the bridge put it there, alone on its line, the
-bridge abandons the nudge and removes nothing. Nothing the bridge sends, except the one key that
-submits the text, can act as a shortcut in a dialog or reach anything but the host's input line.
+**N5. Warn, clear, send, and the operator can stop it.** The warning sits at the prompt for a few
+seconds. If it is then not exactly as the bridge put it there, alone on its line, the bridge
+abandons the nudge and removes nothing. Otherwise it removes the warning, checks the line is empty,
+puts the message there, checks it, and submits it. Text reaches the pane as pasted text; only the
+keys that remove the warning and submit the message are keystrokes, and they are sent only after the
+pane has shown the bridge's own text where the profile expects the input line.
 
 **N6. Watched.** After submitting, the bridge checks the host took the text: the line is clear and a
 turn starts. When a check fails, it leaves the pane as it is and logs why, without pane text (P6).
@@ -127,18 +139,20 @@ turn starts. When a check fails, it leaves the pane as it is and logs why, witho
 
 **CF1. Off unless asked for.** The nudge is off unless the bridge is started with a nudge type, as a
 command-line option or an environment variable, the option winning. `tmux` is the one type; others
-may follow.
+may follow, such as a nudge through a host's SDK.
 
 **CF2. The pane is named, never guessed.** The bridge reads the pane only where its configuration
-gives the tmux socket and the target pane, as options or environment variables. It never infers them
-from an inherited `TMUX` or from a known socket location. The socket is a path and the pane a tmux
-target, named for tmux rather than for Agentworks, so other tmux setups, a named socket among them,
-need nothing more. Presence's pane state (P3) needs only this; the nudge needs this and CF1.
+gives the tmux socket, as an option or environment variable. It never infers it from an inherited
+`TMUX` or from a known socket location. The socket is a path, named for tmux rather than for
+Agentworks, so other tmux setups, a named socket among them, need nothing more. The tmux server
+holds one pane, as Agentworks's sessions do (ruling 2); one with more is reported as unknown and
+never nudged, and the configuration leaves room for naming a pane later. Presence's pane state (P3)
+needs only this; the nudge needs this and CF1.
 
-**CF3. Agentworks supplies it.** The plugins forward the environment variables of CF1 and CF2 to the
-bridge, which is the route a host's plugin configuration allows, and Agentworks sets them through
-its templating, so every Agentworks session gets presence and the nudge without setup. That change
-is Agentworks's; this effort states what it needs and tests against it.
+**CF3. Agentworks supplies it.** The plugins forward the environment variables of CF1, CF2 and the
+profile (N4) to the bridge, which is the route a host's plugin configuration allows, and Agentworks
+sets them through its templating, so every Agentworks session gets presence and the nudge without
+setup. That change is Agentworks's; this effort states what it needs and tests against it.
 
 **CF4. Misconfiguration is visible, never fatal.** A pane the bridge cannot reach, or a nudge type
 it does not know, shows in the bridge's log and in the `register` answer (T1), and an unreachable
@@ -181,9 +195,9 @@ driving a real tmux server, and the compatibility cases of C1 as the release lin
 
 ## Out of scope
 
-- A Claude Code hook as a nudge type, as agention#67 built; it may come later as another type.
-- Terminals other than tmux, harnesses outside one, and nudging hosts whose prompt the bridge does
-  not recognize.
+- Other nudge types, such as a Claude Code hook as agention#67 built or a host's SDK; CF1 leaves
+  room for them.
+- Terminals other than tmux, harnesses outside one, and tmux servers with more than one pane.
 - Nudging a session whose host has ended, or starting one.
 - Notifying the operator (agention#30); this is the agent's side.
 - The thin-proxy bridge and a direct MCP endpoint on the server (agention#16).
@@ -217,6 +231,26 @@ driving a real tmux server, and the compatibility cases of C1 as the release lin
    configurations. Beyond that, this all looks great!" Taken: agention#67 closed with its branch
    kept, agention#63 given this scope, this SDD with presence first, N2 and N4 to N6, CF1 to CF3,
    and P1 and P2.
+
+2. (2026-11-24) Asked in Agention, the operator answered: whether the spike may run now, "Yes, now";
+   whether to widen the development contract's Codex bound to add "and live checks of presence and
+   the nudge", "Yes"; whether to open an issue in the Agentworks repository for its templating,
+   "Yes, open it. But note that the tmux sessions are single pane. The named consoles add the
+   multiplexing and companion shells, etc. For now, we should start with that single pane
+   assumption."; whether to accept this FRD, "Mostly right on but I feel like we now need to
+   differentiate between "hasn't responded but online" vs "not online" vs "not responding to nudge".
+   Let's take a moment to make sure we get those right."; whether to use one line or warn, clear and
+   send, "Warn, clear, send. This keeps from polluting the agent context and allows us to put truly
+   unique content in there for matching (which we probably should)."; whether presence and the nudge
+   start when a registration is approved while the agent sits at its prompt, "Yes, start on
+   approval"; and whether to nudge any harness behind general checks with optional per-host
+   profiles, "Yeah, I think "profile" is a great way to think about this. The profile should own the
+   "is this at the normal prompt" decision. The more we know about the harness, the better that
+   decision can be. And then we can offer more generic profiles (perhaps a strict and lenient
+   version?) that attempt to make sense of unknown harnesses. And we should leave room for SDK-based
+   nudges, etc. Probably just other nudge types." Taken: the spike, the widened bound, the
+   Agentworks issue, CF2's one pane, N1's start on approval, N2 and N5's warning, N4's profiles,
+   CF1's room for other types; presence's states are being settled before acceptance.
 
 ## Definition of done
 
