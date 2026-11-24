@@ -58,6 +58,9 @@ edit to any moved module, and `scripts/check.sh` passes.
 - [x] Live run on Claude Code: a session on a plugin speaking an older agent API version (0.4.0's)
       marked in the sessions view, and the notice gone once the plugin is updated and the session
       restarted (agention#80).
+- [ ] Ruling 5: the behind status only on a live session, one not stopped and holding an approved
+      registration, in the store, its tests, the compatibility gate and the permanent docs, reviewed
+      and CI green (U2) (agention#80).
 
 Done when the browser tests show the notice for a behind session and none for a current one, the
 operator API's sessions read carries the status, and the live run passes.

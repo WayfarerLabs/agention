@@ -332,10 +332,10 @@ const sessionOrder = `
 // messages they have not read and how many are stranded; how many asks are
 // open in all its threads, with how many of those are blocking; and whether
 // its plugin is behind, its latest call stating an older agent API version
-// than the server's. The operator can never archive a thread holding an ask
-// open to them, as archiveThread refuses, so the thread list shows every
-// thread these asks are in. The thread counts and the ask counts each come
-// from one statement for every session of the page.
+// than the server's while it is live. The operator can never archive a thread
+// holding an ask open to them, as archiveThread refuses, so the thread list
+// shows every thread these asks are in. The thread counts and the ask counts
+// each come from one statement for every session of the page.
 export function listSessions(store: Store, identity: Identity, query: SessionsQuery): SessionsPage {
   const { db } = store;
   const position =
@@ -441,6 +441,10 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       JSON.stringify(page.rows.map((agent) => agent.id)),
     );
     const byAgent = groupBy(sessions, (session) => session.agent_id);
+    // A session is live while it holds an approved credential and has not
+    // stopped, the two conditions besides quiet under which threadsSeen
+    // strands its threads.
+    const live = (row: SessionRow) => registrations.has(row.id) && row.state !== "stopped";
     const toSummary = (row: SessionRow): SessionSummary => ({
       session: row.name,
       created_at: formatTimestamp(row.created_at),
@@ -468,9 +472,13 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       unread_updates: (row.latest_seq ?? 0) - row.read_seq,
       threads: threads.get(row.id) ?? { total: 0, unread: 0, stranded: 0 },
       open_asks: asks.get(row.id) ?? { count: 0, blocking_count: 0 },
-      // A session with no recorded call is not behind; one recorded at a
-      // version below the server's is, from the moment the server moves on.
-      plugin_behind: row.agent_api_version !== null && row.agent_api_version < agentApi.version,
+      // A live session recorded at a version below the server's is behind,
+      // from the moment the server moves on; one with no recorded call is
+      // not. Nor is a stopped or revoked one, for which restarting the
+      // session is no fix: one started again reports a state other than
+      // stopped, which makes it live, and behind again while it still is.
+      plugin_behind:
+        live(row) && row.agent_api_version !== null && row.agent_api_version < agentApi.version,
     });
     const last = page.rows.at(-1);
     return {

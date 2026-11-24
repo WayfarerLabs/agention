@@ -118,6 +118,23 @@ describe("the agent API version", () => {
     fixture.seen(agent, 1);
     expect([recorded(), behind()]).toEqual([null, false]);
   });
+
+  it("marks a session behind only while it has not stopped, and again once it reports working", () => {
+    fixture.seen(agent, agentApi.version - 1);
+    fixture.report(agent, { state: "working" });
+    expect(behind()).toBe(true);
+    fixture.report(agent, { state: "stopped", outcome: "completed" });
+    expect([recorded(), behind()]).toEqual([agentApi.version - 1, false]);
+    fixture.report(agent, { state: "working" });
+    expect(behind()).toBe(true);
+  });
+
+  it("marks a session behind only while it holds an approved credential", () => {
+    fixture.seen(agent, agentApi.version - 1);
+    expect(behind()).toBe(true);
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    expect([recorded(), behind()]).toEqual([agentApi.version - 1, false]);
+  });
 });
 
 describe("quiet", () => {

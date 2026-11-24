@@ -365,13 +365,16 @@ threads the operator has not archived, with how many of those hold messages the 
 read and how many are stranded, counted for every session of the page in one statement grouped over
 the threads as the operator sees them; and how many asks are open in all its threads, with how many
 of those are blocking, which is what waits on the operator, counted in one statement grouped over
-the open asks; and `plugin_behind`, true while its recorded agent API version is below the server's,
-so the server offers what its plugin cannot use, and false for a session with no call recorded. The
-server's own version is compared as the page is read, never stored, so once a server that moved it
-starts, every session recorded at an older one is marked before it calls again. The operator can
-never archive a thread holding an ask open to them, so their thread list shows every thread counted.
-A separate read counts the sessions whose log holds entries the operator has not read, which the web
-UI's navigation shows.
+the open asks; and `plugin_behind`, true while the session is live and its recorded agent API
+version is below the server's, so the server offers what its plugin cannot use. Live means it holds
+an approved registration and has not reported `stopped`, the conditions besides quiet under which
+its threads are stranded, since restarting the session is no fix for one that is not running or
+cannot call; one started again reports a state other than `stopped` and is marked again while still
+behind. A session with no call recorded is never marked. The server's own version is compared as the
+page is read, never stored, so once a server that moved it starts, every live session recorded at an
+older one is marked before it calls again. The operator can never archive a thread holding an ask
+open to them, so their thread list shows every thread counted. A separate read counts the sessions
+whose log holds entries the operator has not read, which the web UI's navigation shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
 them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration

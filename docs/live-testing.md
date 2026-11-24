@@ -37,7 +37,8 @@ with each other or with what the product does, the disagreement is the finding.
   authentication, and a header that is not a positive integer written without leading zeros refused
   as `invalid_input`; and the version each approved call states recorded on its session, read back
   as `plugin_behind` in the sessions read on the web and operator mounts, true after a call stating
-  an older version or none and false after one stating the server's or before any call. The settings
+  an older version or none while the session is live, not stopped and with an approved registration,
+  and false after one stating the server's, before any call, and while it is not live. The settings
   and transcription routes on the web mount only, each unknown on the agent mount; every voice
   change refused without a recent sign-in; a base URL the rule refuses in any spelling of a refused
   address; a changed base URL clearing the key; no answer or log carrying a key or a provider's
