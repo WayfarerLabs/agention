@@ -1404,14 +1404,16 @@ shortcuts are on unless the operator turns them off in Settings' Keyboard sectio
 browser keeps in its local storage (`src/device.ts`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
-each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
-its boxes against the API's bounds of a message's text and detail, counted with the API's
-`codePointLength` as the server counts them, and never cuts what is typed into them. Its Send row,
-which holds what answers Send, sticks to the foot of the screen within the composer, and the page's
-viewport asks a phone to shrink the layout for its keyboard (`interactive-widget=resizes-content`),
-so the keyboard does not hide Send. The composer measures the row as it changes and the page's
-scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
-into view above the row.
+each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
+button (`src/views/thread/copy.ts`) writes its text, and its detail while that fold is open, to the
+clipboard as Markdown, through `navigator.clipboard`, and says under the message when the browser
+refuses. The composer checks its boxes against the API's bounds of a message's text and detail,
+counted with the API's `codePointLength` as the server counts them, and never cuts what is typed
+into them. Its Send row, which holds what answers Send, sticks to the foot of the screen within the
+composer, and the page's viewport asks a phone to shrink the layout for its keyboard
+(`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer measures
+the row as it changes and the page's scroll padding keeps that much clear, so the caret and a
+control focused from the keyboard scroll into view above the row.
 
 The composer's After sending is where a message the server accepts takes the operator, a choice the
 browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier

@@ -1,8 +1,9 @@
 // The web UI in Chromium against the real server: the server's name in the
 // banner and titles, linking the first passkey, approving an agent and the
 // Sessions tab's count of registrations waiting, answering its asks, a
-// message's detail folded under its text and the composer's Details box, a
-// stale write, a draft kept across the Sessions tab and a reload until discarded,
+// message's detail folded under its text and the message copied with it,
+// the composer's Details box, a stale write, a draft kept across the
+// Sessions tab and a reload until discarded,
 // Send kept on a short phone's screen, text written to take the page down,
 // the divider after messages archived and unfolded, at a phone's width too,
 // reading and marking unread from a message and the Threads tab's
@@ -60,6 +61,9 @@ const requestedHosts = new Set<string>();
 
 test.beforeAll(async ({ browser, agention }) => {
   context = await browser.newContext({ baseURL: agention.origin });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: agention.origin,
+  });
   page = await context.newPage();
   page.on("console", (message) => consoleMessages.push(message.text()));
   page.on("pageerror", (error) => consoleMessages.push(`page error: ${error.message}`));
@@ -234,6 +238,13 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await page.keyboard.press("Enter");
   await expect(details).toHaveAttribute("aria-expanded", "true");
   await expect(first.getByRole("heading", { name: "Rollback plan" })).toBeVisible();
+  // Copy, beside the message's options, copies its Markdown as written, with
+  // the detail while it is open.
+  await first.getByRole("button", { name: "Copy message 1" }).click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(`${text}\n\n${detail}`);
+  await details.focus();
   await page.keyboard.press("Space");
   await expect(details).toHaveAttribute("aria-expanded", "false");
   await expect(first.getByRole("heading", { name: "Rollback plan" })).toHaveCount(0);

@@ -1660,7 +1660,23 @@ button.detail-fold[aria-expanded="false"] > .icon {
   z-index: var(--layer-menu);
 }
 
-button.options-button {
+/* A message's own controls, at the end of its head: Copy, then its options,
+   drawn out to the card's corner as a lone options button is. */
+.head-controls {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 0;
+}
+
+.head-controls .options {
+  margin: 0;
+}
+
+/* An options button, and a message's Copy beside it: an icon alone, quiet
+   until hovered. */
+button.options-button,
+button.copy-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1672,7 +1688,8 @@ button.options-button {
 }
 
 button.options-button:hover,
-button.options-button[aria-expanded="true"] {
+button.options-button[aria-expanded="true"],
+button.copy-button:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
 }
