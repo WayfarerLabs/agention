@@ -71,6 +71,13 @@ describe("the base URL rule", () => {
     ["the NAT64 unspecified address", "https://[64:ff9b::]/v1"],
     ["a NAT64 public address over plain http", "http://[64:ff9b::808:808]/v1"],
     ["a NAT64 private address over plain http", "http://[64:ff9b::a00:1]/v1"],
+    ["a local-use NAT64 address", "https://[64:ff9b:1::808:808]/v1"],
+    ["a local-use NAT64 address embedding at /48", "https://[64:ff9b:1:a9fe:a9:fe00::]/latest"],
+    [
+      "a local-use NAT64 address at the prefix's end",
+      "https://[64:ff9b:1:ffff:ffff:ffff:ffff:ffff]/v1",
+    ],
+    ["a local-use NAT64 address over plain http", "http://[64:ff9b:1::a00:1]/v1"],
     ["a URL past 2,048 characters", `https://transcribe.example/${"a".repeat(2048)}`],
   ])("refuses %s", (_, value) => {
     expect(checkBaseUrl(value)).toHaveProperty("problem");

@@ -861,9 +861,9 @@ only what you send. Reading a message aloud needs none of this: the browser spea
   through `tailscale serve`. It carries no user name, query or fragment, and the server follows no
   redirect from it: a provider that answers with one fails, saying it tried to redirect, so give the
   address it redirects to instead. It never names a link-local address, nor a cloud's metadata
-  address outside one (`100.100.100.200`, `fd00:ec2::254` and `fd20:ce::254`); a host name over
-  `https` is not checked by its address, since the provider's certificate is what proves where it
-  goes.
+  address outside one (`100.100.100.200`, `fd00:ec2::254` and `fd20:ce::254`), nor a local-use NAT64
+  address (`64:ff9b:1::/48`); a host name over `https` is not checked by its address, since the
+  provider's certificate is what proves where it goes.
 - **Model**: as the provider names it, such as `gpt-transcribe` or `whisper-large-v3-turbo`.
 - **Words to recognize**: optional, up to 500 characters, such as names the provider might mishear.
 - **Key**: the provider's key, up to 1,024 characters. OpenAI and Groq need one; your own server may

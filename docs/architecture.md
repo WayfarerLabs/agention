@@ -897,8 +897,10 @@ form, which the web UI and the server both use. `checkBaseUrl`
 link-local addresses, the cloud metadata addresses outside them, the unspecified address and
 multicast are never reached, and plain http only `localhost` and the operator's own network. An
 address in the NAT64 well-known prefix is refused as the IPv4 address it embeds would be, and is
-never the operator's own network, since a translator carries it across networks. A host name other
-than `localhost` is not resolved; over https, the provider's certificate binds it.
+never the operator's own network, since a translator carries it across networks; one in the
+local-use prefix is refused outright, since where it embeds the IPv4 address depends on the
+network's translator. A host name other than `localhost` is not resolved; over https, the provider's
+certificate binds it.
 
 `TranscriptionProvider` is the one interface a transcription goes through, and `openAiCompatible`
 its one implementation: `POST {base URL}/audio/transcriptions`, `multipart/form-data` with the
