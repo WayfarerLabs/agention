@@ -23,6 +23,10 @@ export class TestServer {
 
   constructor(origin = "https://agention.test", rates: Rates = defaultRates, name = "Agention") {
     this.origin = origin;
+    // As the store fixture does: the database is thrown away, so no commit
+    // needs to survive a power loss, and not syncing each one keeps the
+    // ceremonies, each a write, from waiting on a disk the test workers share.
+    this.db.prepare("PRAGMA synchronous = OFF").run();
     this.store = createStore(this.db, { clock: () => this.now });
     this.app = createApp({ store: this.store, origin, name, webRoot: undefined, rates });
   }
