@@ -53,9 +53,11 @@ message, and the one key that submits it, the only exception.
 
 ### Presence
 
-**P1. Connected.** While a session's bridge runs with an approved registration, the server knows it
-is connected, whatever the agent is doing, and stops showing it connected within about a minute of
-the bridge ending. This holds on every host, with or without a pane.
+**P1. Connected, and whether it can be nudged.** While a session's bridge runs with an approved
+registration, the server knows it is connected, whatever the agent is doing, and stops showing it
+connected within about a minute of the bridge ending. This holds on every host, with or without a
+pane. The bridge also says whether its nudge is on and its pane reachable, so the operator can tell
+a session that can be nudged from one that cannot.
 
 **P2. Agent activity, apart from the bridge's.** The server knows when the agent last checked in,
 apart from when its bridge last called. What the operator sees today as a session's last seen
@@ -67,15 +69,23 @@ waits at its prompt rather than checking.
 **P3. What the pane shows.** Where the bridge is given the pane (CF2), the operator also sees its
 pane state and since when.
 
-**P4. Stranded tells the truth.** A thread is stranded, as today, when the agent has not read the
-operator's latest messages while its session has stopped, has no active credential or is quiet, with
-two changes: quiet reads when the agent last checked in (P2), not when its bridge last called, and a
-session whose bridge is not connected (P1) strands its threads too. A nudge that works ends the
-thread's stranding the ordinary way, by the agent reading it; one that does not leaves it stranded.
+**P4. Stranded tells the truth.** A thread is stranded when the agent has not read the operator's
+latest message and nothing will bring it to the agent soon:
+
+- its session has no active credential or its bridge is not connected (P1);
+- its bridge is connected without a nudge (P1), and its session has stopped or is quiet, where quiet
+  now reads when the agent last checked in (P2), not when its bridge last called; or
+- its bridge can be nudged, and that message has waited unread longer than the quiet time, so the
+  nudge had its chance and did not work.
+
+A session that can be nudged is not stranded merely for waiting at its prompt, which is what T1
+teaches it to do.
 
 **P5. One bridge acts for a host session.** A host may run several bridges for one session, as Codex
 does when it starts new ones without ending the old, and all of them share its key and its approved
-registration. Only one of them holds the wait, reports presence and nudges; the others do neither.
+registration, even when they come from different plugin versions. Only one of them holds the wait,
+reports presence and nudges; the others do neither. When a bridge that predates presence runs beside
+one that reports it, the newer one's presence applies and the older one's calls count as check-ins.
 
 **P6. Presence is the operator's, and holds no pane text.** Presence reaches the operator, through
 the web UI and the operator API's session reads, and never an agent. No text from the pane reaches
@@ -93,9 +103,8 @@ not approved, or whose nudge is off, nudges nothing.
 which warns that a nudge is coming and that typing anything stops it, and tells the agent to check
 in with Agention: read its unread threads and bring its session's status up to date. It names no
 thread and carries nothing from the server, so nothing the operator, an agent or anyone else wrote
-reaches the agent's prompt through it, and whoever submits it, the bridge or a person, submits only
-that. The messages, their authors and what was read reach the agent only through Agention's tools,
-as today.
+reaches the agent's prompt through it, and the bridge submits only that text. The messages, their
+authors and what was read reach the agent only through Agention's tools, as today.
 
 **N3. Once until the agent checks in.** A session is nudged at most once until the agent next checks
 in, whether that nudge was submitted, stopped by someone typing (N5) or failed its checks (N6).
@@ -132,8 +141,8 @@ its templating, so every Agentworks session gets presence and the nudge without 
 is Agentworks's; this effort states what it needs and tests against it.
 
 **CF4. Misconfiguration is visible, never fatal.** A pane the bridge cannot reach, or a nudge type
-it does not know, shows in the bridge's log, as the unknown pane state (P3) and in the `register`
-answer (T1), and Agention's tools work as without it.
+it does not know, shows in the bridge's log and in the `register` answer (T1), and an unreachable
+pane also as the unknown pane state (P3); Agention's tools work as without it.
 
 ### Telling the agent
 
@@ -160,11 +169,12 @@ the pane costs a few tmux calls at a time, at intervals the HLA bounds.
 
 **E1. Collateral.** A new ADR records presence and the nudge, superseding ADR 0001's "No push" for
 agents and amending its "No permissions, no harness control" for the one canned text and the key
-that submits it. README, `SECURITY.md` (the agent bridge), `docs/review-checklist.md` (A1, and the
-rule that derived signals never trigger actions), the architecture document, the operator guide
-(presence, quiet, `idle`, stranded threads, the nudge and its configuration), the usage skill and
-the tools' descriptions, the plugin definition and the bridge's usage text, `docs/live-testing.md`
-and the development contract describe them.
+that submits it. README, `SECURITY.md` (the agent bridge), `docs/review-checklist.md` (A1, the rule
+that derived signals never trigger actions, and how a call marks a session seen), the architecture
+document, the operator guide (presence, quiet, `idle`, stranded threads and the New thread sheet's
+word on them, the nudge and its configuration), the usage skill and the tools' descriptions, the
+plugin definition and the bridge's usage text, `docs/live-testing.md` and the development contract
+describe them.
 
 **E2. Tested at its boundary.** Presence, the nudge and every guard are tested against the bridge
 driving a real tmux server, and the compatibility cases of C1 as the release lines require.
