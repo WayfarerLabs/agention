@@ -330,7 +330,9 @@ test("a frame that never answers is replaced, and the next diagram drawn in a ne
     const message = page.getByRole("article", { name: /^Message 1 by/ });
     const figures = message.locator("figure");
     await expect(figures.nth(0).locator(".diagram-note")).toBeVisible();
-    await expect(figures.nth(0).locator("pre code")).toHaveText(flowchart, { timeout: 15_000 });
+    // The fallback shows only once the draw gives up, after its 10 seconds,
+    // so this waits that long beyond the usual allowance.
+    await expect(figures.nth(0).locator("pre code")).toHaveText(flowchart, { timeout: 25_000 });
     await expect(figures.nth(1).getByRole("img", { name: "Diagram" })).toBeVisible();
     expect(frameRequests().length - before).toBe(2);
     await expect(page.locator("iframe")).toHaveCount(1);
