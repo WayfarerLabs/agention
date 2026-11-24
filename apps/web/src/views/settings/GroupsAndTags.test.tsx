@@ -237,6 +237,68 @@ describe("Settings' groups and tags", () => {
     ).toBe(true);
   });
 
+  it("shows a group another client created while a move is under way", async () => {
+    const state = await open();
+    let answer = () => undefined as void;
+    api.on("POST", "/groups/order", async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      return { body: {} };
+    });
+    fireEvent.click(within(row("Group Website")).getByRole("button", { name: "Move Website up" }));
+    await waitFor(() => expect(posted("/groups/order")).toHaveLength(1));
+    // A reload lands meanwhile, listing a group the order sent does not.
+    state.known = {
+      ...state.known,
+      groups: [...state.known.groups, { id: 9, name: "Elsewhere", color: "teal", sessions: 0 }],
+    };
+    const loads = api.callsTo("GET", "/groups-and-tags").length;
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBe(loads + 1));
+    await waitFor(() =>
+      expect(groupNames()).toEqual([
+        "Group Billing",
+        "Group Website",
+        "Group Personal",
+        "Group Elsewhere",
+      ]),
+    );
+    answer();
+  });
+
+  it("keeps the order a move saved when its reload fails, until one brings the groups", async () => {
+    const state = await open();
+    api.on("POST", "/groups/order", (call) => {
+      const ids = (call.body as { groups: number[] }).groups;
+      state.known = {
+        ...state.known,
+        groups: ids.flatMap((id) => state.known.groups.filter((group) => group.id === id)),
+      };
+      return { body: {} };
+    });
+    let failing = true;
+    api.on("GET", "/groups-and-tags", () =>
+      failing ? failure("internal", "internal error") : { body: state.known },
+    );
+    fireEvent.click(within(row("Group Website")).getByRole("button", { name: "Move Website up" }));
+    await waitFor(() => expect(posted("/groups/order")).toHaveLength(1));
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(groupNames()).toEqual(["Group Billing", "Group Website", "Group Personal"]);
+    // Another client puts Website first before the retry, which the list
+    // then follows.
+    failing = false;
+    state.known = {
+      ...state.known,
+      groups: [7, 4, 5].flatMap((id) => state.known.groups.filter((group) => group.id === id)),
+    };
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Try again" })).toBeNull());
+    await waitFor(() =>
+      expect(groupNames()).toEqual(["Group Website", "Group Billing", "Group Personal"]),
+    );
+  });
+
   it("reloads the groups as they are when the server refuses an order as stale", async () => {
     const state = await open();
     api.on("POST", "/groups/order", () => {
@@ -267,7 +329,15 @@ describe("Settings' groups and tags", () => {
     await open();
     api.on("POST", "/groups/order", { body: {} });
     const item = (name: string) => row(name).closest("li") as HTMLElement;
-    const transfer = { setData: () => undefined, effectAllowed: "" };
+    const data = new Map<string, string>();
+    const transfer = {
+      effectAllowed: "",
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      get types() {
+        return [...data.keys()];
+      },
+    };
     // Only its handle drags it.
     expect(item("Group Website").hasAttribute("draggable")).toBe(false);
     fireEvent.dragStart(row("Group Website").querySelector(".drag-handle") as HTMLElement, {

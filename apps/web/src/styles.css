@@ -1287,6 +1287,26 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0;
 }
 
+/* A group's moves on its head in the sessions view's manual order: its
+   handle and buttons, over the bar's fold button, as its links are. */
+.group-moves {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: calc(var(--space-2) * -1) 0;
+}
+
+.group.dragging {
+  opacity: 0.5;
+}
+
+.group.drop-over > .fold-head > .group-head {
+  border-top-color: var(--color-accent);
+  box-shadow: inset 0 2px 0 var(--color-accent);
+}
+
 .roll-up-count {
   color: var(--color-muted);
 }
