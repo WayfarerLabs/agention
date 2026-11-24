@@ -574,7 +574,8 @@ built from the same lists ([API documentation](#api-documentation)).
   with the one scope it requires. Being in the list is what puts an operation on the operator mount,
   so one left out is not there. The web mount serves the same list to the browser session, which
   holds every scope, so both mounts run the same handlers. `threads:read` grants the thread list
-  (`GET /threads`), its counts (`GET /threads/counts`), the wait across sessions (`GET /wait`) and a
+  (`GET /threads`), its counts (`GET /threads/counts`), the threads above and below one in it
+  (`GET /s/:agent/:session/threads/:thread/neighbors`), the wait across sessions (`GET /wait`) and a
   thread with its messages, a thread's files and the file a message carries; `threads:write`
   starting a thread on a session, sending a message, marking a thread read or unread and archiving
   it, bulk read and archive (`POST /reads` and `POST /archives`), and uploading a file and removing
@@ -1220,14 +1221,40 @@ with telling the page: a listener of its own would run only once the page had re
 uncorrected. A row's link records the list on screen as it is followed. The open thread's row is
 `aria-current="page"`, and opening it again moves focus to the thread's pane. The page keeps one
 title and one level-one heading, the thread's while one is open, and a change that leaves a thread,
-such as Archive all or a send that goes back, returns to the list as it stands once the change
-lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
+such as Archive all or a send that goes back to the list, returns to the list as it stands once the
+change lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
 `src/components.tsx`), the place a view marks with `data-landing`, its heading or else the place
 itself: the thread's pane, as a phone lands on the page's content while a thread loads, or on
 returning to the list, the row of the thread just left (`src/views/list/beside.ts`). A row that goes
 while it holds focus passes it to the page's heading, and crossing the breakpoint, if it took away
 what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
 and the list's pane is sticky and scrolls on its own.
+
+A thread page's **Thread above** and **Thread below**, and Archive all as Auto-advance says, go to
+the row just above or below the thread in the list it returns to, as that list stands when the
+operator asks: the list Back to threads goes to, which its history entry names, or the list with no
+filters for a thread opened from a link. Side by side it is the list on screen, and a phone, showing
+no list, gets the same answer. The server answers it
+(`GET /s/:agent/:session/threads/:thread/neighbors`, `findThreadNeighbors` in
+`src/store/thread-lists.ts`), ranking the list once, as the list's pages rank it, grouping included,
+with the thread kept at its own place though the filters would leave it out, as they do a thread
+just archived or read out of a list kept to the unread, and answering the rows on either side. A
+kept thread stands within its own group, and the groups stay where the list shows them, so it never
+moves one; only a group it alone would hold takes its place from it. The request costs about what
+one page of the list does. The page (`src/views/thread/leaving.ts`) asks on each press, and Archive
+all asks once the archive has landed, so archiving never waits on the list. Should the operator
+change the list while the server answers, the page asks again in the list as it then stands, so it
+keeps their latest choice and opens a thread found in the list it returns to; should the list change
+three times running, it stays and says so rather than go by an answer for a list left behind.
+Archive all archives only through what the page shows: after sending, it waits until the page has
+loaded through the message sent, with any the agent wrote before it. The buttons push the thread
+found as a new history entry, carrying on the list it was found in; Archive all replaces the
+archived thread's entry, so Back does not return to it, and stays on the thread, archived, with the
+failure shown, should the request fail. At the end of the list that way each goes back to the list,
+leaving it a notice to say so; nothing goes round. Auto-advance is a choice the browser keeps
+(`useAutoAdvance`), the thread above unless the operator chooses otherwise in Settings' Threads
+section. While one way on is under way no other starts, the buttons are marked busy, and Send and
+After sending wait, so a send never lands to find its own way on refused or its choice changed.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
@@ -1352,12 +1379,15 @@ browser's own where it acts, apart from `/` on the thread list, which takes Fire
 deliberately; `Enter` on a row is left out, since the row is a link the browser follows. One handler
 on the document, added after the page's own, acts on a key only when nothing handled it first, it
 was not typed into a text field, a select or editable content, no dialog or options menu is open,
-and Ctrl, Alt and Meta are up; the first key of two, `g`, waits 1.5 seconds for the second. A screen
-reader's browse mode takes single keys before the page sees them, so the shortcuts reach the page
-only once it passes keys through, and never compete with its own. The composer's own keys, Send and
-leaving it, act within its fields from its form's key handler (`useFieldShortcuts`), and likewise
-not while a dialog or options menu is open, such as Attach's within the form. Side by side, the
-list's shortcuts and the thread's act together, each pane naming the area of its view's
+and Ctrl, Alt and Meta are up, AltGr, which Chrome on Windows reports as Ctrl and Alt held, counting
+as neither for the punctuation it types, such as `[` on a German keyboard; Chrome on Windows reports
+a real Ctrl and Alt chord as AltGr too, so with a letter, a digit or a named key such as `Escape`,
+which types nothing, it counts as Ctrl and Alt; the first key of two, `g`, waits 1.5 seconds for the
+second. A screen reader's browse mode takes single keys before the page sees them, so the shortcuts
+reach the page only once it passes keys through, and never compete with its own. The composer's own
+keys, Send and leaving it, act within its fields from its form's key handler (`useFieldShortcuts`),
+and likewise not while a dialog or options menu is open, such as Attach's within the form. Side by
+side, the list's shortcuts and the thread's act together, each pane naming the area of its view's
 (`ShortcutArea`), which clicking within a pane gives focus. While focus is in one place's area,
 another place's keys act only if they reach across (`reachesAcross`): the list's do, moving focus
 into it, but the thread's do not, so `e`, a digit or `u` never acts on the thread from the list. A
@@ -1378,6 +1408,24 @@ viewport asks a phone to shrink the layout for its keyboard (`interactive-widget
 so the keyboard does not hide Send. The composer measures the row as it changes and the page's
 scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
 into view above the row.
+
+The composer's After sending is where a message the server accepts takes the operator, a choice the
+browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
+release kept, going back or staying, stands in its place, as it does for a value After sending does
+not know. A message that lands while the page is still open goes by the choice as it stands then
+(the composer's `onward`): back to the list, which says what was sent; to the thread above or below,
+as their buttons go; or Archive all's own path, run without the page's check for asks open to the
+operator, since the message may have answered them, so the server's refusal, naming the ask, shows
+instead and the page stays. What was sent goes with the operator: the thread opened says it beside
+Send (`leaveNotice` for the thread, in `src/notice.ts`), and a list gone back to says it, before
+saying it reached its end when it did. When a send's way on fails, its composer says so beside Send,
+after what was sent, in the head's own words, which a phone's keyboard can hide. An archive after
+sending goes through the message sent at least, which a stale send's retry can place past the latest
+the page has loaded. One rule holds for leaving the page: while a way on is under way, or a message
+that will take the page somewhere is on its way, no other way on starts, the buttons', Archive all's
+or a send's; a send's own way on, once it lands, waits only for the others. Each way on checks and
+marks it as it stands when it starts (`start`), not as the render that set it up saw it, and the
+buttons are disabled meanwhile, as Archive all is.
 
 The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
 `src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
@@ -1513,10 +1561,10 @@ keeps the recording for Retry until it is discarded. `useDictation` gives its ca
 what went wrong and what it says otherwise apart, and the composer puts all three in its Send row, a
 failure before Send and anything else after it. The row stays short on a phone whatever its fonts:
 the microphone is its icon alone, the recording's time and a failure drop the words the rest says,
-and Go back after sending moves below the row while dictation has controls in it. Each control that
-replaces another moves focus to the next state's own control, unless the operator has put focus
-somewhere else meanwhile, as into the message box while the microphone opens, and starting a
-recording is announced once.
+and After sending moves below the row while dictation has controls in it, keeping focus as it moves.
+Each control that replaces another moves focus to the next state's own control, unless the operator
+has put focus somewhere else meanwhile, as into the message box while the microphone opens, and
+starting a recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a

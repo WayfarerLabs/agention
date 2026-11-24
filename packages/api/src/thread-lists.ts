@@ -397,6 +397,10 @@ export const threadGroups = z.object({
 });
 export type ThreadGroups = z.infer<typeof threadGroups>;
 
+// A thread as the operator's list shows it, with its session's group when it
+// is in one.
+export const listedThread = threadSummary.extend({ group: groupRef.optional() });
+
 // The operator's thread list: a page, each thread with its session's group
 // when it is in one; how many threads the list holds; and, grouped, the
 // roll-ups of its groups. A grouped list orders its threads by their group,
@@ -406,11 +410,21 @@ export type ThreadGroups = z.infer<typeof threadGroups>;
 // topic within that; by session, each session, and each topic within it; by
 // agent, each agent, and each session within it.
 export const threadList = threadPage.extend({
-  threads: z.array(threadSummary.extend({ group: groupRef.optional() })),
+  threads: z.array(listedThread),
   total: sequence,
   groups: threadGroups.optional(),
 });
 export type ThreadList = z.infer<typeof threadList>;
+
+// The rows just above and below a thread in the operator's list, as the list
+// with the same filters, order, direction and grouping shows them, the thread
+// standing at its own place in that order though the filters would leave it
+// out. Neither is there at that end of the list.
+export const threadNeighbors = z.object({
+  above: listedThread.optional(),
+  below: listedThread.optional(),
+});
+export type ThreadNeighbors = z.infer<typeof threadNeighbors>;
 
 // The threads with unread messages, and the position to wait from next.
 export const waitResult = z.object({ threads: z.array(threadSummary), since: cursor });

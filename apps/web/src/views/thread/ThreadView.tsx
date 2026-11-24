@@ -19,7 +19,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { describeFailure, query, request, threadPath } from "../../api.ts";
+import { query, request, threadPath } from "../../api.ts";
 import {
   Loadable,
   PageHeading,
@@ -48,19 +48,13 @@ import {
 } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import { useShortcuts } from "../../keyboard.tsx";
-import { leaveNotice } from "../../notice.ts";
-import {
-  currentListView,
-  Link,
-  listHref,
-  navigate,
-  threadPathParts,
-  useListView,
-} from "../../router.tsx";
-import { Composer } from "./Composer.tsx";
+import { takeNotice } from "../../notice.ts";
+import { Link, listHref, navigate, threadPathParts, useListView } from "../../router.tsx";
+import { Composer, useAfterSending } from "./Composer.tsx";
 import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
+import { failedWords, returnToList, useLeaving } from "./leaving.ts";
 import {
   blank,
   type Staged,
@@ -270,6 +264,16 @@ export function ThreadView({
   // The list the page returns to, which the list beside it side by side can
   // change while it is open.
   const origin = useListView();
+  // What the thread page that opened this one after sending left to say: what
+  // it sent, which the composer says beside Send. It is taken at once, before
+  // the thread loads, so none is left for a later page.
+  const [arrived, setArrived] = useState<string>();
+  useEffect(() => {
+    const notice = takeNotice("thread");
+    if (notice !== undefined) {
+      setArrived(notice);
+    }
+  }, []);
   const loaded = useThread(target);
   // Whether the messages the operator archived are unfolded.
   const [unfolded, setUnfolded] = useState(false);
@@ -318,6 +322,7 @@ export function ThreadView({
           loaded={loaded}
           unfolded={unfolded}
           setUnfolded={setUnfolded}
+          arrived={arrived}
         />
       )}
     </Loadable>
@@ -334,6 +339,7 @@ function ThreadPage({
   loaded,
   unfolded,
   setUnfolded,
+  arrived,
 }: {
   data: LoadedThread;
   target: ThreadTarget;
@@ -344,6 +350,7 @@ function ThreadPage({
   loaded: ReturnType<typeof useThread>;
   unfolded: boolean;
   setUnfolded: (unfolded: boolean) => void;
+  arrived: string | undefined;
 }) {
   const { thread, messages, cursors, marks } = data;
   const { reach, refresh, show } = loaded;
@@ -357,6 +364,8 @@ function ThreadPage({
     [reach, refresh],
   );
   const writer = useWriter(target, written);
+  // Where a message the server accepts takes the operator.
+  const [after, setAfter] = useAfterSending();
   // The messages the page shows as they stand, which a change judges once its
   // asks load, with those a stale write missed, which the writer gives exactly
   // (missedNow). Unlike the composer's refs, this one is set in a layout
@@ -410,13 +419,14 @@ function ThreadPage({
       : undefined;
   };
 
-  // Marking unread from a message and archiving all of the thread return to
-  // the list, as email does, so the page does not read the thread again at
-  // once; the page they leave is replaced, so going back does not either.
-  // One that lands after the operator moved on to another page leaves them
-  // there. Archiving through a message stays on the page. Each goes to the
-  // list as it stands once the change lands (returnToList), which side by
-  // side the list beside the thread may have changed meanwhile.
+  // Marking unread from a message returns to the list, and archiving all of
+  // the thread goes where Auto-advance says, as email does, so the page does
+  // not read the thread again at once; the page they leave is replaced, so
+  // going back does not either. One that lands after the operator moved on to
+  // another page leaves them there. Archiving through a message stays on the
+  // page. Going to the list goes to it as it stands once the change lands
+  // (returnToList), which side by side the list beside the thread may have
+  // changed meanwhile.
   const stillOpen = useStillOpen();
   // The message the latest mark from a message was made from, and the mark.
   const [markedFrom, setMarkedFrom] = useState<{ seq: number; mark: "unread" | "archive" }>();
@@ -424,6 +434,7 @@ function ThreadPage({
     action: ReturnType<typeof useAction>,
     route: "/unread" | "/archive",
     body: UnreadInput | MarkInput,
+    onward: () => void = returnToList,
   ) => {
     const done = await action.run((csrf) =>
       request<CursorsResult | MarksResult>(
@@ -433,37 +444,28 @@ function ThreadPage({
       ),
     );
     if (done !== undefined && stillOpen()) {
-      returnToList();
+      onward();
     }
   };
-  // Archive all first shows every message through the thread's latest,
-  // loading later pages as needed, so it never archives a message the page
-  // has not shown, then archives through the latest. When loading them
-  // fails, it stops and says so, until the operator chooses it again.
-  const [archivingAll, setArchivingAll] = useState(false);
-  const [showingFailure, setShowingFailure] = useState<unknown>();
-  // The failure the thread's last load had when Archive all was chosen.
-  const failedBefore = useRef<unknown>(undefined);
-  const leaving = unread.pending || archive.pending || reading.pending || archivingAll;
-  const archiveAll = () => {
-    setMarkedFrom(undefined);
-    setShowingFailure(undefined);
-    failedBefore.current = loaded.failure;
-    setArchivingAll(true);
-    show(thread.last_seq);
-  };
-  useEffect(() => {
-    if (!archivingAll) {
-      return;
-    }
-    if (loaded.failure !== undefined && loaded.failure !== failedBefore.current) {
-      setArchivingAll(false);
-      setShowingFailure(loaded.failure);
-    } else if (!data.later) {
-      setArchivingAll(false);
-      void leaveWith(archive, "/archive", { through: data.thread.last_seq });
-    }
-  }, [archivingAll, data, loaded.failure]);
+  // Thread above and Thread below, Archive all and a send's way on
+  // (useLeaving).
+  const ways = useLeaving({
+    target,
+    last: data.thread.last_seq,
+    later: data.later,
+    loadFailure: loaded.failure,
+    show,
+    archive,
+    unread,
+    marking: markedFrom !== undefined,
+    clearMarking: () => setMarkedFrom(undefined),
+    leaveWith,
+    stillOpen,
+    sendPending: writer.pending,
+    after,
+  });
+  const { busy, archiveAll, openNeighbor, onwardFailure } = ways;
+  const leaving = busy || reading.pending;
   // Archiving through a message stays on the page, where the messages
   // archived fold away, and focus moves to the fold.
   const fold = useRef<HTMLButtonElement>(null);
@@ -756,6 +758,8 @@ function ThreadPage({
         archiveAll();
       }
     },
+    openAbove: () => void openNeighbor("above"),
+    openBelow: () => void openNeighbor("below"),
     jump: () => {
       if (jumpTo !== undefined) {
         setSeeking({ failedBefore: loaded.failure });
@@ -773,7 +777,29 @@ function ThreadPage({
     <article>
       <header className="thread-header">
         <div className="thread-bar">
-          <BackToThreads origin={origin} />
+          <div className="thread-nav">
+            <BackToThreads origin={origin} />
+            <button
+              type="button"
+              className="secondary icon-button"
+              aria-label="Thread above"
+              title="Thread above"
+              disabled={busy}
+              onClick={() => void openNeighbor("above")}
+            >
+              <Icon name="arrow-up" />
+            </button>
+            <button
+              type="button"
+              className="secondary icon-button"
+              aria-label="Thread below"
+              title="Thread below"
+              disabled={busy}
+              onClick={() => void openNeighbor("below")}
+            >
+              <Icon name="arrow-down" />
+            </button>
+          </div>
           <div className="thread-actions">
             {thread.archived && <Mark icon="archive" label="Archived" />}
             <button
@@ -781,7 +807,7 @@ function ThreadPage({
               className="secondary"
               disabled={!canArchiveAll}
               aria-describedby={openCount > 0 ? archiveAllHint : undefined}
-              onClick={archiveAll}
+              onClick={() => archiveAll()}
             >
               Archive all
             </button>
@@ -820,10 +846,11 @@ function ThreadPage({
             </button>
           </div>
         )}
-        <HeadFailure
-          action="Archiving this thread"
-          failure={markedFrom === undefined ? (archive.failure ?? showingFailure) : undefined}
-        />
+        {onwardFailure !== undefined && (
+          <div className="notice danger" role="alert">
+            <p>{onwardFailure}</p>
+          </div>
+        )}
         <HeadFailure action="Reading this thread" failure={reading.failure} />
       </header>
 
@@ -870,10 +897,12 @@ function ThreadPage({
         writer={writer}
         sending={setSentStaged}
         wrote={(seq) => setWrittenHere((current) => new Set([...current, seq]))}
-        back={(notice) => {
-          leaveNotice(notice);
-          returnToList();
-        }}
+        arrived={arrived}
+        after={after}
+        setAfter={setAfter}
+        onward={ways.sentOnward}
+        moving={ways.moving}
+        onwardFailure={onwardFailure}
         shown={shown}
         text={text}
         setText={setText}
@@ -895,13 +924,6 @@ function ThreadPage({
       </div>
     </article>
   );
-}
-
-// returnToList leaves the thread page for the list it returns to, as it
-// stands when called, replacing the page's history entry, so going back does
-// not open the thread again.
-function returnToList(): void {
-  navigate(listHref(currentListView()), { replace: true });
 }
 
 // BackToThreads is the back button to the thread list as the operator left
@@ -938,9 +960,7 @@ function Stranded({ thread }: { thread: ThreadSummary }) {
 function HeadFailure({ action, failure }: { action: string; failure: unknown }) {
   return failure === undefined ? null : (
     <div className="notice danger" role="alert">
-      <p>
-        {action} failed: {describeFailure(failure)}
-      </p>
+      <p>{failedWords(action, failure)}</p>
     </div>
   );
 }
