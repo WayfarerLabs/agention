@@ -1390,9 +1390,11 @@ separating servers. The thread list marks a thread with a kept draft from the sa
   loaded, which would come back as a new message the operator never wrote. A write that lands keeps
   what is left, or forgets the draft, at once, since going back after sending unmounts the page in
   the same render.
-- **Forgetting:** once there is nothing to keep, a page forgets the draft only while the stored
-  record is still the one it kept, so the draft another tab typed since stays. A draft the browser
-  refuses to keep forgets the one kept before, which would come back older.
+- **Forgetting:** once there is nothing to keep, a page forgets the draft, and a write that lands
+  keeps what is left, only while the stored record is still the one the page kept, or there is none,
+  so a draft kept since, in another tab or by opening the thread again, stays; a page refused so
+  keeps what is left only once it is typed on. A draft the browser refuses to keep forgets the one
+  kept before, which would come back older.
 - **Limits:** a draft kept more than 30 days ago, or after now, is none, opening its thread keeps it
   again, and a new draft forgets those that are none and the oldest past 50, which caps the storage
   drafts take.
