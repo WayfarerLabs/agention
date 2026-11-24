@@ -978,16 +978,15 @@ export function MessageView({
   );
 }
 
-// MessageList lists messages in order, marking whether each was read: those
-// unread when the page first showed them are marked unread. Each live message
-// has its options menu, one open at a time.
+// MessageList lists messages in order, marking unread those the page counts
+// unread. Each live message has its options menu, one open at a time.
 export function MessageList({
   messages,
-  fresh,
+  unread,
   context,
 }: {
   messages: Message[];
-  fresh: ReadonlySet<number>;
+  unread: ReadonlySet<number>;
   context: MessageContext;
 }) {
   const [open, setOpen] = useState<number>();
@@ -1001,7 +1000,7 @@ export function MessageList({
           <MessageView
             message={message}
             context={context}
-            unread={fresh.has(message.seq)}
+            unread={unread.has(message.seq)}
             menu={menu}
           />
         </li>
