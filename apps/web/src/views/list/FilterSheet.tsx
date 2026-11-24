@@ -1,6 +1,7 @@
 import { threadStatus } from "@wayfarerlabs/agention-api";
 import {
   agentReadFilter,
+  type Color,
   asksOff,
   type GroupsAndTags,
   effortFilter,
@@ -25,6 +26,7 @@ import {
 import { LeftOut, PathBadge, type PathKind, pathWord, useTapOutside } from "../../components.tsx";
 import { effortLabel, plain, plural, Spoken, statusLabel, type TerseLabel } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
+import { Swatch, usePalette } from "../../organizing.tsx";
 import { impactShown, priorityAtLeast } from "./Chips.tsx";
 import { groupNamed, removedGroup, sessionOf, topicShown } from "./listing.ts";
 
@@ -101,6 +103,8 @@ interface Choice {
   value: string;
   spoken?: string;
   name: string;
+  // A group's or a tag's color, when known.
+  color?: Color | undefined;
   of?: string | undefined;
   count: number;
 }
@@ -233,6 +237,7 @@ function MultiSelect({
                       onChange={() => toggle(choice.value)}
                     />
                     <span className="pick" title={choice.spoken ?? choice.value}>
+                      <Swatch color={choice.color} />
                       {choice.name}
                       {choice.of !== undefined && <span className="pick-of"> {choice.of}</span>}
                       <span className="pick-count"> ({choice.count})</span>
@@ -349,10 +354,12 @@ export function FilterSheet({
     .filter((each) => onOffer(view, "topic", each.value));
   // Groups by their ids, no group among them, and tags by their names.
   const chosenGroups = (view.session_group ?? []).map(String);
+  const palette = usePalette();
   const groups = counts?.session_group.groups.map((each) => ({
     value: String(each.id),
     spoken: each.name,
     name: each.name,
+    color: palette.group(each.id),
     count: each.total,
   }));
   const groupChoices =
@@ -370,6 +377,7 @@ export function FilterSheet({
   const tags = counts?.tag.tags.map((each) => ({
     value: each.tag,
     name: each.tag,
+    color: palette.tag(each.tag),
     count: each.total,
   }));
   return (

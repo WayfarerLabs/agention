@@ -168,8 +168,9 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   later; a message attaches only its writer's own, so a key can remove a pending upload of the
   operator's but never a file a message carries. A leaked key holding `sessions:approve` can approve
   an agent's registration, letting an agent of its holder's choosing into the operator's sessions,
-  so Settings and the operator guide say what that scope grants. A message written with a key is the
-  operator's, and records no key.
+  so Settings and the operator guide say what that scope grants. Approving that also sets the
+  session's group or tags needs `sessions:write` too, which the store checks with the approval. A
+  message written with a key is the operator's, and records no key.
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with

@@ -21,6 +21,7 @@ import {
   type Place,
 } from "../../components.tsx";
 import { type Folds, useFolds } from "../../device.ts";
+import { Swatch, usePalette } from "../../organizing.tsx";
 import { plural, priorityLabel, priorityTone, Since } from "../../format.tsx";
 import { Mark, UnreadCount } from "../../icons.tsx";
 import {
@@ -305,6 +306,7 @@ export function GroupedRows({
   list: ListShown;
 }) {
   const folds = useFolds(`agention.collapsed-groups.${grouping}`);
+  const palette = usePalette();
   const heads = headsOf(groups);
   const top: Placement = { level: 2, depth: "outer" };
   if (grouping !== "agent") {
@@ -379,7 +381,12 @@ export function GroupedRows({
             group === undefined
               ? bare("No group", { session_group: [noGroup] })
               : {
-                  shown: group.name,
+                  shown: (
+                    <>
+                      <Swatch color={palette.group(group.id)} />
+                      {group.name}
+                    </>
+                  ),
                   spoken: `Group ${group.name}`,
                   narrowing: { session_group: [group.id] },
                 }
