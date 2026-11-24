@@ -77,11 +77,12 @@ one started again reports a state other than `stopped` (the usage skill has it r
 first), and a revoked one approved afresh holds an approved registration again; either is marked
 again while still behind, with no code beyond the read. Null is not behind: a session with no
 recorded call is not marked (HLA). Released bridges state 2 or 3, or, before 0.3.0, nothing, which
-reads as 1, so every released bridge is covered (U2). The comparison is made where the summary is
-built, in `listSessions`' `toSummary` (`apps/server/src/store/sessions.ts:373-400`), which selects
-the column beside `last_seen_at` (`sessions.ts:290-294`). The server's own version is read there,
-never stored, so after a server upgrade that moves it every session recorded at the old version that
-is live is marked at once, before it calls again: the reason the HLA keeps a column.
+reads as 1, all below the server's version, so every released bridge is covered (U2). The comparison
+is made where the summary is built, in `listSessions`' `toSummary`
+(`apps/server/src/store/sessions.ts:373-400`), which selects the column beside `last_seen_at`
+(`sessions.ts:290-294`). The server's own version is read there, never stored, so after a server
+upgrade that moves it every session recorded at the old version that is live is marked at once,
+before it calls again: the reason the HLA keeps a column.
 
 ## The sessions read
 
