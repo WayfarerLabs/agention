@@ -516,6 +516,12 @@ function ThreadPage({
           (message) => message.seq > archivedThrough || keptInView.includes(message.seq),
         )
       : messages;
+  // The archived divider leads the first message listed after the archive
+  // mark while the messages archived are unfolded; folded, their fold marks
+  // where they end. It shows only where the mark meets the messages loaded,
+  // which is when they fold, and never while nothing listed follows it.
+  const firstAfterArchived =
+    unfolded && folding ? listed.find((message) => message.seq > archivedThrough)?.seq : undefined;
 
   // focusOn shows a message, loading its page when needed, then moves focus
   // to it, or to an ask's card on it. When that load fails, focus stays
@@ -886,7 +892,12 @@ function ThreadPage({
             Show earlier messages
           </button>
         )}
-        <MessageList messages={listed} unread={unreadHere} context={context} />
+        <MessageList
+          messages={listed}
+          unread={unreadHere}
+          context={context}
+          firstAfterArchived={firstAfterArchived}
+        />
         <HeadFailure action="Loading that message" failure={loading.failure} />
         {data.later && (
           <button type="button" className="secondary more" onClick={loaded.later}>
