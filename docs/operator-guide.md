@@ -357,7 +357,10 @@ stays as you set it, its filters, order, folds and scroll, as threads open besid
 back and forward; the row of the thread open is outlined, and choosing it again takes you to the
 thread; and choosing another order or filter keeps the thread open. The thread scrolls with the page
 while the list stays in view, scrolling on its own. Going back to the list from a thread, with its
-**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left.
+**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left. Opening a
+thread, from the list, with **Thread above** or **Thread below**, or as archiving or sending moves
+you on, puts focus on its heading once it has loaded, on a phone too, unless you have moved focus
+elsewhere while it loaded.
 
 Where a thread is, its agent, its session and its topic, shows each part behind a small badge: **A**
 for the agent, **S** for the session and **T** for the topic; holding the pointer over a badge names

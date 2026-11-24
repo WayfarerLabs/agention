@@ -1819,8 +1819,9 @@ describe("where sending goes", () => {
       expect(window.history.length).toBe(entries + 1);
       expect(window.history.state).toMatchObject({ from: list });
       expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
-      // The next thread's composer says what was sent.
-      await screen.findByRole("heading", { level: 1, name: /The next one/ });
+      // The next thread's composer says what was sent, focus on its heading.
+      const heading = await screen.findByRole("heading", { level: 1, name: /The next one/ });
+      expect(document.activeElement).toBe(heading);
       await waitFor(() => expect(composerSays()).not.toBe(""));
     },
   );
