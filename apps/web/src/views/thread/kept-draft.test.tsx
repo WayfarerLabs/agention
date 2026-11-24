@@ -80,6 +80,24 @@ const voiceOn = {
 };
 const dayMs = 24 * 60 * 60 * 1000;
 
+// landsOnceShown lands a write the moment shown says what it waits for is on
+// the page, before the effects of the render that showed it run, and settles
+// then. Its observer goes with the test, even one that times out waiting.
+function landsOnceShown(shown: () => boolean, land: () => void): Promise<void> {
+  let observer: MutationObserver | undefined;
+  onTestFinished(() => observer?.disconnect());
+  return new Promise<void>((resolve) => {
+    observer = new MutationObserver(() => {
+      if (shown()) {
+        observer?.disconnect();
+        land();
+        resolve();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 // reopen leaves the thread, unmounting its page, and opens it again.
 async function reopen(state: State): Promise<void> {
   cleanup();
@@ -328,19 +346,7 @@ describe("a draft kept in the browser", () => {
       // The write lands the moment what was added shows. A recording starts
       // outside the test's act, so its effects have not run yet then, and
       // the landing must read what that render shows.
-      // The observer goes with the test, even one that times out waiting.
-      let observer: MutationObserver | undefined;
-      onTestFinished(() => observer?.disconnect());
-      const shown = new Promise<void>((resolve) => {
-        observer = new MutationObserver(() => {
-          if (added()) {
-            observer?.disconnect();
-            answer(written(2));
-            resolve();
-          }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-      });
+      const shown = landsOnceShown(added, () => answer(written(2)));
       add();
       await shown;
       await waitFor(() => expect(window.location.pathname).toBe("/"));
@@ -350,6 +356,51 @@ describe("a draft kept in the browser", () => {
       });
     },
   );
+
+  it("keeps what a write leaves, not an older render's draft, when the write lands just after a transcript", async () => {
+    page.api.on("GET", "/settings", { body: voiceOn });
+    installRecorder();
+    keepDraft(thread, draft, signOutMark());
+    // Going back as the write lands, the page never shows what is left, so
+    // only what the landing keeps is kept.
+    window.localStorage.setItem(afterSendingChoice, "list");
+    await page.open(
+      { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+      { from: "/" },
+    );
+    await within(composer()).findByRole("button", { name: "Dictate" });
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise<Reply>((resolve) => (answer = resolve)),
+    );
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    let transcribed = false;
+    page.api.on("POST", "/transcriptions", () => {
+      transcribed = true;
+      return { body: { text: "And more." } };
+    });
+    fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
+    await within(composer()).findByRole("button", { name: "Stop" });
+    // The write lands the moment the transcript shows, as early as it can:
+    // the draft that render keeps must not outlast what the write keeps.
+    const shown = landsOnceShown(
+      () => transcribed && within(composer()).queryByRole("button", { name: "Dictate" }) !== null,
+      () => answer(written(2)),
+    );
+    fireEvent.click(within(composer()).getByRole("button", { name: "Stop" }));
+    await shown;
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    // The text changed since it was sent, so all of it is left, counting from
+    // the message written.
+    expect(readDraft(thread)).toMatchObject({
+      text: "And more. Half a reply",
+      basis: 2,
+      leftBehind: false,
+    });
+  });
 
   it("comes back without what was staged", async () => {
     const state = await page.openWith([message(1, { asks: [ask()] })], {

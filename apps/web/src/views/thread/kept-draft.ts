@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   type DraftThread,
   forgetDraft,
@@ -40,7 +40,10 @@ export function useKeptDraft(
   // exactly that, the changes that follow the write landing keep it only as
   // keepNow would, and anything typed since is kept as ever.
   const refused = useRef<{ text: string; detail: string } | undefined>(undefined);
-  useEffect(() => {
+  // Kept as the page commits, in a layout effect, so a write that lands later
+  // is always the last to keep: a passive effect could run after it and keep
+  // a draft from before it.
+  useLayoutEffect(() => {
     if (keep) {
       const held = { text, detail, basis, leftBehind };
       if (refused.current?.text === text && refused.current.detail === detail) {
