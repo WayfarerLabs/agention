@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   draftDays,
   forgetDrafts,
@@ -289,17 +289,18 @@ describe("a draft kept in the browser", () => {
           target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
         });
       },
+      () => within(composer()).queryByText("a.png") !== null,
     ],
     [
       "a recording started",
-      async () => {
+      () => {
         fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
-        await within(composer()).findByRole("button", { name: "Stop" });
       },
+      () => within(composer()).queryByRole("button", { name: "Stop" }) !== null,
     ],
   ])(
     "still leaves behind %s while a restored draft was sent, with what was typed meanwhile, as the page goes back",
-    async (what, add) => {
+    async (what, add, added) => {
       if (what === "a recording started") {
         page.api.on("GET", "/settings", { body: voiceOn });
         installRecorder();
@@ -324,8 +325,24 @@ describe("a draft kept in the browser", () => {
       fireEvent.click(sendButton());
       await waitFor(() => expect(page.writes()).toHaveLength(1));
       fireEvent.change(textBox(), { target: { value: "Half a reply, and another" } });
-      await add();
-      answer(written(2));
+      // The write lands the moment what was added shows. A recording starts
+      // outside the test's act, so its effects have not run yet then, and
+      // the landing must read what that render shows.
+      // The observer goes with the test, even one that times out waiting.
+      let observer: MutationObserver | undefined;
+      onTestFinished(() => observer?.disconnect());
+      const shown = new Promise<void>((resolve) => {
+        observer = new MutationObserver(() => {
+          if (added()) {
+            observer?.disconnect();
+            answer(written(2));
+            resolve();
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      });
+      add();
+      await shown;
       await waitFor(() => expect(window.location.pathname).toBe("/"));
       expect(readDraft(thread)).toMatchObject({
         text: "Half a reply, and another",

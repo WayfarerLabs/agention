@@ -32,15 +32,15 @@ export function useKeptDraft(
   // The record of the draft this page last kept, while it keeps one.
   const kept = useRef<string | undefined>(undefined);
   // The starting point as it stands, which what is left once a write lands
-  // counts from at least.
-  const latestBasis = useRef(draft.basis);
+  // counts from at least, set as the page renders, as the composer's own is.
+  const { text, detail, basis, leftBehind } = draft;
+  const latestBasis = useRef(basis);
+  latestBasis.current = basis;
   // What is left that keepNow was refused for. While the composer still holds
   // exactly that, the changes that follow the write landing keep it only as
   // keepNow would, and anything typed since is kept as ever.
   const refused = useRef<{ text: string; detail: string } | undefined>(undefined);
-  const { text, detail, basis, leftBehind } = draft;
   useEffect(() => {
-    latestBasis.current = basis;
     if (keep) {
       const held = { text, detail, basis, leftBehind };
       if (refused.current?.text === text && refused.current.detail === detail) {

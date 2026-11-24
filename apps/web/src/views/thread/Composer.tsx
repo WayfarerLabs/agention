@@ -334,11 +334,7 @@ export function Composer({
   // that sent it is still open.
   // Whether After sending had focus as dictation moved it.
   const afterHadFocus = useRef(false);
-  const afterNow = useRef(after);
   const stillOpen = useStillOpen();
-  useEffect(() => {
-    afterNow.current = after;
-  }, [after]);
   const id = useId();
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
   const draft = { text, detail, attachments };
@@ -346,26 +342,13 @@ export function Composer({
   const ready = sendable(draft, staged) && hold === undefined;
   const canSend = !writer.pending && !loading && !moving && ready;
   const attach = useRef<HTMLButtonElement>(null);
-  // The detail as it stands, for a write that lands after the operator
-  // typed on.
-  const detailNow = useRef(detail);
-  const textNow = useRef(text);
-  useEffect(() => {
-    detailNow.current = detail;
-    textNow.current = text;
-  }, [detail, text]);
-  // What is staged as it stands, for a write whose answer comes after the
-  // operator changed it.
-  const stagedNow = useRef(staged);
-  useEffect(() => {
-    stagedNow.current = staged;
-  }, [staged]);
-  // The files and whether a recording is under way as they stand, for a write
-  // that lands after the operator added to them.
-  const heldNow = useRef({ files: files.files, dictating });
-  useEffect(() => {
-    heldNow.current = { files: files.files, dictating };
-  }, [files.files, dictating]);
+  // What the composer holds as it stands, for a write whose answer lands
+  // after the operator changed it. It is set as the page renders, not in an
+  // effect, so an answer landing between a render and its effects reads what
+  // that render shows.
+  const holds = { after, text, detail, staged, files: files.files, dictating };
+  const latest = useRef(holds);
+  latest.current = holds;
   const detailBox = useRef<HTMLTextAreaElement>(null);
   // Opening the Details box moves focus into it, in place of the control
   // that opened it.
@@ -384,7 +367,7 @@ export function Composer({
   const restage = (
     landed: Parameters<typeof staleChange>[1],
   ): { notice: string | undefined; left: Staged | undefined } => {
-    const now = stagedNow.current;
+    const now = latest.current.staged;
     const change = staleChange(now, landed);
     if (change !== undefined) {
       stage((current) => (current === now ? change.left : current));
@@ -434,7 +417,7 @@ export function Composer({
     files.sent(sentFiles);
     // The Details box folds with the detail it sent; one typed meanwhile
     // stays in sight.
-    if (detailNow.current === sentDetail) {
+    if (latest.current.detail === sentDetail) {
       setDetailsShown(false);
     }
     // What the write did judges what is staged now as missed messages do,
@@ -445,17 +428,17 @@ export function Composer({
     // recording, not what a draft it was restored from left behind.
     setLeftBehind(false);
     keepNow(
-      unsent(textNow.current, sentText),
-      unsent(detailNow.current, sentDetail),
+      unsent(latest.current.text, sentText),
+      unsent(latest.current.detail, sentDetail),
       outcome.written,
       left !== undefined ||
-        heldNow.current.files.some((file) => !sentFiles.includes(file.id)) ||
-        heldNow.current.dictating,
+        latest.current.files.some((file) => !sentFiles.includes(file.id)) ||
+        latest.current.dictating,
     );
     setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
     setStatus(sent);
-    const where = afterNow.current;
+    const where = latest.current.after;
     if (stillOpen() && where !== "stay") {
       onward(where, sent, outcome.written);
     }
