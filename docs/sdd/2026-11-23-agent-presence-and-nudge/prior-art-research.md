@@ -1,10 +1,9 @@
 # Agent presence and nudge: Prior art and host research
 
-- Date: 2026-11-23, from the hosts' documentation and source as published on 2026-11-22, a hands-on
-  spike on Claude Code 2.1.330 and Codex 0.171.0 that day, and observations on the development VM,
-  an Agentworks guest, on 2026-11-23
-- Status: research for the FRD; the spike its open questions call for follows the FRD's acceptance
-  and is recorded here
+- Date: 2026-11-23, from the hosts' documentation and source as published on 2026-11-22, hands-on
+  spikes on 2026-11-22 and 2026-11-23, and observations on the development VM, an Agentworks guest,
+  on 2026-11-23
+- Status: research for the FRD, with the results of the spike the operator approved (ruling 2)
 
 ## Summary
 
@@ -86,15 +85,53 @@ From tmux 3.3a, the VM's version (`tmux(1)`):
 - **Targets.** A pane is named by id (`%0`), which stays fixed while the pane lives, or by
   `session:window.pane`.
 
-## Open questions for the spike
+## Spike results
 
-- Does a bracketed paste into a permission dialog leave the dialog untouched, on each host?
-- What does each host do with a prompt submitted during a turn: queue it, steer the turn, or drop
-  it?
-- Which screen text marks each host's permission and other dialogs, and its input line, reliably
-  enough to refuse a nudge on?
-- How many Backspaces clear a pasted line on each host, and does a wrapped line change that?
-- Does each host's spinner or timer change the pane at least once a second while a turn runs?
+On 2026-11-23, Claude Code 2.1.331 and Codex 0.171.0 ran in a tmux server of the spike's own, 160 by
+45, each in a scratch folder with a clean environment and Agention off. Claude Code ran in default
+permission mode with the operator's vim editor mode, and again with the normal editor; Codex ran
+with `-a on-request -s read-only`. Cursor positions are column and row from 0, with whether the
+cursor shows.
+
+- **Both take pastes as pastes.** Each turns on bracketed paste at start. A two-line paste at the
+  prompt was inserted, both lines, with nothing submitted. A paste of 1,200 characters became a
+  placeholder (`[Pasted text #1]`, `[Pasted Content 1200 chars]`) that one Backspace removes, so the
+  nudge's texts must stay short and on one line.
+- **Dialogs drop a paste, but single keys and Enter answer them.** A paste into Claude Code's trust
+  and permission dialogs and its rewind menu, and into Codex's trust and approval dialogs, changed
+  nothing and was not delivered afterwards, even with digits and dialog letters in the text. But one
+  typed key answers at once (Claude Code `4`; Codex `3`, `n` or Escape), and Enter confirms the
+  highlighted choice, which is "Yes" in both hosts' tool approvals. So the bridge never types
+  ordinary characters, and it presses Enter only once the pane shows its own text in the input.
+- **The cursor tells input from dialogs, on both hosts.** At the prompt and with text in it, the
+  cursor shows, on the input row, right after the text: `❯` or `›` and a space, then the text, with
+  the cursor at column 2 plus its length. In every dialog, menu and browse mode seen, the cursor was
+  hidden. The prompt glyph alone does not tell them apart: both hosts also mark a dialog's choice
+  with it.
+- **Two Claude Code states look like its prompt.** In vim's normal mode the input looks the same but
+  the footer lacks `-- INSERT --`, Backspace only moves the cursor, and a paste still inserts. In
+  shell mode, entered by typing `!` at the start, the glyph becomes `!` and Enter runs the line in a
+  shell. Claude Code's profile needs both checks.
+- **Clearing.** Backspace, as many times as the pasted text is long, cleared the line on both hosts,
+  wrapped lines included, and extra Backspaces at an empty prompt did nothing. Ctrl-U clears only to
+  the start of a screen row on Claude Code. Escape must never be sent: on Claude Code it leaves vim
+  insert mode, and twice clears the input or opens the rewind menu; on Codex twice opens a
+  transcript browse where Enter rewinds the conversation.
+- **Stillness tells a turn from rest.** At rest, neither pane changed in 6 seconds, and tmux's
+  `window_activity` stayed put. During a turn, Claude Code's pane changed every quarter second and
+  Codex's every half, and `window_activity` advanced each second. Claude Code's permission dialog
+  blinks its bullet about every 0.6 seconds; Codex's approval dialog is still.
+- **During a turn the input stays live.** Both hosts keep the input and the cursor during a turn,
+  and text submitted then is queued and delivered after the running tool call, in the same turn
+  (Claude Code: "Queued"; Codex: "Messages to be submitted after next tool call"). Stillness, not
+  the cursor, keeps a nudge out of a running turn.
+- **The host keeps the terminal.** The pane's command was the host throughout, and the terminal's
+  foreground process group was the host's at rest and while its tools ran: both run commands in
+  sessions of their own with no terminal, including Claude Code's `!` commands.
+- **A nudge at rest works.** A pasted line then Enter changed the pane within 15 ms on Claude Code
+  and 5 ms on Codex, cleared the input and started a turn that answered in about 2 seconds.
+- **Not tested:** the letter keys that approve (`y` and `p`), Escape during a turn, panes narrower
+  than 160 columns, and tmux's `extended-keys`.
 
 ## Sources
 
@@ -103,6 +140,7 @@ From tmux 3.3a, the VM's version (`tmux(1)`):
 | Claude Code channels and hooks               | Official docs                   | What a plugin can wake                    |
 | Codex hooks and CLI reference                | Official docs                   | What a plugin can wake                    |
 | Spike on Claude Code 2.1.330 and Codex 0.171 | Hands-on, 2026-11-22            | Hook wake works; `codex queue` does not   |
+| Spike on Claude Code 2.1.331 and Codex 0.171 | Hands-on, 2026-11-23            | Paste, dialogs, cursor, clearing, turns   |
 | MCP SEP-3415                                 | Specification                   | A standard path neither host takes yet    |
 | codex-wake, ATalk                            | Third-party projects, unaudited | A fixed note, read through tools          |
 | Agentworks repository                        | Primary source                  | Per-session tmux servers and their owners |
