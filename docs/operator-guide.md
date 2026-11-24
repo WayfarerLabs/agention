@@ -695,7 +695,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     called speaking an older version of the agent API. [Update the Agention plugin](#upgrading) on
     that agent's host to its newest release, and restart the session, resuming it to keep its
     conversation; the warning goes once the session calls again. A session on a current plugin shows
-    nothing, and so does one with no call recorded yet. The session's agent is told the same when it
+    nothing, and so does one with no call recorded yet, one that has stopped and one with no
+    approved registration, such as one you revoked; a stopped session started again shows the
+    warning again while its plugin is still behind. The session's agent is told the same when it
     calls `register` with a plugin new enough to know, and the operator API's sessions read carries
     it as `plugin_behind`.
 
