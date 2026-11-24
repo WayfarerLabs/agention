@@ -2,8 +2,8 @@
 
 - Status: Built in delivery 2 (agention#80)
 - Date: 2026-11-22
-- Requirements: [FRD](frd.md) U2, U3 and ruling 2; [HLA](hla.md) "The plugin-is-behind signal";
-  [plan](plan.md) delivery 2
+- Requirements: [FRD](frd.md) U2, U3 and rulings 2 and 5; [HLA](hla.md) "The plugin-is-behind
+  signal"; [plan](plan.md) delivery 2
 - Code cited at 87f66b6, the delivery's base
 
 This settles what the HLA leaves to delivery 2: the session column and when it is written, the
@@ -64,13 +64,24 @@ state is, and the notice then shows while the older one is the latest to call.
 
 ## When a session is behind
 
-A session is behind when `agent_api_version` is below `agentApi.version`. Null is not behind: a
-session with no recorded call is not marked (HLA). Released bridges state 2 or 3, or, before 0.3.0,
-nothing, which reads as 1, so every released bridge is covered (U2). The comparison is made where
-the summary is built, in `listSessions`' `toSummary` (`apps/server/src/store/sessions.ts:373-400`),
-which selects the column beside `last_seen_at` (`sessions.ts:290-294`). The server's own version is
-read there, never stored, so after a server upgrade that moves it every session recorded at the old
-version is marked at once, before it calls again: the reason the HLA keeps a column.
+A session is behind when it is live and `agent_api_version` is below `agentApi.version` (ruling 5).
+Live is what the threads read already uses for stranded threads, less quiet: `threadsSeen`
+(`apps/server/src/store/thread-reads.ts`) strands a thread whose session is quiet, has no approved
+registration (`credential_active`) or whose latest status entry is `stopped`. `listSessions` already
+reads both of the others for the page, the approved registrations it lists and the latest entry's
+state, so a session is live when it has an approved registration among them and its state is not
+`stopped`; no new query is needed. Quiet stays out: a working session that has not called for a
+while goes quiet while still running, and the fix applies to it. A stopped or revoked session is not
+marked, since restarting the session is no fix for one that is not running or cannot call. A stopped
+one started again reports a state other than `stopped` (the usage skill has it report `working`
+first), and a revoked one approved afresh holds an approved registration again; either is marked
+again while still behind, with no code beyond the read. Null is not behind: a session with no
+recorded call is not marked (HLA). Released bridges state 2 or 3, or, before 0.3.0, nothing, which
+reads as 1, so every released bridge is covered (U2). The comparison is made where the summary is
+built, in `listSessions`' `toSummary` (`apps/server/src/store/sessions.ts:373-400`), which selects
+the column beside `last_seen_at` (`sessions.ts:290-294`). The server's own version is read there,
+never stored, so after a server upgrade that moves it every session recorded at the old version that
+is live is marked at once, before it calls again: the reason the HLA keeps a column.
 
 ## The sessions read
 
@@ -161,7 +172,9 @@ The tests, at their boundaries, asserting fields, statuses and the notice's pres
 - **Store** (`presence.test.ts`): a missing header (1), an older version and the current one each
   recorded as stated; a session never seen not behind; a changed version written within the
   throttle's minute while `last_seen_at` holds; an unchanged version within the minute writing
-  nothing (SQLite's `changes()` is 0); a revoked registration recording nothing.
+  nothing (SQLite's `changes()` is 0); a revoked registration recording nothing; a behind session
+  that reports `stopped` unmarked, and marked again once it reports `working`; and a behind session
+  whose registration is revoked unmarked.
 - **Migration** (`database.test.ts`): a database at migration 7 opens with every row intact and the
   new column null. The upgrade tests compared whole rows
   (`apps/server/src/database/database.test.ts:638-645`), which a migration adding a column breaks
@@ -181,8 +194,9 @@ The tests, at their boundaries, asserting fields, statuses and the notice's pres
   with the same fields, and the newer answer's message is the other's with a sentence added, which
   also fails if the sentence appears at the bridge's own version.
 - **Agent compatibility** (`apps/bridge/src/released-bridges.compat.ts`): after each released
-  bridge's calls, its session's `plugin_behind` is whether the version its last request stated, none
-  reading as 1, is below the server's, proving U2 for every released bridge.
+  bridge's calls, while its session is live, its session's `plugin_behind` is whether the version
+  its last request stated, none reading as 1, is below the server's, proving U2 for every released
+  bridge; and once a release with `session_update` reports `stopped`, it is false.
 
 ## Permanent docs
 
