@@ -72,6 +72,21 @@
   --layer-menu: 4;
 }
 
+/* With a mouse or a trackpad as the main pointer, controls need not be the
+   size of a fingertip, so they and the spacing around them shrink by about a
+   quarter. A touch screen keeps the sizes above. */
+@media (pointer: fine) {
+  :root {
+    --space-1: 0.1875rem;
+    --space-2: 0.375rem;
+    --space-3: 0.5rem;
+    --space-4: 0.75rem;
+    --space-5: 1.125rem;
+    --space-6: 1.5rem;
+    --touch: 32px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg: #111418;
@@ -339,6 +354,34 @@ main {
 
 .narrow {
   max-width: 32rem;
+}
+
+/* The Threads tab side by side, as the view renders it at a desktop's width
+   (Threads.tsx), takes the window's whole width: the list's pane 30% of it,
+   from 20rem to 36rem, and the thread's the rest, list first. The thread
+   keeps the page's own scroll, so it never scrolls within a box; the list's
+   pane stays in view, sticky at the top once the banner scrolls away, and
+   scrolls on its own, its padding leaving room for the rows' focus rings,
+   which its edge would otherwise cut. */
+main:has(> .side-by-side) {
+  max-width: none;
+}
+
+.side-by-side {
+  display: grid;
+  grid-template-columns: clamp(20rem, 30%, 36rem) minmax(36rem, 1fr);
+  column-gap: var(--space-6);
+  align-items: start;
+}
+
+.side-by-side > .list-pane {
+  position: sticky;
+  top: 0;
+  max-height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  margin: calc(-1 * var(--space-2));
 }
 
 /* Controls */
@@ -638,8 +681,8 @@ legend {
 
 /* The filters that are on, each a compact chip that removes it, in one row
    that wraps. A chip is about 28 pixels tall with a small radius, so many
-   stay short, and its target meets the 24-pixel minimum rather than the 44
-   used elsewhere, as the operator chose. */
+   stay short, and its target meets the 24-pixel minimum rather than the
+   --touch size used elsewhere, as the operator chose. */
 .filter-row {
   display: flex;
   flex-wrap: wrap;
@@ -990,6 +1033,14 @@ button.picker[aria-expanded="true"] .icon {
 
 .thread-link:hover .row-title :is(h2, h3, h4) {
   text-decoration: underline;
+}
+
+/* The row of the thread open beside the list, side by side: a ring in the
+   text's color inside its border, apart from unread's accent, which shows as
+   a tint would not when the system forces its own colors. */
+.thread-row:has(> .thread-link[aria-current="page"]) {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
 }
 
 /* Marks: an icon that says something, with a short text beside it. */
@@ -2346,7 +2397,9 @@ button.older[aria-disabled="true"] {
 
 /* Markdown */
 
+/* Text keeps a readable line length however wide its pane is. */
 .markdown {
+  max-width: 90ch;
   overflow-wrap: anywhere;
 }
 

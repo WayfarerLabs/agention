@@ -6,7 +6,7 @@
 import type { BrowserContext, Page } from "@playwright/test";
 import { apiKeySecret } from "@wayfarerlabs/agention-server-api";
 import { type Answer, callServer } from "./agent.ts";
-import { type Agention, expect, test } from "./fixtures.ts";
+import { type Agention, expect, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -116,7 +116,7 @@ test("a key created in Settings shows its secret once, reads within its scope, a
 });
 
 test("the keys, the form and a new secret fit a phone's width", async () => {
-  await page.setViewportSize(phone);
+  await resize(page, phone);
   try {
     await page.goto("/settings/api-keys");
     await expect(section().getByRole("article", { name: "API key Reader" })).toBeVisible();
@@ -150,7 +150,7 @@ test("the keys, the form and a new secret fit a phone's width", async () => {
     ).toBeFocused();
     await expectNoOverflow();
   } finally {
-    await page.setViewportSize(wide);
+    await resize(page, wide);
   }
 });
 

@@ -466,23 +466,15 @@ describe("listSessions", () => {
     ).toBe("not_found");
   });
 
-  it(
-    `lists at most ${maxListed} sessions of an agent, saying when it leaves any out`,
-    { timeout: 30_000 },
-    () => {
-      for (let index = 0; index < maxListed; index++) {
-        fixture.registerAgent("builder", `session-${String(index).padStart(3, "0")}`);
-      }
-      fixture.seen(agent);
-      fixture.advance(hour);
-      const [builder] = listSessions(
-        fixture.store,
-        fixture.operator,
-        sessionsQuery.parse({}),
-      ).agents;
-      expect(builder?.sessions.length).toBe(maxListed);
-      expect(builder?.sessions[0]?.session).toBe("main");
-      expect(builder?.truncated).toBe(true);
-    },
-  );
+  it(`lists at most ${maxListed} sessions of an agent, saying when it leaves any out`, () => {
+    for (let index = 0; index < maxListed; index++) {
+      fixture.registerAgent("builder", `session-${String(index).padStart(3, "0")}`);
+    }
+    fixture.seen(agent);
+    fixture.advance(hour);
+    const [builder] = listSessions(fixture.store, fixture.operator, sessionsQuery.parse({})).agents;
+    expect(builder?.sessions.length).toBe(maxListed);
+    expect(builder?.sessions[0]?.session).toBe("main");
+    expect(builder?.truncated).toBe(true);
+  });
 });

@@ -240,47 +240,43 @@ describe("a real listener", () => {
     expect(harness.fixture.db.prepare("SELECT 1 FROM registrations").get()).toBeUndefined();
   });
 
-  it(
-    "closes every connection by the end of the shutdown grace, a stalled TLS handshake included",
-    async () => {
-      const agent = await harness.approvedAgent("builder", "main");
-      const certificate = testCertificate();
-      const keys = { cert: Buffer.from(certificate.cert), key: Buffer.from(certificate.key) };
-      listening = await harness.listen(parseListenAddress("127.0.0.1:0"), keys);
-      const { port } = listening.address;
+  it("closes every connection by the end of the shutdown grace, a stalled TLS handshake included", async () => {
+    const agent = await harness.approvedAgent("builder", "main");
+    const certificate = testCertificate();
+    const keys = { cert: Buffer.from(certificate.cert), key: Buffer.from(certificate.key) };
+    listening = await harness.listen(parseListenAddress("127.0.0.1:0"), keys);
+    const { port } = listening.address;
 
-      // A TCP connection that never sends a ClientHello, so it never reaches HTTP.
-      const stalled = connect(port, "127.0.0.1");
-      stalled.on("error", () => undefined);
-      const stalledClosed = new Promise((resolve) => stalled.once("close", resolve));
-      // An HTTPS long poll that nothing ends, since the app's shutdown signal
-      // is not aborted here.
-      const poll = httpsRequest({
-        host: "127.0.0.1",
-        port,
-        path: "/api/agent/s/builder/main/wait?wait=25",
-        ca: certificate.cert,
-        servername: "localhost",
-        headers: { host, authorization: `Bearer ${await harness.token(agent)}` },
-      });
-      poll.on("error", () => undefined);
-      poll.end();
-      const { server } = listening;
-      const connections = () =>
-        new Promise<number>((resolve) => server.getConnections((_, count) => resolve(count)));
-      for (let i = 0; i < 200 && (await connections()) < 2; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      }
-      expect(await connections()).toBe(2);
+    // A TCP connection that never sends a ClientHello, so it never reaches HTTP.
+    const stalled = connect(port, "127.0.0.1");
+    stalled.on("error", () => undefined);
+    const stalledClosed = new Promise((resolve) => stalled.once("close", resolve));
+    // An HTTPS long poll that nothing ends, since the app's shutdown signal
+    // is not aborted here.
+    const poll = httpsRequest({
+      host: "127.0.0.1",
+      port,
+      path: "/api/agent/s/builder/main/wait?wait=25",
+      ca: certificate.cert,
+      servername: "localhost",
+      headers: { host, authorization: `Bearer ${await harness.token(agent)}` },
+    });
+    poll.on("error", () => undefined);
+    poll.end();
+    const { server } = listening;
+    const connections = () =>
+      new Promise<number>((resolve) => server.getConnections((_, count) => resolve(count)));
+    for (let i = 0; i < 200 && (await connections()) < 2; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(await connections()).toBe(2);
 
-      const started = performance.now();
-      await listening.close();
-      listening = undefined;
-      await stalledClosed;
-      expect(performance.now() - started).toBeLessThan(shutdownGrace + 1000);
-    },
-    shutdownGrace + 5000,
-  );
+    const started = performance.now();
+    await listening.close();
+    listening = undefined;
+    await stalledClosed;
+    expect(performance.now() - started).toBeLessThan(shutdownGrace + 1000);
+  });
 
   it("ends a long poll when its client disconnects", async () => {
     const agent = await harness.approvedAgent("builder", "main");
