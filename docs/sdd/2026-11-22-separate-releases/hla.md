@@ -236,9 +236,11 @@ session calls again. The store adds it with an append-only migration.
 
 ### When a session is behind
 
-A session is behind when its recorded version is below the server's own. A session with no recorded
-call yet is not marked. Every released bridge states its version or, before 0.3.0, none, which reads
-as 1, so this covers them all (U2).
+A session is behind when it is live, having not reported `stopped` and holding an active credential,
+and its recorded version is below the server's own (FRD ruling 5): a finished or revoked session's
+fix no longer applies, so it is not marked. A session with no recorded call yet is not marked
+either. Every released bridge states its version or, before 0.3.0, none, which reads as 1, so this
+covers them all (U2).
 
 ### Where it shows
 
