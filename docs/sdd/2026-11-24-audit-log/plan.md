@@ -2,8 +2,7 @@
 
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md)
-- Building starts once the operator accepts the FRD. Until then the open choices are planned as
-  recommended, and an answer otherwise changes the step the HLA's last section names.
+- Building starts once the operator accepts the FRD, whose open choices the operator has answered.
 - Vehicle: one pull request per phase, each merged and released before the next starts, not stacked;
   each phase is usable alone. The development contract lists no `sdd:` label, so the pull requests
   cite this directory by path instead.
@@ -54,9 +53,9 @@ Server:
 - [ ] Registrations: submit, approve, reject and revoke.
 - [ ] Passkeys added, renamed and removed, and replaced by a passkey link, as Entity Management 3004
       like API keys; voice settings set and cleared, never with the key.
-- [ ] Failures after authentication (FRD R1 Open, as recommended): a live key refused for scope, and
-      a revoked or expired key found by its hash, each recorded once its budget is spent and
-      coalesced per key, with the caller's answer unchanged; an unknown key records nothing.
+- [ ] Failures after authentication (FRD R1): a live key refused for scope, and a revoked or expired
+      key found by its hash, each recorded once its budget is spent and coalesced per key, with the
+      caller's answer unchanged; an unknown key records nothing.
 - [ ] `agention passkey-link` records the link it issues in the same transaction.
 - [ ] The dispatcher: a loop per sink from its cursor, woken when a transaction that recorded events
       commits and by a 30-second poll; an open coalesced failure held until its minute ends; a new
@@ -131,7 +130,7 @@ and name; gates and CI pass, and P1 ships in a release.
 script with `audit:read` reads them while one without it is refused; gates and CI pass, and P2 ships
 in a release.
 
-## P3: shipping over OTLP (if the operator takes it)
+## P3: shipping over OTLP
 
 - [ ] Backoff from 1 second to 5 minutes, jittered; `Retry-After` honored; a lasting 4xx retried at
       the longest backoff and reported, never skipped; a 413 halving the batch.

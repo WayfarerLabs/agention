@@ -1,6 +1,6 @@
 # Audit log: High-Level Architecture
 
-- Status: Draft, following the FRD's draft; the FRD's open choices are built as recommended
+- Status: Draft, following the FRD's draft, with the operator's answers to its open choices
 - Date: 2026-11-24
 - Requirements: [FRD](frd.md), R1 to R17
 - Research: [prior-art research](prior-art-research.md)
@@ -14,7 +14,7 @@ This effort adds an audit log to the Agention server:
 - a dispatcher that delivers the table to pluggable sinks, at least once, from a cursor per sink:
   standard output and files;
 - then a viewer in Settings with an `audit:read` scope;
-- then, if the operator takes it (FRD R10, Open), an OTLP/HTTP logs sink.
+- then an OTLP/HTTP logs sink (FRD R10).
 
 No agent route, tool or answer changes.
 
@@ -22,9 +22,9 @@ No agent route, tool or answer changes.
 
 - **The event is written with the change** (R7), inside the store's own transaction, so neither
   exists without the other. Sinks read the table afterwards and never touch a request.
-- **OCSF 1.9.0** (FRD R6, Open, as recommended): Authentication 3002 for sign-ins, API Activity 6003
-  for writes, and Entity Management 3004 for API keys, passkeys and registrations. One object
-  everywhere: the same bytes in a file or on standard output, the same fields in an OTLP body.
+- **OCSF 1.9.0** (FRD R6): Authentication 3002 for sign-ins, API Activity 6003 for writes, and
+  Entity Management 3004 for API keys, passkeys and registrations. One object everywhere: the same
+  bytes in a file or on standard output, the same fields in an OTLP body.
 - **The exact credential, never a secret.** Browser sessions gain a random, non-secret id, since
   today a session is known only by its cookie's hash (`browser_sessions` in
   `S/database/migrations.ts:104-112`). API keys and registrations already have ids.
@@ -36,8 +36,8 @@ No agent route, tool or answer changes.
   sink's credentials come from the environment only.
 - **Retention prunes the oldest events only**, and only those every sink has delivered, which a
   trigger enforces.
-- **Beyond writes:** refusals of a known API key that matter for security (FRD R1, Open, as
-  recommended). Reads, the log's own included, are not recorded.
+- **Beyond writes:** refusals of a known API key that matter for security (FRD R1). Reads, the log's
+  own included, are not recorded.
 - **Failures are coalesced**: one event per kind of failure, and per key, each minute, with a count,
   since anyone who can reach the server can cause them.
 
@@ -55,7 +55,7 @@ browser / API key / agent --request--> mount: authenticate -> Identity (+ creden
                                           |  per sink: SELECT after cursor, deliver, advance cursor
                          +----------------+----------------+
                          v                v                v
-                      stdout         file (rotated)   OTLP/HTTP logs (later, if taken)
+                      stdout         file (rotated)   OTLP/HTTP logs (P3)
                    (PaaS logs)     (homelab tailer)    (collector, vendor)
 
 agention passkey-link (CLI) --> same database, same INSERT, delivered by the server's next poll
@@ -93,10 +93,10 @@ an event; later ones in that minute raise its count, in the same row, until the 
 event is final and deliverable. The worst case is then one event per kind and key per minute,
 whatever the attacker's rate. The event keeps the first failure's origin.
 
-**Failures after authentication** (FRD R1 Open, built as recommended). Two refusals of a key the
-server has identified are recorded as failures naming it, each in a transaction of its own after the
-refusal has spent its rate budget and coalesced as above, and neither changes the answer, which
-stays the same for every refusal (`S/auth/api-keys.ts:190-192`):
+**Failures after authentication** (FRD R1). Two refusals of a key the server has identified are
+recorded as failures naming it, each in a transaction of its own after the refusal has spent its
+rate budget and coalesced as above, and neither changes the answer, which stays the same for every
+refusal (`S/auth/api-keys.ts:190-192`):
 
 - a live key without the operation's scope, refused as `not_found` by the mount before it reads any
   input (`addOperations` in `S/http/operations.ts`), within the key's own `apiKey` budget;
@@ -123,10 +123,10 @@ dispatcher, which polls as well as waking on its own commits, delivers it.
 
 **Request origin.** The server reads no forwarded header (`S/http/app.ts:127`;
 `S/http/rates.ts:3-5`), so the address recorded is the connection's peer: behind `tailscale serve`
-or a platform's router, the proxy's. Trusting a forwarded header is the FRD's R4 open choice, which
-recommends a later `serve` option, off by default, trusting it only from a configured proxy's
-address; this effort does not build it. A request answered in process (`app.request`, the test
-harness) has no peer address and records none.
+or a platform's router, the proxy's. A later `serve` option, off by default, may trust a forwarded
+header only from a configured proxy's address (FRD R4); this effort does not build it. A request
+answered in process (`app.request`, the test harness) has no peer address, and its `src_endpoint`
+carries none.
 
 ### The table
 
@@ -206,7 +206,7 @@ and passkeys.
 | `startThread`, agent `createThread`                        | web, operator; agent | 6003 Create 1           | session; the new thread and its first message         |
 | `sendMessage`                                              | all three            | 6003 Create 1           | thread; the message, with its asks, answers, files    |
 | `archiveThread`, `bulkArchive`                             | all three; web, op   | 6003 Update 3           | each thread                                           |
-| `uploadFile`                                               | all three            | 6003 Create 1           | file id, size, media type (no name, R5 Open)          |
+| `uploadFile`                                               | all three            | 6003 Create 1           | file id, size, media type (no name, FRD R5)           |
 | `removeUpload`                                             | all three            | 6003 Delete 4           | file id                                               |
 | `createGroup`, `createTag`                                 | web, operator        | 6003 Create 1           | group or tag: id, name, color                         |
 | `renameGroup`, `recolorGroup`, `orderGroups`               | web, operator        | 6003 Update 3           | group(s): id, new name, color or position             |
@@ -231,8 +231,8 @@ and passkeys.
 | `rejectRegistration`                                       | web, operator        | 3004 Other 99, "Reject" | registration                                          |
 | `revokeRegistration`                                       | web, operator        | 3004 Disable 9          | registration                                          |
 | `agention passkey-link`                                    | command line         | 3004 Create 1           | `entity` passkey link: expiry, first or replacing     |
-| a live key refused for scope (FRD R1 Open)                 | operator             | 6003, the operation's   | failure, `status_detail` `scope`; the operation       |
-| a revoked or expired key presented (FRD R1 Open)           | operator             | 3002 Logon 1            | failure, `key_revoked` or `key_expired`; the key      |
+| a live key refused for scope (FRD R1)                      | operator             | 6003, the operation's   | failure, `status_detail` `scope`; the operation       |
+| a revoked or expired key presented (FRD R1)                | operator             | 3002 Logon 1            | failure, `key_revoked` or `key_expired`; the key      |
 | `listAuditEvents` (P2)                                     | web, operator        | not recorded (FRD R14)  |                                                       |
 | `agention audit forget-sink`                               | command line         | 6003 Delete 4           | the sink's name and the sequence it had delivered     |
 
@@ -346,10 +346,10 @@ Grafana Alloy in the LLD): the directory is 0750 and files 0640, in that group, 
 user must belong to; other users still have no access. A batch is written and `fsync`ed before it is
 acknowledged.
 
-**otlp** (P3, if the operator takes it). `--audit-otlp URL` POSTs OTLP/HTTP JSON to the full logs
-URL (a collector's `/v1/logs`, Loki's `/otlp/v1/logs`). Resource attributes `service.name`
-`agention` and `service.version`; one log record per event with `timeUnixNano`, `severityNumber` 9
-(13 for a failure), `eventName` `ocsf.<class>`, the event as a map `body`, and `ocsf.class_uid`,
+**otlp** (P3). `--audit-otlp URL` POSTs OTLP/HTTP JSON to the full logs URL (a collector's
+`/v1/logs`, Loki's `/otlp/v1/logs`). Resource attributes `service.name` `agention` and
+`service.version`; one log record per event with `timeUnixNano`, `severityNumber` 9 (13 for a
+failure), `eventName` `ocsf.<class>`, the event as a map `body`, and `ocsf.class_uid`,
 `ocsf.activity_id` and `agention.audit.sequence` as attributes. Retries only on 429, 502, 503, 504
 and network errors, honoring `Retry-After`. Headers, such as a vendor's API key, come from
 `AGENTION_AUDIT_OTLP_HEADERS` in the `OTEL_EXPORTER_OTLP_HEADERS` format. The URL is checked by the
@@ -364,8 +364,8 @@ the two local sinks retry at a short fixed interval.
 ```text
 --audit-stdout
 --audit-dir /var/log/agention  [--audit-group alloy]  [--audit-keep-days 30]
---audit-otlp https://otel.lan:4318/v1/logs            (P3, if taken)
-AGENTION_AUDIT_OTLP_HEADERS=api-key=...               (P3, if taken)
+--audit-otlp https://otel.lan:4318/v1/logs            (P3)
+AGENTION_AUDIT_OTLP_HEADERS=api-key=...               (P3)
 --audit-retention-days 365
 ```
 
@@ -472,13 +472,13 @@ FRD R5 and R16 state the rules; the design adds:
 
 ## Decision record
 
-1. **OCSF 1.9.0 JSON** (FRD R6, Open). The only open security taxonomy most SIEMs read or translate.
-   Pinned 1.9.0, since 1.10.0 (2026-11-20) is inside the seven-day hold-back; only long-lived
-   classes and attributes. _Alternatives:_ **a flat object of Agention's own**, about half the size,
-   with no class or activity to choose per action, read as plain JSON by every tool, which is how
-   all but Splunk, Datadog, Google SecOps and Security Lake read OCSF too; **ECS**, native to
-   Elastic only; **CEF or LEEF**, flat key-value with fragile escaping that cannot carry nested
-   actors and resources.
+1. **OCSF 1.9.0 JSON** (FRD R6, the operator's choice). The only open security taxonomy most SIEMs
+   read or translate. Pinned 1.9.0, since 1.10.0 (2026-11-20) is inside the seven-day hold-back;
+   only long-lived classes and attributes. _Alternatives:_ **a flat object of Agention's own**,
+   about half the size, with no class or activity to choose per action, read as plain JSON by every
+   tool, which is how all but Splunk, Datadog, Google SecOps and Security Lake read OCSF too;
+   **ECS**, native to Elastic only; **CEF or LEEF**, flat key-value with fragile escaping that
+   cannot carry nested actors and resources.
 2. **Classes 3002, 6003 and 3004.** _Alternative:_ User Management 3007 (Add and Remove Programmatic
    Credentials) for API keys and passkeys, the class that superseded Account Change; 3004 is older
    and more generic, so older parsers know it, and registrations fit it too.
@@ -493,16 +493,16 @@ FRD R5 and R16 state the rules; the design adds:
 5. **Sink interface, cursors in the database, at least once.** _Alternatives:_ Vault's
    refuse-if-no-device, which would let a sink block the operator; Kubernetes' bounded batch buffer,
    which drops.
-6. **stdout and files; OTLP/HTTP later** (FRD R10, Open). _Alternatives:_ no network sink, a
-   collector tailing the files; OTLP and an HTTP sink with a Splunk HEC mode. _Deferred either way:_
-   syslog over TLS, GELF, Loki push and cloud APIs, which a collector reaches; each direct
-   integration is auth code, tests and a secret. OTLP is written as JSON by our own code, since the
-   JavaScript logs SDK is not stable.
+6. **stdout and files; OTLP/HTTP later** (FRD R10, the operator's choice). _Alternatives:_ no
+   network sink, a collector tailing the files; OTLP and an HTTP sink with a Splunk HEC mode.
+   _Deferred either way:_ syslog over TLS, GELF, Loki push and cloud APIs, which a collector
+   reaches; each direct integration is auth code, tests and a secret. OTLP is written as JSON by our
+   own code, since the JavaScript logs SDK is not stable.
 7. **`serve` options, one per kind; credentials from the environment** (FRD R12). _Alternatives:_ a
    repeatable sink spec with names, for several sinks of one kind, which no setting needs; a
    configuration file, the server's first.
 8. **Metadata only; titles and file names out** (FRD R5).
-9. **Retention by age, after every sink has delivered** (FRD R8, Open on the default).
+9. **Retention by age, after every sink has delivered** (FRD R8; 365 days, the operator's choice).
    _Alternative:_ prune regardless, recording a gap event.
 10. **The viewer before network shipping** (FRD R13): it answers which credential did what, the
     question the log exists for.
@@ -514,8 +514,8 @@ FRD R5 and R16 state the rules; the design adds:
 13. **A non-secret browser session id**, added by migration, since the hash is all a session has.
 14. **Passkeys as Entity Management 3004**, like API keys, so a SIEM's credential-change rules catch
     them. _Alternative:_ API Activity 6003, as ordinary writes.
-15. **Security failures after authentication** (FRD R1, Open), bounded by the existing budgets and
-    coalesced.
+15. **Security failures after authentication** (FRD R1, the operator's choice), bounded by the
+    existing budgets and coalesced.
 16. **Failures coalesced per kind and key per minute**, because the rate budgets bound CPU, not
     storage. _Alternative:_ a fixed daily cap, which hides an attack's later failures entirely.
 17. **Reads, the log's own included, not recorded** (FRD R14), keeping every read free of writes.
@@ -534,18 +534,6 @@ One pull request per phase, each merged and released before the next starts; eac
 1. **P1:** the table, events for every write and the security failures, stdout and file sinks with
    their options, retention, `forget-sink`, and each sink's state and stderr lines.
 2. **P2:** the viewer and `audit:read`.
-3. **P3, if the operator takes it:** the OTLP sink, with backoff and `Retry-After`.
+3. **P3:** the OTLP sink, with backoff and `Retry-After`.
 
 Each carries its collateral; see the [plan](plan.md).
-
-## Open with the operator
-
-The FRD's four choices. Each other answer changes this design only locally:
-
-- **A flat format instead of OCSF:** the builder writes Agention's own fields; the class and
-  activity columns of the action table, the schema fixtures and `ajv` go; the LLD documents the
-  shape and its version.
-- **No network shipping:** P3 is dropped. **OTLP and HEC:** P3 adds an HTTP sink with a HEC mode and
-  its token variable.
-- **Not recording failures after authentication:** the two refusal paths record nothing.
-- **Another retention default:** the option's default.

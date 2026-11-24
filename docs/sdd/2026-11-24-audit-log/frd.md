@@ -1,8 +1,8 @@
 # Audit log: Functional Requirements
 
-- Status: Draft for the operator's acceptance. The four choices marked **Open** below are the
-  operator's; each states the lead's recommendation and the alternatives. Everything else is the
-  lead's proposal, which the operator may change on accepting.
+- Status: Draft for the operator's acceptance. The operator has answered its four open choices
+  (rulings below); everything else is the lead's proposal, which the operator may change on
+  accepting.
 - Date: 2026-11-24
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -61,12 +61,10 @@ housekeeping (a browser session's idle expiry being extended, a key's hourly las
 session's last-seen time, which agents' calls stamp, the upload sweep), or `agention backup`, a
 read-only command that runs without the server and writes nothing to the database.
 
-**Open (failures after authentication):** some refusals of a credential the server has identified
-matter for security: an API key refused because it lacks the operation's scope, and an attempt with
-a revoked or expired key whose id the server knows. The recommendation is to record them as failures
-naming the key, bounded as failed sign-ins are (R2); the answer the caller sees stays the same. The
-alternative records only successful writes, so a leaked or retired key probing the API leaves no
-trace.
+**Failures after authentication.** Some refusals of a credential the server has identified matter
+for security: an API key refused because it lacks the operation's scope, and an attempt with a
+revoked or expired key whose id the server knows. They are recorded as failures naming the key,
+bounded as failed sign-ins are (R2); the answer the caller sees stays the same.
 
 **Read marks are not recorded.** Marking a thread read or unread, marking many read, and marking a
 session's log read change state but say nothing about what a credential did to the operator's work,
@@ -128,17 +126,12 @@ agent, session and number, which the operator can open, and an attached file by 
 
 ### Format
 
-**R6. SIEM data.** Each event is one JSON object with stable, documented fields, which every SIEM
-and collector can query as JSON. The same object reaches every destination: a line in a file or on
-standard output, or an OpenTelemetry log record's body. Each event carries a unique identifier, so a
-destination that receives one twice can tell.
-
-**Open (format):** the recommendation is a published security event schema, the Open Cybersecurity
-Schema Framework (OCSF), at one pinned version, which Splunk, Datadog, Google SecOps and AWS
-Security Lake normalize natively; elsewhere it is plain JSON. The alternative is a flat object of
-Agention's own (sequence, identifier, time, action, outcome, actor, credential, target, origin),
-about half the size, with no schema to map each action to, which a collector can map to OCSF if the
-operator later adopts a tool that wants it.
+**R6. SIEM data.** Each event is one JSON object in a published security event schema, the Open
+Cybersecurity Schema Framework (OCSF), at one pinned version, which Splunk, Datadog, Google SecOps
+and AWS Security Lake normalize natively and every other SIEM and collector can query as JSON. The
+same object reaches every destination: a line in a file or on standard output, or an OpenTelemetry
+log record's body. Each event carries a unique identifier, so a destination that receives one twice
+can tell.
 
 ### Storage and integrity
 
@@ -153,9 +146,8 @@ already holds later events can tell a restore's rollback for what it is: new eve
 numbers it has received, under new identifiers.
 
 **R8. Retention.** Events older than the retention period are removed, oldest first, and only once
-every destination has received them; with no destination configured, by age alone. **Open
-(retention):** the recommendation is 365 days by default, set by a `serve` option, with a value that
-keeps events forever. Alternatives: 180 days; no default limit.
+every destination has received them; with no destination configured, by age alone. The period is 365
+days by default, set by a `serve` option, with a value that keeps events forever.
 
 **R9. Tamper evidence.** The evidence that holds against someone who controls the server is the copy
 that has already left it: an event delivered to a destination cannot be edited or removed from the
@@ -171,13 +163,9 @@ never removal of the oldest events, which looks like retention.
 sink of a kind the server knows:
 
 - **standard output**, a JSON line per event, for a cloud platform's log pipeline;
-- **files**, a JSON line per event, rotated daily, for a homelab collector or SIEM agent to tail.
-
-**Open (network shipping):** the recommendation adds, in a later phase, **OpenTelemetry (OTLP over
-HTTP)**, which reaches an OpenTelemetry collector, Loki 3, Grafana Cloud, Datadog and Elastic
-directly. Alternatives: no network sink, so a collector the operator runs tails the files or a
-platform ships standard output; or OTLP and an HTTP sink with a mode for Splunk's HTTP Event
-Collector (HEC).
+- **files**, a JSON line per event, rotated daily, for a homelab collector or SIEM agent to tail;
+- **OpenTelemetry (OTLP over HTTP)**, in a later phase, which reaches an OpenTelemetry collector,
+  Loki 3, Grafana Cloud, Datadog and Elastic directly, each event the body of a log record.
 
 Other protocols (syslog over TLS, GELF, Loki's own push, cloud vendors' APIs, and any network sink
 not built) are reached through a collector the operator runs, and the operator guide shows how for
@@ -253,10 +241,21 @@ restoring; the live tests cover delivery to a file, standard output and a collec
 - Every requirement above is implemented, tested at its boundary, and documented in permanent docs.
 - Every write route on the three mounts produces its event, or is listed as one that does not.
 - The operator sees, on a live instance, an API key's writes delivered to a file and read by a
-  collector tailing it, with the key's id and name, and finds them in the web UI; and in an
-  OpenTelemetry collector, if the network-shipping choice adds OTLP.
+  collector tailing it, with the key's id and name, and finds them in the web UI and in an
+  OpenTelemetry collector.
 - The repository passes its documented checks in CI, and each phase ships in a release.
 
 ## Operator rulings, 2026-11-24 onward
 
-(None yet.)
+**2026-11-24, on the four open choices**, asked with the lead's recommendation first; the operator
+picked:
+
+- "Which event format: OCSF 1.9.0, or flat JSON with our own documented fields?" **OCSF**
+- "Should the server ship events over the network itself, beyond standard output and files?" **OTLP,
+  later phase**
+- "Record refused API keys (missing scope; revoked or expired key presented) as failures naming the
+  key?" **Yes**
+- "Default retention for the audit log?" **365 days**
+
+Asked before answering: "So can you do OCSF over OTLP?" Answered yes: each OCSF event is the body of
+an OpenTelemetry log record, as R6 and R10 state.

@@ -31,11 +31,11 @@ Each finding ends with the **design decision** it supports, by its number in the
   backends plus export), authentik (database events plus log forwarding), GitHub (a seven-day buffer
   per stream) and Vector (disk buffers) all keep a durable local copy that delivery catches up from
   [S20, S24, S28, S29]. _Decision 3._
-- **File and standard output first, OTLP if the operator takes it.** File and standard output as
-  JSON Lines reach the PaaS log pipelines and every homelab collector; OTLP/HTTP logs reach the
-  major vendors and collectors directly, and HTTP with a Splunk HEC mode reaches HEC-compatible
-  SIEMs; syslog, GELF, Loki push and cloud APIs are reached through a collector [S9, S17-S19, S25,
-  S29-S47]. _Decisions 5 and 6._
+- **File and standard output first, then OTLP.** File and standard output as JSON Lines reach the
+  PaaS log pipelines and every homelab collector; OTLP/HTTP logs reach the major vendors and
+  collectors directly, and HTTP with a Splunk HEC mode reaches HEC-compatible SIEMs; syslog, GELF,
+  Loki push and cloud APIs are reached through a collector [S9, S17-S19, S25, S29-S47]. _Decisions 5
+  and 6._
 - **Integrity: the copy off the box.** A chain alone is tamper-evident only for values committed
   elsewhere; truncation and full recomputation go unseen otherwise [S48, S49]. Delivered events are
   such values already, so no chain is kept. _Decision 4._
@@ -250,7 +250,7 @@ facto generic SIEM protocol: one HEC sink reaches many products. _Decisions 3, 5
 
 ## Open questions
 
-Each with where the design stands; the operator's open choices are in the [FRD](frd.md).
+Each with where the design stands; the operator's rulings are in the [FRD](frd.md).
 
 1. **Record every read?** OCSF 6003 has Read and List, at a volume and privacy cost. _Not recorded
    (FRD R1), read marks included (decision 18)._
