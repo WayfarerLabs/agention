@@ -954,22 +954,23 @@ describe("the jump to unread", () => {
   });
 
   it("goes round the open asks the summary lists, the most pressing, once nothing is unread, counting those", async () => {
-    // Of 60 open asks, the summary lists the 50 most pressing: here the
-    // latest, most pressing first.
-    await page.openWith([message(1, { asks: range(1, 60).map((number) => ask({ number })) })], {
+    // Of 6 open asks, the summary lists only the most pressing, as the
+    // server's does past its limit: here the latest 4, most pressing first.
+    await page.openWith([message(1, { asks: range(1, 6).map((number) => ask({ number })) })], {
       open_asks: {
-        asks: range(11, 60)
+        asks: range(3, 6)
           .reverse()
           .map((number) => ({ number, seq: 1 })),
-        count: 60,
+        count: 6,
         blocking: true,
         overdue: false,
       },
     });
     expect(jumpingTo()).toBe("open ask");
-    expect(jumpButton()?.textContent).toMatch(/\b50\b/);
-    expect(jumpButton()?.textContent).not.toMatch(/\b60\b/);
-    for (const number of [...range(11, 60), 11]) {
+    expect(jumpButton()?.textContent).toMatch(/\b4\b/);
+    expect(jumpButton()?.textContent).not.toMatch(/\b6\b/);
+    // In the thread's order, going round past the last.
+    for (const number of [...range(3, 6), 3]) {
       await press(() => askCard(number));
     }
   });

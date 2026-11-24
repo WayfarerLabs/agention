@@ -2,32 +2,42 @@ import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { migrations } from "./migrations.ts";
 
-// The SHA-256 of each migration a release has shipped, in order. An
-// operator's database ran each as it shipped, so changing one would leave
-// that database unlike a new one: a schema change is a new migration.
-const shipped = [
-  // Migration 1, frozen at 0.1.0.
+// The SHA-256 of every migration, in order. An operator's database ran each
+// one as a release shipped it, so changing one would leave that database
+// unlike a new one: a schema change is a new migration. Every migration is
+// frozen, released or not, so none can reach a release unfrozen: a change that
+// adds a migration adds its hash here, and one that edits a migration no
+// release has shipped yet updates its hash with it.
+const frozen = [
+  // 1, the first schema.
   "f9b61056f8a1369831725f57006632e262c2192c83611bfc1179f7e6cccc75c4",
-  // Migration 2, the session log, frozen at 0.3.0.
+  // 2, the session status log.
   "600b158072dc5e03dc9a0464667439694d13f59a86f3959db67f56c561796804",
-  // Migration 3, groups, tags and the message index, frozen at 0.4.0.
+  // 3, session groups.
   "8372811d0732312937988851d44b200dd3ca27b6e9d1077a96021d595395d34f",
-  // Migration 4, voice settings, frozen at 0.4.0.
+  // 4, voice settings.
   "652c9ccd78799758a2e6a52829d49d0fd0565a25e2b42181ab44e5cb2219e55c",
-  // Migration 5, files and attachments, frozen at 0.5.0.
+  // 5, uploaded files.
   "863fc3b963e757568831d85aca8f91f37adae21bc3c1abf0a45951410562fa2e",
-  // Migration 6, API keys, frozen at 0.5.0.
+  // 6, API keys.
   "218c1f48f752ead9bf86b7d31c82eeafd8a8498f70ac98ba70a57cae61bbc5de",
-  // Migration 7, message positions, frozen at 0.5.0.
+  // 7, message positions.
   "00ee3ad5db44b38f532362f9ba4aa10c0e653871fe186c51d0de6d1e80650050",
+  // 8, inferred session updates.
+  "25c3c21b1c1e7aca5a5c42c10e97df84fb6bef573e74bd09bc1e02afe90ba754",
+  // 9, group colors and order, and tags of their own.
+  "c2f5bcfd9cacfcbbb7f23688a119ed71244d4071fd77f4dcddb836329465be63",
+  // 10, the agent API version a session states.
+  "f94ee68d54c4af19874865e9f1ca0ffeb98ce094fe102d9f1bd3bd6f1d8bab2b",
 ];
 
-it("keeps every shipped migration as it shipped", () => {
-  shipped.forEach((hash, index) => {
-    const migration = migrations[index] ?? "";
-    expect(
-      createHash("sha256").update(migration).digest("hex"),
-      `migration ${index + 1} has shipped and must not change; add a new migration instead`,
-    ).toBe(hash);
-  });
+const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
+
+it("keeps every migration as its hash froze it", () => {
+  expect(
+    migrations.map(sha256),
+    "the migrations differ from their frozen hashes in migrations.test.ts: add a new migration's " +
+      "hash to frozen; for a changed migration, if a release has shipped it, restore it and add a " +
+      "new migration instead, and if none has, update its hash",
+  ).toEqual(frozen);
 });

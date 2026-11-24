@@ -248,11 +248,13 @@ value and is never reused, so positions never go backwards. A trigger gives each
 position as it is written, triggers refuse every update and delete of a position, and the migration
 that added the table numbered the messages already written in the order they were stored.
 
-A test freezes the text of every migration a release has shipped, by its SHA-256, so a schema change
-is always a new migration. Others open a database the first migration alone wrote, and those the
-first two, three and four wrote, under every later one: the tables they had keep their rows, the new
-ones start empty but for the positions of the messages written before, in the order they were
-written, and a message written before the full-text index of messages existed is found by it.
+A test freezes the text of every migration by its SHA-256. A migration a release has shipped is
+never edited, so a schema change is always a new migration, which adds its hash; an edit to a
+migration no release has shipped updates its hash. Others open a database the first migration alone
+wrote, and those the first two, three and four wrote, under every later one: the tables they had
+keep their rows, the new ones start empty but for the positions of the messages written before, in
+the order they were written, and a message written before the full-text index of messages existed is
+found by it.
 
 `agention backup` (`apps/server/src/database/backup.ts`) copies the database without the `Database`
 class, so it never migrates it: it checks the database file as opening does, refusing a missing one,
@@ -932,8 +934,10 @@ stored form, which the web UI and the server both use. `checkBaseUrl`
 link-local addresses, the cloud metadata addresses outside them, the unspecified address and
 multicast are never reached, and plain http only `localhost` and the operator's own network. An
 address in the NAT64 well-known prefix is refused as the IPv4 address it embeds would be, and is
-never the operator's own network, since a translator carries it across networks. A host name other
-than `localhost` is not resolved; over https, the provider's certificate binds it.
+never the operator's own network, since a translator carries it across networks; one in the
+local-use prefix is refused outright, since where it embeds the IPv4 address depends on the
+network's translator. A host name other than `localhost` is not resolved; over https, the provider's
+certificate binds it.
 
 `TranscriptionProvider` is the one interface a transcription goes through, and `openAiCompatible`
 its one implementation: `POST {base URL}/audio/transcriptions`, `multipart/form-data` with the
@@ -1190,20 +1194,20 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/views/`         | One view per route; `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/server-api`, for the
@@ -1232,6 +1236,36 @@ width ends, each wrapped row a touch's height from the next, and an options menu
 right end. The button's box stretches under the whole header or row, beneath its links and controls,
 so a pointer anywhere else on it folds or unfolds it while keyboards and assistive technology use
 the button; the links reach across the bar's height, so a tap near one lands on it.
+
+At a desktop's width, `64rem` and up, the Threads tab shows the list and the thread open side by
+side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. Side by
+side, the page takes the window's whole width, the list's pane 30% of it, from `20rem` to `36rem`,
+and the thread's the rest, while rendered Markdown keeps a readable line length (`90ch`). The shell
+mounts both routes as one view, `src/views/Threads.tsx`: the list's pane, then the thread's, the
+thread's in the same place at every width, so crossing the breakpoint keeps the thread mounted, with
+its draft files, staged answers, folds and focus. The width is read in the script, with a media
+query, since it decides what is mounted: one at a time, the list is not mounted while a thread is
+open. Side by side, the list stays mounted with its filters, folds, loaded pages and scroll, and
+loads again on each return to it from a thread and as each change the page makes lands, besides its
+refresh; each thread mounts afresh in its pane; and each pane has its own error boundary. The list
+beside a thread is the list its history entry returns to (`currentListView` in `src/router.tsx`),
+and choosing another order or filter there replaces that entry's state (`showList`), so the thread
+stays open. The list on screen is the layout's own: going back or forward, between threads or onto
+the list's own entry, keeps it as set and rewrites the entry gone to, a thread's list to return to
+or the list's address, so the entry, a reload, `u` and the list agree. The router has the one
+listener to `popstate`, and runs the corrections views register (`correctPoppedEntry`) within it,
+with telling the page: a listener of its own would run only once the page had rendered the entry
+uncorrected. A row's link records the list on screen as it is followed. The open thread's row is
+`aria-current="page"`, and opening it again moves focus to the thread's pane. The page keeps one
+title and one level-one heading, the thread's while one is open, and a change that leaves a thread,
+such as Archive all or a send that goes back, returns to the list as it stands once the change
+lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
+`src/components.tsx`), the place a view marks with `data-landing`, its heading or else the place
+itself: the thread's pane, as a phone lands on the page's content while a thread loads, or on
+returning to the list, the row of the thread just left (`src/views/list/beside.ts`). A row that goes
+while it holds focus passes it to the page's heading, and crossing the breakpoint, if it took away
+what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
+and the list's pane is sticky and scrolls on its own.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
@@ -1364,12 +1398,18 @@ and Ctrl, Alt and Meta are up; the first key of two, `g`, waits 1.5 seconds for 
 reader's browse mode takes single keys before the page sees them, so the shortcuts reach the page
 only once it passes keys through, and never compete with its own. The composer's own keys, Send and
 leaving it, act within its fields from its form's key handler (`useFieldShortcuts`), and likewise
-not while a dialog or options menu is open, such as Attach's within the form. The thread list's
-selection is the row whose link has focus (`src/views/list/shortcuts.ts`), so moving it moves focus,
-which the focus ring shows and a screen reader follows; the number keys choose a suggestion on the
-ask card that holds focus or else the first open one, by pressing its control. The shortcuts are on
-unless the operator turns them off in Settings' Keyboard section, which this browser keeps in its
-local storage (`src/device.ts`).
+not while a dialog or options menu is open, such as Attach's within the form. Side by side, the
+list's shortcuts and the thread's act together, each pane naming the area of its view's
+(`ShortcutArea`), which clicking within a pane gives focus. While focus is in one place's area,
+another place's keys act only if they reach across (`reachesAcross`): the list's do, moving focus
+into it, but the thread's do not, so `e`, a digit or `u` never acts on the thread from the list. A
+key both bind, `n`, acts in the place whose area holds focus, or else in the later place declared,
+the thread. The thread list's selection is the row whose link has focus
+(`src/views/list/shortcuts.ts`), or, side by side with focus on no row, the open thread's, so moving
+it moves focus, which the focus ring shows and a screen reader follows; the number keys choose a
+suggestion on the ask card that holds focus or else the first open one, by pressing its control. The
+shortcuts are on unless the operator turns them off in Settings' Keyboard section, which this
+browser keeps in its local storage (`src/device.ts`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
@@ -1394,9 +1434,11 @@ separating servers. The thread list marks a thread with a kept draft from the sa
   loaded, which would come back as a new message the operator never wrote. A write that lands keeps
   what is left, or forgets the draft, at once, since going back after sending unmounts the page in
   the same render.
-- **Forgetting:** once there is nothing to keep, a page forgets the draft only while the stored
-  record is still the one it kept, so the draft another tab typed since stays. A draft the browser
-  refuses to keep forgets the one kept before, which would come back older.
+- **Forgetting:** once there is nothing to keep, a page forgets the draft, and a write that lands
+  keeps what is left, only while the stored record is still the one the page kept, or there is none,
+  so a draft kept since, in another tab or by opening the thread again, stays; a page refused so
+  keeps what is left only once it is typed on. A draft the browser refuses to keep forgets the one
+  kept before, which would come back older.
 - **Limits:** a draft kept more than 30 days ago, or after now, is none, opening its thread keeps it
   again, and a new draft forgets those that are none and the oldest past 50, which caps the storage
   drafts take.
@@ -1448,33 +1490,38 @@ of four items each opening its own hidden input: **Take a photo** (`accept="imag
 (`application/*,text/*`, several: a picker that could take images, video or audio is one Android
 hands to its chooser of camera, video camera and files, which the menu stands in for). A touchscreen
 laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
-`(any-pointer: coarse)` would not. Focus stays on Attach as the menu opens, as in every options
-menu, and Escape or a tap elsewhere closes it with focus back on Attach; whatever an input gives is
-added alike. `useMedia` in `src/media.ts` follows a media query, this one and the color scheme
-diagrams are drawn in; the component tests run on a `matchMedia` that matches nothing, from
-`src/test-setup.ts`, unless a test stubs it. A paste into the message or Details box whose clipboard
-holds only image files, PNG, JPEG, GIF or WebP, attaches them, named `pasted-YYYYMMDD-HHMMSS` in
-local time with their type's extension, and inserts nothing; a paste that carries `text/plain` stays
-text, since some programs put a picture of what was copied beside its text. A name another file of
-the draft has gets `-2`, `-3` and so on before its extension. A file whose name cannot be a file's
-(`fileName`), one over 100 MiB, or an eleventh, is refused in the list, saying why, without
-uploading. The others upload one at a time, in the order added, since a browser opens only a few
-connections to one host and the long poll and every read share them. `uploadFile` in `src/api.ts`
-sends each with `XMLHttpRequest`, which reports upload progress, as the `File` itself, so the
-browser states its length, declaring `File.type`, else `typeOfName`; no progress for 60 seconds
-aborts it, longer than the server's own idle limit so the server's answer comes first, and there is
-no total deadline. `request` announces each change that lands, but an upload alone changes none of
-the navigation's counts, so it announces none. The list shows each file's name, size and state, with
-a progress bar while it uploads, **Retry** for one that failed, **Upload again** for one that
-expired, and **Remove**, which stops an upload under way while bytes remain, lets one whose every
-byte has gone answer and then removes it from the server, and removes a finished one from the
-server, so it stops counting against the operator's pending uploads at once. Only a Remove in the
-instant before the list shows the last byte gone or the upload's answer, or a removal the connection
-loses, leaves the upload counting until it expires. Send waits until every file has uploaded, saying
-what it waits on, and sends kept files as `{keep}`, then uploads as `{upload, name}`; a refusal
-naming an upload marks that file expired. Editing a message, or changing its answers, loads its
-files as kept, which **Remove** drops from the replacement. A stale write keeps the files with the
-draft, except the kept files of a replacement its missed messages drop.
+`(any-pointer: coarse)` would not. The page's sizes follow the primary pointer the same way: where
+it is fine (`(pointer: fine)`), a mouse or a trackpad, the size tokens shrink, `--touch` from 44 to
+32 pixels and the spacing scale by about a quarter, and a touch screen keeps the sizes for a
+fingertip. The browser tests' Chromium has a mouse, so `resize` in `e2e/fixtures.ts` turns on touch
+emulation below a phone's width, and the phone's checks see a phone's sizes. Focus stays on Attach
+as the menu opens, as in every options menu, and Escape or a tap elsewhere closes it with focus back
+on Attach; whatever an input gives is added alike. `useMedia` in `src/media.ts` follows a media
+query, this one and the color scheme diagrams are drawn in; the component tests run on a
+`matchMedia` that matches nothing, from `src/test-setup.ts`, unless a test stubs it. A paste into
+the message or Details box whose clipboard holds only image files, PNG, JPEG, GIF or WebP, attaches
+them, named `pasted-YYYYMMDD-HHMMSS` in local time with their type's extension, and inserts nothing;
+a paste that carries `text/plain` stays text, since some programs put a picture of what was copied
+beside its text. A name another file of the draft has gets `-2`, `-3` and so on before its
+extension. A file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh, is
+refused in the list, saying why, without uploading. The others upload one at a time, in the order
+added, since a browser opens only a few connections to one host and the long poll and every read
+share them. `uploadFile` in `src/api.ts` sends each with `XMLHttpRequest`, which reports upload
+progress, as the `File` itself, so the browser states its length, declaring `File.type`, else
+`typeOfName`; no progress for 60 seconds aborts it, longer than the server's own idle limit so the
+server's answer comes first, and there is no total deadline. `request` announces each change that
+lands, but an upload alone changes none of the navigation's counts, so it announces none. The list
+shows each file's name, size and state, with a progress bar while it uploads, **Retry** for one that
+failed, **Upload again** for one that expired, and **Remove**, which stops an upload under way while
+bytes remain, lets one whose every byte has gone answer and then removes it from the server, and
+removes a finished one from the server, so it stops counting against the operator's pending uploads
+at once. Only a Remove in the instant before the list shows the last byte gone or the upload's
+answer, or a removal the connection loses, leaves the upload counting until it expires. Send waits
+until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
+uploads as `{upload, name}`; a refusal naming an upload marks that file expired. Editing a message,
+or changing its answers, loads its files as kept, which **Remove** drops from the replacement. A
+stale write keeps the files with the draft, except the kept files of a replacement its missed
+messages drop.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with
