@@ -23,17 +23,31 @@ import { serverName } from "./server-name.ts";
 // Pieces the views share.
 
 // usePageTitle names the page in the browser's tab and history, followed by
-// the server's name, as in "Threads · Work".
-export function usePageTitle(title: string): void {
+// the server's name, as in "Threads · Work"; with no title, it leaves the
+// name to another part of the page, as the thread list does to a thread
+// open beside it.
+export function usePageTitle(title: string | undefined): void {
   useEffect(() => {
-    document.title = `${title} · ${serverName()}`;
+    if (title !== undefined) {
+      document.title = `${title} · ${serverName()}`;
+    }
   }, [title]);
 }
 
-// PageHeading is the view's one level-one heading. The shell moves focus to it
-// after each navigation, so a screen reader announces the new page. A page
-// whose tab in the navigation names it on screen keeps its heading for
-// assistive technology alone, visuallyHidden.
+// focusLanding moves focus to where a navigation lands on a page: the place
+// a view marks with data-landing, on its heading or else the place itself,
+// as side by side a thread's pane or the row of the thread just left; with
+// none marked, the page's heading, or the page itself while it loads.
+export function focusLanding(page: HTMLElement): void {
+  const landing = page.querySelector<HTMLElement>("[data-landing]") ?? page;
+  (landing.querySelector<HTMLElement>("h1") ?? landing).focus();
+}
+
+// PageHeading is the view's one level-one heading, the thread's where the
+// thread list stands beside it. The shell moves focus to it after each
+// navigation, so a screen reader announces the new page. A page whose tab in
+// the navigation names it on screen keeps its heading for assistive
+// technology alone, visuallyHidden.
 export function PageHeading({
   visuallyHidden = false,
   children,

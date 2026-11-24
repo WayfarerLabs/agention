@@ -503,7 +503,9 @@ describe("keys the page keeps", () => {
 
 describe("the shortcuts declared", () => {
   // The keys of the shortcuts that act together: those of anywhere with
-  // those of one page, and the composer's within its fields alone.
+  // those of one page, and the composer's within its fields alone. Side by
+  // side, the list's and a thread's act together too, and a key both bind
+  // acts by where focus is (views/Threads.test.tsx).
   const together: ShortcutPlace[][] = [
     ["Anywhere", "Thread list"],
     ["Anywhere", "Thread"],
