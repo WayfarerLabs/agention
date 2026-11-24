@@ -51,22 +51,22 @@ From the Agentworks repository (`WayfarerLabs/agentworks`, public, read 2026-11-
   templating).
 - **A locked-down config** (`/opt/agentworks/tmux-session.conf`) unbinds the keys that make windows,
   panes and sessions, and `command-prompt`, but restricts no tmux client: `send-keys`,
-  `capture-pane` and `paste-buffer` from a client work. Agentworks itself drives sessions with
-  `send-keys`.
+  `capture-pane` and `paste-buffer` from a client work.
 - **The environment differs by host.** Claude Code passes its MCP servers its own environment, so
   the bridge inherits `TMUX` and `TMUX_PANE`. Codex passes them only an allowed list plus the
-  variables its config names: on the VM its bridges had `AGENTION_URL` and `AGENTWORKS_SESSION`,
-  which Agentworks set, and neither `TMUX` variable, though the Codex process had both. Either way,
-  inferring the pane from the environment would also find a tmux the operator runs Claude Code in by
-  hand, which is why the FRD has the location passed explicitly.
+  variables its config names: on the VM its bridges had the variables the plugin forwards
+  (`AGENTION_URL`, `AGENTION_CONNECT`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION`) and neither `TMUX`
+  variable, though the Codex process had both. Either way, inferring the pane from the environment
+  would also find a tmux the operator runs Claude Code in by hand, which is why the FRD has the
+  location passed explicitly.
 - **The bridge lives as long as the harness.** It is a child of the harness, not of a turn: this
   session's bridge had run for 33 hours, through many turns and long waits at the prompt. It ends
   when the harness exits, which ends the session's tmux server under Agentworks, and freezes with a
   suspended VM.
 - **Codex keeps old bridges.** One Codex session on the VM had six bridges under its process, from
   plugin versions 0.4.0 and 0.6.0, started over 15 hours; Codex started new ones without ending the
-  old. Only a bridge whose registration is approved and current may report presence or nudge, or the
-  same pane gets nudged more than once.
+  old. All of them read the same key and share one registration, so approval cannot tell them apart:
+  without a rule that one acts (FRD P5), each would hold a wait and nudge the same pane.
 
 ## What tmux offers the guards
 
@@ -75,7 +75,9 @@ From tmux 3.3a, the VM's version (`tmux(1)`):
 - **Reading.** `capture-pane -p` prints the pane's visible text; the formats `pane_in_mode` (copy or
   another mode, where keys never reach the harness), `cursor_x` and `cursor_y` (where the input line
   is), `window_activity` (when the pane last printed) and `client_activity` (when an attached client
-  last sent a key, so whether someone is typing) cost one client call each.
+  last sent a key, so whether someone is typing) cost one client call each. `window_activity` is per
+  window, to the second; `client_activity` is empty with no client attached, and with several
+  attached `list-clients` gives each one.
 - **Typing text.** `send-keys` sends keys: in a dialog, a letter or a digit may be a shortcut, and
   Enter accepts the highlighted choice. `paste-buffer -p` instead wraps the text in bracketed-paste
   marks when the application asked for them, so a terminal app receives it as one paste event, which
