@@ -1198,7 +1198,9 @@ so a pointer anywhere else on it folds or unfolds it while keyboards and assisti
 the button; the links reach across the bar's height, so a tap near one lands on it.
 
 At a desktop's width, `64rem` and up, the Threads tab shows the list and the thread open side by
-side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. The shell
+side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. Side by
+side, the page takes the window's whole width, the list's pane 30% of it, from `20rem` to `36rem`,
+and the thread's the rest, while rendered Markdown keeps a readable line length (`90ch`). The shell
 mounts both routes as one view, `src/views/Threads.tsx`: the list's pane, then the thread's, the
 thread's in the same place at every width, so crossing the breakpoint keeps the thread mounted, with
 its draft files, staged answers, folds and focus. The width is read in the script, with a media
@@ -1442,33 +1444,38 @@ of four items each opening its own hidden input: **Take a photo** (`accept="imag
 (`application/*,text/*`, several: a picker that could take images, video or audio is one Android
 hands to its chooser of camera, video camera and files, which the menu stands in for). A touchscreen
 laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
-`(any-pointer: coarse)` would not. Focus stays on Attach as the menu opens, as in every options
-menu, and Escape or a tap elsewhere closes it with focus back on Attach; whatever an input gives is
-added alike. `useMedia` in `src/media.ts` follows a media query, this one and the color scheme
-diagrams are drawn in; the component tests run on a `matchMedia` that matches nothing, from
-`src/test-setup.ts`, unless a test stubs it. A paste into the message or Details box whose clipboard
-holds only image files, PNG, JPEG, GIF or WebP, attaches them, named `pasted-YYYYMMDD-HHMMSS` in
-local time with their type's extension, and inserts nothing; a paste that carries `text/plain` stays
-text, since some programs put a picture of what was copied beside its text. A name another file of
-the draft has gets `-2`, `-3` and so on before its extension. A file whose name cannot be a file's
-(`fileName`), one over 100 MiB, or an eleventh, is refused in the list, saying why, without
-uploading. The others upload one at a time, in the order added, since a browser opens only a few
-connections to one host and the long poll and every read share them. `uploadFile` in `src/api.ts`
-sends each with `XMLHttpRequest`, which reports upload progress, as the `File` itself, so the
-browser states its length, declaring `File.type`, else `typeOfName`; no progress for 60 seconds
-aborts it, longer than the server's own idle limit so the server's answer comes first, and there is
-no total deadline. `request` announces each change that lands, but an upload alone changes none of
-the navigation's counts, so it announces none. The list shows each file's name, size and state, with
-a progress bar while it uploads, **Retry** for one that failed, **Upload again** for one that
-expired, and **Remove**, which stops an upload under way while bytes remain, lets one whose every
-byte has gone answer and then removes it from the server, and removes a finished one from the
-server, so it stops counting against the operator's pending uploads at once. Only a Remove in the
-instant before the list shows the last byte gone or the upload's answer, or a removal the connection
-loses, leaves the upload counting until it expires. Send waits until every file has uploaded, saying
-what it waits on, and sends kept files as `{keep}`, then uploads as `{upload, name}`; a refusal
-naming an upload marks that file expired. Editing a message, or changing its answers, loads its
-files as kept, which **Remove** drops from the replacement. A stale write keeps the files with the
-draft, except the kept files of a replacement its missed messages drop.
+`(any-pointer: coarse)` would not. The page's sizes follow the primary pointer the same way: where
+it is fine (`(pointer: fine)`), a mouse or a trackpad, the size tokens shrink, `--touch` from 44 to
+32 pixels and the spacing scale by about a quarter, and a touch screen keeps the sizes for a
+fingertip. The browser tests' Chromium has a mouse, so `resize` in `e2e/fixtures.ts` turns on touch
+emulation below a phone's width, and the phone's checks see a phone's sizes. Focus stays on Attach
+as the menu opens, as in every options menu, and Escape or a tap elsewhere closes it with focus back
+on Attach; whatever an input gives is added alike. `useMedia` in `src/media.ts` follows a media
+query, this one and the color scheme diagrams are drawn in; the component tests run on a
+`matchMedia` that matches nothing, from `src/test-setup.ts`, unless a test stubs it. A paste into
+the message or Details box whose clipboard holds only image files, PNG, JPEG, GIF or WebP, attaches
+them, named `pasted-YYYYMMDD-HHMMSS` in local time with their type's extension, and inserts nothing;
+a paste that carries `text/plain` stays text, since some programs put a picture of what was copied
+beside its text. A name another file of the draft has gets `-2`, `-3` and so on before its
+extension. A file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh, is
+refused in the list, saying why, without uploading. The others upload one at a time, in the order
+added, since a browser opens only a few connections to one host and the long poll and every read
+share them. `uploadFile` in `src/api.ts` sends each with `XMLHttpRequest`, which reports upload
+progress, as the `File` itself, so the browser states its length, declaring `File.type`, else
+`typeOfName`; no progress for 60 seconds aborts it, longer than the server's own idle limit so the
+server's answer comes first, and there is no total deadline. `request` announces each change that
+lands, but an upload alone changes none of the navigation's counts, so it announces none. The list
+shows each file's name, size and state, with a progress bar while it uploads, **Retry** for one that
+failed, **Upload again** for one that expired, and **Remove**, which stops an upload under way while
+bytes remain, lets one whose every byte has gone answer and then removes it from the server, and
+removes a finished one from the server, so it stops counting against the operator's pending uploads
+at once. Only a Remove in the instant before the list shows the last byte gone or the upload's
+answer, or a removal the connection loses, leaves the upload counting until it expires. Send waits
+until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
+uploads as `{upload, name}`; a refusal naming an upload marks that file expired. Editing a message,
+or changing its answers, loads its files as kept, which **Remove** drops from the replacement. A
+stale write keeps the files with the draft, except the kept files of a replacement its missed
+messages drop.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with

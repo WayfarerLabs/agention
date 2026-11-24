@@ -343,19 +343,20 @@ comes back to that page afterwards.
 
 ## Using the web UI
 
-The web UI is laid out for a phone first and follows the browser's light or dark setting. Every view
+The web UI is laid out for a phone first and follows the browser's light or dark setting. With a
+mouse or a trackpad, its controls and spacing are more compact than on a touch screen. Every view
 refreshes itself every 10 seconds while it is visible, and as soon as you return to it.
 
 On a screen at least 1024 pixels wide at the browser's usual text size, a desktop's, **Threads**
-shows the thread list and the thread you open side by side, the list on the left; on a narrower
-screen, or with text enlarged until they no longer fit, it shows one at a time, as on a phone.
-Resizing the window across that width keeps the thread you have open as it is, with anything you
-were writing or attaching. Side by side, each thread keeps its own address, so **Back** and
-**Forward** move between the threads you opened, and back to the list with none open. The list stays
-as you set it, its filters, order, folds and scroll, as threads open beside it and as you go back
-and forward; the row of the thread open is outlined, and choosing it again takes you to the thread;
-and choosing another order or filter keeps the thread open. The thread scrolls with the page while
-the list stays in view, scrolling on its own. Going back to the list from a thread, with its
+shows the thread list and the thread you open side by side across the window, the list on the left;
+on a narrower screen, or with text enlarged until they no longer fit, it shows one at a time, as on
+a phone. Resizing the window across that width keeps the thread you have open as it is, with
+anything you were writing or attaching. Side by side, each thread keeps its own address, so **Back**
+and **Forward** move between the threads you opened, and back to the list with none open. The list
+stays as you set it, its filters, order, folds and scroll, as threads open beside it and as you go
+back and forward; the row of the thread open is outlined, and choosing it again takes you to the
+thread; and choosing another order or filter keeps the thread open. The thread scrolls with the page
+while the list stays in view, scrolling on its own. Going back to the list from a thread, with its
 **Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left.
 
 Where a thread is, its agent, its session and its topic, shows each part behind a small badge: **A**

@@ -21,7 +21,7 @@ import { ThreadView } from "./thread/ThreadView.tsx";
 // open side by side, on the list's address and on each thread's alike, and
 // on a narrower screen one at a time, as on a phone. 64rem is 1024px at the
 // browser's default text size, the narrowest common desktop width: there a
-// list pane of at least 18rem, as wide as a phone shows the list, fits
+// list pane of at least 20rem, about as wide as a phone shows the list, fits
 // beside a thread of at least 36rem, a comfortable reading width, with the
 // page's padding and the gap between (styles.css, .side-by-side). Like the
 // 40rem at which the banner's tabs join its row, it is in rem, so larger
