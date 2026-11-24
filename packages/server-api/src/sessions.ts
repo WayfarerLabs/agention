@@ -85,10 +85,12 @@ export const sessionSummary = z.object({
   plugin_behind: z
     .boolean()
     .describe(
-      "whether the session's latest call stated an older agent API version than the " +
-        "server's, so the server offers features its Agention plugin cannot use; the fix is " +
-        "to update the plugin on the agent's host to its newest release and restart the " +
-        "session. False for a session with no call recorded",
+      "whether the session is live, holding an approved registration and not stopped, and " +
+        "its latest call stated an older agent API version than the server's, so the server " +
+        "offers features its Agention plugin cannot use; the fix is to update the plugin on " +
+        "the agent's host to its newest release and restart the session. False for a session " +
+        "with no call recorded, and for one stopped or with no approved registration until " +
+        "it is live again",
     ),
 });
 export type SessionSummary = z.infer<typeof sessionSummary>;

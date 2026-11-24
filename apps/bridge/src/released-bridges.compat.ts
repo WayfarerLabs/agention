@@ -59,7 +59,7 @@ describe.each(versions)("the bridge released as %s", (version) => {
   it("works through every tool it has against this server", { timeout: 60_000 }, async () => {
     expect(bridge.client.getServerVersion()?.version).toBe(version);
     // The agent API version the latest request to the server stated, the
-    // bridge's own once its last call below is made.
+    // bridge's own once it has called.
     let stated: string | undefined;
     harness.beforeRequest = (request) => {
       stated = request.headers.get(agentApiHeader) ?? undefined;
@@ -352,19 +352,21 @@ describe.each(versions)("the bridge released as %s", (version) => {
       }
     }
 
+    // The sessions view marks its live session's plugin behind exactly when
+    // the version it states, none reading as 1, is below the server's, and
+    // marks it no more once it has stopped.
+    const marked = async (behind: boolean) =>
+      expect(
+        ((await harness.server.web("GET", "/sessions")).body as SessionsPage).agents,
+      ).toMatchObject([{ agent, sessions: [{ session, plugin_behind: behind }] }]);
+    await marked(agentApiVersion.parse(stated) < BigInt(agentApi.version));
+
     if (has("session_update")) {
       expect(
         await call("session_update", { state: "stopped", outcome: "completed", note: "Shipped." }),
       ).toMatchObject({ state: "stopped", outcome: "completed" });
+      await marked(false);
     }
     expect([...called].sort()).toEqual(tools.map((tool) => tool.name).sort());
-
-    // The sessions view marks its session's plugin behind exactly when the
-    // version it states, none reading as 1, is below the server's.
-    const sessions = (await harness.server.web("GET", "/sessions")).body as SessionsPage;
-    const behind = agentApiVersion.parse(stated) < BigInt(agentApi.version);
-    expect(sessions.agents).toMatchObject([
-      { agent, sessions: [{ session, plugin_behind: behind }] },
-    ]);
   });
 });
