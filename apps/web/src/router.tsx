@@ -4,6 +4,7 @@ import {
   type AnchorHTMLAttributes,
   type MouseEvent,
   type ReactNode,
+  type Ref,
   useSyncExternalStore,
 } from "react";
 import { type QueryValues, query } from "./api.ts";
@@ -105,16 +106,32 @@ export function listHref(view: ThreadsView): string {
   return `/${query(queryOf(view)).replaceAll("%2F", "/")}`;
 }
 
-// A same-document navigation does not fire popstate, so navigate announces it.
+// Every change of the history entry is announced as navigated, which the
+// page follows: navigate announces its own, since a same-document navigation
+// does not fire popstate, and going back or forward is announced with the
+// corrections registered for it (correctPoppedEntry) run in the same
+// listener. A correction in a popstate listener of its own would run only
+// once the page had rendered the entry as it was popped, as Chromium showed.
+// Nothing else listens to popstate.
 const navigated = "agention:navigate";
+const corrections = new Set<() => void>();
+
+window.addEventListener("popstate", () => {
+  corrections.forEach((correct) => correct());
+  window.dispatchEvent(new Event(navigated));
+});
+
+// correctPoppedEntry registers a correction to the history entry that going
+// back or forward reaches, which runs before the page follows it, until the
+// returned function takes it away.
+export function correctPoppedEntry(correct: () => void): () => void {
+  corrections.add(correct);
+  return () => corrections.delete(correct);
+}
 
 function subscribe(onChange: () => void): () => void {
-  window.addEventListener("popstate", onChange);
   window.addEventListener(navigated, onChange);
-  return () => {
-    window.removeEventListener("popstate", onChange);
-    window.removeEventListener(navigated, onChange);
-  };
+  return () => window.removeEventListener(navigated, onChange);
 }
 
 const currentPath = () => window.location.pathname + window.location.search;
@@ -148,17 +165,20 @@ export const plainClick = (event: MouseEvent<HTMLAnchorElement>) =>
 // Link is an anchor that navigates within the page on a plain click, and
 // leaves every other click (a new tab, a download) to the browser. state, when
 // given, says on the click what the new history entry records. follow, when
-// given, is what a plain click does in place of navigating, such as choosing
-// a filter of the list on screen, which goes to the same address its own way.
+// given, is what a plain click does in place of navigating: choosing a
+// filter of the list on screen, which goes to the same address its own way,
+// or moving focus to the thread already open beside the list.
 export function Link({
   to,
   state,
   follow,
   ...rest
-}: { to: string; state?: () => unknown; follow?: () => void } & Omit<
-  AnchorHTMLAttributes<HTMLAnchorElement>,
-  "href" | "onClick"
->) {
+}: {
+  to: string;
+  state?: () => unknown;
+  follow?: () => void;
+  ref?: Ref<HTMLAnchorElement>;
+} & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "onClick">) {
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
     if (!plainClick(event)) {
       return;
@@ -227,6 +247,36 @@ export function originOf(state: unknown): ThreadsView {
     }
   }
   return listViewOf(new URLSearchParams());
+}
+
+// currentListView reads the list the page is on: on the list, the one its
+// address names; on a thread page, the one the page returns to, which the
+// list beside the thread shows when they are side by side.
+export function currentListView(): ThreadsView {
+  return matchRoute(window.location.pathname).name === "threads"
+    ? listViewOf(new URLSearchParams(window.location.search))
+    : originOf(window.history.state);
+}
+
+// useListView returns currentListView, and re-renders when it changes.
+export function useListView(): ThreadsView {
+  const href = useSyncExternalStore(subscribe, () => listHref(currentListView()));
+  return listViewOf(new URL(href, window.location.origin).searchParams);
+}
+
+// showList puts another list in place of the one the page is on, replacing
+// the history entry, so going back leaves the list rather than stepping
+// through every choice: on the list, its address; on a thread page beside
+// the list, the list the page returns to, so the thread stays open.
+export function showList(view: ThreadsView): void {
+  if (matchRoute(window.location.pathname).name === "threads") {
+    navigate(listHref(view), { replace: true });
+    return;
+  }
+  const state: unknown = window.history.state;
+  const kept = typeof state === "object" && state !== null ? state : {};
+  window.history.replaceState({ ...kept, from: listHref(view) }, "", currentPath());
+  window.dispatchEvent(new Event(navigated));
 }
 
 // ThreadLink links to another thread of a session, carrying on the list the

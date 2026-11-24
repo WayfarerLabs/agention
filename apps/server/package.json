@@ -34,7 +34,7 @@
     "@wayfarerlabs/agention-build": "*",
     "@wayfarerlabs/agention-private-files": "*",
     "@wayfarerlabs/agention-server-api": "*",
-    "hono": "4.13.18",
+    "hono": "4.13.19",
     "jose": "6.2.17"
   }
 }

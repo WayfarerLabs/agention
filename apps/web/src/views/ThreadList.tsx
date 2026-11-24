@@ -10,8 +10,8 @@ import {
   type ThreadsView,
   threadSort,
 } from "@wayfarerlabs/agention-server-api";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { query, request } from "../api.ts";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { changeLanded, query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
 import { useFollowing, usePages } from "../data.ts";
 import { Icon } from "../icons.tsx";
@@ -19,14 +19,17 @@ import { takeNotice } from "../notice.ts";
 import { PaletteProvider } from "../organizing.tsx";
 import {
   arrangementOf,
+  currentListView,
   listHref,
-  listViewOf,
-  navigate,
+  matchRoute,
   queryOf,
+  showList,
   unfiltered,
+  useListView,
   useLocation,
 } from "../router.tsx";
 import type { ListShown } from "./filter-links.tsx";
+import { ListBeside } from "./list/beside.ts";
 import { BulkActions } from "./list/BulkActions.tsx";
 import { DirectionButton, HeadSelect } from "./list-head.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
@@ -70,34 +73,33 @@ const groupLabel: Record<ThreadGrouping, string> = {
 };
 
 export function ThreadList() {
-  const location = useLocation();
-  const view = listViewOf(location.searchParams);
+  const view = useListView();
   const here = listHref(view);
   // The total shown is the list's on screen, so it clears while another
   // loads.
   const [loaded, setLoaded] = useState<{ list: string; total: number }>();
   const total = loaded?.list === here ? loaded.total : undefined;
   const onTotal = useCallback((count: number) => setLoaded({ list: here, total: count }), [here]);
-  usePageTitle("Threads");
-  // Choosing a filter, an order or a grouping replaces the address, so going
-  // back leaves the list rather than stepping through every choice. Choosing
-  // a search, as removing its chip does, replaces any search still being
-  // typed.
-  const navigateTo = (to: ThreadsView) => navigate(listHref(to), { replace: true });
-  const search = useSearchText(view, (text) =>
-    navigateTo({ ...listViewOf(currentSearch()), search: text }),
-  );
+  // The page has one title and one level-one heading: side by side, the
+  // thread's while one is open beside the list, and the list's otherwise.
+  const threadBeside = useContext(ListBeside)?.open !== undefined;
+  usePageTitle(threadBeside ? undefined : "Threads");
+  // Choosing a filter, an order or a grouping shows that list in place of
+  // this one (showList), so going back leaves the list rather than stepping
+  // through every choice. Choosing a search, as removing its chip does,
+  // replaces any search still being typed.
+  const search = useSearchText(view, (text) => showList({ ...currentListView(), search: text }));
   const choose = (change: Partial<ThreadsView>) => {
     if ("search" in change) {
       search.reset(change.search);
     }
-    navigateTo({ ...view, ...change });
+    showList({ ...view, ...change });
   };
   // Reset filters turns every filter off, and keeps the order, its direction
   // and the grouping.
   const reset = () => {
     search.reset(undefined);
-    navigateTo({ ...unfiltered, ...arrangementOf(view) });
+    showList({ ...unfiltered, ...arrangementOf(view) });
   };
   const sheet = useRef<HTMLDialogElement>(null);
   const sheetHeading = useRef<HTMLHeadingElement>(null);
@@ -133,7 +135,7 @@ export function ThreadList() {
   const on = chips.length;
   return (
     <PaletteProvider known={known}>
-      <PageHeading visuallyHidden>Threads</PageHeading>
+      {!threadBeside && <PageHeading visuallyHidden>Threads</PageHeading>}
       <div className="list-head">
         {/* Choosing another order takes it in its own direction. */}
         <div className="sort-control">
@@ -204,7 +206,7 @@ export function ThreadList() {
       {/* A header's link followed to another list leaves the list it was
           on gone, so focus moves to Filters, as removing a chip does. */}
       <ListBody
-        key={location.search}
+        key={here}
         list={{
           view,
           choose: (change) => {
@@ -223,9 +225,6 @@ export function ThreadList() {
 
 // How long typing must pause before the search applies.
 const searchPause = 400;
-
-// The search address as it stands, which a pending search applies to.
-const currentSearch = () => new URLSearchParams(window.location.search);
 
 interface SearchBox extends SearchText {
   reset: (search: string | undefined) => void;
@@ -284,7 +283,11 @@ function useSearchText(view: ThreadsView, apply: (search: string | undefined) =>
 // grouped. One polite status region says what the list's actions did and, on
 // arrival from a thread page that went back after sending, what it sent. The
 // list is mounted afresh for each address, so a list chosen afresh starts
-// quiet.
+// quiet. Side by side it stays mounted as threads open beside it, so what it
+// said goes as the page moves on, and it loads again on each return to it
+// from a thread, so a list gone back to is current, as one mounted afresh
+// would be, and as each change the page makes lands, such as the thread
+// beside it being read, besides its refresh.
 function ListBody({
   list,
   empty,
@@ -297,17 +300,32 @@ function ListBody({
 }) {
   const { view } = list;
   const [said, say] = useState("");
+  const { pathname } = useLocation();
   useEffect(() => {
-    const text = takeNotice();
-    if (text !== undefined) {
-      say(text);
-    }
-  }, []);
+    say(takeNotice() ?? "");
+  }, [pathname]);
   const pages = usePages<ListedThread, Omit<ThreadListAnswer, "threads" | "next">>((cursor) =>
     request<ThreadListAnswer>("GET", `/threads${query({ ...queryOf(view), cursor })}`).then(
       ({ threads, ...rest }) => ({ ...rest, rows: threads }),
     ),
   );
+  const beside = useContext(ListBeside) !== undefined;
+  const { refresh } = pages;
+  const seen = useRef(pathname);
+  useEffect(() => {
+    const returned = seen.current !== pathname && matchRoute(pathname).name === "threads";
+    seen.current = pathname;
+    if (beside && returned) {
+      refresh();
+    }
+  }, [beside, pathname, refresh]);
+  useEffect(() => {
+    if (!beside) {
+      return;
+    }
+    window.addEventListener(changeLanded, refresh);
+    return () => window.removeEventListener(changeLanded, refresh);
+  }, [beside, refresh]);
   const { data } = pages;
   const shown = useMemo(
     () => (data === undefined ? undefined : { ...data, rows: distinct(data.rows) }),

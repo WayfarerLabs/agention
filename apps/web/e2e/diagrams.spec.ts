@@ -11,7 +11,7 @@ import type { BrowserContext, Frame, Locator, Page, Request } from "@playwright/
 import type { PublicKey, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, test } from "./fixtures.ts";
+import { type Agention, expect, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -340,7 +340,7 @@ test("a frame that never answers is replaced, and the next diagram drawn in a ne
 });
 
 test("the viewer opens a diagram full screen at a phone's width, and gives focus back", async () => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   const wide = [
     "flowchart LR",
     ...Array.from({ length: 12 }, (_, index) => `  step${index} --> step${index + 1}`),
@@ -394,7 +394,7 @@ test("the viewer opens a diagram full screen at a phone's width, and gives focus
 });
 
 test("the viewer fits a diagram too long for its least zoom, and zooms out no further", async () => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   // A chain of 100 edges, written short to fit in a message's text.
   const long = `flowchart LR\n  ${Array.from({ length: 101 }, (_, index) => `n${index}`).join("-->")}`;
   await openThread(fenced(long));
