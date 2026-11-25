@@ -1,6 +1,5 @@
 import {
   type MonitorAnswer,
-  type MonitorNudge,
   type MonitorNudgeAnswer,
   type MonitorNudgeQuery,
   type MonitorPollAnswer,
@@ -107,21 +106,59 @@ function nudgeDue(db: Database, sessionId: number, now: number): boolean {
   );
 }
 
-// claimNudge is a bridge's claim of the nudge due for its session, or its
-// report of how a nudge it claimed ended, each in one transaction. A claim
-// goes ahead only from the bridge that acts for the session, as reportMonitor
-// admits one, while a nudge is due: it records the claim as the session's
-// latest nudge, at the server's time, its outcome not yet known, so none is
-// due again until the agent checks in, whatever bridge asks or however the
-// server restarts. An outcome from that bridge fills in the latest nudge's
-// where none is recorded yet, so sending it again changes nothing. A
-// replaced bridge's claim or outcome changes nothing.
+// claimNudge is a bridge's claim of the nudge due for its session, in one
+// transaction. It goes ahead only from the bridge that acts for the session,
+// as reportMonitor admits one, while a nudge is due: it records the claim as
+// the session's latest nudge, at the server's time, its outcome not yet
+// known, so none is due again until the agent checks in, whatever bridge asks
+// or however the server restarts.
 export function claimNudge(
   store: Store,
   identity: Identity,
   target: SessionTarget,
   query: MonitorNudgeQuery,
-  body: MonitorNudge,
+): MonitorNudgeAnswer {
+  return forActingBridge(store, identity, target, query, (db, sessionId, now) => {
+    const go = nudgeDue(db, sessionId, now);
+    if (go) {
+      db.prepare("UPDATE sessions SET nudged_at = ?, nudge_sent = NULL WHERE id = ?").run(
+        now,
+        sessionId,
+      );
+    }
+    return go;
+  });
+}
+
+// recordNudgeOutcome is a bridge's report of how a nudge it claimed ended,
+// sent or not, in one transaction. From the bridge that acts for the session
+// it fills in the latest nudge's outcome where none is recorded yet, so
+// sending it again changes nothing, and it never says go.
+export function recordNudgeOutcome(
+  store: Store,
+  identity: Identity,
+  target: SessionTarget,
+  query: MonitorNudgeQuery,
+  sent: boolean,
+): MonitorNudgeAnswer {
+  return forActingBridge(store, identity, target, query, (db, sessionId) => {
+    db.prepare(
+      `UPDATE sessions SET nudge_sent = :sent
+       WHERE id = :session AND nudged_at IS NOT NULL AND nudge_sent IS NULL`,
+    ).run({ session: sessionId, sent: Number(sent) });
+    return false;
+  });
+}
+
+// forActingBridge runs a nudge's write in one transaction, only where the
+// bridge asking acts for the session, and answers whether the write lets it
+// go ahead. A replaced bridge's request changes nothing.
+function forActingBridge(
+  store: Store,
+  identity: Identity,
+  target: SessionTarget,
+  query: MonitorNudgeQuery,
+  write: (db: Database, sessionId: number, now: number) => boolean,
 ): MonitorNudgeAnswer {
   const { db, bridges } = store;
   const outcome = db.transaction(() => {
@@ -130,21 +167,7 @@ export function claimNudge(
     if (bridges.admission(sessionId, query.bridge, false) === "replaced") {
       return "replaced";
     }
-    if (body.phase === "done") {
-      db.prepare(
-        `UPDATE sessions SET nudge_sent = :sent
-         WHERE id = :session AND nudged_at IS NOT NULL AND nudge_sent IS NULL`,
-      ).run({ session: sessionId, sent: Number(body.sent) });
-      return { sessionId, go: false };
-    }
-    const go = nudgeDue(db, sessionId, now);
-    if (go) {
-      db.prepare("UPDATE sessions SET nudged_at = ?, nudge_sent = NULL WHERE id = ?").run(
-        now,
-        sessionId,
-      );
-    }
-    return { sessionId, go };
+    return { sessionId, go: write(db, sessionId, now) };
   });
   if (outcome === "replaced") {
     return { replaced: true, go: false };

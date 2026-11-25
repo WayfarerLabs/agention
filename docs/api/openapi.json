@@ -6825,7 +6825,7 @@
     },
     "/api/agent/s/{agent}/{session}/monitor/nudge": {
       "post": {
-        "operationId": "agentClaimNudge",
+        "operationId": "agentRecordNudge",
         "summary": "Claim the nudge that is due for the session before trying it, or report how a claimed one ended",
         "tags": [
           "agent"

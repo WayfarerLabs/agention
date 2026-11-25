@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { markRead } from "./marks.ts";
-import { claimNudge, pollMonitor, reportMonitor } from "./monitors.ts";
+import { claimNudge, pollMonitor, recordNudgeOutcome, reportMonitor } from "./monitors.ts";
 import { connectedFor, seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
 import { listSessions } from "./sessions.ts";
@@ -91,13 +91,9 @@ function claim(
   as: Agent = agent,
   store: Store = fixture.store,
 ): MonitorNudgeAnswer {
-  return claimNudge(
-    store,
-    as.identity,
-    as.target,
-    { bridge },
-    sent === undefined ? { phase: "start" } : { phase: "done", sent },
-  );
+  return sent === undefined
+    ? claimNudge(store, as.identity, as.target, { bridge })
+    : recordNudgeOutcome(store, as.identity, as.target, { bridge }, sent);
 }
 
 const since = new Date(Date.UTC(2026, 9, 27, 11, 58)).toISOString();

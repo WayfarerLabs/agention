@@ -25,6 +25,7 @@ import {
   createThread,
   listSessionThreads,
   pollMonitor,
+  recordNudgeOutcome,
   reportMonitor,
   updateSession,
   waitForThreads,
@@ -116,7 +117,7 @@ export const agentOperations = [
       reportMonitor(store, identity, params, query, body),
   }),
   operation({
-    name: "claimNudge",
+    name: "recordNudge",
     method: "POST",
     path: "/s/:agent/:session/monitor/nudge",
     summary:
@@ -127,7 +128,9 @@ export const agentOperations = [
     body: monitorNudge,
     response: monitorNudgeAnswer,
     handler: ({ store, identity, params, query, body }) =>
-      claimNudge(store, identity, params, query, body),
+      body.phase === "start"
+        ? claimNudge(store, identity, params, query)
+        : recordNudgeOutcome(store, identity, params, query, body.sent),
   }),
 ];
 
@@ -137,7 +140,7 @@ export const agentOperations = [
 export const backgroundOperations: ReadonlySet<string> = new Set([
   "pollMonitor",
   "reportMonitor",
-  "claimNudge",
+  "recordNudge",
 ]);
 
 // Registration is the one agent route a key the operator has not approved may

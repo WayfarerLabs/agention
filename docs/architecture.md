@@ -389,8 +389,8 @@ finds, so a bridge told one is due holds its poll while it still is. What can ma
 session's channel: a report that says the session can be nudged at its prompt, and a message. What
 ends one, a check-in, a mark of the session's own or a claim, wakes nothing, since a claim checks
 again that one is due, so a bridge told of one that lapsed learns it when its claim is refused or
-its poll's wait ends. The bridge claims a nudge on `POST .../monitor/nudge` (`claimNudge`) before it
-puts anything in the pane: `start`, in one transaction, goes ahead only from the bridge that acts
+its poll's wait ends. The bridge claims a nudge on `POST .../monitor/nudge` (`recordNudge`) before
+it puts anything in the pane: `start`, in one transaction, goes ahead only from the bridge that acts
 for the session while a nudge is due, recording the claim's time by the server's clock as the
 session's latest nudge, its outcome unknown, and answers `go`; `done` sets whether it was sent, only
 where the latest claim has no outcome yet, so sending it again changes nothing. A session is nudged
