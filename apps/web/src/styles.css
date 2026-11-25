@@ -1223,10 +1223,12 @@ button.picker[aria-expanded="true"] .icon {
    the place of; the row of a thread selected is ringed in the accent. On a
    touch screen a finger held on a row selects it, so the row's text is not
    taken for text to select and the browser's own menu for the link stays
-   away. */
+   away. The row is a grid, so what stands beneath the link (code-links.tsx)
+   lines up with it. */
 .thread-row:has(> .row-select) {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
 }
 
 .thread-row > .row-select {
@@ -1238,8 +1240,6 @@ button.picker[aria-expanded="true"] .icon {
 }
 
 .thread-row > .row-select + .thread-link {
-  flex: 1;
-  min-width: 0;
   padding-left: var(--space-3);
 }
 
@@ -1249,7 +1249,8 @@ button.picker[aria-expanded="true"] .icon {
 }
 
 @media (pointer: coarse) {
-  .thread-link {
+  .thread-link,
+  .row-code-links a {
     -webkit-touch-callout: none;
     user-select: none;
   }
@@ -2411,6 +2412,49 @@ audio.file-media {
 .code-link {
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+
+/* An entry: its short form, which leads to the list filtered by it, then
+   the small link to its forge's page, followed by that page's host. */
+.code-link-entry {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A row's pull request or branch, or its mark counting several, beneath the
+   row's link and in line with its content, the link giving up its bottom
+   padding to it. */
+.thread-link:has(+ .row-code-links) {
+  padding-bottom: var(--space-2);
+}
+
+.row-code-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.thread-row.unread .row-code-links {
+  padding-left: calc(var(--space-4) - 3px);
+}
+
+/* In a row with a checkbox (selection.tsx), the entry stands beneath the
+   link's content, past the checkbox. */
+.thread-row > .row-select ~ .row-code-links {
+  grid-column: 2;
+  padding-left: var(--space-3);
+}
+
+.row-code-links > .icon {
+  flex: none;
 }
 
 .thread-code-links {

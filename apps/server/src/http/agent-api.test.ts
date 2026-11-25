@@ -4,6 +4,7 @@ import {
   codeLinksAgentApiVersion,
   type ErrorBody,
   formatTimestamp,
+  summaryLinksAgentApiVersion,
   type ThreadGetResult,
   type ThreadPage,
   type WaitResult,
@@ -664,6 +665,48 @@ describe("the agent API version", () => {
     });
     for (const answer of [message, missed]) {
       expect(answer).toMatchObject({ seq: 1, pull_requests: [pull], branches: [branch] });
+    }
+  });
+
+  it("leaves links out of the thread summaries answered to a version before them", async () => {
+    const pull = { repo: "acme/agention", number: 135 };
+    await harness.agent(
+      approved,
+      "POST",
+      "/s/builder/main/threads",
+      newThread("r-1", { pull_requests: [pull] }),
+    );
+    await harness.web("POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      text: "Seen it.",
+    });
+    // The summaries a bridge stating the version reads: a thread's, and those
+    // of a list and a wait.
+    const summaries = async (version: string | undefined) => {
+      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const read = async (path: string) =>
+        (await harness.agent(approved, "GET", `/s/builder/main${path}`, undefined, { headers }))
+          .body as { thread?: object; threads?: object[] };
+      return [
+        (await read("/threads/1")).thread,
+        ...((await read("/threads")).threads ?? []),
+        ...((await read("/wait")).threads ?? []),
+      ];
+    };
+    for (const version of [undefined, String(summaryLinksAgentApiVersion - 1)]) {
+      const read = await summaries(version);
+      expect([version, read.length]).toEqual([version, 3]);
+      for (const summary of read) {
+        expect(summary).toMatchObject({ number: 1 });
+        expect(summary).not.toHaveProperty("links");
+      }
+    }
+    for (const summary of await summaries(String(agentApi.version))) {
+      expect(summary).toMatchObject({
+        number: 1,
+        links: { pull_requests: 1, branches: 0, pull_request: pull },
+      });
     }
   });
 

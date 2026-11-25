@@ -104,6 +104,26 @@ async function press(element: Element) {
   fireEvent.pointerUp(element, { pointerType: "touch", isPrimary: true });
 }
 
+// withEntry shows the list with Ship it naming one pull request, and gives
+// that pull request's entry on its row.
+async function withEntry(): Promise<HTMLElement> {
+  threads = [
+    first,
+    threadSummary({
+      ...third,
+      links: {
+        pull_requests: 1,
+        branches: 0,
+        pull_request: { repo: "acme/agention", number: 135 },
+      },
+    }),
+  ];
+  total = 2;
+  renderAt("/?unread=true");
+  await screen.findByText("Ship it");
+  return screen.getByRole("link", { name: "Threads naming acme/agention#135" });
+}
+
 describe("the bar at the list's foot", () => {
   const bar = () => screen.getByRole("region", { name: "List actions" });
   const names = (within_: HTMLElement) =>
@@ -730,6 +750,16 @@ describe("selecting with a mouse", () => {
     });
   });
 
+  it("takes the row holding focus on its checkbox or its pull request as the current row", async () => {
+    const entry = await withEntry();
+    entry.focus();
+    fireEvent.keyDown(entry, { key: "x" });
+    expect(checkbox("Ship it").checked).toBe(true);
+    checkbox("Choose a database").focus();
+    fireEvent.keyDown(checkbox("Choose a database"), { key: "j" });
+    expect(document.activeElement).toBe(shown("Ship it"));
+  });
+
   it("selects and unselects the current row with x", async () => {
     renderAt("/");
     await screen.findByText("Pick a port");
@@ -878,6 +908,44 @@ describe("selecting on a touch screen", () => {
     await waitFor(() => expect(rowCheckboxes()).toHaveLength(0));
     fireEvent.click(shown("Ship it"));
     expect(window.location.pathname).toBe("/s/builder/main/threads/3");
+  });
+
+  it("selects a row in place of following its pull request while a tap selects", async () => {
+    onTouch();
+    const entry = await withEntry();
+    await press(shown("Choose a database"));
+    // The click that may follow the press.
+    fireEvent.click(shown("Choose a database"));
+    fireEvent.click(entry);
+    expect(window.location.search).toBe("?unread=true");
+    expect(checkbox("Ship it").checked).toBe(true);
+    // A tap on a checkbox selects or unselects its row once. jsdom can't
+    // show the row's capture fighting the checkbox's own toggle, which a
+    // real browser would, so this guards the outcome, not that cause.
+    fireEvent.click(checkbox("Choose a database"));
+    expect(checkbox("Choose a database").checked).toBe(false);
+    fireEvent.click(checkbox("Choose a database"));
+    expect(checkbox("Choose a database").checked).toBe(true);
+    // With nothing selected, it adds its filter to the list again.
+    fireEvent.click(action("Clear selection"));
+    await waitFor(() => expect(rowCheckboxes()).toHaveLength(0));
+    fireEvent.click(entry);
+    expect(window.location.search).toBe("?unread=true&pull_request=acme/agention%23135");
+  });
+
+  it("selects a row held down by its pull request, keeping the link's menu shut", async () => {
+    onTouch();
+    const entry = await withEntry();
+    fireEvent.pointerDown(entry, { pointerType: "touch", isPrimary: true });
+    // The menu a held finger opens on a link.
+    expect(fireEvent.contextMenu(entry)).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, longPress + 50));
+    fireEvent.pointerUp(entry, { pointerType: "touch", isPrimary: true });
+    // The click that may follow the press follows nothing.
+    fireEvent.click(entry);
+    expect(window.location.search).toBe("?unread=true");
+    expect(checkbox("Ship it").checked).toBe(true);
+    expect(checkbox("Choose a database").checked).toBe(false);
   });
 
   it("selects nothing when the finger lifts, or moves away, before the press is long enough", async () => {

@@ -46,17 +46,19 @@
 
 ## P2: the operator's filters and the thread list rows
 
-- [ ] `listFilters` and `threadCounts` gain `pull_request` and `branch`; the store's parts and
-      counts.
-- [ ] Thread summaries gain `links`; the store computes it with the rollup's rules.
-- [ ] The agent mount's answers to an older bridge leave out a summary's `links` wherever agents
-      read summaries (`thread_get`, `thread_list`, `message_wait`), with a released-bridge case.
-- [ ] Web: the filter sheet's two multi-selects, their chips, the address; a row's one entry or
-      count.
-- [ ] Web: every shown entry, on a message, in the thread head's fold and on a row, links to the
-      list filtered by it as the HLA's "Where an entry leads" says, with its URL as a small link
-      beside it.
-- [ ] Docs: the operator guide's filters, architecture's filters and counts, the API reference.
+- [x] `listFilters` and `threadCounts` gain `pull_request` and `branch`; the store's parts and
+      counts (#153).
+- [x] Thread summaries gain `links`; the store computes it with the rollup's rules (#153).
+- [x] The agent mount's answers to an older bridge leave out a summary's `links` wherever agents
+      read summaries (`thread_get`, `thread_list`, `message_wait`), with a released-bridge case
+      (#153).
+- [x] Web: the filter sheet's two multi-selects, their chips, the address; a row's one entry or
+      count (#153).
+- [x] Web: every shown entry, on a message, in the thread head's fold, and on a row, links to the
+      list filtered by it as the HLA's "Where an entry leads" says; on a message and in the head's
+      fold, its URL is a small link beside it (#153).
+- [x] Docs: the operator guide's filters, architecture's filters and counts, the API reference
+      (#153).
 - Done when: the operator narrows the list to one pull request from the sheet, the chip shows it,
   and a copied link opens the same list; the operator API's thread list and counts take the same
   filters; a row with one pull request shows it, and one with two shows a count; a pull request on a

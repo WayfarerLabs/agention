@@ -247,6 +247,35 @@ describe("the operator mount", () => {
       branches: { links: [branch], truncated: false },
     });
   });
+
+  it("lists and counts the threads by pull request and branch, as the web mount does", async () => {
+    const { secret } = await harness.createKey(["threads:read", "threads:write"]);
+    const pull = { repo: "acme/agention", number: 135 };
+    const sent = await harness.operator(secret, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      pull_requests: [pull],
+    });
+    expect(codeOf(sent)).toBe("ok");
+    const narrowed = `pull_request=${encodeURIComponent("Acme/Agention#135")}`;
+    const listed = await harness.operator(secret, "GET", `/threads?${narrowed}`);
+    expect(listed.body).toMatchObject({
+      threads: [{ number: 1, links: { pull_requests: 1, branches: 0, pull_request: pull } }],
+      total: 1,
+    });
+    const none = await harness.operator(secret, "GET", "/threads?branch=acme/agention:main");
+    expect(none.body).toMatchObject({ threads: [], total: 0 });
+    const counts = await harness.operator(secret, "GET", `/threads/counts?${narrowed}`);
+    expect(counts.body).toMatchObject({
+      pull_request: { pull_requests: [{ ...pull, total: 1 }], truncated: false },
+      branch: { branches: [], truncated: false },
+    });
+    for (const path of [`/threads?${narrowed}`, `/threads/counts?${narrowed}`]) {
+      expect((await harness.operator(secret, "GET", path)).body).toEqual(
+        (await harness.web("GET", path)).body,
+      );
+    }
+  });
 });
 
 describe("a key's credential", () => {

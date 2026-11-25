@@ -33,6 +33,8 @@ import {
 import { Mark } from "../../icons.tsx";
 import { readDraft } from "../../device.ts";
 import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
+import { CodeLinksMark, RowCodeLink } from "../code-links.tsx";
+import type { ListShown } from "../filter-links.tsx";
 import { ListBeside } from "./beside.ts";
 import { RowFocusOwed } from "./focus-owed.ts";
 import { ListSelection, longPress, threadKey } from "./selection.tsx";
@@ -110,7 +112,9 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // otherwise, muted, that its asks were answered or withdrawn; and whether it
 // is stranded, and why; and whether this browser keeps a draft of a reply to
 // it. The link records the list on screen as it is followed, so the thread
-// page returns to it.
+// page returns to it. While its live messages name several pull requests and
+// branches, a mark among the others counts them; while they name one,
+// beneath the link, that entry, which adds its filter to the list on screen.
 //
 // Side by side, the row of the thread open beside the list is marked current,
 // and opening it again moves focus to where opening it lands, in the
@@ -124,8 +128,17 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // named by its heading, with a mouse or a trackpad, and on a touch screen
 // while anything is selected; there a finger held on the row selects it, and
 // while anything is selected a tap selects or unselects it in place of
-// opening it.
-export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: FoldLevel }) {
+// opening it, or of following its pull request or branch.
+export function ThreadRow({
+  thread,
+  level,
+  list,
+}: {
+  thread: ThreadSummary;
+  level: FoldLevel;
+  // The list on screen, which the row's one pull request or branch adds to.
+  list: ListShown;
+}) {
   const href = threadHref(thread.agent, thread.session, thread.number);
   const beside = useContext(ListBeside);
   const current = beside?.open === href;
@@ -161,10 +174,12 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
   const key = threadKey(thread);
   const selected = selection?.isSelected(key) === true;
   const press = usePress(selection === undefined ? undefined : () => selection.toggle(key));
-  // On a touch screen, while anything is selected, a tap selects.
+  // On a touch screen, while anything is selected, a tap anywhere on the
+  // row selects, its pull request or branch included; one on its checkbox is
+  // left to the checkbox, which selects as it changes.
   const tapSelects = selection?.touch === true && selection.selecting;
   const onClickCapture = (event: MouseEvent) => {
-    if (tapSelects) {
+    if (tapSelects && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
       event.stopPropagation();
       selection.toggle(key);
@@ -178,7 +193,11 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
   const notes = strandedTags(thread);
   const classes = ["thread-row", thread.unread > 0 ? "unread" : "", selected ? "selected" : ""];
   return (
-    <li className={classes.filter(Boolean).join(" ")}>
+    <li
+      className={classes.filter(Boolean).join(" ")}
+      onClickCapture={onClickCapture}
+      {...press.handlers}
+    >
       {selection !== undefined && (!selection.touch || selection.selecting) && (
         <input
           type="checkbox"
@@ -198,8 +217,6 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
         data-landing={left ? "" : undefined}
         data-needs-you={thread.unread > 0 || asks.blocking ? "" : undefined}
         data-thread={key}
-        onClickCapture={onClickCapture}
-        {...press.handlers}
       >
         <div className="row-title">
           <Heading id={headingId}>
@@ -209,6 +226,7 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
             <MessageCount unread={thread.unread} total={thread.message_count} />
             {readDraft(thread) !== undefined && <Mark icon="draft" label="Draft" />}
             {thread.archived && <Mark icon="archive" label="Archived" />}
+            <CodeLinksMark links={thread.links} />
           </span>
         </div>
         <p className="where">
@@ -230,6 +248,7 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
         )}
         {notes.length > 0 && <Tags tags={notes} />}
       </Link>
+      <RowCodeLink links={thread.links} list={list} />
     </li>
   );
 }
@@ -271,9 +290,9 @@ function swallowNextClick(): void {
   window.addEventListener("pointerup", lifted, true);
 }
 
-// usePress selects a row when a finger is held on it (longPress), as a phone
-// selects, and the browser's own menu for the link, which a held finger
-// opens, stays shut.
+// usePress selects a row when a finger is held anywhere on it (longPress),
+// as a phone selects, and the browser's own menu for a link, which a held
+// finger opens, stays shut.
 function usePress(select: (() => void) | undefined) {
   const held = useRef<{ timer: number; x: number; y: number }>(undefined);
   const fired = useRef(false);

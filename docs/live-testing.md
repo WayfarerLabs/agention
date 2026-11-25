@@ -170,14 +170,21 @@ with each other or with what the product does, the disagreement is the finding.
   uploads, a message of files alone, an edit keeping and removing files, a new thread started with
   files and its sheet cancelled with uploads, each kind of file shown in place, **Show image** and
   **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
-  **Files** fold, and **Storage**, on a phone's width too (`docs/operator-guide.md` "Signing in",
-  "Using the web UI", "Voice", "Attachments" and "Approving agents"). Real-phone passkeys, Send
-  above a phone's keyboard while writing, dictation with a real provider, diagrams and their viewer
-  in iOS Safari, what each item of Attach's menu opens on a real phone, holding a row down to select
-  it in Android Chrome, After sending's pick list told at a glance from the thread bar's arrow
-  buttons just below it, its choices read in the phone's own picker, and a photo from the phone read
-  by an agent, with an image, a PDF, a video and a text file an agent attached opened in Android
-  Chrome and Windows Edge or Chrome, are the operator's acceptance, not the tester's.
+  **Files** fold, and **Storage**, on a phone's width too; and pull requests and branches: a
+  message's one entry and its fold, the thread's fold, a row's one entry, beside its checkbox too,
+  and its mark counting several, each entry leading to the thread list filtered by it, alone from a
+  message or the thread's fold and added to the list on screen from a row, but selecting the row in
+  its place when held by touch, and when tapped while a touch selection is under way, the forge link
+  beside a message's or the fold's entry opening the forge's page in a new tab, and the filter
+  sheet's **Pull request** and **Branch** with their counts, chips, and the address, on a phone's
+  width too (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice", "Attachments" and
+  "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
+  with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
+  opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick
+  list told at a glance from the thread bar's arrow buttons just below it, its choices read in the
+  phone's own picker, and a photo from the phone read by an agent, with an image, a PDF, a video and
+  a text file an agent attached opened in Android Chrome and Windows Edge or Chrome, are the
+  operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 

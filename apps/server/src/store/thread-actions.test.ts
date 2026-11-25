@@ -222,6 +222,17 @@ describe("acting on the threads the filters keep", () => {
     ]);
   });
 
+  it("keeps only the threads whose live messages name a pull request the filters name", () => {
+    fixture.createThread(agent, { pull_requests: [{ repo: "acme/agention", number: 135 }] });
+    fixture.createThread(agent, { pull_requests: [{ repo: "acme/agention", number: 136 }] });
+    fixture.createThread(other, { branches: [{ repo: "acme/agention", branch: "feat/links" }] });
+    expect(actMatching("read", { pull_request: ["Acme/Agention#135"] }).acted).toEqual([named(1)]);
+    expect(actMatching("read", { branch: ["acme/agention:feat/links"] }).acted).toEqual([
+      named(1, other),
+    ]);
+    expect(listed({ unread: "true" })).toEqual(["builder/2"]);
+  });
+
   it("acts on nothing that arrived after the list's as_of, so a retry reaches the same messages", () => {
     fixture.createThread(agent, { asks: [{ question: "Ship it?" }] });
     fixture.createThread(agent);

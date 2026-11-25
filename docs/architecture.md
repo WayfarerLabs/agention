@@ -450,9 +450,13 @@ and `branches`, derived in a query over `live_messages`, never stored: each key 
 name, once, as its latest live mention wrote it, with the URL of the latest live mention that gave
 one, the most recently mentioned first and a message's own in its order, at most 500 of each with
 `truncated` saying the least recent were left out. A replaced message keeps its own lists, which
-play no part in the roll-up; its replacement counts when it names an entry again. A session's thread
-list takes one pull request and one branch by short form, and keeps the threads whose live messages
-name that entry's key, which are exactly those whose roll-up lists it.
+play no part in the roll-up; its replacement counts when it names an entry again. A thread's summary
+carries `links`, by the roll-up's rules: how many distinct pull requests and branches its live
+messages name, and, while they name exactly one entry in all, that entry as the roll-up lists it, so
+a list row shows it without reading the thread. A session's thread list takes one pull request and
+one branch by short form, and the operator's up to 50 of each, and each keeps the threads whose live
+messages name an entry's key, which are exactly those whose roll-up lists it; the filter, the
+roll-up, and the summary all read the same live mentions (`liveLinks`).
 
 The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those completed more
 than 24 hours ago, and those left incomplete that are not in the set of uploads in flight, each in a
@@ -492,12 +496,13 @@ assuming), `overdue` (an open ask past its answer-by) and `effort` (an open ask 
 effort or less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live
 message of the operator's that the session has not read) or `stranded` (such a message while the
 session is quiet, has no active credential or has stopped); `agent` and `session`, up to 50 of each,
-a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id, `none`
-naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A
-group that was removed, or a tag nothing carries or that was removed, keeps nothing. The filters on
-asks together keep the threads holding one open ask that meets them all, so any of them keeps only
-open threads. One definition of each filter's condition serves the list, its total, its counts and
-its roll-ups.
+a session written `agent/session`; the operator's `session_group`, up to 50 groups by id, `none`
+naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one; and
+`pull_request` and `branch`, up to 50 short forms each, keeping a thread whose live messages name
+one of them, the short forms naming each entry once by its key. A group that was removed, or a tag
+nothing carries or that was removed, keeps nothing. The filters on asks together keep the threads
+holding one open ask that meets them all, so any of them keeps only open threads. One definition of
+each filter's condition serves the list, its total, its counts, and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -578,12 +583,17 @@ session and topic holding a thread has its own count, whatever that filter's own
 kind counted in one statement grouped by it with that filter's condition off; so does each group
 holding a thread, in the operator's order, beside the count of threads in no group, and each tag
 that a session holding a thread, or its agent, carries, a thread counting once for a tag both carry.
-`reset` is the total with no filter on.
+Each pull request and branch has its count likewise, of the distinct threads whose live messages
+name it, as its latest mention wrote it, but keys gather without end, so each kind lists only the
+entries naming a thread the other filters keep, by their latest mention among those threads in
+`message_positions` order, newest first, and the oldest are the ones left out; an entry left out
+still filters by its short form. `reset` is the total with no filter on.
 
-Counts and roll-ups list at most 500 agents, sessions, topics and tags each, the first in name order
-or in the list's, and say when they leave any out; the sessions view's page pages agents, each with
-at most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
-its open asks, the most pressing, beside their count and the earliest.
+Counts and roll-ups list at most 500 agents, sessions, topics, tags, pull requests, and branches
+each, the first in name order, in the list's, or by latest mention, and say when they leave any out;
+the sessions view's page pages agents, each with at most 500 of its sessions, and says when it
+leaves any out. A thread's summary lists at most 50 of its open asks, the most pressing, beside
+their count and the earliest.
 
 A session's long poll (`waitForThreads`, in `apps/server/src/store/wait.ts`) and the operator's wait
 across sessions (`waitForEverySession`) share one loop: poll in a transaction that authorizes, wait
@@ -715,10 +725,11 @@ Anyone who reaches the server can read the refusal, so it names the versions the
 never its release. A version is read whole, however many digits it has, and a header that is not a
 positive integer written without leading zeros is `invalid_input`, naming it. An answer to a request
 stating an older version leaves out the fields added after it, so a bridge never has to fit a field
-it does not know within its answer cap: before `codeLinksAgentApiVersion`, the next middleware drops
-a message's `pull_requests` and `branches`, and the thread's roll-up of them, from the thread's
-answer and a stale write's missed messages. The web mount is not versioned: the server serves its
-own web UI, always in step.
+it does not know within its answer cap. The next middleware keeps a list of what each version added
+and drops those fields: before `codeLinksAgentApiVersion`, a message's `pull_requests` and
+`branches`, and the thread's roll-up of them, from the thread's answer and a stale write's missed
+messages; before `summaryLinksAgentApiVersion`, the summaries' `links` from a thread's answer, a
+list, and a wait. The web mount is not versioned: the server serves its own web UI, always in step.
 
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores
@@ -1211,14 +1222,15 @@ its key file, its tokens and where its requests may go.
   it at one element leaves out its largest text-bearing fields, largest first, until it fits: texts
   (each answer's own words included) and details, references, a message's pull requests, branches
   and attachments, each list whole, each ask's fallback text, question and suggested answers, the
-  question each answer carries, and the reasons of withdrawals, the thread's and each ask's
-  included, each named in `omitted` as a dotted path, such as `messages.0.asks.2.fallback`. A detail
-  of one-byte characters that JSON need not escape always comes back whole beside its text, unless
-  the message's other fields are large too; one in other scripts can be left out and named in
-  `omitted`, from roughly 19,000 code points in a two-byte script down to about 9,500 in emoji, and
-  the web UI always shows it in full. A `stale` error lists only the leading missed messages that
-  fit and says from which sequence to read the rest, or that none fits; every other error stays
-  within its limit by construction, quoting at most 100 characters of any configured value.
+  question each answer carries, the reasons of withdrawals, the thread's and each ask's included,
+  and the one pull request or branch a thread's summary gives, each named in `omitted` as a dotted
+  path, such as `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not
+  escape always comes back whole beside its text, unless the message's other fields are large too;
+  one in other scripts can be left out and named in `omitted`, from roughly 19,000 code points in a
+  two-byte script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale`
+  error lists only the leading missed messages that fit and says from which sequence to read the
+  rest, or that none fits; every other error stays within its limit by construction, quoting at most
+  100 characters of any configured value.
 
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
@@ -1291,6 +1303,20 @@ one place to change it. Typed text applies once typing pauses, and only to the v
 (`src/views/list/search.tsx`): a choice the list makes meanwhile applies it first, and any other
 change of the list's view, such as a link or Back, drops it.
 
+A pull request or branch, wherever it shows (`src/views/code-links.tsx`), links to the list filtered
+by its short form. On a thread page, from a message or the head's fold, that is the list with that
+filter alone, in the order, direction, and grouping of the list the page returns to, as the thread's
+agent, session, and topic link (`narrowedHref`); on a row, it is added to the list on screen through
+the header links' `FilterLink`, whose plain click chooses it in place. A row's one entry sits beside
+the row's thread link, never in it, so no link holds another, while a row's mark counting several
+entries, which links nothing, sits among the row's marks inside its link. On a thread page, an entry
+whose URL passes the link rule keeps it as a small link beside the short form, opening in a new tab
+with no referrer and its host after it, as every external link does; a row's entry carries none, so
+rows stay compact. The filter sheet's pull request and branch options come from the counts, each by
+its short form as last written; one the address names in another case is checked as the counted one
+it matches by key. As in each of the sheet's multi-selects, a value chosen that the counts leave out
+is offered with no threads, so it can still be unchecked.
+
 Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
 button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
 in a button; a header's heading takes the button's name alone, so a linked label does not repeat it.
@@ -1310,8 +1336,11 @@ pointer (`pointer: coarse`), as Attach's menu does. On a touch screen a finger h
 for `longPress` selects it; the click that may follow is swallowed page-wide, since the list, as its
 header checkbox and checkboxes appear, can move another row under the finger, until it comes, a key
 is pressed, another touch starts or shortly after the finger lifts; and the link's own menu stays
-shut. The list body ends, while it has rows, in one bar (`ListBar`, `src/views/list/ListBar.tsx`),
-whose element stays as its two states give way to each other: the actions on every thread shown
+shut. The row itself takes the tap and the hold, so either selects from anywhere on it, its pull
+request or branch included, in place of following that, while a tap on its checkbox is left to the
+checkbox; a row with a checkbox is a grid, so that entry stays beneath the link past the checkbox.
+The list body ends, while it has rows, in one bar (`ListBar`, `src/views/list/ListBar.tsx`), whose
+element stays as its two states give way to each other: the actions on every thread shown
 (`ShownActions`), as the header checkbox takes them, while nothing is selected, and the selection's
 actions (`SelectionActions`, `src/views/list/SelectionControls.tsx`) while anything is; two
 components in one bar, since the selection's questions and its acting on every thread that matches

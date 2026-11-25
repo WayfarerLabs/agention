@@ -3,6 +3,7 @@ import {
   agentApiHeader,
   agentApiVersion,
   codeLinksAgentApiVersion,
+  summaryLinksAgentApiVersion,
 } from "@wayfarerlabs/agention-api";
 import type { MiddlewareHandler } from "hono";
 import { ApiError } from "../errors.ts";
@@ -59,38 +60,70 @@ export const requireServedAgentApiVersion: MiddlewareHandler<AgentApiVersionEnv>
   await next();
 };
 
+type Json = Record<string, unknown>;
+
+// What each version added to the agent's answers, which an answer to a
+// request stating an older version leaves out: an older bridge does not know
+// them, so it could neither use them nor keep them within its answer cap.
+// codeLinksAgentApiVersion added the pull requests and branches of a thread
+// read's messages, its roll-up of them, and those of the messages a stale
+// write missed; summaryLinksAgentApiVersion added links to the thread
+// summaries a thread read, a list, and a wait carry.
+const added: { version: number; leaveOut: (answer: Json) => void }[] = [
+  {
+    version: codeLinksAgentApiVersion,
+    leaveOut: (answer) => {
+      const missed = isJson(answer.error) ? answer.error.missed : undefined;
+      for (const each of [answer, ...listOf(answer.messages), ...listOf(missed)]) {
+        if (isJson(each)) {
+          delete each.pull_requests;
+          delete each.branches;
+        }
+      }
+    },
+  },
+  {
+    version: summaryLinksAgentApiVersion,
+    leaveOut: (answer) => {
+      for (const each of [answer.thread, ...listOf(answer.threads)]) {
+        if (isJson(each)) {
+          delete each.links;
+        }
+      }
+    },
+  },
+];
+
 // answerAsStatedVersion leaves out of a JSON answer, its refusals included,
-// the fields added to the agent API after the version the request states: an
-// older bridge does not know them, so it could neither use them nor keep them
-// within its answer cap. Before codeLinksAgentApiVersion, those are the pull
-// requests and branches of a thread read's messages, its roll-up of them, and
-// those of the messages a stale write missed. A file is never served as JSON
-// (servedTypeOf), so every JSON answer is the API's own. Each JSON answer to
-// an older bridge is parsed and written again whole, a cost too small to see
-// beside building it.
+// the fields added to the agent API after the version the request states. A
+// file is never served as JSON (servedTypeOf), so every JSON answer is the
+// API's own. Each JSON answer to an older bridge is parsed and written again
+// whole, a cost too small to see beside building it.
 export const answerAsStatedVersion: MiddlewareHandler<AgentApiVersionEnv> = async (c, next) => {
   await next();
+  const leaving = added.filter(({ version }) => c.var.agentApiVersion < version);
   if (
-    c.var.agentApiVersion >= codeLinksAgentApiVersion ||
+    leaving.length === 0 ||
     c.res.headers.get("content-type")?.startsWith("application/json") !== true
   ) {
     return;
   }
   const answer: unknown = await c.res.json();
   if (isJson(answer)) {
-    const messages = [answer.messages, isJson(answer.error) ? answer.error.missed : undefined];
-    for (const each of [answer, ...messages.flatMap((list) => (Array.isArray(list) ? list : []))]) {
-      if (isJson(each)) {
-        delete each.pull_requests;
-        delete each.branches;
-      }
+    for (const { leaveOut } of leaving) {
+      leaveOut(answer);
     }
   }
   c.res = new Response(JSON.stringify(answer), c.res);
 };
 
-function isJson(value: unknown): value is Record<string, unknown> {
+function isJson(value: unknown): value is Json {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// The elements of a list, or none for anything else.
+function listOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 // unsupported is the refusal of a version: problem is a sentence without its

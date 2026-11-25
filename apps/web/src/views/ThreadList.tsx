@@ -327,6 +327,7 @@ function ListBody({
                         key={`${thread.agent}/${thread.session}/${thread.number}`}
                         thread={thread}
                         level={2}
+                        list={list}
                       />
                     ))}
                   </ul>

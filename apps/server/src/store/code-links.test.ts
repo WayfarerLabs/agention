@@ -3,10 +3,20 @@ import {
   maxListed,
   maxLinks,
   sessionThreadsQuery,
+  threadFilters,
+  threadsQuery,
+  type ThreadSummary,
+  threadsView,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
-import { listSessionThreads } from "./thread-lists.ts";
+import {
+  countThreads,
+  findThreadNeighbors,
+  listSessionThreads,
+  listThreads,
+} from "./thread-lists.ts";
+import { pollEverySession, pollThreads } from "./wait.ts";
 import { sendMessage } from "./threads.ts";
 
 let fixture: Fixture;
@@ -193,5 +203,195 @@ describe("a session's list by pull request and branch", () => {
     expect(
       listed({ pull_request: "acme/agention#135", branch: "acme/agention:Feat/Links" }),
     ).toEqual([]);
+  });
+});
+
+describe("a thread's summary", () => {
+  const links = (number = 1) => read(number).thread.links;
+
+  it("counts none for a thread naming none", () => {
+    fixture.createThread(agent, { text: "Start." });
+    expect(links()).toEqual({ pull_requests: 0, branches: 0 });
+  });
+
+  it("gives the one entry, as the roll-up lists it, while the thread names only one", () => {
+    const url = "https://github.com/acme/agention/pull/135";
+    fixture.createThread(agent, { pull_requests: [{ ...pr135, url }] });
+    fixture.write(agent.identity, target(), {
+      pull_requests: [{ repo: "ACME/AGENTION", number: 135 }],
+    });
+    const only = { repo: "ACME/AGENTION", number: 135, url };
+    expect(links()).toEqual({ pull_requests: 1, branches: 0, pull_request: only });
+    expect(rollup().pull_requests.links).toEqual([only]);
+    fixture.createThread(agent, { branches: [feature] });
+    expect(links(2)).toEqual({ pull_requests: 0, branches: 1, branch: feature });
+  });
+
+  it("counts each kind's distinct entries, with no entry once there are two", () => {
+    fixture.createThread(agent, { pull_requests: [pr135], branches: [feature] });
+    fixture.write(agent.identity, target(), { pull_requests: [pr135, pr136] });
+    expect(links()).toEqual({ pull_requests: 2, branches: 1 });
+  });
+
+  it("counts only what live messages name", () => {
+    fixture.createThread(agent, { text: "Start." });
+    fixture.write(agent.identity, target(), { pull_requests: [pr135, pr136] });
+    fixture.write(agent.identity, target(), { replaces: 2, pull_requests: [pr136] });
+    expect(links()).toEqual({ pull_requests: 1, branches: 0, pull_request: pr136 });
+  });
+
+  it("is the same in every list and wait that carries the summary", () => {
+    fixture.createThread(agent, { pull_requests: [pr135] });
+    // The operator waits for the agent's message, and the agent for the
+    // operator's.
+    const operatorWait = pollEverySession(fixture.store, fixture.operator, 0, 50);
+    fixture.write(fixture.operator, target(), { text: "Seen it." });
+    const expected = { pull_requests: 1, branches: 0, pull_request: pr135 };
+    const session = listSessionThreads(
+      fixture.store,
+      agent.identity,
+      agent.target,
+      sessionThreadsQuery.parse({}),
+    );
+    // A thread naming none, which the thread naming one is listed below.
+    fixture.createThread(agent, { text: "Beside it." });
+    const neighbors = findThreadNeighbors(
+      fixture.store,
+      fixture.operator,
+      target(2),
+      threadsView.parse({ sort: "created" }),
+    );
+    expect(neighbors.below?.number).toBe(1);
+    const first = (threads: ThreadSummary[]) => threads.find((each) => each.number === 1);
+    const summaries = [
+      first(session.threads),
+      first(operatorList({}).threads),
+      neighbors.below,
+      pollThreads(fixture.store, agent.identity, agent.target, 0, 50).result.threads[0],
+      operatorWait.result.threads[0],
+    ];
+    for (const summary of summaries) {
+      expect(summary?.links).toEqual(expected);
+    }
+  });
+});
+
+// operatorList lists the operator's threads by the query given, as its route
+// reads it.
+function operatorList(query: Record<string, string | string[]>) {
+  return listThreads(fixture.store, fixture.operator, threadsQuery.parse(query));
+}
+
+const numbers = (query: Record<string, string | string[]>) =>
+  operatorList(query)
+    .threads.map((thread) => `${thread.session}/${thread.number}`)
+    .sort();
+
+describe("the operator's list by pull request and branch", () => {
+  it("keeps the threads of every session naming any of the entries chosen", () => {
+    const other = fixture.registerAgent("reviewer", "side");
+    fixture.createThread(agent, { pull_requests: [pr135] });
+    fixture.createThread(agent, { pull_requests: [pr136], branches: [feature] });
+    fixture.createThread(other, { pull_requests: [{ repo: "acme/agention", number: 135 }] });
+    fixture.createThread(agent, { text: "None." });
+    expect(numbers({ pull_request: "acme/agention#135" })).toEqual(["main/1", "side/1"]);
+    expect(numbers({ pull_request: ["acme/agention#135", "acme/agention#136"] })).toEqual([
+      "main/1",
+      "main/2",
+      "side/1",
+    ]);
+    expect(numbers({ branch: "Acme/Agention:feat/links" })).toEqual(["main/2"]);
+    expect(
+      numbers({ pull_request: "acme/agention#135", branch: "acme/agention:feat/links" }),
+    ).toEqual([]);
+  });
+
+  it("refuses a short form that does not parse, and an entry named twice", () => {
+    for (const query of [
+      { pull_request: "acme/agention" },
+      { branch: "acme/agention:a..b" },
+      { pull_request: ["acme/agention#1", "Acme/Agention#1"] },
+      { branch: ["acme/agention:main", "acme/agention:main"] },
+    ]) {
+      expect([query, threadsQuery.safeParse(query).success]).toEqual([query, false]);
+    }
+    expect(
+      threadsQuery.safeParse({ branch: ["acme/agention:main", "acme/agention:Main"] }).success,
+    ).toBe(true);
+  });
+});
+
+describe("the counts of pull requests and branches", () => {
+  const counts = (query: Record<string, string | string[] | boolean> = {}) =>
+    countThreads(fixture.store, fixture.operator, threadFilters.parse(query));
+
+  it("count the distinct threads naming each entry, as its latest mention wrote it", () => {
+    fixture.createThread(agent, { pull_requests: [pr135], branches: [feature] });
+    fixture.write(agent.identity, target(), { pull_requests: [pr135] });
+    fixture.createThread(agent, { pull_requests: [{ repo: "acme/AGENTION", number: 135 }] });
+    expect(counts().pull_request).toEqual({
+      pull_requests: [{ repo: "acme/AGENTION", number: 135, total: 2 }],
+      truncated: false,
+    });
+    expect(counts().branch).toEqual({
+      branches: [{ ...feature, total: 1 }],
+      truncated: false,
+    });
+  });
+
+  it("list the most recently mentioned first, and only what live messages name", () => {
+    fixture.createThread(agent, { pull_requests: [pr136] });
+    fixture.createThread(agent, { pull_requests: [pr135] });
+    fixture.write(agent.identity, target(1), { pull_requests: [{ repo: "o/r", number: 1 }] });
+    fixture.write(agent.identity, target(1), { replaces: 2, text: "Not that one." });
+    expect(counts().pull_request.pull_requests.map((each) => each.number)).toEqual([135, 136]);
+    fixture.write(agent.identity, target(1), { pull_requests: [pr136] });
+    expect(counts().pull_request.pull_requests.map((each) => each.number)).toEqual([136, 135]);
+  });
+
+  it("count with their own kind's filter off and every other filter on", () => {
+    const other = fixture.registerAgent("reviewer", "side");
+    fixture.createThread(agent, { pull_requests: [pr135], branches: [feature] });
+    fixture.createThread(other, { pull_requests: [pr135, pr136] });
+    const chosen = counts({ pull_request: "acme/agention#136" });
+    expect(chosen.pull_request.pull_requests).toEqual([
+      { repo: pr135.repo, number: 135, total: 2 },
+      { repo: pr136.repo, number: 136, total: 1 },
+    ]);
+    // The branch filter keeps only the first thread, so pull request 136,
+    // which only the other names, is not listed.
+    expect(counts({ branch: "acme/agention:feat/links" }).pull_request.pull_requests).toEqual([
+      { repo: pr135.repo, number: 135, total: 1 },
+    ]);
+    expect(counts({ agent: "reviewer" }).branch.branches).toEqual([]);
+  });
+
+  it("list one message's entries in its order, after those of later messages", () => {
+    // Orders by key would put 10 before 2 and 9, and b before c.
+    fixture.createThread(agent, {
+      pull_requests: [9, 10, 2].map((number) => ({ repo: "o/r", number })),
+      branches: [{ repo: "o/r", branch: "c" }],
+    });
+    fixture.write(agent.identity, target(), { branches: [{ repo: "o/r", branch: "b" }] });
+    expect(counts().pull_request.pull_requests.map((each) => each.number)).toEqual([9, 10, 2]);
+    expect(counts().branch.branches.map((each) => each.branch)).toEqual(["b", "c"]);
+  });
+
+  it(`list at most ${maxListed} of each, saying when they leave the oldest out`, () => {
+    fixture.createThread(agent, { text: "Start." });
+    const messages = Math.ceil((maxListed + 1) / maxLinks);
+    // Each message's branches in an order their keys do not follow: 20, 19,
+    // and so on, which key order puts 1, 10, 11, and on.
+    const named = (index: number) =>
+      Array.from({ length: maxLinks }, (_, each) => `m${index}-${maxLinks - each}`);
+    for (let index = 0; index < messages; index++) {
+      fixture.write(agent.identity, target(), {
+        branches: named(index).map((branch) => ({ repo: "o/r", branch })),
+      });
+    }
+    const { branches, truncated } = counts().branch;
+    expect([branches.length, truncated]).toEqual([maxListed, true]);
+    expect(branches.slice(0, maxLinks).map((each) => each.branch)).toEqual(named(messages - 1));
+    expect(branches.some((each) => each.branch.startsWith("m0-"))).toBe(false);
   });
 });

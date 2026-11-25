@@ -15,6 +15,7 @@ import {
   pullRequestLink,
   pullRequestList,
   pullRequestRollup,
+  summaryLinks,
 } from "./code-links.ts";
 import { attachmentList, attachmentRead, fileTotals } from "./files.ts";
 import { name } from "./names.ts";
@@ -545,7 +546,9 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // session still has an approved credential. Its audience also sees its
 // session's presence, with its state, and whether it is stranded: it holds a
 // live message by the audience that the session has not read while the
-// session is quiet, has no active credential or has stopped.
+// session is quiet, has no active credential or has stopped. links counts the
+// pull requests and branches its live messages name, giving the one entry when
+// there is exactly one.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -562,6 +565,7 @@ export const threadSummary = z.object({
   open_asks: openAsks,
   status: threadStatus,
   withdrawal: withdrawal.extend({ seq: sequence }).optional(),
+  links: summaryLinks,
   credential_active: z.boolean(),
   presence: threadPresence.optional(),
   stranded: z.boolean().optional(),

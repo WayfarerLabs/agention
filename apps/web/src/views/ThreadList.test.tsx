@@ -702,6 +702,17 @@ const counts: ThreadCounts = {
   },
   session_group: { groups: [{ id: 4, name: "Billing migration", total: 38 }], none: 39 },
   tag: { tags: [{ tag: "infra", total: 41 }], truncated: false },
+  pull_request: {
+    pull_requests: [
+      { repo: "acme/agention", number: 136, total: 42 },
+      { repo: "acme/agention", number: 135, total: 43 },
+    ],
+    truncated: false,
+  },
+  branch: {
+    branches: [{ repo: "acme/agention", branch: "feat/links", total: 44 }],
+    truncated: false,
+  },
   reset: 40,
 };
 
@@ -1157,6 +1168,24 @@ describe("the agent, session and topic choices", () => {
     expect(await offered("/?agent=builder&session=builder/side")).toEqual([
       "☐ side/deploy builder (0)",
     ]);
+  });
+
+  it("offer one chosen that the counts leave out, with no threads, so it can be unchecked", async () => {
+    serve([]);
+    serveCounts();
+    renderAt("/?topic=builder/main/auth&topic=builder/side/gone");
+    await openSheet();
+    await waitFor(() => expect(countCalls()).toHaveLength(1));
+    fireEvent.click(picker("Topic"));
+    expect(options("Topic")).toEqual([
+      "☑ main/auth builder (21)",
+      "☐ main/billing reviewer (22)",
+      "☑ side/gone (0)",
+    ]);
+    fireEvent.click(
+      within(popupOf("Topic")).getByRole("checkbox", { name: /^builder\/side\/gone/ }),
+    );
+    await waitFor(() => expect(address()).toBe("?topic=builder/main/auth"));
   });
 
   it("offer Topic always, as Agent and Session, saying when it offers none", async () => {
