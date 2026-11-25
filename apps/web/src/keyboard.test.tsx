@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  enterSendsChoice,
   prefixTimeout,
   type Shortcut,
   type ShortcutPlace,
@@ -8,7 +9,7 @@ import {
   shortcutsChoice,
 } from "./keyboard.tsx";
 import { ask, message, renderAt, threadSummary, titleOf } from "./test-support.tsx";
-import { path, textBox, ThreadPageTest } from "./views/thread/thread-test-support.tsx";
+import { openDetails, path, textBox, ThreadPageTest } from "./views/thread/thread-test-support.tsx";
 
 let page: ThreadPageTest;
 
@@ -519,6 +520,113 @@ describe("keys the page keeps", () => {
     expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" }).hasAttribute("open")).toBe(
       true,
     );
+  });
+});
+
+describe("Enter in the composer", () => {
+  // openTyped opens a thread with "On it." typed in the composer's message
+  // box, which has focus.
+  async function openTyped() {
+    const state = await page.openWith([message(1)]);
+    page.serveWrites(state);
+    fireEvent.change(textBox(), { target: { value: "On it." } });
+    textBox().focus();
+  }
+
+  it("leaves Enter to the box, for a new line, unless chosen in Settings, which this browser keeps", async () => {
+    await openTyped();
+    expect(press("Enter")).toBe(true);
+    expect(page.writes()).toEqual([]);
+    cleanup();
+
+    renderAt("/settings/keyboard");
+    const toggle = await screen.findByRole<HTMLInputElement>("checkbox", { name: "Enter sends" });
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    expect(window.localStorage.getItem(enterSendsChoice)).toBe("true");
+    cleanup();
+
+    await openTyped();
+    expect(press("Enter")).toBe(false);
+    await waitFor(() => expect(page.bodies().map((body) => body.text)).toEqual(["On it."]));
+  });
+
+  it("says in each box's description, where focus lands, whether Enter sends", async () => {
+    // describedBy reads a box's description from the elements it names.
+    const describedBy = (box: HTMLElement) =>
+      (box.getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+    await page.openWith([message(1)]);
+    const off = [describedBy(textBox()), describedBy(openDetails())];
+    cleanup();
+
+    window.localStorage.setItem(enterSendsChoice, "true");
+    await page.openWith([message(1)]);
+    const on = [describedBy(textBox()), describedBy(openDetails())];
+    on.forEach((each, index) => expect(each).not.toBe(off[index]));
+  });
+
+  describe("once chosen", () => {
+    beforeEach(() => {
+      window.localStorage.setItem(enterSendsChoice, "true");
+    });
+
+    it("leaves Shift+Enter to the box, for a new line", async () => {
+      await openTyped();
+      expect(press("Enter", { shiftKey: true })).toBe(true);
+      expect(page.writes()).toEqual([]);
+    });
+
+    it("sends nothing with an Enter that is part of a composition", async () => {
+      await openTyped();
+      expect(press("Enter", { isComposing: true })).toBe(true);
+      expect(press("Enter", { keyCode: 229 })).toBe(true);
+      expect(page.writes()).toEqual([]);
+    });
+
+    it("sends from the Details box too, but leaves Enter to the form's buttons", async () => {
+      await openTyped();
+      const details = openDetails();
+      fireEvent.change(details, { target: { value: "More." } });
+      screen.getByRole("button", { name: "Attach files" }).focus();
+      expect(press("Enter")).toBe(true);
+      expect(page.writes()).toEqual([]);
+      details.focus();
+      expect(press("Enter")).toBe(false);
+      await waitFor(() =>
+        expect(page.bodies().map(({ text, detail }) => [text, detail])).toEqual([
+          ["On it.", "More."],
+        ]),
+      );
+    });
+
+    it("still sends with Ctrl+Enter", async () => {
+      await openTyped();
+      press("Enter", { ctrlKey: true });
+      await waitFor(() => expect(page.bodies().map((body) => body.text)).toEqual(["On it."]));
+    });
+
+    it("sends nothing as a held Enter repeats, its repeats typing nothing either", async () => {
+      await openTyped();
+      expect(press("Enter", { shiftKey: true })).toBe(true);
+      // Shift let go while Enter repeats.
+      expect(press("Enter", { repeat: true })).toBe(false);
+      expect(press("Enter", { repeat: true })).toBe(false);
+      expect(page.writes()).toEqual([]);
+      expect(press("Enter")).toBe(false);
+      await waitFor(() => expect(page.bodies().map((body) => body.text)).toEqual(["On it."]));
+    });
+
+    it("sends with the shortcuts off, which take Ctrl+Enter with them", async () => {
+      window.localStorage.setItem(shortcutsChoice, "false");
+      await openTyped();
+      press("Enter", { ctrlKey: true });
+      expect(page.writes()).toEqual([]);
+      press("Enter");
+      await waitFor(() => expect(page.bodies().map((body) => body.text)).toEqual(["On it."]));
+    });
   });
 });
 

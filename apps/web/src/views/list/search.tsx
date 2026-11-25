@@ -1,5 +1,6 @@
 import { messageSearchFilter, type ThreadsView } from "@wayfarerlabs/agention-api";
 import { type RefObject, useEffect, useRef, useState } from "react";
+import { composing } from "../../keyboard.tsx";
 import { listHref } from "../../router.tsx";
 
 // The thread list's search: one filter, whose text two boxes show and edit,
@@ -93,12 +94,10 @@ export function useSearchText(
 // Enter applies, with why the text cannot search beneath it when it cannot.
 // It is named by a label of its own, given its id, or else by label, which it
 // also shows while empty. While an input method composes, typing waits for
-// its end, and Enter, which ends it, applies nothing: Safari sends the Enter
-// confirming a candidate with isComposing false, but with keyCode 229, as
-// every browser does while composing. Given done, Escape calls it rather
-// than clearing the box, and so does Enter on text the search can take, done
-// applying it. Why the text cannot search is in a polite live region, so a
-// screen reader says so as it changes.
+// its end, and Enter, which ends it, applies nothing (composing). Given done,
+// Escape calls it rather than clearing the box, and so does Enter on text the
+// search can take, done applying it. Why the text cannot search is in a
+// polite live region, so a screen reader says so as it changes.
 export function SearchBox({
   search,
   id,
@@ -130,7 +129,7 @@ export function SearchBox({
         }
         onCompositionEnd={(event) => search.type(event.currentTarget.value)}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+          if (composing(event)) {
             return;
           }
           if (event.key === "Enter") {

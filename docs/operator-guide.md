@@ -711,7 +711,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     complete to send: **Other** without words is not, and its field says so once you leave it. Once
     ten cards hold answers, the other asks' choices are unavailable until you send or remove one.
     While a change or an edit is staged, nothing else can be started until you send or remove it,
-    and removing it empties both boxes. An edit needs text.
+    and removing it empties both boxes. An edit needs text. With **Enter sends** on, as
+    [Keyboard shortcuts](#keyboard-shortcuts) describes, `Enter` in either box sends and
+    `Shift+Enter` starts a new line.
   - This browser keeps your draft's text and details as you type, one draft for each thread, so
     leaving the thread or reloading the page loses nothing: the composer opens with them when you
     come back, and counts from where the draft started, so a message the agent wrote while you were
@@ -996,6 +998,16 @@ mode keeps single keys for its own navigation, so the shortcuts act only once it
 through, as in its focus mode. To turn the shortcuts listed here off in this browser, if they get in
 the way of a screen reader, voice control or another tool, clear **Keyboard shortcuts** in
 **Settings**, under **Keyboard**, which also lists them. The diagram viewer's own keys stay on.
+
+**Enter sends**, also under **Keyboard**, is off until you turn it on in a browser, which keeps the
+choice. On, `Enter` in the composer's message or **Details** box sends, once there is something to
+send, and `Shift+Enter` starts a new line, as in a terminal; `Ctrl+Enter` and `Cmd+Enter` send too
+while the shortcuts are on. An `Enter` that ends an input method's composition only ends it, and
+`Enter` on the composer's buttons presses them; a held `Enter` sends once, not again as it repeats.
+While it is on, each box's hint says so. It is a choice of its own, so it holds with the shortcuts
+off. A phone's on-screen keyboard has no `Shift+Enter`, so there it leaves no way to start a new
+line: it suits a desktop browser. The new-thread sheet keeps `Enter` for a new line in its boxes
+either way.
 
 ## Voice
 

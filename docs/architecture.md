@@ -1547,7 +1547,13 @@ the thread. The thread list's selection is the row whose link has focus
 it moves focus, which the focus ring shows and a screen reader follows; the number keys choose a
 suggestion on the ask card that holds focus or else the first open one, by pressing its control. The
 shortcuts are on unless the operator turns them off in Settings' Keyboard section, which this
-browser keeps in its local storage (`src/device.ts`).
+browser keeps in its local storage (`src/device.ts`). Enter sends, in the same section, is a choice
+of its own, off until the operator turns it on and kept the same way, and not a shortcut, so it
+holds with the shortcuts off: on, the composer's form handler takes `Enter` alone in its Message or
+Details box and gives it its Send shortcut's action, but not its repeats, which type nothing, and
+leaves `Shift+Enter` and `Enter` on its buttons to the browser; the boxes' hints say so. No key in
+the composer acts while an input method composes, by `isComposing` or WebKit's key code 229
+(`composing`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
@@ -1649,8 +1655,8 @@ with the composer's message, which carries the files. Send waits, wherever it is
 message's files have uploaded and while a recording for it opens the microphone, records,
 transcribes or awaits Retry, saying why on Send's `aria-describedby` (`sendWait` in
 `src/attach/attach.ts`); a recording on an ask's card counts for the composer's Send, which sends
-that answer, and the composer's Ctrl or Cmd+Enter waits as its Send does. A thread's title, search
-boxes and names are not message text, and take neither.
+that answer, and the composer's Ctrl or Cmd+Enter, and its Enter while Enter sends, wait as its Send
+does. A thread's title, search boxes and names are not message text, and take neither.
 
 A message's files come in two halves: attaching them, in `src/attach/`, which the composer and the
 new-thread sheet share, and showing them, in `src/views/thread/files/`. Wherever the operator writes
