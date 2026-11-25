@@ -124,7 +124,7 @@ export function operation<P, Q, B, R, S extends Scope | undefined = undefined>(
   return definition as unknown as Operation & { scope: S };
 }
 
-export interface MountOptions {
+export interface MountOptions<E extends IdentityEnv = IdentityEnv> {
   store: Store;
   // Aborts when the server shuts down, ending the operations that wait.
   shutdown: AbortSignal;
@@ -132,7 +132,7 @@ export interface MountOptions {
   log: (message: string) => void;
   // authenticate establishes who is calling, before anything else the route
   // does, or throws.
-  authenticate: (c: Context<IdentityEnv>) => Identity | Promise<Identity>;
+  authenticate: (c: Context<E>) => Identity | Promise<Identity>;
 }
 
 // addOperations adds a route for each operation to a mount. Each
@@ -141,10 +141,10 @@ export interface MountOptions {
 // then it reads the path, the query and a JSON body through their schemas, in
 // that order, and answers what the handler returns, as JSON unless the
 // operation answers bytes. A GET route answers HEAD too, without a body.
-export function addOperations(
-  api: Hono<IdentityEnv>,
+export function addOperations<E extends IdentityEnv>(
+  api: Hono<E>,
   operations: readonly Operation[],
-  options: MountOptions,
+  options: MountOptions<E>,
 ): void {
   const { store, shutdown, log, authenticate } = options;
   for (const each of operations) {

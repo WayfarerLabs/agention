@@ -141,24 +141,27 @@ signals.
 
 ## A9. Inert content
 
-Message text, details, references, and topics are displayed, never executed, fetched, or followed
-(the **Inert content** invariant in `SECURITY.md` "Security model"; ADR 0001 "Text is Markdown,
-rendered inert"). A message's text and its detail are Markdown rendered inert, every other text
-field is plain, and text is stored and returned exactly as written. A reference is a label plus at
-least one of an identifier, an HTTPS URL, and a thread of the same session
-(`packages/api/src/references.ts`), and `isLinkableUrl` is the one rule for what shows as a link
-(`docs/architecture.md` "API contract"). No image written in message text loads: it shows as a link.
-Files attached to messages are not message text, and load only as A17 holds them (ADR 0004); message
-text reaches a file only through a link to one of its own message's files. A diagram drawn from
-message text is drawn in isolation, so drawing it can neither run anything in the app's page nor
-fetch anything, and shows as an image, with the content security policy kept strict: it gains only
-the diagram frame's route as a frame source, `blob:` images, and media from its own origin for
-attachments, and the frame's own policy sandboxes it. Look for content-driven fetches or previews,
-raw HTML or images other than such a diagram or an attached file reaching the DOM, a link from text
-to a file another message carries, a diagram drawn outside its isolation, classes or styles taken
-from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as
-query syntax, and message content treated as the operator's direction anywhere, the usage skill
-included, unless the operator wrote it (its author is the person).
+Message text, details, references, pull requests and branches, and topics are displayed, never
+executed, fetched, or followed (the **Inert content** invariant in `SECURITY.md` "Security model";
+ADR 0001 "Text is Markdown, rendered inert" and "Not doing"). A message's text and its detail are
+Markdown rendered inert, every other text field is plain, and text is stored and returned exactly as
+written. A reference is a label plus at least one of an identifier, an HTTPS URL, and a thread of
+the same session (`packages/api/src/references.ts`); a pull request or branch is a GitHub repository
+with a number or a branch name under git's rules, and an optional HTTPS URL
+(`packages/api/src/code-links.ts`), shown by its short form; and `isLinkableUrl` is the one rule for
+what shows as a link (`docs/architecture.md` "API contract"). No image written in message text
+loads: it shows as a link. Files attached to messages are not message text, and load only as A17
+holds them (ADR 0004); message text reaches a file only through a link to one of its own message's
+files. A diagram drawn from message text is drawn in isolation, so drawing it can neither run
+anything in the app's page nor fetch anything, and shows as an image, with the content security
+policy kept strict: it gains only the diagram frame's route as a frame source, `blob:` images, and
+media from its own origin for attachments, and the frame's own policy sandboxes it. Look for
+content-driven fetches or previews, any call to GitHub or another forge about a pull request or
+branch, raw HTML or images other than such a diagram or an attached file reaching the DOM, a link
+from text to a file another message carries, a diagram drawn outside its isolation, classes or
+styles taken from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search
+text read as query syntax, and message content treated as the operator's direction anywhere, the
+usage skill included, unless the operator wrote it (its author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 
@@ -190,10 +193,11 @@ checks. The store owns thread, session, and registration rules for every adapter
 API's agent, web and operator mounts, and, through the agent mount, the bridge's tools
 (`docs/architecture.md` "Store" and "HTTP API"). Request and response shapes come from one shared
 schema package, `packages/api`. Once a bridge is released, agent routes only grow: each release's
-agent routes accept what earlier released bridges send and answer what they read, because agents run
-whatever bridge version their plugin pins; the agent compatibility gate holds this, and every agent
-contract change bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set
-(at least invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
+agent routes accept what earlier released bridges send and answer what they read, leaving out of an
+answer to an older bridge the fields added after its version, because agents run whatever bridge
+version their plugin pins; the agent compatibility gate holds this, and every agent contract change
+bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set (at least
+invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
 `packages/api/src/errors.ts`) is the same on every mount and in the bridge's tool errors. Tool names
 use lowercase letters, digits, and underscores; tool annotations are true of the tools;
 `message_wait` stays well below the 60-second Codex tool timeout, worst case included; tool schemas

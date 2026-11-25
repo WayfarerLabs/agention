@@ -35,7 +35,8 @@ export function isLinkableUrl(value: string): boolean {
   );
 }
 
-const referenceUrl = z
+// A URL Agention shows as a link: one isLinkableUrl accepts.
+export const linkableUrl = z
   .string()
   .refine(isLinkableUrl, "must be an absolute https URL with a host and no user information")
   .meta({ format: "uri", maxLength: maxUrlLength });
@@ -48,7 +49,7 @@ export const reference = z
   .object({
     label: singleLineText({ min: 1, max: 100 }),
     identifier: singleLineText({ min: 1, max: 200 }).optional(),
-    url: referenceUrl.optional(),
+    url: linkableUrl.optional(),
     thread: threadNumber.optional().describe("A thread of the same session, by its number."),
   })
   .refine(

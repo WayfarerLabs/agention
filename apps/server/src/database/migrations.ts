@@ -644,4 +644,38 @@ export const migrations: readonly string[] = [
   ALTER TABLE carried_session_tags RENAME TO session_tags;
   CREATE INDEX session_tags_names ON session_tags (name);
   `,
+  `
+  -- The pull requests and branches each message names, in the order it gave
+  -- them, a list of each. link_key is an entry's identity: its short form,
+  -- owner/name#number or owner/name:branch, with the repository's owner and
+  -- name lower-cased. repo, branch and url are as written. Append-only, as
+  -- messages are.
+  CREATE TABLE message_links (
+    thread_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('pull_request', 'branch')),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    link_key TEXT NOT NULL,
+    repo TEXT NOT NULL,
+    number INTEGER CHECK (number > 0),
+    branch TEXT,
+    url TEXT,
+    CHECK (IIF(kind = 'pull_request', number IS NOT NULL AND branch IS NULL,
+      number IS NULL AND branch IS NOT NULL)),
+    PRIMARY KEY (thread_id, seq, kind, position),
+    UNIQUE (thread_id, seq, link_key),
+    FOREIGN KEY (thread_id, seq) REFERENCES messages (thread_id, seq)
+  ) STRICT, WITHOUT ROWID;
+
+  CREATE INDEX message_links_keys ON message_links (link_key);
+
+  CREATE TRIGGER message_links_no_update BEFORE UPDATE ON message_links
+  BEGIN
+    SELECT RAISE(ABORT, 'message links are append-only');
+  END;
+  CREATE TRIGGER message_links_no_delete BEFORE DELETE ON message_links
+  BEGIN
+    SELECT RAISE(ABORT, 'message links are append-only');
+  END;
+  `,
 ];
