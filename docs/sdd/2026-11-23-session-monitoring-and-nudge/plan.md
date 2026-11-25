@@ -74,14 +74,14 @@
 
 ### Pull request 2
 
-- [ ] `Observer.nudge()` with every N4 and N5 check. Done when tests against a real tmux server and
-      the scripted harness show a nudge sent at a still prompt and abandoned at each step: a dialog,
-      someone typing, copy mode, the warning typed over, a line that will not clear, and a message
-      that does not submit.
-- [ ] Agent API version 7: the due answer, the outcome in the report, the check-in stamp against the
-      latest nudge, "not responding to the nudge", and M6's nudge branches. Done when the store's
-      and HTTP tests show a nudge due at most once between check-ins, across a bridge restart and a
-      takeover.
+- [ ] `Observer.nudge()` with every N4 and N5 check, refusing a generic profile. Done when tests
+      against a real tmux server and the scripted harness show a nudge sent at a still prompt and
+      abandoned at each step: a dialog, someone typing, copy mode, the warning typed over, a line
+      that will not clear, and a message that does not submit.
+- [ ] Agent API version 7: the level-triggered due answer, the claim and the outcome on
+      `POST .../monitor/nudge`, the check-in stamp against the latest nudge, "not responding to the
+      nudge", and M6's nudge branches. Done when the store's and HTTP tests show a nudge due at most
+      once between check-ins, across a bridge restart and a takeover.
 - [ ] The bridge's nudge: the warning and message, retrying while not ready, reporting the outcome,
       and T1's `register` answer, with CF4's cases in it. Done when tests against the bridge's test
       server and a real tmux server show it end to end.
