@@ -5,8 +5,9 @@
 #
 # CI runs this script, so a local pass means the same checks pass in CI.
 # Prerequisites: Node at the version in .node-version, with the npm it
-# bundles, the repository's release tags, and network access for the
-# install, signature, vulnerability and agent compatibility checks. The first
+# bundles, tmux 3.3 or later for the harness observer's tests, the
+# repository's release tags, and network access for the install, signature,
+# vulnerability and agent compatibility checks. The first
 # gate installs the locked dependencies with `npm ci`. The browser gate needs
 # Chromium's headless shell, installed once with
 # `npx playwright install --only-shell chromium`. --fast skips the agent

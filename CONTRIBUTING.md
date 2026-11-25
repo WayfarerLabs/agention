@@ -12,6 +12,7 @@ needs before it can merge.
   Version managers such as mise and asdf can read `.node-version` once their idiomatic (legacy)
   version file support is enabled for Node.
 - **Git** and **Bash**.
+- **tmux** 3.3 or later, which the harness observer's tests drive.
 
 Install the locked npm dependencies once, and again whenever `package-lock.json` changes:
 
