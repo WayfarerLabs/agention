@@ -10,19 +10,26 @@ const shapes = {
   filters: <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />,
   // Arrows up and down, for the order.
   sort: <path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4" />,
-  // An arrow pointing down, for an order in its own direction, and one
-  // pointing up, for an order reversed.
+  // An arrow pointing down, for an order in its own direction and the thread
+  // below, and one pointing up, for an order reversed and the thread above.
   "arrow-down": <path d="M12 4v16m-6-6 6 6 6-6" />,
   "arrow-up": <path d="M12 20V4m-6 6 6-6 6 6" />,
   // Two headings, each over its indented rows, for grouping.
   group: <path d="M3 4h9M7 8h14M7 11h14M3 15h9M7 19h14" />,
-  // A check mark, for what a picker has chosen.
+  // A check mark, for what a picker has chosen and a copy that landed.
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   // Two columns of dots, for a handle that drags a row into another place.
   grip: <path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" strokeWidth="3" />,
   // A chevron pointing down, for a group shown expanded; turned to point
   // along the line while it is collapsed.
   expand: <path d="m6 9 6 6 6-6" />,
+  // One page over another, for copying.
+  copy: (
+    <>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+    </>
+  ),
   // Three dots in a row, for a message's options; filled, not stroked.
   options: (
     <>

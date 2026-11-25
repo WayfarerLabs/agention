@@ -43,6 +43,8 @@ export interface RequestOptions {
   body?: unknown;
   // The session's CSRF token, which every change needs.
   csrf?: string | undefined;
+  // Aborting it ends the request as a network failure.
+  signal?: AbortSignal | undefined;
 }
 
 // The answer is read as an error body only when it has the API's error shape:
@@ -105,6 +107,7 @@ export async function request<T>(
       method,
       headers,
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     },
     options.csrf,
     requestTimeout,
@@ -368,14 +371,15 @@ const agentPage = 100;
 // listSessions reads the agents with their sessions, as the sessions view
 // shows them, at most maxListed agents a page at a time, saying whether it
 // stopped with agents left to read. The view comes whole, as the approval
-// form's choices need it.
-export async function listSessions(): Promise<AgentList> {
+// form's choices need it. Aborting signal stops it before its next page.
+export async function listSessions(signal?: AbortSignal): Promise<AgentList> {
   const agents: Agents = [];
   let cursor: string | undefined;
   for (let page = 0; page < maxListed / agentPage; page++) {
     const answer = await request<SessionsPage>(
       "GET",
       `/sessions${query({ cursor, limit: agentPage })}`,
+      { signal },
     );
     agents.push(...answer.agents);
     cursor = answer.next;
@@ -392,10 +396,16 @@ export class PasskeyFailure extends Error {
   override name = "PasskeyFailure";
 }
 
+// PageFailure is a failure the page found itself, its message already a
+// sentence for the page.
+export class PageFailure extends Error {
+  override name = "PageFailure";
+}
+
 // describeFailure says what went wrong as a sentence for the page. The API's
 // messages are lowercase phrases.
 export function describeFailure(failure: unknown): string {
-  if (failure instanceof PasskeyFailure) {
+  if (failure instanceof PasskeyFailure || failure instanceof PageFailure) {
     return failure.message;
   }
   if (!(failure instanceof ApiFailure)) {

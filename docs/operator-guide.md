@@ -357,7 +357,10 @@ stays as you set it, its filters, order, folds and scroll, as threads open besid
 back and forward; the row of the thread open is outlined, and choosing it again takes you to the
 thread; and choosing another order or filter keeps the thread open. The thread scrolls with the page
 while the list stays in view, scrolling on its own. Going back to the list from a thread, with its
-**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left.
+**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left. Opening a
+thread, from the list, with **Thread above** or **Thread below**, or as archiving or sending moves
+you on, puts focus on its heading once it has loaded, on a phone too, unless you have moved focus
+elsewhere while it loaded.
 
 Where a thread is, its agent, its session and its topic, shows each part behind a small badge: **A**
 for the agent, **S** for the session and **T** for the topic; holding the pointer over a badge names
@@ -366,11 +369,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
   counts those holding a message you have not read, the threads the **Unread** filter keeps with no
-  other filter on, and reading or archiving them clears the count. The list's head holds **Sort**,
-  the order it is in, beside a button saying which way the order runs, then **Group**, how the list
-  is grouped, and **Filters**, a funnel with a badge counting the filters that are on. On a phone,
-  **Sort** and its button take one row, with **Group** and **Filters** beneath them; on the
-  narrowest phones, or with enlarged text, the button wraps beneath **Sort**.
+  other filter on, and reading or archiving them clears the count. The list's head holds a search
+  box across its top, **Search threads**, then **Sort**, the order it is in, beside a button saying
+  which way the order runs, then **Group**, how the list is grouped, and **Filters**, a funnel with
+  a badge counting the filters that are on. On a phone, **Sort** and its button take one row, with
+  **Group** and **Filters** beneath them; on the narrowest phones, or with enlarged text, the button
+  wraps beneath **Sort**.
   - **Sort** orders the list by:
     - **Priority**, the default: the threads with asks open to you first, each by the most pressing
       of its asks: by priority, then those blocking the agent's work, then by the earliest
@@ -394,27 +398,27 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
     session group's sessions under its header when the list holds two or more groups, those in none
     under **No group**, and each session as **Session** folds it; by **Session**, each session's
-    threads under its header, and under their topics' when they carry two or more, those without one
-    under **No topic**; or by **Agent**, each agent's threads under its header, and under their
-    sessions' when it has two or more. Groups, sessions, topics and agents come in the order of
-    their first thread, and the list loads a page at a time, its threads arriving group by group.
-    Each header shows all its group holds, collapsed or not, and before all of it has loaded: how
-    many threads, the closed envelope with how many are unread or the open envelope when none is,
-    **Blocked on you** when an agent's ask blocks its work on your answer, the highest priority of
-    an open ask, the archive box when all are archived, and, in the warning's color on a session's
-    or an agent's header while it is quiet, **last seen** and when, or **never seen** (an agent is
-    quiet while every session it shows is). A session group's header adds up its sessions'. A
-    header's name, and each of those marks a filter matches, is a link that adds what the header
-    heads (its group, session, topic or agent) and the mark's own filter to the filters on, keeping
-    the others, the order and the grouping: the name and the count keep all its threads, the
-    envelope its unread ones, **Blocked on you** those blocking an agent on your answer, and the
-    priority those with an ask at that priority or higher. While a filter on open asks is on,
-    **Blocked on you** and the priority link nowhere, since they count every open ask of the threads
-    shown while those filters keep a thread for one ask meeting them all. **No topic**, which no
-    filter names, the archive box and **last seen** link nowhere. The chevron before a header's name
-    collapses everything under it or expands it again, as a click anywhere else on the header does
-    but on a link. Every header starts expanded, and this browser keeps the ones you collapse, for
-    each way of grouping, a session group's however you rename it.
+    threads under its header; by **Topic**, each session's threads under its header, and under their
+    topics' when they carry two or more, those without one under **No topic**; or by **Agent**, each
+    agent's threads under its header, and under their sessions' when it has two or more. Groups,
+    sessions, topics and agents come in the order of their first thread, and the list loads a page
+    at a time, its threads arriving group by group. Each header shows all its group holds, collapsed
+    or not, and before all of it has loaded: how many threads, the closed envelope with how many are
+    unread or the open envelope when none is, **Blocked on you** when an agent's ask blocks its work
+    on your answer, the highest priority of an open ask, the archive box when all are archived, and,
+    in the warning's color on a session's or an agent's header while it is quiet, **last seen** and
+    when, or **never seen** (an agent is quiet while every session it shows is). A session group's
+    header adds up its sessions'. A header's name, and each of those marks a filter matches, is a
+    link that adds what the header heads (its group, session, topic or agent) and the mark's own
+    filter to the filters on, keeping the others, the order and the grouping: the name and the count
+    keep all its threads, the envelope its unread ones, **Blocked on you** those blocking an agent
+    on your answer, and the priority those with an ask at that priority or higher. While a filter on
+    open asks is on, **Blocked on you** and the priority link nowhere, since they count every open
+    ask of the threads shown while those filters keep a thread for one ask meeting them all. **No
+    topic**, which no filter names, the archive box and **last seen** link nowhere. The chevron
+    before a header's name collapses everything under it or expands it again, as a click anywhere
+    else on the header does but on a link. Every header starts expanded, and this browser keeps the
+    ones you collapse, for each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
@@ -424,7 +428,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Search** keeps the threads whose title holds every word you type, or one of whose messages
       does in its text and details, each as the start of a word, ignoring case and accents. A
       message you or an agent replaced no longer matches; its replacement does. It applies once you
-      pause typing. An agent's own search of its threads looks at titles alone.
+      pause typing, or at once on Enter. The search box atop the list's head and this one are the
+      same search: typing in either shows in both. Text the search cannot take, such as a tab or an
+      invisible character, stays in the box, which says why, and the list stays as it was. An
+      agent's own search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
@@ -501,17 +508,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
   thread says why its session has not read your latest messages: it stopped, and how, or its agent
   was last seen when, or never; a session with no active credential says so in a notice under the
-  head. **Threads** stays marked in the navigation. The head holds **Archive all**, and **Jump to
-  unread** while anything is unread or an ask is open to you, and shows the archive box while the
-  thread is archived. The messages open on the newest ones, or on the first one you had not read
-  after those you archived when that comes before them, and show earlier and later ones when you
-  ask.
+  head. **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread
+  below**, arrow buttons beside **Threads**, **Archive all**, and **Jump to unread** while anything
+  is unread or an ask is open to you, and shows the archive box while the thread is archived. The
+  messages open on the newest ones, or on the first one you had not read after those you archived
+  when that comes before them, and show earlier and later ones when you ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
-    shows the closed envelope if you had not read it when it appeared, until you leave the page, and
-    the open envelope otherwise; one you had not read also stands out in blue, as unread rows do,
-    with a dot before its author. Reading, like writing, counts only the messages on screen. Your
-    reading wakes no agent waiting for messages, which sees it the next time it reads the thread.
+    shows the closed envelope if you had not read it when it appeared, until you leave the page or
+    archive it, and the open envelope otherwise; one you had not read also stands out in blue, as
+    unread rows do, with a dot before its author. Reading, like writing, counts only the messages on
+    screen. Your reading wakes no agent waiting for messages, which sees it the next time it reads
+    the thread.
   - **Jump to unread** moves you to a message you have not read, whether it shows the closed
     envelope or is not shown yet, or to the card of one of the 50 most pressing asks still open to
     you, read or not. The first press goes to the first of them after what you had read when you
@@ -523,13 +531,34 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     the envelope closed and accented while the agent has not read it, and open once it has. A screen
     reader says **Unread by agent** or **Read by agent**.
   - **Archive all** first shows every message through the latest, loading those not yet shown, then
-    archives through it, taking the thread off your list until the agent writes to it again, and
-    returns to the list; while an ask is open to you, answer or decline it first. Writing to a
-    thread you archived keeps it archived, and what you archived never counts as unread.
+    archives through it, taking the thread off your list until the agent writes to it again. Then it
+    goes where **Auto-advance**, in Settings under **Threads**, says: the thread just above where
+    the archived thread stands in the list, unless you choose the one just below or back to the
+    list. It takes the archived thread's place, so **Back** does not return to it, and at the end of
+    the list that way it goes back to the list, which says so. If finding that thread fails, you
+    stay on the thread, archived, and the page says so. While an ask is open to you, answer or
+    decline it first. Writing to a thread you archived keeps it archived, and what you archived
+    never counts as unread.
+  - **Thread above** and **Thread below**, or `[` and `]`, open the row just above or below this
+    thread in the list **Threads** returns to, as that list stands when you press them, with its
+    filters, order and grouping, read or not. Change that list while they look, and they look again
+    in the list as you left it; should it keep changing, they stay and say so. That is the list
+    beside the thread side by side, so if answering or replying here moves the thread in it, they
+    follow it to its new place, on a phone as beside the list. A thread the list's filters leave
+    out, such as one read out of a list kept to the unread, or an archived one, counts where the
+    list's order would put it within its group, which stays where the list shows it. A thread you
+    opened from a link moves through the list with no filters, the one **Threads** returns to; a
+    reload keeps the list you opened it from. Unlike `k` and `j` in the list, they go through
+    threads in folded groups too, since a phone shows no list to fold. At the top or bottom of the
+    list, they go back to the list, which says so. **Back** returns to this thread. Side by side,
+    the thread opens beside the list, which keeps its scroll, its row outlined; on a phone the same
+    buttons lead the thread's head.
   - The messages you archived fold into one line at the top, **N archived messages**, which shows
     them, each with the archive box. The page never reads them while they are folded. A message you
     send to an archived thread is archived with the rest, but stays in view until you leave the
-    page.
+    page. Once you show them, a thin rule, **Archived through here**, sets apart the messages you
+    have not archived after them. It moves as you archive further, and appears when the agent writes
+    to a thread you archived.
   - The **⋯** button on a message opens its options: **Mark unread from here** and **Archive through
     here**, until you have archived that message; **Change answer** on a message carrying your
     answers while an ask it answered is still live; **Edit** on your other messages; and **Read
@@ -549,6 +578,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - A message's text is a short summary of what the matter is and what is needed. Whatever else the
     message says is in its details: a **Details** line directly under the text opens them in place
     and folds them again, and details you opened stay open as the page refreshes.
+  - The copy button at the end of a message's head, beside its **⋯** button, copies the whole
+    message as Markdown, as it was written: its text, and its details too, after a blank line, while
+    you have them open. Its asks, answers, references and files are not copied. Every message with
+    text has one, a replaced message too once you open it, and a message without text has none. The
+    button shows a check for a moment once the message is copied. Where the browser refuses the
+    clipboard, the message says so, and you can select the text to copy it by hand.
   - A message's files show under it, and **Attach** beside **Send** adds yours, as
     [Attachments](#attachments) describes. While the thread holds any, its head holds **Files**,
     folded, with how many there are and the space they take.
@@ -614,15 +649,25 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it, keeps the latest 50, and forgets them all when you sign out here or remove the passkey it
     signed in with. A browser that refuses storage, as a private window may, keeps none, and the
     composer works as before.
-  - Beside **Send**, **Go back after sending** returns you to the list, as **Threads** does, once a
-    message is sent, and the list says what was sent; a message that fails to send stays on the page
-    with your draft. It is checked until you uncheck it, and this browser keeps your choice. While
-    you write, **Send** and its option stay at the foot of the screen, above a phone's keyboard,
-    with what answers **Send** beside it: why a message failed to send above it, and what was sent
-    after it. While voice is on, **Dictate** sits there too, and what it says goes in the same
-    places: why dictation failed above, and anything else after. While a recording, its
-    transcription or its **Retry** is there, **Go back after sending** moves just below the row, so
-    the row stays short above a phone's keyboard.
+  - Beside **Send**, **After sending** chooses where sending takes you once a message is sent:
+    **Back to the list**, as **Threads** does, where the list says what was sent; **Stay here**;
+    **Archive**, which archives this thread once the message lands and then goes where
+    **Auto-advance** says, as **Archive all** does, so a reply that answers the last ask open to you
+    can archive the thread too; or **Thread above** or **Thread below**, as their buttons do. The
+    thread it takes you to says beside its **Send** what you sent, or the list does, saying too when
+    you reached its end. If an ask is still open to you, the archive is refused and you stay on the
+    thread, and beside **Send**, after what was sent, the page says which ask to answer or decline
+    first; when the thread to open cannot be found, it says that there instead. While a message that
+    will take you somewhere is on its way, **Thread above**, **Thread below** and **Archive all**
+    wait for it, and while the page is moving to another thread or the list, **Send** and **After
+    sending** wait for it. A message that fails to send stays on the page with your draft. It is
+    **Back to the list** until you choose otherwise, and this browser keeps your choice. While you
+    write, **Send** and its option stay at the foot of the screen, above a phone's keyboard, with
+    what answers **Send** beside it: why a message failed to send above it, and what was sent after
+    it. While voice is on, **Dictate** sits there too, and what it says goes in the same places: why
+    dictation failed above, and anything else after. While a recording, its transcription or its
+    **Retry** is there, **After sending** moves just below the row, so the row stays short above a
+    phone's keyboard.
   - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
     thread you read without replying, and without scrolling back up.
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
@@ -744,8 +789,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
-  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Groups and
-  tags** (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
+  (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Threads**
+  (`/settings/threads`), whose **Auto-advance** chooses where archiving a thread takes you, as
+  [Using the web UI](#using-the-web-ui) describes, **Groups and tags**
+  (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
   (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as
   [Attachments](#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
   [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`),
@@ -825,7 +872,9 @@ which the sessions view and the thread list's **Group** filter follow; a new gro
 
 With a keyboard, single keys do the everyday things, in the manner of mail and code-review tools.
 They act only while focus is outside a text field, an open menu and a dialog, and never with Ctrl,
-Alt or Cmd held unless the key needs it; on a phone without a keyboard nothing changes. Press `?`
+Alt or Cmd held unless the key needs it; AltGr, which types a key such as `]` on many keyboards,
+counts as none for the punctuation it types, though Ctrl and Alt with a letter, a digit or a key
+that types nothing, such as Esc, never act. On a phone without a keyboard nothing changes. Press `?`
 anywhere to list them all.
 
 | Where           | Key                         | What it does                                                                                                              |
@@ -835,10 +884,11 @@ anywhere to list them all.
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
 | The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
-| The thread list | `/`                         | Opens **Filters** on its search box                                                                                       |
+| The thread list | `/`                         | Puts focus in the list's search box, selecting what it holds                                                              |
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
-| A thread        | `e`                         | **Archive all**, while it is available                                                                                    |
+| A thread        | `e`                         | **Archive all**, while it is available, then where **Auto-advance** says                                                  |
+| A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                     |
 | A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
 | A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
 | The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |
@@ -881,7 +931,10 @@ only what you send. Reading a message aloud needs none of this: the browser spea
   address (`64:ff9b:1::/48`); a host name over `https` is not checked by its address, since the
   provider's certificate is what proves where it goes.
 - **Model**: as the provider names it, such as `gpt-transcribe` or `whisper-large-v3-turbo`.
-- **Words to recognize**: optional, up to 500 characters, such as names the provider might mishear.
+- **Additional context**: optional, up to 500 characters of background the transcription can use,
+  such as what you talk about, names and terms. Whisper models read only its last 224 tokens, so a
+  long context can lose its start. A transcript that only repeats the context, as Whisper sometimes
+  answers silence, says **Nothing heard**.
 - **Key**: the provider's key, up to 1,024 characters. OpenAI and Groq need one; your own server may
   not. It is kept on the server and never shown again whole: once saved, its field shows it masked
   but for its last four characters, so you can tell which key it is, with **Replace** to enter
@@ -922,8 +975,8 @@ saved in Settings is used only while the base URL in effect is the one it was en
 `AGENTION_TRANSCRIPTION_URL` leaves it unused until you enter it again. With both the base URL and
 the model from the environment, **Turn off** reads **Clear saved settings**, and voice stays on
 until you remove the variable and restart the server. With only the base URL from it, the model is
-saved in Settings, so **Turn off** still turns voice off: it deletes the saved model, words and key,
-and the base URL stays.
+saved in Settings, so **Turn off** still turns voice off: it deletes the saved model, additional
+context and key, and the base URL stays.
 
 Keep them in an environment file only you can read, not in the unit or the plist itself, each value
 in single quotes:
@@ -1016,7 +1069,7 @@ under **API keys**. **Create an API key** asks for:
 
   | Scope              | What it grants                                                                                                                                                                                                                                    |
   | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, any thread with its messages and its files, and waiting for new messages in any session                                                                                                                   |
+  | `threads:read`     | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session                                                                            |
   | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                         |
   | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                         |
   | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags |
@@ -1085,8 +1138,9 @@ The first lists your agents with their sessions. The second answers at once with
 session, holding messages you have not read, each naming its agent and session; with none, it waits
 up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
 `wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
-waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
-a rate budget of its own ([Rate budgets](#rate-budgets)).
+waits in a loop hears of each new message once, as soon as it arrives, without polling. A key holds
+at most 4 of these waits at once, so wait again once one answers rather than opening another beside
+it. Each key also has a rate budget of its own ([Rate budgets](#rate-budgets)).
 
 Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
 uploads a file to a session, then names the upload in a message, and a key holding `threads:read`
@@ -1392,6 +1446,11 @@ answered `rate_limited` with a `Retry-After` header.
 
 A key's budget counts every request its session makes, each upload, each file fetched and each read
 a tool makes on the way included: a message of ten files is at least eleven requests.
+
+Apart from these rates, an API key or a browser session holds at most 4 of the waits across sessions
+(`GET /wait`) at once, however fast it starts them: one more is refused as `rate_limited`, with a
+`Retry-After` of a second, and no held wait ends to make room for it. A wait gives its place back as
+it ends, however it ends, and one of `wait=0`, which answers at once, is not counted.
 
 The shared budgets other than registrations are spent only by requests that fail, after they have
 been checked, so exhausting one never refuses a valid agent key, API key, passkey or link; only

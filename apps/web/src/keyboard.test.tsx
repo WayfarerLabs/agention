@@ -97,14 +97,23 @@ describe("on the thread list", () => {
     await waitFor(() => expect(heading().textContent).toBe("#1 Read one"));
   });
 
-  it("opens the search with /, in the filter sheet, without typing it", async () => {
+  it("puts focus in the list's search box with /, without typing it or opening the sheet", async () => {
     await openList();
     press("/");
-    const search = within(
-      screen.getByRole("dialog", { name: "Filters" }),
-    ).getByRole<HTMLInputElement>("searchbox");
+    const search = screen.getByRole<HTMLInputElement>("searchbox", { name: "Search threads" });
     expect(document.activeElement).toBe(search);
     expect(search.value).toBe("");
+    expect(screen.getByRole("dialog", { hidden: true }).hasAttribute("open")).toBe(false);
+  });
+
+  it("selects the search already on with /, so typing replaces it", async () => {
+    page.api.on("GET", "/threads", { body: { threads: rows, total: rows.length } });
+    renderAt("/?search=release");
+    await screen.findByRole("heading", { level: 2, name: /Read one/ });
+    press("/");
+    const search = screen.getByRole<HTMLInputElement>("searchbox", { name: "Search threads" });
+    expect(document.activeElement).toBe(search);
+    expect([search.selectionStart, search.selectionEnd]).toEqual([0, "release".length]);
   });
 });
 

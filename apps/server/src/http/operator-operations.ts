@@ -36,8 +36,11 @@ import {
   threadCounts,
   threadFilters,
   threadList,
+  threadNeighbors,
+  threadParams,
   threadStartInput,
   threadsQuery,
+  threadsView,
 } from "@wayfarerlabs/agention-server-api";
 import {
   approveRegistration,
@@ -46,10 +49,12 @@ import {
   countThreads,
   createGroup,
   createTag,
+  findThreadNeighbors,
   listGroupsAndTags,
   listRegistrations,
   listSessions,
   listThreads,
+  maxOperatorWaits,
   orderGroups,
   readSessionLog,
   recolorGroup,
@@ -68,7 +73,13 @@ import {
   waitForEverySession,
 } from "../store/index.ts";
 import { type Operation, operation } from "./operations.ts";
+import { RateLimitedError } from "./rates.ts";
 import { threadOperations } from "./thread-operations.ts";
+
+// How soon a wait refused for want of a place may try again, in
+// milliseconds: a held wait answers within its own wait, and a client polling
+// in a loop frees its place between waits.
+const operatorWaitRetry = 1000;
 
 // OperatorOperation is an operation an API key may call, which always names
 // the one scope it requires.
@@ -100,6 +111,20 @@ export const operatorOperations: readonly OperatorOperation[] = [
     response: threadCounts,
     handler: ({ store, identity, query }) => countThreads(store, identity, query),
   }),
+  operation({
+    name: "findThreadNeighbors",
+    method: "GET",
+    path: "/s/:agent/:session/threads/:thread/neighbors",
+    summary:
+      "Find the threads just above and below a thread in the thread list, filtered, sorted " +
+      "and grouped, with the thread at its own place though the filters would leave it out",
+    scope: "threads:read",
+    params: threadParams,
+    query: threadsView,
+    response: threadNeighbors,
+    handler: ({ store, identity, params, query }) =>
+      findThreadNeighbors(store, identity, params, query),
+  }),
   // The operator's long poll, the agent's waitForThreads across every
   // session. It ends when a message it reports commits, the credential is
   // revoked or expires, the client disconnects, the server shuts down or the
@@ -109,11 +134,32 @@ export const operatorOperations: readonly OperatorOperation[] = [
     method: "GET",
     path: "/wait",
     summary: "Wait for messages you have not read, in any session, since a cursor",
+    description:
+      `One credential, an API key or a browser session, holds at most ${maxOperatorWaits} ` +
+      "of these waits at once. Another is refused at once as rate_limited (429), with " +
+      "Retry-After; the waits already held go on. A wait of 0 answers at once and counts " +
+      "toward none.",
     scope: "threads:read",
     query: operatorWaitQuery,
     response: operatorWaitResult,
-    handler: ({ store, identity, query, signal }) =>
-      waitForEverySession(store, identity, query, signal),
+    handler: async ({ store, identity, query, signal }) => {
+      // A wait of 0 answers at once, holding nothing.
+      if (query.wait === 0) {
+        return waitForEverySession(store, identity, query, signal);
+      }
+      const release = store.operatorWaits.take(identity.credential);
+      if (release === undefined) {
+        throw new RateLimitedError(
+          operatorWaitRetry,
+          `this credential holds ${maxOperatorWaits} waits already`,
+        );
+      }
+      try {
+        return await waitForEverySession(store, identity, query, signal);
+      } finally {
+        release();
+      }
+    },
   }),
   ...threadOperations(messageSendInput),
   operation({

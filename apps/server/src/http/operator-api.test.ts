@@ -70,6 +70,7 @@ async function requests(): Promise<Record<string, Call>> {
     readFile: ["GET", "/s/builder/main/threads/2/messages/1/files/notes.txt", undefined],
     listThreads: ["GET", "/threads", undefined],
     countThreads: ["GET", "/threads/counts", undefined],
+    findThreadNeighbors: ["GET", "/s/builder/main/threads/1/neighbors", undefined],
     waitForThreads: ["GET", "/wait", undefined],
     getThread: ["GET", "/s/builder/main/threads/1", undefined],
     sendMessage: [

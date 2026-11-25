@@ -2,8 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { request, requestTimeout } from "./api.ts";
 import { refreshInterval, useResource } from "./data.ts";
-import { SessionProvider } from "./session.tsx";
-import { FakeApi, type Reply } from "./test-support.tsx";
+import { type Session, SessionProvider, useSession } from "./session.tsx";
+import { FakeApi, type Reply, signedIn } from "./test-support.tsx";
 
 let api: FakeApi;
 
@@ -17,11 +17,12 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function Probe({ load }: { load: () => Promise<string> }) {
+function Probe({ load }: { load: (signal: AbortSignal) => Promise<string> }) {
   const resource = useResource(load);
   return (
     <>
       <p>{resource.data ?? "nothing"}</p>
+      {resource.failure !== undefined && <p role="alert">failed</p>}
       <button type="button" onClick={resource.refresh}>
         Refresh
       </button>
@@ -246,5 +247,91 @@ describe("useResource", () => {
       await vi.advanceTimersByTimeAsync(1 + refreshInterval);
     });
     expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks nothing while an ending holds it, and again once every hold is released or the session signed out and in", async () => {
+    setVisibility("visible");
+    const load = vi.fn(async (_signal: AbortSignal) => "loaded");
+    let session: Session | undefined;
+    function Capture() {
+      session = useSession();
+      return null;
+    }
+    render(
+      <SessionProvider>
+        <Probe load={load} />
+        <Capture />
+      </SessionProvider>,
+    );
+    await flush();
+    expect(load).toHaveBeenCalledTimes(1);
+    const current = () => {
+      if (session === undefined) {
+        throw new Error("no session");
+      }
+      return session;
+    };
+    const asked = async () => {
+      window.dispatchEvent(new Event("focus"));
+      await flush();
+      return load.mock.calls.length;
+    };
+
+    // Two endings at once, such as removing this browser's passkey and then
+    // signing out: the first to fail leaves the other's hold.
+    const removal = current().signingOut();
+    const signOut = current().signingOut();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * refreshInterval);
+    });
+    expect(await asked()).toBe(1);
+    removal();
+    removal();
+    expect(await asked()).toBe(1);
+    signOut();
+    expect(await asked()).toBe(2);
+    // A load once every hold is released can be stopped by the next ending,
+    // not one already over.
+    expect(load.mock.calls.at(-1)?.[0].aborted).toBe(false);
+
+    // A sign-out that landed leaves nothing held once the operator signs in
+    // again, though its release never came.
+    current().signingOut();
+    act(() => current().update({ signed_in: false, operator_exists: true }));
+    act(() => current().update(signedIn));
+    await flush();
+    const before = load.mock.calls.length;
+    expect(await asked()).toBe(before + 1);
+  });
+
+  it("aborts a load under way once an ending starts, quietly", async () => {
+    let signal: AbortSignal | undefined;
+    const load = vi.fn(
+      (given: AbortSignal) =>
+        new Promise<string>((_, reject) => {
+          signal = given;
+          given.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+    let session: Session | undefined;
+    function Capture() {
+      session = useSession();
+      return null;
+    }
+    render(
+      <SessionProvider>
+        <Probe load={load} />
+        <Capture />
+      </SessionProvider>,
+    );
+    await flush();
+    expect(signal?.aborted).toBe(false);
+    act(() => {
+      session?.signingOut();
+    });
+    await flush();
+    expect(signal?.aborted).toBe(true);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

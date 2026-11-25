@@ -58,6 +58,32 @@ describe("the OpenAI-compatible provider", () => {
     ]);
   });
 
+  // sent transcribes with a prompt, the stub answering answer, and gives the
+  // prompt the provider received and the text that came back.
+  async function sent(model: string, prompt: string, answer = "Hello.") {
+    stub.answer = () => ({ status: 200, body: JSON.stringify({ text: answer }) });
+    const text = await provider.transcribe(
+      config({ model, prompt }),
+      { audio: recording(), type: "audio/ogg" },
+      new AbortController().signal,
+    );
+    return { prompt: stub.requests[0]?.fields.prompt, text };
+  }
+
+  it.each([
+    ["the prompt", "Agention, Morgan"],
+    ["the prompt in another case and punctuation", " agention morgan. "],
+  ])("answers a transcript of %s as nothing heard", async (_, answer) => {
+    expect((await sent("whisper-1", "Agention, Morgan", answer)).text).toBe("");
+  });
+
+  it.each([
+    ["holds the prompt and more", "Agention, Morgan", "Agention, Morgan, please review."],
+    ["breaks the prompt's words elsewhere", "now here", "Nowhere."],
+  ])("keeps a transcript that %s", async (_, prompt, answer) => {
+    expect((await sent("whisper-1", prompt, answer)).text).toBe(answer);
+  });
+
   it.each([
     [401, "key_refused"],
     [403, "key_refused"],

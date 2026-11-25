@@ -60,6 +60,10 @@ export interface Shortcut {
   // The keys that do it, any one of them.
   keys: readonly string[];
   description: string;
+  // Whether a key held down acts once, not again as it repeats: those that
+  // leave the page, which would otherwise go on past where the operator
+  // meant to stop.
+  once?: true;
 }
 
 export const shortcuts = {
@@ -83,7 +87,24 @@ export const shortcuts = {
   search: { place: "Thread list", keys: ["/"], description: "Search the threads" },
   backToList: { place: "Thread", keys: ["u", "Escape"], description: "Back to the thread list" },
   reply: { place: "Thread", keys: ["r"], description: "Write in the composer" },
-  archive: { place: "Thread", keys: ["e"], description: "Archive all of the thread" },
+  archive: {
+    place: "Thread",
+    keys: ["e"],
+    description: "Archive all of the thread, then go where Auto-advance says",
+    once: true,
+  },
+  openAbove: {
+    place: "Thread",
+    keys: ["["],
+    description: "Open the thread above in the list",
+    once: true,
+  },
+  openBelow: {
+    place: "Thread",
+    keys: ["]"],
+    description: "Open the thread below in the list",
+    once: true,
+  },
   jump: {
     place: "Thread",
     keys: ["n"],
@@ -127,6 +148,19 @@ const keyboardSettingsHref = "/settings/keyboard";
 
 const digit = /^[1-9]$/;
 
+// modified says whether Ctrl, Alt or Meta is held for its own sake. AltGr,
+// which types a character on many layouts, as ] on a German keyboard, and
+// which Chrome on Windows reports as Ctrl and Alt held together, holds none
+// for a key it types, punctuation such as [ and ]: the key is the character
+// it typed. Chrome on Windows reports AltGr for a real Ctrl and Alt chord
+// too, so with a letter or a digit, which no shortcut needs AltGr to type,
+// or a named key such as Escape, which types nothing, it counts as Ctrl and
+// Alt.
+function modified(event: KeyboardEvent | ReactKeyboardEvent): boolean {
+  const typedByAltGr = event.getModifierState("AltGraph") && /^[^\p{L}\p{N}]$/u.test(event.key);
+  return event.metaKey || (!typedByAltGr && (event.ctrlKey || event.altKey));
+}
+
 // stepMatches says whether one key of a shortcut is the key pressed.
 function stepMatches(step: string, event: KeyboardEvent | ReactKeyboardEvent): boolean {
   const [modifier, key] = step.includes("+") && step.length > 1 ? step.split("+") : [];
@@ -135,7 +169,7 @@ function stepMatches(step: string, event: KeyboardEvent | ReactKeyboardEvent): b
     const other = modifier === "Control" ? event.metaKey : event.ctrlKey;
     return held && !other && !event.altKey && !event.shiftKey && event.key === key;
   }
-  if (event.ctrlKey || event.altKey || event.metaKey) {
+  if (modified(event)) {
     return false;
   }
   return step === "1-9" ? digit.test(event.key) : event.key === step;
@@ -310,7 +344,9 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
             ? steps.length === 1 && first !== undefined && stepMatches(first, event)
             : first === before && second !== undefined && stepMatches(second, event);
         });
-        return matches ? [{ place: shortcut.place, ...registered }] : [];
+        return matches
+          ? [{ place: shortcut.place, once: shortcut.once === true, ...registered }]
+          : [];
       });
       const focus = document.activeElement;
       const holds = (area: Area | undefined) =>
@@ -322,7 +358,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       const order = ({ place }: { place: ShortcutPlace }) => shortcutPlaces.indexOf(place);
       const focused = acting.find(({ area }) => holds(area));
       const later = acting.sort((one, other) => order(other) - order(one))[0];
-      return (focused ?? later)?.action();
+      return focused ?? later;
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const before = pending?.key;
@@ -331,21 +367,17 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         return;
       }
       const second = before === undefined ? undefined : actionFor(event, before);
-      if (
-        second === undefined &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        !event.metaKey &&
-        prefixes.has(event.key)
-      ) {
+      if (second === undefined && !modified(event) && prefixes.has(event.key)) {
         event.preventDefault();
         pending = { key: event.key, timer: setTimeout(clear, prefixTimeout) };
         return;
       }
-      const action = second ?? actionFor(event, undefined);
-      if (action !== undefined) {
+      const found = second ?? actionFor(event, undefined);
+      if (found !== undefined) {
         event.preventDefault();
-        action(event.key);
+        if (!(found.once && event.repeat)) {
+          found.action()(event.key);
+        }
       }
     };
     document.addEventListener("keydown", onKeyDown);

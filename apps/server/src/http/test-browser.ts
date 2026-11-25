@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect } from "vitest";
 import { type Answer, TestAuthenticator } from "../auth/test-authenticator.ts";
-import { Database } from "../database/database.ts";
+import { openTestDatabase } from "../database/test-database.ts";
 import { createStore, type Store } from "../store/index.ts";
 import { start } from "../store/test-fixture.ts";
 import { createApp } from "./app.ts";
@@ -16,7 +16,7 @@ import { defaultRates, type Rates } from "./rates.ts";
 
 export class TestServer {
   readonly root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-passkeys-")));
-  readonly db = Database.open(path.join(this.root, "agention.db"));
+  readonly db = openTestDatabase(path.join(this.root, "agention.db"));
   readonly origin: string;
   readonly store: Store;
   readonly app: Hono;
@@ -24,10 +24,6 @@ export class TestServer {
 
   constructor(origin = "https://agention.test", rates: Rates = defaultRates, name = "Agention") {
     this.origin = origin;
-    // As the store fixture does: the database is thrown away, so no commit
-    // needs to survive a power loss, and not syncing each one keeps the
-    // ceremonies, each a write, from waiting on a disk the test workers share.
-    this.db.prepare("PRAGMA synchronous = OFF").run();
     this.store = createStore(this.db, { clock: () => this.now });
     this.app = createApp({ store: this.store, origin, name, webRoot: undefined, rates });
   }

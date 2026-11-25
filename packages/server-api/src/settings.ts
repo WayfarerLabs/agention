@@ -66,7 +66,8 @@ export const transcriptionModel = z
   .regex(/^[\x20-\x7e]{1,200}$/, "must be 1 to 200 printable ASCII characters")
   .refine((value) => /\S/.test(value), "must contain a character other than white space");
 
-// Words the provider is told to expect, such as names.
+// Additional context for the transcription: what the operator talks about,
+// names and terms. It is the prompt the provider is sent.
 export const transcriptionPrompt = multilineText({ min: 1, max: 500 });
 
 // A provider's key, as the provider issued it.

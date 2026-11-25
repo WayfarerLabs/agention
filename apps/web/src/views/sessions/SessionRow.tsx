@@ -308,7 +308,12 @@ interface LoadedLog {
 
 // loadLog reads the newest entries of a session's log, as many as wanted and
 // one more, a page at a time.
-async function loadLog(agent: string, session: string, wanted: number): Promise<LoadedLog> {
+async function loadLog(
+  agent: string,
+  session: string,
+  wanted: number,
+  signal: AbortSignal,
+): Promise<LoadedLog> {
   const entries: SessionUpdate[] = [];
   let readThrough: number | undefined;
   let before: number | undefined;
@@ -317,6 +322,7 @@ async function loadLog(agent: string, session: string, wanted: number): Promise<
     const page = await request<SessionLogAnswer>(
       "GET",
       sessionPath(agent, session, `/updates${query({ before, limit })}`),
+      { signal },
     );
     readThrough ??= page.read_through;
     entries.push(...page.updates);
@@ -350,7 +356,7 @@ function SessionLog({
 }) {
   const wanted = useRef(logPage);
   const [asked, setAsked] = useState(logPage);
-  const log = useResource(() => loadLog(agent, session, wanted.current));
+  const log = useResource((signal) => loadLog(agent, session, wanted.current, signal));
   const { data, refresh } = log;
   const reading = useReading(
     useMemo(
