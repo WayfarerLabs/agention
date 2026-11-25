@@ -591,11 +591,11 @@ describe("stranded, for a session that can be nudged", () => {
     fixture.startThread(agent);
   });
 
-  const stranded = () => {
+  const thread = () => {
     fixture.connect(agent);
-    return listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).threads[0]
-      ?.stranded;
+    return listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).threads[0];
   };
+  const stranded = () => thread()?.stranded;
 
   // claimed claims the nudge due, and reports its outcome where one is given.
   const claimed = async (sent?: boolean) => {
@@ -635,14 +635,52 @@ describe("stranded, for a session that can be nudged", () => {
   it.each([
     ["a sent nudge", true],
     ["a claimed nudge whose outcome never came", undefined],
-  ])("is once %s goes the quiet time with no check-in", async (_, sent) => {
+  ])("is once %s goes the quiet time, until the agent reads the thread", async (_, sent) => {
     await claimed(sent);
     fixture.advance(quiet - 1);
     expect(stranded()).toBe(false);
     fixture.advance(1);
     expect(stranded()).toBe(true);
+    // Checking in late, without reading the thread, does not bring it.
+    fixture.seen(agent);
+    expect(stranded()).toBe(true);
+    markRead(fixture.store, agent.identity, threadTarget(agent, 1), { through: 1 });
+    expect(stranded()).toBe(false);
+  });
+
+  it("is once a sent nudge goes the quiet time, where the agent checked in after it without reading the thread, and is not nudged again", async () => {
+    const written = fixture.now;
+    fixture.advance(1);
+    await claimed(true);
+    fixture.seen(agent);
+    expect(presence()?.last_nudge).toMatchObject({ sent: true, answered: true });
+    fixture.advance(quiet - 1);
     fixture.seen(agent);
     expect(stranded()).toBe(false);
+    fixture.advance(1);
+    expect(presence()?.quiet).toBe(false);
+    expect(stranded()).toBe(true);
+    // The thread says when its unread message was written, so the nudge
+    // reads as one sent for it.
+    expect(thread()?.unread_by_agent_since).toBe(new Date(written).toISOString());
+    expect((await poll(first, { wait: "0" })).nudge).toBe(false);
+    expect(
+      listSessions(fixture.store, fixture.operator, sessionsQuery.parse({})).agents[0]?.sessions[0]
+        ?.threads.stranded,
+    ).toBe(1);
+    expect(
+      listThreads(fixture.store, fixture.operator, threadsQuery.parse({ agent_read: "stranded" }))
+        .threads,
+    ).toHaveLength(1);
+  });
+
+  it("is not where the agent read the thread after the nudge, however long since", async () => {
+    await claimed(true);
+    fixture.seen(agent);
+    markRead(fixture.store, agent.identity, threadTarget(agent, 1), { through: 1 });
+    fixture.advance(quiet);
+    expect(stranded()).toBe(false);
+    expect(thread()).not.toHaveProperty("unread_by_agent_since");
   });
 
   it("follows the rule of a session that cannot be nudged once its bridge says so", () => {

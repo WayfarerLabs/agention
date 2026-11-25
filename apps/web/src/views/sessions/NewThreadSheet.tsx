@@ -48,13 +48,15 @@ import { blank, draftProblems, failureAt } from "../thread/writer.ts";
 // awaited says what a session away waits on before it sees a new thread, by
 // why it is away: a quiet session may not have ended, and may yet look; and
 // one whose latest nudge had no check-in since is not nudged again until it
-// checks in.
+// checks in. Only a stranded thread is passed over, and none is yet, so that
+// reason never arises here.
 const awaited: Record<Absence["kind"], string> = {
   stopped: "until it is started again",
   quiet: "soon",
   credential: "until you approve a registration for it",
   disconnected: "until its bridge connects again",
   nudge: "until it checks in",
+  passed_over: "soon",
   no_nudge: "soon",
 };
 

@@ -95,7 +95,8 @@ export const agentReadFilter = z
       "such thread, stranded for one nothing will bring to it soon: the session has no active " +
       "credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or " +
       "it can be nudged, and the latest nudge since your message was not sent, or was sent " +
-      "with no check-in within the quiet time, or none was sent within it.",
+      "and the quiet time has passed since, even where the agent checked in after it without " +
+      "reading the thread, or none was sent within the quiet time.",
   );
 
 // The filters on the pull requests and branches a thread's live messages

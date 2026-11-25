@@ -1007,7 +1007,8 @@ function ThreadPage({
 // operator's latest messages, as absenceOf finds: it stopped, with its
 // outcome; it is quiet, with when its agent last checked in; its bridge is
 // not connected; or, for a session its bridge can nudge, what came of the
-// nudge. A session with no active credential is explained by the notice
+// nudge, its agent checking in after it without reading the thread among
+// them. A session with no active credential is explained by the notice
 // under the head.
 function Stranded({ thread }: { thread: ThreadSummary }) {
   const absence = absenceOf(threadWhereabouts(thread));

@@ -506,17 +506,22 @@ From those the reads derive, against the request's clock and never stored:
   nothing will bring it to the agent soon: the session has no active credential or is not connected;
   or it cannot be nudged, its connected bridge's report not saying it can, and it is quiet or has
   stopped; or it can be nudged, and the latest nudge since the earliest such message was not sent,
-  or was sent, or its outcome is not known, and has had no check-in within the quiet time, or none
-  was claimed since and that message is older than the quiet time, whether or not the agent checked
-  in since it was written. A session that can be nudged is not stranded for waiting at its prompt,
-  since a nudge will bring it.
+  or was sent, or its outcome is not known, and was claimed longer ago than the quiet time, even
+  where the agent checked in since without reading the thread; or none was claimed since and that
+  message is older than the quiet time, whether or not the agent checked in since it was written. A
+  session that can be nudged is not stranded for waiting at its prompt, since a nudge will bring it.
+  An agent that checks in after the nudge without reading the thread is not nudged for it again,
+  since a nudge is due only for a message written after the last check-in, so the quiet time after
+  the nudge is all the thread waits.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as
 the sessions view's page carries it, so a stranded thread can say what the session's terminal shows;
-a grouped list's presence for a session or an agent carries quiet, last seen and connected, and
-neither state, outcome nor report. One function describes a session's presence for both reads
-(`presenceOf`, `apps/server/src/store/presence.ts`).
+the thread also carries `unread_by_agent_since`, when the earliest message of the operator's that
+the session has not read was written, so a reason can tell whether the latest nudge came for it,
+claimed at or after that time; a grouped list's presence for a session or an agent carries quiet,
+last seen and connected, and neither state, outcome nor report. One function describes a session's
+presence for both reads (`presenceOf`, `apps/server/src/store/presence.ts`).
 
 ### Monitoring reports
 
@@ -2187,12 +2192,14 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
 
 Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
 summary (`absenceOf`, `src/format.tsx`): for a session its bridge can nudge, no active credential;
-otherwise its latest nudge with no check-in since, not responding to it or not sent; otherwise that
-no nudge came. For any other session, the stop it reported, with its outcome; otherwise quiet, with
-when its agent last checked in; otherwise no active credential; otherwise its bridge not connected.
-Beside any but the last, it says what the session's terminal shows, where the bridge reports it. The
-new-thread sheet warns of the same reasons but the last of a session that can be nudged, which a new
-thread's nudge will reach.
+otherwise its latest nudge with no check-in since, not responding to it or not sent; otherwise,
+where that nudge was sent and claimed at or after the thread's `unread_by_agent_since`, that its
+agent checked in after it without reading the thread; otherwise that no nudge came. For any other
+session, the stop it reported, with its outcome; otherwise quiet, with when its agent last checked
+in; otherwise no active credential; otherwise its bridge not connected. Beside any but the last, it
+says what the session's terminal shows, where the bridge reports it. The new-thread sheet warns of
+the same reasons but the last two of a session that can be nudged, which need a thread already
+stranded, and which a new thread's nudge will reach.
 
 ### Navigation counts
 

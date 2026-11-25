@@ -91,9 +91,10 @@ disagreement is the finding.
   its prompt nudged when the operator writes to it, checking in and updating its status; a nudge
   refused at a permission dialog and while someone types, abandoned when the operator types over its
   warning, and left in the input in Claude Code's vim normal mode; a bridge restarted, or a second
-  one started, in the middle of a nudge, with no second nudge before the agent checks in; and a
-  session whose nudge went unanswered shown as not responding (`docs/operator-guide.md` "The
-  nudge").
+  one started, in the middle of a nudge, with no second nudge before the agent checks in; a session
+  whose nudge went unanswered shown as not responding; and a thread whose agent checked in after the
+  nudge without reading it stranded once the quiet time passes, saying so (`docs/operator-guide.md`
+  "The nudge").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.
@@ -247,9 +248,10 @@ On top of the method's failure classes, look for:
   sessions its filter lists, a session nudged more than once between its agent's check-ins, across a
   takeover or a restart included, a draft at the prompt submitted with the nudge's message, a nudge
   shown not responding after the agent checked in, a thread on a session that can be nudged stranded
-  while the nudge is still to come, a tag on an agent against the threads of each of its sessions,
-  an archived thread that another party's later message failed to bring back to the list, and one
-  the caller's own message brought back.
+  while the nudge is still to come, or not stranded, or nudged again, once the quiet time has passed
+  since a nudge the agent checked in after without reading the thread, a tag on an agent against the
+  threads of each of its sessions, an archived thread that another party's later message failed to
+  bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them

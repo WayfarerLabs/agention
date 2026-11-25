@@ -689,6 +689,25 @@ describe("the head", () => {
         );
       },
     ],
+    [
+      "checked in after a nudge sent for it without reading it, saying when the nudge came",
+      {
+        presence: {
+          last_seen_at: "2026-10-27T12:00:00.000Z",
+          quiet: false,
+          connected: true,
+          monitor: { ...observed("running"), nudge: true },
+          last_nudge: { at: "2026-10-27T11:59:00.000Z", sent: true, answered: true },
+        },
+        unread_by_agent_since: "2026-10-27T11:50:00.000Z",
+      },
+      (line: Element | null) => {
+        expect(line?.querySelector("time")?.getAttribute("datetime")).toBe(
+          "2026-10-27T11:59:00.000Z",
+        );
+        expect(line?.textContent).toContain(conditionWords(observed("running")));
+      },
+    ],
   ])(
     "says, muted under where it is, why the thread is stranded when its session %s",
     async (_, why, says) => {

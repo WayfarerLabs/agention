@@ -84,8 +84,12 @@ every check that can be made before each key.
 - **Stranded follows the nudge.** A thread on a session that can be nudged is not stranded for its
   session waiting at its prompt, quiet or stopped, since the nudge will bring it; it is stranded
   once the latest nudge since the operator's message was not sent, or was sent, or its outcome never
-  arrived, and went the quiet time with no check-in, or none was claimed within the quiet time. Its
-  other causes, no active credential and no connection, stand as before.
+  arrived, and went the quiet time without the agent reading the thread, or none was claimed within
+  the quiet time. A check-in after the nudge does not hold that off: an agent that checks in without
+  reading the thread is not nudged for it again, since one nudge is due per check-in and only for a
+  message written after it, so nothing more will bring it, and the operator sees that the agent
+  checked in after the nudge without reading the thread. Its other causes, no active credential and
+  no connection, stand as before.
 
 ## Consequences
 

@@ -131,10 +131,10 @@ export function connectedOf(sessions: string): string {
 // nudged, which takes a connected bridge whose report says it can, and it is
 // quiet or has stopped; and while it can be, once the latest nudge since the
 // earliest such message was not sent, or was sent, or its outcome is not
-// known, before the quiet cut-off with no check-in since, or, with none
-// claimed since, that message was written before the quiet cut-off. Last
-// comes the operator's group for its session, which only the operator's list
-// shows.
+// known, before the quiet cut-off, whether or not the agent checked in since,
+// or, with none claimed since, that message was written before the quiet
+// cut-off. Last comes the operator's group for its session, which only the
+// operator's list shows.
 //
 // scope reads the threads as t, their sessions as s and their agents as g.
 // Callers bind a ViewerAndCutoff and whatever lead's conditions name, and
@@ -277,10 +277,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
             joined.connected IS 1 AND joined.nudge IS 1,
             IIF(
               joined.nudged_at >= joined.unread_by_other_since,
-              joined.nudge_sent IS 0 OR (
-                COALESCE(joined.last_seen_at >= joined.nudged_at, 0) = 0
-                AND joined.nudged_at < :quiet_before
-              ),
+              joined.nudge_sent IS 0 OR joined.nudged_at < :quiet_before,
               joined.unread_by_other_since < :quiet_before
             ),
             joined.quiet OR joined.session_state IS 'stopped'
@@ -361,7 +358,8 @@ function askSummaryOf(json: string, now: number): AskSummary {
 // is overdue once its answer-by time is before now. The thread's audience
 // also sees its session's presence, with whether it is connected, its
 // bridge's latest report while it is, and the state and outcome it last
-// reported, and whether the thread is stranded.
+// reported, when the earliest of its live messages the agent has not read was
+// written, and whether the thread is stranded.
 export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
@@ -405,6 +403,9 @@ export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks
             ...(row.session_state === null ? {} : { state: row.session_state }),
             ...(row.session_outcome === null ? {} : { outcome: row.session_outcome }),
           },
+          ...(row.unread_by_other_since === null
+            ? {}
+            : { unread_by_agent_since: formatTimestamp(row.unread_by_other_since) }),
           stranded: row.stranded === 1,
         }
       : {}),

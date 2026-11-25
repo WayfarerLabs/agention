@@ -545,14 +545,18 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // withdrawal, the first of its message's; credential_active says whether its
 // session still has an approved credential. Its audience also sees its
 // session's presence, with its state and what its bridge last reported of
-// its terminal and its latest nudge, and whether it is stranded: it holds a
-// live message by the audience that the session has not read, and nothing
-// will bring it to the session soon. So, while the session has no active
-// credential or is not connected; while it cannot be nudged and is quiet or
-// has stopped; and while it can be nudged, once the latest nudge since that
-// message was not sent, or was sent with no check-in within the quiet time,
-// or none was sent within it. links counts the pull requests and branches
-// its live messages name, giving the one entry when there is exactly one.
+// its terminal and its latest nudge; unread_by_agent_since, when the earliest
+// live message by the audience that the session has not read was written,
+// absent when it has read them all; and whether it is stranded: it holds such
+// a message, and nothing will bring it to the session soon. So, while the
+// session has no active credential or is not connected; while it cannot be
+// nudged and is quiet or has stopped; and while it can be nudged, once the
+// latest nudge since that message was not sent, or was sent and the quiet
+// time has passed since, even where the agent checked in after it without
+// reading the thread, or none was sent within the quiet time. A nudge counts
+// for the thread when it came at or after unread_by_agent_since. links counts
+// the pull requests and branches its live messages name, giving the one
+// entry when there is exactly one.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -572,6 +576,13 @@ export const threadSummary = z.object({
   links: summaryLinks,
   credential_active: z.boolean(),
   presence: threadPresence.optional(),
+  unread_by_agent_since: z
+    .string()
+    .optional()
+    .describe(
+      "When the earliest live message of yours that the session has not read was written; absent " +
+        "when it has read them all. A latest nudge claimed at or after it came for this thread.",
+    ),
   stranded: z.boolean().optional(),
 });
 export type ThreadSummary = z.infer<typeof threadSummary>;

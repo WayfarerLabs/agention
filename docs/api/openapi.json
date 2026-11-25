@@ -158,7 +158,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, even where the agent checked in after it without reading the thread, or none was sent within the quiet time.",
             "schema": {
               "type": "string",
               "enum": [
@@ -497,6 +497,10 @@
                           "presence": {
                             "$ref": "#/components/schemas/ThreadPresence"
                           },
+                          "unread_by_agent_since": {
+                            "type": "string",
+                            "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
+                          },
                           "stranded": {
                             "type": "boolean"
                           },
@@ -772,7 +776,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, even where the agent checked in after it without reading the thread, or none was sent within the quiet time.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1574,7 +1578,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, even where the agent checked in after it without reading the thread, or none was sent within the quiet time.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1890,6 +1894,10 @@
                         "presence": {
                           "$ref": "#/components/schemas/ThreadPresence"
                         },
+                        "unread_by_agent_since": {
+                          "type": "string",
+                          "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
+                        },
                         "stranded": {
                           "type": "boolean"
                         },
@@ -2031,6 +2039,10 @@
                         },
                         "presence": {
                           "$ref": "#/components/schemas/ThreadPresence"
+                        },
+                        "unread_by_agent_since": {
+                          "type": "string",
+                          "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
                         },
                         "stranded": {
                           "type": "boolean"
@@ -3930,7 +3942,7 @@
                           "unread",
                           "stranded"
                         ],
-                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it."
+                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, even where the agent checked in after it without reading the thread, or none was sent within the quiet time."
                       },
                       "agent": {
                         "minItems": 1,
@@ -9409,6 +9421,10 @@
           },
           "presence": {
             "$ref": "#/components/schemas/ThreadPresence"
+          },
+          "unread_by_agent_since": {
+            "type": "string",
+            "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
           },
           "stranded": {
             "type": "boolean"
