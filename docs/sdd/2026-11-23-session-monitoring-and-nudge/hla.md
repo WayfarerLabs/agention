@@ -49,23 +49,26 @@ missing, every reading is unknown and no nudge is possible.
 ### Interfaces
 
 ```ts
-// One terminal pane. The tmux adapter implements it; tests use a real tmux server or a replay of
-// captured screens.
+// One terminal pane. The tmux adapter implements it; tests use a real tmux server or captured
+// screens. Delivery 2 adds paste(line) and key("Backspace" | "Enter").
 interface Pane {
-  snapshot(): Promise<Snapshot>;
-  paste(line: string): Promise<void>; // one line, no control characters, as a bracketed paste
-  key(key: "Backspace" | "Enter"): Promise<void>; // the only keys there are
+  snapshot(): Promise<Snapshot>; // rejects with PaneUnusable, or a tmux error, when unreadable
 }
 
 interface Snapshot {
   readonly lines: readonly string[]; // the visible screen, top to bottom
-  readonly cursor: { readonly x: number; readonly y: number; readonly visible: boolean };
   readonly width: number; // columns, since a capture trims trailing spaces
+  readonly cursor: { readonly x: number; readonly y: number; readonly visible: boolean };
   readonly hostHasTerminal: boolean; // the foreground process group is the pane's first process
-  readonly keysBlocked: boolean; // a mode, such as tmux's copy mode, keeps keys from the host
-  readonly lastTyped: number | undefined; // the latest key from any attached client, ms
   readonly onePane: boolean; // the server holds exactly one pane
   readonly at: number; // when it was taken, ms
+  // Delivery 2 adds keysBlocked (copy mode) and lastTyped (the latest key from any client).
+}
+
+// Why a pane cannot be used at all: no /proc, a tmux older than 3.3, or a pane whose first
+// process is not an ancestor of the process that asked (TmuxPane's requireAncestorOf option).
+class PaneUnusable extends Error {
+  readonly reason: "no-proc" | "old-tmux" | "not-ancestor";
 }
 
 // What one screen of a harness means. A pure function of one snapshot, tested against captures.
@@ -74,21 +77,14 @@ interface Profile {
   screen(snapshot: Snapshot): Screen;
 }
 
-type Screen =
-  | {
-      readonly kind: "permission-prompt" | "other-prompt" | "other";
-      readonly stoppedBy?: StoppedBy;
-    }
-  | { readonly kind: "input"; readonly input: InputLine; readonly stoppedBy?: StoppedBy };
-
-interface InputLine {
-  readonly text: string; // what follows the prompt marker on the cursor's row
-  readonly cursorAtEnd: boolean;
-  readonly room: number; // how many more characters fit on the row
+interface Screen {
+  readonly kind: "permission_prompt" | "other_prompt" | "input" | "other";
+  readonly stoppedBy?: StoppedBy;
+  // Delivery 2 adds the input line's text and room, for the nudge.
 }
 
 type StoppedBy =
-  | { readonly reason: "usage-limit"; readonly resetsAt?: Date }
+  | { readonly reason: "usage_limit"; readonly resetsAt?: Date }
   | { readonly reason: "block" }
   | { readonly reason: "error" };
 
@@ -99,8 +95,12 @@ interface HarnessProfiles {
   forVersion(version: string): Profile | undefined; // undefined below the oldest entry
 }
 
+// The registry: every profile's name, and the choice by name or by the MCP client.
+declare const profileNames: readonly string[];
+declare function selectProfile(name: string, client: HarnessClient | undefined): Profile;
+
 type Condition =
-  "unknown" | "permission-prompt" | "other-prompt" | "running" | "at-prompt" | "waiting";
+  "unknown" | "permission_prompt" | "other_prompt" | "running" | "at_prompt" | "waiting";
 
 interface Observation {
   readonly condition: Condition;
@@ -108,27 +108,23 @@ interface Observation {
   readonly stoppedBy?: StoppedBy;
 }
 
-type NudgeOutcome = { readonly sent: true } | { readonly sent: false; readonly step: NudgeStep };
-type NudgeStep = "not-ready" | "warning" | "cleared" | "message" | "submitted";
-
 interface Observer {
   observations(signal: AbortSignal): AsyncIterable<Observation>; // yields on change
-  nudge(texts: { warning: string; message: string }): Promise<NudgeOutcome>;
+  // Delivery 2 adds nudge({ warning, message }): Promise<NudgeOutcome>.
 }
 ```
 
 `Pane` is the seam to the terminal and `Profile` the seam to the harness: supporting a harness, or a
 version whose screens changed, adds a `HarnessProfiles` entry and its captures and touches nothing
-else (M5). A registry maps harness names to their profiles; the bridge picks with `auto` (below) or
-the configured name.
+else (M5). The conditions are spelled as the agent API spells them, so the bridge passes them on
+unchanged.
 
 ### Reading
 
 - **Sampling.** One snapshot a second: one tmux client call, `capture-pane -p` chained with
-  `display-message -p` for the cursor and mode formats, plus `list-panes -a` for the pane count,
-  `list-clients` for the latest key from any attached client, and `/proc/<pane_pid>/stat` for the
-  foreground process group. The observer keeps a few seconds of snapshots, and `observations` yields
-  only when the condition or stopped-by reason changes (C2).
+  `display-message -p` for the cursor and pane formats and `list-panes -a` for the pane count, and
+  `/proc/<pane_pid>/stat` for the foreground process group. The observer keeps a few seconds of
+  snapshots, and `observations` yields only when the condition or stopped-by reason changes (C2).
 - **The condition, in M3's order**, which the observer applies once for every profile: **unknown**
   when the snapshot fails, the server holds more than one pane or the host lacks the terminal; the
   profile's **permission prompt** or **other prompt**, from one screen; **running** when the screen
@@ -215,9 +211,10 @@ saved cursor and `claude-code` gate do not carry over.
 
 - **`GET .../monitor`**, a long poll reusing the wait's machinery: it answers after 25 seconds, or
   at once with `replaced`. It never marks the session checked in.
-- **`POST .../monitor`**: whether a pane is monitored, the profile's name, the condition and since
-  when, and the stopped-by reason with its reset time. Every field is a schema-checked enumeration,
-  boolean or time; there is no free text (M8). A report replaces the last.
+- **`POST .../monitor`**, numbered by the bridge so a late report never replaces a newer one:
+  whether a pane is monitored, the profile's name, the condition and since when, and the stopped-by
+  reason with its reset time. Every field is a schema-checked enumeration, boolean or time; there is
+  no free text (M8). A report replaces the last.
 - **`POST /registrations`** gains a `background` flag; the reporter's pending reads set it, so
   approval marks the session connected, never checked in.
 - **Every other approved request is the agent checking in** (M2), as today's last seen is.
