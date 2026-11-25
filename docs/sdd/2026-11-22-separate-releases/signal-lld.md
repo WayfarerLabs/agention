@@ -53,10 +53,10 @@ speaking is part of it.
 The version is the one the mount's first middleware read. That middleware parses the header
 (`apps/server/src/http/agent-api-version.ts:23-24`) through `agentApiVersion`, a missing header
 reading as 1 (`packages/api/src/agent-api.ts:20-24`), and refuses anything outside `oldest` to
-`version` before authentication (`agent-api-version.ts:28-42`). One new function there,
-`statedAgentApiVersion(c)`, reads it for both the middleware and `seen`, so the version recorded is
-the version checked. Only served versions reach `markSeen`, so the value fits an integer and is
-passed as one.
+`version` before authentication (`agent-api-version.ts:28-42`). Since agention#148 that middleware
+puts the version it served on the request's context (`agentApiVersion`), and `seen` takes it from
+there, so the version recorded is the version checked. Only served versions reach `markSeen`, so the
+value fits an integer and is passed as one.
 
 A session that two bridges share (`apps/bridge/src/session.ts:64-67`) records whichever called last;
 if they speak different versions, each change of speaker writes once. That is what the session's

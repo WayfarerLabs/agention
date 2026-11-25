@@ -771,7 +771,7 @@ describe("a write's status", () => {
   it("is working once an idle session writes, from a bridge of any version served", async () => {
     for (const version of [undefined, String(agentApi.version - 1)]) {
       await status({ state: "idle", note: "Waiting." });
-      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const headers = { [agentApiHeader]: version };
       const created = await harness.agent(
         approved,
         "POST",
