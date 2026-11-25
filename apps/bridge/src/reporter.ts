@@ -358,11 +358,11 @@ export class Reporter {
   // claim again while it fails in a way that may pass, and reads the pane
   // again once the claim is answered. A nudge the server does not let go
   // ahead is not tried, and one it claimed is logged by its step alone,
-  // never its text, and its outcome sent. Where a claim may have reached the
-  // server before one it answered no, that claim's nudge is sent as not
-  // sent, since nothing was typed for it. The signal ends the tries, and
-  // stops a nudge under way without another key, since another bridge may
-  // be nudging the session now.
+  // never its text, and its outcome sent. Where a claim was sent again,
+  // since one that failed may have reached the server, and is answered no,
+  // that claim's nudge is sent as not sent, since nothing was typed for it.
+  // The signal ends the tries, and stops a nudge under way without another
+  // key, since another bridge may be nudging the session now.
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
     try {
       while (this.#due && !signal.aborted && !this.#nudgeOff) {
@@ -397,7 +397,7 @@ export class Reporter {
   // that doubles while it fails to reach the server or the server fails on
   // or rate limits it, until the server answers or refuses it or the signal
   // aborts. It says whether the server answered go, and whether a request
-  // before the answer failed where the server may have taken it. One the
+  // before the answer failed, which the server may have taken. One the
   // server answers as replaced stops this bridge acting, as a report does.
   // A refusal as invalid input turns nudging off; any other refusal, such as
   // a credential no longer approved, is the poll's to deal with.
@@ -424,7 +424,7 @@ export class Reporter {
         if (signal.aborted || refused !== undefined) {
           return { go: false, maybeTaken };
         }
-        maybeTaken ||= !rateLimited(error);
+        maybeTaken = true;
         await pause(backoff.next(), signal);
       }
     }
@@ -586,8 +586,8 @@ export class Reporter {
 }
 
 // How the server answered a nudge's claim or outcome: whether the bridge may
-// go ahead, and whether a request before the answer failed where the server
-// may have taken it.
+// go ahead, and whether a request before the answer failed, which the server
+// may have taken.
 interface NudgeAnswer {
   go: boolean;
   maybeTaken: boolean;
@@ -622,12 +622,6 @@ class Backoff {
 // timer never holds the process open.
 async function pause(milliseconds: number, signal: AbortSignal): Promise<void> {
   await delay(milliseconds, undefined, { signal, ref: false }).catch(() => undefined);
-}
-
-// rateLimited says whether a failure is the server's rate limit, which it
-// answers without taking the request.
-function rateLimited(error: unknown): boolean {
-  return error instanceof ApiFailure && error.body.error.code === "rate_limited";
 }
 
 // refusalOf is the code of a failure that refuses a report for good: an
