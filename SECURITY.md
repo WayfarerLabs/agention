@@ -316,13 +316,13 @@ sends only what its tools are given.
   submits. Nothing from the server, a message or the screen reaches either, so no one's text reaches
   the agent's prompt through a nudge. Text reaches the pane only as a paste, through a tmux buffer
   of the bridge's own, of printable ASCII alone, and the only keys are Backspace, to remove its own
-  text, and Enter, to submit its message, each straight after a reading that confirmed the session
-  at rest at its prompt, holding exactly what the nudge put there, with no one having typed for ten
-  seconds and keys reaching the harness. Anyone at the terminal stops a nudge by typing over its
-  warning, and a bridge another has taken over from sends no key more. The screen can imitate a
-  prompt, so a nudge's checks narrow what a key can reach to an input line that looked like one the
-  moment before, and are no boundary against whatever runs in the pane. The bridge logs the step a
-  nudge stopped at, never a text.
+  text, and Enter, to submit its message, each straight after a reading that confirmed the input
+  line holds exactly what the nudge put there, in a pane that takes keys; a nudge starts only with
+  the session at rest at its prompt and once no one has typed for ten seconds. Anyone at the
+  terminal stops a nudge by typing over its warning, and a bridge another has taken over from sends
+  no key more. The screen can imitate a prompt, so a nudge's checks narrow what a key can reach to
+  an input line that looked like one the moment before, and are no boundary against whatever runs in
+  the pane. The bridge logs the step a nudge stopped at, never a text.
 - **Files it reads.** `file_upload` reads only the path the agent gives it, as the user the bridge
   runs as, and refuses anything but a regular file, a file over 100 MiB, and anything whose real
   path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a

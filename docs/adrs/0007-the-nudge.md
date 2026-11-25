@@ -51,11 +51,11 @@ every check that can be made before each key.
   screen reaches either, so a nudge cannot carry an instruction; what the operator wrote reaches the
   agent only through Agention's tools, as before.
 - **Only at a still prompt, and the person at the terminal can stop it.** The harness observer's
-  nudge sends keys only when its latest observation finds the harness at its prompt, not stopped by
-  a usage limit yet to reset, holding the terminal, with keys reaching it, no key typed by any
-  client for ten seconds, and an empty input line with the cursor at its end and room for the longer
-  text. It nudges only through a profile that knows its harness's prompt marker: a generic profile
-  reads the cursor's whole row as the input line, so it cannot tell a draft the operator left at the
+  nudge starts only when its latest observation finds the harness at its prompt, not stopped by a
+  usage limit yet to reset, holding the terminal, with keys reaching it, no key typed by any client
+  for ten seconds, and an empty input line with the cursor at its end and room for the longer text.
+  It nudges only through a profile that knows its harness's prompt marker: a generic profile reads
+  the cursor's whole row as the input line, so it cannot tell a draft the operator left at the
   prompt from an empty prompt, and a nudge there would submit the draft with the message appended,
   so the bridge reports a session read with one as one it cannot nudge. Once ready, the observer has
   the bridge claim the nudge, and reads the pane again to find the same screen. It pastes the
