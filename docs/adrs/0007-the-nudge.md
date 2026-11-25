@@ -64,9 +64,9 @@ every check that can be made before each key.
   message, checks it, and submits it, then watches the harness take it. Its only keys are Backspace,
   to remove its own text, and Enter, to submit its own message, each straight after a reading
   confirmed the line holds exactly what it expects; text reaches the pane only as a paste, which
-  refuses control characters. Where reading or writing the pane fails, it makes one try at removing
-  its own text, where the line holds exactly it and no one has typed; a bridge another has taken
-  over from sends no key more.
+  refuses control characters. Where reading or writing the pane fails, it stops as a failed check at
+  that step does: the warning stays, and the message is removed where the line still holds exactly
+  it; a bridge another has taken over from sends no key more.
 - **Watched, and the outcome reported.** Once a nudge it claimed ends, the bridge sends whether it
   was sent, again until it reaches the server, and logs the step a nudge stopped at, never a text.
   The server fills it in only where the latest claim has none yet, and stamps the agent's next

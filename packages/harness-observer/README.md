@@ -111,10 +111,10 @@ this order:
 
 `signal` stops it: once it aborts, nothing more reaches the pane, not even a key that would remove
 the nudge's own text, as suits a caller that another has taken over from. Where reading or writing
-the pane fails, or the profile fails on a screen, the nudge stops at the step it reached and makes
-one try at removing its own text: only where a fresh reading shows the line holding exactly it, in a
-pane that takes keys, with no key typed since the nudge began. A failure of that try changes nothing
-of the outcome.
+the pane fails, or the profile fails on a screen, the nudge stops as a failed check at the step it
+reached does: the warning stays, and the message is removed where a fresh reading shows the line
+holding exactly it, in a pane that takes keys. A failure of that removal changes nothing of the
+outcome.
 
 Its guarantees:
 

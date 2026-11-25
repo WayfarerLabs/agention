@@ -1505,7 +1505,10 @@ there and submits it, and checks that the host took it. It presses no key but Ba
 its own text, and Enter, to submit its message, and puts text in the pane only as a paste. A nudge
 that fails partway, such as one in Claude Code's vim normal mode, where Backspace moves the cursor
 rather than deleting, leaves what it could not remove in the input line, never submitted; where its
-terminal failed, it removes its own text if the line still holds exactly that and no one has typed.
+terminal failed, it stops as a failed check at that step would: the warning stays, and the message
+is removed if the line still holds exactly that. A bridge that another takes over from, or that
+closes, mid-nudge presses no key more, so it can leave the warning, or the message not yet
+submitted, in the input line, and no further nudge comes until you clear the line.
 
 A session is nudged at most once until its agent next checks in, whether that nudge was sent or not.
 Check-ins count to the minute, so an agent that checks in within a minute after you write, without

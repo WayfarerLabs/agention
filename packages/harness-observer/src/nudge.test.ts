@@ -271,7 +271,7 @@ describe("nudge", () => {
     }
   });
 
-  it("sends nothing more once its signal aborts, at every write, and nothing to tidy up", async () => {
+  it("sends nothing more once its signal aborts, at every write, not even to remove its text", async () => {
     const whole = new FakePane(new FakeClock());
     await nudge(whole);
     const total = whole.writes.length;
@@ -510,30 +510,49 @@ describe("nudge", () => {
     expect(pane.text).toBe("");
   });
 
-  it("removes its own text once after a failure, where the line holds just it", async () => {
+  it("leaves the warning where the pane fails during its wait, as a failed check there does", async () => {
     const pane = new FakePane(new FakeClock());
     pane.clock.during = (ms) => ms === warnFor && (pane.failNext = 1);
-    expect(await nudge(pane)).toEqual({ sent: false, step: "warning" });
-    expect(pane.text).toBe("");
-    expect(pane.writes.map(({ text: _, ...write }) => write)).toEqual([
-      { kind: "paste", line: texts.warning },
-      ...backspaces(texts.warning.length),
-    ]);
-    expectConfirmedWrites(pane.log);
-  });
-
-  it("removes nothing after a failure where someone typed since the nudge began", async () => {
-    const pane = new FakePane(new FakeClock());
-    pane.clock.during = (ms) => {
-      if (ms === warnFor) {
-        pane.failNext = 1;
-        pane.lastTyped = pane.clock.now();
-      }
-    };
     expect(await nudge(pane)).toEqual({ sent: false, step: "warning" });
     expect(pane.text).toBe(texts.warning);
     expect(pane.writes).toHaveLength(1);
   });
+
+  it.each([
+    ["message", 0],
+    ["submitted", 1],
+  ] as const)(
+    "removes the message where the pane fails at %s, as a failed check there does, though a key was typed",
+    async (step, fine) => {
+      const pane = new FakePane(new FakeClock());
+      const paste = pane.paste.bind(pane);
+      pane.paste = async (line) => {
+        await paste(line);
+        if (line === texts.message) {
+          // A key that changes nothing, after the readings that go well.
+          const snapshot = pane.snapshot.bind(pane);
+          let left = fine;
+          pane.snapshot = async () => {
+            if (left-- === 0) {
+              pane.lastTyped = pane.clock.now();
+              pane.snapshot = snapshot;
+              throw new Error("the pane cannot be read");
+            }
+            return snapshot();
+          };
+        }
+      };
+      expect(await nudge(pane)).toEqual({ sent: false, step });
+      expect(pane.text).toBe("");
+      expect(pane.writes.map(({ text: _, ...write }) => write)).toEqual([
+        { kind: "paste", line: texts.warning },
+        ...backspaces(texts.warning.length),
+        { kind: "paste", line: texts.message },
+        ...backspaces(texts.message.length),
+      ]);
+      expectConfirmedWrites(pane.log);
+    },
+  );
 
   it("reports the failure it stopped for where removing its text fails too", async () => {
     const pane = new FakePane(new FakeClock());

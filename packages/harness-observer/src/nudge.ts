@@ -28,8 +28,8 @@ export interface NudgeOptions {
 // "message" and, before Enter, "submitted" removed the message where it was
 // still exactly as pasted and left it otherwise; and "submitted" after Enter
 // saw no sign the harness took the message. A nudge that a failure or the
-// signal stopped ends at the step it reached; after a failure it removes its
-// own text where a fresh reading shows the line holding exactly it.
+// signal stopped ends at the step it reached, as a failed check there does,
+// except that a stopped nudge sends nothing more.
 export type NudgeOutcome =
   { readonly sent: true } | { readonly sent: false; readonly step: NudgeStep };
 
@@ -82,9 +82,6 @@ export class Nudge {
   readonly #signal: AbortSignal;
   // When a client last typed as the nudge started, which must stay so.
   #typed: number | undefined;
-  // The nudge's own text the line should hold now, whole, if any: set before
-  // each paste and cleared once removing or submitting it starts.
-  #onLine: string | undefined;
 
   constructor(pane: Pane, profile: Profile, clock: Clock, signal: AbortSignal) {
     this.#pane = pane;
@@ -100,6 +97,9 @@ export class Nudge {
   ): Promise<NudgeOutcome> {
     const { warning, message } = texts;
     let step: NudgeStep = "not-ready";
+    // Whether the message may be on the line, not yet submitted: from its
+    // paste until Enter.
+    let messageIn = false;
     try {
       const ready = await this.#ready(latest, Math.max(warning.length, message.length));
       if (ready === undefined || !(await begin()) || !(await this.#stillReady(ready))) {
@@ -118,34 +118,32 @@ export class Nudge {
       }
 
       step = "cleared";
-      this.#onLine = undefined;
       if (!(await this.#erase(warning, true))) {
         return { sent: false, step };
       }
 
       step = "message";
+      messageIn = true;
       await this.#paste(message);
       const confirmed = await this.#confirm(message, true);
       if (confirmed === undefined) {
-        await this.#removeIfThere(message, false);
-        return { sent: false, step };
+        return await this.#abandon(step, message);
       }
 
       step = "submitted";
       const before = await this.#still(confirmed, message);
       if (before === undefined) {
-        await this.#removeIfThere(message, false);
-        return { sent: false, step };
+        return await this.#abandon(step, message);
       }
-      this.#onLine = undefined;
+      messageIn = false;
       await this.#key("Enter");
       return (await this.#taken(before)) ? { sent: true } : { sent: false, step };
     } catch {
       // The pane could not be read or written, the profile failed on a
       // screen, which is untrusted input, or the signal stopped the nudge:
-      // it stops where it was, removing its own text where it still can.
-      await this.#tidy();
-      return { sent: false, step };
+      // it stops as a failed check at its step does, so the warning stays
+      // and the message goes where it is still exactly there.
+      return messageIn ? await this.#abandon(step, message) : { sent: false, step };
     }
   }
 
@@ -212,7 +210,6 @@ export class Nudge {
   // nudge, when they throw instead.
   async #paste(text: string): Promise<void> {
     this.#signal.throwIfAborted();
-    this.#onLine = text;
     await this.#pane.paste(text);
   }
 
@@ -274,32 +271,22 @@ export class Nudge {
     return true;
   }
 
-  // removeIfThere removes a text of the nudge's own where a fresh reading
-  // shows the line holding exactly it. Where untyped is false, someone having
-  // typed since the nudge started does not stop this, since the text is the
-  // nudge's own and the line is confirmed before each Backspace.
-  async #removeIfThere(text: string, untyped: boolean): Promise<void> {
-    this.#onLine = undefined;
-    const look = await this.#look();
-    if (look !== undefined && this.#holds(look, text, untyped)) {
-      await this.#erase(text, untyped);
-    }
-  }
-
-  // tidy makes one try, after a failure, at removing the nudge's own text
-  // where the line still holds it whole and no one has typed since the nudge
-  // started. A failure of its own changes nothing, and a stopped nudge sends
-  // nothing more.
-  async #tidy(): Promise<void> {
-    const text = this.#onLine;
-    if (text === undefined || this.#signal.aborted) {
-      return;
-    }
+  // abandon ends the nudge at a step after its message went in and before
+  // Enter, removing the message where a fresh reading shows the line holding
+  // exactly it. Someone having typed since the nudge started does not stop
+  // this, since the text is the nudge's own and the line is confirmed before
+  // each Backspace. A failure of its own changes nothing of the outcome, and
+  // a stopped nudge sends nothing more.
+  async #abandon(step: NudgeStep, message: string): Promise<NudgeOutcome> {
     try {
-      await this.#removeIfThere(text, true);
+      const look = await this.#look();
+      if (look !== undefined && this.#holds(look, message, false)) {
+        await this.#erase(message, false);
+      }
     } catch {
-      // Best effort: the failure the nudge stopped for is the one it reports.
+      // The failure the nudge stopped for, if any, is the one it reports.
     }
+    return { sent: false, step };
   }
 
   // taken reads the pane, for submitWithin at most, until the input line is
