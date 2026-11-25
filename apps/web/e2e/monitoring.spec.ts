@@ -8,8 +8,9 @@
 // header, whose count lists just that session, its chip removing the filter,
 // at a phone's width too; and a thread stranded on a session at a prompt,
 // whose reason names its condition on the thread list, on the thread and in
-// the new-thread sheet; and a session that can be nudged, whose nudge was not
-// sent, showing it on its line and stranding the thread written to it.
+// the new-thread sheet; and a session that can be nudged, whose nudge its
+// bridge claimed and did not send, showing it on its line and stranding the
+// thread written to it.
 import type { BrowserContext, Page } from "@playwright/test";
 import {
   agentApi,
@@ -240,15 +241,15 @@ test("a session whose nudge was not sent shows it, and strands the thread writte
   await page.reload();
   await expect(page.locator(".thread-header .stranded")).toHaveCount(0);
 
-  // The bridge is told a nudge is due, and reports that it was not sent.
+  // The bridge is told a nudge is due, claims it, and says it was not sent.
   const path = `/s/builder/review/monitor?bridge=${sessions.review.bridge}`;
   const polled = await agent.send<{ nudge: boolean }>("GET", `${path}&wait=0`);
   expect(polled.body.nudge).toBe(true);
-  const reported = await agent.send("POST", `${path}&seq=${Date.now()}`, {
-    ...canBeNudged(),
-    last_nudge: { at: new Date().toISOString(), sent: false },
-  });
-  expect(reported.status).toBe(200);
+  const claim = `/s/builder/review/monitor/nudge?bridge=${sessions.review.bridge}`;
+  const claimed = await agent.send<{ go: boolean }>("POST", claim, { phase: "start" });
+  expect(claimed.body.go).toBe(true);
+  const done = await agent.send("POST", claim, { phase: "done", sent: false });
+  expect(done.status).toBe(200);
   await page.reload();
   await expect(page.locator(".thread-header .stranded")).toBeVisible();
 

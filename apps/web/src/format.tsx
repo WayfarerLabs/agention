@@ -242,16 +242,15 @@ export type Absence = (
   | { kind: "quiet"; last_seen_at: string | undefined }
   | { kind: "credential" }
   | { kind: "disconnected" }
-  | { kind: "unresponsive"; at: string }
-  | { kind: "unsent"; at: string }
+  | { kind: "nudge"; nudge: NudgeState }
   | { kind: "no_nudge" }
 ) & { observed?: Observed | undefined };
 
 // absenceOf says why a session is not likely to see what the operator writes
 // until something starts it again, if it is not. A session its bridge can
 // nudge is away only once that will not bring it: it has no active
-// credential; or its latest nudge has had no check-in since, sent, so it is
-// not responding to the nudge, or not sent; or, of a stranded thread, no
+// credential; or its latest nudge has had no check-in since, whether sent,
+// so it is not responding to the nudge, or not sent; or, of a stranded thread, no
 // nudge came, as when its terminal never showed it ready. Waiting at its
 // prompt, quiet or stopped, it is not away, since the nudge will bring it.
 // Any other session is away when it stopped, with its outcome; or it is
@@ -269,7 +268,7 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
       return { kind: "credential", ...beside };
     }
     if (nudge !== undefined && !nudge.answered) {
-      return { kind: nudge.sent ? "unresponsive" : "unsent", at: nudge.at, ...beside };
+      return { kind: "nudge", nudge, ...beside };
     }
     return session.stranded === true ? { kind: "no_nudge", ...beside } : undefined;
   }
@@ -306,9 +305,8 @@ function absenceWhyWords(absence: Absence): string {
       return "no active credential";
     case "disconnected":
       return "not connected";
-    case "unresponsive":
-    case "unsent":
-      return nudgeWords({ at: absence.at, sent: absence.kind === "unresponsive", answered: false });
+    case "nudge":
+      return nudgeWords(absence.nudge);
     case "no_nudge":
       return "not nudged";
   }
@@ -362,16 +360,14 @@ function AbsenceWhy({ absence }: { absence: Absence }) {
       return <>it has no active credential</>;
     case "disconnected":
       return <>its bridge is not connected</>;
-    case "unresponsive":
-      return (
+    case "nudge":
+      return absence.nudge.sent ? (
         <>
-          it is not responding to the nudge at <Since value={absence.at} />
+          it is not responding to the nudge at <Since value={absence.nudge.at} />
         </>
-      );
-    case "unsent":
-      return (
+      ) : (
         <>
-          its nudge at <Since value={absence.at} /> was not sent
+          its nudge at <Since value={absence.nudge.at} /> was not sent
         </>
       );
     case "no_nudge":

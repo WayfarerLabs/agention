@@ -176,12 +176,10 @@ describe("why a session that can be nudged is away", () => {
   });
 
   it("is for a latest nudge with no check-in since, sent or not", () => {
-    expect(away({}, { at, sent: true, answered: false })).toEqual({
-      kind: "unresponsive",
-      at,
-      observed: canBeNudged,
-    });
-    expect(away({}, { at, sent: false, answered: false })).toMatchObject({ kind: "unsent", at });
+    for (const sent of [true, false]) {
+      const nudge = { at, sent, answered: false };
+      expect(away({}, nudge)).toEqual({ kind: "nudge", nudge, observed: canBeNudged });
+    }
   });
 
   it("says none came for a stranded thread, and puts a missing credential first", () => {

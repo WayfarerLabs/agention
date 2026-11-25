@@ -54,8 +54,7 @@ const awaited: Record<Absence["kind"], string> = {
   quiet: "soon",
   credential: "until you approve a registration for it",
   disconnected: "until its bridge connects again",
-  unresponsive: "until it checks in",
-  unsent: "until it checks in",
+  nudge: "until it checks in",
   no_nudge: "soon",
 };
 
