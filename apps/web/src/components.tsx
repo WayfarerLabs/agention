@@ -166,7 +166,7 @@ export function ThreadTitle({ thread }: { thread: { number: number; title: strin
 // in "agents".
 export function LeftOut({ items }: { items: string }) {
   return (
-    <p className="muted">
+    <p className="muted left-out">
       Only the first {maxListed} {items} are listed.
     </p>
   );

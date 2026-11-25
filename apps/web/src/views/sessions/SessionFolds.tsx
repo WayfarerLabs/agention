@@ -224,13 +224,26 @@ export function SessionFolds({
       hush();
     }
   }, [moving, hush]);
-  if (view.needsYou && !agents.some((entry) => entry.sessions.some(sessionNeedsYou))) {
-    // A list cut short may have left out sessions that need the operator.
+  // Under the filter, an agent that left sessions out and shows no row has
+  // no header to say so beneath, so the view says it after everything it
+  // shows, as LoneSessions does for every such agent.
+  const needing = (entry: Agents[number]) => entry.sessions.some(sessionNeedsYou);
+  const leftOut = (entries: Agents) =>
+    entries
+      .filter((entry) => entry.truncated)
+      .map((entry) => <LeftOut key={entry.agent} items={`sessions of ${entry.agent}`} />);
+  if (view.needsYou && !agents.some(needing)) {
+    // A list cut short may have left out sessions that need the operator,
+    // and says which agents did, as the view's own note says it left out
+    // agents.
     return truncated || agents.some((entry) => entry.truncated) ? (
-      <p className="empty">
-        None of the sessions listed needs you now: none is at a permission prompt or another prompt,
-        or stopped by something. Some sessions were left out.
-      </p>
+      <>
+        <p className="empty">
+          None of the sessions listed needs you now: none is at a permission prompt or another
+          prompt, or stopped by something. Some sessions were left out.
+        </p>
+        {leftOut(agents)}
+      </>
     ) : (
       <p className="empty">
         No session needs you now: none is at a permission prompt or another prompt, or stopped by
@@ -238,8 +251,17 @@ export function SessionFolds({
       </p>
     );
   }
+  const hidden =
+    view.needsYou && arranged.kind !== "sessions"
+      ? leftOut(agents.filter((entry) => !needing(entry)))
+      : [];
   if (arranged.kind === "agents") {
-    return <AgentFolds agents={arranged.agents} {...handlers} />;
+    return (
+      <>
+        <AgentFolds agents={arranged.agents} {...handlers} />
+        {hidden}
+      </>
+    );
   }
   if (arranged.kind === "sessions") {
     return <LoneSessions sessions={arranged.sessions} agents={agents} {...handlers} />;
@@ -291,6 +313,7 @@ export function SessionFolds({
           />
         );
       })}
+      {hidden}
     </>
   );
 }

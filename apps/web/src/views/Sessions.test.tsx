@@ -613,31 +613,54 @@ describe("monitoring", () => {
     expect(chip()).toBeNull();
   });
 
-  // What the agents' section says when it shows no agent.
-  const emptyAgents = () =>
-    within(screen.getByRole("region", { name: "Agents" })).queryByText(/needs you now/)
-      ?.textContent;
+  // The agents' section, and the notes in it saying it left some out.
+  const agentsSection = () => screen.getByRole("region", { name: "Agents" });
+  const leftOutNotes = () => Array.from(agentsSection().querySelectorAll(".left-out"));
 
-  it("says so when no session needs the operator", async () => {
-    serve([agent("builder", [watched("main", observed("running"))])]);
-    renderAt("/sessions?needs_you=true");
-    await screen.findByRole("button", { name: "Remove filter: Needs you" });
-    expect(screen.queryByRole("button", { name: /^Agent builder/ })).toBeNull();
-    expect(emptyAgents()).toMatch(/^No session needs you now/);
+  it("says so when no session needs the operator, and also that some were left out when they were", async () => {
+    const said: (string | null | undefined)[] = [];
+    for (const truncated of [false, true]) {
+      serve([agent("builder", [watched("main", observed("running"))], truncated)]);
+      renderAt("/sessions?needs_you=true");
+      await screen.findByRole("button", { name: "Remove filter: Needs you" });
+      expect(screen.queryByRole("button", { name: /^Agent builder/ })).toBeNull();
+      const empty = agentsSection().querySelectorAll(".empty");
+      expect(empty).toHaveLength(1);
+      said.push(empty[0]?.textContent);
+      // Cut short, the view says which agent left sessions out.
+      expect([truncated, leftOutNotes().length]).toEqual([truncated, truncated ? 1 : 0]);
+      cleanup();
+    }
+    expect(said[0]).not.toBe(said[1]);
   });
 
-  it("says, when sessions were left out, only that none of those listed needs the operator", async () => {
-    serve([agent("builder", [watched("main", observed("running"))], true)]);
-    renderAt("/sessions?needs_you=true");
-    await screen.findByRole("button", { name: "Remove filter: Needs you" });
-    expect(emptyAgents()).toMatch(/^None of the sessions listed needs you now/);
+  it("still says an agent left sessions out when none it lists needs the operator", async () => {
+    // Grouped by agent, and folded under groups.
+    for (const path of ["/sessions?group=agent&needs_you=true", "/sessions?needs_you=true"]) {
+      await open(
+        [
+          agent("reviewer", [
+            { ...watched("asking", observed("permission_prompt")), group: { id: 3, name: "Work" } },
+          ]),
+          agent("builder", [watched("main", observed("running"))], true),
+        ],
+        path,
+      );
+      expect(screen.queryByRole("button", { name: /^Agent builder/ })).toBeNull();
+      const notes = leftOutNotes();
+      expect([path, notes.length]).toEqual([path, 1]);
+      expect(notes[0]?.textContent).toContain("builder");
+      cleanup();
+    }
   });
 
   it("counts, on a header that left sessions out, only that some need the operator", async () => {
     await open([agent("builder", [watched("asking", observed("permission_prompt"))], true)]);
     const flag = needsYouLink(bar(header("builder")));
-    expect(flag?.textContent).toBe("Needs you");
-    expect(flag?.getAttribute("aria-label")).toMatch(/^Sessions of builder need you/);
+    expect(flag).not.toBeNull();
+    // It flags them with no count.
+    expect(flag?.textContent).not.toMatch(/\d/);
+    expect(flag?.getAttribute("aria-label")).not.toMatch(/\d/);
   });
 
   it("counts on a group's head the sessions in it that need the operator", async () => {
