@@ -285,6 +285,30 @@ describe("grouped by topic", () => {
     expect(header("Agent builder").getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("selects from the header checkbox only the threads shown, none under a folded header", async () => {
+    serve(bySession);
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    renderAt("/?group=topic");
+    await screen.findByRole("heading", { name: titled("Auth one") });
+    fireEvent.click(header("Agent builder Session main"));
+    // The list reads the rows shown as the page changes, once the click is
+    // handled, as a browser does before the next one.
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all" }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: / selected$/ })).getByRole("button", {
+        name: "Mark read",
+      }),
+    );
+    await waitFor(() => expect(api.callsTo("POST", "/threads/actions")).toHaveLength(1));
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toMatchObject({
+      threads: [
+        { agent: "reviewer", session: "main", thread: 1 },
+        { agent: "builder", session: "side", thread: 1 },
+      ],
+    });
+  });
+
   it("says how many threads the list holds on the sheet's Show button", async () => {
     serve(bySession, [2]);
     renderAt("/?group=topic");
@@ -296,11 +320,12 @@ describe("grouped by topic", () => {
 
   it("archives the read threads loaded, whatever their group", async () => {
     serve(bySession);
-    api.on("POST", "/archives", { body: { archived: [], skipped: [] } });
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
     renderAt("/?group=topic");
     fireEvent.click(await screen.findByRole("button", { name: "Archive all read" }));
-    await waitFor(() => expect(api.callsTo("POST", "/archives")).toHaveLength(1));
-    expect(api.callsTo("POST", "/archives")[0]?.body).toEqual({
+    await waitFor(() => expect(api.callsTo("POST", "/threads/actions")).toHaveLength(1));
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read_and_archive",
       threads: [
         { agent: "builder", session: "main", thread: 3, through: 1 },
         { agent: "builder", session: "main", thread: 2, through: 1 },

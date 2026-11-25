@@ -84,6 +84,11 @@ export const shortcuts = {
     description: "Move to the previous thread that is unread or blocked on you",
   },
   openThread: { place: "Thread list", keys: ["o"], description: "Open the thread" },
+  toggleSelected: {
+    place: "Thread list",
+    keys: ["x"],
+    description: "Select or unselect the thread, to act on it with others",
+  },
   search: { place: "Thread list", keys: ["/"], description: "Search the threads" },
   backToList: { place: "Thread", keys: ["u", "Escape"], description: "Back to the thread list" },
   reply: { place: "Thread", keys: ["r"], description: "Write in the composer" },

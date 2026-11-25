@@ -21,6 +21,7 @@ import {
   type PullRequestLink,
   type Rollup,
   type SessionThreadsQuery,
+  type ThreadActionInput,
   type ThreadCounts,
   type ThreadFilters,
   threadFilters,
@@ -568,6 +569,60 @@ function totalOf(reach: Reach, query: ThreadFilters): number {
   return total;
 }
 
+// The list's position among every message: the latest message's position
+// in message_positions, which only grows. The operator's list answers with
+// it as as_of, and an action on every thread matching the list's filters
+// acts on nothing newer.
+const asOfList = "as_of";
+
+// asOf is where every message stands now, as the list hands it out.
+export function asOf(db: Database): string {
+  const { latest } = db
+    .prepare("SELECT COALESCE(max(pos), 0) AS latest FROM message_positions")
+    .get() as { latest: number };
+  return encodeCursor(asOfList, [latest]);
+}
+
+// readAsOf reads an as_of the list handed out, refusing anything else as
+// invalid_input on the field.
+export function readAsOf(text: string, field: string): number {
+  const [position] = decodeCursor(asOfList, text, ["number"], field) as [number];
+  return position;
+}
+
+// matchingThreads lists the threads the operator's list holds with the
+// filters given, across every session the identity reaches, by agent, session
+// and number, each through its latest message at or before the position
+// given, leaving out a thread with none: at most limit, and one more when it
+// holds more. The caller runs it in its transaction, having authorized the
+// identity.
+export function matchingThreads(
+  store: Store,
+  identity: Identity,
+  filters: ThreadFilters,
+  position: number,
+  now: number,
+  limit: number,
+): ThreadActionInput["threads"] {
+  const reach = reachOf(store, identity, now);
+  return listStatement(
+    reach.db,
+    `${threadsSeen(reached, leadOf(filters, defaultSort))}
+     SELECT * FROM (
+       SELECT th.agent_name AS agent, th.session_name AS session, th.number AS thread,
+         (SELECT max(p.seq) FROM message_positions p WHERE p.thread_id = th.id AND p.pos <= :as_of)
+           AS through
+       FROM seen th WHERE ${where(filters)}
+     ) WHERE through IS NOT NULL
+     ORDER BY agent, session, thread LIMIT :limit`,
+  ).all({
+    ...reach.scope,
+    ...parametersOf(filters, reach.viewing, now),
+    as_of: position,
+    limit: limit + 1,
+  }) as unknown as ThreadActionInput["threads"];
+}
+
 // countUnreadThreads counts the threads the operator's list holds with only
 // Unread on: those not archived for the viewer that hold an unread message.
 // The caller runs it in its transaction, having authorized the identity.
@@ -602,6 +657,7 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
     return {
       ...page,
       total,
+      as_of: asOf(db),
       ...(query.group === undefined ? {} : { groups: rollUpGroups(reach, query, query.group) }),
     };
   });

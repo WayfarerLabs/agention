@@ -500,6 +500,32 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
     through the latest message shown. Both say when more remain.
+  - **Selecting threads** acts on several at once. With a mouse or a trackpad, each row has a
+    checkbox at its start; on a phone or a tablet, hold a row down to select it, and then, while
+    anything is selected, a tap selects or unselects a row rather than opening it. `x` selects or
+    unselects the row that has focus. The checkbox above the list, **Select all**, selects every
+    thread shown, leaving out those under a folded header; once it has, while the list holds more, a
+    button beside it, such as **Select all 40 threads that match**, selects every thread the filters
+    keep, up to 500 at once, and another, such as **Select only the 25 shown**, goes back. While
+    anything is selected, the toolbar at the foot of the list says how many and offers **Mark
+    read**; **Mark unread**, which marks each thread unread from the agent's latest message, leaving
+    out a thread holding none, so the count it gives is of the threads now unread; **Mark read and
+    archive**, which keeps each thread holding an ask open to you as it was and says how many it
+    kept; and, while a thread selected holds an ask open to you, **Decline, mark read and archive**,
+    which first declines every such ask in messages of yours, up to ten answers to a message, which
+    the agent reads, then marks the thread read and archives it. Declining asks first: for the
+    threads selected, with how many asks and threads; for every thread that matches, with how many
+    of them hold an ask open to you, as the counts of the filters give it. An action on the threads
+    selected acts on at most 500 at once, each through the latest message the list showed; an action
+    on every thread that matches asks first, with how many, and acts on the threads the filters
+    keep, each through its latest message when the list was last loaded, leaving out a thread
+    started since; when the threads that match have changed in number since, as when a deadline
+    passed, it acts on none, and the list loads again and asks again. Either way a message that
+    arrived since stays unread and brings its thread back, and declining leaves as it was a thread
+    holding such a message, since you have not seen it. The status line says what the action did,
+    and the selection clears. **Done**, or `Esc` within the list, clears it too; with the question
+    open, `Esc` answers it with **Cancel**. The selection stays as the list refreshes and loads
+    more, and a thread that leaves the list leaves it.
 - **A thread** reads like an email. Its head starts with **Threads**, a button back to the list as
   you left it, with its filters, order and grouping, or with none when you opened the thread
   directly. Its heading leads with the thread's number, as a row's does. Under it, its agent,
@@ -915,6 +941,7 @@ anywhere to list them all.
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
 | The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
+| The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                 |
 | The thread list | `/`                         | Puts focus in the list's search box, selecting what it holds                                                              |
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |

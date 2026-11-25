@@ -9,7 +9,16 @@ import {
   type ThreadsView,
   threadSort,
 } from "@wayfarerlabs/agention-api";
-import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { changeLanded, query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
 import { useFollowing, usePages } from "../data.ts";
@@ -36,6 +45,8 @@ import { FilterSheet } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
 import { SearchBox, useSearchText } from "./list/search.tsx";
+import { ListSelection, useSelection } from "./list/selection.tsx";
+import { SelectHead, SelectionToolbar } from "./list/SelectionBar.tsx";
 import { useListShortcuts } from "./list/shortcuts.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
 
@@ -120,10 +131,10 @@ export function ThreadList() {
   // The search shortcut puts focus in the head's search box, which shows
   // wherever the list does, scrolling it into view, and selects what it
   // holds, so typing starts a new search rather than narrowing the one on.
-  useListShortcuts(() => {
+  const focusSearch = useCallback(() => {
     searchBox.current?.focus();
     searchBox.current?.select();
-  });
+  }, []);
   const filters = query(queryOf(view, threadFilters.shape));
   const counts = useFollowing(filters, sheetOpen, () =>
     request<ThreadCounts>("GET", `/threads/counts${filters}`),
@@ -225,6 +236,7 @@ export function ThreadList() {
         }}
         empty={on > 0 ? "No threads match these filters." : "No threads to show."}
         onTotal={onTotal}
+        onSearch={focusSearch}
       />
     </PaletteProvider>
   );
@@ -238,16 +250,21 @@ export function ThreadList() {
 // said goes as the page moves on, and it loads again on each return to it
 // from a thread, so a list gone back to is current, as one mounted afresh
 // would be, and as each change the page makes lands, such as the thread
-// beside it being read, besides its refresh.
+// beside it being read, besides its refresh. It holds the list's selection
+// (useSelection) and its keyboard shortcuts, among them the one that selects
+// a row; onSearch is what the search shortcut does. Escape within the list
+// clears the selection.
 function ListBody({
   list,
   empty,
   onTotal,
+  onSearch,
 }: {
   // The list on screen, which a grouped header's links choose changes to.
   list: ListShown;
   empty: string;
   onTotal: (total: number) => void;
+  onSearch: () => void;
 }) {
   const { view } = list;
   const [said, say] = useState("");
@@ -288,22 +305,67 @@ function ListBody({
       onTotal(data.total);
     }
   }, [data, onTotal]);
+  const body = useRef<HTMLDivElement>(null);
+  // The threads shown, by key: those loaded but for any under a folded
+  // header, which renders none. They are read from the rows on the page after
+  // every render, before anything can act on them, and as a header folds,
+  // which it does by its own state.
+  const [rendered, setRendered] = useState<readonly string[]>(noRows);
+  const readRendered = useCallback(() => {
+    const keys = Array.from(
+      body.current?.querySelectorAll<HTMLAnchorElement>("a.thread-link[data-thread]") ?? [],
+      (link) => link.dataset.thread ?? "",
+    );
+    setRendered((current) =>
+      current.length === keys.length && current.every((key, index) => key === keys[index])
+        ? current
+        : keys,
+    );
+  }, []);
+  useLayoutEffect(readRendered);
+  useLayoutEffect(() => {
+    const shownNow = body.current;
+    if (shownNow === null) {
+      return;
+    }
+    const observer = new MutationObserver(readRendered);
+    observer.observe(shownNow, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [readRendered]);
+  const selection = useSelection(shown?.rows ?? noRows, rendered);
+  useListShortcuts(onSearch, selection.toggle);
+  const selectAll = useRef<HTMLInputElement>(null);
+  // Where focus goes from the toolbar as it goes: the header checkbox, or
+  // where it is not shown, the page's heading.
+  const fallback = () =>
+    selectAll.current ?? body.current?.closest("main")?.querySelector<HTMLElement>("h1");
   return (
-    <>
+    <div
+      ref={body}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && selection.selecting && !event.defaultPrevented) {
+          event.preventDefault();
+          selection.clear();
+        }
+      }}
+    >
       <Status>{said}</Status>
       <Loadable data={shown} failure={pages.failure} retry={pages.refresh}>
-        {({ rows, next, groups }) =>
+        {({ rows, next, groups, total, as_of: asOf }) =>
           rows.length === 0 ? (
             <p className="empty">{empty}</p>
           ) : (
-            <>
-              <BulkActions
-                view={view}
-                threads={rows}
-                more={next !== undefined}
-                refresh={pages.refresh}
-                say={say}
-              />
+            <ListSelection.Provider value={selection}>
+              {!selection.selecting && (
+                <BulkActions
+                  view={view}
+                  threads={rows}
+                  more={next !== undefined}
+                  refresh={pages.refresh}
+                  say={say}
+                />
+              )}
+              <SelectHead selection={selection} total={total} checkbox={selectAll} />
               {view.group === undefined ? (
                 <ul className="threads">
                   {rows.map((thread) => (
@@ -318,10 +380,24 @@ function ListBody({
                 <GroupedRows threads={rows} groups={groups} grouping={view.group} list={list} />
               )}
               <MoreButton next={next} loading={pages.loading} more={pages.more} />
-            </>
+              {selection.selecting && (
+                <SelectionToolbar
+                  view={view}
+                  selection={selection}
+                  total={total}
+                  asOf={asOf}
+                  refresh={pages.refresh}
+                  say={say}
+                  fallback={fallback}
+                />
+              )}
+            </ListSelection.Provider>
           )
         }
       </Loadable>
-    </>
+    </div>
   );
 }
+
+// No rows, while the list loads, and none shown.
+const noRows: never[] = [];

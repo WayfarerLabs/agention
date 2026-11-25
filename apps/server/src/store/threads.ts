@@ -3,6 +3,7 @@ import {
   type Ask,
   type Answer,
   type Attachment,
+  maxAnswers,
   pageLimit,
   parseTimestamp,
   type Reference,
@@ -15,6 +16,7 @@ import {
   type WriteResult,
   type WriteStatus,
 } from "@wayfarerlabs/agention-api";
+import { randomUUID } from "node:crypto";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notAllowed, notFound } from "../errors.ts";
 import { authorize, type Identity } from "../identity.ts";
@@ -658,6 +660,46 @@ export function sendMessage(
     store.notifier.notify(outcome.sessionId);
   }
   return outcome.result;
+}
+
+// declineAsks appends messages from the identity declining the asks given,
+// in their order, at most maxAnswers to a message as any message holds, so
+// each stays one its author can replace, and returns the last one's
+// sequence. Its one caller, the operator's action on many threads
+// (thread-actions.ts), holds the transaction and guarantees what sendMessage
+// would check: it found the thread through an authorized session, the
+// identity is the thread's audience, which the operator always is, each ask
+// is open to it, and nothing is newer than the message it acts through, so
+// the declines answer only what the operator saw. It writes no status, which
+// only a session's own writes report or infer. Each message takes a request
+// id the server makes, as ADR 0001 records.
+export function declineAsks(
+  db: Database,
+  identity: Identity,
+  thread: StoredThread,
+  asks: readonly number[],
+  now: number,
+): number {
+  let seq = thread.last_seq;
+  for (let start = 0; start < asks.length; start += maxAnswers) {
+    const parts: Parts = {
+      answers: asks.slice(start, start + maxAnswers).map((ask) => ({ ask, declined: true })),
+    };
+    const digest = writeDigest(
+      "message_send",
+      { session: thread.session_id, thread: thread.number },
+      parts,
+    );
+    seq += 1;
+    appendMessage(db, thread, seq, identity, {
+      requestId: `bulk-${randomUUID()}`,
+      digest,
+      parts,
+      attachments: [],
+      now,
+    });
+  }
+  return seq;
 }
 
 // getThread reads a thread, a page of its messages, both parties' read

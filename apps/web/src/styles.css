@@ -1065,6 +1065,92 @@ button.picker[aria-expanded="true"] .icon {
   outline-offset: -2px;
 }
 
+/* Selecting threads (selection.tsx): a row's checkbox stands at its start,
+   level with its title, beside its link, whose own start padding it takes
+   the place of; the row of a thread selected is ringed in the accent. On a
+   touch screen a finger held on a row selects it, so the row's text is not
+   taken for text to select and the browser's own menu for the link stays
+   away. */
+.thread-row:has(> .row-select) {
+  display: flex;
+  align-items: flex-start;
+}
+
+.thread-row > .row-select {
+  margin: calc(var(--space-4) + 0.1rem) 0 0 var(--space-4);
+}
+
+.thread-row.unread > .row-select {
+  margin-left: calc(var(--space-4) - 3px);
+}
+
+.thread-row > .row-select + .thread-link {
+  flex: 1;
+  min-width: 0;
+  padding-left: var(--space-3);
+}
+
+.thread-row.selected {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+@media (pointer: coarse) {
+  .thread-link {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* The list's header checkbox, level with the rows', and the offer to select
+   every thread that matches beside it, wrapping below it on a phone. */
+.select-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.select-head .select-all {
+  padding-left: calc(var(--space-4) + 1px);
+}
+
+.select-banner p {
+  margin: 0;
+}
+
+/* The toolbar acting on the threads selected stays at the foot of the view
+   while the list scrolls beneath it, its actions wrapping where the width
+   does not hold them, so all of them stay on a phone's screen. */
+.selection-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--layer-sticky);
+  margin: var(--space-3) calc(-1 * var(--space-2)) 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.selection-count {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+.selection-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-muted);
+}
+
 /* Marks: an icon that says something, with a short text beside it. */
 .marks {
   display: inline-flex;
