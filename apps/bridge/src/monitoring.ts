@@ -231,8 +231,9 @@ async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
 // reportOf is the report of an observation: the profile's name, the
 // condition, since when, what stopped the harness, and whether the session
 // can be nudged: where the bridge nudges through the profile, whenever the
-// pane reads as anything but unknown. A reset time the agent API would not take, which a profile reads
-// from the screen, is left out rather than failing the report.
+// pane reads as anything but unknown. A reset time the agent API would not
+// take, which a profile reads from the screen, is left out rather than
+// failing the report.
 export function reportOf(
   profile: string,
   observation: Observation,

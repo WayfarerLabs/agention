@@ -135,8 +135,9 @@ export function connectedOf(sessions: string): string {
 // quiet or has stopped; and while it can be, once the latest nudge since the
 // earliest such message was not sent, or was sent, or its outcome is not
 // known, before the quiet cut-off with no check-in since, or, with none
-// claimed since, that message was written before the quiet cut-off. Last comes the operator's group for its
-// session, which only the operator's list shows.
+// claimed since, that message was written before the quiet cut-off. Last
+// comes the operator's group for its session, which only the operator's list
+// shows.
 //
 // scope reads the threads as t, their sessions as s and their agents as g.
 // Callers bind a ViewerAndCutoff and whatever lead's conditions name, and
