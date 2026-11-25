@@ -490,7 +490,7 @@ and leaves the others after them as they were; it never changes a thread's lead.
 thread's number, and across sessions first on the session, so the positions a session's own list
 gives out say nothing about other sessions. Lists page by keyset cursors, each bound to its order,
 its direction and its grouping, so a cursor another gave out is refused; a cursor is at most 1,024
-characters, room for a grouped list's position, four sets of keys. All of these keys change as
+characters, room for a grouped list's position, three sets of keys. All of these keys change as
 threads do, so a thread that changes between two pages can be skipped or repeated, and the next
 refresh shows it. Beside a page, the operator's list says how many threads it holds. Bulk read and
 archive take each thread through the message the list showed; bulk archive skips the threads holding
@@ -499,17 +499,17 @@ an ask open to the operator and names them.
 Each thread in the operator's list carries its session's group, which no agent's list shows. With
 `group`, the operator's list orders its threads by their group, then by the sort, so a group's
 threads arrive together: grouped by session group (`group=session_group`), each session's group, no
-group being one of its own, each session within it, and each topic within that, is placed by its
-first thread under the sort, reversed or not; grouped by session, each session, and each topic
-within it, likewise; grouped by agent, each agent, and each session within it, likewise. A group's
-place is its first thread's keys, which a cursor carries beside the thread's own. As a moved thread
-does in the flat list, a change that moves a group ahead of a page's cursor skips that group's
-remaining threads for the rest of that pass, and one that moves it behind repeats them; the next
-load from the first page shows the list whole, and the web UI reloads from the first page on every
-refresh. A group can therefore come in two runs. A change that moves a group's first thread moves
-the whole group, so while every thread the list keeps is in one session group, it can skip or repeat
-the rest of the pass. Every page of a grouped list carries the roll-up of each session holding a
-thread the list keeps, with its group, and, grouped by session group or by session, of each of its
+group being one of its own, and each session within it, is placed by its first thread under the
+sort, reversed or not; grouped by session, each session, likewise; grouped by topic, each session,
+and each topic within it, likewise; grouped by agent, each agent, and each session within it,
+likewise. A group's place is its first thread's keys, which a cursor carries beside the thread's
+own. As a moved thread does in the flat list, a change that moves a group ahead of a page's cursor
+skips that group's remaining threads for the rest of that pass, and one that moves it behind repeats
+them; the next load from the first page shows the list whole, and the web UI reloads from the first
+page on every refresh. A group can therefore come in two runs. A change that moves a group's first
+thread moves the whole group, so while every thread the list keeps is in one session group, it can
+skip or repeat the rest of the pass. Every page of a grouped list carries the roll-up of each
+session holding a thread the list keeps, with its group, and, grouped by topic, of each of its
 topics: how many threads, how many unread, whether any holds a blocking ask open to the caller, the
 highest priority of an open ask, and whether all are archived for the caller, and each session's
 presence: when it was last seen and whether it is quiet. `composeRollup` rolls up groups into the

@@ -297,11 +297,13 @@
             "name": "group",
             "in": "query",
             "required": false,
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups.",
             "schema": {
               "type": "string",
               "enum": [
                 "session_group",
                 "session",
+                "topic",
                 "agent"
               ]
             }
@@ -1519,11 +1521,13 @@
             "name": "group",
             "in": "query",
             "required": false,
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups.",
             "schema": {
               "type": "string",
               "enum": [
                 "session_group",
                 "session",
+                "topic",
                 "agent"
               ]
             }

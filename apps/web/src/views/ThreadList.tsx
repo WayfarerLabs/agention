@@ -69,6 +69,7 @@ const directionLabel: Record<ThreadSort, [own: string, reversed: string]> = {
 const groupLabel: Record<ThreadGrouping, string> = {
   session_group: "Group",
   session: "Session",
+  topic: "Topic",
   agent: "Agent",
 };
 
