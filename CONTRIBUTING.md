@@ -365,9 +365,12 @@ minor version and `fix` bumps the patch version, so no change bumps the major ve
 maintainer cuts 1.0.0 deliberately, with a `Release-As: 1.0.0` footer on a commit to `main`.
 
 One version covers the server, the bridge and the plugins. The release pull request writes it
-everywhere it appears (the root and published `package.json` files, the lockfile, and the plugin
-definition and generated plugins, including the bridge's package spec), so never change a version by
-hand.
+everywhere it appears (the root and published `package.json` files, the lockfile, the plugin
+definition and generated plugins, including the bridge's package spec, and the operator guide's
+pinned commands), so never change a version by hand. In `docs/operator-guide.md` it rewrites the
+first version on each line between a `x-release-please-start-version` comment and the next
+`x-release-please-end`, so a pinned example goes in a code block or a link definition inside such a
+pair, one version to a line, and never in wrapped prose, which a longer version would rewrap.
 
 A pull request should:
 
