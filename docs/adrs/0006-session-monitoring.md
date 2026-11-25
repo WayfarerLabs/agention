@@ -62,8 +62,8 @@ without any access it lacks.
   host is under ADR 0001's trust model. Whatever runs in the pane draws the screen, so a screen can
   imitate a dialog, and any holder of the session's key, its agent included, can send a report or
   keep the session connected, as it can report its status. So monitoring reaches only the operator,
-  through the web UI and the operator API's session reads, never an agent, and informs without
-  authorizing or triggering anything.
+  through the web UI and the operator API's session and thread reads, never an agent, and informs
+  without authorizing or triggering anything.
 
 ## Consequences
 

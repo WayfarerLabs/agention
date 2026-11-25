@@ -411,19 +411,19 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     or not, and before all of it has loaded: how many threads, the closed envelope with how many are
     unread or the open envelope when none is, **Blocked on you** when an agent's ask blocks its work
     on your answer, the highest priority of an open ask, the archive box when all are archived, and,
-    in the warning's color on a session's or an agent's header while it is quiet, **last seen** and
-    when, or **never seen** (an agent is quiet while every session it shows is). A session group's
-    header adds up its sessions'. A header's name, and each of those marks a filter matches, is a
-    link that adds what the header heads (its group, session, topic or agent) and the mark's own
-    filter to the filters on, keeping the others, the order and the grouping: the name and the count
-    keep all its threads, the envelope its unread ones, **Blocked on you** those blocking an agent
-    on your answer, and the priority those with an ask at that priority or higher. While a filter on
-    open asks is on, **Blocked on you** and the priority link nowhere, since they count every open
-    ask of the threads shown while those filters keep a thread for one ask meeting them all. **No
-    topic**, which no filter names, the archive box and **last seen** link nowhere. The chevron
-    before a header's name collapses everything under it or expands it again, as a click anywhere
-    else on the header does but on a link. Every header starts expanded, and this browser keeps the
-    ones you collapse, for each way of grouping, a session group's however you rename it.
+    in the warning's color on a session's or an agent's header while it is quiet, **last check-in**
+    and when, or **never checked in** (an agent is quiet while every session it shows is). A session
+    group's header adds up its sessions'. A header's name, and each of those marks a filter matches,
+    is a link that adds what the header heads (its group, session, topic or agent) and the mark's
+    own filter to the filters on, keeping the others, the order and the grouping: the name and the
+    count keep all its threads, the envelope its unread ones, **Blocked on you** those blocking an
+    agent on your answer, and the priority those with an ask at that priority or higher. While a
+    filter on open asks is on, **Blocked on you** and the priority link nowhere, since they count
+    every open ask of the threads shown while those filters keep a thread for one ask meeting them
+    all. **No topic**, which no filter names, the archive box and **last check-in** link nowhere.
+    The chevron before a header's name collapses everything under it or expands it again, as a click
+    anywhere else on the header does but on a link. Every header starts expanded, and this browser
+    keeps the ones you collapse, for each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
@@ -499,11 +499,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     as the **Overdue** filter does, **Overdue since** then. Holding the pointer over the time shows
     it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
-    seen** when, or **never seen**; it has **no active credential**; or its bridge is **not
-    connected**. Where the session's bridge monitors its terminal, the tag also says what the
-    terminal shows, as the sessions view does, such as **last seen 14:02 · stopped at a permission
-    prompt**. A session with no active credential also shows its own tag, unless the stranded tag
-    already says so.
+    check-in** when, or **never checked in**; it has **no active credential**; or its bridge is
+    **not connected**. Where the session's bridge monitors its terminal, the tag also says what the
+    terminal shows, in the words of the sessions view's rows, such as **last check-in 14:02 ·
+    stopped at a permission prompt**. A session with no active credential also shows its own tag,
+    unless the stranded tag already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
@@ -514,8 +514,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   session and topic say where the thread is, and each opens the list narrowed to it alone, with no
   other filter on, showing everything there in the order and grouping you left the list in. Beneath,
   muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
-  thread says why its session has not read your latest messages: it stopped, and how, its agent was
-  last seen when, or never, or its bridge is not connected, with what its terminal shows where its
+  thread says why its session has not read your latest messages: it stopped, and how, its agent last
+  checked in when, or never, or its bridge is not connected, with what its terminal shows where its
   bridge monitors it; a session with no active credential says so in a notice under the head.
   **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread below**,
   arrow buttons beside **Threads**, **Archive all**, and **Jump to unread** while anything is unread
@@ -756,8 +756,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       **running**, **at its prompt**, **waiting** or **condition unknown**; **stopped at a
       permission prompt** or **stopped at another prompt**; or, where its profile can tell what
       stopped it, that first, with any prompt beside it, such as **stopped by a usage limit (resets
-      15:00), at its prompt**. A prompt, or something that stopped it, is in the warning's color,
-      since it needs you;
+      15:00), at its prompt**, or **(reset due 15:00)** once that time has passed. A permission
+      prompt or another prompt, or something that stopped it, is in the warning's color, since it
+      needs you;
     - **Last check-in** and when its agent last called Agention, or **Never checked in**, in the
       warning's color while the session is quiet and has not stopped, so a session can show
       **Connected, at its prompt since 14:02 · last check-in 11:40**: online, with an agent that has
@@ -840,12 +841,16 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
   - **Needs you**, the view's one filter, lists just the sessions whose terminal shows a permission
     prompt or another prompt, or something that stopped them, under their agents and groups as
-    **Sort** and **Group** arrange them; agents and groups with none such do not show. A row's
-    **Needs you** and a header's count of them turn it on, keeping the arrangement, and while it is
-    on, a **Needs you** chip under **Sort** and **Group** turns it off. The page's address keeps it,
-    as `/sessions?needs_you=true`, beside the arrangement. Only a session whose bridge monitors its
-    terminal can need you this way: an open ask that waits on you shows as **Blocked on you** or its
-    open asks, as above, whatever its terminal shows.
+    **Sort** and **Group** arrange them; agents and groups with none such do not show. It hides rows
+    and nothing else: an agent's header and a group's head still say what all their sessions add up
+    to, those hidden among them. A row's **Needs you** and a header's count of them turn it on,
+    keeping the arrangement, and while it is on, a **Needs you** chip under **Sort** and **Group**
+    turns it off. The page's address keeps it, as `/sessions?needs_you=true`, beside the
+    arrangement, and turning it on or off is a step in the browser's history, so **Back** returns to
+    the view as it was, while choosing **Sort** or **Group** is not. With nothing to show, it says
+    no session needs you now, or, when the view left sessions out, that none of those listed does.
+    Only a session whose bridge monitors its terminal can need you this way: an open ask that waits
+    on you shows as **Blocked on you** or its open asks, as above, whatever its terminal shows.
 
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
@@ -1138,13 +1143,13 @@ under **API keys**. **Create an API key** asks for:
 - **Name**: up to 50 characters on one line, such as the program that will hold the key.
 - **Scopes**: what the key may do, as you, at least one of them:
 
-  | Scope              | What it grants                                                                                                                                                                                                                                    |
-  | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session                                                                            |
-  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                         |
-  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                         |
-  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags |
-  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                    |
+  | Scope              | What it grants                                                                                                                                                                                                                                                         |
+  | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `threads:read`     | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session; each thread's presence carries what its session's terminal shows, where its bridge monitors it |
+  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                                              |
+  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                                              |
+  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags                      |
+  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                                         |
 
   A write or approve scope includes its resource's read, so choosing `threads:write` chooses
   `threads:read` with it; `sessions:write` and `sessions:approve` include neither the other.

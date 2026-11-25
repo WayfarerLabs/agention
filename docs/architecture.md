@@ -1463,34 +1463,40 @@ how long ago its status was updated, from the status's `updated_at`, since an ag
 checking in long after its status stopped saying what it does. The words for a condition come from
 one function (`conditionWords`, `src/format.tsx`), following the API's model: a stopped-by reason
 leads, with any prompt on the screen beside it, and a permission or other prompt with no reason
-reads as stopped on that prompt. A session needs the operator while its report shows a permission or
-other prompt or a stopped-by reason (`needsYou`); its row flags it as Needs you, in the warning's
-tone, and an agent's header and a group's head count those they show, or flag them with no count
-when sessions were left out. The view's one filter, Needs you, lives in the address beside the
-arrangement, as `needs_you=true`, and keeps only those sessions, and the agents and groups holding
-any, folded by group exactly when the view would fold without it; each flag and count links to the
-view with it on, keeping the arrangement, choosing in place as the head does, and a chip beneath the
-head removes it, as the thread list's chips do (`views/sessions/needs-you.tsx`). An unfolded row
-names the profile the bridge reads its terminal with, or that it monitors none. Each session's row
-shows its group and tags, and each agent's header its tags, from the sessions view's page, in the
-colors the operator's groups and tags give them, which views that show groups and tags pass down
-through a palette (`src/organizing.tsx`); the stylesheet draws each of the API's named colors as a
-tone and a background for each color scheme, at AA contrast. A session's group and an agent's or a
-session's tags are set in pickers (`views/sessions/Picker.tsx`), modal dialogs placed beside the
-control that opened them on a wide screen and rising as a sheet on a phone, whose search box is a
-combobox owning a listbox of the groups or tags, the item the arrow keys are on its active
-descendant. Each pick applies at once, a picker taking one at a time, its items unavailable until
-the change settles, so tags picked fast never land out of order; a failed change shows the tags as
-last applied, and the view reloads with the groups and tags once a change lands. The same pickers,
-in a registration's approval (`views/sessions/Organize.tsx`), keep their picks for the approval
-request, starting from an existing session's own group and tags and over for another agent or
-session, a new session keeping them as it is named, dropping a pick that lands after they changed,
-and create a group picked new at once since the approval names its group by id. Settings' groups and
-tags (`views/settings/`) list them to create, rename, recolor, remove and, for groups, order, each
-move sending the whole order to `POST /groups/order`, which refuses one that does not name every
-group, so a stale order reloads the list, as it does the sessions view's groups. A move or a color
-under way marks its controls `aria-disabled` rather than disabling them, so keyboard focus stays
-where it was. While the operator is signed in, the navigation reads what waits on the operator, from
+reads as stopped on that prompt; a condition the page does not know, which a newer server may
+report, reads as unknown, and a reason it does not know as stopped by something. A session needs the
+operator while its report shows a permission or other prompt or a stopped-by reason, whatever the
+reason (`terminalNeedsYou`, and `sessionNeedsYou` in `views/sessions/arrangement.ts`); its row flags
+it as Needs you, in the warning's tone, and an agent's header and a group's head count their
+sessions that do, or flag them with no count when sessions were left out. The view's one filter,
+Needs you, lives in the address beside the arrangement, as `needs_you=true`, and shows only those
+sessions, and the agents and groups holding any, arranged exactly as the view would be without it;
+it hides rows and nothing else, so every count and link on a header or a head still covers all its
+sessions. Each flag and count links to the view with it on, keeping the arrangement, and stays that
+link, marked `aria-current`, once it is on, so keyboard focus stays where it was; a chip beneath the
+head removes it, through the thread list's chips (`views/list/Chips.tsx`). Turning it on or off
+pushes a history entry, while choosing the arrangement replaces the one it was chosen in
+(`views/sessions/needs-you.tsx`, `views/Sessions.tsx`). An unfolded row names the profile the bridge
+reads its terminal with, or that it monitors none. Each session's row shows its group and tags, and
+each agent's header its tags, from the sessions view's page, in the colors the operator's groups and
+tags give them, which views that show groups and tags pass down through a palette
+(`src/organizing.tsx`); the stylesheet draws each of the API's named colors as a tone and a
+background for each color scheme, at AA contrast. A session's group and an agent's or a session's
+tags are set in pickers (`views/sessions/Picker.tsx`), modal dialogs placed beside the control that
+opened them on a wide screen and rising as a sheet on a phone, whose search box is a combobox owning
+a listbox of the groups or tags, the item the arrow keys are on its active descendant. Each pick
+applies at once, a picker taking one at a time, its items unavailable until the change settles, so
+tags picked fast never land out of order; a failed change shows the tags as last applied, and the
+view reloads with the groups and tags once a change lands. The same pickers, in a registration's
+approval (`views/sessions/Organize.tsx`), keep their picks for the approval request, starting from
+an existing session's own group and tags and over for another agent or session, a new session
+keeping them as it is named, dropping a pick that lands after they changed, and create a group
+picked new at once since the approval names its group by id. Settings' groups and tags
+(`views/settings/`) list them to create, rename, recolor, remove and, for groups, order, each move
+sending the whole order to `POST /groups/order`, which refuses one that does not name every group,
+so a stale order reloads the list, as it does the sessions view's groups. A move or a color under
+way marks its controls `aria-disabled` rather than disabling them, so keyboard focus stays where it
+was. While the operator is signed in, the navigation reads what waits on the operator, from
 `GET /attention`, and shows it as a badge on each tab while there is any: the unread threads on
 Threads and the registrations waiting for approval on Sessions. The counts refresh on an interval,
 on returning to the page, on going to another view, and at once after any change the page makes
@@ -1500,9 +1506,9 @@ signed this browser in, the page asks nothing more that needs the session on its
 refreshes, no count is read and a load under way stops before it asks again, since the server may
 sign the browser out before anything sent meanwhile arrives and would refuse it. Wherever a thread
 shows as stranded, the UI says why from the session's presence in the thread's summary: the stop the
-session reported, with its outcome; otherwise quiet, with when it was last seen; otherwise no active
-credential; otherwise its bridge not connected; and, beside any but the last, what its terminal
-shows, where the bridge reports it.
+session reported, with its outcome; otherwise quiet, with when its agent last checked in; otherwise
+no active credential; otherwise its bridge not connected; and, beside any but the last, what its
+terminal shows, where the bridge reports it.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
