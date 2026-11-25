@@ -137,7 +137,8 @@ reason with the prompt beside it, and a prompt with no reason as stopped on the 
 - **Harness profiles** tell what their captures show: the permission dialogs (cursor hidden, the
   dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after the
   marker: Claude Code's `❯` and a no-break space, never its `!` shell mode; Codex's `›` and a
-  space). No footer is read: Claude Code's vim normal mode looks the same as its insert mode.
+  space). No footer is read: Claude Code's vim normal mode looks the same as the normal editor's
+  prompt.
 - **Generic profiles** never name a prompt kind or a stopped-by reason. The strict one finds the
   input line only when the cursor is visible with nothing after it on its row; the lenient one
   whenever the cursor is visible.
@@ -176,7 +177,9 @@ harness version and what they show, and its tests read them. They come from clea
 (a fresh home, default settings, no account details on screen) or are scrubbed, and review checks
 each one (M5). The spike's screens were not kept, so building each profile starts by capturing them
 again: the prompt, a running turn, the permission and trust dialogs, Claude Code's vim and shell
-modes. Usage limit, block and error wait for a capture, as the operator decides.
+modes. Usage limits come from a scrubbed capture of one of the operator's Claude Code sessions at a
+limit it reached on its own and from Codex samples the operator provides (ruling 5, pull request
+1c); block and error wait for a capture.
 
 ## Monitoring
 
@@ -184,9 +187,11 @@ modes. Usage limit, block and error wait for a capture, as the operator decides.
 
 The reporter runs in the bridge beside the agent's own tools, which work as today.
 
-- **Starting.** On `register`, and on the first tool call that finds the session's credential, as a
-  restarted bridge does. While the registration is pending it reads its state every 15 seconds with
-  the request `register` already makes, marked as background (below), until two minutes before it
+- **Starting.** At bridge start when the default session (the one `AGENTWORKS_AGENT` and
+  `AGENTWORKS_SESSION` name) has a key on disk, as a restarted bridge under Agentworks does; on
+  `register`; and on the first tool call that finds the session's credential, as any other restarted
+  bridge does. While the registration is pending it reads its state every 15 seconds with the
+  request `register` already makes, marked as background (below), until two minutes before it
   expires; on approval it starts monitoring without the agent calling a tool (M9). A refused,
   revoked or expired registration stops it until the next `register`.
 - **The background connection.** It long-polls `GET /api/agent/s/<agent>/<session>/monitor` with an
@@ -196,11 +201,12 @@ The reporter runs in the bridge beside the agent's own tools, which work as toda
 - **This session's pane.** The bridge acts on a socket only when the pane's first process is one of
   its own ancestors, so a socket set for another session, or for every session at once, reads as
   unknown and is logged once.
-- **One bridge acts (M7).** The server keeps, in memory, the id of the latest bridge to poll a
-  session. A poll with a newer id ends the older bridge's open poll with `replaced`, and refuses its
-  reports; the replaced bridge stops its reporter until it next handles a tool call, since the
-  bridge the host is using is the one that should report. No file and no lock: every bridge already
-  talks to the server.
+- **One bridge acts (M7).** The server keeps, in memory, the id of the latest bridge to claim a
+  session: a bridge claims on its first poll after its reporter starts, and again after being
+  replaced. A claim from another bridge ends the holder's open poll with `replaced`, and the server
+  answers `replaced` to that bridge's unclaimed polls and refuses its reports; the replaced bridge
+  stops its reporter until it next handles a tool call, since the bridge the host is using is the
+  one that should report. No file and no lock: every bridge already talks to the server.
 - **The report.** On start, on taking over, and whenever an observation changes, it sends
   `POST /api/agent/s/<agent>/<session>/monitor` with the whole report.
 
@@ -215,8 +221,8 @@ saved cursor and `claude-code` gate do not carry over.
   at once with `replaced`. It never marks the session checked in.
 - **`POST .../monitor`**, numbered by the bridge so a late report never replaces a newer one:
   whether a pane is monitored, the profile's name, the condition and since when, and the stopped-by
-  reason with its reset time. Every field is a schema-checked enumeration, boolean or time; there is
-  no free text (M8). A report replaces the last.
+  reason with its reset time. Every field is a schema-checked enumeration, boolean, time or the
+  profile's name; there is no free text (M8). A report replaces the last.
 - **`POST /registrations`** gains a `background` flag; the reporter's pending reads set it, so
   approval marks the session connected, never checked in.
 - **Every other approved request is the agent checking in** (M2), as today's last seen is.
@@ -247,9 +253,9 @@ Delivery 2 bumps the agent API to version 6:
 
 - **Due.** `GET .../monitor` also answers `nudge` as soon as a nudge is due: the session has a
   thread with a message from the operator the agent has not read, written after the agent's last
-  check-in and after the session's latest nudge (N1, N3). The server works this out, so it holds
-  across bridge restarts, takeovers and Codex's several bridges, and the bridge learns only that one
-  is due, never why: nothing about threads or presence reaches the agent through it.
+  check-in, while no nudge has been tried since that check-in (N1, N3). The server works this out,
+  so it holds across bridge restarts, takeovers and Codex's several bridges, and the bridge learns
+  only that one is due, never why: nothing about threads or presence reaches the agent through it.
 - **The outcome.** `POST .../monitor` gains whether the session can be nudged and the latest nudge's
   time and outcome, sent or not. The server shows "not responding to the nudge" when it was sent and
   no check-in followed, and applies M6's nudge branches.
@@ -286,8 +292,8 @@ The tools work as without monitoring in every case.
 
 ## Security
 
-- **What leaves the machine**: enumerations, booleans and times. Snapshots stay in the bridge's
-  memory, and its log names steps and conditions, never screen text (M8).
+- **What leaves the machine**: enumerations, booleans, times and the profile's name. Snapshots stay
+  in the bridge's memory, and its log names steps and conditions, never screen text (M8).
 - **Trust.** A report is the bridge's observation, trusted as the agent's host is under ADR 0001's
   honor system. The screen can imitate a condition, so a report is never authority for anything but
   what the operator sees; only `nudge()`'s own checks, at the moment of each key, let one be
@@ -315,8 +321,12 @@ The tools work as without monitoring in every case.
    - **1a**: the observer package's reading side with the Claude Code, Codex and generic profiles
      and their captures; the reporter; agent API version 5, the migration and the derivations; the
      operator API's session reads and `docs/api/openapi.json`; the configuration and plugin
-     forwarding; and the collateral E1 names for monitoring outside the web UI.
-   - **1b**: the sessions view, its flag and filter, stranded reasons, and the operator guide.
+     forwarding; the web UI's "not connected" stranded reason, which 1a's new stranded cause needs;
+     the monitoring ADR; and the collateral E1 names for monitoring outside the sessions view.
+   - **1b**: the sessions view, its flag and filter, the condition in stranded reasons, and the
+     operator guide's account of them.
+   - **1c**: usage limits in the Claude Code and Codex profiles, from the captures and samples of
+     ruling 5.
 2. **The nudge**: `nudge()`, agent API version 6, the due answer and outcome, M6's nudge branches,
    T1 and the usage skill, the ADR and the rest of E1.
 
@@ -324,8 +334,9 @@ The tools work as without monitoring in every case.
 
 - **Harness releases** change screens often. A changed screen reads as waiting or unknown, and
   `nudge()`'s checks hold regardless; refreshed captures make the change visible.
-- **Usage limit, block and error** need captures before any profile claims them; how one is obtained
-  is open with the operator.
+- **Usage limits** wait on a limit one of the operator's Claude Code sessions reaches on its own,
+  and on the operator's Codex samples, so 1c runs whenever they arrive; **block and error** need
+  captures before any profile claims them.
 - **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
 - **The nudge with a generic profile**: a generic profile cannot tell a prompt marker from typed
   text, so its input line is the cursor's whole row; `nudge()` will confirm its texts by comparing
@@ -337,5 +348,5 @@ The tools work as without monitoring in every case.
 - **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
   told from typed text only by the captured patterns, since captures carry no color; an unknown hint
   leaves the nudge not ready. Reading text attributes is the alternative, for delivery 2.
-- **A restarted bridge** starts reporting only at the agent's next tool call, since it learns its
-  session's names then; until then the session shows disconnected.
+- **A restarted bridge outside Agentworks** starts reporting only at the agent's next tool call,
+  since it learns its session's names then; until then the session shows disconnected.
