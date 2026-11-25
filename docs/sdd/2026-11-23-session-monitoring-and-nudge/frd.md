@@ -365,9 +365,9 @@ an account label, was dropped by ruling 4.
    whether the effort lead may edit unreleased migration 10's comment and update its frozen hash,
    they chose "Yes, edit it". Asked whether, after a nudge was sent and the agent checked in without
    reading the thread, that thread should be stranded, they answered: "Definitely don't resolve it
-   but I think this deserves a special status, right?" Taken: monitoring's live check on a bed shaped
-   like an Agentworks session that the effort lead runs, the breaking-change footers, and migration
-   10's comment; how that thread's status shows is being settled before acceptance.
+   but I think this deserves a special status, right?" Taken: monitoring's live check on a bed
+   shaped like an Agentworks session that the effort lead runs, the breaking-change footers, and
+   migration 10's comment; how that thread's status shows is being settled before acceptance.
 
 ## Definition of done
 
@@ -378,10 +378,9 @@ Monitoring ships first and stands on its own; each delivery is done when its par
     documented in permanent docs.
   - Live on Claude Code and on Codex, on a bed shaped like an Agentworks session, one tmux server
     holding one pane, with the configuration set by hand as Agentworks will set it (ruling 7): the
-    operator sees a session connected, its agent's activity,
-    and its condition, including running, at its prompt and a permission dialog; a session approved
-    while at its prompt starts reporting; and on Codex, of several bridges for one session, only one
-    reports.
+    operator sees a session connected, its agent's activity, and its condition, including running,
+    at its prompt and a permission dialog; a session approved while at its prompt starts reporting;
+    and on Codex, of several bridges for one session, only one reports.
   - A usage limit is detected on Claude Code and on Codex from screens of limits that happened on
     their own, never brought about for the purpose: Claude Code screens the operator captures from
     one of their sessions, and Codex samples the operator provides, both scrubbed (rulings 5 and 6).
