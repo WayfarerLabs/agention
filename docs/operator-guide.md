@@ -122,7 +122,7 @@ agention serve --data ~/.local/share/agention --origin https://agention.example.
 | `--tls-cert FILE`    | The TLS certificate chain, in PEM, for the server to terminate TLS itself                                            |
 | `--tls-key FILE`     | The certificate's private key, in PEM; give both TLS options or neither                                              |
 | `--allow-plain-http` | Allow plain HTTP on an address other than loopback                                                                   |
-| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session not seen is quiet; 15 by default                                         |
+| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session whose agent has not checked in is quiet; 15 by default                   |
 | `--name NAME`        | The server's name, 1 to 40 characters on one line, set by its first start                                            |
 | `--api-docs`         | Serve the API's documentation, without sign-in, at `/docs/api/` and its OpenAPI document at `/docs/api/openapi.json` |
 
@@ -147,24 +147,29 @@ program against the operator API, as [Using the operator API](#using-the-operato
 without it, nothing is served under `/docs/api/`. The server also reads three environment variables,
 each optional, which supply voice's settings: [Voice](#voice) says how.
 
-An agent session is seen each time it calls the server, kept to the minute. One not seen within
-`--quiet-minutes` and the minute that may take to show, or never, is quiet: it has stopped, or is
-busy elsewhere. An agent also reports what its session is doing: **working** while it does something
-now; **idle** while it has nothing left to do but wait, for your answers, CI or a review, and it
-keeps checking Agention; and **stopped** once it stops checking, with why: **completed** when the
-work is done, **withdrawn** when you called it off, or **stalled** when it cannot go on. A stopped
-session will not see what you write until something starts it again, and stays stopped until it
-reports working or idle. An agent reports its state with an update of its own or beside a message it
-writes, and an idle session that writes to its threads without reporting a state or note, a message,
-a new thread, or marking one read, unread or archived, is working from then on, since it is plainly
-doing something: the server marks it so itself, logging that it did so, with no note. Checking for
-your answers changes nothing, and neither does anything you write. Whether a session waits on you is
-no state it reports: its open asks say so. A session whose agent never reported, such as one whose
-plugin predates session states, has no state. A thread whose agent has not read your latest messages
-while its session is quiet, has stopped or has no active credential is **stranded**: the agent will
-not see what you wrote until you resume it. An agent keeps checking for your answers while it has
-open asks or unread messages, so a thread stranded by a quiet session means the agent stopped
-without saying so, such as when its host ended the session, or is busy and has not checked.
+An agent checks in each time it calls Agention, and its session is seen then, kept to the minute.
+One whose agent has not checked in within `--quiet-minutes` and the minute that may take to show, or
+never, is quiet: it has stopped, or is busy elsewhere. A session's bridge may also hold a background
+connection to the server, which is not the agent checking in; while it does, the session is
+**connected**, and it stops being so within a minute of the bridge ending. A bridge from before the
+background connection cannot report one, so a session whose agent last checked in through such a
+bridge, with no newer one connected, is never shown disconnected. An agent also reports what its
+session is doing: **working** while it does something now; **idle** while it has nothing left to do
+but wait, for your answers, CI or a review, and it keeps checking Agention; and **stopped** once it
+stops checking, with why: **completed** when the work is done, **withdrawn** when you called it off,
+or **stalled** when it cannot go on. A stopped session will not see what you write until something
+starts it again, and stays stopped until it reports working or idle. An agent reports its state with
+an update of its own or beside a message it writes, and an idle session that writes to its threads
+without reporting a state or note, a message, a new thread, or marking one read, unread or archived,
+is working from then on, since it is plainly doing something: the server marks it so itself, logging
+that it did so, with no note. Checking for your answers changes nothing, and neither does anything
+you write. Whether a session waits on you is no state it reports: its open asks say so. A session
+whose agent never reported, such as one whose plugin predates session states, has no state. A thread
+whose agent has not read your latest messages while its session is quiet, is not connected, has
+stopped or has no active credential is **stranded**: the agent will not see what you wrote until you
+resume it. An agent keeps checking for your answers while it has open asks or unread messages, so a
+thread stranded by a quiet session means the agent stopped without saying so, such as when its host
+ended the session, or is busy and has not checked.
 
 The data directory and the database must be private to the user running Agention, under the rule
 [SECURITY.md](../SECURITY.md#private-files) states. `agention serve` creates a missing data
@@ -474,8 +479,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     as the **Overdue** filter does, **Overdue since** then. Holding the pointer over the time shows
     it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
-    seen** when, or **never seen**; or it has **no active credential**. A session with no active
-    credential also shows its own tag, unless the stranded tag already says so.
+    seen** when, or **never seen**; or it has **no active credential**. A thread stranded only
+    because its session is not connected shows the tag alone. A session with no active credential
+    also shows its own tag, unless the stranded tag already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
@@ -1065,12 +1071,17 @@ curl -sS -H @<(auth) "$origin/api/operator/v1/wait?wait=25"
 never among a command's arguments, which anyone on the machine can read in its process list for as
 long as the command runs.
 
-The first lists your agents with their sessions. The second answers at once with the threads, in any
-session, holding messages you have not read, each naming its agent and session; with none, it waits
-up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
-`wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
-waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
-a rate budget of its own ([Rate budgets](#rate-budgets)).
+The first lists your agents with their sessions. Each session's `presence` says when its agent last
+checked in (`last_seen_at`), whether it is quiet, and whether its bridge is `connected`, absent for
+a bridge from before the background connection; while it is connected, `monitor` holds what its
+bridge last reported of the terminal it runs in: whether it watches one at all and, if it does, the
+session's `condition` and `since` when, what `stopped_by` it where the bridge can tell, and the
+`profile` it reads the terminal with. The second answers at once with the threads, in any session,
+holding messages you have not read, each naming its agent and session; with none, it waits up to 25
+seconds for one. Its answer also holds a `since`: pass that back, as `wait?wait=25&since=...`, to be
+told only of messages newer than those it covered, so a program that waits in a loop hears of each
+new message once, as soon as it arrives, without polling. Each key has a rate budget of its own
+([Rate budgets](#rate-budgets)).
 
 Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
 uploads a file to a session, then names the upload in a message, and a key holding `threads:read`

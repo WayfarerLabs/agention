@@ -127,9 +127,9 @@ export interface MountOptions {
   shutdown: AbortSignal;
   // Where a failure an operation carries on past is written.
   log: (message: string) => void;
-  // authenticate establishes who is calling, before anything else the route
-  // does, or throws.
-  authenticate: (c: Context<IdentityEnv>) => Identity | Promise<Identity>;
+  // authenticate establishes who is calling the operation, before anything
+  // else the route does, or throws.
+  authenticate: (c: Context<IdentityEnv>, operation: Operation) => Identity | Promise<Identity>;
 }
 
 // addOperations adds a route for each operation to a mount. Each
@@ -146,7 +146,7 @@ export function addOperations(
   const { store, shutdown, log, authenticate } = options;
   for (const each of operations) {
     api.on(each.method, each.path, async (c) => {
-      const identity = await authenticate(c);
+      const identity = await authenticate(c, each);
       if (each.scope !== undefined && !holds(identity, each.scope)) {
         throw notFound();
       }

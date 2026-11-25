@@ -32,7 +32,8 @@ export {
 } from "./groups-and-tags.ts";
 export { archiveThread, bulkArchive, bulkRead, markRead, markUnread } from "./marks.ts";
 export { type Channel, everySession, SessionNotifier, type WaitOutcome } from "./notifier.ts";
-export { markSeen } from "./presence.ts";
+export { pollMonitor, reportMonitor } from "./monitors.ts";
+export { markBackground, markCheckedIn } from "./presence.ts";
 export {
   approveRegistration,
   findRegistrationByKey,

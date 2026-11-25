@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { errorBody } from "./errors.ts";
 import { groupRef } from "./groups-and-tags.ts";
+import { monitorCondition, monitorProfile, monitorReport, monitorState } from "./monitoring.ts";
 import { reference } from "./references.ts";
 import { registration } from "./registrations.ts";
 import {
   presence,
+  sessionPresence,
   sessionStatus,
   sessionSummary,
   sessionUpdate,
@@ -62,11 +64,16 @@ const named: Record<string, ApiSchema> = {
   impact,
   marks,
   message,
+  monitorCondition,
+  monitorProfile,
+  monitorReport,
+  monitorState,
   openAsks,
   presence,
   priority,
   reference,
   registration,
+  sessionPresence,
   sessionStatus,
   sessionSummary,
   sessionUpdate,

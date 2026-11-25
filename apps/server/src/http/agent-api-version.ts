@@ -1,5 +1,5 @@
 import { agentApi, agentApiHeader, agentApiVersion } from "@wayfarerlabs/agention-api";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { ApiError } from "../errors.ts";
 import { parse } from "./input.ts";
 
@@ -42,6 +42,12 @@ export const requireServedAgentApiVersion: MiddlewareHandler = async (c, next) =
   }
   await next();
 };
+
+// requestedAgentApiVersion reads the version a request states, which
+// requireServedAgentApiVersion has already checked this server serves.
+export function requestedAgentApiVersion(c: Context): number {
+  return Number(parse(agentApiVersion, c.req.header(agentApiHeader), agentApiHeader));
+}
 
 // unsupported is the refusal of a version: problem is a sentence without its
 // period, and fix what the operator does.

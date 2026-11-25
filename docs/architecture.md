@@ -67,6 +67,9 @@ inferred types the server, the bridge and the web UI share:
   and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
   group and an agent's or a session's tags, on their own or with an approval;
 - the agent API's version, the header that carries it and the oldest version the server serves;
+- monitoring (`packages/api/src/monitoring.ts`): a bridge's id, its background poll's query and
+  answer, its report of what it observes (`monitorReport`), and the report as the operator sees it
+  (`monitorState`);
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
   the hosted presets, the types a recording is sent as, a transcription's answer, and the space
@@ -144,13 +147,16 @@ the ask it answers, and reads back with that ask's question, so a reader knows w
 withdrawal belongs to its message and names the number of the ask it withdraws, with the requester's
 reason. Two views define once, for every query, which messages are live (`live_messages`: no later
 message replaces them) and which asks are open (`open_asks`: on a live message, and no live message
-answers or withdraws them). A session records when it was last seen, kept to the minute. A thread
-changes only its latest sequence, which a trigger holds. A full-text index, `thread_titles`, holds
-every thread's title for search, word prefixes matched with case and accents ignored; a trigger
-fills it as a thread is created, and it relies on titles never changing. Checks hold the rest of
-what the store keeps true: one operator, whose id is 1; a registration's session set exactly when it
-is approved or revoked; and a message's detail only beside its text. `transaction()` runs one
-synchronous function under `BEGIN IMMEDIATE`, so no write interleaves with another in the process.
+answers or withdraws them). A session records when its agent last checked in, kept to the minute,
+with the agent API version of that call, and when its bridge last made a background request;
+`monitor_reports` holds each session's latest monitoring report, one row each, which the next
+replaces, its checks holding the report's shape. A thread changes only its latest sequence, which a
+trigger holds. A full-text index, `thread_titles`, holds every thread's title for search, word
+prefixes matched with case and accents ignored; a trigger fills it as a thread is created, and it
+relies on titles never changing. Checks hold the rest of what the store keeps true: one operator,
+whose id is 1; a registration's session set exactly when it is approved or revoked; and a message's
+detail only beside its text. `transaction()` runs one synchronous function under `BEGIN IMMEDIATE`,
+so no write interleaves with another in the process.
 
 A session's status lives only in its log, `session_updates`, append-only by the same triggers as
 messages: each entry, numbered from 1 within its session, holds the session's whole status after it
@@ -298,19 +304,45 @@ replacing the passkeys through a link, wake the waits across every session alone
 since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
-every conversation, marks its session seen before its own work, in a transaction of its own, so a
-call refused later still counts. It writes only while the registration is still approved, so a
-revocation that commits as a token is verified stamps nothing, and only when that moves the
-session's last seen a minute or more, or when the last seen is after now, so a clock stepped back
-never holds it still. A stamp that fails is logged and the call carries on, since presence is
-advisory. A pending registration has no session, so its calls mark nothing. A session is quiet when
-it has not been seen within `agention serve --quiet-minutes`, 15 by default, and the minute a stamp
-may lag, so a session that keeps calling never is, or when it was never seen. A thread is stranded
-when it holds a live message of the operator's that the session has not read while the session is
-quiet, has no active credential or has stopped: the agent is not there to read it. Both are derived
-in queries against the request's clock, and only the thread's audience, the operator, sees them,
-with the state and outcome the session last reported, which say why it is stranded; a grouped list's
-presence for a session or an agent carries neither.
+every conversation, marks its session's presence before its own work, in a transaction of its own,
+so a call refused later still counts. The bridge's background requests (`backgroundOperations` in
+`apps/server/src/http/agent-operations.ts`: its monitoring poll and report, and a `register` that
+says `background`) stamp when the session's bridge last made one, on every one, and never mark the
+agent checked in; every other call is the agent checking in, stamped with the agent API version the
+call states, and only when that moves the last check-in a minute or more, when the last check-in is
+after now, so a clock stepped back never holds it still, or when the version differs from the last
+one's. A stamp writes only while the registration is still approved, so a revocation that commits as
+a token is verified stamps nothing. A stamp that fails is logged and the call carries on, since
+presence is advisory. A pending registration has no session, so its calls mark nothing.
+
+From those the reads derive, against the request's clock and never stored:
+
+- **Quiet**: the agent never checked in, or has not within `agention serve --quiet-minutes`, 15 by
+  default, and the minute a stamp may lag, so an agent that keeps calling never is quiet.
+- **Connected**: the bridge made a background request within the last minute. A bridge older than
+  agent API version 5 cannot report a connection, so while no bridge is connected and the agent last
+  checked in through such a bridge, as every check-in from before versions were kept did, the
+  session follows their rule: connected is not stated and never counts against it.
+- **Stranded**: a thread holding a live message of the operator's that the session has not read
+  while the session is quiet, has no active credential, is not connected or has stopped: the agent
+  is not there to read it.
+
+Only the thread's audience, the operator, sees them, with the state and outcome the session last
+reported, which say why it is stranded; a grouped list's presence for a session or an agent carries
+quiet, last seen and connected, and neither state nor outcome.
+
+The bridge's monitoring (`apps/server/src/store/monitors.ts`) is a background long poll and a
+report. Several bridges may run for one session with its key, as Codex starts new ones without
+ending the old, and one acts for it: the latest to claim it. The store keeps that bridge's id for
+each session in memory (`BridgeHolders`), since it matters only while bridges poll this process; a
+server that starts again holds none until a bridge polls or reports. A poll names its bridge's id
+and may claim the session, as a bridge's reporter does when it starts and when it handles a tool
+call after being replaced. A claim takes the session from any other bridge and wakes that bridge's
+open poll, which answers `replaced`; a poll or report from a bridge other than the one acting,
+without a claim, answers `replaced` at once and changes nothing. Otherwise the poll waits on the
+session's channel for 25 seconds, or less if it asks, re-authorizing on each wake as every long poll
+does. A report replaces the session's latest and shows to the operator only while the session is
+connected, so a bridge that ended never leaves its last report standing as current.
 
 A session reports its status itself, on the agent mount's status route or beside a write: a thread
 it starts or a message it sends may carry a state, with its outcome, and a note, which apply as an
@@ -338,16 +370,17 @@ latest entry and never lowers; the entries above it are the session's unread upd
 
 The sessions view's page lists the agents in name order for the operator, each with at most 500 of
 its sessions: those working or idle first, then those that never reported, then stopped ones, each
-latest seen first. Each session carries its presence, by the formula threads use; its approved
-registrations, with their ids and codes; its status with the latest entry's note, none after an
-inferred one, and as `updated_at` when that entry was written; its unread updates; how many of its
-threads the operator has not archived, with how many of those hold messages the operator has not
-read and how many are stranded, counted for every session of the page in one statement grouped over
-the threads as the operator sees them; and how many asks are open in all its threads, with how many
-of those are blocking, which is what waits on the operator, counted in one statement grouped over
-the open asks. The operator can never archive a thread holding an ask open to them, so their thread
-list shows every thread counted. A separate read counts the sessions whose log holds entries the
-operator has not read, which the web UI's navigation shows.
+latest seen first. Each session carries its presence, by the formula threads use, with its bridge's
+latest report while it is connected; its approved registrations, with their ids and codes; its
+status with the latest entry's note, none after an inferred one, and as `updated_at` when that entry
+was written; its unread updates; how many of its threads the operator has not archived, with how
+many of those hold messages the operator has not read and how many are stranded, counted for every
+session of the page in one statement grouped over the threads as the operator sees them; and how
+many asks are open in all its threads, with how many of those are blocking, which is what waits on
+the operator, counted in one statement grouped over the open asks. The operator can never archive a
+thread holding an ask open to them, so their thread list shows every thread counted. A separate read
+counts the sessions whose log holds entries the operator has not read, which the web UI's navigation
+shows.
 
 The operator sorts sessions into groups and tags agents and sessions, and nothing else does: listing
 them needs `sessions:read` and every change to them `sessions:write`, scopes no agent's registration
@@ -458,13 +491,13 @@ open asks: `priority` (an open ask at that level or higher), `impact` (an open a
 assuming), `overdue` (an open ask past its answer-by) and `effort` (an open ask that states that
 effort or less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live
 message of the operator's that the session has not read) or `stranded` (such a message while the
-session is quiet, has no active credential or has stopped); `agent` and `session`, up to 50 of each,
-a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id, `none`
-naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries one. A
-group that was removed, or a tag nothing carries or that was removed, keeps nothing. The filters on
-asks together keep the threads holding one open ask that meets them all, so any of them keeps only
-open threads. One definition of each filter's condition serves the list, its total, its counts and
-its roll-ups.
+session is quiet, has no active credential, is not connected or has stopped); `agent` and `session`,
+up to 50 of each, a session written `agent/session`; and the operator's `session_group`, up to 50
+groups by id, `none` naming no group, and `tag`, up to 50 tags, keeping a thread whose session or
+agent carries one. A group that was removed, or a tag nothing carries or that was removed, keeps
+nothing. The filters on asks together keep the threads holding one open ask that meets them all, so
+any of them keeps only open threads. One definition of each filter's condition serves the list, its
+total, its counts and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -510,10 +543,10 @@ the rest of the pass. Every page of a grouped list carries the roll-up of each s
 thread the list keeps, with its group, and, grouped by session group or by session, of each of its
 topics: how many threads, how many unread, whether any holds a blocking ask open to the caller, the
 highest priority of an open ask, and whether all are archived for the caller, and each session's
-presence: when it was last seen and whether it is quiet. `composeRollup` rolls up groups into the
-one holding them, as the web UI does for a session group's sessions and an agent's, and
-`composePresence` sessions' presence into their agent's, quiet when all are and last seen when the
-latest was.
+presence: when it was last seen, whether it is quiet and whether it is connected. `composeRollup`
+rolls up groups into the one holding them, as the web UI does for a session group's sessions and an
+agent's, and `composePresence` sessions' presence into their agent's, quiet when all are, last seen
+when the latest was, and connected when any is.
 
 The operator's counts take the list's filters and say, for each value of each filter but search, how
 many threads it keeps with every other filter as it is. Each value of a filter taking one is counted
@@ -531,20 +564,20 @@ or in the list's, and say when they leave any out; the sessions view's page page
 at most 500 of its sessions, and says when it leaves any out. A thread's summary lists at most 50 of
 its open asks, the most pressing, beside their count and the earliest.
 
-A session's long poll (`waitForThreads`, in `apps/server/src/store/wait.ts`) and the operator's wait
-across sessions (`waitForEverySession`) share one loop: poll in a transaction that authorizes, wait
-on the notifier, poll again. A session's long poll counts from a position among the session's own
-messages. The operator's needs `threads:read` and counts from a position in `message_positions`, in
-an opaque cursor of a kind no session's wait gives out, so neither takes the other's. It answers the
-threads of every session the identity reaches that hold messages the viewer has not read and whose
-latest message is past `since`, oldest activity first, each naming its session, with the position
-its answer covers: the last thread's latest message when the page is full, and otherwise the latest
-message's. Passing that back as `since` wakes the client for no message it was already told of, and
-a full page continues with the threads it left out; a `since` past the latest position counts as
-none, as a session's own does. It waits on the notifier's channel across every session, which every
-session's notification wakes, and the end of an API key or a browser session too, and it polls again
-when its credential expires, so an expiry ends the wait with the credential's refusal, as a
-revocation does.
+A session's long poll (`waitForThreads`, in `apps/server/src/store/wait.ts`), the operator's wait
+across sessions (`waitForEverySession`) and a bridge's monitoring poll share one loop (`longPoll`):
+poll in a transaction that authorizes, wait on the notifier, poll again. A session's long poll
+counts from a position among the session's own messages. The operator's needs `threads:read` and
+counts from a position in `message_positions`, in an opaque cursor of a kind no session's wait gives
+out, so neither takes the other's. It answers the threads of every session the identity reaches that
+hold messages the viewer has not read and whose latest message is past `since`, oldest activity
+first, each naming its session, with the position its answer covers: the last thread's latest
+message when the page is full, and otherwise the latest message's. Passing that back as `since`
+wakes the client for no message it was already told of, and a full page continues with the threads
+it left out; a `since` past the latest position counts as none, as a session's own does. It waits on
+the notifier's channel across every session, which every session's notification wakes, and the end
+of an API key or a browser session too, and it polls again when its credential expires, so an expiry
+ends the wait with the credential's refusal, as a revocation does.
 
 ## HTTP API
 
@@ -589,18 +622,19 @@ built from the same lists ([API documentation](#api-documentation)).
   holds every operation a read scope grants to a `GET` without a body whose store work writes
   nothing.
 - **Agent operations** (`agent-operations.ts`) are the agent mount's: a session's status, starting a
-  thread in it, its thread list and its long poll, and the operations on one thread and on its
-  session's uploads (`thread-operations.ts`), which every mount shares under `/s/:agent/:session`,
-  so the role, message and file checks have one handler each: a thread (`/threads/:thread`), a
-  message, whose schema each mount gives, since only the agent mount's carries the session's status,
-  its read and unread marks and archiving, a thread's files (`GET /threads/:thread/files`), a file a
-  message carries (`GET /threads/:thread/messages/:seq/files/:name`), an upload (`POST /uploads`)
-  and removing one (`POST /uploads/:upload/remove`). Each names its scope, and an agent's
-  registration holds `threads:write` over its own session, which covers every one. One path can name
-  different operations on different mounts: `POST /s/:agent/:session/threads` is an agent's
-  `createThread` on the agent mount and the operator's `startThread` on the others. Registration,
-  the one agent route a key not yet approved may call, authenticates against the key its token
-  carries, so its route is built by hand from its declaration.
+  thread in it, its thread list and its long poll, its bridge's monitoring poll and report (`GET`
+  and `POST /s/:agent/:session/monitor`), and the operations on one thread and on its session's
+  uploads (`thread-operations.ts`), which every mount shares under `/s/:agent/:session`, so the
+  role, message and file checks have one handler each: a thread (`/threads/:thread`), a message,
+  whose schema each mount gives, since only the agent mount's carries the session's status, its read
+  and unread marks and archiving, a thread's files (`GET /threads/:thread/files`), a file a message
+  carries (`GET /threads/:thread/messages/:seq/files/:name`), an upload (`POST /uploads`) and
+  removing one (`POST /uploads/:upload/remove`). Each names its scope, and an agent's registration
+  holds `threads:write` over its own session, which covers every one. One path can name different
+  operations on different mounts: `POST /s/:agent/:session/threads` is an agent's `createThread` on
+  the agent mount and the operator's `startThread` on the others. Registration, the one agent route
+  a key not yet approved may call, authenticates against the key its token carries, so its route is
+  built by hand from its declaration.
 - **Web-only routes** are plain routes on the web mount, which no key can call: the browser session,
   the passkey ceremonies and signing out; the passkeys; the counts of what waits on the operator
   that the navigation's tabs show (`GET /attention`: the unread threads, the thread list's total
@@ -638,7 +672,7 @@ client disconnects, when the server shuts down, or when its wait runs out. The o
 across sessions, `GET /wait`, answers and ends the same way across every session, and also when its
 API key or browser session ends or expires ([Store](#store)).
 
-The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 3 in this release,
+The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 5 in this release,
 serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
 to the agent contract, a new route or a new field on one, bumps it. Every answer on the agent mount,
 the refusals of the checks before it included, states the server's version in the
@@ -868,8 +902,8 @@ identity provider, would change Agention in these places:
 - **The session log.** Each entry in `session_updates` names the registration that wrote it, in a
   column that is never null.
 - **The signals.** Whether a session holds a working credential (`credential_active`, in the thread
-  list and the registrations' queries) and its last-seen stamp (`markSeen`, which the agent mount
-  calls for a registration) are both keyed on registrations.
+  list and the registrations' queries) and its presence stamps (`markCheckedIn` and
+  `markBackground`, which the agent mount calls for a registration) are both keyed on registrations.
 
 Everything else keys on agents and sessions themselves, not on the credential that let them in.
 
@@ -1284,7 +1318,9 @@ waiting for approval on Sessions. The counts refresh on an interval, on returnin
 going to another view, and at once after any change the page makes lands, which the web API client
 announces for every request but a read and signing in or out. Wherever a thread shows as stranded,
 the UI says why from the session's presence in the thread's summary: the stop the session reported,
-with its outcome; otherwise quiet, with when it was last seen; otherwise no active credential.
+with its outcome; otherwise quiet, with when it was last seen; otherwise no active credential. A
+thread stranded only because its session's bridge is not connected shows as stranded without a
+reason.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
@@ -1529,5 +1565,5 @@ the generated outputs stay current without regeneration. A `v*` tag runs
 `.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
 [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
 
-The agent API has a version of its own, 3 in this release, which a release bumps only when it
+The agent API has a version of its own, 5 in this release, which a release bumps only when it
 changes the agent contract, as [HTTP API](#http-api) describes.

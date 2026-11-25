@@ -612,6 +612,71 @@ describe("session updates and their marks", () => {
   });
 });
 
+describe("monitor reports", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+    database.prepare("INSERT INTO agents (name, created_at) VALUES ('agent', 1)").run();
+    database.prepare("INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 's', 1)").run();
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  // reported writes the session's report with the given columns, over a
+  // monitored one at a prompt.
+  function reported(columns: Record<string, string | number | null> = {}): void {
+    const all = {
+      monitored: 1,
+      profile: "codex",
+      condition: "at_prompt",
+      since: 1,
+      ...columns,
+    };
+    const names = Object.keys(all);
+    database
+      .prepare(
+        `INSERT INTO monitor_reports (session_id, reported_at, ${names.join(", ")})
+         VALUES (1, 1, ${names.map(() => "?").join(", ")})`,
+      )
+      .run(...Object.values(all));
+  }
+
+  it.each([
+    ["a monitored report", {}],
+    ["one without a pane", { monitored: 0, profile: null, condition: null, since: null }],
+    ["a usage limit with its reset", { stopped_by: "usage_limit", resets_at: 2 }],
+    ["a block at a permission prompt", { condition: "permission_prompt", stopped_by: "block" }],
+  ])("hold %s", (_, columns) => {
+    reported(columns);
+    expect(database.prepare("SELECT count(*) AS count FROM monitor_reports").get()).toEqual({
+      count: 1,
+    });
+  });
+
+  it.each([
+    ["a condition it does not know", { condition: "thinking" }],
+    ["a reason it does not know", { stopped_by: "tired" }],
+    ["a monitored report without a profile", { profile: null }],
+    ["a monitored report without a condition", { condition: null }],
+    ["a monitored report without since", { since: null }],
+    ["a condition without a pane", { monitored: 0, profile: null, since: null }],
+    ["a stop beside running", { condition: "running", stopped_by: "error" }],
+    ["a reset beside a block", { stopped_by: "block", resets_at: 2 }],
+    ["a reset without a stop", { resets_at: 2 }],
+    ["monitored as neither", { monitored: 2 }],
+  ])("refuse %s", (_, columns) => {
+    expect(() => reported(columns)).toThrow();
+  });
+
+  it("hold one report per session", () => {
+    reported();
+    expect(() => reported({ condition: "waiting" })).toThrow();
+  });
+});
+
 describe("a database an earlier release wrote", () => {
   // Opening one logs its switch to incremental vacuuming, which
   // vacuum-mode.test.ts checks; these opens keep that out of the run's output.
@@ -648,6 +713,21 @@ describe("a database an earlier release wrote", () => {
     before: Record<string, string[]>,
   ): Record<string, string[]> {
     return Object.fromEntries(Object.keys(before).map((name) => [name, rows[name] ?? []]));
+  }
+
+  // unmonitored is the rows before, each session with the columns monitoring
+  // added, empty: no check-in's version is known and no bridge connected.
+  function unmonitored(before: Record<string, string[]>): Record<string, string[]> {
+    return {
+      ...before,
+      sessions: (before.sessions ?? []).map((row) =>
+        JSON.stringify({
+          ...(JSON.parse(row) as object),
+          last_seen_version: null,
+          background_at: null,
+        }),
+      ),
+    };
   }
 
   it("opens with migration 1's rows intact and the session log's tables empty", () => {
@@ -694,7 +774,7 @@ describe("a database an earlier release wrote", () => {
         user_version: migrations.length,
       });
       const after = rowsOf(database);
-      expect(earlier(after, before)).toEqual(before);
+      expect(earlier(after, before)).toEqual(unmonitored(before));
       expect([after.session_marks, after.session_updates]).toEqual([[], []]);
       expect(
         database.prepare("SELECT rowid FROM thread_titles WHERE thread_titles MATCH 'ship*'").all(),
@@ -748,7 +828,7 @@ describe("a database an earlier release wrote", () => {
       const after = rowsOf(database);
       // Every entry logged before was reported, none inferred.
       expect(earlier(after, before)).toEqual({
-        ...before,
+        ...unmonitored(before),
         session_updates: before.session_updates?.map((row) =>
           JSON.stringify({ ...(JSON.parse(row) as object), inferred: 0 }),
         ),
@@ -807,7 +887,7 @@ describe("a database an earlier release wrote", () => {
       );
       // The group gains its color and place, and the tags it carried their rows.
       expect(earlier(after, before)).toEqual({
-        ...before,
+        ...unmonitored(before),
         session_groups: [
           JSON.stringify({ id: 1, name: "Work", created_at: 1, color: "gray", position: 1 }),
         ],
@@ -822,7 +902,7 @@ describe("a database an earlier release wrote", () => {
     }
   });
 
-  it("opens with every earlier row intact, no files and no API keys", () => {
+  it("opens with every earlier row intact, no files, no API keys and no monitoring", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
       connection.exec(`PRAGMA application_id = ${applicationId}`);
@@ -861,15 +941,17 @@ describe("a database an earlier release wrote", () => {
           "api_keys",
           "message_positions",
           "tags",
+          "monitor_reports",
         ].sort(),
       );
-      expect(earlier(after, before)).toEqual(before);
-      expect([after.files, after.file_chunks, after.attachments, after.api_keys]).toEqual([
-        [],
-        [],
-        [],
-        [],
-      ]);
+      expect(earlier(after, before)).toEqual(unmonitored(before));
+      expect([
+        after.files,
+        after.file_chunks,
+        after.attachments,
+        after.api_keys,
+        after.monitor_reports,
+      ]).toEqual([[], [], [], [], []]);
     } finally {
       database.close();
     }

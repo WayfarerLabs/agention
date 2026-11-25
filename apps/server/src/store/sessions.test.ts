@@ -279,6 +279,7 @@ describe("a stopped session", () => {
     fixture.createThread(agent);
     fixture.write(fixture.operator, target(), { text: "Over to you." });
     fixture.seen(agent);
+    fixture.connect(agent);
   });
 
   it("strands the threads holding a message of the operator's it has not read", () => {
@@ -310,6 +311,7 @@ describe("a stopped session", () => {
     expect(thread().presence).toEqual({
       last_seen_at: formatTimestamp(fixture.now),
       quiet: false,
+      connected: true,
     });
   });
 });
@@ -321,6 +323,7 @@ describe("listSessions", () => {
     fixture.registerAgent("reviewer", "main");
     revokeRegistration(fixture.store, fixture.operator, side.registrationId);
     fixture.seen(agent);
+    fixture.connect(agent);
     report({ state: "stopped", outcome: "completed", title: "Retire invoices", note: "Done." });
 
     const first = listSessions(
@@ -337,7 +340,7 @@ describe("listSessions", () => {
             session: "side",
             created_at: formatTimestamp(fixture.now),
             tags: [],
-            presence: { quiet: true },
+            presence: { quiet: true, connected: false },
             registrations: [],
             unread_updates: 0,
             threads: { total: 0, unread: 0, stranded: 0 },
@@ -347,7 +350,11 @@ describe("listSessions", () => {
             session: "main",
             created_at: formatTimestamp(fixture.now),
             tags: [],
-            presence: { last_seen_at: formatTimestamp(fixture.now), quiet: false },
+            presence: {
+              last_seen_at: formatTimestamp(fixture.now),
+              quiet: false,
+              connected: true,
+            },
             registrations: [agent, second].map((each) => ({
               id: each.registrationId,
               code: registrationCode(each.publicKey),
@@ -426,6 +433,8 @@ describe("listSessions", () => {
     archiveThread(fixture.store, fixture.operator, threadTarget(agent, 3), { through: 2 });
     fixture.seen(agent);
     fixture.seen(other);
+    fixture.connect(agent);
+    fixture.connect(other);
     expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 0 });
     fixture.advance(defaultQuietAfter + seenStep + 1);
     expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 2 });

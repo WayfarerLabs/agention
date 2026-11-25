@@ -2,6 +2,7 @@
 // agents and write to threads, for the store's tests.
 import {
   type AgentMessageSendInput,
+  agentApi,
   agentMessageSendInput,
   type PublicKey,
   publicKey,
@@ -20,7 +21,7 @@ import path from "node:path";
 import { Database } from "../database/database.ts";
 import { type Identity, identityForBrowserSession, identityForRegistration } from "../identity.ts";
 import { insertOperator } from "./directory.ts";
-import { markSeen } from "./presence.ts";
+import { markBackground, markCheckedIn } from "./presence.ts";
 import { approveRegistration, submitRegistration } from "./registrations.ts";
 import { updateSession } from "./sessions.ts";
 import { createStore, type Store } from "./store.ts";
@@ -169,9 +170,16 @@ export class Fixture {
     };
   }
 
-  // seen marks the agent's session seen now, as each of its calls does.
-  seen(agent: Agent): void {
-    markSeen(this.store, agent.registrationId);
+  // seen marks the agent checked in now, as each of its calls does, through
+  // a bridge speaking the agent API's version unless it names another.
+  seen(agent: Agent, version: number = agentApi.version): void {
+    markCheckedIn(this.store, agent.registrationId, version);
+  }
+
+  // connect marks the agent's session connected now, as each of its bridge's
+  // background requests does.
+  connect(agent: Agent): void {
+    markBackground(this.store, agent.registrationId);
   }
 
   // createThread creates a thread from fields the schema parses, by default

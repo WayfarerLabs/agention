@@ -24,7 +24,8 @@ import { authorizeScope, type Identity } from "../identity.ts";
 import { findOperator, sessionActorId } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
-import { pageOf, quietOf, threadsSeen, viewerAndCutoff } from "./thread-reads.ts";
+import { monitorStateOf, type MonitorRow } from "./monitors.ts";
+import { connectedOf, pageOf, quietOf, threadsSeen, viewerAndCutoff } from "./thread-reads.ts";
 import { authorizeSession, type SessionTarget } from "./threads.ts";
 
 // What a session reports of its work, and the operator's view of the
@@ -294,13 +295,14 @@ export function readSessionLog(
   });
 }
 
-interface SessionRow {
+interface SessionRow extends MonitorRow {
   id: number;
   agent_id: number;
   name: string;
   created_at: number;
   last_seen_at: number | null;
   quiet: number;
+  connected: number | null;
   latest_seq: number | null;
   state: WorkState | null;
   outcome: WorkOutcome | null;
@@ -321,7 +323,8 @@ const sessionOrder = `
 
 // listSessions pages through the agents in name order for the operator, each
 // with its sessions, at most maxListed of them, in their order. Each session
-// carries its presence, quiet as threadsSeen reads it; its approved
+// carries its presence, quiet and connected as threadsSeen reads them, with
+// its bridge's latest report while it is connected; its approved
 // registrations; its status, with the latest entry's note and when that entry
 // was written; how many of its log's entries the operator has not read; how
 // many of its threads they have not archived, with how many of those hold
@@ -356,6 +359,8 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
         `SELECT * FROM (
            SELECT s.id, s.agent_id, s.name, s.created_at, s.last_seen_at,
              ${quietOf("s")} AS quiet,
+             ${connectedOf("s")} AS connected,
+             r.monitored, r.profile, r.condition, r.since, r.stopped_by, r.resets_at,
              u.seq AS latest_seq, u.state, u.outcome, u.title, u.goal, u.percent, u.note,
              u.created_at AS updated_at,
              COALESCE(m.read_seq, 0) AS read_seq,
@@ -364,6 +369,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
            LEFT JOIN session_updates u ON u.session_id = s.id
              AND u.seq = (SELECT max(seq) FROM session_updates WHERE session_id = s.id)
            LEFT JOIN session_marks m ON m.actor_id = :viewer AND m.session_id = s.id
+           LEFT JOIN monitor_reports r ON r.session_id = s.id
            WHERE s.agent_id IN (SELECT value FROM json_each(:agents))
          )
          WHERE place <= :listed ORDER BY agent_id, place`,
@@ -444,6 +450,10 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       presence: {
         ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
         quiet: row.quiet === 1,
+        ...(row.connected === null ? {} : { connected: row.connected === 1 }),
+        // A report shows only while its bridge is connected, so a bridge
+        // that ended never leaves its last one standing as current.
+        ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
       },
       registrations: (registrations.get(row.id) ?? []).map((registration) => ({
         id: registration.id,

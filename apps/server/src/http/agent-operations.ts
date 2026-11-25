@@ -1,5 +1,9 @@
 import {
   agentMessageSendInput,
+  monitorAnswer,
+  monitorPollQuery,
+  monitorQuery,
+  monitorReport,
   registrationState,
   registrationSubmitInput,
   sessionParams,
@@ -12,7 +16,14 @@ import {
   waitResult,
   writeResult,
 } from "@wayfarerlabs/agention-api";
-import { createThread, listSessionThreads, updateSession, waitForThreads } from "../store/index.ts";
+import {
+  createThread,
+  listSessionThreads,
+  pollMonitor,
+  reportMonitor,
+  updateSession,
+  waitForThreads,
+} from "../store/index.ts";
 import { type Declaration, operation } from "./operations.ts";
 import { threadOperations } from "./thread-operations.ts";
 
@@ -70,7 +81,39 @@ export const agentOperations = [
       waitForThreads(store, identity, params, query, signal),
   }),
   ...threadOperations(agentMessageSendInput),
+  // The bridge's background connection and its report of what it observes,
+  // which never mark the agent checked in (backgroundOperations).
+  operation({
+    name: "pollMonitor",
+    method: "GET",
+    path: "/s/:agent/:session/monitor",
+    summary: "Hold the session's background connection until the wait ends or another bridge acts",
+    scope: "threads:read",
+    params: sessionParams,
+    query: monitorPollQuery,
+    response: monitorAnswer,
+    handler: ({ store, identity, params, query, signal }) =>
+      pollMonitor(store, identity, params, query, signal),
+  }),
+  operation({
+    name: "reportMonitor",
+    method: "POST",
+    path: "/s/:agent/:session/monitor",
+    summary: "Report what the bridge observes of the session, replacing its latest report",
+    scope: "threads:write",
+    params: sessionParams,
+    query: monitorQuery,
+    body: monitorReport,
+    response: monitorAnswer,
+    handler: ({ store, identity, params, query, body }) =>
+      reportMonitor(store, identity, params, query, body),
+  }),
 ];
+
+// The operations a session's bridge calls in the background, on its own: each
+// marks the session connected, and none marks its agent checked in, which
+// every other call by an approved key does.
+export const backgroundOperations: ReadonlySet<string> = new Set(["pollMonitor", "reportMonitor"]);
 
 // Registration is the one agent route a key the operator has not approved may
 // call, so it authenticates in its own way, against the key its token

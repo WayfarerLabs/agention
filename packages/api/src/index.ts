@@ -5,6 +5,7 @@ export * from "./bounds.ts";
 export * from "./errors.ts";
 export * from "./files.ts";
 export * from "./groups-and-tags.ts";
+export * from "./monitoring.ts";
 export * from "./names.ts";
 export * from "./origin.ts";
 export * from "./passkeys.ts";

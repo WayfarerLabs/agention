@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v4",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 4."
+    "version": "operator v1, agent v5",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 5."
   },
   "tags": [
     {
@@ -4370,6 +4370,9 @@
                   "session": {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                  },
+                  "background": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -6057,6 +6060,182 @@
           }
         }
       }
+    },
+    "/api/agent/s/{agent}/{session}/monitor": {
+      "get": {
+        "operationId": "agentPollMonitor",
+        "summary": "Hold the session's background connection until the wait ends or another bridge acts",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "bridge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "claim",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replaced": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "replaced"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "agentReportMonitor",
+        "summary": "Report what the bridge observes of the session, replacing its latest report",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "bridge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replaced": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "replaced"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6090,7 +6269,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "4"
+          "const": "5"
         }
       }
     },
@@ -6659,6 +6838,196 @@
           "live"
         ]
       },
+      "MonitorCondition": {
+        "type": "string",
+        "enum": [
+          "unknown",
+          "permission_prompt",
+          "other_prompt",
+          "running",
+          "at_prompt",
+          "waiting"
+        ]
+      },
+      "MonitorProfile": {
+        "type": "string",
+        "enum": [
+          "claude-code",
+          "codex",
+          "generic-strict",
+          "generic-lenient"
+        ]
+      },
+      "MonitorReport": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "monitored"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": true
+              },
+              "profile": {
+                "$ref": "#/components/schemas/MonitorProfile"
+              },
+              "condition": {
+                "$ref": "#/components/schemas/MonitorCondition"
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "stopped_by": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "usage_limit"
+                      },
+                      "resets_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "block"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "error"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "monitored",
+              "profile",
+              "condition",
+              "since"
+            ]
+          }
+        ]
+      },
+      "MonitorState": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "monitored"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": true
+              },
+              "profile": {
+                "$ref": "#/components/schemas/MonitorProfile"
+              },
+              "condition": {
+                "$ref": "#/components/schemas/MonitorCondition"
+              },
+              "since": {
+                "type": "string"
+              },
+              "stopped_by": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "usage_limit"
+                      },
+                      "resets_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "block"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "error"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "monitored",
+              "profile",
+              "condition",
+              "since"
+            ]
+          }
+        ]
+      },
       "OpenAsks": {
         "type": "object",
         "properties": {
@@ -6739,6 +7108,9 @@
             "type": "string"
           },
           "quiet": {
+            "type": "boolean"
+          },
+          "connected": {
             "type": "boolean"
           }
         },
@@ -6859,6 +7231,26 @@
           "expires_at"
         ]
       },
+      "SessionPresence": {
+        "type": "object",
+        "properties": {
+          "last_seen_at": {
+            "type": "string"
+          },
+          "quiet": {
+            "type": "boolean"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/MonitorState"
+          }
+        },
+        "required": [
+          "quiet"
+        ]
+      },
       "SessionStatus": {
         "type": "object",
         "properties": {
@@ -6906,7 +7298,7 @@
             }
           },
           "presence": {
-            "$ref": "#/components/schemas/Presence"
+            "$ref": "#/components/schemas/SessionPresence"
           },
           "registrations": {
             "type": "array",
@@ -7091,6 +7483,9 @@
             "type": "string"
           },
           "quiet": {
+            "type": "boolean"
+          },
+          "connected": {
             "type": "boolean"
           },
           "state": {

@@ -140,6 +140,7 @@ describe("the declarations", () => {
 // A valid body for each operation taking one, against what the fixture holds.
 const bodies: Record<string, unknown> = {
   updateSession: { state: "working" },
+  reportMonitor: { monitored: false },
   createThread: { request_id: "a-1", title: "t" },
   startThread: { request_id: "o-1", title: "t", text: "m" },
   sendMessage: { request_id: "m-1", seen_through: 1, text: "m" },
@@ -168,6 +169,8 @@ const bodies: Record<string, unknown> = {
 // A valid query for each operation that requires one.
 const queries: Record<string, unknown> = {
   uploadFile: { name: "notes.txt" },
+  pollMonitor: { bridge: "bridge-0123456789", wait: "0" },
+  reportMonitor: { bridge: "bridge-0123456789" },
 };
 
 // The fixture's pending registration, which approving and rejecting decide.

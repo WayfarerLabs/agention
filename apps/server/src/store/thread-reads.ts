@@ -23,7 +23,7 @@ import {
 import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { authorOf } from "./directory.ts";
-import { seenStep } from "./presence.ts";
+import { connectedFor, monitoringVersion, seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -65,24 +65,46 @@ export interface Lead {
 // The most pressing of every open ask.
 const mostPressing: Lead = { keeps: "1", order: askOrder };
 
-// The parameters every query threadsSeen starts binds: the viewer's actor,
-// and the quiet cut-off, the time before which a session last seen is quiet.
+// The parameters every query threadsSeen starts binds: the viewer's actor;
+// the quiet cut-off, the time before which a session last seen is quiet; and
+// the connected cut-off, the time from which a background request keeps a
+// session connected.
 export interface ViewerAndCutoff {
   viewer: number;
   quiet_before: number;
+  connected_from: number;
 }
 
-// viewerAndCutoff gives the viewer and the quiet cut-off now. A session is
-// quiet once unseen for the server's threshold and the step its stamp may lag
-// by, so a session that keeps calling never is.
+// viewerAndCutoff gives the viewer and the cut-offs now. A session is quiet
+// once unseen for the server's threshold and the step its stamp may lag by,
+// so a session that keeps checking in never is.
 export function viewerAndCutoff(store: Store, viewer: number, now: number): ViewerAndCutoff {
-  return { viewer, quiet_before: now - store.quietAfter - seenStep };
+  return {
+    viewer,
+    quiet_before: now - store.quietAfter - seenStep,
+    connected_from: now - connectedFor,
+  };
 }
 
 // quietOf says whether the sessions read as sessions are quiet: never seen,
 // or last seen before the quiet cut-off a ViewerAndCutoff binds.
 export function quietOf(sessions: string): string {
   return `(${sessions}.last_seen_at IS NULL OR ${sessions}.last_seen_at < :quiet_before)`;
+}
+
+// connectedOf says whether the sessions read as sessions are connected: 1
+// when their bridge made a background request since the connected cut-off a
+// ViewerAndCutoff binds; otherwise null when their agent last checked in
+// through a bridge older than monitoring, whose rule never shows a session
+// disconnected, a check-in from before versions were kept being one; and 0
+// for any other, one that never checked in among them.
+export function connectedOf(sessions: string): string {
+  return `(CASE
+    WHEN ${sessions}.background_at >= :connected_from THEN 1
+    WHEN ${sessions}.last_seen_at IS NOT NULL
+      AND COALESCE(${sessions}.last_seen_version, 1) < ${monitoringVersion} THEN NULL
+    ELSE 0
+  END)`;
 }
 
 // threadsSeen starts a query over the threads that scope admits, as the
@@ -100,7 +122,8 @@ export function quietOf(sessions: string): string {
 // message's, its session's presence and the state and outcome it last
 // reported, whether the other party has not read a live message of the
 // viewer's, and whether the thread is stranded: so, while the session is
-// quiet, has no active credential or has stopped; and the operator's group
+// quiet, has no active credential, is not connected or has stopped; and the
+// operator's group
 // for its session, which only the operator's list shows. scope reads the
 // threads as t, their sessions as s and their agents as g. Callers bind a
 // ViewerAndCutoff and whatever lead's conditions name, and select from seen.
@@ -121,6 +144,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         ) AS credential_active,
         s.last_seen_at,
         ${quietOf("s")} AS quiet,
+        ${connectedOf("s")} AS connected,
         reported.state AS session_state, reported.outcome AS session_outcome,
         member.group_id, grouped.name AS group_name
       FROM threads t
@@ -232,7 +256,8 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           WHERE w.thread_id = joined.id ORDER BY w.seq DESC, w.ask LIMIT 1
         ), NULL) AS latest_withdrawal,
         joined.unread_by_other AND (
-          joined.quiet OR NOT joined.credential_active OR joined.session_state IS 'stopped'
+          joined.quiet OR NOT joined.credential_active OR joined.connected IS 0
+            OR joined.session_state IS 'stopped'
         ) AS stranded
       FROM joined
     )`;
@@ -256,6 +281,7 @@ export interface ThreadRow {
   credential_active: number;
   last_seen_at: number | null;
   quiet: number;
+  connected: number | null;
   session_state: WorkState | null;
   session_outcome: WorkOutcome | null;
   group_id: number | null;
@@ -308,8 +334,8 @@ function askSummaryOf(json: string, now: number): AskSummary {
 
 // toThreadSummary describes a row of seen. An ask is overdue once its
 // answer-by time is before now. The thread's audience also sees its
-// session's presence, with the state and outcome it last reported, and
-// whether the thread is stranded.
+// session's presence, with whether it is connected and the state and outcome
+// it last reported, and whether the thread is stranded.
 export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
@@ -352,6 +378,7 @@ export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
               ? {}
               : { last_seen_at: formatTimestamp(row.last_seen_at) }),
             quiet: row.quiet === 1,
+            ...(row.connected === null ? {} : { connected: row.connected === 1 }),
             ...(row.session_state === null ? {} : { state: row.session_state }),
             ...(row.session_outcome === null ? {} : { outcome: row.session_outcome }),
           },
