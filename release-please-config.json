@@ -52,6 +52,10 @@
           "type": "json",
           "path": "out/codex-plugin/.mcp.json",
           "jsonpath": "$.mcpServers.agention.args[1]"
+        },
+        {
+          "type": "generic",
+          "path": "docs/operator-guide.md"
         }
       ]
     }

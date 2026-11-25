@@ -72,6 +72,12 @@ describe("the documentation page", () => {
     expect([...links].sort()).toEqual(Object.keys(schemas).sort());
   });
 
+  it("links the guide the document names", () => {
+    const document = apiDocument();
+    const { url } = document.externalDocs as { url: string };
+    expect(apiDocsPage(document)).toContain(`<a href="${url}" rel="noreferrer">`);
+  });
+
   it("carries no script and escapes what it shows", () => {
     const hostile = "<script>alert(1)</script>";
     const document = apiDocument();
