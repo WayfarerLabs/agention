@@ -11,10 +11,10 @@ import { z } from "zod";
 // a maintainer's decision.
 export const agentApi = { version: 9, oldest: 1 } as const;
 
-// The versions that added fields to the agent's answers. An answer to a
-// request stating an older version leaves out every field added after it, so
-// a bridge never reads, or has to fit within its answer cap, a field it does
-// not know.
+// The versions the server branches on. Most added fields to the agent's
+// answers: an answer to a request stating an older version leaves out every
+// field added after it, so a bridge never reads, or has to fit within its
+// answer cap, a field it does not know.
 
 // The first version whose messages carry pull_requests and branches, and whose
 // thread reads carry the thread's roll-up of them.
