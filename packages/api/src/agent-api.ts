@@ -6,9 +6,9 @@ import { z } from "zod";
 // released before the header. version is the one this release speaks. The
 // server serves every version from oldest to version, and the bridge refuses
 // an answer from a server older than itself, so a mismatch fails loudly
-// before a field goes missing unnoticed. Every change to the agent contract,
-// a new route or a new field on one, bumps version by one; oldest moves only
-// by the operator's decision.
+// before a field goes missing unnoticed. Every change to the agent contract
+// bumps version by one (CONTRIBUTING.md "The agent API"); oldest moves only by
+// a maintainer's decision.
 export const agentApi = { version: 5, oldest: 1 } as const;
 
 export const agentApiHeader = "Agention-Agent-API";

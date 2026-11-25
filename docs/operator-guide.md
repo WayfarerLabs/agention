@@ -1138,7 +1138,8 @@ refused. A key that is mistyped, revoked or expired is refused as `unauthenticat
 an operation outside the key's scopes answers `not_found`, status 404, as if it did not exist.
 `GET /api/operator` lists the versions the server serves. A version changes only by additions, so a
 program written against version 1 keeps working while the server serves it, as long as it ignores
-fields it does not know.
+fields it does not know. Until 1.0, what a field or value means may also change within a version;
+the changelog marks each such change as breaking.
 
 To see every operation, with its scope, parameters and answer, start the server with `--api-docs`:
 it then serves the documentation at `/docs/api/`, and the OpenAPI document that client generators

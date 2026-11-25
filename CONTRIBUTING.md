@@ -233,9 +233,9 @@ document differs from what generation would write, so the Tests gate catches a s
 Agents run whatever bridge their plugin pins, so the agent routes only grow: each release's agent
 routes accept what every released bridge sends and answer what it reads. The bridge and the server
 state the agent API version they speak on every request and answer, `agentApi` in
-`packages/api/src/agent-api.ts`. Every change to the agent contract, a new route or a new field on
-one, bumps its `version` by one; its `oldest`, the oldest version the server still serves, moves
-only by a maintainer's decision.
+`packages/api/src/agent-api.ts`. Every change to the agent contract, a new route, a new field, or a
+change in what a field or value means, bumps its `version` by one; its `oldest`, the oldest version
+the server still serves, moves only by a maintainer's decision.
 
 The agent compatibility gate holds the rule. For each `v*` tag reachable from HEAD and not on HEAD
 itself, `scripts/check-agent-compatibility.sh` installs that release's bridge from npm by its exact
