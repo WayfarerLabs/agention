@@ -11,7 +11,6 @@ import {
 } from "react";
 import { ApiFailure, describeFailure } from "../../api.ts";
 import { ConfirmButton, Status } from "../../components.tsx";
-import { useStillOpen } from "../../data.ts";
 import { type KeptDraft, useDeviceChoice, useDeviceOption } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
@@ -215,14 +214,9 @@ export function Composer({
   sending: (staged: Staged | undefined) => void;
   // Told the sequence of each message the server accepts.
   wrote: (seq: number) => void;
-  // Goes where the operator chose to go after sending, once a message
-  // lands: back to the list the page came from, in place of the page in
-  // history as Archive all does, having the list say what was sent; on as
-  // Archive all does, once this thread is archived; or on to the thread above
-  // or below, as their buttons go.
-  // written is the message the server accepted, which an archive after
-  // sending goes through at least.
-  onward: (where: Exclude<AfterSending, "stay">, sent: string, written: number) => void;
+  // Told, once a message lands, what was sent and the message the server
+  // accepted, to go where After sending says (useLeaving).
+  onward: (sent: string, written: number) => void;
   // Why the page's last way on failed, which it says beside Send after what
   // was sent, as the page's head does out of sight above a phone's keyboard.
   onwardFailure: string | undefined;
@@ -329,12 +323,8 @@ export function Composer({
   const said = onwardFailure === undefined ? status : `${status} ${onwardFailure}`.trim();
   const actions = useRef<HTMLDivElement>(null);
   useScrollClearOf(actions);
-  // Where a message the server accepts takes the operator. A write goes by
-  // the choice as it stands when the write lands, and only while the page
-  // that sent it is still open.
   // Whether After sending had focus as dictation moved it.
   const afterHadFocus = useRef(false);
-  const stillOpen = useStillOpen();
   const id = useId();
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
   const draft = { text, detail, attachments };
@@ -346,7 +336,7 @@ export function Composer({
   // after the operator changed it. It is set as the page renders, not in an
   // effect, so an answer landing between a render and its effects reads what
   // that render shows.
-  const holds = { after, text, detail, staged, files: files.files, dictating };
+  const holds = { text, detail, staged, files: files.files, dictating };
   const latest = useRef(holds);
   latest.current = holds;
   const detailBox = useRef<HTMLTextAreaElement>(null);
@@ -438,10 +428,7 @@ export function Composer({
     setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
     setStatus(sent);
-    const where = latest.current.after;
-    if (stillOpen() && where !== "stay") {
-      onward(where, sent, outcome.written);
-    }
+    onward(sent, outcome.written);
   };
 
   // send sends the draft as it stands, after a stale write too, so what the
