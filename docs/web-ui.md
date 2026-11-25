@@ -565,13 +565,14 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
 
   Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
   and unfolds it to its goal over a bar of how far it has come, its credentials, the profile its
-  bridge reads its terminal with, or **Terminal not monitored** when it is given none, and its log:
-  what each update changed, newest first, with its note, and **inferred from a write** on one the
-  server logged when the idle session wrote. Consecutive updates that changed only the percent show
-  as one line, such as **Progress 20% → 60%**, and **Older** shows the updates before. Unfolding
-  reads the updates it shows, which stay marked unread until you fold the row again. Rows start
-  folded each time you open the view, and a row under an agent or a group you folded reads nothing,
-  since it is not shown. This browser keeps the agents you fold, under each group apart.
+  bridge reads its terminal with and whether it can nudge the agent, or **Terminal not monitored**
+  when it is given none, and its log: what each update changed, newest first, with its note, and
+  **inferred from a write** on one the server logged when the idle session wrote. Consecutive
+  updates that changed only the percent show as one line, such as **Progress 20% → 60%**, and
+  **Older** shows the updates before. Unfolding reads the updates it shows, which stay marked unread
+  until you fold the row again. Rows start folded each time you open the view, and a row under an
+  agent or a group you folded reads nothing, since it is not shown. This browser keeps the agents
+  you fold, under each group apart.
 
   A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
   the session has now; and **Revoke** for each of the session's credentials, which asks once more.
