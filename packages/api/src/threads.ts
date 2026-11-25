@@ -567,8 +567,8 @@ export type MarksResult = z.infer<typeof marksResult>;
 
 // The thread, a page of its messages after the requested sequence (more
 // follow while the last is below the thread's last_seq), both read cursors,
-// the caller's marks, and the distinct files its messages carry, replaced
-// ones included.
+// the caller's marks, and the distinct files its live messages carry; a
+// replaced message still reads back with its own.
 export const threadGetResult = z.object({
   thread: threadSummary,
   messages: z.array(message),
@@ -584,9 +584,9 @@ export const threadFilesQuery = z.object({
 });
 export type ThreadFilesQuery = z.infer<typeof threadFilesQuery>;
 
-// A file of a thread as its file list gives it, with the first message that
-// carried it, which brought it: that message's sequence, author and time,
-// and the name it carries the file under.
+// A file of a thread as its file list gives it, with the live message that
+// carries it: that message's sequence, author and time, and the name it
+// carries the file under.
 export const threadFile = attachmentRead.extend({
   seq: sequence,
   author,
@@ -594,9 +594,9 @@ export const threadFile = attachmentRead.extend({
 });
 export type ThreadFile = z.infer<typeof threadFile>;
 
-// A page of a thread's files, each listed once, newest first by the message
-// that brought it and then that message's order; next, when present,
-// continues the list.
+// A page of the files a thread's live messages carry, each listed once,
+// newest first by the message that carries it and then that message's order;
+// next, when present, continues the list.
 export const threadFilesPage = z.object({
   files: z.array(threadFile),
   next: cursor.optional(),

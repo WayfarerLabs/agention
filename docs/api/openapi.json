@@ -2624,7 +2624,7 @@
     "/api/operator/v1/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "operatorListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "operator"
         ],
@@ -6310,7 +6310,7 @@
     "/api/agent/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "agentListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "agent"
         ],
