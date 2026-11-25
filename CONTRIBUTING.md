@@ -38,15 +38,16 @@ Every component is an npm workspace, listed in the root `package.json`, and one 
 `package-lock.json` locks them all. The root `package.json` also holds the repository's own tools:
 TypeScript, Vitest, esbuild, Prettier, markdownlint-cli2 and cspell.
 
-| Workspace                | Package                                          | What it is                                            |
-| ------------------------ | ------------------------------------------------ | ----------------------------------------------------- |
-| `packages/api`           | `@wayfarerlabs/agention-api` (private)           | The API contract: request and response schemas        |
-| `packages/build`         | `@wayfarerlabs/agention-build` (private)         | The bundle build the published packages use           |
-| `packages/private-files` | `@wayfarerlabs/agention-private-files` (private) | The private-file rule the server and the bridge share |
-| `apps/server`            | `@wayfarerlabs/agention`                         | The server and the `agention` operator CLI            |
-| `apps/bridge`            | `@wayfarerlabs/agention-mcp`                     | The agent bridge, the `agention-mcp` command          |
-| `apps/web`               | `@wayfarerlabs/agention-web` (private)           | The React web UI, built with Vite                     |
-| `apps/agent-plugin`      | `@wayfarerlabs/agention-agent-plugin` (private)  | The canonical plugin definition and its generator     |
+| Workspace                   | Package                                             | What it is                                            |
+| --------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `packages/api`              | `@wayfarerlabs/agention-api` (private)              | The API contract: request and response schemas        |
+| `packages/build`            | `@wayfarerlabs/agention-build` (private)            | The bundle build the published packages use           |
+| `packages/private-files`    | `@wayfarerlabs/agention-private-files` (private)    | The private-file rule the server and the bridge share |
+| `packages/harness-observer` | `@wayfarerlabs/agention-harness-observer` (private) | What an agent harness's terminal pane shows           |
+| `apps/server`               | `@wayfarerlabs/agention`                            | The server and the `agention` operator CLI            |
+| `apps/bridge`               | `@wayfarerlabs/agention-mcp`                        | The agent bridge, the `agention-mcp` command          |
+| `apps/web`                  | `@wayfarerlabs/agention-web` (private)              | The React web UI, built with Vite                     |
+| `apps/agent-plugin`         | `@wayfarerlabs/agention-agent-plugin` (private)     | The canonical plugin definition and its generator     |
 
 `@wayfarerlabs/agention-api` has no build step: its `exports` point at its TypeScript source, so a
 workspace that imports it type-checks against the contract itself, and a change to the contract

@@ -5,16 +5,17 @@ considered, are recorded in [ADR 0001](adrs/0001-agention-v1-architecture.md).
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                  |
+| Component                   | State                                                                                                                                                                                   |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`              | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
+| `packages/build`            | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
+| `packages/private-files`    | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
+| `packages/harness-observer` | Reads an agent harness's tmux pane and says what condition the harness is in, through a profile of the harness's screens; it knows nothing of Agention.                                 |
+| `apps/server`               | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
+| `apps/bridge`               | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
+| `apps/web`                  | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
+| `apps/agent-plugin`         | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
+| `scripts/`                  | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                  |
 
 ## Source and packages
 
