@@ -11,13 +11,13 @@
 Three pieces, each built on the one before:
 
 1. **The harness observer**, a workspace package that knows terminals and harnesses and nothing of
-   Agention (M10). Given a way to read and write one terminal pane, it reports the harness's
-   condition, and it can place, check and clear text at the harness's input line.
+   Agention (M10). Given one terminal pane, it reports the harness's condition, and it can carry out
+   a nudge with every check of N4 and N5 inside it.
 2. **Monitoring**, in the bridge and the server. The bridge's **reporter** holds the session's
    background connection to the server and reports what the observer finds; the server keeps the
-   latest report and works out what the operator sees from it.
-3. **The nudge**, in the bridge. When the reporter learns the operator wrote, and the session can be
-   nudged, it runs the warn, clear and send sequence through the observer.
+   latest report and works out what the operator sees.
+3. **The nudge**, in the bridge and the server. The server tells the reporter when a nudge is due;
+   the reporter asks the observer to nudge, and reports the outcome.
 
 ```mermaid
 flowchart LR
@@ -26,66 +26,64 @@ flowchart LR
         subgraph B["bridge (MCP server, child of the harness)"]
             O["harness observer"]
             R["reporter"]
-            N["nudge"]
         end
-        O -- "capture, formats" --> T
-        N -- "paste, Backspace, Enter" --> O
-        R --> O
-        R --> N
+        O -- "capture, paste, Backspace, Enter" --> T
+        R -- "observations; nudge()" --> O
     end
     S["Agention server"]
-    R -- "long poll (background), monitor report" --> S
+    R -- "GET /monitor (long poll), POST /monitor (report)" --> S
     S --> W["web UI and operator API"]
 ```
 
-Monitoring ships first (delivery 1) and is complete without the nudge; the nudge (delivery 2) adds
-the observer's writing side and the bridge's sequence, and nothing on the server beyond what
-monitoring already reports.
+Two deliveries, as the FRD's definition of done: monitoring (the observer's reading side, the
+reporter, the server and both operator surfaces), then the nudge (the observer's writing side, the
+nudge's server rules and the agent's guidance). Each ships complete on its own.
 
 ## The harness observer
 
 A new workspace package, `packages/harness-observer`, private like `packages/private-files` and
 bundled into the bridge. It imports nothing from Agention, so it can move to a package of its own
-later (ruling 4).
+later (ruling 4). It reads Linux's `/proc` for the terminal's foreground process; where that is
+missing, every reading is unknown and no nudge is possible.
 
 ### Interfaces
 
 ```ts
-// One terminal pane, as the observer reads and writes it. The tmux adapter implements it; a test
-// double replays captured screens.
+// One terminal pane. The tmux adapter implements it; tests use a real tmux server or a replay of
+// captured screens.
 interface Pane {
   snapshot(): Promise<Snapshot>;
-  paste(text: string): Promise<void>; // bracketed paste of one line
+  paste(line: string): Promise<void>; // one line, no control characters, as a bracketed paste
   key(key: "Backspace" | "Enter"): Promise<void>; // the only keys there are
 }
 
 interface Snapshot {
-  readonly lines: readonly string[]; // the visible screen
-  readonly width: number;
-  readonly height: number;
+  readonly lines: readonly string[]; // the visible screen, top to bottom
   readonly cursor: { readonly x: number; readonly y: number; readonly visible: boolean };
   readonly hostHasTerminal: boolean; // the foreground process group is the pane's first process
-  readonly inMode: boolean; // tmux copy mode or another mode that keeps keys from the host
-  readonly lastTyped: number | undefined; // when an attached client last sent a key, ms
+  readonly keysBlocked: boolean; // a mode, such as tmux's copy mode, keeps keys from the host
+  readonly lastTyped: number | undefined; // the latest key from any attached client, ms
+  readonly onePane: boolean; // the server holds exactly one pane
   readonly at: number; // when it was taken, ms
 }
 
-// What one harness's screens mean. Pure functions of snapshots, so profiles are data plus a little
-// matching code, tested against captured screens.
+// What one screen of a harness means. A pure function of one snapshot, tested against captures.
 interface Profile {
-  readonly name: string; // "claude-code", "codex", "generic-strict", "generic-lenient"
-  // The condition the latest snapshots show; recent holds the last few seconds, oldest first.
-  read(recent: readonly Snapshot[]): Reading;
-  // Where the input line is and what it holds, when the snapshot shows the prompt.
-  input(snapshot: Snapshot): InputLine | undefined;
+  readonly name: string;
+  screen(snapshot: Snapshot): Screen;
 }
 
-type Condition =
-  "unknown" | "permission-prompt" | "other-prompt" | "running" | "at-prompt" | "waiting";
+type Screen =
+  | {
+      readonly kind: "permission-prompt" | "other-prompt" | "other";
+      readonly stoppedBy?: StoppedBy;
+    }
+  | { readonly kind: "input"; readonly input: InputLine; readonly stoppedBy?: StoppedBy };
 
-interface Reading {
-  readonly condition: Condition;
-  readonly stoppedBy?: StoppedBy; // only at rest
+interface InputLine {
+  readonly text: string; // what follows the prompt marker on the cursor's row
+  readonly cursorAtEnd: boolean;
+  readonly room: number; // how many more characters fit on the row
 }
 
 type StoppedBy =
@@ -93,137 +91,168 @@ type StoppedBy =
   | { readonly reason: "block" }
   | { readonly reason: "error" };
 
-interface InputLine {
-  readonly text: string; // what follows the prompt marker on the cursor's row
-  readonly cursorAtEnd: boolean;
+// The profiles of one harness, by version: each entry applies from its version until the next.
+interface HarnessProfiles {
+  readonly harness: string; // as the MCP client names itself, such as "claude-code"
+  forVersion(version: string): Profile | undefined; // undefined below the oldest entry
 }
 
-// Watches one pane with one profile and yields an observation whenever the reading changes.
-interface Observer {
-  observations(signal: AbortSignal): AsyncIterable<Observation>;
-  // The nudge's writing side: each call checks the screen before and after, and fails closed.
-  place(text: string): Promise<Placed>; // paste, then confirm it sits alone on the input line
-  remove(placed: Placed): Promise<boolean>; // Backspaces, only while the text is still exactly there
-  submit(placed: Placed): Promise<boolean>; // Enter, only while the text is still exactly there
-}
+type Condition =
+  "unknown" | "permission-prompt" | "other-prompt" | "running" | "at-prompt" | "waiting";
 
-interface Observation extends Reading {
+interface Observation {
+  readonly condition: Condition;
   readonly since: Date;
+  readonly stoppedBy?: StoppedBy;
+}
+
+type NudgeOutcome = { readonly sent: true } | { readonly sent: false; readonly step: NudgeStep };
+type NudgeStep = "not-ready" | "warning" | "cleared" | "message" | "submitted";
+
+interface Observer {
+  observations(signal: AbortSignal): AsyncIterable<Observation>; // yields on change
+  nudge(texts: { warning: string; message: string }): Promise<NudgeOutcome>;
 }
 ```
 
-`Pane` is the seam: the tmux adapter is one implementation, and another terminal or a test double is
-another. `Profile` is the second seam: adding a harness, or a version whose screens changed, adds or
-edits a profile and its fixtures, and touches nothing else (M5).
+`Pane` is the seam to the terminal and `Profile` the seam to the harness: supporting a harness, or a
+version whose screens changed, adds a `HarnessProfiles` entry and its captures and touches nothing
+else (M5). A registry maps harness names to their profiles; the bridge picks with `auto` (below) or
+the configured name.
 
-### Reading a pane
+### Reading
 
-- **Sampling.** The observer takes a snapshot every second, and every quarter second for a few
-  seconds after a change, keeping the last few seconds. Each snapshot is a handful of tmux client
-  calls: `capture-pane -p` and one `display-message -p` of the formats (`cursor_x`, `cursor_y`,
-  `cursor_flag`, `pane_in_mode`, `pane_pid`, `client_activity`), and `/proc/<pane_pid>/stat` for the
-  foreground process group. Only `observations` sends anything onward, and only on change (C2).
-- **Generic rules every profile starts from**, from the spike: unknown when the pane cannot be read,
-  the server holds more than one pane, or the host no longer has the terminal; running when the
-  screen changed within the last two seconds; and at rest otherwise.
-- **Harness profiles** add what they can tell from captured screens: Claude Code's and Codex's
-  permission dialogs (hidden cursor and their dialog text; Claude Code's blinking bullet masked from
-  the stillness test), other prompts (trust, sign-in), the prompt (cursor visible on the input row
-  after `❯` or `›` and a space; for Claude Code, `-- INSERT --` when vim mode is on and no `!` shell
-  mode), and a stopped-by reason once a captured screen shows it.
-- **Generic profiles.** Strict: at its prompt only when the cursor is visible, the cursor's row
-  holds nothing after it, and the pane is still; otherwise waiting. Lenient: at its prompt whenever
-  the cursor is visible and the pane is still. Neither reports a prompt kind or a stopped-by reason.
-- **Choosing a profile.** `auto` picks by the harness the bridge runs under, from the MCP client's
-  `initialize` `clientInfo` (name and version), validated as outside input; an unknown harness gets
-  the strict generic profile. A profile records the versions where its screens changed and applies
-  to every later version until a capture shows otherwise; a harness version older than the profile
-  knows gets the strict generic one.
+- **Sampling.** One snapshot a second: one tmux client call, `capture-pane -p` chained with
+  `display-message -p` for the cursor and mode formats, plus `list-panes -a` for the pane count,
+  `list-clients` for the latest key from any attached client, and `/proc/<pane_pid>/stat` for the
+  foreground process group. The observer keeps a few seconds of snapshots, and `observations` yields
+  only when the condition or stopped-by reason changes (C2).
+- **The condition, in M3's order**, which the observer applies once for every profile: **unknown**
+  when the snapshot fails, the server holds more than one pane or the host lacks the terminal; the
+  profile's **permission prompt** or **other prompt**, from one screen; **running** when the screen
+  changed within the last two seconds; **at its prompt** when the profile finds the input line;
+  **waiting** otherwise. Dialogs come before stillness, so a dialog's animation (Claude Code's
+  blinking bullet) never reads as running. The stopped-by reason comes from the profile's screen and
+  shows only at rest.
+- **Harness profiles** tell what their captures show: the permission dialogs (cursor hidden, the
+  dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after `❯` or
+  `›` and a space; for Claude Code, `-- INSERT --` when vim mode is on and not `!` shell mode).
+- **Generic profiles** never name a prompt kind or a stopped-by reason. The strict one finds the
+  input line only when the cursor is visible with nothing after it on its row; the lenient one
+  whenever the cursor is visible.
+- **Choosing.** `auto` takes the harness name and version from the MCP client's `initialize`
+  `clientInfo`, validated as outside input, and asks the registry; an unknown harness, or a version
+  below the oldest entry, gets the strict generic profile. Codex's `clientInfo` is captured when its
+  profile is built.
 
-### Writing to a pane
+### Writing: `nudge()`
 
-The observer owns the checks around every write, so no caller can press a key without them:
+The whole of N4 and N5 lives in `nudge()`, so no caller can press a key outside them, and the
+package's tests cover the sequence:
 
-- `place` pastes one line as a bracketed paste, waits for the screen, and succeeds only if the
-  profile's `input` finds exactly that text, alone, with the cursor visible right after it.
-- `remove` and `submit` re-check the same before sending a key: `remove` sends one Backspace per
-  character and then confirms the line is empty; `submit` sends Enter.
-- Nothing else is sent: never an ordinary character, never Escape (the spike's findings).
+1. **Ready?** The latest observation is at its prompt, with no stopped-by usage limit still before
+   its reset; the host holds the terminal; keys are not blocked; no key from any client for the last
+   ten seconds; the input line is empty and has room for the warning and the message. Otherwise
+   `not-ready`, and nothing was sent.
+2. **Warning.** Paste it through a buffer of the bridge's own (`paste-buffer -b ... -d`), so the
+   operator's paste buffer is untouched; confirm the input line holds exactly it, cursor at its end;
+   wait five seconds; confirm again. A failure abandons at `warning`, removing nothing.
+3. **Clear.** Confirm it once more, send one Backspace per character, and confirm the line is empty;
+   otherwise `cleared`.
+4. **Message.** Paste it and confirm it as in step 2; otherwise remove it if it is still exactly
+   there, and abandon at `message`.
+5. **Submit.** Confirm, send Enter, and within five seconds see the line clear and the screen
+   change; otherwise `submitted`, the one failure after the message went in.
 
-### Fixtures
+Only Backspace and Enter are ever sent, never an ordinary character or Escape (the spike), and each
+only right after a confirmation. `paste` refuses newlines and control characters, so no text can end
+the bracketed paste early.
+
+### Captures
 
 Captured screens live beside each profile as text files with their snapshot fields, named for the
-harness version and the condition they show. They come from clean scratch sessions like the spike's,
-or are scrubbed; review checks each one (M5). The spike's captures for running, the prompt, the
-permission dialogs and the trust dialogs are the first; usage limit, block and error wait for a
-capture, as the operator decides.
+harness version and what they show, and its tests read them. They come from clean scratch sessions
+(a fresh home, default settings, no account details on screen) or are scrubbed, and review checks
+each one (M5). The spike's screens were not kept, so building each profile starts by capturing them
+again: the prompt, a running turn, the permission and trust dialogs, Claude Code's vim and shell
+modes. Usage limit, block and error wait for a capture, as the operator decides.
 
 ## Monitoring
 
-### The bridge's reporter
+### The reporter
 
-The reporter replaces nothing the agent does: its own `message_wait` and tools work as today. It
-runs only with an approved registration, and starts on approval (M9).
+The reporter runs in the bridge beside the agent's own tools, which work as today.
 
-- **Approval.** While the registration is pending, the reporter reads its state every 15 seconds
-  with the request `register` already makes, until two minutes before it expires, as agention#67's
-  bridge did; a refused, revoked or expired registration ends it, and only `register` restarts it.
-- **The background connection.** It long-polls `GET /api/agent/s/<agent>/<session>/wait` from its
-  own cursor, 25 seconds at a time, marked as the bridge's own (below), which keeps the session
-  **connected** (M1) and tells it when the operator wrote (N1). This is agention#67's loop, carried
-  forward with its tests: one request at a time, a floor between requests, backoff on an unreachable
-  server, and a cursor the server refuses dropped.
-- **The monitor report.** When the observer's reading changes, or the nudge's outcome does, the
-  reporter sends `PUT /api/agent/s/<agent>/<session>/monitor` with the whole current report.
-- **One bridge acts (M7).** Bridges of one session share its key file. The first to start its
-  reporter takes a lock file beside the key file, holding its pid, under the private-file rule; a
-  newer bridge takes it over when that pid is gone or is an older bridge, and a bridge whose lock is
-  taken stops its reporter. Where a pane is configured, the bridge also records its pid in a tmux
-  server option, so two bridges with different keys never drive one pane.
+- **Starting.** On `register`, and on the first tool call that finds the session's credential, as a
+  restarted bridge does. While the registration is pending it reads its state every 15 seconds with
+  the request `register` already makes, marked as background (below), until two minutes before it
+  expires; on approval it starts monitoring without the agent calling a tool (M9). A refused,
+  revoked or expired registration stops it until the next `register`.
+- **The background connection.** It long-polls `GET /api/agent/s/<agent>/<session>/monitor` with an
+  id it drew at start, 25 seconds at a time, one request at a time, at least a second apart, backing
+  off from 1 to 60 seconds while the server is unreachable. Each request keeps the session connected
+  (M1).
+- **One bridge acts (M7).** The server keeps, in memory, the id of the latest bridge to poll a
+  session. A poll with a newer id ends the older bridge's open poll with `replaced`, and refuses its
+  reports; the replaced bridge stops its reporter until it next handles a tool call, since the
+  bridge the host is using is the one that should report. No file and no lock: every bridge already
+  talks to the server.
+- **The report.** On start, on taking over, and whenever an observation changes, it sends
+  `POST /api/agent/s/<agent>/<session>/monitor` with the whole report.
+
+This keeps from agention#67's `push.ts` its loop and pacing (`#run`, `#registration`, `#round`,
+`#pause`: the 15-second pending read, the expiry margin, the floor and the backoff) and their tests
+for starting on approval, recovery and the floor. Its host directory, wake file, notice, lapse line,
+saved cursor and `claude-code` gate do not carry over.
 
 ### The agent API, version 5
 
-Monitoring bumps the agent API to version 5 (C1):
-
-- **Background requests.** A request carrying `Agention-Background: 1` comes from the bridge itself:
-  it marks the session connected, never checked in. Every other approved request is the agent
-  checking in (M2). Under ADR 0001's honor system the bridge is trusted to mark only its own.
-- **`PUT .../monitor`.** The report: whether a pane is monitored, whether the session can be nudged,
-  the profile's name, the condition and since when, the stopped-by reason with its reset time, and
-  the latest nudge's time and whether it was sent. Every field is a schema-checked enumeration,
+- **`GET .../monitor`**, a long poll reusing the wait's machinery: it answers after 25 seconds, or
+  at once with `replaced`. It never marks the session checked in.
+- **`POST .../monitor`**: whether a pane is monitored, the profile's name, the condition and since
+  when, and the stopped-by reason with its reset time. Every field is a schema-checked enumeration,
   boolean or time; there is no free text (M8). A report replaces the last.
-- **Older bridges.** A session whose bridge speaks a version below 5 sends no background marker, so
-  every call it makes is a check-in and it is never shown connected or disconnected: today's
-  presence and stranded rule applies to it unchanged.
+- **`POST /registrations`** gains a `background` flag; the reporter's pending reads set it, so
+  approval marks the session connected, never checked in.
+- **Every other approved request is the agent checking in** (M2), as today's last seen is.
 
 ### The server
 
-- **Stored**, on the session: when the agent last checked in, when the bridge's background request
-  last arrived, the version that sent it, and the latest monitor report. Nothing derived is stored
-  (review checklist A8).
-- **Derived in queries**: connected (a background request within about a minute), quiet (no check-in
-  within `--quiet-minutes`), "not responding to the nudge" (a nudge sent and no check-in since), and
-  stranded by M6's rule, with its reason.
-- **Shown**: the sessions view gains each session's connection, last check-in, condition and
-  stopped-by note, a flag on the sessions that need the operator with a filter listing them (M4),
-  and stranded reasons that name the condition; the operator API's session reads carry the same. No
-  agent-facing route returns any of it (M8).
+- **Stored**, on the session: the agent's last check-in, with the agent API version of that request;
+  the time of the latest background request; and the latest report. A check-in is stamped to the
+  minute, as today, and also whenever the stamp is older than the session's latest nudge (delivery
+  2), so a reply to a nudge always shows. Background requests are stamped on each one, every 25
+  seconds at most. A migration adds the columns.
+- **Derived in queries**, never stored (review checklist A8): **connected**, a background request
+  within the last 60 seconds; **quiet**, no check-in within `--quiet-minutes`; **stranded**, by M6;
+  and the condition, shown only while connected, so a dead bridge's last report is never shown as
+  current.
+- **Older bridges (C1).** While no background request is fresh and the latest check-in came from a
+  version below 5, the session follows today's presence and stranded rule, never shown disconnected.
+  So a plugin pinned back to an older release reads as it always did.
+- **Shown.** The operator API's session reads carry connection, last check-in, condition with since,
+  stopped-by and the profile's name (delivery 1a); the sessions view shows them, flags the sessions
+  at a prompt or stopped by something with a filter listing them (M4), and names the condition in a
+  stranded thread's reason (delivery 1b). No agent-facing answer carries any of it (M8).
 
 ## The nudge
 
-When the reporter's long poll returns threads with operator messages, the agent has not checked in
-since, the session can be nudged, and no nudge was tried since the agent last checked in (N3), the
-bridge waits for the observer to report the session at its prompt, not stopped by a usage limit that
-has yet to reset, still, the host holding the terminal and no one having typed for a while (N4).
-Then:
+Delivery 2 bumps the agent API to version 6:
 
-1. `place` the warning: fixed words and a random token; wait a few seconds;
-2. confirm the warning is still exactly there, then `remove` it;
-3. `place` the message, the same fixed words every time;
-4. `submit` it, and watch for the line to clear and a turn to start.
+- **Due.** `GET .../monitor` also answers `nudge` as soon as a nudge is due: the session has a
+  thread with a message from the operator the agent has not read, written after the agent's last
+  check-in and after the session's latest nudge (N1, N3). The server works this out, so it holds
+  across bridge restarts, takeovers and Codex's several bridges, and the bridge learns only that one
+  is due, never why: nothing about threads or presence reaches the agent through it.
+- **The outcome.** `POST .../monitor` gains whether the session can be nudged and the latest nudge's
+  time and outcome, sent or not. The server shows "not responding to the nudge" when it was sent and
+  no check-in followed, and applies M6's nudge branches.
 
-Any failed check abandons the nudge where it stands, removing only the bridge's own text while it is
-still exactly there, and records "not sent"; the log says which step, without pane text.
+On `nudge`, the reporter calls `observer.nudge()` with the warning (fixed words and a token from a
+cryptographic random source) and the message (fixed words), retrying `not-ready` once a second until
+the observer is ready or the due answer lapses, and reports the outcome; a `not-ready` outcome is
+not a nudge and is not reported. The bridge's log names the step a nudge stopped at, never pane
+text. T1's `register` answer and the usage skill come with this delivery.
 
 ## Configuration
 
@@ -233,40 +262,64 @@ still exactly there, and records "not sent"; the log says which step, without pa
 | `--harness-profile` | `AGENTION_HARNESS_PROFILE` | `auto` (default), `claude-code`, `codex`, `generic-strict`, `generic-lenient` |
 | `--nudge`           | `AGENTION_NUDGE`           | `tmux`; absent means off                                                      |
 
-The plugin definition forwards the three variables on both hosts (CF3), and Agentworks sets them
-through its templating once it exposes the socket path; until then, by hand.
+An option wins over its variable. The bridge never reads `TMUX` or `TMUX_PANE`. The plugin
+definition forwards the three variables on both hosts (CF3), and Agentworks sets them through its
+templating once it exposes the socket path; until then, by hand.
+
+What goes wrong, and where it shows (CF4):
+
+| Case                                           | Log                  | `register` answer           | Condition |
+| ---------------------------------------------- | -------------------- | --------------------------- | --------- |
+| No socket                                      | nothing              | answers arrive when checked | none      |
+| Socket unreachable, path too long, or no tmux  | the error, once      | answers arrive when checked | unknown   |
+| More than one pane, or the host lacks the pane | once                 | answers arrive when checked | unknown   |
+| Unknown profile name                           | once; strict generic | as with strict generic      | as read   |
+| Unknown nudge type, or a nudge type, no socket | once; nudge off      | answers arrive when checked | as read   |
+
+The tools work as without monitoring in every case.
 
 ## Security
 
-- **What leaves the machine**: enumerations, booleans and times. The observer's snapshots stay in
-  the bridge's memory, and its log names steps and conditions, never screen text (M8).
-- **Trust.** A monitor report is the bridge's observation, trusted as the agent's host is under ADR
-  0001's honor system. Screen text the harness prints can imitate a condition, so a report is never
-  authority for anything but what the operator sees; only the observer's own checks, at the moment
-  of each write, let a key be pressed.
-- **The nudge's texts** are constants in the bridge, plus a token from a cryptographic random
-  source; nothing from the server or the screen reaches them (N2).
+- **What leaves the machine**: enumerations, booleans and times. Snapshots stay in the bridge's
+  memory, and its log names steps and conditions, never screen text (M8).
+- **Trust.** A report is the bridge's observation, trusted as the agent's host is under ADR 0001's
+  honor system. The screen can imitate a condition, so a report is never authority for anything but
+  what the operator sees; only `nudge()`'s own checks, at the moment of each key, let one be
+  pressed.
+- **The nudge's texts** are constants in the bridge plus a random token; nothing from the server or
+  the screen reaches them (N2). The due answer carries no thread, message or presence.
 - **Rights.** The bridge runs as the account that owns the tmux server; it gains no access it
   lacked.
 
+## Testing
+
+- **The observer**: each profile against its captures; the condition order, sampling and `nudge()`'s
+  steps against a real tmux server running a small scripted harness, a Node script that draws a
+  prompt, a running turn, a dialog that answers to keys, and an input line, so every guard and every
+  abandoned step is exercised.
+- **The bridge and server**: the reporter against the bridge's test server (`test-harness.ts`), for
+  starting on approval, takeover, recovery and older-bridge rules; the derivations in the store's
+  tests.
+- **tmux in CI and locally**: the tests need `tmux` 3.3 or later; CI installs the distribution's
+  package, and CONTRIBUTING's prerequisites list it.
+
 ## Deliveries
 
-1. **The harness observer**: the package, the tmux adapter, the four profiles, the fixtures from the
-   spike and their tests. It ships no behavior on its own, so it rides with delivery 2a's pull
-   request unless review wants it separate.
-2. **Monitoring**: (a) the observer and the reporter in the bridge, agent API version 5 and the
-   server's storage and derivations; (b) the web UI and operator API; with the collateral E1 names
-   for monitoring.
-3. **The nudge**: the observer's writing side, the bridge's sequence, T1 and the usage skill, and
-   the rest of E1.
+1. **Monitoring.**
+   - **1a**: the observer package's reading side with the Claude Code, Codex and generic profiles
+     and their captures; the reporter; agent API version 5, the migration and the derivations; the
+     operator API's session reads and `docs/api/openapi.json`; the configuration and plugin
+     forwarding; and the collateral E1 names for monitoring outside the web UI.
+   - **1b**: the sessions view, its flag and filter, stranded reasons, and the operator guide.
+2. **The nudge**: `nudge()`, agent API version 6, the due answer and outcome, M6's nudge branches,
+   T1 and the usage skill, the ADR and the rest of E1.
 
 ## Risks and open items
 
-- **Harness releases** change screens often (11 Claude Code releases in two weeks). A changed screen
-  degrades to waiting or unknown, and the nudge's checks hold regardless; the fixtures make the
-  change visible when a capture is refreshed.
+- **Harness releases** change screens often. A changed screen reads as waiting or unknown, and
+  `nudge()`'s checks hold regardless; refreshed captures make the change visible.
 - **Usage limit, block and error** need captures before any profile claims them; how one is obtained
   is open with the operator.
-- **The blinking bullet** in Claude Code's permission dialog defeats a plain stillness test; its
-  profile masks it.
-- **Several bridges on Codex**: the lock's takeover rule is checked live (FRD definition of done).
+- **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
+- **A restarted bridge** starts reporting only at the agent's next tool call, since it learns its
+  session's names then; until then the session shows disconnected.
