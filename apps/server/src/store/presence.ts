@@ -36,34 +36,25 @@ export const monitoringVersion = 6;
 // from the last one's, so a session pinned to an older bridge is read by its
 // rule at once, or when its last check-in is before the latest claim of a
 // nudge (claimNudge), so a check-in during a nudge, or in reply to one,
-// always shows, at the cost of one stamp more for each claim. A stamp that
-// moves wakes the session's channel, since it can end a nudge being due. The
-// agent mount calls it on every call by an approved key but its bridge's
-// background ones, before the call's own work, in a transaction of its own,
-// so a call refused later still counts. A registration that is not approved
-// as it runs, pending or revoked since its token was verified, stamps
-// nothing.
+// always shows, at the cost of one stamp more for each claim. A stamp wakes
+// no poll, though it can end a nudge being due: a claim checks again that
+// one is. The agent mount calls it on every call by an approved key but its
+// bridge's background ones, before the call's own work, in a transaction of
+// its own, so a call refused later still counts. A registration that is not
+// approved as it runs, pending or revoked since its token was verified,
+// stamps nothing.
 export function markCheckedIn(store: Store, registrationId: number, version: number): void {
   const { db } = store;
-  const stamped = db.transaction(
-    () =>
-      db
-        .prepare(
-          `UPDATE sessions SET last_seen_at = :now, last_seen_version = :version
-           WHERE id = (
-               SELECT session_id FROM registrations
-               WHERE id = :registration AND status = 'approved'
-             )
-             AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-               OR last_seen_version IS NOT :version OR last_seen_at < nudged_at)
-           RETURNING id`,
-        )
-        .get({ now: store.clock(), registration: registrationId, step: seenStep, version }) as
-        { id: number } | undefined,
-  );
-  if (stamped !== undefined) {
-    store.notifier.notify(stamped.id);
-  }
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE sessions SET last_seen_at = :now, last_seen_version = :version
+       WHERE id = (
+           SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
+         )
+         AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
+           OR last_seen_version IS NOT :version OR last_seen_at < nudged_at)`,
+    ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
+  });
 }
 
 // markBackground stamps the session a registration acts for as connected

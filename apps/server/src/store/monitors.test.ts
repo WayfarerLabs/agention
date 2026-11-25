@@ -327,8 +327,9 @@ describe("the nudge", () => {
   const due = async (bridge = first, store?: Store) =>
     (await poll(bridge, { wait: "0" }, undefined, agent, store)).nudge;
 
-  // A poll by a bridge that knows a nudge is due, held for 20 seconds.
-  const held = () => poll(first, { nudge: "true", wait: "20" });
+  // A poll by a bridge that knows a nudge is due, held for 20 seconds unless
+  // the signal ends it.
+  const held = (signal?: AbortSignal) => poll(first, { nudge: "true", wait: "20" }, signal);
 
   // The operator writes to the session, in a thread of its own.
   const written = () => fixture.startThread(agent);
@@ -364,24 +365,45 @@ describe("the nudge", () => {
     expect(await due()).toBe(false);
   });
 
-  it("holds a poll that knows one is due while it still is, and answers once the agent checks in", async () => {
+  it("holds a poll that knows one is due while it still is, a report leaving it due included", async () => {
     written();
-    const pending = held();
+    const controller = new AbortController();
+    const pending = held(controller.signal);
     expect(await settled(pending)).toBe(false);
     // A report that leaves it due wakes the poll, which holds on.
     report(first, canBeNudged);
     expect(await settled(pending)).toBe(false);
-    fixture.advance(seenStep);
-    fixture.seen(agent);
-    expect(await pending).toEqual({ replaced: false, nudge: false });
+    controller.abort();
+    expect(await pending).toEqual({ replaced: false, nudge: true });
   });
 
-  it("answers a poll that knows one is due once the agent reads the thread", async () => {
+  it.each([
+    [
+      "checks in",
+      () => {
+        fixture.advance(seenStep);
+        fixture.seen(agent);
+      },
+    ],
+    [
+      "reads the thread",
+      (number: number) =>
+        markRead(fixture.store, agent.identity, threadTarget(agent, number), { through: 1 }),
+    ],
+  ])("refuses the claim of a bridge still told one is due once the agent %s", async (_, lapse) => {
     const { number } = written();
-    const pending = held();
+    const controller = new AbortController();
+    const pending = held(controller.signal);
     expect(await settled(pending)).toBe(false);
-    markRead(fixture.store, agent.identity, threadTarget(agent, number), { through: 1 });
-    expect(await pending).toEqual({ replaced: false, nudge: false });
+    lapse(number);
+    // Nothing wakes the poll, so its bridge still believes one is due; the
+    // claim, which checks again, is what stops it.
+    expect(await settled(pending)).toBe(false);
+    expect(claim(first)).toEqual({ replaced: false, go: false });
+    expect(nudgeRow()).toEqual({ nudged_at: null, nudge_sent: null });
+    // Ended, the poll answers what it last found.
+    controller.abort();
+    expect(await pending).toEqual({ replaced: false, nudge: true });
   });
 
   it("writes nothing to say whether one is due", async () => {
@@ -422,14 +444,6 @@ describe("the nudge", () => {
     expect(claim(second)).toEqual({ replaced: false, go: true });
     expect(nudgeRow()).toEqual({ nudged_at: fixture.now, nudge_sent: null });
     expect(claim(second)).toEqual({ replaced: false, go: false });
-  });
-
-  it("ends a poll that knows one is due once it is claimed", async () => {
-    written();
-    const pending = held();
-    expect(await settled(pending)).toBe(false);
-    expect(claim(first)).toEqual({ replaced: false, go: true });
-    expect(await pending).toEqual({ replaced: false, nudge: false });
   });
 
   it("is due at most once until the agent checks in, sent or not", async () => {
@@ -565,32 +579,6 @@ describe("the nudge", () => {
     expect(await settled(pending)).toBe(false);
     report(first, canBeNudged);
     expect(await pending).toEqual({ replaced: false, nudge: true });
-  });
-
-  it("wakes the session's waits on what can end one being due: a check-in stamp, a mark and a claim", async () => {
-    const { number } = written();
-    const woken = () => fixture.store.notifier.wait(agent.sessionId, 50);
-    let wait = woken();
-    fixture.advance(seenStep);
-    fixture.seen(agent);
-    expect(await wait).toBe("notified");
-    // A check-in that moves no stamp wakes nothing.
-    wait = woken();
-    fixture.seen(agent);
-    expect(await wait).toBe("timeout");
-    wait = woken();
-    markRead(fixture.store, agent.identity, threadTarget(agent, number), { through: 1 });
-    expect(await wait).toBe("notified");
-    fixture.advance(1);
-    written();
-    wait = woken();
-    expect(claim(first)).toMatchObject({ go: true });
-    expect(await wait).toBe("notified");
-    // A claim refused, or an outcome, wakes nothing.
-    wait = woken();
-    claim(first);
-    claim(first, true);
-    expect(await wait).toBe("timeout");
   });
 });
 

@@ -73,28 +73,12 @@ describe("marking read", () => {
     expect(failure(() => read(2))).toEqual({ code: "invalid_input", field: "through" });
   });
 
-  it("writes no message, and wakes no one", async () => {
+  it("writes no message and wakes no one", async () => {
     fixture.createThread(agent);
     const woken = fixture.store.notifier.wait(agent.sessionId, 50);
     read(1);
     expect(await woken).toBe("timeout");
     expect(fixture.thread(fixture.operator, target()).messages).toHaveLength(1);
-  });
-});
-
-describe("the session's own marks", () => {
-  it("wake its session's waits, since they can end a nudge being due", async () => {
-    fixture.startThread(agent);
-    const marks = [
-      () => read(1, agent.identity),
-      () => unread(1, agent.identity),
-      () => archive(1, agent.identity),
-    ];
-    for (const mark of marks) {
-      const woken = fixture.store.notifier.wait(agent.sessionId, 50);
-      mark();
-      expect(await woken).toBe("notified");
-    }
   });
 });
 

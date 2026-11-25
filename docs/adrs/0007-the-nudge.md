@@ -35,11 +35,11 @@ every check that can be made before each key.
   poll says whether one is due, and nothing more: no thread, message or presence reaches it. The
   poll is level-triggered: the bridge says whether it already knows one is due, and the server
   answers at once only when that differs, so a bridge told one is due holds its poll while it still
-  is and learns at once when it lapses, woken by whatever can change it: a report that leaves the
-  session ready for one, a message, a check-in stamp, the agent's own mark and a claim. Before it
-  puts anything in the pane, the bridge claims the nudge: in one transaction the server checks that
-  the bridge acts for the session and that one is due, and records the claim, by its own clock, as
-  the session's latest nudge. The rule and the claim read only the session's rows, so a session is
+  is. The poll is woken by what can make one due: a report that leaves the session ready for one,
+  and a message. What ends one being due wakes nothing, since the claim checks again. Before it puts
+  anything in the pane, the bridge claims the nudge: in one transaction the server checks that the
+  bridge acts for the session and that one is due, and records the claim, by its own clock, as the
+  session's latest nudge. The rule and the claim read only the session's rows, so a session is
   nudged at most once until its agent checks in, whether the nudge was sent or not, across a server
   restart, a bridge restart and the takeover of ADR 0006's one acting bridge, even one in the middle
   of a nudge.

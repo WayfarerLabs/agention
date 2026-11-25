@@ -123,9 +123,10 @@ export type MonitorAnswer = z.infer<typeof monitorAnswer>;
 
 // The answer of a poll, which also says whether a nudge is due: the bridge
 // should nudge its agent, and nothing more, since the reason, the threads and
-// the session's presence are the operator's. A poll answers at once when
-// whether one is due differs from what its query says the bridge knows, and
-// a replaced bridge is never told one is.
+// the session's presence are the operator's. A poll answers once whether one
+// is due differs from what its query says the bridge knows, as it starts or
+// once a report or a message wakes it, and a replaced bridge is never told
+// one is.
 export const monitorPollAnswer = monitorAnswer.extend({ nudge: z.boolean() });
 export type MonitorPollAnswer = z.infer<typeof monitorPollAnswer>;
 

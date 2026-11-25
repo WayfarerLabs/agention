@@ -322,10 +322,11 @@ check-in is after now, so a clock stepped back never holds it still, when the ve
 the last one's, or when the last check-in is before the latest claim of a nudge, so a check-in
 during a nudge, or in reply to one, always shows. Check-ins are otherwise stamped to the minute, so
 a check-in up to a minute after an operator message can still leave one nudge due for it, which the
-agent reading the thread ends. A stamp that moves wakes the session's channel, since it can end a
-nudge being due. A stamp writes only while the registration is still approved, so a revocation that
-commits as a token is verified stamps nothing. A stamp that fails is logged and the call carries on,
-since presence is advisory. A pending registration has no session, so its calls mark nothing.
+agent reading the thread ends. A stamp wakes no poll, though it can end a nudge being due, since the
+bridge's claim checks again that one is. A stamp writes only while the registration is still
+approved, so a revocation that commits as a token is verified stamps nothing. A stamp that fails is
+logged and the call carries on, since presence is advisory. A pending registration has no session,
+so its calls mark nothing.
 
 From those the reads derive, against the request's clock and never stored:
 
@@ -384,15 +385,17 @@ from the session's rows on each poll, writing nothing, so it holds across a serv
 restart and a takeover, and it says nothing more: no thread, message or presence, and a replaced
 bridge is never told one is due. The poll is level-triggered: its query's `nudge` says the bridge
 already knows one is due, and the poll answers at once only when that differs from what the server
-finds, so a bridge told one is due holds its poll while it still is and learns at once that it
-lapsed. Whatever can change it wakes the session's channel: a report that says the session can be
-nudged at its prompt, a message, a check-in stamp that moves, a mark of the session's own and a
-claim. The bridge claims a nudge on `POST .../monitor/nudge` (`claimNudge`) before it puts anything
-in the pane: `start`, in one transaction, goes ahead only from the bridge that acts for the session
-while a nudge is due, recording the claim's time by the server's clock as the session's latest
-nudge, its outcome unknown, and answers `go`; `done` sets whether it was sent, only where the latest
-claim has no outcome yet, so sending it again changes nothing. A session is nudged at most once
-until its agent checks in, even where its bridge restarts or another takes over mid-nudge.
+finds, so a bridge told one is due holds its poll while it still is. What can make one due wakes the
+session's channel: a report that says the session can be nudged at its prompt, and a message. What
+ends one, a check-in, a mark of the session's own or a claim, wakes nothing, since a claim checks
+again that one is due, so a bridge told of one that lapsed learns it when its claim is refused or
+its poll's wait ends. The bridge claims a nudge on `POST .../monitor/nudge` (`claimNudge`) before it
+puts anything in the pane: `start`, in one transaction, goes ahead only from the bridge that acts
+for the session while a nudge is due, recording the claim's time by the server's clock as the
+session's latest nudge, its outcome unknown, and answers `go`; `done` sets whether it was sent, only
+where the latest claim has no outcome yet, so sending it again changes nothing. A session is nudged
+at most once until its agent checks in, even where its bridge restarts or another takes over
+mid-nudge.
 
 A session reports its status itself, on the agent mount's status route or beside a write: a thread
 it starts or a message it sends may carry a state, with its outcome, and a note, which apply as an
@@ -519,14 +522,13 @@ other work between steps. The set of uploads in flight is in the process, so one
 database, as the long poll's notifier already requires.
 
 Marking read, marking unread and archiving move only the caller's own marks on a thread; they write
-no message, and wake no one, but that a session's own mark wakes the long polls on its session,
-since it can end a nudge being due. Marking read raises the read mark and never lowers it. Marking
-unread names a message, at most the thread's latest, and lowers the read mark to just before it,
-never raising it, so it cannot claim a message the caller has not seen. Archiving raises the archive
-mark through a message, carried on over the caller's own messages that directly follow it, archiving
-all of a thread being archiving through its latest, and is refused while an ask open to the caller
-sits in a message at or before it. A thread is archived for the caller exactly while its archive
-mark reaches its latest message, so another party's new message brings it back, and the caller's own
+no message, and wake no one. Marking read raises the read mark and never lowers it. Marking unread
+names a message, at most the thread's latest, and lowers the read mark to just before it, never
+raising it, so it cannot claim a message the caller has not seen. Archiving raises the archive mark
+through a message, carried on over the caller's own messages that directly follow it, archiving all
+of a thread being archiving through its latest, and is refused while an ask open to the caller sits
+in a message at or before it. A thread is archived for the caller exactly while its archive mark
+reaches its latest message, so another party's new message brings it back, and the caller's own
 keeps it archived; no party ever sees the other's archive mark. Unread messages are the live ones by
 another actor after both the read and the archive mark: an archived message is never unread, so an
 agent that archives a thread without reading it is not woken for it again. Since an answer is never
@@ -1237,8 +1239,8 @@ its tokens and where its requests may go.
   `crypto.randomBytes`, which the observer removes and never submits, and a fixed message telling
   the agent to check in with Agention, each one line of printable ASCII. Nothing from the server or
   the screen reaches either. While the session is not ready, the reporter asks again about once a
-  second, which reads only the pane and makes no request, until it is ready or a poll says the nudge
-  lapsed. Once ready, the observer asks it to claim the nudge, `POST .../monitor/nudge` with
+  second, which reads only the pane and makes no request, until it is ready or a poll says no nudge
+  is due. Once ready, the observer asks it to claim the nudge, `POST .../monitor/nudge` with
   `{phase: "start"}`, and goes on only where the server answers `go`; one it answers no is not
   tried. A nudge it claimed is logged by the step it stopped at, never a text, and its outcome sent
   as `{phase: "done", sent}`, again after a pause that backs off from 1 to 60 seconds, doubling,

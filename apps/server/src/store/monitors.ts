@@ -22,18 +22,20 @@ import { longPoll } from "./wait.ts";
 // pollMonitor is a bridge's background long poll on its own session. It
 // answers once its wait ends; at once when another bridge acts for the
 // session: one that took it over while this one waited, or one that holds it
-// when this one polls without claiming it; and at once when whether a nudge
-// is due, as nudgeDue says, differs from what the poll's query says the
-// bridge knows, so a bridge told one is due holds its poll while it still is
-// and learns at once that it lapsed. A replaced bridge is never told one is
-// due. Working out the answer writes nothing. A claim takes the session from
-// any other bridge, deletes the session's report, so nothing stale shows
-// until this bridge reports, and ends the other bridge's open poll. The poll
-// ends too when the credential is revoked, the client disconnects or the
-// server shuts down, as an agent's wait does. What can change whether a
-// nudge is due notifies the session's channel, which wakes the poll to look
-// again: a report that leaves the session ready for one, a message, a check-in
-// stamp, a mark of the agent's own and a claim.
+// when this one polls without claiming it; and when whether a nudge is due,
+// as nudgeDue says, differs from what the poll's query says the bridge
+// knows, as the poll starts or once something wakes it, so a bridge told one
+// is due holds its poll while it still is. A replaced bridge is never told
+// one is due. Working out the answer writes nothing. A claim takes the
+// session from any other bridge, deletes the session's report, so nothing
+// stale shows until this bridge reports, and ends the other bridge's open
+// poll. The poll ends too when the credential is revoked, the client
+// disconnects or the server shuts down, as an agent's wait does. What can
+// make a nudge due notifies the session's channel, which wakes the poll to
+// look again: a report that leaves the session ready for one, and a message.
+// What ends one being due, a check-in, a mark of the agent's own or a claim,
+// wakes nothing, so a bridge told one is due learns it lapsed when its claim
+// is refused, since a claim checks again, or when its poll's wait ends.
 export async function pollMonitor(
   store: Store,
   identity: Identity,
@@ -111,9 +113,9 @@ function nudgeDue(db: Database, sessionId: number, now: number): boolean {
 // admits one, while a nudge is due: it records the claim as the session's
 // latest nudge, at the server's time, its outcome not yet known, so none is
 // due again until the agent checks in, whatever bridge asks or however the
-// server restarts; and wakes the session's poll. An outcome from that bridge
-// fills in the latest nudge's where none is recorded yet, so sending it again
-// changes nothing. A replaced bridge's claim or outcome changes nothing.
+// server restarts. An outcome from that bridge fills in the latest nudge's
+// where none is recorded yet, so sending it again changes nothing. A
+// replaced bridge's claim or outcome changes nothing.
 export function claimNudge(
   store: Store,
   identity: Identity,
@@ -148,9 +150,6 @@ export function claimNudge(
     return { replaced: true, go: false };
   }
   bridges.hold(outcome.sessionId, query.bridge);
-  if (outcome.go) {
-    store.notifier.notify(outcome.sessionId);
-  }
   return { replaced: false, go: outcome.go };
 }
 

@@ -223,22 +223,22 @@ describe("the bridge's nudge", () => {
     expect(bridge.logged).toHaveLength(1);
   });
 
-  it("stops trying once the nudge lapses, the agent having read the thread", async () => {
+  it("types nothing for a nudge that lapsed while it waited, its claim refused", async () => {
     const nudges = new FakeNudges();
     const bridge = await nudgedBridge(nudges, nudging, 25);
     const thread = await harness.operatorStarts("Over to you.");
     await eventually(() => (nudges.calls.length >= 2 ? true : undefined), "the tries");
+    // The agent reads the thread, which wakes no poll, so the bridge still
+    // believes a nudge is due; the session is then ready for it.
     await bridge.ok("thread_read", { thread, through: 1 });
-    // The read ends the waiting poll, which says no nudge is due.
-    await eventually(
-      () => (harness.polls().at(-1)?.query.get("nudge") === null ? true : undefined),
-      "the poll after the lapse",
-    );
+    nudges.script.push({ sent: true });
+    await eventually(() => (nudgeBodies().length > 0 ? true : undefined), "the claim");
+    await eventually(() => nudges.calls.at(-1)?.began === false || undefined, "the refusal");
     const tried = nudges.calls.length;
     await delay(1000);
-    expect(nudges.calls.length).toBeLessThanOrEqual(tried + 1);
+    expect(nudges.calls).toHaveLength(tried);
+    expect(nudgeBodies()).toEqual([{ phase: "start" }]);
     expect(harness.nudged()).toBeUndefined();
-    expect(nudgeBodies()).toEqual([]);
     expect(bridge.logged).toEqual([]);
   });
 
