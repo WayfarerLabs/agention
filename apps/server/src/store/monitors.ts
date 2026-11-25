@@ -4,8 +4,8 @@ import {
   type MonitorCondition,
   type MonitorPollQuery,
   type MonitorProfile,
-  type MonitorQuery,
   type MonitorReport,
+  type MonitorReportQuery,
   type MonitorState,
   parseTimestamp,
   type StoppedBy,
@@ -23,9 +23,10 @@ import { longPoll } from "./wait.ts";
 // answers once its wait ends, or at once when another bridge acts for the
 // session: one that took it over while this one waited, or one that holds it
 // when this one polls without claiming it. A claim takes the session from
-// any other bridge and ends that one's open poll. The poll ends too when the
-// credential is revoked, the client disconnects or the server shuts down,
-// as an agent's wait does.
+// any other bridge, deletes the session's report, so nothing stale shows
+// until this bridge reports, and ends the other bridge's open poll. The poll
+// ends too when the credential is revoked, the client disconnects or the
+// server shuts down, as an agent's wait does.
 export async function pollMonitor(
   store: Store,
   identity: Identity,
@@ -33,18 +34,27 @@ export async function pollMonitor(
   query: MonitorPollQuery,
   signal?: AbortSignal,
 ): Promise<MonitorAnswer> {
-  const authorized = () =>
-    authorizeSession(store.db, identity, "threads:read", target, store.clock());
-  const sessionId = store.db.transaction(authorized);
-  const admitted = store.bridges.admit(sessionId, query.bridge, query.claim);
-  if (admitted === "took") {
+  const { db, bridges } = store;
+  const authorized = () => authorizeSession(db, identity, "threads:read", target, store.clock());
+  const { sessionId, takes } = db.transaction(() => {
+    const sessionId = authorized();
+    const takes = bridges.admission(sessionId, query.bridge, query.claim) === "takes";
+    if (takes && query.claim) {
+      db.prepare("DELETE FROM monitor_reports WHERE session_id = ?").run(sessionId);
+    }
+    return { sessionId, takes };
+  });
+  if (takes) {
+    bridges.hold(sessionId, query.bridge);
     store.notifier.notify(sessionId);
   }
   return longPoll(
     store,
     query.wait,
     () => ({
-      result: { replaced: !store.bridges.holds(store.db.transaction(authorized), query.bridge) },
+      result: {
+        replaced: bridges.admission(db.transaction(authorized), query.bridge, false) === "replaced",
+      },
       channel: sessionId,
     }),
     signal,
@@ -53,22 +63,27 @@ export async function pollMonitor(
 }
 
 // reportMonitor keeps a bridge's report as its session's latest, replacing
-// the one before, when the bridge acts for the session, and keeps nothing
-// from one another bridge has replaced. A bridge that is the first to send
-// anything since the server started acts for the session from then on.
+// the one before, when the bridge acts for the session and the report is
+// numbered above the latest accepted from it; it keeps nothing from a bridge
+// another has replaced, and ignores a report that arrives after a later one.
+// A bridge that is the first to call since the server started acts for the
+// session from then on.
 export function reportMonitor(
   store: Store,
   identity: Identity,
   target: SessionTarget,
-  query: MonitorQuery,
+  query: MonitorReportQuery,
   report: MonitorReport,
 ): MonitorAnswer {
-  const { db } = store;
-  return db.transaction(() => {
-    const now = store.clock();
-    const sessionId = authorizeSession(db, identity, "threads:write", target, now);
-    if (store.bridges.admit(sessionId, query.bridge, false) === "replaced") {
-      return { replaced: true };
+  const { db, bridges } = store;
+  const outcome = db.transaction(() => {
+    const sessionId = authorizeSession(db, identity, "threads:write", target, store.clock());
+    const admission = bridges.admission(sessionId, query.bridge, false);
+    if (admission === "replaced") {
+      return "replaced";
+    }
+    if (admission === "holds" && !bridges.newer(sessionId, query.seq)) {
+      return "stale";
     }
     const observed =
       report.monitored === false
@@ -86,16 +101,22 @@ export function reportMonitor(
           };
     db.prepare(
       `INSERT INTO monitor_reports (session_id, monitored, profile, condition, since, stopped_by,
-         resets_at, reported_at)
-       VALUES (:session, :monitored, :profile, :condition, :since, :stopped_by, :resets_at, :now)
+         resets_at)
+       VALUES (:session, :monitored, :profile, :condition, :since, :stopped_by, :resets_at)
        ON CONFLICT (session_id) DO UPDATE SET
          monitored = excluded.monitored, profile = excluded.profile,
          condition = excluded.condition, since = excluded.since,
-         stopped_by = excluded.stopped_by, resets_at = excluded.resets_at,
-         reported_at = excluded.reported_at`,
-    ).run({ session: sessionId, monitored: Number(report.monitored), now, ...observed });
-    return { replaced: false };
+         stopped_by = excluded.stopped_by, resets_at = excluded.resets_at`,
+    ).run({ session: sessionId, monitored: Number(report.monitored), ...observed });
+    return { sessionId };
   });
+  if (outcome === "replaced") {
+    return { replaced: true };
+  }
+  if (outcome !== "stale") {
+    bridges.hold(outcome.sessionId, query.bridge, query.seq);
+  }
+  return { replaced: false };
 }
 
 // A session's latest report as a read selects it from monitor_reports, every

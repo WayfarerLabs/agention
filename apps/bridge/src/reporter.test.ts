@@ -1,8 +1,11 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { performance } from "node:perf_hooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Monitor } from "./monitoring.ts";
 import { DrawnPane, eventually, MonitorHarness, timing } from "./monitoring-test-support.ts";
-import { serverJson } from "./test-harness.ts";
+import { Reporter } from "./reporter.ts";
+import { Session } from "./session.ts";
+import { agent, serverJson, session } from "./test-harness.ts";
 
 // The reporter against the bridge's real test server: when it starts, how it
 // paces its requests, how it recovers, and which of a session's bridges acts
@@ -85,6 +88,91 @@ describe("the reporter", () => {
     expect(harness.held()?.condition).toBe("at_prompt");
     harness.down = undefined;
     await eventually(() => (harness.held()?.condition === "waiting" ? true : undefined), "waiting");
+  });
+
+  it("sends a failed report again after a pause, without waiting for a poll's answer", async () => {
+    const pane = new DrawnPane();
+    let failing = false;
+    harness.answer = (seen) =>
+      failing && seen.method === "POST" && seen.path.endsWith("/monitor")
+        ? new Response("Bad gateway", { status: 502 })
+        : undefined;
+    await harness.registered({ AGENTION_TMUX_SOCKET: "/drawn" }, { pane: () => pane });
+    await eventually(
+      () => (harness.held()?.condition === "at_prompt" ? true : undefined),
+      "at_prompt",
+    );
+    failing = true;
+    const before = harness.seen.length;
+    pane.screen = { ...pane.screen, cursor: { ...pane.screen.cursor, visible: false } };
+    // monitor is a bridge's monitoring request since the screen changed,
+    // as GET or POST.
+    const monitor = () =>
+      harness.seen
+        .slice(before)
+        .filter((seen) => seen.path.endsWith("/monitor"))
+        .map((seen) => seen.method);
+    // Two reports in a row, with no poll between them, are a retry that no
+    // poll's answer started.
+    await eventually(
+      () =>
+        monitor().some((method, i) => method === "POST" && monitor()[i + 1] === "POST") ||
+        undefined,
+      "a report sent again before the next poll",
+    );
+    failing = false;
+    await eventually(() => (harness.held()?.condition === "waiting" ? true : undefined), "waiting");
+  });
+
+  it("numbers its reports, counting up", async () => {
+    const pane = new DrawnPane();
+    await harness.registered({ AGENTION_TMUX_SOCKET: "/drawn" }, { pane: () => pane });
+    await eventually(() => harness.held(), "the report");
+    pane.screen = { ...pane.screen, cursor: { ...pane.screen.cursor, visible: false } };
+    await eventually(() => (harness.held()?.condition === "waiting" ? true : undefined), "waiting");
+    const numbers = harness.seen
+      .filter((seen) => seen.method === "POST" && seen.path.endsWith("/monitor"))
+      .map((seen) => Number(seen.query.get("seq")));
+    expect(numbers.length).toBeGreaterThan(1);
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
+  });
+
+  it("looks up its session's credential as the bridge's background request", async () => {
+    const bridge = await harness.bridge();
+    await bridge.ok("register");
+    await bridge.close();
+    await harness.approve(harness.keyOnDisk());
+    const { api } = harness.asAgent();
+    const environment = { AGENTWORKS_AGENT: agent, AGENTWORKS_SESSION: session };
+    // A session that has learnt no names asks the server for them, marked
+    // as a background request when it is asked for one.
+    const reporting = new Session({ api, home: harness.home, environment });
+    await reporting.credential(undefined, true);
+    const last = harness.seen.filter((seen) => seen.path.endsWith("/registrations")).at(-1);
+    expect(last?.body).toMatchObject({ background: true });
+    // The reporter asks for it as one, for every request it makes.
+    const credential = vi.spyOn(reporting, "credential");
+    const monitor: Monitor = {
+      async *reports(signal) {
+        yield { monitored: false };
+        await new Promise((resolve) => signal.addEventListener("abort", resolve));
+      },
+    };
+    const reporter = new Reporter({
+      api,
+      session: reporting,
+      monitor,
+      clock: () => harness.server.fixture.now,
+      timing,
+    });
+    reporter.start();
+    try {
+      await eventually(() => harness.held(), "the report");
+    } finally {
+      reporter.close();
+    }
+    expect(credential).toHaveBeenCalled();
+    expect(credential.mock.calls.every(([, background]) => background === true)).toBe(true);
   });
 
   it("polls at most once a second while the server answers at once", async () => {

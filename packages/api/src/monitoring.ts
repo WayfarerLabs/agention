@@ -90,8 +90,15 @@ export const monitorReport = z.discriminatedUnion("monitored", [
 export type MonitorReport = z.infer<typeof monitorReport>;
 
 // The bridge a monitoring request comes from.
-export const monitorQuery = z.object({ bridge: bridgeId });
-export type MonitorQuery = z.infer<typeof monitorQuery>;
+const monitorQuery = z.object({ bridge: bridgeId });
+
+// A report's query: the bridge's id, and the report's number, which counts up
+// with each report the bridge sends, so the server ignores a report that
+// arrives after a later one from the same bridge.
+export const monitorReportQuery = monitorQuery.extend({
+  seq: queryNumber(z.number().int().min(1).max(Number.MAX_SAFE_INTEGER)),
+});
+export type MonitorReportQuery = z.infer<typeof monitorReportQuery>;
 
 // The background long poll: the bridge's id; whether it claims the session,
 // taking over from any other bridge, as a bridge does when it starts and

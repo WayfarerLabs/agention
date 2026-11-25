@@ -13,10 +13,14 @@ import { type AgentKey, codeOf, Harness, newThread, type Response } from "./test
 
 let harness: Harness;
 let approved: AgentKey;
+// The number of the latest report a test sent, which each report counts up
+// from unless the test numbers it.
+let sent: number;
 
 beforeEach(async () => {
   harness = new Harness();
   approved = await harness.approvedAgent("builder", "main");
+  sent = 0;
 });
 
 afterEach(() => {
@@ -36,8 +40,14 @@ const poll = (bridge: string, query = "wait=0", signal?: AbortSignal) =>
     ...(signal === undefined ? {} : { signal }),
   });
 
-const report = (bridge: string, body: unknown) =>
-  harness.agent(approved, "POST", `/s/builder/main/monitor?bridge=${bridge}`, body, monitoring);
+const report = (bridge: string, body: unknown, seq: number | string = ++sent) =>
+  harness.agent(
+    approved,
+    "POST",
+    `/s/builder/main/monitor?bridge=${bridge}&seq=${seq}`,
+    body,
+    monitoring,
+  );
 
 const list = (version?: number) =>
   harness.agent(
@@ -154,9 +164,12 @@ describe("one bridge acting for a session", () => {
     expect((await report(second, atPrompt)).body).toEqual({ replaced: false });
     controller.abort();
     expect((await taking).body).toEqual({ replaced: false });
-    // A replaced bridge acts again once it claims the session.
+    // A replaced bridge acts again once it claims the session, which deletes
+    // the report of the bridge it took the session from.
     expect((await poll(first, "claim=true&wait=0")).body).toEqual({ replaced: false });
     expect((await report(second, { monitored: false })).body).toEqual({ replaced: true });
+    expect(await presence()).not.toHaveProperty("monitor");
+    expect((await report(first, atPrompt)).body).toEqual({ replaced: false });
     expect((await presence())?.monitor).toEqual(atPrompt);
   });
 });
@@ -286,5 +299,16 @@ describe("the report", () => {
   it("refuses a bridge id it cannot read", async () => {
     expect(codeOf(await poll("short"))).toBe("invalid_input");
     expect(codeOf(await report("has spaces in it!", atPrompt))).toBe("invalid_input");
+  });
+
+  it("refuses a report without a whole number, and ignores one older than the latest", async () => {
+    await poll(first);
+    for (const seq of ["", "0", "1.5", "x"]) {
+      expect(codeOf(await report(first, atPrompt, seq))).toBe("invalid_input");
+    }
+    const waiting = { monitored: true, profile: "codex", condition: "waiting", since };
+    expect((await report(first, waiting, 2)).body).toEqual({ replaced: false });
+    expect((await report(first, atPrompt, 1)).body).toEqual({ replaced: false });
+    expect((await presence())?.monitor).toEqual(waiting);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { invalidInputBody } from "./errors.ts";
-import { monitorPollQuery, monitorReport } from "./monitoring.ts";
+import { monitorPollQuery, monitorReport, monitorReportQuery } from "./monitoring.ts";
 
 function fieldOf(result: { error?: Parameters<typeof invalidInputBody>[0] | undefined }) {
   return result.error === undefined ? undefined : invalidInputBody(result.error).error.field;
@@ -165,5 +165,28 @@ describe("monitorPollQuery", () => {
     [{ bridge: "b".repeat(16), wait: "26" }, "wait"],
   ])("refuses %j", (query, field) => {
     expect(fieldOf(monitorPollQuery.safeParse(query))).toBe(field);
+  });
+});
+
+describe("monitorReportQuery", () => {
+  it("reads the report's number from query text", () => {
+    expect(monitorReportQuery.parse({ bridge: "b".repeat(16), seq: "1" })).toEqual({
+      bridge: "b".repeat(16),
+      seq: 1,
+    });
+    expect(
+      monitorReportQuery.parse({ bridge: "b".repeat(16), seq: String(Number.MAX_SAFE_INTEGER) }),
+    ).toMatchObject({ seq: Number.MAX_SAFE_INTEGER });
+  });
+
+  it.each([
+    [{ bridge: "b".repeat(16) }, "seq"],
+    [{ bridge: "b".repeat(16), seq: "0" }, "seq"],
+    [{ bridge: "b".repeat(16), seq: "1.5" }, "seq"],
+    [{ bridge: "b".repeat(16), seq: "-1" }, "seq"],
+    [{ bridge: "b".repeat(16), seq: "99999999999999999" }, "seq"],
+    [{ seq: "1" }, "bridge"],
+  ])("refuses %j", (query, field) => {
+    expect(fieldOf(monitorReportQuery.safeParse(query))).toBe(field);
   });
 });

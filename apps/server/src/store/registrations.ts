@@ -313,8 +313,9 @@ export function rejectRegistration(
 }
 
 // revokeRegistration ends an approved credential at once. The session, its
-// threads and its other credentials stay, and the session's long polls wake
-// so a poll on the revoked credential ends now.
+// threads and its other credentials stay, the session's long polls wake so a
+// poll on the revoked credential ends now, and the session's bridge holder is
+// forgotten, so the next bridge to call for it takes it.
 export function revokeRegistration(
   store: Store,
   identity: Identity,
@@ -327,6 +328,7 @@ export function revokeRegistration(
     );
   });
   if (row.session_id !== null) {
+    store.bridges.forget(row.session_id);
     store.notifier.notify(row.session_id);
   }
   return { registration: toRegistration(row) };

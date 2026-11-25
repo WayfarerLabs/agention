@@ -668,7 +668,6 @@ export const migrations: readonly string[] = [
     since INTEGER,
     stopped_by TEXT CHECK (stopped_by IN ('usage_limit', 'block', 'error')),
     resets_at INTEGER,
-    reported_at INTEGER NOT NULL,
     CHECK (monitored = (profile IS NOT NULL)),
     CHECK (monitored = (condition IS NOT NULL)),
     CHECK (monitored = (since IS NOT NULL)),

@@ -638,8 +638,8 @@ describe("monitor reports", () => {
     const names = Object.keys(all);
     database
       .prepare(
-        `INSERT INTO monitor_reports (session_id, reported_at, ${names.join(", ")})
-         VALUES (1, 1, ${names.map(() => "?").join(", ")})`,
+        `INSERT INTO monitor_reports (session_id, ${names.join(", ")})
+         VALUES (1, ${names.map(() => "?").join(", ")})`,
       )
       .run(...Object.values(all));
   }

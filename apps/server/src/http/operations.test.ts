@@ -170,7 +170,7 @@ const bodies: Record<string, unknown> = {
 const queries: Record<string, unknown> = {
   uploadFile: { name: "notes.txt" },
   pollMonitor: { bridge: "bridge-0123456789", wait: "0" },
-  reportMonitor: { bridge: "bridge-0123456789" },
+  reportMonitor: { bridge: "bridge-0123456789", seq: "1" },
 };
 
 // The fixture's pending registration, which approving and rejecting decide.

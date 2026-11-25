@@ -14,10 +14,14 @@ import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
 
 let fixture: Fixture;
 let agent: Agent;
+// The number of the latest report a test sent, which each report counts up
+// from unless the test numbers it.
+let sent: number;
 
 beforeEach(() => {
   fixture = new Fixture();
   agent = fixture.registerAgent("builder", "main");
+  sent = 0;
 });
 
 afterEach(() => {
@@ -42,12 +46,12 @@ function poll(
   );
 }
 
-function report(bridge: string, body: unknown, as: Agent = agent): MonitorAnswer {
+function report(bridge: string, body: unknown, seq = ++sent, as: Agent = agent): MonitorAnswer {
   return reportMonitor(
     fixture.store,
     as.identity,
     as.target,
-    { bridge },
+    { bridge, seq },
     monitorReport.parse(body),
   );
 }
@@ -109,6 +113,35 @@ describe("the background poll", () => {
     expect(await retaking).toEqual({ replaced: false });
   });
 
+  it("never gives the session back to the bridge a claim replaced, at its routine poll", async () => {
+    expect(await poll(first, { wait: "0" })).toEqual({ replaced: false });
+    expect(await poll(second, { claim: "true", wait: "0" })).toEqual({ replaced: false });
+    // The replaced bridge's poll that crossed the claim does not claim, so
+    // it learns it is replaced and leaves the session with the claimer.
+    expect(await poll(first, { wait: "0" })).toEqual({ replaced: true });
+    expect(await poll(second, { wait: "0" })).toEqual({ replaced: false });
+    expect(report(first, running)).toEqual({ replaced: true });
+    expect(report(second, running)).toEqual({ replaced: false });
+  });
+
+  it("leaves the holder as it was when the claim's write fails", async () => {
+    expect(await poll(first, { wait: "0" })).toEqual({ replaced: false });
+    fixture.db.prepare("ALTER TABLE monitor_reports RENAME TO kept_reports").run();
+    await expect(poll(second, { claim: "true", wait: "0" })).rejects.toThrow();
+    fixture.db.prepare("ALTER TABLE kept_reports RENAME TO monitor_reports").run();
+    expect(await poll(first, { wait: "0" })).toEqual({ replaced: false });
+    expect(await poll(second, { wait: "0" })).toEqual({ replaced: true });
+  });
+
+  it("forgets the session's bridge once a credential of the session is revoked", async () => {
+    const another = fixture.registerAgent("builder", "main");
+    expect(await poll(first, { wait: "0" })).toEqual({ replaced: false });
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    // A bridge on the session's other credential takes it without claiming.
+    expect(await poll(second, { wait: "0" }, undefined, another)).toEqual({ replaced: false });
+    expect(report(second, running, 1, another)).toEqual({ replaced: false });
+  });
+
   it("lets the first bridge to poll act for the session without claiming it", async () => {
     expect(await poll(second, { wait: "0" })).toEqual({ replaced: false });
     expect(await poll(first, { wait: "0" })).toEqual({ replaced: true });
@@ -145,7 +178,7 @@ describe("the background poll", () => {
         fixture.store,
         agent.identity,
         other.target,
-        { bridge: first },
+        { bridge: first, seq: 1 },
         {
           monitored: false,
         },
@@ -190,11 +223,43 @@ describe("the report", () => {
     expect(presence()).not.toHaveProperty("monitor");
   });
 
-  it("keeps nothing from a bridge another has replaced", async () => {
+  it("is deleted when another bridge claims the session, and kept from the bridge it replaced", async () => {
     fixture.connect(agent);
     report(first, running);
     expect(await poll(second, { claim: "true", wait: "0" })).toEqual({ replaced: false });
+    expect(presence()).toEqual({ quiet: true, connected: true });
     expect(report(first, { monitored: false })).toEqual({ replaced: true });
+    expect(presence()).not.toHaveProperty("monitor");
+    // The claimer's own reports are numbered from wherever its bridge is.
+    expect(report(second, running, 1)).toEqual({ replaced: false });
     expect(presence()?.monitor).toEqual(running);
+  });
+
+  it("stays when the bridge that acts for the session claims it again", async () => {
+    fixture.connect(agent);
+    report(first, running);
+    expect(await poll(first, { claim: "true", wait: "0" })).toEqual({ replaced: false });
+    expect(presence()?.monitor).toEqual(running);
+  });
+
+  it("ignores a report that arrives after a later one from the same bridge", () => {
+    fixture.connect(agent);
+    const waiting = { ...running, condition: "waiting" };
+    expect(report(first, waiting, 2)).toEqual({ replaced: false });
+    expect(report(first, running, 1)).toEqual({ replaced: false });
+    expect(presence()?.monitor).toEqual(waiting);
+    expect(report(first, running, 2)).toEqual({ replaced: false });
+    expect(presence()?.monitor).toEqual(waiting);
+    expect(report(first, running, 3)).toEqual({ replaced: false });
+    expect(presence()?.monitor).toEqual(running);
+  });
+
+  it("leaves the holder as it was when the report's write fails", async () => {
+    fixture.db.prepare("ALTER TABLE monitor_reports RENAME TO kept_reports").run();
+    expect(() => report(first, running)).toThrow();
+    fixture.db.prepare("ALTER TABLE kept_reports RENAME TO monitor_reports").run();
+    // No bridge acts for the session yet, so another may take it.
+    expect(await poll(second, { wait: "0" })).toEqual({ replaced: false });
+    expect(report(first, running)).toEqual({ replaced: true });
   });
 });

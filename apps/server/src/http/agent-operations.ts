@@ -2,8 +2,8 @@ import {
   agentMessageSendInput,
   monitorAnswer,
   monitorPollQuery,
-  monitorQuery,
   monitorReport,
+  monitorReportQuery,
   registrationState,
   registrationSubmitInput,
   sessionParams,
@@ -102,7 +102,7 @@ export const agentOperations = [
     summary: "Report what the bridge observes of the session, replacing its latest report",
     scope: "threads:write",
     params: sessionParams,
-    query: monitorQuery,
+    query: monitorReportQuery,
     body: monitorReport,
     response: monitorAnswer,
     handler: ({ store, identity, params, query, body }) =>

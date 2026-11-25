@@ -6,6 +6,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { setTimeout as delay } from "node:timers/promises";
 import { type AgentApi, type ApiRequest, tokenLifetimeSeconds } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
 import type { Monitor } from "./monitoring.ts";
@@ -29,8 +30,8 @@ export interface ReporterTiming {
   waitSeconds: number;
   // How often a pending registration is read again.
   stateEvery: number;
-  // The first pause after a failure, which doubles with each failure in a
-  // row up to retryMost.
+  // The first pause after a failure, of a poll or of a report, which doubles
+  // with each failure in a row up to retryMost.
   retryFirst: number;
   retryMost: number;
 }
@@ -84,11 +85,17 @@ export class Reporter {
   // Ends the pause the loop is in, so it goes on at once.
   #wake: (() => void) | undefined;
   // While the bridge acts for its session: what ends its watch of the
-  // monitor, the latest report, and whether it is still to be sent.
+  // monitor, the latest report with its number, and whether it is still to
+  // be sent; and what ends the pause before a failed report is sent again.
   #acting: AbortController | undefined;
-  #latest: MonitorReport | undefined;
+  #latest: { report: MonitorReport; seq: number } | undefined;
   #unsent = false;
   #sending = false;
+  #retryWake: AbortController | undefined;
+  // The number of the latest report the bridge made, which counts up with
+  // each for the life of the process, so the server ignores a report that
+  // arrives after a later one.
+  #seq = 0;
 
   constructor(options: ReporterOptions) {
     this.#api = options.api;
@@ -198,8 +205,9 @@ export class Reporter {
           claim = false;
           this.#startActing();
         } else {
-          // A report a failure left unsent goes once the server answers.
-          this.#send();
+          // A report a failure left unsent goes now that the server answers,
+          // rather than at the end of its pause.
+          this.#retryWake?.abort();
         }
         await this.#pause(started + pollFloor - performance.now(), signal);
       } catch (error) {
@@ -292,7 +300,7 @@ export class Reporter {
         if (signal.aborted) {
           return;
         }
-        this.#latest = report;
+        this.#latest = { report, seq: ++this.#seq };
         this.#unsent = true;
         this.#send();
       }
@@ -307,10 +315,11 @@ export class Reporter {
   }
 
   // send sends the latest report, one request at a time, and each report
-  // that comes meanwhile once the one before is answered. A report that
-  // fails stays unsent until the next poll the server answers; one the
-  // server refuses because another bridge acts for the session stops this
-  // one acting, and its next poll learns it is replaced.
+  // that comes meanwhile once the one before is answered. A report that fails
+  // is sent again, or the one that replaced it, after a pause that doubles
+  // with each failure in a row, or as soon as a poll is answered; one the
+  // server refuses because another bridge acts for the session stops this one
+  // acting, and its next poll learns it is replaced.
   #send(): void {
     const acting = this.#acting;
     if (this.#sending || !this.#unsent || acting === undefined) {
@@ -319,25 +328,35 @@ export class Reporter {
     this.#sending = true;
     const signal = AbortSignal.any([acting.signal, this.#closed.signal]);
     void (async () => {
+      let retry = this.#timing.retryFirst;
       while (this.#unsent && this.#latest !== undefined && !signal.aborted) {
-        const report = this.#latest;
+        const { report, seq } = this.#latest;
         this.#unsent = false;
         try {
           const answer = await this.#monitorRequest(signal, (path) => ({
             method: "POST",
             path,
-            query: { bridge: this.#id },
+            query: { bridge: this.#id, seq },
             body: report,
           }));
+          retry = this.#timing.retryFirst;
           if (answer.replaced) {
             this.#stopActing();
             return;
           }
         } catch {
-          if (!signal.aborted) {
-            this.#unsent = true;
+          if (signal.aborted) {
+            return;
           }
-          return;
+          this.#unsent = true;
+          const wake = new AbortController();
+          this.#retryWake = wake;
+          await delay(retry, undefined, {
+            signal: AbortSignal.any([signal, wake.signal]),
+            ref: false,
+          }).catch(() => undefined);
+          this.#retryWake = undefined;
+          retry = Math.min(retry * 2, this.#timing.retryMost);
         }
       }
     })()
