@@ -70,7 +70,7 @@ export function pollThreads(
 // What one poll of a long poll found: the answer as it stands, the channel
 // whose notification may change it, and when the credential it was
 // authorized with expires, if it does.
-export interface Polled<R> {
+interface Polled<R> {
   result: R;
   channel: Channel;
   expiresAt?: number | undefined;
@@ -80,12 +80,12 @@ export interface Polled<R> {
 const found = (result: { threads: readonly unknown[] }) => result.threads.length > 0;
 
 // longPoll runs a long poll of waitSeconds. It answers at once when poll finds
-// what answered looks for; otherwise it
-// waits on poll's channel and polls again after each notification there,
-// until it finds it, the wait ends or signal aborts. It also polls again once
-// the credential expires, so an expiry ends the wait as a revocation does.
-// Every poll authorizes, so a credential revoked while waiting ends the wait
-// with its refusal as soon as revocation wakes it.
+// what answered looks for; otherwise it waits on poll's channel and polls
+// again after each notification there, until it finds it, the wait ends or
+// signal aborts. It also polls again once the credential expires, so an
+// expiry ends the wait as a revocation does. Every poll authorizes, so a
+// credential revoked while waiting ends the wait with its refusal as soon as
+// revocation wakes it.
 export async function longPoll<R>(
   store: Store,
   waitSeconds: number,

@@ -7,6 +7,12 @@ import { parse } from "./input.ts";
 // the version this server speaks, and a request stating one it does not
 // serve is refused before anything else reads it.
 
+// The agent mount's context carries the version a request states, once
+// requireServedAgentApiVersion has parsed it and found it served.
+export interface AgentApiVersionEnv {
+  Variables: { agentApiVersion: number };
+}
+
 // stateAgentApiVersion states this server's version on every answer on the
 // agent mount, its refusals included, once the answer is made.
 export const stateAgentApiVersion: MiddlewareHandler = async (c, next) => {
@@ -20,7 +26,10 @@ export const stateAgentApiVersion: MiddlewareHandler = async (c, next) => {
 // the bridge's own problems are, so a bridge that relays it as it is tells the
 // agent what the operator updates. Anyone who reaches the server can read it,
 // so it names the versions the server serves, never its release.
-export const requireServedAgentApiVersion: MiddlewareHandler = async (c, next) => {
+export const requireServedAgentApiVersion: MiddlewareHandler<AgentApiVersionEnv> = async (
+  c,
+  next,
+) => {
   const version = parse(agentApiVersion, c.req.header(agentApiHeader), agentApiHeader);
   const served =
     `This session's Agention bridge speaks version ${version} of the agent API, and the ` +
@@ -40,13 +49,15 @@ export const requireServedAgentApiVersion: MiddlewareHandler = async (c, next) =
         "resuming it to keep this conversation",
     );
   }
+  // A served version is at most this server's, so it fits a number.
+  c.set("agentApiVersion", Number(version));
   await next();
 };
 
-// requestedAgentApiVersion reads the version a request states, which
-// requireServedAgentApiVersion has already checked this server serves.
-export function requestedAgentApiVersion(c: Context): number {
-  return Number(parse(agentApiVersion, c.req.header(agentApiHeader), agentApiHeader));
+// requestedAgentApiVersion is the version a request states, as
+// requireServedAgentApiVersion parsed it.
+export function requestedAgentApiVersion(c: Context<AgentApiVersionEnv>): number {
+  return c.var.agentApiVersion;
 }
 
 // unsupported is the refusal of a version: problem is a sentence without its

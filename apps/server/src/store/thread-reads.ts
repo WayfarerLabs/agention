@@ -123,10 +123,10 @@ export function connectedOf(sessions: string): string {
 // reported, whether the other party has not read a live message of the
 // viewer's, and whether the thread is stranded: so, while the session is
 // quiet, has no active credential, is not connected or has stopped; and the
-// operator's group
-// for its session, which only the operator's list shows. scope reads the
-// threads as t, their sessions as s and their agents as g. Callers bind a
-// ViewerAndCutoff and whatever lead's conditions name, and select from seen.
+// operator's group for its session, which only the operator's list shows.
+// scope reads the threads as t, their sessions as s and their agents as g.
+// Callers bind a ViewerAndCutoff and whatever lead's conditions name, and
+// select from seen.
 export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
   return `
     WITH base AS (
