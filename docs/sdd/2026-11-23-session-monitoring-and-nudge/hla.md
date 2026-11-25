@@ -137,8 +137,9 @@ the configured name.
   blinking bullet) never reads as running. The stopped-by reason comes from the profile's screen and
   shows at any condition but running and unknown.
 - **Harness profiles** tell what their captures show: the permission dialogs (cursor hidden, the
-  dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after `❯` or
-  `›` and a space; for Claude Code, `-- INSERT --` when vim mode is on and not `!` shell mode).
+  dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after the
+  marker: Claude Code's `❯` and a no-break space, never its `!` shell mode; Codex's `›` and a
+  space). No footer is read: Claude Code's vim normal mode looks the same as its insert mode.
 - **Generic profiles** never name a prompt kind or a stopped-by reason. The strict one finds the
   input line only when the cursor is visible with nothing after it on its row; the lenient one
   whenever the cursor is visible.
@@ -194,6 +195,9 @@ The reporter runs in the bridge beside the agent's own tools, which work as toda
   id it drew at start, 25 seconds at a time, one request at a time, at least a second apart, backing
   off from 1 to 60 seconds while the server is unreachable. Each request keeps the session connected
   (M1).
+- **This session's pane.** The bridge acts on a socket only when the pane's first process is one of
+  its own ancestors, so a socket set for another session, or for every session at once, reads as
+  unknown and is logged once.
 - **One bridge acts (M7).** The server keeps, in memory, the id of the latest bridge to poll a
   session. A poll with a newer id ends the older bridge's open poll with `replaced`, and refuses its
   reports; the replaced bridge stops its reporter until it next handles a tool call, since the
@@ -220,11 +224,12 @@ saved cursor and `claude-code` gate do not carry over.
 
 ### The server
 
-- **Stored**, on the session: the agent's last check-in, with the agent API version of that request;
-  the time of the latest background request; and the latest report. A check-in is stamped to the
-  minute, as today, and also whenever the stamp is older than the session's latest nudge (delivery
-  2), so a reply to a nudge always shows. Background requests are stamped on each one, every 25
-  seconds at most. A migration adds the columns.
+- **Stored**: on the session, the agent's last check-in, with the agent API version of that request,
+  and the time of the latest background request; in a table of its own, the latest report, which a
+  claim by another bridge deletes and which a report numbered no higher than the last accepted one
+  never replaces. A check-in is stamped to the minute, as today, and also whenever the stamp is
+  older than the session's latest nudge (delivery 2), so a reply to a nudge always shows. Background
+  requests are stamped on each one, every 25 seconds at most. A migration adds the columns.
 - **Derived in queries**, never stored (review checklist A8): **connected**, a background request
   within the last 60 seconds; **quiet**, no check-in within `--quiet-minutes`; **stranded**, by M6;
   and the condition, shown only while connected, so a dead bridge's last report is never shown as
