@@ -369,12 +369,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
   counts those holding a message you have not read, the threads the **Unread** filter keeps with no
-  other filter on, and reading or archiving them clears the count. The list's head holds a search
-  box across its top, **Search threads**, then **Sort**, the order it is in, beside a button saying
-  which way the order runs, then **Group**, how the list is grouped, and **Filters**, a funnel with
-  a badge counting the filters that are on. On a phone, **Sort** and its button take one row, with
-  **Group** and **Filters** beneath them; on the narrowest phones, or with enlarged text, the button
-  wraps beneath **Sort**.
+  other filter on, and reading or archiving them clears the count. The list's head is one row of
+  icon buttons: **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the
+  filters that are on; **Sort**, the order the list is in, beside a button whose arrow says which
+  way the order runs; and **Group**, how the list is grouped. Holding the pointer over one names it,
+  and each but **Filters** carries a dot while it is set to anything but its default. Where the list
+  has room, as in a tablet's window or beside a thread on a wide screen, **Sort** and **Group** show
+  their choice beside their icons, and with more room every button shows its words.
+  - **Search** opens the search field in the row's place, holding the search on, such as
+    **"release"**, which its chip shows, with focus in it; this is where you change the search. Its
+    cross, or Escape, closes it, applying what you typed at once, and so does Enter. Text the search
+    cannot take keeps the field open on Enter, and closing the field puts back the search that was
+    on.
   - **Sort** orders the list by:
     - **Priority**, the default: the threads with asks open to you first, each by the most pressing
       of its asks: by priority, then those blocking the agent's work, then by the earliest
@@ -388,13 +394,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Latest message**: every thread by its latest message, newest first.
     - **Created**: every thread by when it began, newest first. Within a session that is the order
       of the threads' numbers, which start again in every session.
-  - The button beside **Sort** says which way the order runs, such as **Most pressing first**,
-    **Soonest first**, **Quickest first** or **Newest first**, and choosing it reverses the order,
-    to **Least pressing first**, **Latest first**, **Longest first** or **Oldest first**. Reversing
-    turns around the threads the order ranks: for **Priority** those with asks open to you, for
-    **Due** those whose ask has an answer-by, for **Effort** those whose ask says how long it takes,
-    and for **Latest message** and **Created** every thread. The threads it does not rank still
-    follow them, as before. Choosing another order starts it in its own direction.
+  - The button beside **Sort** says which way the order runs, by its arrow and, where there is room,
+    in words, such as **Most pressing first**, **Soonest first**, **Quickest first**, or **Newest
+    first**, and choosing it reverses the order, to **Least pressing first**, **Latest first**,
+    **Longest first**, or **Oldest first**. Reversing turns around the threads the order ranks: for
+    **Priority** those with asks open to you, for **Due** those whose ask has an answer-by, for
+    **Effort** those whose ask says how long it takes, and for **Latest message** and **Created**
+    every thread. The threads it does not rank still follow them, as before. Choosing another order
+    starts it in its own direction.
   - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
     session group's sessions under its header when the list holds two or more groups, those in none
     under **No group**, and each session as **Session** folds it; by **Session**, each session's
@@ -428,10 +435,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Search** keeps the threads whose title holds every word you type, or one of whose messages
       does in its text and details, each as the start of a word, ignoring case and accents. A
       message you or an agent replaced no longer matches; its replacement does. It applies once you
-      pause typing, or at once on Enter. The search box atop the list's head and this one are the
-      same search: typing in either shows in both. Text the search cannot take, such as a tab or an
-      invisible character, stays in the box, which says why, and the list stays as it was. An
-      agent's own search of its threads looks at titles alone.
+      pause typing, or at once on Enter. The head's search field and this one are the same search:
+      typing in either shows in both. Text the search cannot take, such as a tab or an invisible
+      character, stays in the box, which says why, and the list stays as it was. An agent's own
+      search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
@@ -832,14 +839,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     level in order: **Alphabetic** by name; **Registration time** by when each session was first
     approved, a group or an agent by its earliest session; or **Manual**, offered only grouped by
     **Group**, which keeps your groups in your order and their agents and sessions in name order.
-    The button beside **Sort** says which way it runs, **A to Z** or **Newest first**, and choosing
-    it reverses it; **Manual** has no direction, and **No group** comes last whichever way. Choosing
-    another sort starts it in its own direction, and grouping by **Agent** or **Session** while
-    sorted **Manual** sorts **Alphabetic**. In **Manual**, each group's head ends in **Move up** and
-    **Move down**, and, with a mouse, a handle to drag it onto another group's head and put it in
-    that one's place, which changes your groups' order everywhere, as
-    [Groups and tags](#groups-and-tags) does in Settings. While a move is under way, the groups take
-    no other; one another browser made stale is refused, and the groups show as they are.
+    The button beside **Sort** says which way it runs, by its arrow and, where there is room, in
+    words, **A to Z** or **Newest first**, and choosing it reverses it; **Manual** has no direction,
+    and **No group** comes last whichever way. Choosing another sort starts it in its own direction,
+    and grouping by **Agent** or **Session** while sorted **Manual** sorts **Alphabetic**. In
+    **Manual**, each group's head ends in **Move up** and **Move down**, and, with a mouse, a handle
+    to drag it onto another group's head and put it in that one's place, which changes your groups'
+    order everywhere, as [Groups and tags](#groups-and-tags) does in Settings. While a move is under
+    way, the groups take no other; one another browser made stale is refused, and the groups show as
+    they are.
 
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
@@ -942,7 +950,7 @@ anywhere to list them all.
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
 | The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
 | The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                 |
-| The thread list | `/`                         | Puts focus in the list's search box, selecting what it holds                                                              |
+| The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                    |
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
 | A thread        | `e`                         | **Archive all**, while it is available, then where **Auto-advance** says                                                  |

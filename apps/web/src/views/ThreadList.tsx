@@ -2,12 +2,8 @@ import {
   type GroupsAndTags,
   type ThreadCounts,
   threadFilters,
-  type ThreadGrouping,
-  threadGrouping,
   type ThreadList as ThreadListAnswer,
-  type ThreadSort,
   type ThreadsView,
-  threadSort,
 } from "@wayfarerlabs/agention-api";
 import {
   useCallback,
@@ -22,7 +18,6 @@ import {
 import { changeLanded, query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
 import { useFollowing, usePages } from "../data.ts";
-import { Icon } from "../icons.tsx";
 import { takeNotice } from "../notice.ts";
 import { PaletteProvider } from "../organizing.tsx";
 import {
@@ -39,12 +34,12 @@ import {
 import type { ListShown } from "./filter-links.tsx";
 import { ListBeside } from "./list/beside.ts";
 import { BulkActions } from "./list/BulkActions.tsx";
-import { DirectionButton, HeadSelect } from "./list-head.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
-import { SearchBox, useSearchText } from "./list/search.tsx";
+import { ListHead, useHeadSearch } from "./list/ListHead.tsx";
+import { useSearchText } from "./list/search.tsx";
 import { ListSelection, useSelection } from "./list/selection.tsx";
 import { SelectHead, SelectionToolbar } from "./list/SelectionBar.tsx";
 import { useListShortcuts } from "./list/shortcuts.ts";
@@ -52,38 +47,15 @@ import { ThreadRow } from "./list/ThreadRow.tsx";
 
 // The thread list, built filters first: with no filter on it holds every
 // thread the operator has not archived, and every way of narrowing it is a
-// filter that combines with the others. The head holds a search box across
-// its top, then the order the list is in beside the button that reverses it,
-// how the list is grouped, and a Filters button, which opens a sheet holding
-// every filter, the search among them, whose box there edits the same text;
-// each filter that is on shows beneath as a chip that removes it. Grouped,
-// each header's links add its group, and a mark's filter, to the filters on.
-// All of it lives in the address. The head stays put while the list below it
-// loads afresh, so its controls keep focus.
-
-const sortLabel: Record<ThreadSort, string> = {
-  priority: "Priority",
-  due: "Due",
-  effort: "Effort",
-  latest: "Latest message",
-  created: "Created",
-};
-
-// Each order's direction in words: its own, then reversed.
-const directionLabel: Record<ThreadSort, [own: string, reversed: string]> = {
-  priority: ["Most pressing first", "Least pressing first"],
-  due: ["Soonest first", "Latest first"],
-  effort: ["Quickest first", "Longest first"],
-  latest: ["Newest first", "Oldest first"],
-  created: ["Newest first", "Oldest first"],
-};
-
-const groupLabel: Record<ThreadGrouping, string> = {
-  session_group: "Group",
-  session: "Session",
-  topic: "Topic",
-  agent: "Agent",
-};
+// filter that combines with the others. Its head (ListHead) is one row of
+// icon buttons: Search, which opens the search field in place of the row;
+// Filters, which opens a sheet holding every filter, the search among them,
+// whose box there edits the same text; the order beside the button that
+// reverses it; and how the list is grouped. Each filter that is on shows
+// beneath as a chip that removes it. Grouped, each header's links add its
+// group, and a mark's filter, to the filters on. All of it lives in the
+// address. The head stays put while the list below it loads afresh, so its
+// controls keep focus.
 
 export function ThreadList() {
   const view = useListView();
@@ -117,8 +89,12 @@ export function ThreadList() {
   const sheet = useRef<HTMLDialogElement>(null);
   const sheetHeading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
-  const searchBox = useRef<HTMLInputElement>(null);
+  const field = useHeadSearch(search, view.search);
   const searchId = useId();
+  // A chip removed, or a header's link followed, leaves the control that had
+  // focus gone, so focus moves to Filters, or, while the search field takes
+  // the head's row, to the field.
+  const focusHead = () => (opener.current ?? field.box.current)?.focus();
   // The sheet's counts load while it is open, and again after each change.
   const [sheetOpen, setSheetOpen] = useState(false);
   const openSheet = () => {
@@ -128,13 +104,6 @@ export function ThreadList() {
     // rise over the sheet as it opens.
     sheetHeading.current?.focus();
   };
-  // The search shortcut puts focus in the head's search box, which shows
-  // wherever the list does, scrolling it into view, and selects what it
-  // holds, so typing starts a new search rather than narrowing the one on.
-  const focusSearch = useCallback(() => {
-    searchBox.current?.focus();
-    searchBox.current?.select();
-  }, []);
   const filters = query(queryOf(view, threadFilters.shape));
   const counts = useFollowing(filters, sheetOpen, () =>
     request<ThreadCounts>("GET", `/threads/counts${filters}`),
@@ -152,60 +121,22 @@ export function ThreadList() {
   return (
     <PaletteProvider known={known}>
       {!threadBeside && <PageHeading visuallyHidden>Threads</PageHeading>}
-      <div className="list-head">
-        <div className="list-search">
-          <SearchBox search={search} id={searchId} label="Search threads" box={searchBox} />
-        </div>
-        {/* Choosing another order takes it in its own direction. */}
-        <div className="sort-control">
-          <HeadSelect
-            icon="sort"
-            label="Sort"
-            value={view.sort}
-            options={threadSort.options.map((each) => ({ value: each, label: sortLabel[each] }))}
-            choose={(value) =>
-              choose({ sort: threadSort.safeParse(value).data ?? view.sort, reverse: false })
-            }
-          />
-          <DirectionButton
-            labels={directionLabel[view.sort]}
-            reverse={view.reverse}
-            onReverse={() => choose({ reverse: !view.reverse })}
-          />
-        </div>
-        <HeadSelect
-          icon="group"
-          label="Group"
-          value={view.group ?? ""}
-          options={[
-            { value: "", label: "Flat" },
-            ...threadGrouping.options.map((each) => ({ value: each, label: groupLabel[each] })),
-          ]}
-          choose={(value) => choose({ group: threadGrouping.safeParse(value).data })}
-        />
-        <button
-          ref={opener}
-          type="button"
-          className="secondary filters-button"
-          aria-haspopup="dialog"
-          aria-label={on > 0 ? `Filters, ${on} on` : "Filters"}
-          onClick={openSheet}
-        >
-          <Icon name="filters" />
-          {on > 0 && (
-            <span className="badge" aria-hidden="true">
-              {on}
-            </span>
-          )}
-        </button>
-      </div>
-      {/* A chip removed leaves the button that had focus gone, so focus
-          moves to Filters. */}
+      <ListHead
+        view={view}
+        choose={choose}
+        search={search}
+        field={field}
+        searchId={searchId}
+        on={on}
+        opener={opener}
+        openSheet={openSheet}
+      />
+      {/* The search's chip hides while the field shows the search. */}
       <Chips
-        chips={chips}
+        chips={field.open ? chips.filter((chip) => chip.key !== "search") : chips}
         remove={(chip) => {
           choose(chip.remove);
-          opener.current?.focus();
+          focusHead();
         }}
       />
       <FilterSheet
@@ -221,8 +152,6 @@ export function ThreadList() {
         reset={reset}
         onClose={() => setSheetOpen(false)}
       />
-      {/* A header's link followed to another list leaves the list it was
-          on gone, so focus moves to Filters, as removing a chip does. */}
       <ListBody
         key={here}
         list={{
@@ -230,13 +159,13 @@ export function ThreadList() {
           choose: (change) => {
             if (listHref({ ...view, ...change }) !== here) {
               choose(change);
-              opener.current?.focus();
+              focusHead();
             }
           },
         }}
         empty={on > 0 ? "No threads match these filters." : "No threads to show."}
         onTotal={onTotal}
-        onSearch={focusSearch}
+        onSearch={field.show}
       />
     </PaletteProvider>
   );

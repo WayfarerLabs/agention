@@ -106,6 +106,18 @@ describe("on the thread list", () => {
     expect(screen.getByRole("dialog", { hidden: true }).hasAttribute("open")).toBe(false);
   });
 
+  it("puts focus back in the search field already open with /, selecting what it holds", async () => {
+    await openList();
+    press("/");
+    const search = screen.getByRole<HTMLInputElement>("searchbox", { name: "Search threads" });
+    fireEvent.change(search, { target: { value: "release" } });
+    search.setSelectionRange(7, 7);
+    screen.getByRole("link", { name: /Read one/ }).focus();
+    press("/");
+    expect(document.activeElement).toBe(search);
+    expect([search.selectionStart, search.selectionEnd]).toEqual([0, "release".length]);
+  });
+
   it("selects the search already on with /, so typing replaces it", async () => {
     page.api.on("GET", "/threads", { body: { threads: rows, total: rows.length } });
     renderAt("/?search=release");

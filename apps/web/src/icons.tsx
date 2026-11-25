@@ -6,6 +6,15 @@ import { Spoken } from "./format.tsx";
 // so it is hidden from assistive technology.
 
 const shapes = {
+  // A magnifying glass, for searching.
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 5 5" />
+    </>
+  ),
+  // A cross, for closing what is open.
+  close: <path d="M6 6l12 12M18 6 6 18" />,
   // A funnel, for the filters.
   filters: <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />,
   // Arrows up and down, for the order.

@@ -569,26 +569,146 @@ legend {
 
 /* The thread list */
 
-/* The list's head: the search box across its top, then the order with its
-   direction, the grouping, and the Filters button at the end of their row,
-   which wraps, rather than squeezing them, where the width does not hold
-   them all. The search box takes the head's whole width at every width, so
-   it keeps its room beside a thread as on a phone. */
+/* The list's head: one row of compact controls, each an icon in a box the
+   size of a touch, or the search field in their place. A control shows its
+   words beside its icon only where the head has room for them, which it
+   measures as its own container, so the list beside a thread, as narrow as
+   a phone, keeps its icons alone: a choice's words, what it holds, from 28rem;
+   every control's from 41rem, past the widest that row gets by touch with
+   every control set in the widest font measured, DejaVu Sans, a common Linux
+   system font (about 40.3rem; Arial about 36.5rem). The browser tests hold
+   the row to it in the system's own font and in Arial. The row wraps rather
+   than scroll sideways should a wider font leave it no room. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  container: list-head / inline-size;
 }
 
+.head-control {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.head-label {
+  display: none;
+}
+
+@container list-head (min-width: 28rem) {
+  .head-select .head-label {
+    display: inline;
+  }
+}
+
+@container list-head (min-width: 41rem) {
+  .head-label {
+    display: inline;
+  }
+}
+
+/* A choice: a native select over the whole control, unseen and square, so a
+   tap anywhere on it, its corners too, opens its picker, at the size of text
+   a phone does not zoom in on. Its focus ring is the control's. */
+.head-select {
+  cursor: pointer;
+}
+
+.head-select select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  opacity: 0;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.head-select:has(select:focus-visible) {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The dot a control carries while it is set to anything but its default,
+   on its corner, clear of its words, ringed in the page's background. */
+.set-mark {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-bg);
+  pointer-events: none;
+}
+
+/* Forced colors drop the dot's background and ring, so it keeps its own, in
+   the system's colors. */
+@media (forced-colors: active) {
+  .set-mark {
+    forced-color-adjust: none;
+    background: Highlight;
+    box-shadow: 0 0 0 2px Canvas;
+  }
+}
+
+/* The order and the button reversing it, together, as far apart as the
+   row's other controls, so the order's mark stays clear of the button. */
+.sort-control {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* The search field in the row's place, beside the button closing it, with
+   why the text cannot search beneath them, in a live region that takes no
+   room while it is empty. */
 .list-search {
-  flex: 1 0 100%;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
   min-width: 0;
 }
 
+.list-search input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The button closing the field stands where the browser's own clearing
+   cross would, so the field shows no other. */
+.list-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.list-search .search-problem {
+  flex-basis: 100%;
+  order: 1;
+}
+
 .list-search .field-error {
-  margin-bottom: 0;
+  margin: var(--space-1) 0 0;
 }
 
 /* A part of where a thread is, its agent, session or topic, is marked by a
@@ -622,59 +742,6 @@ legend {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-/* The order and the grouping: each a native select with its icon drawn
-   inside, at its start. */
-.head-select {
-  position: relative;
-}
-
-.head-select .icon {
-  position: absolute;
-  top: 50%;
-  left: var(--space-2);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.head-select select {
-  width: auto;
-  padding-left: calc(var(--space-2) * 2 + var(--icon-size) * 1.25);
-  font-size: var(--text-small);
-  font-weight: 600;
-}
-
-/* The order and the button reversing it, together on a row while the width
-   holds them, the button wrapping beneath the order on the narrowest phones
-   or when enlarged text leaves no room for it beside. */
-.sort-control {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-/* The direction: the order's words beside an arrow, in the selects' text
-   size. Its words wrap only when enlarged text leaves no room for them on a
-   row of their own. */
-.direction-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-2);
-  font-size: var(--text-small);
-  text-align: start;
-}
-
-.filters-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-width: var(--touch);
-  margin-left: auto;
-  padding: 0 var(--space-2);
 }
 
 .badge {

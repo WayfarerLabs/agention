@@ -56,8 +56,17 @@ const lastQuery = () => api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
 const address = () => window.location.search;
 
 const filtersButton = () => screen.getByRole("button", { name: /^Filters/ });
-// The search box at the top of the list's head, and the sheet's.
+// Search, which opens the head's search field, its name saying the search
+// on; the field's box, while it is open; and the sheet's.
+const searchButton = () => screen.getByRole("button", { name: /^Search(, "[^"]*")?$/ });
 const searchBox = () => screen.getByRole<HTMLInputElement>("searchbox", { name: "Search threads" });
+const closeSearch = () => screen.getByRole("button", { name: "Close search" });
+// openSearch opens the head's search field from Search.
+async function openSearch() {
+  await screen.findByRole("heading", { level: 1 });
+  fireEvent.click(searchButton());
+  return searchBox();
+}
 const sheetSearch = () =>
   within(sheet()).getByRole<HTMLInputElement>("searchbox", { hidden: true, name: "Search" });
 const groupSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Group" });
@@ -351,19 +360,21 @@ describe("the thread list", () => {
     expect(api.callsTo("GET", "/threads/counts")).toEqual([]);
   });
 
-  it("heads the list with the search box, the order and its direction, the grouping and the Filters button, after its heading", async () => {
+  it("heads the list with one row of Search, Filters, the order and its direction, and the grouping, after its heading", async () => {
     serve([]);
     renderAt("/");
     const heading = await screen.findByRole("heading", { level: 1 });
     const head = filtersButton().parentElement as HTMLElement;
     const controls = Array.from(head.querySelectorAll("h1, input, select, button"));
     expect(controls).toEqual([
-      searchBox(),
+      searchButton(),
+      filtersButton(),
       sortSelect(),
       directionButton("Most pressing first"),
       groupSelect(),
-      filtersButton(),
     ]);
+    // No search box shows until Search opens one.
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
     // Sort and its direction are held together.
     expect(directionButton("Most pressing first").parentElement).toBe(
       sortSelect().closest(".sort-control"),
@@ -385,14 +396,45 @@ describe("the thread list", () => {
       "created",
     ]);
     expect(sortSelect().value).toBe("priority");
-    // Each control's icon is drawn for the eye alone; Filters is named by
-    // words, and says how many filters are on once any are.
+    // Each control's icon, and the words it shows where there is room, are
+    // for the eye alone: each button is named by its aria-label, each select
+    // by its own; Filters says how many filters are on once any are.
     for (const icon of head.querySelectorAll("svg")) {
       expect(icon.getAttribute("aria-hidden")).toBe("true");
     }
+    for (const button of head.querySelectorAll("button")) {
+      expect(button.getAttribute("aria-label")).toBeTruthy();
+    }
     expect(filtersButton().getAttribute("aria-label")).toBe("Filters");
     expect(filtersButton().getAttribute("aria-haspopup")).toBe("dialog");
-    expect(filtersButton().querySelector(".badge")).toBeNull();
+    // With everything at its default, nothing is marked.
+    expect(head.querySelector(".badge, .set-mark")).toBeNull();
+  });
+
+  it("marks each control set to anything but its default, and Filters with how many are on", async () => {
+    serve([]);
+    renderAt("/?search=notes&unread=true&sort=due&reverse=true&group=agent");
+    await screen.findByRole("heading", { level: 1 });
+    const marked = (control: HTMLElement) =>
+      control.closest(".head-control")?.querySelector(":scope > .set-mark") !== null;
+    expect(
+      [searchButton(), sortSelect(), directionButton("Latest first"), groupSelect()].map(marked),
+    ).toEqual([true, true, true, true]);
+    expect(filtersButton().querySelector(".badge")?.textContent).toBe("2");
+    expect(filtersButton().getAttribute("aria-label")).toBe("Filters, 2 on");
+    // Each mark is for the eye alone.
+    for (const mark of document.querySelectorAll(".list-head .set-mark, .list-head .badge")) {
+      expect(mark.getAttribute("aria-hidden")).toBe("true");
+    }
+    // Back at their defaults, the order and its direction lose their marks
+    // one by one.
+    fireEvent.click(directionButton("Latest first"));
+    await waitFor(() => expect(marked(directionButton("Soonest first"))).toBe(false));
+    expect(marked(sortSelect())).toBe(true);
+    fireEvent.change(sortSelect(), { target: { value: "priority" } });
+    await waitFor(() => expect(marked(sortSelect())).toBe(false));
+    fireEvent.change(groupSelect(), { target: { value: "" } });
+    await waitFor(() => expect(marked(groupSelect())).toBe(false));
   });
 
   it("orders the list as chosen, keeping the filters and focus, and replacing the address", async () => {
@@ -951,44 +993,46 @@ describe("the search boxes", () => {
   it("the head's box and the sheet's are one search", async () => {
     serve([]);
     renderAt("/?unread=true");
-    await screen.findByRole("heading", { level: 1 });
-    expect(searchBox().type).toBe("search");
+    expect((await openSearch()).type).toBe("search");
     // Typing in either shows in the other, and applies once typing pauses.
     fireEvent.change(searchBox(), { target: { value: "release" } });
     expect(sheetSearch().value).toBe("release");
     await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
-    const open = await openSheet();
-    fireEvent.change(sheetSearch(), { target: { value: "notes" } });
-    expect(searchBox().value).toBe("notes");
-    await waitFor(() => expect(address()).toBe("?search=notes&unread=true"));
     // Text the API would refuse marks both.
-    fireEvent.change(sheetSearch(), { target: { value: "no\u200btes" } });
+    fireEvent.change(searchBox(), { target: { value: "no\u200btes" } });
     for (const box of [searchBox(), sheetSearch()]) {
       expect(box.getAttribute("aria-invalid")).toBe("true");
       const error = document.getElementById(box.getAttribute("aria-describedby") ?? "");
       expect(error?.classList.contains("field-error")).toBe(true);
     }
-    // The chip clears both, and so does Reset filters.
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    fireEvent.click(closeSearch());
+    const open = await openSheet();
+    fireEvent.change(sheetSearch(), { target: { value: "notes" } });
+    await waitFor(() => expect(address()).toBe("?search=notes&unread=true"));
+    // The chip clears the search, and so does Reset filters, which the head's
+    // box shows once opened.
     fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Search/ }));
     await waitFor(() => expect(address()).toBe("?unread=true"));
-    expect([searchBox().value, sheetSearch().value]).toEqual(["", ""]);
+    expect(sheetSearch().value).toBe("");
     fireEvent.change(sheetSearch(), { target: { value: "release" } });
     await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
     fireEvent.click(within(open).getByRole("button", { name: /^Reset filters/ }));
     await waitFor(() => expect(address()).toBe(""));
-    expect([searchBox().value, sheetSearch().value]).toEqual(["", ""]);
+    sheet().close();
+    expect((await openSearch()).value).toBe("");
   });
 
   it("applies on Enter at once, in either box, but not text the API would refuse", async () => {
     serve([]);
     renderAt("/");
-    await screen.findByRole("heading", { level: 1 });
-    fireEvent.change(searchBox(), { target: { value: "release" } });
-    fireEvent.keyDown(searchBox(), { key: "Enter" });
-    expect(address()).toBe("?search=release");
+    await openSearch();
     fireEvent.change(searchBox(), { target: { value: "no\u200btes" } });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await pause();
+    expect(address()).toBe("");
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     expect(address()).toBe("?search=release");
     await openSheet();
     fireEvent.change(sheetSearch(), { target: { value: "notes" } });
@@ -1001,7 +1045,7 @@ describe("the search boxes", () => {
   it("searches nothing while an input method composes, and the text it ends with once typing pauses", async () => {
     serve([]);
     renderAt("/");
-    await screen.findByRole("heading", { level: 1 });
+    await openSearch();
     fireEvent.compositionStart(searchBox());
     fireEvent.input(searchBox(), { target: { value: "にほ" }, isComposing: true });
     expect(searchBox().value).toBe("にほ");
@@ -1365,6 +1409,108 @@ describe("the group and tag choices", () => {
   });
 });
 
+describe("the head's search field", () => {
+  it("opens from Search in place of the row, selecting the search on, and closes by its button, applying it at once", async () => {
+    serve([]);
+    renderAt("/?search=notes&unread=true");
+    const box = await openSearch();
+    expect(document.activeElement).toBe(box);
+    expect([box.value, box.selectionStart, box.selectionEnd]).toEqual(["notes", 0, 5]);
+    // The field takes the row's place: no other control of the row shows,
+    // and the search's chip hides while the field is open.
+    expect(screen.queryByRole("button", { name: /^Filters/ })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Sort" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove filter: Search/ })).toBeNull();
+    expect(chips().map(chipText)).toEqual(["Unread"]);
+    fireEvent.change(box, { target: { value: "release" } });
+    fireEvent.click(closeSearch());
+    // Closing applies the text at once, without waiting for the pause.
+    expect(address()).toBe("?search=release&unread=true");
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
+    expect(document.activeElement).toBe(searchButton());
+    expect(screen.getByRole("button", { name: 'Remove filter: Search "release"' })).toBeTruthy();
+    expect(searchButton().getAttribute("aria-label")).toBe('Search, "release"');
+  });
+
+  it("closes on Escape without clearing it, and on Enter once it applies, but puts back the search on in place of text it cannot take", async () => {
+    serve([]);
+    renderAt("/?search=notes");
+    let box = await openSearch();
+    const escape = fireEvent.keyDown(box, { key: "Escape" });
+    // Escape is the field's own, so the browser does not clear it first.
+    expect(escape).toBe(false);
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
+    expect(document.activeElement).toBe(searchButton());
+    expect(address()).toBe("?search=notes");
+    box = await openSearch();
+    fireEvent.change(box, { target: { value: "release" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(address()).toBe("?search=release");
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
+    // Text the search cannot take keeps the field open on Enter, and is put
+    // back on closing.
+    box = await openSearch();
+    fireEvent.change(box, { target: { value: "no\u200btes" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(searchBox()).toBe(box);
+    fireEvent.click(closeSearch());
+    await pause();
+    expect(address()).toBe("?search=release");
+    expect((await openSearch()).value).toBe("release");
+  });
+
+  it("names Search by the search on, keeping its case, and clears it by its chip, focus moving to Filters", async () => {
+    serve([]);
+    renderAt("/?search=Release+Notes&unread=true");
+    await screen.findByRole("heading", { level: 1 });
+    expect(searchButton().getAttribute("aria-label")).toBe('Search, "Release Notes"');
+    expect(searchButton().getAttribute("title")).toBe('Search, "Release Notes"');
+    const remove = screen.getByRole("button", { name: 'Remove filter: Search "Release Notes"' });
+    expect(remove.getAttribute("title")).toBe('Search "Release Notes"');
+    remove.focus();
+    fireEvent.click(remove);
+    await waitFor(() => expect(address()).toBe("?unread=true"));
+    expect(document.activeElement).toBe(filtersButton());
+    expect(searchButton().getAttribute("aria-label")).toBe("Search");
+    expect(searchButton().querySelector(".set-mark")).toBeNull();
+  });
+
+  it("applies nothing on an Enter an input method sends, as Safari's confirming a candidate is", async () => {
+    serve([]);
+    renderAt("/");
+    const box = await openSearch();
+    fireEvent.change(box, { target: { value: "release" } });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(address()).toBe("");
+    expect(searchBox()).toBe(box);
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(address()).toBe("?search=release");
+  });
+
+  it("says why the text cannot search in a polite live region, there before the text goes wrong", async () => {
+    serve([]);
+    renderAt("/");
+    const box = await openSearch();
+    const region = box.parentElement?.querySelector('[aria-live="polite"]');
+    expect(region?.textContent).toBe("");
+    fireEvent.change(box, { target: { value: "no\u200btes" } });
+    expect(box.parentElement?.querySelector('[aria-live="polite"]')).toBe(region);
+    const error = document.getElementById(box.getAttribute("aria-describedby") ?? "");
+    expect(error !== null && region?.contains(error)).toBe(true);
+  });
+
+  it("takes focus when a chip removed while it is open leaves no Filters to move to", async () => {
+    serve([]);
+    renderAt("/?unread=true");
+    const box = await openSearch();
+    const unread = screen.getByRole("button", { name: "Remove filter: Unread" });
+    unread.focus();
+    fireEvent.click(unread);
+    await waitFor(() => expect(address()).toBe(""));
+    expect(document.activeElement).toBe(box);
+  });
+});
+
 describe("the chips", () => {
   it("show each filter that is on, each removing its own, with a badge counting them", async () => {
     serve([]);
@@ -1441,9 +1587,9 @@ describe("the chips", () => {
     );
     await screen.findByRole("heading", { level: 1 });
     const [search, agent, session, topic] = chips() as HTMLElement[];
-    // “12345678901234567890”: 22 characters, cut to 19 and an ellipsis.
-    expect(chipText(search as HTMLElement)).toBe("“123456789012345678…");
-    expect(search?.getAttribute("title")).toBe("Search “12345678901234567890”");
+    // "12345678901234567890": 22 characters, cut to 19 and an ellipsis.
+    expect(chipText(search as HTMLElement)).toBe('"123456789012345678…');
+    expect(search?.getAttribute("title")).toBe('Search "12345678901234567890"');
     // agent-eighteen-chr: 18 characters, beside the badge's two.
     expect(chipText(agent as HTMLElement)).toBe("agent-eighteen-chr");
     // a-long-session-name: 19 characters, cut to an ellipsis and its last 17.

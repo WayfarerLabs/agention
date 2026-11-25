@@ -2,7 +2,7 @@ import { messageSearchFilter, type ThreadsView } from "@wayfarerlabs/agention-ap
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 // The thread list's search: one filter, whose text two boxes show and edit,
-// the one at the top of the list's head and the one in the filter sheet.
+// the head's search field, while it is open, and the one in the filter sheet.
 
 // How long typing must pause before the search applies.
 const searchPause = 400;
@@ -88,17 +88,24 @@ export function useSearchText(
 // Enter applies, with why the text cannot search beneath it when it cannot.
 // It is named by a label of its own, given its id, or else by label, which it
 // also shows while empty. While an input method composes, typing waits for
-// its end, and Enter, which ends it, applies nothing.
+// its end, and Enter, which ends it, applies nothing: Safari sends the Enter
+// confirming a candidate with isComposing false, but with keyCode 229, as
+// every browser does while composing. Given done, Escape calls it rather
+// than clearing the box, and so does Enter on text the search can take, done
+// applying it. Why the text cannot search is in a polite live region, so a
+// screen reader says so as it changes.
 export function SearchBox({
   search,
   id,
   label,
   box,
+  done,
 }: {
   search: SearchText;
   id: string;
   label?: string;
   box?: RefObject<HTMLInputElement | null>;
+  done?: () => void;
 }) {
   const error = `${id}-error`;
   return (
@@ -118,17 +125,29 @@ export function SearchBox({
         }
         onCompositionEnd={(event) => search.type(event.currentTarget.value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+            return;
+          }
+          if (event.key === "Enter") {
             event.preventDefault();
-            search.applyNow();
+            if (done !== undefined && search.problem === undefined) {
+              done();
+            } else {
+              search.applyNow();
+            }
+          } else if (event.key === "Escape" && done !== undefined) {
+            event.preventDefault();
+            done();
           }
         }}
       />
-      {search.problem !== undefined && (
-        <p id={error} className="field-error">
-          {search.problem}
-        </p>
-      )}
+      <div className="search-problem" aria-live="polite">
+        {search.problem !== undefined && (
+          <p id={error} className="field-error">
+            {search.problem}
+          </p>
+        )}
+      </div>
     </>
   );
 }

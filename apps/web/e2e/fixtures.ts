@@ -254,16 +254,21 @@ const devtools = new WeakMap<Page, CDPSession>();
 // Sizes the window as a test's device: below a phone's width the main pointer
 // is a touch screen, as on a phone, so the page takes the sizes it gives a
 // fingertip; at a wider one it is the mouse Playwright's Chromium has, which
-// takes the denser sizes (styles.css, pointer: fine).
-export async function resize(page: Page, size: { width: number; height: number }): Promise<void> {
+// takes the denser sizes (styles.css, pointer: fine), unless touch says
+// otherwise, as for a tablet.
+export async function resize(
+  page: Page,
+  size: { width: number; height: number },
+  touch = size.width < phoneWidth,
+): Promise<void> {
   let session = devtools.get(page);
   if (session === undefined) {
     session = await page.context().newCDPSession(page);
     devtools.set(page, session);
   }
-  await session.send("Emulation.setTouchEmulationEnabled", {
-    enabled: size.width < phoneWidth,
-    maxTouchPoints: 1,
-  });
+  await session.send("Emulation.setTouchEmulationEnabled", { enabled: touch, maxTouchPoints: 1 });
   await page.setViewportSize(size);
+  // The page may see the new size a frame later under load; measure nothing
+  // before it does.
+  await page.waitForFunction((width) => window.innerWidth === width, size.width);
 }
