@@ -347,14 +347,16 @@ The tools work as without monitoring in every case.
   captures before any profile claims them.
 - **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
 - **The nudge with a generic profile**: a generic profile cannot tell a prompt marker from typed
-  text, so its input line is the cursor's whole row; `nudge()` will confirm its texts by comparing
-  that row before and after each paste, settled with delivery 2.
-- **Claude Code's vim normal mode** looks the same on screen as its insert mode at an empty prompt,
-  and there Backspace moves the cursor rather than deleting, so a nudge would leave its warning in
-  the input at the clear step. Settled with delivery 2: accept and report it, or learn the mode
-  another way.
+  text, so its input line is the cursor's whole row; `nudge()` confirms each of its texts by
+  comparing that row before and after the paste, the row after being the row before with the text
+  appended at the cursor.
+- **Claude Code's vim normal mode** looks the same on screen as the normal editor's prompt at an
+  empty input, and there Backspace moves the cursor rather than deleting. Accepted: the clear step
+  then finds the line not empty, abandons at `cleared` and reports not sent, so the warning stays in
+  the input, where the operator sees it and nothing submits it. Learning the mode another way waits
+  until it proves common.
 - **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
   told from typed text only by the captured patterns, since captures carry no color; an unknown hint
-  leaves the nudge not ready. Reading text attributes is the alternative, for delivery 2.
+  leaves the nudge not ready, which is safe. Reading text attributes waits until a hint is missed.
 - **A restarted bridge outside Agentworks** starts reporting only at the agent's next tool call,
   since it learns its session's names then; until then the session shows disconnected.
