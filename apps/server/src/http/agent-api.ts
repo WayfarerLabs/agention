@@ -4,7 +4,11 @@ import { authenticateAgent, verifyRegistrationToken } from "../auth/agent-tokens
 import { unauthenticated } from "../errors.ts";
 import { findRegistrationByKey, markSeen, type Store, submitRegistration } from "../store/index.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
-import { requireServedAgentApiVersion } from "./agent-api-version.ts";
+import {
+  type AgentApiVersionEnv,
+  answerAsStatedVersion,
+  requireServedAgentApiVersion,
+} from "./agent-api-version.ts";
 import { parseBody } from "./input.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
@@ -23,12 +27,13 @@ export interface AgentApiOptions {
 export const seenFailureLogInterval = 60_000;
 
 // agentApi is the agent bridge's API, mounted at /api/agent. A request
-// stating an agent API version the server does not serve is refused first.
+// stating an agent API version the server does not serve is refused first,
+// and an answer to one it serves is the answer of the version it states.
 // Every request carries a token signed by its session's key; cookies are
 // refused, so a browser's sign-in never works here.
-export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
+export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiVersionEnv> {
   const { store, origin, budgets, log } = options;
-  const api = new Hono<IdentityEnv>();
+  const api = new Hono<IdentityEnv & AgentApiVersionEnv>();
 
   // seen marks the session an approved registration acts for as seen. Last
   // seen is advisory, so a failure to stamp it is logged and the call goes on.
@@ -48,6 +53,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   };
 
   api.use(requireServedAgentApiVersion);
+  api.use(answerAsStatedVersion);
   api.use(async (c, next) => {
     if (c.req.header("cookie") !== undefined) {
       throw unauthenticated("the agent API does not accept cookies");

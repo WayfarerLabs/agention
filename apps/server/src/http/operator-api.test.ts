@@ -210,6 +210,22 @@ describe("the operator mount", () => {
     };
     expect(thread.messages.at(-1)?.author).toEqual({ kind: "person", name: "operator" });
   });
+
+  it("writes and reads a message's branches", async () => {
+    const { secret } = await harness.createKey(["threads:write"]);
+    const branch = { repo: "acme/agention", branch: "fix/links", url: "https://example.com/b" };
+    const sent = await harness.operator(secret, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      branches: [branch],
+    });
+    expect(codeOf(sent)).toBe("ok");
+    const read = await harness.operator(secret, "GET", "/s/builder/main/threads/1");
+    expect(read.body).toMatchObject({
+      messages: [{ seq: 1 }, { seq: 2, branches: [branch] }],
+      branches: { links: [branch], truncated: false },
+    });
+  });
 });
 
 describe("a key's credential", () => {

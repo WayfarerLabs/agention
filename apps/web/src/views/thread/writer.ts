@@ -37,13 +37,20 @@ export interface AnswerDraft {
 // What the composer sends besides its text: answers written on asks' cards,
 // which change the answers of an earlier message when they replace it, or an
 // edit of one of the operator's own messages.
-export type Staged = StagedAnswers | { kind: "edit"; replaces: number };
+export type Staged = StagedAnswers | StagedEdit;
+export interface StagedEdit {
+  kind: "edit";
+  replaces: number;
+  kept: KeptParts;
+}
 export interface StagedAnswers {
   kind: "answers";
   // In ask number order, at most as many as one message carries, and at
   // least one. A change holds one for each live ask its message answered.
   answers: StagedAnswer[];
   replaces?: number;
+  // What a change carries again from the message it replaces, with replaces.
+  kept?: KeptParts;
   // The asks, by number, whose answers the message being changed carries
   // though their requester since revised or retracted them: those answers go
   // with that message.
@@ -58,6 +65,20 @@ export interface StagedAnswer {
   seq: number;
   labels: string[];
   answer: AnswerDraft;
+}
+
+// The parts of a message the composer has no box for: its references, pull
+// requests and branches. A replacement is a whole message, so a change or an
+// edit carries them again, unchanged, from the message it replaces.
+export type KeptParts = Pick<Message, "references" | "pull_requests" | "branches">;
+
+// keptParts takes them from the message a change or an edit replaces.
+export function keptParts({ references, pull_requests, branches }: Message): KeptParts {
+  return {
+    ...(references === undefined ? {} : { references }),
+    ...(pull_requests === undefined ? {} : { pull_requests }),
+    ...(branches === undefined ? {} : { branches }),
+  };
 }
 
 export const blank = (text: string) => text.trim() === "";
@@ -200,7 +221,7 @@ function answerOf(staged: StagedAnswer): NonNullable<WriteContent["answers"]>[nu
 // its files, each when it has any, and what is staged. A replacement is a
 // whole message, so an edit carries the text, detail and files it keeps
 // again, and a change of answers its text, detail and files, if any, and
-// every answer.
+// every answer; both carry the parts the composer has no box for again.
 export function contentOf(
   { text, detail, attachments }: Draft,
   staged: Staged | undefined,
@@ -214,10 +235,11 @@ export function contentOf(
     return written;
   }
   if (staged.kind === "edit") {
-    return { ...written, replaces: staged.replaces };
+    return { ...written, ...staged.kept, replaces: staged.replaces };
   }
   return {
     ...written,
+    ...staged.kept,
     answers: staged.answers.map(answerOf),
     ...(staged.replaces === undefined ? {} : { replaces: staged.replaces }),
   };
@@ -291,7 +313,7 @@ export function staleChange(
       // message's text.
       left:
         answers.length === 0
-          ? { kind: "edit", replaces: staged.replaces }
+          ? { kind: "edit", replaces: staged.replaces, kept: staged.kept ?? {} }
           : {
               ...staged,
               answers,

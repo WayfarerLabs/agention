@@ -22,6 +22,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
+import { readLinks } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
 import { seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
@@ -516,8 +517,9 @@ function groupBySeq<T extends { seq: number }>(rows: T[]): Map<number, T[]> {
 }
 
 // readMessages reads up to limit messages after the given sequence, in order,
-// as they read now: whether each is live and what replaced it; its files, in
-// the order it gave them, each marked when its contents are gone; each ask's
+// as they read now: whether each is live and what replaced it; its pull
+// requests and branches, and its files, in the order it gave them, each file
+// marked when its contents are gone; each ask's
 // number, whether it is open, and its live answer or live withdrawal; each
 // answer's ask, with its question, and whether that ask is still live; and
 // each withdrawal, all as the two views define them. An ask has at most one
@@ -589,6 +591,7 @@ export function readMessages(
       .all(span) as unknown as (Withdrawal & { seq: number })[],
   );
   const files = readAttachments(db, span);
+  const links = readLinks(db, span);
   return rows.map((row) => {
     const attached = files.get(row.seq);
     const own = asks.get(row.seq);
@@ -606,6 +609,7 @@ export function readMessages(
       ...(row.message_references === null
         ? {}
         : { references: JSON.parse(row.message_references) as Reference[] }),
+      ...links.get(row.seq),
       ...(attached === undefined ? {} : { attachments: attached }),
       ...(row.topic === null ? {} : { topic: row.topic }),
       ...(own === undefined ? {} : { asks: own.map(toAsk) }),

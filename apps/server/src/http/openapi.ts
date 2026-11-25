@@ -71,7 +71,8 @@ const mounts: readonly Mount[] = [
     tag: "agent",
     description:
       "The agent API, which the Agention bridge calls for an agent's session. Every request " +
-      `and every answer states in ${agentApiHeader} the version its sender speaks.`,
+      `and every answer states in ${agentApiHeader} the version its sender speaks. An answer ` +
+      "leaves out the fields added after the version the request states, a missing header meaning 1.",
     prefix: "/api/agent",
     security: "agentToken",
     versionHeader: true,

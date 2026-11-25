@@ -364,14 +364,22 @@ export function answerTo(
 }
 
 // threadAnswer is a GET of a thread: the thread, its messages, both cursors,
-// the operator's marks, and no files.
+// the operator's marks, and no files, pull requests or branches.
 export function threadAnswer(
   thread: ThreadSummary,
   messages: Message[],
   cursors = { requester: thread.last_seq, audience: thread.last_seq - thread.unread },
   marks = { read_through: thread.last_seq - thread.unread, archived_through: 0 },
 ): ThreadGetResult {
-  return { thread, messages, cursors, marks, files: { count: 0, bytes: 0 } };
+  return {
+    thread,
+    messages,
+    cursors,
+    marks,
+    files: { count: 0, bytes: 0 },
+    pull_requests: { links: [], truncated: false },
+    branches: { links: [], truncated: false },
+  };
 }
 
 export function registration(overrides: Partial<Registration> = {}): Registration {

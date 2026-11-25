@@ -8,6 +8,14 @@ import {
   sequence,
   threadNumber,
 } from "./bounds.ts";
+import {
+  branchLink,
+  branchList,
+  branchRollup,
+  pullRequestLink,
+  pullRequestList,
+  pullRequestRollup,
+} from "./code-links.ts";
 import { attachmentList, attachmentRead, fileTotals } from "./files.ts";
 import { name } from "./names.ts";
 import { reference, referenceList } from "./references.ts";
@@ -20,7 +28,8 @@ import { timestamp } from "./time.ts";
 // the messages no later message replaced. A message's text and its detail are
 // Markdown; the title, questions, suggested answers, an answer's own words,
 // fallback text, a withdrawal's reason and reference labels are plain text; a
-// topic is a name, as an agent's and a session's are. All are stored and
+// topic is a name, as an agent's and a session's are; pull requests and
+// branches are their repositories, numbers and names. All are stored and
 // returned exactly as written.
 
 export const impact = z
@@ -255,6 +264,8 @@ const messageParts = {
   text: messageText.optional(),
   detail: messageDetail.optional(),
   references: referenceList.optional(),
+  pull_requests: pullRequestList.optional(),
+  branches: branchList.optional(),
   attachments: attachmentList.optional(),
   asks: askList.optional(),
   topic: topic.optional(),
@@ -331,6 +342,8 @@ export function needsAPart(
   value: {
     text?: string | undefined;
     references?: unknown[] | undefined;
+    pull_requests?: unknown[] | undefined;
+    branches?: unknown[] | undefined;
     attachments?: unknown[] | undefined;
     asks?: unknown[] | undefined;
     answers?: unknown[] | undefined;
@@ -343,6 +356,8 @@ export function needsAPart(
   if (
     value.text === undefined &&
     value.references === undefined &&
+    value.pull_requests === undefined &&
+    value.branches === undefined &&
     value.attachments === undefined &&
     value.asks === undefined &&
     value.answers === undefined &&
@@ -354,8 +369,8 @@ export function needsAPart(
       code: "custom",
       path: [],
       message:
-        "a message needs text, references, attachments, asks, answers, withdrawals, a topic or a " +
-        "message it replaces",
+        "a message needs text, references, pull requests, branches, attachments, asks, answers, " +
+        "withdrawals, a topic or a message it replaces",
     });
   }
 }
@@ -444,8 +459,9 @@ export const answerRead = z.object({
 export type AnswerRead = z.infer<typeof answerRead>;
 
 // A message as it reads now. live says no later message replaced it, and
-// replaced_by names the one that did. Its attachments come in the order it
-// gave them; its asks, answers and withdrawals in ask number order.
+// replaced_by names the one that did. Its pull requests, branches and
+// attachments come in the order it gave them; its asks, answers and
+// withdrawals in ask number order.
 export const message = z.object({
   seq: sequence,
   author,
@@ -456,6 +472,8 @@ export const message = z.object({
   text: z.string().optional(),
   detail: z.string().optional(),
   references: z.array(reference).optional(),
+  pull_requests: z.array(pullRequestLink).optional(),
+  branches: z.array(branchLink).optional(),
   attachments: z.array(attachmentRead).optional(),
   topic: name.optional(),
   asks: z.array(askRead).optional(),
@@ -567,14 +585,17 @@ export type MarksResult = z.infer<typeof marksResult>;
 
 // The thread, a page of its messages after the requested sequence (more
 // follow while the last is below the thread's last_seq), both read cursors,
-// the caller's marks, and the distinct files its live messages carry; a
-// replaced message still reads back with its own.
+// the caller's marks, the distinct files its live messages carry, and the
+// distinct pull requests and branches they name; a replaced message still
+// reads back with its own.
 export const threadGetResult = z.object({
   thread: threadSummary,
   messages: z.array(message),
   cursors,
   marks,
   files: fileTotals,
+  pull_requests: pullRequestRollup,
+  branches: branchRollup,
 });
 export type ThreadGetResult = z.infer<typeof threadGetResult>;
 
