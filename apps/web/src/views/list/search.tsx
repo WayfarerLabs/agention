@@ -1,5 +1,6 @@
 import { messageSearchFilter, type ThreadsView } from "@wayfarerlabs/agention-api";
 import { type RefObject, useEffect, useRef, useState } from "react";
+import { listHref } from "../../router.tsx";
 
 // The thread list's search: one filter, whose text two boxes show and edit,
 // the head's search field, while it is open, and the one in the filter sheet.
@@ -15,7 +16,7 @@ export interface SearchText {
   // Takes the text typed, applying it once typing pauses, or not while an
   // input method is still composing it.
   type: (text: string, composing?: boolean) => void;
-  // Applies the text at once, as the pause would.
+  // Applies the text at once, as the pause would, unless it cannot search.
   applyNow: () => void;
   // Sets the text to a search set any other way, cancelling one pending.
   reset: (search: string | undefined) => void;
@@ -33,19 +34,24 @@ function searchProblem(text: string): string | undefined {
 }
 
 // useSearchText keeps the search's text, applying it once typing pauses, or
-// at once on Enter, to the address as it then stands, so a filter chosen
-// meanwhile stays. Text an input method is still composing waits for the
-// composition to end, so half-composed text never searches. Text the API
-// would refuse is not applied: the list stays as it is, and the boxes keep
-// the text and say why. A search set any other way (Reset filters, removing
-// its chip, an address from elsewhere) replaces the text and cancels one
-// still pending.
+// at once on Enter, to the address as it then stands. Text an input method
+// is still composing waits for the composition to end, so half-composed text
+// never searches. Text the API would refuse is not applied: the list stays
+// as it is, and the boxes keep the text and say why. Typed text applies only
+// to the view it was typed on: a choice the list makes meanwhile keeps it by
+// applying it first (applyNow), and any other change of the view (a link, a
+// breadcrumb, Back) puts back that view's search, cancelling one still
+// pending, as a search set any other way (Reset filters, removing its chip)
+// does.
 export function useSearchText(
   view: ThreadsView,
   apply: (search: string | undefined) => void,
 ): SearchText {
   const [text, setText] = useState(view.search ?? "");
   const applied = useRef(view.search);
+  // The view in everything but its search, which the text was typed on.
+  const rest = listHref({ ...view, search: undefined });
+  const typedOn = useRef(rest);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const reset = (search: string | undefined) => {
     clearTimeout(timer.current);
@@ -53,12 +59,11 @@ export function useSearchText(
     setText(search ?? "");
   };
   useEffect(() => {
-    if (view.search !== applied.current) {
-      clearTimeout(timer.current);
-      applied.current = view.search;
-      setText(view.search ?? "");
+    if (rest !== typedOn.current || view.search !== applied.current) {
+      typedOn.current = rest;
+      reset(view.search);
     }
-  }, [view.search]);
+  }, [rest, view.search]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const settle = (value: string) => {
     const search = value.trim() || undefined;

@@ -6,12 +6,13 @@ import {
   type ThreadCounts,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { keepDraft, signOutMark } from "../device.ts";
 import { absoluteTime, sinceTime } from "../format.tsx";
 import { Icon, type IconName } from "../icons.tsx";
 import { leaveNotice } from "../notice.ts";
+import { navigate } from "../router.tsx";
 import {
   csrf,
   FakeApi,
@@ -918,7 +919,7 @@ describe("the filter sheet", () => {
     expect(groupSelect().value).toBe("session");
   });
 
-  it("applies a pending search to the list as it stands, keeping a filter chosen meanwhile", async () => {
+  it("applies a pending search at once with a filter chosen meanwhile, which keeps it", async () => {
     serve([]);
     renderAt("/");
     const open = await openSheet();
@@ -926,7 +927,9 @@ describe("the filter sheet", () => {
       target: { value: "release" },
     });
     fireEvent.click(segment("Read", "Unread"));
-    await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
+    expect(address()).toBe("?search=release&unread=true");
+    await pause();
+    expect(address()).toBe("?search=release&unread=true");
   });
 
   it("leaves the search off while the box holds only white space", async () => {
@@ -1040,6 +1043,26 @@ describe("the search boxes", () => {
     expect(address()).toBe("?search=notes");
     // Enter leaves the sheet open on its filters.
     expect(isOpen()).toBe(true);
+  });
+
+  it("drops a pending search when the list's view changes other than by its own choice, as a link or Back does", async () => {
+    serve([]);
+    renderAt("/");
+    await openSearch();
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    act(() => navigate("/?unread=true"));
+    await pause();
+    expect(address()).toBe("?unread=true");
+    expect(searchBox().value).toBe("");
+    fireEvent.change(searchBox(), { target: { value: "notes" } });
+    window.history.back();
+    await waitFor(() => expect(address()).toBe(""));
+    await pause();
+    expect(address()).toBe("");
+    expect(searchBox().value).toBe("");
+    expect(api.callsTo("GET", "/threads").some((call) => call.url.searchParams.has("search"))).toBe(
+      false,
+    );
   });
 
   it("searches nothing while an input method composes, and the text it ends with once typing pauses", async () => {
