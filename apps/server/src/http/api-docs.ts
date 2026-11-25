@@ -123,6 +123,7 @@ export function apiDocsPage(document: JsonObject): string {
   const components = document.components as JsonObject;
   const schemes = components.securitySchemes as Record<string, JsonObject>;
   const error = (components.responses as Record<string, JsonObject>).error as JsonObject;
+  const guide = document.externalDocs as JsonObject;
   const sections = tags.map((tag) => {
     const operations = Object.entries(paths).flatMap(([path, item]) =>
       methods.flatMap((method) => {
@@ -154,6 +155,7 @@ export function apiDocsPage(document: JsonObject): string {
     `<p>${text(info.description)}</p>`,
     `<p>Version: ${text(info.version)}. The machine-readable description: ` +
       `<a href="${apiDocsPath}openapi.json">openapi.json</a>.</p>`,
+    `<p>Guide: <a href="${text(guide.url)}" rel="noreferrer">${text(guide.description)}</a>.</p>`,
     "<h2>Authentication</h2>",
     "<dl>",
     ...Object.entries(schemes).map(

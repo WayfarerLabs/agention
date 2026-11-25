@@ -165,6 +165,13 @@ The web UI talks only to the server that serves it, and passkeys need that serve
 try UI changes by building the server package and running it as the
 [operator guide](docs/operator-guide.md#running-the-server) describes.
 
+The browser tests start the built server themselves, serving its built web UI over TLS at
+`https://agention.test:<port>`, and drive it in Chromium with CDP virtual authenticators. Passkeys
+need a domain name and a secure context, so Chromium resolves `agention.test` to the loopback
+address with `--host-resolver-rules` and trusts the certificate made for that name at run time by
+its public key with `--ignore-certificate-errors-spki-list`. That makes the page a real secure
+context rather than one that bypasses a certificate error.
+
 ### Generated plugins
 
 The Claude Code and Codex plugins under `out/` and the catalogs in `.claude-plugin/` and
@@ -369,9 +376,12 @@ minor version and `fix` bumps the patch version, so no change bumps the major ve
 maintainer cuts 1.0.0 deliberately, with a `Release-As: 1.0.0` footer on a commit to `main`.
 
 One version covers the server, the bridge and the plugins. The release pull request writes it
-everywhere it appears (the root and published `package.json` files, the lockfile, and the plugin
-definition and generated plugins, including the bridge's package spec), so never change a version by
-hand.
+everywhere it appears (the root and published `package.json` files, the lockfile, the plugin
+definition and generated plugins, including the bridge's package spec, and the operator guide's
+pinned commands), so never change a version by hand. In `docs/operator-guide.md` it rewrites the
+first version on each line between a `x-release-please-start-version` comment and the next
+`x-release-please-end`, so a pinned example goes in a code block or a link definition inside such a
+pair, one version to a line, and never in wrapped prose, which a longer version would rewrap.
 
 A pull request should:
 

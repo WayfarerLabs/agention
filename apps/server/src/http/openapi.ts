@@ -31,6 +31,14 @@ import { operatorApiPrefix, operatorApiVersion, versionsDeclaration } from "./op
 
 type JsonObject = Record<string, unknown>;
 
+// The page that says how to call the operator API, which this document's
+// externalDocs names and which names this document in turn: on the default
+// branch, so the committed document does not change with each release.
+const operatorApiGuide = {
+  description: "How to call the operator API: keys, reading, waiting and files",
+  url: "https://github.com/WayfarerLabs/agention/blob/main/docs/operator-api.md",
+};
+
 // A documented mount: where it is, the tag its operations are listed under,
 // how a caller authenticates on it, if at all, and its declarations. A mount
 // listed under another's tag leaves the tag's description to that one.
@@ -249,6 +257,7 @@ export function apiDocument(): JsonObject {
         `GET /api/operator lists the operator API versions the server serves; the agent API ` +
         `serves versions ${agentApi.oldest} to ${agentApi.version}.`,
     },
+    externalDocs: operatorApiGuide,
     tags: mounts.flatMap(({ tag, description }) =>
       description === undefined ? [] : [{ name: tag, description }],
     ),
