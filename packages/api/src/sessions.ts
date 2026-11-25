@@ -19,9 +19,26 @@ import { singleLineText } from "./text.ts";
 // that predate monitoring, which cannot report a connection: no bridge is
 // connected and the agent last checked in through one of them.
 export const presence = z.object({
-  last_seen_at: z.string().optional(),
-  quiet: z.boolean(),
-  connected: z.boolean().optional(),
+  last_seen_at: z
+    .string()
+    .optional()
+    .describe(
+      "When the session's agent last checked in, through any route but its bridge's background " +
+        "ones, to within a minute; absent until it first does.",
+    ),
+  quiet: z
+    .boolean()
+    .describe(
+      "Whether the agent has not checked in within the server's quiet threshold, or never has.",
+    ),
+  connected: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the session's bridge made a background request within the last minute. Absent " +
+        "while no bridge is connected and the agent last checked in through a bridge from " +
+        "before monitoring, which cannot report a connection.",
+    ),
 });
 export type Presence = z.infer<typeof presence>;
 
@@ -194,7 +211,14 @@ export type SessionsQuery = z.infer<typeof sessionsQuery>;
 
 // A session's presence as the operator's sessions view shows it: with its
 // bridge's latest report while it is connected, absent until one reports.
-export const sessionPresence = presence.extend({ monitor: monitorState.optional() });
+export const sessionPresence = presence.extend({
+  monitor: monitorState
+    .optional()
+    .describe(
+      "What the session's bridge last reported of its terminal, while the bridge is connected; " +
+        "absent until one reports.",
+    ),
+});
 export type SessionPresence = z.infer<typeof sessionPresence>;
 
 // A session's presence as a thread's summary shows it to the thread's

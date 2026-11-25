@@ -137,7 +137,8 @@ index of those docs.
   server in process over TLS and bridges in process or as processes, released bundles among them
   (`docs/architecture.md` "Agent bridge"); the browser tests in `apps/web/e2e/`, which drive the
   built server in Chromium with virtual authenticators and Chromium's fake microphone
-  (`docs/architecture.md` "Web UI"); the local stub transcription provider,
+  (`docs/architecture.md` "Web UI"; `CONTRIBUTING.md` "Working on one component", which says how
+  they reach it); the local stub transcription provider,
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
   the harness observer's scripted harness, `packages/harness-observer/test/scripted-harness.ts`,
   which its tests and the bridge's monitoring tests run in tmux servers of their own
@@ -164,11 +165,11 @@ index of those docs.
 - Known acceptance gaps and standing issues not to re-report: the residual `fast-uri` and `katex`
   advisories recorded in `CONTRIBUTING.md` "Dependencies"; live Codex checks need an authenticated
   Codex session; the macOS launchd setup is untested (`docs/operator-guide.md` "macOS: a launchd
-  agent"); installing the plugins from the repository's marketplace is not yet verified on either
-  host (`docs/architecture.md` "Generated plugins"); dictation runs in no automated browser but
-  Chromium, the only one with a fake microphone, so dictation in Apple browsers is untested; a PDF
-  attachment's safety in Firefox's viewer and in Apple browsers is untested (`SECURITY.md`
-  "Attachments")
+  agent"); installing the plugins from the repository's marketplace is in daily use on Claude Code,
+  and on Codex is verified only as far as `docs/architecture.md` "Generated plugins" says; dictation
+  runs in no automated browser but Chromium, the only one with a fake microphone, so dictation in
+  Apple browsers is untested; a PDF attachment's safety in Firefox's viewer and in Apple browsers is
+  untested (`SECURITY.md` "Attachments")
 
 ## Process
 

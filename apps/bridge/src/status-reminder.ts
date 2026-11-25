@@ -53,6 +53,9 @@ export class StatusReminder {
   // The write's answer carries no status, so the bridge applies that rule to
   // the status it last knew, and until it knows one, a write tells it only
   // the state the write gives.
+  // The entry the server logs for an idle session's write carries no note on
+  // what the session does, so the reminder comes again once that working
+  // status has gone unreported for statusReminderAfter.
   wrote(report: WriteStatus): void {
     const known = this.#status;
     if (report.state === undefined && report.note === undefined) {

@@ -23,12 +23,6 @@ export const seenStep = 60_000;
 // connected within a minute of its bridge ending.
 export const connectedFor = 60_000;
 
-// The agent API version that brought monitoring. A session whose agent last
-// checked in through an older bridge, while no bridge is connected, follows
-// the rule of the bridges before it: it is never shown disconnected, since
-// such a bridge cannot report a connection.
-export const monitoringVersion = 8;
-
 // markCheckedIn stamps the agent of the session a registration acts for as
 // checked in now, with the agent API version of its call, when that moves
 // its last check-in a minute or more, when its last check-in is after now,

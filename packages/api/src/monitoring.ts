@@ -20,14 +20,15 @@ export const bridgeId = z
 // permission or approval dialog; any other dialog or prompt for someone at
 // the terminal; a turn in progress; at its normal input line; and waiting, at
 // rest in nothing the profile recognizes.
-export const monitorCondition = z.enum([
-  "unknown",
-  "permission_prompt",
-  "other_prompt",
-  "running",
-  "at_prompt",
-  "waiting",
-]);
+export const monitorCondition = z
+  .enum(["unknown", "permission_prompt", "other_prompt", "running", "at_prompt", "waiting"])
+  .describe(
+    "Where the session is, as its bridge reads its terminal, in this order of precedence: " +
+      "unknown when the bridge cannot read it; permission_prompt at a permission or approval " +
+      "dialog; other_prompt at any other dialog or prompt for someone at the terminal; running " +
+      "in a turn; at_prompt at its normal input line; waiting at rest in nothing its profile " +
+      "recognizes.",
+  );
 export type MonitorCondition = z.infer<typeof monitorCondition>;
 
 // The conditions a session is at rest in, which alone may say what stopped it.
@@ -49,18 +50,25 @@ export const monitorProfile = z
   .regex(
     /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/,
     "must be lowercase letters, digits and single hyphens, starting with a letter",
-  );
+  )
+  .describe("The profile the bridge reads the terminal with, such as claude-code.");
 export type MonitorProfile = z.infer<typeof monitorProfile>;
 
 // What stopped a session at rest, where its profile can tell: its account's
 // usage limit, with when it resets where the host shows it; a block, the host
 // refusing an action on a safety or permission rule; or an error from its
 // model provider.
-export const stoppedBy = z.discriminatedUnion("reason", [
-  z.object({ reason: z.literal("usage_limit"), resets_at: timestamp.optional() }),
-  z.object({ reason: z.literal("block") }),
-  z.object({ reason: z.literal("error") }),
-]);
+const stoppedByDescription =
+  "What stopped the session at rest, where its profile can tell: usage_limit, its account's " +
+  "usage limit, resetting at resets_at where the host shows it; block, the host refusing an " +
+  "action on a safety or permission rule; or error, an error from its model provider.";
+export const stoppedBy = z
+  .discriminatedUnion("reason", [
+    z.object({ reason: z.literal("usage_limit"), resets_at: timestamp.optional() }),
+    z.object({ reason: z.literal("block") }),
+    z.object({ reason: z.literal("error") }),
+  ])
+  .describe(stoppedByDescription);
 export type StoppedBy = z.infer<typeof stoppedBy>;
 
 // A bridge's report: whether it monitors a terminal pane at all, and while it
@@ -124,14 +132,15 @@ export const monitorState = z.discriminatedUnion("monitored", [
     monitored: z.literal(true),
     profile: monitorProfile,
     condition: monitorCondition,
-    since: z.string(),
+    since: z.string().describe("When the session came to its condition."),
     stopped_by: z
       .discriminatedUnion("reason", [
         z.object({ reason: z.literal("usage_limit"), resets_at: z.string().optional() }),
         z.object({ reason: z.literal("block") }),
         z.object({ reason: z.literal("error") }),
       ])
-      .optional(),
+      .optional()
+      .describe(stoppedByDescription),
   }),
 ]);
 export type MonitorState = z.infer<typeof monitorState>;
