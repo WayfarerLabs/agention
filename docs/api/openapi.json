@@ -5,6 +5,10 @@
     "version": "operator v1, agent v8",
     "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 8."
   },
+  "externalDocs": {
+    "description": "How to call the operator API: keys, reading, waiting and files",
+    "url": "https://github.com/WayfarerLabs/agention/blob/main/docs/operator-api.md"
+  },
   "tags": [
     {
       "name": "operator",

@@ -26,8 +26,8 @@ The operator API is at your origin under `/api/operator/v1/`.
 To read the reference, start the server with `--api-docs`. It then serves the documentation at
 `/docs/api/`, and the OpenAPI document for client generators at `/docs/api/openapi.json`; without
 it, nothing is served under `/docs/api/`. Neither needs a sign-in, so anyone who reaches the origin
-can read them; they describe the API, never your data. The same document is in Agention's
-repository, at [`docs/api/openapi.json`](api/openapi.json).
+can read them; they describe the API, never your data. Both name this page as their guide. The same
+document is in Agention's repository, at [`docs/api/openapi.json`](api/openapi.json).
 
 ## Reading and waiting
 
