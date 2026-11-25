@@ -48,7 +48,8 @@ CREATE TABLE message_links (
   number INTEGER CHECK (number > 0),
   branch TEXT,                 -- as written
   url TEXT,
-  CHECK ((kind = 'pull_request') = (number IS NOT NULL AND branch IS NULL)),
+    CHECK (IIF(kind = 'pull_request', number IS NOT NULL AND branch IS NULL,
+    number IS NULL AND branch IS NOT NULL)),
   PRIMARY KEY (thread_id, seq, kind, position),
   UNIQUE (thread_id, seq, link_key),
   FOREIGN KEY (thread_id, seq) REFERENCES messages (thread_id, seq)
@@ -67,6 +68,9 @@ invalid input.
 
 - `pullRequestLink`: `repo`, `number`, optional `url` (`isLinkableUrl`).
 - `branchLink`: `repo`, `branch`, optional `url`.
+- A `url` is checked at write as a reference's is (`linkableUrl`), so every stored URL is one
+  `isLinkableUrl` accepts and shows as a link (FRD R3); an entry without one shows as text. A writer
+  told why its URL was refused can resend without it.
 - The short forms, their parser and the key, used by the store, the filters and the web UI.
 - `maxLinks`: each list's bound per message, 20, as references have.
 
@@ -97,7 +101,7 @@ short form for each, as its `topic` takes one.
   `countThreads` does for agent, session and topic. Unlike topics, keys accumulate without end, so
   the counts list only keys with at least one thread under the other filters, ordered by latest
   mention, newest first, then cut at `maxListed` with `truncated`. The oldest pull requests are the
-  ones left out.
+  ones left out; one still filters by its short form in the address or the operator API.
 
 ## The agent side
 
@@ -108,6 +112,12 @@ short form for each, as its `topic` takes one.
   the first thing it leaves out of an oversized answer, saying so, before it shrinks the page.
 - **Compatibility.** Each new tool field joins the released-bridge compatibility suite, and the
   agent API version goes up by one.
+- **Older bridges.** A released bridge's answer fitting knows nothing of the new fields, so it could
+  hand its agent an answer over its cap. The agent mount therefore leaves each message's lists and
+  the rollup out of its answers to a request stating an older version, as the request's version
+  header already lets it; an answer to an older bridge leaves out what was added after its version.
+  The compatibility suite has a released bridge read a thread whose messages carry many long
+  entries, within its cap.
 - **The skill** (`apps/agent-plugin/skills/agention/SKILL.md`, generated into both plugins) gains:
   - name the pull requests and branches a message is about, with their URLs whenever you have them;
   - when a pull request moves significantly (opened, ready for review, reviewed, merged, closed),
@@ -164,10 +174,10 @@ forge joins ADR 0001's "Not doing".
 - **Typed references were set aside** (FRD ruling 1): a reference's label is free text by contract,
   so a kind would make its schema conditional, its label redundant for these kinds, and its display
   collide with the new compact line.
-- **A JSON column was set aside** for a table. Measured at 500,000 messages, a filter scanning a
-  JSON column took about 25 ms against 0.1 ms indexed; counts cost about the same either way, since
-  the `live_messages` join dominates. The filter repeats in every count query while it is on, and
-  the table gives typed, checked keys, as `attachments` does.
+- **A JSON column was set aside** for a table. A filter over a JSON column scans every live
+  message's JSON, where the table's index on the key finds the matching rows directly; counts cost
+  about the same either way, since the `live_messages` join dominates. The filter repeats in every
+  count query while it is on, and the table gives typed, checked keys, as `attachments` does.
 - **Stored roll-ups were set aside** under A8: a query over `live_messages` is exact by
   construction.
 - **A pull request state was set aside for now** (FRD ruling 4). The research names staleness shown

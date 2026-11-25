@@ -62,9 +62,10 @@
 
 ## P3: the operator writes them
 
-- [ ] `threadStartInput` gains both lists.
+- [ ] `threadStartInput` gains both lists, and a start carrying only links needs no text.
 - [ ] Web: the git control beside Attach and dictation in the composer and the New Thread sheet, its
-      form taking a URL or a short form, and its list with Remove.
+      form taking a URL or a short form, and its list with Remove; the list is kept in the draft,
+      sent again on a retry and cleared on send, as the message's other parts are.
 - [ ] Docs: the operator guide's composer and New Thread sections, architecture's writers.
 - Done when: the operator pastes a pull request URL into the composer's form, sends, and the message
   and the thread's rollup show it; the New Thread sheet does the same for a new thread.
