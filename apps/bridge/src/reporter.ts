@@ -392,7 +392,7 @@ export class Reporter {
   #noteRefusal(code: ErrorCode): void {
     if (this.#refused !== code) {
       this.#refused = code;
-      this.#log(`the server refused a monitoring report (${code}), so the bridge dropped it`);
+      this.#log(`a monitoring report was refused (${code}), so the bridge dropped it`);
     }
   }
 
