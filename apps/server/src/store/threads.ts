@@ -441,11 +441,12 @@ function checkParts(db: Database, thread: StoredThread, actor: number, parts: Pa
 }
 
 // checkAnswer fits an answer to its ask: picks that are distinct and among
-// the ask's suggested answers, none on an ask that suggests none, and on an
-// ask that allows a single answer exactly one pick or the audience's own
-// words, never both. A decline fits every ask.
+// the ask's suggested answers, none on an ask that suggests none, and at most
+// one on an ask that allows a single answer. The audience's words go beside
+// any picks as notes, or are the whole answer without them. A decline fits
+// every ask.
 function checkAnswer(answer: Answer, asked: StoredAsk, field: string): void {
-  const { picks, text } = answer;
+  const { picks } = answer;
   if (picks === undefined) {
     return;
   }
@@ -459,16 +460,8 @@ function checkAnswer(answer: Answer, asked: StoredAsk, field: string): void {
   if (picks.some((pick) => pick >= offered)) {
     throw invalidInput(`${field}.picks`, "picks an answer the ask does not suggest");
   }
-  if (asked.multiple !== 1) {
-    if (picks.length > 1) {
-      throw invalidInput(`${field}.picks`, "picks several answers, but the ask allows only one");
-    }
-    if (text !== undefined) {
-      throw invalidInput(
-        `${field}.text`,
-        "the ask allows only one answer: a pick or your own words, not both",
-      );
-    }
+  if (asked.multiple !== 1 && picks.length > 1) {
+    throw invalidInput(`${field}.picks`, "picks several answers, but the ask allows only one");
   }
 }
 

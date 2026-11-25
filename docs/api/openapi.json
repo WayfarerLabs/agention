@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v4",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 4."
+    "version": "operator v1, agent v5",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 5."
   },
   "tags": [
     {
@@ -2624,7 +2624,7 @@
     "/api/operator/v1/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "operatorListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "operator"
         ],
@@ -2978,6 +2978,34 @@
                     "minLength": 1,
                     "maxLength": 20000,
                     "description": "Markdown, shown folded under the text, which it needs beside it: everything else the reader needs to decide on or understand the message without looking elsewhere, such as what was found, the options and their tradeoffs, evidence, and excerpts of diffs, logs or errors. A fenced code block marked mermaid shows as the diagram it describes. Never point at what only your own conversation shows. Messages are never deleted, so take keys, tokens and passwords out of any excerpt."
+                  },
+                  "attachments": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "upload": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{22}$",
+                          "description": "The reference an upload of yours answered with, in this session and not yet attached to a message."
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "With upload: the name to attach the file under, by default the one it was uploaded under."
+                        },
+                        "keep": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "On a replacement: a file of the message it replaces, by its name there, which this message carries again."
+                        }
+                      }
+                    },
+                    "description": "Up to 10 files this message carries, in order, each under a name unique within it. Upload a file first, then name its upload here; a replacement carries a file of the message it replaces only by keeping it."
                   }
                 },
                 "required": [
@@ -6282,7 +6310,7 @@
     "/api/agent/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "agentListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "agent"
         ],
@@ -6625,7 +6653,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "4"
+          "const": "5"
         }
       }
     },
@@ -6671,7 +6699,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 4000,
-            "description": "Plain text: the audience's own words on the ask, instead of a pick or, where several are allowed, beside its picks; the whole answer to an ask without suggested answers."
+            "description": "Plain text: the audience's own words on the ask, part of the answer: notes beside its picks, or the whole answer when nothing is picked."
           }
         },
         "required": [
@@ -6741,7 +6769,7 @@
             "items": {
               "$ref": "#/components/schemas/Suggestion"
             },
-            "description": "Suggested answers the audience may pick; it may always answer in its own words instead, or beside its picks where several are allowed."
+            "description": "Suggested answers the audience may pick; it may add its own words beside its picks as notes, or answer in its own words alone instead."
           },
           "multiple": {
             "default": false,

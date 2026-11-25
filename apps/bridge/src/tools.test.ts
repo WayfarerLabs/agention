@@ -567,7 +567,8 @@ describe("the thread tools", () => {
 
   it("read the operator's answers, each naming the ask it answers and its question", async () => {
     const bridge = await approvedBridge();
-    const second = { ...ask, question: "And the docs?", multiple: true };
+    // A single-answer ask, answered with a pick and notes beside it.
+    const second = { ...ask, question: "And the docs?" };
     await bridge.ok("thread_create", newThread("r1", { asks: [ask, second] }));
     const seq = await harness.operatorWrites(1, {
       answers: [

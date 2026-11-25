@@ -1,3 +1,4 @@
+// cspell:ignore filechooser
 // The web UI in Chromium against the real server: the server's name in the
 // banner and titles, linking the first passkey, approving an agent and the
 // Sessions tab's count of registrations waiting, answering its asks, a
@@ -14,8 +15,8 @@
 // side at a desktop's width and one at a time on a phone, the threads above
 // and below and where archiving goes, alike in both, an ask the agent withdraws and the
 // way back under the composer, the sessions view with a session's status and
-// log, at a phone's width too, a thread the operator starts there and
-// stranded's reason, a session's options menu over the next agent's header and
+// log, at a phone's width too, a thread the operator starts there with a file
+// and stranded's reason, a session's options menu over the next agent's header and
 // the picker it opens beside it on a wide screen and as a sheet on a phone,
 // the sessions view folded by group, a group created and tags picked in the
 // pickers, its headers folding by a click on their bars but for their chips,
@@ -252,8 +253,9 @@ test("the operator answers two asks in one message, and the agent reads the answ
 
   // Each answer is written on its ask's card, which leads with the ask's
   // number: a radio button for each suggested answer, and Other for the
-  // operator's own words. Both answers go in one message, beside which the
-  // box holds additional information.
+  // operator's own words, written in Notes, which also go beside a pick.
+  // Both answers go in one message, beside which the box holds additional
+  // information.
   const ask = page.getByRole("region", { name: "Ask 1: Ship it today?" });
   const tag = page.getByRole("region", { name: "Ask 2: Tag the release?" });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -262,8 +264,9 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await ask.getByRole("radio", { name: "Other" }).check();
   await expect(ask.getByRole("radio", { name: "Hold" })).not.toBeChecked();
   await expect(send).toBeDisabled();
-  await ask.getByRole("textbox", { name: "Other" }).fill("Hold until Monday.");
+  await ask.getByRole("textbox", { name: "Notes" }).fill("Hold until Monday.");
   await tag.getByRole("radio", { name: "Skip" }).check();
+  await tag.getByRole("textbox", { name: "Notes" }).fill("Tag with the next one.");
   const reply = page.getByRole("region", { name: "Reply" });
   await reply.getByRole("textbox").fill("Notes are late.");
   // The Details box folds under the message box until opened.
@@ -281,6 +284,8 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await expect(answered.locator(".event")).toHaveCount(2);
   await expect(answered.locator(".event").first()).toContainText("Other");
   await expect(answered.locator(".event").last()).toContainText("Skip");
+  await expect(answered.locator(".event").last()).not.toContainText("Other");
+  await expect(tag.getByText("Tag with the next one.")).toBeVisible();
 
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/1`);
   expect(read.body.thread.title).toBe(title);
@@ -291,7 +296,7 @@ test("the operator answers two asks in one message, and the agent reads the answ
     detail: "The changelog is in **review**.",
     answers: [
       { ask: 1, declined: false, text: "Hold until Monday." },
-      { ask: 2, declined: false, picks: [1], labels: ["Skip"] },
+      { ask: 2, declined: false, picks: [1], labels: ["Skip"], text: "Tag with the next one." },
     ],
   });
 });
@@ -947,6 +952,29 @@ test("the sessions view shows a session's status and log, and starts a thread th
   expect(await scrollsSideways()).toBe(false);
   await sheet.getByLabel("Title").fill("Keep the archive");
   await sheet.getByLabel("Message").fill("Keep the nightly archive a week longer.");
+  // Attach, a menu at a phone's width, opens above itself within the sheet,
+  // and the file it adds goes with the thread's first message.
+  const attach = sheet.getByRole("button", { name: "Attach files" });
+  await attach.click();
+  const menu = sheet.locator(".options-menu");
+  const placed = await menu.boundingBox();
+  expect(placed).not.toBeNull();
+  expect(placed!.y).toBeGreaterThanOrEqual(0);
+  expect(placed!.y + placed!.height).toBeLessThanOrEqual((await attach.boundingBox())!.y);
+  // Escape closes the menu alone, leaving the sheet open.
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+  await expect(attach).toBeFocused();
+  await attach.click();
+  const chooser = page.waitForEvent("filechooser");
+  await menu.getByRole("button", { name: "Other files" }).click();
+  await (
+    await chooser
+  ).setFiles({ name: "plan.txt", mimeType: "text/plain", buffer: Buffer.from("A week.\n") });
+  const attached = sheet.getByRole("list", { name: "Files to send" }).getByRole("listitem");
+  await expect(attached.getByText("Uploaded")).toHaveCount(1);
+  expect(await scrollsSideways()).toBe(false);
   await sheet.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Keep the archive$/);
   if (wide !== null) {
@@ -957,6 +985,7 @@ test("the sessions view shows a session's status and log, and starts a thread th
   // The agent reads the thread as the operator's own words.
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/${number}`);
   expect(read.body.messages[0]?.author.kind).toBe("person");
+  expect(read.body.messages[0]?.attachments?.map((each) => each.name)).toEqual(["plan.txt"]);
   expect(read.body.thread.title).toBe("Keep the archive");
 
   // Once the session stops, the thread it has not read is stranded, saying
