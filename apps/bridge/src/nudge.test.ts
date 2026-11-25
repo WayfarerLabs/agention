@@ -19,6 +19,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { DrawnPane, eventually, MonitorHarness, timing } from "./monitoring-test-support.ts";
 import { notReady, nudgeTextLimit, nudgeTexts } from "./nudge.ts";
+import type { ReporterTiming } from "./reporter.ts";
 import { serverJson, type TestBridge } from "./test-harness.ts";
 
 // The bridge's nudge against its real test server, with an observer that
@@ -90,18 +91,18 @@ class FakeNudges {
 const nudging = { AGENTION_TMUX_SOCKET: "/drawn", AGENTION_NUDGE: "tmux" };
 
 // nudgedBridge starts a bridge with the nudge on, whose session is approved and
-// reported able to be nudged, its polls waiting as long as the test says.
+// reported able to be nudged, its reporter paced as the test says.
 async function nudgedBridge(
   nudges: FakeNudges,
   environment: Record<string, string> = nudging,
-  waitSeconds = timing.waitSeconds,
+  paced: Partial<ReporterTiming> = {},
 ): Promise<TestBridge> {
   const pane = new DrawnPane();
   const bridge = await harness.registered(environment, {
     pane: () => pane,
     observer: nudges.observer,
     profile: scriptedProfile,
-    reporterTiming: { ...timing, waitSeconds },
+    reporterTiming: { ...timing, ...paced },
   });
   await eventually(() => harness.held(), "the report");
   return bridge;
@@ -195,7 +196,7 @@ describe("the bridge's nudge", () => {
   it("tries again locally while the session is not ready, asking the server nothing", async () => {
     const tries = 8;
     const nudges = new FakeNudges(...Array<Scripted>(tries).fill("not-ready"), { sent: true });
-    const bridge = await nudgedBridge(nudges, nudging, 25);
+    const bridge = await nudgedBridge(nudges, nudging, { waitSeconds: 25 });
     await harness.operatorStarts("Over to you.");
     await eventually(outcome, "the nudge's outcome");
     expect(nudges.calls).toHaveLength(tries + 1);
@@ -223,7 +224,7 @@ describe("the bridge's nudge", () => {
 
   it("types nothing for a nudge that lapsed while it waited, its claim refused", async () => {
     const nudges = new FakeNudges();
-    const bridge = await nudgedBridge(nudges, nudging, 25);
+    const bridge = await nudgedBridge(nudges, nudging, { waitSeconds: 25 });
     const thread = await harness.operatorStarts("Over to you.");
     await eventually(() => (nudges.calls.length >= 2 ? true : undefined), "the tries");
     // The agent reads the thread, which wakes no poll, so the bridge still
@@ -385,6 +386,61 @@ describe("the bridge's nudge", () => {
     expect(bridge.logged).toEqual(["the bridge nudged the agent"]);
   });
 
+  it("waits longer before each claim the server refuses, and as at first once one goes", async () => {
+    const nudges = new FakeNudges(...Array<Scripted>(6).fill({ sent: true }));
+    let refusing = 3;
+    harness.answer = (seen) =>
+      seen.path.endsWith("/monitor/nudge") &&
+      (seen.body as { phase?: string }).phase === "start" &&
+      refusing-- > 0
+        ? serverJson(
+            { error: { code: "not_allowed", message: "a refusal's words" } },
+            statusByErrorCode.not_allowed,
+          )
+        : undefined;
+    // Pauses from one to four seconds, so the doubling shows beyond the
+    // second or two the server takes to say again that the nudge is due.
+    const bridge = await nudgedBridge(nudges, nudging, { retryFirst: 1000, retryMost: 4000 });
+    const claimed = () =>
+      harness
+        .nudgeRequests()
+        .filter((seen) => (seen.body as { phase: string }).phase === "start")
+        .map((seen) => seen.at);
+    const gaps = () =>
+      claimed()
+        .map((at, i, all) => at - (all[i - 1] ?? at))
+        .slice(1);
+    await harness.operatorStarts("Over to you.");
+    await eventually(outcome, "the nudge's outcome", 600);
+    expect(outcome()).toBe(1);
+    const [first = 0, second = 0, third = 0] = gaps();
+    expect(gaps()).toHaveLength(3);
+    expect(first).toBeGreaterThanOrEqual(1000 - 50);
+    expect(second).toBeGreaterThanOrEqual(2000 - 50);
+    expect(third).toBeGreaterThanOrEqual(4000 - 50);
+    // The agent checks in and the operator writes again; the next nudge's
+    // claim is refused once, and the one after it waits as the first did.
+    refusing = 1;
+    harness.server.fixture.advance(1);
+    await bridge.ok("thread_list");
+    harness.server.fixture.advance(1);
+    await harness.operatorStarts("And this.");
+    await eventually(() => (claimed().length === 6 ? true : undefined), "the next claims", 600);
+    const reset = gaps()[4] ?? Infinity;
+    expect(reset).toBeGreaterThanOrEqual(1000 - 50);
+    expect(reset).toBeLessThan(3000);
+    await eventually(() => (nudges.calls.length === 6 ? true : undefined), "the next nudge");
+    expect(nudges.calls.map((call) => call.began)).toEqual([
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+    ]);
+    expect(bridge.logged).toEqual(["the bridge nudged the agent", "the bridge nudged the agent"]);
+  }, 30_000);
+
   it.each(["unauthenticated", "not_found"] as const)(
     "claims and sends a later nudge after a claim refused as %s, which the poll deals with",
     async (code) => {
@@ -421,7 +477,7 @@ describe("the bridge's nudge", () => {
         : undefined;
     // Polls wait five seconds, so a next nudge that starts well within that
     // did not wait for the poll that follows the due answer to end.
-    const bridge = await nudgedBridge(nudges, nudging, 5);
+    const bridge = await nudgedBridge(nudges, nudging, { waitSeconds: 5 });
     await harness.operatorStarts("Over to you.");
     await eventually(() => (nudgeBodies().length >= 2 ? true : undefined), "the first outcome");
     // The agent checks in, and the operator writes again, so the next nudge

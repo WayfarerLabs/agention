@@ -40,7 +40,8 @@ export interface ReporterTiming {
   // How often a pending registration is read again.
   stateEvery: number;
   // The first pause after a failure, of a poll, a report or a nudge's claim
-  // or outcome, which doubles with each failure in a row up to retryMost.
+  // or outcome, and before a nudge is claimed again after a claim refused or
+  // given up, which doubles with each failure in a row up to retryMost.
   retryFirst: number;
   retryMost: number;
   // How often a nudge that is due is tried again while the session is not
@@ -124,6 +125,10 @@ export class Reporter {
   #due = false;
   #nudging = false;
   #nudgeOff = false;
+  // The pause before the next claim once the server refused one or it was
+  // given up, since the next poll learns at once that the nudge is still
+  // due, until a claim is answered go.
+  readonly #claimBackoff: Backoff;
   // The number of the latest report the bridge made, which counts up with
   // each for the life of the process, so the server ignores a report that
   // arrives after a later one.
@@ -136,6 +141,7 @@ export class Reporter {
     this.#clock = options.clock;
     this.#timing = options.timing;
     this.#log = options.log;
+    this.#claimBackoff = new Backoff(options.timing);
   }
 
   // start runs the reporter, which reads the registration until it is
@@ -367,9 +373,10 @@ export class Reporter {
   // it claimed is logged by its step alone, never its text, and its outcome
   // sent. Where a claim was sent again, since one that failed may have
   // reached the server, and is answered no or given up, that claim's nudge
-  // is sent as not sent, since nothing was typed for it. The signal ends the
-  // tries, and stops a nudge under way without another key, since another
-  // bridge may be nudging the session now.
+  // is sent as not sent, since nothing was typed for it. After a claim the
+  // server refused or that was given up, the next waits claimBackoff. The
+  // signal ends the tries, and stops a nudge under way without another key,
+  // since another bridge may be nudging the session now.
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
     try {
       while (this.#due && !signal.aborted && !this.#nudgeOff) {
@@ -385,6 +392,7 @@ export class Reporter {
         }
         this.#due = false;
         if (claim.go) {
+          this.#claimBackoff.reset();
           this.#log(
             outcome.sent
               ? "the bridge nudged the agent"
@@ -393,6 +401,9 @@ export class Reporter {
           await this.#nudgeRequest({ phase: "done", sent: outcome.sent }, signal);
         } else if (claim.maybeTaken) {
           await this.#nudgeRequest({ phase: "done", sent: false }, signal);
+        }
+        if (!claim.answered && !signal.aborted) {
+          await pause(this.#claimBackoff.next(), signal);
         }
       }
     } finally {
@@ -404,12 +415,12 @@ export class Reporter {
   // that doubles while it fails to reach the server or the server fails on
   // or rate limits it, until the server answers or refuses it or the signal
   // aborts, or for a claim until claimWithin has passed, when it gives the
-  // claim up. It says whether the server answered go, and whether a request
-  // before the answer failed or was given up, which the server may have
-  // taken. One the server answers as replaced stops this bridge acting, as a
-  // report does. A refusal as invalid input turns nudging off; any other
-  // refusal, such as a credential no longer approved, is the poll's to deal
-  // with.
+  // claim up. It says whether the server answered, go or not, and whether a
+  // request before the answer failed or was given up, which the server may
+  // have taken. One the server answers as replaced stops this bridge acting,
+  // as a report does. A refusal as invalid input turns nudging off; any
+  // other refusal, such as a credential no longer approved, is the poll's to
+  // deal with.
   async #nudgeRequest(body: MonitorNudge, signal: AbortSignal): Promise<NudgeAnswer> {
     const backoff = new Backoff(this.#timing);
     let maybeTaken = false;
@@ -428,18 +439,18 @@ export class Reporter {
         if (answer.replaced) {
           this.#stopActing();
         }
-        return { go: answer.go && !answer.replaced, maybeTaken };
+        return { answered: true, go: answer.go && !answer.replaced, maybeTaken };
       } catch (error) {
         const refused = refusalOf(error);
         if (refused === "invalid_input") {
           this.#turnNudgingOff(refused);
         }
         if (signal.aborted || refused !== undefined) {
-          return { go: false, maybeTaken };
+          return { answered: false, go: false, maybeTaken };
         }
         maybeTaken = true;
         if (tries.aborted) {
-          return { go: false, maybeTaken };
+          return { answered: false, go: false, maybeTaken };
         }
         await pause(backoff.next(), tries);
       }
@@ -601,17 +612,18 @@ export class Reporter {
   }
 }
 
-// How the server answered a nudge's claim or outcome: whether the bridge may
-// go ahead, and whether a request before the answer failed, which the server
-// may have taken.
+// How the server answered a nudge's claim or outcome: whether it answered,
+// rather than refusing it or the bridge giving it up; whether the bridge may
+// go ahead; and whether a request before the answer failed or was given up,
+// which the server may have taken.
 interface NudgeAnswer {
+  answered: boolean;
   go: boolean;
   maybeTaken: boolean;
 }
 
-// Backoff is the pause before a failed request is sent again, which doubles
-// with each failure in a row, from the timing's retryFirst up to its
-// retryMost.
+// Backoff is a pause that doubles with each failure in a row, from the
+// timing's retryFirst up to its retryMost.
 class Backoff {
   readonly #timing: ReporterTiming;
   #next: number;
