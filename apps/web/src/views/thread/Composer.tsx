@@ -22,7 +22,7 @@ import { ConfirmButton, Status, useScrollClearOf } from "../../components.tsx";
 import { type KeptDraft, useDeviceChoice, useDeviceOption } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
-import { useFieldShortcuts } from "../../keyboard.tsx";
+import { useFieldShortcuts, useKeyboard } from "../../keyboard.tsx";
 import { useDictationInto } from "../../voice/Dictation.tsx";
 import { useKeptDraft } from "./kept-draft.ts";
 import { type MessageContext, MessageView } from "./Messages.tsx";
@@ -424,8 +424,11 @@ export function Composer({
   };
 
   // Its shortcuts, within its fields: Send, while Send can, and one to leave
-  // it, for its heading, where the page's own shortcuts act again.
+  // it, for its heading, where the page's own shortcuts act again. While
+  // Enter sends, each box's hint says so, where focus lands.
   const heading = useRef<HTMLHeadingElement>(null);
+  const { enterSends } = useKeyboard();
+  const enterNote = enterSends ? " Enter sends, and Shift+Enter starts a new line." : "";
   const fieldKeys = useFieldShortcuts("Composer", {
     send: () => {
       if (canSend) {
@@ -587,7 +590,7 @@ export function Composer({
           {staged?.kind === "answers" ? "Additional information" : "Message"}
         </label>
         <p className="hint" id={`${id}-hint`}>
-          Markdown.
+          Markdown.{enterNote}
         </p>
         <textarea
           ref={box}
@@ -610,7 +613,7 @@ export function Composer({
           <>
             <label htmlFor={`${id}-detail`}>Details</label>
             <p className="hint" id={`${id}-detail-hint`}>
-              Markdown, shown folded under the message.
+              Markdown, shown folded under the message.{enterNote}
             </p>
             <textarea
               ref={detailBox}
