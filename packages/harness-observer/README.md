@@ -17,10 +17,13 @@ Two seams keep terminals and harnesses apart:
   tmux client call and a read of `/proc/<pid>/stat`.
 - **`Profile`**, the harness. `screen(snapshot)` says what one screen shows: a permission prompt,
   another prompt, the input line, or anything else, with why the harness stopped where its captured
-  screens show it. `genericStrict` and `genericLenient` serve a harness with no profile of its own,
-  and never name a prompt or a reason. `profiles.select(name, client)` chooses one, by a configured
-  name or `auto` for the MCP client's harness and version, with the strict generic profile where
-  none applies.
+  screens show it. A harness's profiles are a `HarnessProfiles`, which `versionTable` builds from
+  the versions where its screens changed. `claudeCode` and `codex` are this package's (see
+  [Harness profiles](#harness-profiles)); `genericStrict` and `genericLenient` serve a harness with
+  no profile of its own, and never name a prompt or a reason. `profiles.select(name, client)`
+  chooses one, by a configured name (`claude-code`, `codex`, `generic-strict` or `generic-lenient`)
+  or `auto` for the MCP client's harness and version, with the strict generic profile where none
+  applies.
 
 `PaneObserver` joins them. `observations(signal)` reads the pane once a second until the signal
 aborts and yields an `Observation`, a condition and since when, whenever the condition or the
@@ -42,9 +45,61 @@ for await (const { condition, since } of observer.observations(signal)) {
 Snapshots hold the screen's text, which whatever runs in the pane draws, so they stay in memory;
 observations carry only conditions, times and fixed reasons.
 
+## Harness profiles
+
+Each harness's profiles apply from the version their screens were captured from. `auto` chooses them
+by the name the harness's MCP client gives itself in `initialize`, which differs from the configured
+name for Codex. A version that is not plain `major.minor.patch`, a prerelease included, gets the
+strict generic profile.
+
+| Configured name | MCP client name    | From      | Profile                                     |
+| --------------- | ------------------ | --------- | ------------------------------------------- |
+| `claude-code`   | `claude-code`      | `2.1.331` | `src/claude-code-profile.ts`, from captures |
+| `codex`         | `codex-mcp-client` | `0.171.0` | `src/codex-profile.ts`, from captures       |
+
+The MCP client names were recorded on 2026-11-24 from each host's `initialize` request: Claude Code
+2.1.332 sent `clientInfo` with name `claude-code` and version `2.1.332`, and Codex 0.171.0 sent name
+`codex-mcp-client` and version `0.171.0`.
+
+Both hosts hide the cursor in every dialog seen, and show it on the input row, after a prompt
+marker, at their prompt and during a turn. So a profile names a prompt only with the cursor hidden
+and the dialog's own text on screen, and finds the input line only with the cursor showing on a row
+that starts with the marker:
+
+- **Claude Code**: the permission dialog asks "Do you want to proceed?" over a "❯ 1. Yes" choice;
+  the trust dialog, an other prompt, shows "Accessing workspace:" and "Yes, I trust this folder".
+  The marker is `❯` and a no-break space. Shell mode, entered with `!`, replaces `❯` with `!` and is
+  no input line. Vim's normal mode shows no mode in the footer, the same footer as the normal
+  editor's, so the profile cannot tell them apart and does not read the footer.
+- **Codex**: the approval dialog asks "Would you like to run the following command?" over a "› 1.
+  Yes, proceed" choice; the trust dialog ("Trust this folder?") and the update offer at start
+  ("Update available", "› 1. Update now") are other prompts. The marker is `›` and a space.
+
+An empty input shows a dimmed hint after the marker, such as `Try "fix typecheck errors"` or
+`Ask Codex to do anything`. A screen holds no colors, so the profiles read the hints their captures
+show as an empty input; any other text after the marker is the input's.
+
+No profile names a stopped-by reason yet: usage limits, blocks and errors have no captures.
+
+## Captures
+
+The profiles' screens live in `src/captures`, one text file per screen, named for the harness, its
+version and what it shows; `test/captures.ts` describes the format and reads them. The tests read
+every capture through the profile `auto` chooses for it, and fail for a capture with no expected
+reading.
+
+To capture a harness's screens, run it in a tmux server of your own, 160 by 45, in a scratch Git
+folder with a clean environment and Agention's plugin off, then save each screen with
+`node test/capture.ts <socket> <file>`. Never press a key that approves a dialog. Before adding a
+capture, scrub it: replace paths, user and host names, and account, plan, organization and email
+text with neutral placeholders (the captures use `/path/to/project` and `PLAN`), keeping the
+screen's structure, its glyphs and the cursor's row, as they were; then read it through.
+
+The captures so far came from Claude Code 2.1.331 and 2.1.332 and Codex 0.171.0 on 2026-11-24.
+
 ## Tests
 
-`npm run -w packages/harness-observer test` runs the unit tests and the tests against real tmux
-servers, each started with no configuration on a socket in a temporary directory and killed when the
-test ends. Those run `test/scripted-harness.ts`, a Node script that draws a prompt, a running turn
-and a dialog and switches between them on a key.
+`npm run -w packages/harness-observer test` runs the unit tests, the profiles against their
+captures, and the tests against real tmux servers, each started with no configuration on a socket in
+a temporary directory and killed when the test ends. Those run `test/scripted-harness.ts`, a Node
+script that draws a prompt, a running turn and a dialog and switches between them on a key.

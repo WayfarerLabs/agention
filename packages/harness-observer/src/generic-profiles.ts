@@ -1,3 +1,4 @@
+import { inputLine } from "./input-line.ts";
 import type { Snapshot } from "./pane.ts";
 import type { InputLine, Profile, Screen } from "./profile.ts";
 
@@ -25,24 +26,7 @@ export const genericLenient: Profile = {
 };
 
 function inputScreen(snapshot: Snapshot, accept: (input: InputLine) => boolean): Screen {
-  const { cursor, lines, width } = snapshot;
-  const row = lines[cursor.y];
-  if (!cursor.visible || row === undefined) {
-    return { kind: "other" };
-  }
   // Without a known prompt marker, the whole row is the input line's text.
-  const length = columns(row);
-  const input: InputLine = {
-    text: row,
-    cursorAtEnd: cursor.x >= length,
-    room: Math.max(0, width - Math.max(cursor.x, length)),
-  };
-  return accept(input) ? { kind: "input", input } : { kind: "other" };
-}
-
-// columns counts a row's code points, which is its width in columns for
-// every narrow character; a wide character, such as a CJK ideograph, takes
-// two columns on screen but counts as one here.
-function columns(row: string): number {
-  return [...row].length;
+  const input = inputLine(snapshot, 0);
+  return input !== undefined && accept(input) ? { kind: "input", input } : { kind: "other" };
 }

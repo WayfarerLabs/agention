@@ -38,8 +38,11 @@ export type StoppedBy =
 // The profiles of one harness, by version: each entry applies from its
 // version until the next.
 export interface HarnessProfiles {
-  // As the MCP client names itself, such as "claude-code".
+  // The name a configuration chooses these profiles by, such as "codex".
   readonly harness: string;
+  // The name the harness's MCP client gives itself in `initialize`, such as
+  // "codex-mcp-client", by which "auto" chooses these profiles.
+  readonly client: string;
   // The profile for a version of the harness, or undefined for a version
   // below the oldest entry. The version comes from the MCP client, outside
   // this package, so anything it cannot read is undefined too.

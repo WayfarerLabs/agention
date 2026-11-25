@@ -129,7 +129,10 @@ index of those docs.
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
   the harness observer's scripted harness, `packages/harness-observer/test/scripted-harness.ts`,
   which its tests run in tmux servers of their own
-  (`packages/harness-observer/test/tmux-server.ts`); and `scripts/check-sdd.test.sh`
+  (`packages/harness-observer/test/tmux-server.ts`), and its captured harness screens,
+  `packages/harness-observer/src/captures`, recorded with
+  `packages/harness-observer/test/capture.ts` (the package's README "Captures"); and
+  `scripts/check-sdd.test.sh`
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`), with the server's and the bridge's tests each in a `TMPDIR` of their own that
   must be empty when they finish (`CONTRIBUTING.md` "Working on one component"); setup is the locked
