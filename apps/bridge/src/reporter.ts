@@ -176,7 +176,7 @@ export class Reporter {
   // loop no longer running and runs a new one. While the loop polls, a poll
   // the server answers without replacing the bridge consumes #restart.
   async #run(signal: AbortSignal): Promise<void> {
-    let retry = this.#timing.retryFirst;
+    const backoff = new Backoff(this.#timing);
     let approved = false;
     let claim = true;
     // The pending registration the loop last read, while the last reading
@@ -215,7 +215,7 @@ export class Reporter {
         }
         const started = performance.now();
         const answer = await this.#poll(claim, signal);
-        retry = this.#timing.retryFirst;
+        backoff.reset();
         if (answer.replaced) {
           // A register call since the last poll the server answered claims
           // the session again.
@@ -252,8 +252,7 @@ export class Reporter {
           approved = false;
           this.#stopActing();
         }
-        await this.#pause(retry, signal);
-        retry = Math.min(retry * 2, this.#timing.retryMost);
+        await this.#pause(backoff.next(), signal);
       }
     }
   }
@@ -407,7 +406,7 @@ export class Reporter {
   // A refusal as invalid input turns nudging off; any other refusal, such as
   // a credential no longer approved, is the poll's to deal with.
   async #nudgeRequest(body: MonitorNudge, signal: AbortSignal): Promise<NudgeAnswer> {
-    let retry = this.#timing.retryFirst;
+    const backoff = new Backoff(this.#timing);
     let maybeTaken = false;
     for (;;) {
       try {
@@ -430,8 +429,7 @@ export class Reporter {
           return { go: false, maybeTaken };
         }
         maybeTaken ||= !rateLimited(error);
-        await pause(retry, signal);
-        retry = Math.min(retry * 2, this.#timing.retryMost);
+        await pause(backoff.next(), signal);
       }
     }
   }
@@ -511,7 +509,7 @@ export class Reporter {
     this.#sending = true;
     const signal = AbortSignal.any([acting.signal, this.#closed.signal]);
     void (async () => {
-      let retry = this.#timing.retryFirst;
+      const backoff = new Backoff(this.#timing);
       while (this.#unsent && this.#latest !== undefined && !signal.aborted) {
         const { report, seq } = this.#latest;
         this.#unsent = false;
@@ -526,7 +524,7 @@ export class Reporter {
             }),
             monitorAnswer,
           );
-          retry = this.#timing.retryFirst;
+          backoff.reset();
           this.#refused = undefined;
           if (answer.replaced) {
             this.#stopActing();
@@ -544,12 +542,11 @@ export class Reporter {
           this.#unsent = true;
           const wake = new AbortController();
           this.#retryWake = wake;
-          await delay(retry, undefined, {
+          await delay(backoff.next(), undefined, {
             signal: AbortSignal.any([signal, wake.signal]),
             ref: false,
           }).catch(() => undefined);
           this.#retryWake = undefined;
-          retry = Math.min(retry * 2, this.#timing.retryMost);
         }
       }
     })()
@@ -598,6 +595,31 @@ export class Reporter {
 interface NudgeAnswer {
   go: boolean;
   maybeTaken: boolean;
+}
+
+// Backoff is the pause before a failed request is sent again, which doubles
+// with each failure in a row, from the timing's retryFirst up to its
+// retryMost.
+class Backoff {
+  readonly #timing: ReporterTiming;
+  #next: number;
+
+  constructor(timing: ReporterTiming) {
+    this.#timing = timing;
+    this.#next = timing.retryFirst;
+  }
+
+  // next gives the pause after one more failure in a row.
+  next(): number {
+    const pause = this.#next;
+    this.#next = Math.min(pause * 2, this.#timing.retryMost);
+    return pause;
+  }
+
+  // reset starts the next run of failures from the first pause.
+  reset(): void {
+    this.#next = this.#timing.retryFirst;
+  }
 }
 
 // pause resolves once the time given has passed or the signal aborts. Its
