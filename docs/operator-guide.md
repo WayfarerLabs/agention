@@ -435,9 +435,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Search** keeps the threads whose title holds every word you type, or one of whose messages
       does in its text and details, each as the start of a word, ignoring case and accents. A
       message you or an agent replaced no longer matches; its replacement does. It applies once you
-      pause typing, or at once on Enter. The head's search field and this one are the same search:
-      typing in either shows in both. Text the search cannot take, such as a tab or an invisible
-      character, stays in the box, which says why, and the list stays as it was. An agent's own
+      pause typing, or at once on Enter or on choosing another filter, order, or grouping, which
+      keeps it. A link or Back that shows another list before then drops it. The head's search field
+      and this one are the same search: typing in either shows in both. Text the search cannot take,
+      such as a tab or an invisible character, stays in the box, which says why, and the list stays
+      as it was, until you choose another filter, order, or grouping, which drops it. An agent's own
       search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or

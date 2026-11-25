@@ -72,13 +72,16 @@ export function ThreadList() {
   // Choosing a filter, an order or a grouping shows that list in place of
   // this one (showList), so going back leaves the list rather than stepping
   // through every choice. Choosing a search, as removing its chip does,
-  // replaces any search still being typed.
+  // replaces any search still being typed; choosing anything else applies
+  // that search first, so the choice keeps it.
   const search = useSearchText(view, (text) => showList({ ...currentListView(), search: text }));
   const choose = (change: Partial<ThreadsView>) => {
     if ("search" in change) {
       search.reset(change.search);
+    } else {
+      search.applyNow();
     }
-    showList({ ...view, ...change });
+    showList({ ...currentListView(), ...change });
   };
   // Reset filters turns every filter off, and keeps the order, its direction
   // and the grouping.

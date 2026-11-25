@@ -1277,7 +1277,9 @@ is as narrow as a phone. The order and the grouping are native selects lying uns
 controls, so a phone shows its own picker and assistive technology hears the choice. **Search**
 opens the search field in the row's place until it closes, which applies its text at once; the
 search applied shows among the filter chips as one that removes it, the field being the one place to
-change it.
+change it. Typed text applies once typing pauses, and only to the view it was typed on
+(`src/views/list/search.tsx`): a choice the list makes meanwhile applies it first, and any other
+change of the list's view, such as a link or Back, drops it.
 
 Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
 button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits

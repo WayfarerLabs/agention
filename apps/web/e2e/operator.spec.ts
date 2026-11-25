@@ -9,8 +9,9 @@
 // the divider after messages archived and unfolded, at a phone's width too,
 // reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
-// search box, fitting beside a thread and on a phone, its order, the order's
-// direction and grouping, moving through the list, opening
+// search box, fitting beside a thread and on a phone, with its text still
+// pending dropped when a thread's link replaces the list, its order, the
+// order's direction and grouping, moving through the list, opening
 // a thread and returning from the keyboard, the list and the thread side by
 // side at a desktop's width and one at a time on a phone, the threads above
 // and below and where archiving goes, alike in both, an ask the agent withdraws and the
@@ -1035,6 +1036,26 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   }
   await sort.selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);
+});
+
+test("at a desktop's width, a search still pending applies only to the list it was typed on, not to one a thread's link puts in its place", async () => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "Thread list" });
+  const pane = page.getByRole("region", { name: "Thread", exact: true });
+  await list.locator("ul.threads").getByRole("link").first().click();
+  await expect(pane.getByRole("heading", { level: 1 })).toBeVisible();
+  await list.getByRole("button", { name: "Search", exact: true }).click();
+  const box = list.getByRole("searchbox", { name: "Search threads" });
+  // Within the pause, the thread's agent opens the list of that agent's
+  // threads, which drops the text typed on the list it replaces.
+  await box.fill("deep");
+  await pane.locator(".where").getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/\?agent=[^&]+$/);
+  await expect(box).toHaveValue("");
+  await page.waitForTimeout(600);
+  expect(new URL(page.url()).searchParams.has("search")).toBe(false);
+  await list.getByRole("button", { name: "Close search" }).click();
+  await page.goto("/");
 });
 
 test("an ask the agent withdraws reads as withdrawn with its reason, on the list and its thread", async () => {
