@@ -182,38 +182,58 @@ describe("the thread page", () => {
     expect(within(messageArticle(2)).getByText("later").tagName).toBe("STRONG");
   });
 
-  it("marks what an answer picked on its ask, setting the rest apart, its own words as Other", async () => {
-    const answer = { declined: false, picks: [1], labels: ["Postgres"], text: "Or both." };
-    await page.openWith([
-      message(1, { asks: [ask({ multiple: true, open: false, answer: { seq: 2, ...answer } })] }),
-      operatorMessage(2, { answers: [answerTo(answer)] }),
-    ]);
-    const card = askCard(1);
-    const items = within(card).getAllByRole("listitem");
-    expect(items.map((item) => item.className)).toEqual(["unpicked", "picked", "picked"]);
-    // Picked is drawn, and said in words too, for assistive technology.
-    expect(items.map((item) => item.querySelector("svg[aria-hidden='true']") !== null)).toEqual([
-      false,
-      true,
-      true,
-    ]);
-    expect(items.map((item) => item.querySelector(".visually-hidden") !== null)).toEqual([
-      false,
-      true,
-      true,
-    ]);
-    expect(within(items[2] as HTMLElement).getByText("Or both.")).toBeTruthy();
-  });
+  it.each([
+    [
+      "its notes beneath the list beside a pick",
+      { picks: [1], labels: ["Postgres"], text: "Or both." },
+      ["unpicked", "picked"],
+    ],
+    [
+      "its own words as Other without a pick",
+      { text: "Or both." },
+      ["unpicked", "unpicked", "picked"],
+    ],
+  ])(
+    "marks what an answer picked on its ask, setting the rest apart, %s",
+    async (_, chosen, marks) => {
+      const answer = { declined: false, ...chosen };
+      await page.openWith([
+        message(1, { asks: [ask({ open: false, answer: { seq: 2, ...answer } })] }),
+        operatorMessage(2, { answers: [answerTo(answer)] }),
+      ]);
+      const card = askCard(1);
+      const items = within(card).getAllByRole("listitem");
+      expect(items.map((item) => item.className)).toEqual(marks);
+      // Picked is drawn, and said in words too, for assistive technology.
+      const picked = marks.map((mark) => mark === "picked");
+      expect(items.map((item) => item.querySelector("svg[aria-hidden='true']") !== null)).toEqual(
+        picked,
+      );
+      expect(items.map((item) => item.querySelector(".visually-hidden") !== null)).toEqual(picked);
+      // The words show once: in Other's item, or as notes after the list.
+      const words = within(card).getByText("Or both.");
+      const beside = "picks" in chosen;
+      expect(items.at(-1)?.contains(words)).toBe(!beside);
+      expect(card.querySelector(".suggestions + .answer-notes")?.contains(words) ?? false).toBe(
+        beside,
+      );
+    },
+  );
 
   it.each([
     [
-      "the picks and Other",
-      { multiple: true },
+      "the pick and not Other beside its notes",
+      {},
       { picks: [1], labels: ["Postgres"], text: "Or both." },
-      [quoted(["Postgres"]), otherLabel],
+      [quoted(["Postgres"])],
     ],
     ["Other alone", {}, { text: "Neither." }, [otherLabel]],
-    ["no choice, its words alone,", { suggestions: [] }, { text: "Sessions only." }, []],
+    [
+      "no choice, its words alone,",
+      { suggestions: [] },
+      { text: "Sessions only." },
+      [] as string[],
+    ],
   ])(
     "records an answer in the card's terms, naming %s on an ask with or without suggestions",
     async (_, shape, chosen, named) => {
@@ -227,7 +247,7 @@ describe("the thread page", () => {
       for (const name of named) {
         expect(line).toContain(name);
       }
-      if (named.length === 0) {
+      if (!named.includes(otherLabel)) {
         expect(line).not.toContain(otherLabel);
       }
       // The words follow beneath the line, as written.

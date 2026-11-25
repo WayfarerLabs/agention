@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { message } from "../../../test-support.tsx";
-import { ThreadPageTest } from "../thread-test-support.tsx";
+import { message } from "../test-support.tsx";
+import { ThreadPageTest } from "../views/thread/thread-test-support.tsx";
 
 // Attach on a device with a mouse, which opens the one picker, and on a phone
 // or a tablet, which opens a menu of where files come from. What a picker

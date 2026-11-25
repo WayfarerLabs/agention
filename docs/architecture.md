@@ -297,29 +297,29 @@ holds open, since a replacement's asks are numbered anew and the count is what c
 thread reference names a thread in the same session. Refusals name asks by their numbers. An answer
 is a decline, or distinct picks among the ask's suggested answers and the answerer's own words, at
 least one of them: an ask without suggested answers takes own words alone, and one that allows a
-single answer takes one pick or own words, never both. The own words are the answer's, plain text
-apart from the message's Markdown text and detail, which are any additional information. It appends
-the message with its asks and answers and raises the writer's read mark through it in the same
-transaction, where a writer for whom the thread is archived keeps it archived, its archive mark
-moving to its own message. A later message carries some part unless it replaces another, a rule the
-request's schema holds, since no constraint on a message's row sees the rows of its own; a thread's
-first message may carry nothing, since its title speaks for it, and a replacement carrying nothing
-retracts the message it replaces, which the rules above allow only while that message holds no open
-ask. A replacement is a whole message: what it leaves out, its detail included, is gone with the
-message it replaces. A write answers with the thread number and the message's sequence, and a retry
-of the same request id gets that same answer, while a retry with any part changed, its detail
-included, is a request-id conflict. A stale write appends nothing, so its retry may reuse the id.
-Everything a thread shows beyond its title, roles and latest sequence, such as its topic, open asks,
-status, unread count and count of live messages, is derived in queries over the two views, never
-stored. A thread's status rolls up the asks on its live messages and those a live message withdraws,
-so an ask its own message's replacement withdrew counts and a revised ask does not: `open` while any
-is open; otherwise `withdrawn` when every one is withdrawn, with the latest such withdrawal, and
-`answered` when there are any; `none` when there are none. It is the same whoever views it. After a
-write or a registration's revocation commits, an in-process notifier wakes the long polls waiting on
-the session, and with them the waits across every session. Revoking an API key and ending a browser
-session, by signing out, signing in again on that browser, removing the passkey that signed it in or
-replacing the passkeys through a link, wake the waits across every session alone once they commit,
-since no session's own changed.
+single answer takes one pick at most. The own words are part of the answer, notes beside its picks
+or the whole answer without them, plain text apart from the message's Markdown text and detail,
+which are any additional information. It appends the message with its asks and answers and raises
+the writer's read mark through it in the same transaction, where a writer for whom the thread is
+archived keeps it archived, its archive mark moving to its own message. A later message carries some
+part unless it replaces another, a rule the request's schema holds, since no constraint on a
+message's row sees the rows of its own; a thread's first message may carry nothing, since its title
+speaks for it, and a replacement carrying nothing retracts the message it replaces, which the rules
+above allow only while that message holds no open ask. A replacement is a whole message: what it
+leaves out, its detail included, is gone with the message it replaces. A write answers with the
+thread number and the message's sequence, and a retry of the same request id gets that same answer,
+while a retry with any part changed, its detail included, is a request-id conflict. A stale write
+appends nothing, so its retry may reuse the id. Everything a thread shows beyond its title, roles
+and latest sequence, such as its topic, open asks, status, unread count and count of live messages,
+is derived in queries over the two views, never stored. A thread's status rolls up the asks on its
+live messages and those a live message withdraws, so an ask its own message's replacement withdrew
+counts and a revised ask does not: `open` while any is open; otherwise `withdrawn` when every one is
+withdrawn, with the latest such withdrawal, and `answered` when there are any; `none` when there are
+none. It is the same whoever views it. After a write or a registration's revocation commits, an
+in-process notifier wakes the long polls waiting on the session, and with them the waits across
+every session. Revoking an API key and ending a browser session, by signing out, signing in again on
+that browser, removing the passkey that signed it in or replacing the passkeys through a link, wake
+the waits across every session alone once they commit, since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
 every conversation, marks its session seen before its own work, in a transaction of its own, so a
@@ -415,15 +415,16 @@ in name order, with its color and how many agents and how many sessions carry it
 nothing carries, saying when it leaves any out. The sessions view's page carries each agent's tags,
 and each session's group and tags.
 
-The operator starts a thread on a session with a title and a first message of text, with its detail.
-The session stays the thread's requester and the operator its audience, so the operator's request
-has no field for asks or a topic, nor for references or attachments, which the web UI does not offer
-there; a request carrying any of them starts a thread without them. The session reads the thread as
-the operator's words and replies in it. The thread starts whatever the session's state or
-credential, stranded from the start when the session is not there to read it; the operator's read
-mark reaches their message, and the session's long polls wake. A retry with the same request id is
-answered as the first was, and one with other content is a request-id conflict, as for a session's
-own thread, which a session still starts only in itself.
+The operator starts a thread on a session with a title and a first message of text, with its detail
+and its files, uploads of theirs to that session, checked as any first message's are. The session
+stays the thread's requester and the operator its audience, so the operator's request has no field
+for asks or a topic, nor for references, which the web UI does not offer there; a request carrying
+any of them starts a thread without them. The session reads the thread as the operator's words and
+replies in it. The thread starts whatever the session's state or credential, stranded from the start
+when the session is not there to read it; the operator's read mark reaches their message, and the
+session's long polls wake. A retry with the same request id is answered as the first was, and one
+with other content is a request-id conflict, as for a session's own thread, which a session still
+starts only in itself.
 
 An upload (`apps/server/src/store/files.ts`) begins in one transaction, which authorizes the session
 under `threads:write` and refuses it while its writer holds 20 pending uploads, or would hold more
@@ -436,7 +437,8 @@ expired API key stops within one chunk. Completing checks that the bytes receive
 declared size, and records the hash and the time. Any failure after the upload begins, a body cut
 off, a revoked credential or a length that does not match among them, removes the file and its
 chunks in one transaction; a removal that itself fails is logged and left to the sweep. A completed
-upload no message names expires 24 hours after it completed.
+upload no message names expires 24 hours after it completed, unless its writer removes it first, as
+the web UI does for a draft left unsent ([Web UI](#web-ui)).
 
 A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
 `store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
@@ -449,11 +451,14 @@ digest a request id covers, and the replay runs before the check, so a retry who
 consumed its uploads answers as the first did. A message may carry files alone; a replacement that
 keeps files does not retract the message it replaces, and one that does not keep a file leaves it
 with the replaced message. A message reads back with its attachments, in order: each file's name,
-reference, size, declared type, and whether it is missing. A thread's answer carries `files`, the
-count and bytes of its distinct files, each counted once however many messages carry it, and its
-file list gives each once, with the first message that carried it, newest first, paged by an opaque
-cursor. The settings' `storage` counts every completed file, pending ones included, since that is
-the disk they take, and their bytes.
+reference, size, declared type, and whether it is missing. A thread's files are those its live
+messages carry: a replaced message still reads back with its own, but they count toward the thread
+only while a live message, such as a replacement that kept them, carries them. A thread's answer
+carries `files`, the count and bytes of those distinct files, and its file list gives each once,
+with the live message that carries it, newest first, paged by an opaque cursor; a file has at most
+one live carrier, since an upload is attached once and only a replacement keeps a file. The
+settings' `storage` counts every completed file, pending ones included, since that is the disk they
+take, and their bytes.
 
 The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those completed more
 than 24 hours ago, and those left incomplete that are not in the set of uploads in flight, each in a
@@ -752,9 +757,9 @@ share the operator's pending limits, and the web UI can name one in a message.
   reference that names nothing. An upload still arriving has not yet answered with its reference;
   ending its request stops it, and the server removes what arrived. The web UI's **Remove** calls it
   for an uploaded file; the bridge has no tool for it.
-- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists a thread's files, each
-  once with the message that brought it, its author and its time, newest first, up to 50 a page by
-  default.
+- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists the files a thread's live
+  messages carry, each once with the message that carries it, its author and its time, newest first,
+  up to 50 a page by default.
 - **Reading a file.** `GET` and `HEAD /threads/:thread/messages/:seq/files/:name?file=<reference>`
   read the file a message carries under a name, percent-encoded in the path and compared after NFC
   normalization (`apps/server/src/http/files.ts`). The thread must be the session's, the message the
@@ -1225,7 +1230,8 @@ package's `web/` directory.
 | `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's search, sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
@@ -1560,16 +1566,28 @@ The Storage section (`src/views/settings/Storage.tsx`) says from the settings' `
 space attachments take, in how many files, and that every backup copies them; nothing there changes
 it.
 
-A message's files (`src/views/thread/files/`) come in two halves. In the composer, **Attach**, an
-icon beside Send, opens a hidden file input that takes several files, with no `accept` and no
-`capture`. Where the primary pointer is coarse (`(pointer: coarse)`), a phone or a tablet, whose
-browser would hand that input to the system's chooser, Attach is an options menu of its own instead,
-of four items each opening its own hidden input: **Take a photo** (`accept="image/*"`,
-`capture="environment"`), **Record a video** (`video/*`, likewise), **Photos and videos**
-(`image/*,video/*`, several, which recent Android shows in its photo picker) and **Other files**
-(`application/*,text/*`, several: a picker that could take images, video or audio is one Android
-hands to its chooser of camera, video camera and files, which the menu stands in for). A touchscreen
-laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
+Writing a message is alike wherever the operator does it. Every box whose words become part of a
+message takes dictation while voice is on, and every place that writes and sends a message, a
+thread's composer and the new-thread sheet, offers Attach and attaches images pasted into its
+message and Details boxes. An ask's own-words field takes dictation on its card; its answer goes
+with the composer's message, which carries the files. Send waits, wherever it is, until the
+message's files have uploaded and while a recording for it opens the microphone, records,
+transcribes or awaits Retry, saying why on Send's `aria-describedby` (`sendWait` in
+`src/attach/attach.ts`); a recording on an ask's card counts for the composer's Send, which sends
+that answer, and the composer's Ctrl or Cmd+Enter waits as its Send does. A thread's title, search
+boxes and names are not message text, and take neither.
+
+A message's files come in two halves: attaching them, in `src/attach/`, which the composer and the
+new-thread sheet share, and showing them, in `src/views/thread/files/`. Wherever the operator writes
+a message, **Attach**, an icon beside Send, opens a hidden file input that takes several files, with
+no `accept` and no `capture`. Where the primary pointer is coarse (`(pointer: coarse)`), a phone or
+a tablet, whose browser would hand that input to the system's chooser, Attach is an options menu of
+its own instead, of four items each opening its own hidden input: **Take a photo**
+(`accept="image/*"`, `capture="environment"`), **Record a video** (`video/*`, likewise), **Photos
+and videos** (`image/*,video/*`, several, which recent Android shows in its photo picker) and
+**Other files** (`application/*,text/*`, several: a picker that could take images, video or audio is
+one Android hands to its chooser of camera, video camera and files, which the menu stands in for). A
+touchscreen laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
 `(any-pointer: coarse)` would not. The page's sizes follow the primary pointer the same way: where
 it is fine (`(pointer: fine)`), a mouse or a trackpad, the size tokens shrink, `--touch` from 44 to
 32 pixels and the spacing scale by about a quarter, and a touch screen keeps the sizes for a
@@ -1595,13 +1613,31 @@ shows each file's name, size and state, with a progress bar while it uploads, **
 failed, **Upload again** for one that expired, and **Remove**, which stops an upload under way while
 bytes remain, lets one whose every byte has gone answer and then removes it from the server, and
 removes a finished one from the server, so it stops counting against the operator's pending uploads
-at once. Only a Remove in the instant before the list shows the last byte gone or the upload's
-answer, or a removal the connection loses, leaves the upload counting until it expires. Send waits
-until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
+at once. It decides by the bytes the upload last reported and the answer as it arrives, not by what
+the list shows, so only a Remove in the instant after the last bytes leave and before the browser
+reports them, or a removal the connection loses, leaves the upload counting until it expires. Send
+waits until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
 uploads as `{upload, name}`; a refusal naming an upload marks that file expired. Editing a message,
 or changing its answers, loads its files as kept, which **Remove** drops from the replacement. A
 stale write keeps the files with the draft, except the kept files of a replacement its missed
-messages drop.
+messages drop. The new-thread sheet's files upload to the session before the thread exists, since an
+upload belongs to a session and not to a thread, and go with the start; a refusal naming an upload
+marks that file expired there too. While a start is on its way the sheet holds still: Cancel waits,
+it refuses Escape's `cancel` and the keydown that would raise it, Attach and Dictate wait, and a
+paste attaches nothing, so nothing added meanwhile is left behind.
+
+A writer that goes without sending, the thread page left or the sheet closed, by Cancel, Escape, a
+link, Back or its session leaving the list, removes its uploads from the server as it unmounts, in
+`useDraftFiles`, so they stop counting against the operator's pending uploads: it stops the upload
+under way as **Remove** does and removes each finished upload no send carries. A write or start
+carries its files from when it is sent, and for good once it lands, since the server may yet attach
+them, and **Remove** waits on a file a send on its way carries; a file carried by two sends stays
+carried until both have settled, and a send that fails after its writer went removes its files then.
+Each finished upload is recorded as its answer arrives, before the list shows it, and one stopped as
+its answer arrives is removed, so an answer landing in the same tick as the writer goes is removed
+too. Kept files are a sent message's, and a kept draft keeps no files, so leaving touches neither. A
+tab closed or reloaded unmounts nothing, so its uploads expire, as does an upload whose removal
+fails or the connection loses.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with
@@ -1615,30 +1651,44 @@ more; a PDF as **Open**, a link that opens it in a new tab, since Chromium shows
 and anything else as **Download** alone. A Markdown link whose destination is `attachment:` and a
 name, percent-encoded or in angle brackets, is live when the name, decoded and NFC-normalized, is
 one of that message's own files, and opens it as its entry in the list does; any other is its text,
-and an image written with one still never loads. The thread's head, when the thread holds any file,
-holds a fold, **Files** with their count and size, folded on every visit, which reads the thread's
-file list a page at a time while it is open, each entry with who attached it, when, and a link to
-its message. Sizes are written in binary units, KiB, MiB and GiB.
+and an image written with one still never loads. The thread's head, while its live messages carry
+any file, holds a fold, **Files** with their count and size, folded on every visit, which reads the
+thread's file list a page at a time while it is open, each entry with who attached it, when its
+message was written, and a link to that message. Sizes are written in binary units, KiB, MiB and
+GiB.
 
-Dictation (`src/voice/Dictation.tsx`) shows in the composer, and in Settings' Try it, while the
-settings the page read when it opened say voice is on and the browser has a `MediaRecorder` for
-`audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`, tried in that order. It records at
-32 kbit/s with a one-second timeslice, so it can count the data, and stops at five minutes by the
-clock or 1.9 MiB of data, which keeps a recording within the API's body cap; a page hidden while it
-records stops it and transcribes what it recorded, and one still hidden when the microphone opens
-closes it unused, so the microphone never runs unwatched. A recording under the API's 1,000 bytes is
-not sent, and reads as nothing heard. The upload declares the type the recorder was asked for and
-waits up to two minutes. A recording, or one awaiting a transcription or a retry, holds the
-composer's draft open, so its stale-write check counts from when the recording started. The text
-goes in at the caret of the box that last had focus, unless the draft was sent meanwhile; a failure
-keeps the recording for Retry until it is discarded. `useDictation` gives its caller the controls,
-what went wrong and what it says otherwise apart, and the composer puts all three in its Send row, a
-failure before Send and anything else after it. The row stays short on a phone whatever its fonts:
-the microphone is its icon alone, the recording's time and a failure drop the words the rest says,
-and After sending moves below the row while dictation has controls in it, keeping focus as it moves.
-Each control that replaces another moves focus to the next state's own control, unless the operator
-has put focus somewhere else meanwhile, as into the message box while the microphone opens, and
-starting a recording is announced once.
+Dictation (`src/voice/Dictation.tsx`) shows in the composer, the new-thread sheet and an ask's card,
+and in Settings' Try it, while the settings the page read when it opened say voice is on and the
+browser has a `MediaRecorder` for `audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`,
+tried in that order. It records at 32 kbit/s with a one-second timeslice, so it can count the data,
+and stops at five minutes by the clock or 1.9 MiB of data, which keeps a recording within the API's
+body cap; a page hidden while it records stops it and transcribes what it recorded, and one still
+hidden when the microphone opens closes it unused, so the microphone never runs unwatched. A
+recording under the API's 1,000 bytes is not sent, and reads as nothing heard. The upload declares
+the type the recorder was asked for and waits up to two minutes. A recording counts from the moment
+the microphone is asked for until it is done with, refused or failed: one opening, recording, or
+awaiting a transcription or a retry, in the composer or on an ask's card, holds the composer's draft
+open, so its stale-write check counts from when the recording started, and a microphone that opens
+once its caller has held dictation back closes unused. While the microphone opens, Cancel stands in
+for Dictate, since a browser may never answer while its permission prompt goes unanswered; Cancel
+ends the attempt, and a microphone that opens after it closes unused. `useDictationInto` puts the
+text in at the caret of the caller's box that last had focus, unless the draft was discarded
+meanwhile: the thread page counts the drafts its composer ends, which the composer's and the cards'
+dictation check a transcript against. Dictate waits while a message is on its way, in the composer
+and on the cards as in the new-thread sheet, since the draft a recording would be for may be the one
+sent. A failure keeps the recording for Retry until it is discarded. The page records one dictation
+at a time: one starting stops any other under way, which then transcribes what it recorded as its
+Stop would, so no two microphones run and nothing is heard twice. A dictation whose caller goes away
+tells it none is left, as one that ends does. `useDictation` gives its caller the controls, what
+went wrong and what it says otherwise apart. The composer puts all three in its Send row, a failure
+before Send and anything else after it; the new-thread sheet puts the controls in its foot beside
+Attach and the rest under its boxes; and an ask's card puts all three under its own-words field. The
+composer's row and the sheet's foot stay short on a phone whatever their fonts: the microphone is
+its icon alone, the recording's time and a failure drop the words the rest says, and After sending
+moves below the row, and Discard draft hides, while dictation shows more than Dictate (`busy`),
+keeping focus as it moves. Each control that replaces another moves focus to the next state's own
+control, unless the operator has put focus somewhere else meanwhile, as into the message box while
+the microphone opens, and starting a recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a

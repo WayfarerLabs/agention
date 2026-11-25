@@ -248,7 +248,8 @@ describe.each(versions)("the bridge released as %s", (version) => {
 
     // A message of the agent's own carrying a file, written through the API,
     // which the bridge then replaces without keeping it: the file stays with
-    // the message it replaced.
+    // the message it replaced, and leaves the thread's totals, which count
+    // the files of live messages only.
     const { api, key } = harness.asAgent();
     const report = path.join(harness.home, "report.txt");
     writeFileSync(report, "The report.\n");
@@ -286,7 +287,7 @@ describe.each(versions)("the bridge released as %s", (version) => {
     ).toEqual({ number: 3, seq: 4 });
     const replaced = await call("thread_get", { thread: 3, after: 2 });
     expect(replaced).toMatchObject({
-      files: { count: 2 },
+      files: { count: 1, bytes: screenshot.length },
       messages: [
         {
           seq: 3,

@@ -130,8 +130,8 @@ a live message withdraws: open while any is open, otherwise withdrawn when every
 answered when there are any, and none when there are none.
 
 An ask carries independent fields rather than a kind, all set by the requester: a question and
-suggested answers, from which the audience picks, or answers in its own words instead of a pick or
-beside its picks where several are allowed, or declines; how waiting affects the requester's work
+suggested answers, from which the audience picks, with notes in its own words beside its picks or
+not, or answers in its own words instead, or declines; how waiting affects the requester's work
 (blocking, proceeding on an assumption, or not at all); where it thinks the audience should focus
 (urgent, high, normal or low, by what delay costs, independent of impact); how long answering takes,
 when the requester can judge it (a glance, under 15 minutes, under an hour, or longer), and unknown

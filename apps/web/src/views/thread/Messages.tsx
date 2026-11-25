@@ -3,6 +3,7 @@ import {
   type Dispatch,
   Fragment,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
   useEffect,
   useLayoutEffect,
@@ -26,6 +27,7 @@ import {
 } from "../../format.tsx";
 import { ExternalLink, type FileLinks, liveUrl, Markdown } from "../../markdown/Markdown.tsx";
 import { ThreadLink } from "../../router.tsx";
+import { useDictationInto } from "../../voice/Dictation.tsx";
 import {
   speak,
   speechSupported,
@@ -67,6 +69,17 @@ export interface MessageActions {
   loading: boolean;
   // Why the server refused the own words of the answer to an ask last sent.
   wordsFailure(ask: number): string | undefined;
+  // Whether to offer dictation, into an ask's own words as in the composer.
+  voiceOn: boolean;
+  // Whether the composer's message is on its way, which dictation waits for,
+  // since the draft it would be for may be the one sent.
+  writing: boolean;
+  // How many drafts the composer has ended, sent or discarded, so a
+  // transcript for a draft that ended while it was recorded goes nowhere.
+  draftsEnded(): number;
+  // Told when an ask's card starts recording its own words, and when it has
+  // none left, which holds the composer's draft open as its own does.
+  recording(ask: number, active: boolean): void;
   // changeAnswers turns every card a message of the operator's answered back
   // into choices, as a replacement of that message.
   changeAnswers(message: Message): void;
@@ -215,17 +228,14 @@ function AnswerWords({ text }: { text: string }) {
 }
 
 // answered says what an answer chose in the card's terms, after the message
-// that carries it: the suggestions it picked, and Other when its words go
-// beside or instead of them; the words follow beneath. On an ask without
-// suggestions, the words follow alone.
+// that carries it: the suggestions it picked, with notes when its words go
+// beside them, or Other when its words go instead; the words follow beneath.
+// On an ask without suggestions, the words follow alone.
 function answered(answer: Pick<AnswerRead, "labels" | "text">, suggested: boolean): string {
-  const chosen = [
-    ...(answer.labels === undefined ? [] : [quoted(answer.labels)]),
-    ...(suggested && answer.text !== undefined ? [otherLabel] : []),
-  ];
-  return chosen.length === 0
-    ? ":"
-    : `: ${chosen.join(", ")}${answer.text === undefined ? "." : ""}`;
+  if (answer.labels !== undefined) {
+    return `: ${quoted(answer.labels)}${answer.text === undefined ? "." : ", with notes"}`;
+  }
+  return suggested && answer.text !== undefined ? `: ${otherLabel}` : ":";
 }
 
 // Picked marks a choice as picked: a check to see, drawn so that it shows
@@ -242,34 +252,43 @@ function Picked() {
 }
 
 // Suggestions lists an ask's suggested answers. Under an answer, the ones it
-// picked are marked and the rest set apart, and its own words follow as
-// Other.
+// picked are marked and the rest set apart, and its own words follow: as
+// Other when it picked none, and else as notes beneath the list.
 function Suggestions({ ask }: { ask: Ask }) {
   const answer = ask.answer?.declined === false ? ask.answer : undefined;
   const marked = (picked: boolean) =>
     answer === undefined ? undefined : picked ? "picked" : "unpicked";
+  const notes = answer?.picks === undefined ? undefined : answer.text;
   return (
-    <ul className="suggestions">
-      {ask.suggestions.map((suggestion, index) => {
-        const picked = answer?.picks?.includes(index) === true;
-        return (
-          <li key={index} className={marked(picked)}>
-            {picked && <Picked />}
-            {suggestion.label}
-            {suggestion.description !== "" && (
-              <span className="choice-description">{suggestion.description}</span>
-            )}
+    <>
+      <ul className="suggestions">
+        {ask.suggestions.map((suggestion, index) => {
+          const picked = answer?.picks?.includes(index) === true;
+          return (
+            <li key={index} className={marked(picked)}>
+              {picked && <Picked />}
+              {suggestion.label}
+              {suggestion.description !== "" && (
+                <span className="choice-description">{suggestion.description}</span>
+              )}
+            </li>
+          );
+        })}
+        {answer?.text !== undefined && answer.picks === undefined && (
+          <li className="picked">
+            <Picked />
+            {otherLabel}
+            <AnswerWords text={answer.text} />
           </li>
-        );
-      })}
-      {answer?.text !== undefined && (
-        <li className="picked">
-          <Picked />
-          {otherLabel}
-          <AnswerWords text={answer.text} />
-        </li>
+        )}
+      </ul>
+      {notes !== undefined && (
+        <div className="answer-notes">
+          <p className="notes-label">Notes</p>
+          <AnswerWords text={notes} />
+        </div>
       )}
-    </ul>
+    </>
   );
 }
 
@@ -304,8 +323,9 @@ function AskCard({
   // it says so: never as it opens.
   const [wordsLeft, setWordsLeft] = useState(false);
   // Declining and undoing it replace the control that was used, so focus
-  // moves to the one that takes its place; choosing Other moves it to Other's
-  // field, to write in; clearing the card moves it to the card.
+  // moves to the one that takes its place; choosing Other moves it to the
+  // Notes field, to write the answer in; clearing the card moves it to the
+  // card.
   const targets = {
     card: useRef<HTMLElement>(null),
     decline: useRef<HTMLButtonElement>(null),
@@ -368,27 +388,27 @@ function AskCard({
       withAnswer(current, { ask: ask.number, seq: message.seq, labels, answer }),
     );
   };
-  // pick chooses a suggested answer: the one answer, or on an ask that allows
-  // several, one more or one fewer.
+  // pick chooses a suggested answer, unchecking Other: the one answer, or on
+  // an ask that allows several, one more or one fewer.
   const pick = (index: number) =>
-    write(
-      ask.multiple
-        ? {
-            picks: draft.picks.includes(index)
-              ? draft.picks.filter((each) => each !== index)
-              : [...draft.picks, index].sort((a, b) => a - b),
-          }
-        : { picks: [index], other: false },
-    );
-  // chooseOther checks Other, opening its field afresh, or where several may
-  // be picked unchecks it; its words stay in the card either way.
+    write({
+      picks: !ask.multiple
+        ? [index]
+        : draft.picks.includes(index)
+          ? draft.picks.filter((each) => each !== index)
+          : [...draft.picks, index].sort((a, b) => a - b),
+      other: false,
+    });
+  // chooseOther checks Other, whose answer is the Notes field's words, in
+  // place of any picks, or where several may be picked unchecks it; the
+  // words stay in the card either way.
   const chooseOther = () => {
     const other = !ask.multiple || !draft.other;
     setWordsLeft(false);
     if (other) {
       focusNext.current = "words";
     }
-    write(ask.multiple ? { other } : { picks: [], other });
+    write({ picks: [], other });
   };
   const decline = (declined: boolean) => {
     focusNext.current = declined ? "undo" : "decline";
@@ -454,26 +474,20 @@ function AskCard({
   );
 
   const words = (labelledBy: string) => (
-    <>
-      <textarea
-        ref={targets.words}
-        id={`${id}-words`}
-        rows={2}
-        maxLength={4_000}
-        value={draft.words}
-        disabled={held}
-        aria-labelledby={labelledBy}
-        aria-invalid={wordsError === undefined ? undefined : true}
-        aria-describedby={wordsError === undefined ? undefined : `${id}-words-error`}
-        onChange={(event) => write({ words: event.target.value })}
-        onBlur={() => setWordsLeft(staged !== undefined && wordsMissing(staged))}
-      />
-      {wordsError !== undefined && (
-        <p id={`${id}-words-error`} className="field-error">
-          {wordsError}
-        </p>
-      )}
-    </>
+    <OwnWords
+      box={targets.words}
+      id={`${id}-words`}
+      labelledBy={labelledBy}
+      value={draft.words}
+      disabled={held}
+      error={wordsError}
+      onChange={(words) => write({ words })}
+      onBlur={() => setWordsLeft(staged !== undefined && wordsMissing(staged))}
+      voiceOn={actions?.voiceOn === true}
+      writing={actions?.writing === true}
+      draftsEnded={() => actions?.draftsEnded() ?? 0}
+      onRecording={(active) => actions?.recording(ask.number, active)}
+    />
   );
 
   // The ask's number leads the card, before its question.
@@ -555,13 +569,21 @@ function AskCard({
                       disabled={held}
                       onChange={chooseOther}
                     />
-                    <span id={`${id}-other`} className="choice-label">
-                      {otherLabel}
-                    </span>
+                    <span className="choice-label">{otherLabel}</span>
                   </label>
-                  {draft.other && <div className="other-words">{words(`${id}-other`)}</div>}
                 </li>
               </ul>
+              {/* The notes go with whatever is chosen, so their field shows
+                  once the card holds an answer and stays as the choice
+                  changes, and while words are left with nothing chosen. */}
+              {holdsAnswer(draft) && (
+                <div className="answer-notes">
+                  <label id={`${id}-notes-label`} htmlFor={`${id}-words`}>
+                    Notes
+                  </label>
+                  {words(`${id}-notes-label`)}
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -614,6 +636,92 @@ function AskCard({
         </>
       )}
     </section>
+  );
+}
+
+// OwnWords is an ask card's field for the operator's own words, notes beside
+// a pick or the whole answer, with why they cannot be sent when they cannot,
+// and dictation while voice is on, which puts its text at the field's caret
+// unless the composer's draft was discarded since the recording started, and
+// waits while the composer's message is on its way. It tells the card as a
+// recording starts and once none is left, its going away included.
+function OwnWords({
+  box,
+  id,
+  labelledBy,
+  value,
+  disabled,
+  error,
+  onChange,
+  onBlur,
+  voiceOn,
+  writing,
+  draftsEnded,
+  onRecording,
+}: {
+  box: RefObject<HTMLTextAreaElement | null>;
+  id: string;
+  labelledBy: string;
+  value: string;
+  disabled: boolean;
+  error: string | undefined;
+  onChange: (words: string) => void;
+  onBlur: () => void;
+  voiceOn: boolean;
+  writing: boolean;
+  draftsEnded: () => number;
+  onRecording: (active: boolean) => void;
+}) {
+  const tools = useRef<HTMLDivElement>(null);
+  // How many drafts had ended as a recording started.
+  const endedAtRecording = useRef(0);
+  const { dictation } = useDictationInto({
+    boxes: { words: box },
+    first: "words",
+    set: (_, words) => onChange(words),
+    accepts: () => draftsEnded() === endedAtRecording.current,
+    disabled: disabled || writing,
+    onActive: (active) => {
+      if (active) {
+        endedAtRecording.current = draftsEnded();
+      }
+      onRecording(active);
+    },
+  });
+  return (
+    <>
+      <textarea
+        ref={box}
+        id={id}
+        rows={2}
+        maxLength={4_000}
+        value={value}
+        disabled={disabled}
+        aria-labelledby={labelledBy}
+        aria-invalid={error === undefined ? undefined : true}
+        aria-describedby={error === undefined ? undefined : `${id}-error`}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => {
+          // Moving to Dictate is not leaving the field.
+          const to = event.relatedTarget;
+          if (!(to instanceof Node && tools.current?.contains(to) === true)) {
+            onBlur();
+          }
+        }}
+      />
+      {error !== undefined && (
+        <p id={`${id}-error`} className="field-error">
+          {error}
+        </p>
+      )}
+      {voiceOn && (
+        <div ref={tools} className="own-words-dictation">
+          {dictation.problem}
+          {dictation.controls}
+          {dictation.said}
+        </div>
+      )}
+    </>
   );
 }
 
