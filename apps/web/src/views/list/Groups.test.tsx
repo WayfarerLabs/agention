@@ -156,7 +156,7 @@ describe("grouped by topic", () => {
       "/?priority=urgent&unread=true&session=builder/main&sort=due&group=topic",
     ]);
     // A quiet session's header says so for the eye too, in the warning's
-    // tone, as the sessions view does; when it was last seen links nowhere,
+    // tone, as the sessions view does; its last check-in links nowhere,
     // nor does the archive box.
     expect(
       bar("Agent builder Session side").querySelector(".last-check-in.warning")?.textContent,
