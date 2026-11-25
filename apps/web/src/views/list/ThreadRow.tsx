@@ -102,8 +102,8 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // page returns to it.
 //
 // Side by side, the row of the thread open beside the list is marked current,
-// and opening it again moves focus to where opening it lands, the thread's
-// pane; the row of the thread just left is where going back to the list
+// and opening it again moves focus to where opening it lands, in the
+// thread's pane; the row of the thread just left is where going back to the list
 // lands; and a row that goes while its link has focus, as the row of a thread
 // archived beside the list does once the list follows, gives focus to the
 // page's heading, so it is not lost.

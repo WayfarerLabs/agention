@@ -1357,6 +1357,8 @@ test("the threads above and below, and archiving, move the same way beside the l
   expect(scrolled).toBeGreaterThan(0);
   await page.keyboard.press("]");
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[2] ?? "");
+  // Focus lands on the heading of the thread opened, once it has loaded.
+  await expect(pane.getByRole("heading", { level: 1 })).toBeFocused();
   await expect(rows.nth(2)).toHaveAttribute("aria-current", "page");
   expect(await shown?.evaluate((element) => element.isConnected)).toBe(true);
   expect(await list.evaluate((element) => element.scrollTop)).toBe(scrolled);
@@ -1370,6 +1372,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   const before = await entries();
   await archiveAll.click();
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
+  await expect(pane.getByRole("heading", { level: 1 })).toBeFocused();
   expect(await entries()).toBe(before);
   await expect(rows).toHaveCount(3);
 
@@ -1394,6 +1397,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   ).toBe(true);
   await below.click();
   await expect(heading).toHaveText(titles[3] ?? "");
+  await expect(heading).toBeFocused();
   await above.click();
   await expect(heading).toHaveText(titles[1] ?? "");
 
@@ -1410,6 +1414,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
   await reply.getByRole("button", { name: "Send" }).click();
   await expect(heading).toHaveText(titles[0] ?? "");
+  await expect(heading).toBeFocused();
   expect(await entries()).toBe(sending);
   await after.selectOption(chosenBefore);
 

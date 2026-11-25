@@ -1223,16 +1223,20 @@ or the list's address, so the entry, a reload, `u` and the list agree. The route
 listener to `popstate`, and runs the corrections views register (`correctPoppedEntry`) within it,
 with telling the page: a listener of its own would run only once the page had rendered the entry
 uncorrected. A row's link records the list on screen as it is followed. The open thread's row is
-`aria-current="page"`, and opening it again moves focus to the thread's pane. The page keeps one
+`aria-current="page"`, and opening it again moves focus into the thread's pane. The page keeps one
 title and one level-one heading, the thread's while one is open, and a change that leaves a thread,
 such as Archive all or a send that goes back to the list, returns to the list as it stands once the
 change lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
 `src/components.tsx`), the place a view marks with `data-landing`, its heading or else the place
-itself: the thread's pane, as a phone lands on the page's content while a thread loads, or on
-returning to the list, the row of the thread just left (`src/views/list/beside.ts`). A row that goes
-while it holds focus passes it to the page's heading, and crossing the breakpoint, if it took away
-what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
-and the list's pane is sticky and scrolls on its own.
+itself: side by side the thread's pane, on a phone the page's content, or on returning to the list,
+the row of the thread just left (`src/views/list/beside.ts`). A landing with no heading yet, as a
+thread's while it loads, is pending: the first heading to show in it (`PageHeading`) takes focus as
+it shows, while focus is still on the landing itself or on nothing, as when the control that had it
+went, never from where the operator has put it meanwhile, within the landing or not. So a thread
+opened from the list, by Thread above or below, by archiving or after sending lands on its heading
+at every width. A row that goes while it holds focus passes it to the page's heading, and crossing
+the breakpoint, if it took away what held focus, moves focus to where a navigation lands. The thread
+keeps the page's own scroll, and the list's pane is sticky and scrolls on its own.
 
 A thread page's **Thread above** and **Thread below**, and Archive all as Auto-advance says, go to
 the row just above or below the thread in the list it returns to, as that list stands when the
