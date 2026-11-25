@@ -1,4 +1,4 @@
-# Agent presence and nudge: Prior art and host research
+# Session monitoring and nudge: Prior art and host research
 
 - Date: 2026-11-23, from the hosts' documentation and source as published on 2026-11-22, hands-on
   spikes on 2026-11-22 and 2026-11-23, and observations on the development VM, an Agentworks guest,
@@ -65,7 +65,7 @@ From the Agentworks repository (`WayfarerLabs/agentworks`, public, read 2026-11-
 - **Codex keeps old bridges.** One Codex session on the VM had six bridges under its process, from
   plugin versions 0.4.0 and 0.6.0, started over 15 hours; Codex started new ones without ending the
   old. All of them read the same key and share one registration, so approval cannot tell them apart:
-  without a rule that one acts (FRD P5), each would hold a wait and nudge the same pane.
+  without a rule that one acts (FRD M7), each would hold a wait and nudge the same pane.
 
 ## What tmux offers the guards
 
