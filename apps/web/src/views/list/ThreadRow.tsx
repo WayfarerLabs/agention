@@ -10,14 +10,7 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import {
-  type FoldLevel,
-  focusLanding,
-  PathParts,
-  placeOf,
-  Tags,
-  ThreadTitle,
-} from "../../components.tsx";
+import { type FoldLevel, PathParts, placeOf, Tags, ThreadTitle } from "../../components.tsx";
 import {
   absenceOf,
   absenceWords,
@@ -36,7 +29,7 @@ import { readDraft } from "../../device.ts";
 import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
 import { CodeLinksMark, RowCodeLink } from "../code-links.tsx";
 import type { ListShown } from "../filter-links.tsx";
-import { ListBeside } from "./beside.ts";
+import { ListBeside, landFrom } from "../side-by-side.tsx";
 import { RowFocusOwed } from "./focus-owed.ts";
 import { ListSelection, longPress, threadKey } from "./selection.tsx";
 
@@ -173,12 +166,7 @@ export function ThreadRow({
     }
   };
   // Opening the thread already open beside the list lands in its pane.
-  const openAgain = () => {
-    const page = link.current?.closest("main");
-    if (page !== null && page !== undefined) {
-      focusLanding(page);
-    }
-  };
+  const openAgain = () => landFrom(link.current);
   const selection = useContext(ListSelection);
   const key = threadKey(thread);
   const selected = selection?.isSelected(key) === true;

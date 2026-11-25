@@ -360,29 +360,43 @@ export interface AgentList {
   truncated: boolean;
 }
 
-// How many agents a page of the sessions view holds.
-const agentPage = 100;
+// How many items readWhole asks for a page at a time.
+const wholePage = 100;
+
+// readWhole reads a list the API pages whole, at most maxListed of its
+// items a page at a time, saying whether it stopped with items left to read.
+// page reads one page, from its cursor, of at most limit items.
+export async function readWhole<T>(
+  page: (
+    cursor: string | undefined,
+    limit: number,
+  ) => Promise<{ items: T[]; next: string | undefined }>,
+): Promise<{ items: T[]; truncated: boolean }> {
+  const items: T[] = [];
+  let cursor: string | undefined;
+  for (let read = 0; read < maxListed / wholePage; read++) {
+    const answer = await page(cursor, wholePage);
+    items.push(...answer.items);
+    cursor = answer.next;
+    if (cursor === undefined) {
+      break;
+    }
+  }
+  return { items, truncated: cursor !== undefined };
+}
 
 // listSessions reads the agents with their sessions, as the sessions view
 // shows them, at most maxListed agents a page at a time, saying whether it
 // stopped with agents left to read. The view comes whole, as the approval
 // form's choices need it. Aborting signal stops it before its next page.
 export async function listSessions(signal?: AbortSignal): Promise<AgentList> {
-  const agents: Agents = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < maxListed / agentPage; page++) {
-    const answer = await request<SessionsPage>(
-      "GET",
-      `/sessions${query({ cursor, limit: agentPage })}`,
-      { signal },
-    );
-    agents.push(...answer.agents);
-    cursor = answer.next;
-    if (cursor === undefined) {
-      break;
-    }
-  }
-  return { agents, truncated: cursor !== undefined };
+  const { items, truncated } = await readWhole(async (cursor, limit) => {
+    const answer = await request<SessionsPage>("GET", `/sessions${query({ cursor, limit })}`, {
+      signal,
+    });
+    return { items: answer.agents, next: answer.next };
+  });
+  return { agents: items, truncated };
 }
 
 // PasskeyFailure is a passkey ceremony the browser refused or could not

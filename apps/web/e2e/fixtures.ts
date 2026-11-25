@@ -293,3 +293,20 @@ export async function resize(
   await page.waitForFunction((width) => window.innerWidth === width, size.width);
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
 }
+
+// approve approves as proposed the registration waiting with a code: from
+// its row on the Sessions tab, on its page, which then goes on to the
+// session it granted.
+export async function approve(page: Page, code: string): Promise<void> {
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("link", { name: /^Sessions/ })
+    .click();
+  const row = page.getByRole("link", { name: new RegExp(`^Registration ${code} for `) });
+  await row.click();
+  await page
+    .getByRole("article", { name: `Registration ${code}` })
+    .getByRole("button", { name: "Approve" })
+    .click();
+  await base.expect(row).toHaveCount(0);
+}

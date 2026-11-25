@@ -2,6 +2,7 @@ import {
   type GroupRef,
   type GroupsAndTags,
   noGroup,
+  type Registration,
   type SessionSummary,
   type ThreadsView,
 } from "@wayfarerlabs/agention-api";
@@ -52,14 +53,17 @@ import {
   StrandedLink,
   ThreadsLink,
 } from "./roll-ups.tsx";
-import { SessionRow, sessionKey } from "./SessionRow.tsx";
+import { RegistrationRow, SessionRow, sessionKey } from "./SessionRow.tsx";
 
 // The sessions view's agents and sessions, as its arrangement shows them,
-// under the head choosing it: grouped by session group, the groups fold,
-// each holding its agents, which fold over their sessions' rows; grouped by
-// agent, the agents fold over their rows; grouped by session, the rows
-// stand alone. Each group's head and agent's header rolls up the sessions
-// beneath, and every chip that stands for threads links to them.
+// under the head choosing it, beneath the registrations waiting for
+// approval, which fold together above the agents whatever the arrangement
+// (WaitingFold), so a request is the first thing the rows show: grouped by
+// session group, the groups fold, each holding its agents, which fold over
+// their sessions' rows; grouped by agent, the agents fold over their rows;
+// grouped by session, the rows stand alone. Each group's head and agent's
+// header rolls up the sessions beneath, and every chip that stands for
+// threads links to them.
 
 // What the operator is organizing, in a picker open on it: a session's group,
 // or an agent's or a session's tags; and the control the picker lies beside,
@@ -69,8 +73,10 @@ export type Organizing = { opener: HTMLElement | null } & (
   | { kind: "tags"; agent: string; session?: SessionSummary; tags: string[] }
 );
 
-// Where this browser keeps its folds: the groups and agents folded.
+// Where this browser keeps its folds: the groups and agents folded, the
+// registrations waiting among the groups, by a key no group's id is.
 const foldedGroups = "agention.sessions.folded-groups";
+const waitingFold = "waiting";
 const foldedAgents = "agention.sessions.folded-agents";
 
 // The views' parts SessionFolds and AgentFolds pass down: reloading the
@@ -150,9 +156,9 @@ export function SessionsHead({
   );
 }
 
-// organizing opens, for a session's row, the picker organizing its group or
-// its tags.
-const organizing =
+// organizing opens, for a session, the picker organizing its group or its
+// tags.
+export const organizing =
   (organize: Handlers["organize"], agent: string, session: SessionSummary) =>
   (what: "group" | "tags", opener: HTMLElement | null) =>
     organize(
@@ -161,19 +167,44 @@ const organizing =
         : { kind: "tags", agent, session, tags: session.tags, opener },
     );
 
-// useUnfolded keeps which session rows are unfolded, by their paths, while
-// the view is open.
-function useUnfolded(): [ReadonlySet<string>, (key: string) => void] {
-  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
-  const flip = (key: string) =>
-    setUnfolded((current) => {
-      const next = new Set(current);
-      if (!next.delete(key)) {
-        next.add(key);
+// WaitingFold holds the registrations waiting for approval, above the
+// agents, whatever their arrangement, under a head saying how many wait:
+// each is a row of its own, newest first, as they arrive, named by the agent
+// and the session it proposes. It folds as a group does, and shows only
+// while any waits.
+export function WaitingFold({
+  waiting,
+  agents,
+}: {
+  waiting: readonly Registration[];
+  // The agents the view lists, unless they failed to load.
+  agents: Agents | undefined;
+}) {
+  const folds = useFolds(foldedGroups);
+  if (waiting.length === 0) {
+    return null;
+  }
+  return (
+    <Fold
+      level={2}
+      depth="outer"
+      label="Waiting for approval"
+      marks={
+        <span className="roll-up">
+          <span className="flag attention">{plural(waiting.length, "registration")}</span>
+        </span>
       }
-      return next;
-    });
-  return [unfolded, flip];
+      className="waiting-fold"
+      folded={folds.has(waitingFold)}
+      toggle={() => folds.toggle(waitingFold)}
+    >
+      <ul className="session-rows">
+        {waiting.map((registration) => (
+          <RegistrationRow key={registration.id} registration={registration} agents={agents} />
+        ))}
+      </ul>
+    </Fold>
+  );
 }
 
 // SessionFolds shows the agents as the view arranges them: under their
@@ -359,7 +390,6 @@ function LoneSessions({
   newThread,
   organize,
 }: { sessions: Lone[]; agents: Agents } & Handlers) {
-  const [unfolded, flip] = useUnfolded();
   return (
     <>
       <ul className="session-rows">
@@ -372,8 +402,6 @@ function LoneSessions({
               alone
               agent={agent}
               session={session}
-              unfolded={unfolded.has(key)}
-              toggle={() => flip(key)}
               refresh={refresh}
               newThread={(opener) => newThread(agent, session, opener)}
               organize={organizing(organize, agent, session)}
@@ -398,8 +426,7 @@ function LoneSessions({
 // lead to the threads in that group, its tags' aside, and this
 // browser keeps its fold by the group's id and the agent's name, so an agent
 // under two groups folds under each apart; an agent in no group keeps its
-// fold by its name alone, as without groups. The rows unfolded hold only
-// while the view is open.
+// fold by its name alone, as without groups.
 function AgentFolds({
   agents,
   group,
@@ -413,7 +440,6 @@ function AgentFolds({
   group?: GroupRef | typeof noGroup;
 } & Handlers) {
   const folds = useFolds(foldedAgents);
-  const [unfolded, flip] = useUnfolded();
   const inGroup = group === undefined ? undefined : group === noGroup ? noGroup : group.id;
   const level = group === undefined ? 3 : 4;
   return agents.map((entry) => {
@@ -489,8 +515,6 @@ function AgentFolds({
                 level={level === 3 ? 4 : 5}
                 agent={entry.agent}
                 session={session}
-                unfolded={unfolded.has(key)}
-                toggle={() => flip(key)}
                 refresh={refresh}
                 newThread={(opener) => newThread(entry.agent, session, opener)}
                 organize={organizing(organize, entry.agent, session)}

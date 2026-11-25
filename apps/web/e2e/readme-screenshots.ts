@@ -7,7 +7,7 @@ import type { PublicKey } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import path from "node:path";
 import { Agent } from "./agent.ts";
-import { expect, resize, test } from "./fixtures.ts";
+import { approve, expect, resize, test } from "./fixtures.ts";
 
 const images = path.join(import.meta.dirname, "../../../docs/images");
 
@@ -53,16 +53,7 @@ test("the README's screenshots", async ({ browser, screenshotsServer: server }) 
   async function join(agentName: string, session: string, status: object): Promise<Agent> {
     const agent = new Agent(server);
     await post(agent, "/registrations", { agent: agentName, session });
-    await view("Sessions").click();
-    await page
-      .getByRole("article", {
-        name: `Registration ${registrationCode(agent.publicKey as PublicKey)}`,
-      })
-      .getByRole("button", { name: "Approve" })
-      .click();
-    await expect(
-      page.getByRole("region", { name: "Waiting for approval" }).getByRole("article"),
-    ).toHaveCount(0);
+    await approve(page, registrationCode(agent.publicKey as PublicKey));
     await post(agent, `/s/${agentName}/${session}/status`, status);
     return agent;
   }

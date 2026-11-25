@@ -1,6 +1,6 @@
 import type { ThreadGroups, ThreadSummary } from "@wayfarerlabs/agention-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { changeLanded } from "../api.ts";
 import { enterSendsChoice } from "../keyboard.tsx";
 import { leaveNotice } from "../notice.ts";
@@ -9,6 +9,7 @@ import {
   failure,
   message,
   renderAt,
+  stubWidth,
   threadAnswer,
   threadSummary,
   titleOf,
@@ -20,31 +21,13 @@ import { textBox, written } from "./thread/thread-test-support.tsx";
 // stand side by side, and across the breakpoint.
 
 let api: FakeApi;
-let wide: boolean;
-// What follows the page's media queries.
-const followers = new Set<() => void>();
+// Takes the page across the breakpoint, as a window resized does.
+let resize: (toWide: boolean) => void;
 
 beforeEach(() => {
   api = new FakeApi();
-  wide = true;
-  followers.clear();
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    media: query,
-    get matches() {
-      return query === "(min-width: 64rem)" && wide;
-    },
-    addEventListener: (_: string, follow: () => void) => followers.add(follow),
-    removeEventListener: (_: string, follow: () => void) => followers.delete(follow),
-  }));
+  resize = stubWidth();
 });
-
-// resize takes the page across the breakpoint, as a window resized does.
-function resize(toWide: boolean): void {
-  act(() => {
-    wide = toWide;
-    followers.forEach((follow) => follow());
-  });
-}
 
 afterEach(() => {
   cleanup();
@@ -635,7 +618,7 @@ describe("across the breakpoint", () => {
 
 describe("one at a time, below a desktop's width", () => {
   it("shows the thread alone, and the list alone again on going back", async () => {
-    wide = false;
+    resize(false);
     serve();
     renderAt("/");
     await screen.findByRole("heading", { level: 2, name: /First/ });
@@ -651,7 +634,7 @@ describe("one at a time, below a desktop's width", () => {
   });
 
   it("opens a thread alone, focus on the page's content while it loads and on its heading once it shows", async () => {
-    wide = false;
+    resize(false);
     serve();
     renderAt("/");
     await screen.findByRole("heading", { level: 2, name: /First/ });
@@ -665,7 +648,7 @@ describe("one at a time, below a desktop's width", () => {
   });
 
   it("leaves focus where the operator put it while a thread alone loaded", async () => {
-    wide = false;
+    resize(false);
     serve();
     renderAt("/");
     await screen.findByRole("heading", { level: 2, name: /First/ });
@@ -680,7 +663,7 @@ describe("one at a time, below a desktop's width", () => {
   });
 
   it("leaves focus on a list control chosen once the window widened while a thread loaded", async () => {
-    wide = false;
+    resize(false);
     serve();
     renderAt("/");
     await screen.findByRole("heading", { level: 2, name: /First/ });
@@ -696,7 +679,7 @@ describe("one at a time, below a desktop's width", () => {
   });
 
   it("opens the thread above alone, focus on its heading", async () => {
-    wide = false;
+    resize(false);
     serve();
     renderAt(threadPath(2));
     await waitFor(() => expect(titleOf(screen.getByRole("heading", { level: 1 }))).toBe("Second"));
@@ -709,7 +692,7 @@ describe("one at a time, below a desktop's width", () => {
   });
 
   it("leaves focus where it was when the row that has it goes, as before", async () => {
-    wide = false;
+    resize(false);
     serve();
     renderAt("/");
     await screen.findByRole("heading", { level: 2, name: /First/ });

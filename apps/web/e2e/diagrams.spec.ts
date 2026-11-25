@@ -11,7 +11,7 @@ import type { BrowserContext, Frame, Locator, Page, Request } from "@playwright/
 import type { PublicKey, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
+import { type Agention, approve, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -78,12 +78,7 @@ test.beforeAll(async ({ browser, diagramsServer }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   agent = new Agent(server);
   await agent.send("POST", "/registrations", { agent: "builder", session: "main" });
-  await page.getByRole("link", { name: "Sessions" }).click();
-  const code = registrationCode(agent.publicKey as PublicKey);
-  await page
-    .getByRole("article", { name: `Registration ${code}` })
-    .getByRole("button", { name: "Approve" })
-    .click();
+  await approve(page, registrationCode(agent.publicKey as PublicKey));
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
 });
 

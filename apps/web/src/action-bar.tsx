@@ -4,16 +4,16 @@ import { type IconName, Icon } from "./icons.tsx";
 import { Link } from "./router.tsx";
 
 // The bars at the foot of a pane, which act on what the pane shows: the
-// thread list's and the thread page's. Each is a labelled region, last in its
-// pane, docked to the foot of the screen while its pane scrolls beneath it,
-// on the surface of the composer's Send row. It holds a row of buttons, each
-// an icon over a short label, the full name of what it does its accessible
-// name. A button keeps its place, disabled there while it cannot act, so a
-// second press in the same spot never does something else. A caption says
-// what the buttons act on, or what the last of them did. While a text field
-// in its pane has focus, and for the thread's bar on a very short screen, the
-// bar rests at the end of its pane in place of floating (styles.css,
-// .action-bar).
+// thread list's, the thread page's and a session's. Each is a labelled
+// region, last in its pane, docked to the foot of the screen while its pane
+// scrolls beneath it, on the surface of the composer's Send row. It holds a
+// row of buttons, each an icon over a short label, the full name of what it
+// does its accessible name. A button keeps its place, disabled there while
+// it cannot act, so a second press in the same spot never does something
+// else. A caption says what the buttons act on, or what the last of them
+// did. While a text field in its pane has focus, and for the thread's bar on
+// a very short screen, the bar rests at the end of its pane in place of
+// floating (styles.css, .action-bar).
 
 // ActionBar is a bar, named by label: bar is the caller's hold on it, and
 // height the root's property that holds how tall it is, which the page's

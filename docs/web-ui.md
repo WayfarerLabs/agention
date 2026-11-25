@@ -481,12 +481,32 @@ message it replaced.
 ## The sessions view
 
 **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
-what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
+what `/registrations` shows, the page an agent waiting for approval sends you to.
 
-- **Waiting for approval** holds the registrations to approve, as
-  [Approving agents](operator-guide.md#approving-agents) describes. The **Sessions** tab counts
-  them, and approving or rejecting them clears the count. While none is waiting the section is one
-  short line, and until some agent has a session it explains instead how a registration arrives.
+Choosing a row's chevron, or anywhere on it but its other links and buttons, opens what the row
+stands for. On a desktop's screen, at the width where **Threads** shows the list and a thread side
+by side, it opens on the right of the rows, its row outlined; on a narrower screen, as on a phone,
+it opens on a page of its own, as a thread does. Each session has its own address,
+`/sessions/<agent>/<session>`, and each registration waiting its own, `/registrations/<number>`, so
+**Back** and **Forward** move between what you opened, and back to the rows with none open, and a
+reload or a bookmark returns to it. The rows stay as you arranged them while sessions open beside
+them and as you go back and forward. A session shows there what its row shows, then its detail,
+described below, over a bar at its foot, whose **Sessions** closes it, returning to the rows; its
+**⋯** button holds its row's options. While nothing is open, the right side holds a line on choosing
+a session.
+
+From the top:
+
+- **Waiting for approval**, shown while any registration waits, holds a row for each, newest first,
+  above the agents however you arrange them. A row names the agent and the session the registration
+  proposes, such as **reviewer/main**, says when it was submitted and when it expires, and marks
+  what approving it would do: **New agent**, **New session** of an agent you have, or **Existing
+  session** when the agent proposes a session you have, as an agent that lost its credential does
+  when it registers again. Its code follows. Choosing the row opens its page, which
+  [Approving agents](operator-guide.md#approving-agents) describes: for an existing session, a
+  button each for that session and for a new one, the group and tags starting from the session's
+  own. The **Sessions** tab counts the registrations waiting, and approving or rejecting them clears
+  the count. Until some agent has a session, the view explains instead how a registration arrives.
 - Everything in the view that stands for threads is a link opening the thread list on those threads
   alone, with no other filter on: a group's, an agent's or a session's name, a count of threads, the
   envelope, **Blocked on you**, open asks and stranded threads, each within the header or row it
@@ -504,17 +524,18 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   blocks an agent's work on your answer, and a link opening the thread list on the group's threads.
   An agent with sessions in two groups shows under each with that group's sessions, and its threads'
   links open its threads, and its stranded threads, in that group. This browser keeps the groups you
-  fold, a group however you rename it. Under each agent, each session is a folded row, so that many
-  fit on a screen. Its first line holds the session's name, the title its agent gave this line of
-  work, cut to fit, and its percent toward the goal; the second, **Last seen** and when, or **Never
-  seen**, in the warning's color while the session is quiet and has not stopped, and once it has
-  reported a status, how long ago it last updated it, such as **status updated 2 hours ago**, since
-  a session can go on checking Agention long after its status stopped saying what it does; a session
-  marked working because it wrote counts as an update then. While a session is **Working**, its
-  bridge reminds it to update its status once it has sent none for 20 minutes, counting a write that
-  marked it working. The bridge counts from the session's own last update through it, not from the
-  age you see, so the two differ when the bridge has restarted or another bridge shares the session.
-  The third line, wrapping on a phone:
+  fold, a group however you rename it. Under each agent, each session is a row, so that many fit on
+  a screen. Its first line holds the session's name, the title its agent gave this line of work, cut
+  to fit, and its percent toward the goal; the second, **Last seen** and when, or **Never seen**, in
+  the warning's color while the session is quiet and has not stopped, and once it has reported a
+  status, how long ago it last updated it, such as **status updated 2 hours ago**, since a session
+  can go on checking Agention long after its status stopped saying what it does; a session marked
+  working because it wrote counts as an update then. While a session is **Working**, its bridge
+  reminds it to update its status once it has sent none for 20 minutes, counting a write that marked
+  it working. The bridge counts from the session's own last update through it, not from the age you
+  see, so the two differ when the bridge has restarted or another bridge shares the session. The
+  third line, wrapping on a phone:
+  - **Registration waiting**, while a registration proposes this session, opening its page;
   - what the session reports it is doing: **Working** while it does something; **Idle** while it has
     nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
     **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No status**
@@ -533,14 +554,12 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   - its unread updates, such as **2 new updates**;
   - and its latest update's note, cut to fit, with none after the server marked it working.
 
-  Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
-  and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
-  each update changed, newest first, with its note, and **inferred from a write** on one the server
-  logged when the idle session wrote. Consecutive updates that changed only the percent show as one
-  line, such as **Progress 20% → 60%**, and **Older** shows the updates before. Unfolding reads the
-  updates it shows, which stay marked unread until you fold the row again. Rows start folded each
-  time you open the view, and a row under an agent or a group you folded reads nothing, since it is
-  not shown. This browser keeps the agents you fold, under each group apart.
+  Opening a session lets its title wrap whole and shows its goal over a bar of how far it has come,
+  its credentials and its log: what each update changed, newest first, with its note, and **inferred
+  from a write** on one the server logged when the idle session wrote. Consecutive updates that
+  changed only the percent show as one line, such as **Progress 20% → 60%**, and **Older** shows the
+  updates before. Opening it reads the updates it shows, which stay marked unread until you close it
+  or open another. This browser keeps the agents you fold, under each group apart.
 
   A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
   the session has now; and **Revoke** for each of the session's credentials, which asks once more.
@@ -698,6 +717,9 @@ anywhere to list them all.
 | A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                                                                                       |
 | A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                                                                                                 |
 | A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                                                                                         |
+| The sessions    | `j` and `k`                 | Moves to the next or previous row, a session's or a registration's, stopping at either end                                                                                                  |
+| The sessions    | `o`                         | Opens the session or the registration of the row that has focus                                                                                                                             |
+| A session       | `u` or `Esc`                | Returns to the sessions' rows                                                                                                                                                               |
 | The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                                                                                   |
 | The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                                                                                      |
 
@@ -710,11 +732,13 @@ moving through the list starts from the open thread's row and opens nothing unti
 only the row that has focus, so from the thread it does nothing; the thread's keys act only while
 focus is outside the list, as after clicking the thread; `I` from the thread marks it read in the
 list and leaves focus in the thread; and `n` and `U`, which both use, act in the list while focus is
-in it, and in the thread otherwise. A screen reader in its browse mode keeps single keys for its own
-navigation, so the shortcuts act only once it passes keys through, as in its focus mode. To turn the
-shortcuts listed here off in this browser, if they get in the way of a screen reader, voice control
-or another tool, clear **Keyboard shortcuts** in **Settings**, under **Keyboard**, which also lists
-them. The diagram viewer's own keys stay on.
+in it, and in the thread otherwise. The sessions' rows and a session open beside them share keys the
+same way: `j` and `k` act wherever focus is, starting from the open session's row, `o` only on the
+row that has focus, and `u` and `Esc` only while focus is outside the rows. A screen reader in its
+browse mode keeps single keys for its own navigation, so the shortcuts act only once it passes keys
+through, as in its focus mode. To turn the shortcuts listed here off in this browser, if they get in
+the way of a screen reader, voice control or another tool, clear **Keyboard shortcuts** in
+**Settings**, under **Keyboard**, which also lists them. The diagram viewer's own keys stay on.
 
 **Enter sends**, also under **Keyboard**, is off until you turn it on in a browser, which keeps the
 choice. On, `Enter` in the composer's message or **Details** box sends, once there is something to

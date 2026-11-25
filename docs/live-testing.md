@@ -138,13 +138,13 @@ disagreement is the finding.
   desktop's width, filling it, the list kept as chosen beside each thread opened, the open thread's
   row marked, Back from thread to thread, focus back on the row left, and one at a time below that
   width; stranded's reasons, in the warning's color in both tabs; the sessions view, its group and
-  agent folds and folded rows with what each session reports, when it was last seen and whether it
+  agent folds and session rows with what each session reports, when it was last seen and whether it
   is quiet, how old its status is, its open asks in the thread list's words and its threads'
   roll-up, the links from a row, an agent and a group, their names and every chip standing for
   threads among them, to the thread list filtered to them, folding nothing, and from a row's and an
-  agent's stranded flag to their stranded threads, a row unfolded to its log and marking it read,
+  agent's stranded flag to their stranded threads, a row opening its session and reading its log,
   the Sessions tab's count of registrations waiting falling as they are approved or rejected, their
-  section one line while none waits, the Threads tab's count of unread threads falling as they are
+  rows atop the agents while any do, the Threads tab's count of unread threads falling as they are
   read or archived, and the folds kept, on a phone's width too; the operator's session groups and
   tags: a session's group and an agent's and a session's tags picked from their options, each pick
   applied at once, by pointer and by the keys, the pickers beside the menu on a wide screen and as a
@@ -192,6 +192,17 @@ disagreement is the finding.
   phone's own picker, and a photo from the phone read by an agent, with an image, a PDF, a video and
   a text file an agent attached opened in Android Chrome and Windows Edge or Chrome, are the
   operator's acceptance, not the tester's.
+- **The Sessions tab side by side**, in the same browser: at a desktop's width, a row opening its
+  session beside the rows at its own address, the open session's row marked, Back from session to
+  session and onto the rows, focus back on the row left, and the arrangement kept through it; below
+  that width, each row opening its session or registration on a page of its own, with no sideways
+  scroll at 390 and 320 pixels; the registrations waiting, a row each above the agents in every
+  arrangement, marked as a new agent, a new session or an existing session, whose own row links to
+  the request; a registration's page with its code, what it proposes and its times, its group and
+  tags, Approve going on to the session granted and Reject back to the rows, the choice of another
+  agent or session folded until asked for, and a button each for the session there is and a new one
+  when the proposed session exists; and a form half filled keeping what it holds, and focus, across
+  that width (`docs/web-ui.md` "The sessions view").
 
 ## Layers to cross-check
 

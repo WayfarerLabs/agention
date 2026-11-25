@@ -1757,23 +1757,23 @@ binds its files to each other, and the security and accessibility rules a review
 [operator guide](operator-guide.md) the settings each feature needs, and each file's comments what
 that file does and why.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/action-bar.tsx` | The bars at the foot of a pane, which the thread list and the thread page share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's head, search, sheet, chips, rows, groups, and selection, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/icons.tsx`      | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/action-bar.tsx` | The bars at the foot of a pane, which the thread list, the thread page and a session share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`), and the sessions' rows and a session, which share the Sessions tab's (`Sessions.tsx`), each over the two panes of `side-by-side.tsx`; `views/list/` holds the thread list's head, search, sheet, chips, rows, groups, and selection, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/icons.tsx`      | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page
 ([The web UI's files](#the-web-uis-files)), in `src/server-name.ts`, and shows it as the banner's
@@ -1830,10 +1830,11 @@ with what it then shows.
 
 At a desktop's width, `64rem` and up, the Threads tab shows the list and the thread open side by
 side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. The shell
-mounts both routes as one view, `src/views/Threads.tsx`, whose comments, with `src/styles.css`, give
-the sizes and the reasons for them: the list's pane, then the thread's, the thread's in the same
-place at every width, so crossing the breakpoint keeps the thread mounted, with its draft files,
-staged answers, folds and focus.
+mounts both routes as one view, `src/views/Threads.tsx`, over the two panes the Sessions tab shares
+(`Panes` in `src/views/side-by-side.tsx`, whose comments, with `src/styles.css`, give the sizes and
+the reasons for them; [The sessions view](#the-sessions-view) says what that tab does with them):
+the list's pane, then the thread's, the thread's in the same place at every width, so crossing the
+breakpoint keeps the thread mounted, with its draft files, staged answers, folds and focus.
 
 The width is read in the script, with a media query, since it decides what is mounted: one at a
 time, the list is not mounted while a thread is open. Side by side, the list stays mounted with its
@@ -1894,12 +1895,12 @@ describes them for the operator.
 
 ### Folds and focus
 
-Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
-button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
-in a button; a header's heading takes the button's name alone, so a linked label does not repeat it.
-The button's box stretches under the whole header or row, beneath its links and controls, so a
-pointer anywhere else on it folds or unfolds it while keyboards and assistive technology use the
-button.
+Every fold, the thread list's headers and the sessions view's, is a disclosure button holding the
+chevron, with a plain label inside it and a linked one beside it, so no link sits in a button; a
+header's heading takes the button's name alone, so a linked label does not repeat it. The button's
+box stretches under the whole header, beneath its links and controls, so a pointer anywhere else on
+it folds or unfolds it while keyboards and assistive technology use the button. A session's or a
+registration's row is built the same way around the link that opens it.
 
 After a navigation the shell moves focus to where it lands (`focusLanding` in `src/components.tsx`),
 the place a view marks with `data-landing`, its heading or else the place itself: side by side the
@@ -1922,17 +1923,46 @@ run by the time `waitFor` resolves.
 ### The sessions view
 
 The sessions view answers `/sessions`, and `/registrations`, the path released bridges send the
-operator to. [The sessions view](web-ui.md#the-sessions-view) describes its rows, headers and links,
-and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists; the files of
-`src/views/sessions/` implement the pickers, and those of `src/views/settings/` Settings' lists.
+operator to, each session's own address, `/sessions/<agent>/<session>`, and each registration
+waiting's, `/registrations/<id>`, which the shell mounts with them as one view
+(`src/views/Sessions.tsx`). [The sessions view](web-ui.md#the-sessions-view) describes its rows,
+headers and links, and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists;
+the files of `src/views/sessions/` implement the pickers, and those of `src/views/settings/`
+Settings' lists.
 
+- **Side by side.** The view uses the Threads tab's panes
+  ([The list and a thread side by side](#the-list-and-a-thread-side-by-side)): the rows' pane stays
+  mounted while sessions open and close beside it. Every row's chevron is a link to its address,
+  carrying the arrangement's query, so each session or registration opened is a history entry; the
+  open one's row is `aria-current="page"`, opening it again moves focus into its pane, and returning
+  to the rows lands on the row left. The arrangement on screen is the layout's own, as the thread
+  list is: going back or forward corrects the query of the entry gone to (`correctPoppedEntry`). The
+  session's pane (`SessionPane.tsx`) shows the session from the view's one reading of the sessions,
+  under the page's one level-one heading, and says so when that reading does not list it. One pane
+  at a time, as on a phone, what a row opens shows alone, as a thread does.
+- **Registrations waiting.** The view reads them whole, at most 500 in pages of 100, as it reads the
+  agents (`readWhole` in `src/api.ts`), and shows no rows until both have loaded, so nothing moves
+  as they arrive. They fold together above the agents in every arrangement (`WaitingFold`, the one
+  place that places them), each a row named by the agent and the session it proposes, with whether
+  approving it makes a new agent, a new session, or approves onto a session there is (`proposalOf`),
+  which that session's own row links to (`WaitingRegistrations`). The rows wait for the sessions, or
+  their failure, since what each proposes is told from them. A registration's page
+  (`RegistrationPane.tsx`) holds its approval (`ApproveForm.tsx`), the choice of another agent or
+  session folded until asked for or a name in it is refused. When the agent has the proposed
+  session, the form never chooses it for the operator: two buttons grant it, warning of its history,
+  or a new session under a name the agent has not, and the group and tags picked apply to whichever
+  is approved, starting from a session's own once one is chosen. Approve and Reject are the form's
+  own actions, both unavailable while either is under way; Reject needs no agents, so it stands
+  while they load or after they fail. Each decision, or its refusal, reloads the view, and once the
+  registrations waiting and the sessions have reloaded, approving replaces the page's address with
+  the granted session's, and rejecting with the rows', unless the address is no longer the
+  registration's.
 - **Loading.** It loads the agents whole, at most 500 in pages of 100, since the approval form
-  chooses among them, and a session's log only while its row is unfolded under an unfolded agent,
-  since what a fold hides is not rendered: one entry more than it shows, so what the oldest entry
-  shown changed can be read against the one before it.
-- **The log.** While the page is visible, an unfolded log marks the operator's read through its
-  newest entry whenever that is beyond their mark, with the read marking the thread page uses for
-  its messages (`useReading` in `src/data.ts`).
+  chooses among them, and a session's log only while the session is open, one entry more than it
+  shows, so what the oldest entry shown changed can be read against the one before it.
+- **The log.** While the page is visible, an open session's log marks the operator's read through
+  its newest entry whenever that is beyond their mark, with the read marking the thread page uses
+  for its messages (`useReading` in `src/data.ts`).
 - **Arrangement.** The view arranges what it loaded in the browser (`arrangement.ts`, whose header
   comment gives the groupings and the sorts). The arrangement lives in the address, as
   `/sessions?group=agent&sort=registered&reverse=true`, each part left out at its default, and a
@@ -2022,12 +2052,12 @@ comments give the document's handler and its rules, among them `modified`, for A
 `composing`, for an input method.
 
 - **Binding.** While it is mounted, each place's view gives every shortcut of its place its action,
-  through a hook typed by the place (`useShortcuts` for the thread list and a thread,
-  `useFieldShortcuts` for the composer, whose keys act within its fields from its form's key
-  handler, and the provider for those that act anywhere), so a place binds exactly its declared
-  shortcuts, and no shortcut listed goes without an action. Only one component holds a shortcut's
-  action at a time; a second registering one throws. Each action does what a control on the page
-  does, only while that control could, and otherwise nothing.
+  through a hook typed by the place (`useShortcuts` for the thread list, a thread, the sessions'
+  rows and a session, `useFieldShortcuts` for the composer, whose keys act within its fields from
+  its form's key handler, and the provider for those that act anywhere), so a place binds exactly
+  its declared shortcuts, and no shortcut listed goes without an action. Only one component holds a
+  shortcut's action at a time; a second registering one throws. Each action does what a control on
+  the page does, only while that control could, and otherwise nothing.
 - **The browser's keys.** A matching key is always taken from the browser: no key bound does
   anything of the browser's own where it acts, apart from `/` on the thread list, which takes
   Firefox's Quick Find, deliberately; `Enter` on a row is left out, since the row is a link the
@@ -2036,12 +2066,16 @@ comments give the document's handler and its rules, among them `modified`, for A
   its view's (`ShortcutArea`), which clicking within a pane gives focus. The list's keys reach
   across from the thread beside it, and the thread's do not (`reachesAcross`). A key both bind, `n`
   or `U`, acts in the place whose area holds focus, or else in the later place declared, the thread.
-- **The list's keys** act through what a pointer would use (`src/views/list/shortcuts.ts`): the
-  current row is the row holding focus, or, side by side with focus on no row, the open thread's,
-  though `o` opens only the row holding focus, so from the thread it takes no focus away; `I` and
-  `U` act through the bar at the list's foot, whose state gives them its action (`useMarkKeys` in
-  `ListBar.tsx`); and `s` and `b` open the head's pick lists with `showPicker` where the browser
-  allows it (`openPicker` in `src/icon-controls.tsx`).
+  The sessions' rows and a session are two places the same way: `j` and `k` reach across from the
+  session's pane, `o` acts only on the row that holds focus, and `u` and `Escape` do not act from
+  the rows.
+- **The list's keys** act through what a pointer would use (`src/views/list/shortcuts.ts`, over
+  `src/views/row-keys.ts`, which the sessions' rows share): the current row is the row holding
+  focus, or, side by side with focus on no row, the open thread's, though `o` opens only the row
+  holding focus, so from the thread it takes no focus away; `I` and `U` act through the bar at the
+  list's foot, whose state gives them its action (`useMarkKeys` in `ListBar.tsx`); and `s` and `b`
+  open the head's pick lists with `showPicker` where the browser allows it (`openPicker` in
+  `src/icon-controls.tsx`).
 - **A thread's `U`** marks unread only once every read mark the page started has settled
   (`useReading` counts them), so no read can undo it.
 
@@ -2072,7 +2106,9 @@ the origin separating servers.
   the choice an earlier release kept, going back or staying, stands in its place.
 - **Folds:** the thread list's headers and the sessions view's groups and agents, and whether it
   shows the past requests. A group's fold is kept by the group's id, and an agent's under a group by
-  the group's id and the agent's name, and by its name alone otherwise.
+  the group's id and the agent's name, and by its name alone otherwise. Every part of a page that
+  folds under one key shares one set of names (`useFolds`), so the folds of one group never
+  overwrite another's.
 - **Drafts:** a thread's draft (`src/views/thread/kept-draft.ts`), under the thread's agent, session
   and number: its text and details, and the message the draft was started from, which the
   stale-write check counts from. The thread list marks a thread with a kept draft from the same
