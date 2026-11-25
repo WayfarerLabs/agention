@@ -44,7 +44,9 @@ usage skill, the plugin definition) releases only the agent line; one that chang
 such as the agent API contract, releases both, in the order C2 sets. A change to what neither ships
 (docs, scripts, CI) releases neither, even when it rides with a change that releases one. What only
 the server ships includes the parts of the API contract only the server and web UI use, so a change
-to them releases only the server line (ruling 2).
+to them releases only the server line (ruling 2). One accepted limit: a dependency change that is
+itself the fix, such as a security bump, releases both lines even when only one line's dependencies
+changed, since both lines share the root lockfile (ruling 6).
 
 **R3. Releasing stays one approval.** As today, merging a release pull request is a release's one
 human approval, after which CI publishes what released and nothing else. Each release is tagged and
@@ -78,7 +80,9 @@ relays nothing new.
 
 **U4. Behind means a newer plugin exists.** The agent line's release that speaks a new agent API
 version follows the server's that serves it closely enough that the operator is not told to update
-to a plugin that has not been released.
+to a plugin that has not been released. One accepted limit: when the agent API version changes, the
+sessions view may ask for a plugin whose release is not yet out for the minutes between the server's
+release and the agent line's, which follows it as soon as the server's is published (ruling 6).
 
 ### An older server
 
@@ -174,6 +178,13 @@ gate work with each line's tags, and a release refuses a tag that does not match
    credential still active) as plugin-behind?", the operator chose "Only live sessions
    (recommended)": "Stopped or revoked sessions show no notice; a resumed session is marked again if
    still behind." Taken: U2 as amended, marking only live sessions.
+
+6. (2026-11-24) A reviewer of #61 asked that the FRD record two limits the design accepts. Asked
+   "Accept that a dependency-fix commit releases both lines, even when only one line's dependencies
+   changed (a limit on R2)?", the operator chose "Accept (recommended)". Asked "Accept a gap of
+   minutes where the Sessions view may ask for a plugin not yet released, when the agent API version
+   changes (a limit on U4)?", the operator chose "Accept (recommended)". Taken: R2's and U4's
+   accepted limits.
 
 ## Definition of done
 
