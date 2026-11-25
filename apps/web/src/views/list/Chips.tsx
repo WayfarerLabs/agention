@@ -113,7 +113,7 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
   return [
     ...chip(search !== undefined, () => ({
       key: "search",
-      label: { shown: `“${search}”`, spoken: `Search “${search}”` },
+      label: { shown: `"${search}"`, spoken: `Search "${search}"` },
       remove: { search: undefined },
     })),
     ...chip(view.status, (status) => ({

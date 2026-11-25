@@ -101,6 +101,31 @@ async function press(element: Element) {
   fireEvent.pointerUp(element, { pointerType: "touch", isPrimary: true });
 }
 
+describe("the bar at the list's foot", () => {
+  it("acts on every thread loaded while none is selected, and on those selected while any are, in the same place", async () => {
+    renderAt("/");
+    await screen.findByText("Choose a database");
+    const bar = () => document.querySelector(".list-bar");
+    const loaded = screen.getByRole("group", { name: "Threads shown" });
+    expect(bar()?.contains(loaded)).toBe(true);
+    expect(
+      within(loaded)
+        .getAllByRole("button")
+        .map((each) => each.textContent),
+    ).toEqual(["Archive all read", "Mark all read"]);
+    // It follows the list's rows, so it never stands over the last of them.
+    const rows = document.querySelector("ul.threads");
+    expect(rows?.compareDocumentPosition(bar() as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    fireEvent.click(checkbox("Pick a port"));
+    expect(toolbar()).not.toBeNull();
+    expect(bar()?.contains(toolbar())).toBe(true);
+    expect(screen.queryByRole("group", { name: "Threads shown" })).toBeNull();
+    fireEvent.click(action("Done"));
+    expect(toolbar()).toBeNull();
+    expect(screen.getByRole("group", { name: "Threads shown" })).toBeTruthy();
+  });
+});
+
 describe("selecting with a mouse", () => {
   it("gives each row a checkbox named by its heading, and shows the toolbar once one is checked", async () => {
     renderAt("/");
@@ -110,7 +135,10 @@ describe("selecting with a mouse", () => {
     fireEvent.click(checkbox("Pick a port"));
     expect(checkbox("Pick a port").checked).toBe(true);
     expect(toolbar()).not.toBeNull();
-    // Archive all read gives way to the toolbar.
+    // The bar at the list's foot acting on every thread loaded gives way to
+    // the toolbar, in its place.
+    expect(screen.queryByRole("group", { name: "Threads shown" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mark all read" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Archive all read" })).toBeNull();
     // A row's link still opens its thread.
     fireEvent.click(shown("Choose a database"));

@@ -91,13 +91,17 @@ with each other or with what the product does, the disagreement is the finding.
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
   filters with their counts, the session group and tag filters among them, with a removed group's
-  and an unused tag's chips, its search, from the box atop the list or the sheet's, one in both,
-  reaching what live messages say and not what a replaced one said, its sorts and their direction,
-  and grouping with roll-ups, by session group, by session, by topic and by agent, each header's
-  label and marks adding their filters to the list and its bar folding but on a link; selecting
-  threads in the list: a row's checkbox with a mouse and a row held down then tapped by touch, `x`,
-  the header checkbox leaving out the rows under a folded header, the banner selecting every thread
-  that matches and going back, the toolbar's actions on both, the decline question with its counts
+  and an unused tag's chips, its head's one row of icon controls, each marked while set, fitting a
+  phone's width, its search, from the head's search field or the sheet's box, one in both, its chip
+  clearing it, reaching what live messages say and not what a replaced one said, its sorts and their
+  direction, and grouping with roll-ups, by session group, by session, by topic and by agent, each
+  header's label and marks adding their filters to the list and its bar folding but on a link;
+  selecting threads in the list: a row's checkbox with a mouse and a row held down then tapped by
+  touch, `x`, the header checkbox leaving out the rows under a folded header, the banner selecting
+  every thread that matches and going back, the toolbar's actions on both, the bar at the list's
+  foot with nothing selected, its main button changing from Mark all read to Archive all read with
+  focus following, giving way to the toolbar while anything is selected, and clearing the last row
+  and a row focused with `j`, on a phone and beside a thread, the decline question with its counts
   and Cancel, Escape and Done, the selection kept through a refresh, and threads arriving since the
   list loaded left as they were, beside a thread and on a phone; the thread page's numbered asks
   answered several at once, a message's details, replacements, mark unread from a message, archive

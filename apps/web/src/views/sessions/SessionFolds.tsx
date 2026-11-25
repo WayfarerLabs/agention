@@ -31,6 +31,7 @@ import {
 import { DirectionButton, HeadSelect } from "../list-head.tsx";
 import {
   arrange,
+  defaultSortOf,
   groupKeyOf,
   type Held,
   type Lone,
@@ -98,9 +99,9 @@ const groupLabel: Record<SessionGrouping, string> = {
 };
 
 // SessionsHead holds the view's sort, beside the button reversing it, and
-// its grouping, as the thread list's head does. Choosing another sort takes
-// it in its own direction; another grouping keeps the sort while it offers
-// it.
+// its grouping, as the thread list's head does, each marked while it is set
+// to anything but its default. Choosing another sort takes it in its own
+// direction; another grouping keeps the sort while it offers it.
 export function SessionsHead({
   view,
   choose,
@@ -117,6 +118,7 @@ export function SessionsHead({
           label="Sort"
           value={sort}
           options={sortsOf(view.group).map((each) => ({ value: each, label: sortLabel[each] }))}
+          marked={sort !== defaultSortOf(view.group)}
           choose={(value) =>
             choose({
               ...view,
@@ -138,6 +140,7 @@ export function SessionsHead({
         label="Group"
         value={view.group}
         options={sessionGroupings.map((each) => ({ value: each, label: groupLabel[each] }))}
+        marked={view.group !== "session_group"}
         choose={(value) =>
           choose(regrouped(view, sessionGroupings.find((each) => each === value) ?? view.group))
         }
