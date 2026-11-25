@@ -18,7 +18,9 @@ covers installing the plugins and approving agents.
 
 On any other harness, add it as an MCP server with this command, and give your agent the
 [usage skill](https://github.com/WayfarerLabs/agention/blob/main/apps/agent-plugin/skills/agention/SKILL.md)
-that the plugins carry:
+that the plugins carry. The operator guide's
+[Other harnesses](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#other-harnesses)
+says what the harness must do, and pins both to a release:
 
 ```bash
 AGENTION_URL=https://agention.example.com npx -y @wayfarerlabs/agention-mcp

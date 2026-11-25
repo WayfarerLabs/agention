@@ -226,7 +226,7 @@ scripts/generate-api-docs.sh
 A test in the server's suite, `apps/server/src/http/api-docs.test.ts`, fails while the committed
 document differs from what generation would write, so the Tests gate catches a stale one.
 `agention serve --api-docs` serves the document, and a page rendered from it, as
-[the operator guide](docs/operator-guide.md#using-the-operator-api) describes.
+[Operator API](docs/operator-api.md#reference) describes.
 
 ### README screenshots
 
