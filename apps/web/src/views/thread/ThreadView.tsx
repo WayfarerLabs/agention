@@ -668,7 +668,8 @@ function ThreadPage({
           labels,
           answer: {
             picks: answer.picks ?? [],
-            other: labels.length > 0 && answer.text !== undefined,
+            // Words beside picks are notes; without them, they are Other's.
+            other: labels.length > 0 && answer.picks === undefined && answer.text !== undefined,
             words: answer.text ?? "",
             declined: answer.declined,
           },

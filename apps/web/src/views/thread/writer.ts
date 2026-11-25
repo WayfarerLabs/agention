@@ -20,12 +20,13 @@ export interface ThreadTarget {
 }
 
 // An answer as the operator writes it on an ask's card: the suggested answers
-// picked, whether the Other choice is checked, the words in the own-words
-// field, and whether the answer is set aside to decline the ask instead. The
-// words stay when Other is unchecked and go with the answer only while it is
-// checked, or always on an ask without suggested answers, where the field is
-// the whole answer. Declining keeps the rest, so undoing it brings the
-// choices back as they were.
+// picked, whether the Other choice is checked instead, the words in the
+// Notes field, and whether the answer is set aside to decline the ask
+// instead. Beside picks the words are notes; with Other, or on an ask
+// without suggested answers, they are the whole answer. On an ask with
+// suggested answers, words with nothing chosen keep the answer staged but
+// incomplete until something is chosen or they are cleared. Declining keeps
+// the rest, so undoing it brings the choices back as they were.
 export interface AnswerDraft {
   picks: number[];
   other: boolean;
@@ -61,34 +62,36 @@ export interface StagedAnswer {
 
 export const blank = (text: string) => text.trim() === "";
 
-// wordsCount says whether a staged answer's words go with it: while Other is
-// checked, or always on an ask without suggested answers.
-const wordsCount = ({ answer, labels }: StagedAnswer) => answer.other || labels.length === 0;
+// wordsNeeded says whether a staged answer needs words, being them whole:
+// while Other is checked, or on an ask without suggested answers. Beside
+// picks alone they are optional notes.
+const wordsNeeded = ({ answer, labels }: StagedAnswer) => answer.other || labels.length === 0;
 
-// holdsAnswer says whether a draft holds anything of an answer: something
-// chosen, or words. A new answer that holds nothing stages nothing.
+// holdsAnswer says whether a draft holds anything of an answer: a decline,
+// something chosen, or words. A new answer that holds nothing stages nothing.
 export function holdsAnswer(answer: AnswerDraft): boolean {
   return answer.declined || answer.picks.length > 0 || answer.other || answer.words !== "";
 }
 
-// ownWords gives the words a staged answer sends: its words, while they count
-// and are not blank.
+// ownWords gives the words a staged answer sends, unless they are blank. An
+// answer is sent only once complete, so they go beside its picks or as the
+// whole answer.
 export function ownWords(staged: StagedAnswer): string | undefined {
-  return wordsCount(staged) && !blank(staged.answer.words) ? staged.answer.words : undefined;
+  return blank(staged.answer.words) ? undefined : staged.answer.words;
 }
 
 // wordsMissing says whether a staged answer, new or changed, cannot be sent
-// for want of words: they count, and are blank.
+// for want of words: they are needed, and are blank.
 export function wordsMissing(staged: StagedAnswer): boolean {
-  return !staged.answer.declined && wordsCount(staged) && ownWords(staged) === undefined;
+  return !staged.answer.declined && wordsNeeded(staged) && ownWords(staged) === undefined;
 }
 
 // complete says whether a staged answer can be sent: it is a decline, or has
-// words where they count and else picks.
+// words where they are needed and else picks.
 function complete(staged: StagedAnswer): boolean {
   return (
     staged.answer.declined ||
-    (wordsCount(staged) ? ownWords(staged) !== undefined : staged.answer.picks.length > 0)
+    (wordsNeeded(staged) ? ownWords(staged) !== undefined : staged.answer.picks.length > 0)
   );
 }
 

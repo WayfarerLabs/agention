@@ -112,8 +112,8 @@ export const ask = z
         "suggested answers must be distinct",
       )
       .describe(
-        "Suggested answers the audience may pick; it may always answer in its own words " +
-          "instead, or beside its picks where several are allowed.",
+        "Suggested answers the audience may pick; it may add its own words beside its picks " +
+          "as notes, or answer in its own words alone instead.",
       ),
     multiple: z
       .boolean()
@@ -154,13 +154,14 @@ export const askList = z
   );
 
 export const answerText = multilineText({ min: 1, max: 4_000 }).describe(
-  "Plain text: the audience's own words on the ask, instead of a pick or, where several are " +
-    "allowed, beside its picks; the whole answer to an ask without suggested answers.",
+  "Plain text: the audience's own words on the ask, part of the answer: notes beside its picks, " +
+    "or the whole answer when nothing is picked.",
 );
 
 // An answer, the audience's reply written on an ask and sent on a message:
 // a decline, or the picked suggested answers and the audience's own words, at
-// least one of them. The message's text beside it is any additional
+// least one of them. The words are notes beside the picks, or the whole
+// answer without them. The message's text beside it is any additional
 // information.
 export const answer = z
   .object({

@@ -295,32 +295,86 @@ describe("answering on the card", () => {
     expect(stagedLine()).toBeNull();
   });
 
-  it("answers an ask that allows several with checkboxes, Other combining with the picks", async () => {
+  it("sends notes beside the one pick, showing their field once something is chosen", async () => {
+    await opening();
+    page.api.on("POST", `${path}/messages`, written(2));
+    const notes = () =>
+      within(card()).queryByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
+    expect(notes()).toBeNull();
+    choice(/^Postgres/).focus();
+    fireEvent.click(choice(/^Postgres/));
+    // Picking leaves focus on the choices, and the notes are optional.
+    expect(document.activeElement).toBe(choice(/^Postgres/));
+    expect(sendButton().disabled).toBe(false);
+    fireEvent.change(notes() as HTMLTextAreaElement, { target: { value: "Behind a pool." } });
+    expect(stagedLine()?.textContent).toContain(quoted(["Postgres"]));
+    expect(stagedLine()?.textContent).not.toContain(otherLabel);
+    fireEvent.blur(notes() as HTMLTextAreaElement);
+    expect(notes()?.getAttribute("aria-invalid")).toBeNull();
+    expect((await send())?.answers).toEqual([{ ask: 1, picks: [1], text: "Behind a pool." }]);
+  });
+
+  it("keeps the notes as the choice changes, Other needing them as the whole answer", async () => {
+    await opening();
+    page.api.on("POST", `${path}/messages`, written(2));
+    const notes = () => within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
+    fireEvent.click(choice(/^SQLite/));
+    fireEvent.change(notes(), { target: { value: "Small data." } });
+    fireEvent.click(choice(/^Postgres/));
+    expect(notes().value).toBe("Small data.");
+    // Other takes the notes as the answer, moving to them to write.
+    fireEvent.click(choice("Other"));
+    expect(document.activeElement).toBe(notes());
+    expect(notes().value).toBe("Small data.");
+    expect(sendButton().disabled).toBe(false);
+    // Without them, Other is an answer started but not complete, and says so
+    // once the field is left; a pick needs none.
+    fireEvent.change(notes(), { target: { value: " " } });
+    expect(sendButton().disabled).toBe(true);
+    fireEvent.blur(notes());
+    expect(notes().getAttribute("aria-invalid")).toBe("true");
+    fireEvent.click(choice(/^SQLite/));
+    expect(notes().getAttribute("aria-invalid")).toBeNull();
+    expect(sendButton().disabled).toBe(false);
+    fireEvent.click(choice("Other"));
+    fireEvent.change(notes(), { target: { value: "Neither; files." } });
+    expect((await send())?.answers).toEqual([{ ask: 1, text: "Neither; files." }]);
+  });
+
+  it("answers an ask that allows several with checkboxes, notes beside the picks and Other in their place", async () => {
     await opening(three);
     page.api.on("POST", `${path}/messages`, written(2));
     expect(within(card()).queryAllByRole("radio")).toEqual([]);
+    const words = () => within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
     fireEvent.click(choice("Good"));
     fireEvent.click(choice("Fast"));
+    fireEvent.change(words(), { target: { value: "And reliable,\nabove all." } });
+    expect(words().maxLength).toBe(4_000);
+    // Other takes the place of the picks, and a pick the place of Other.
     fireEvent.click(choice("Other"));
-    const words = within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" });
-    // Other chosen without words is an answer started but not complete.
-    expect(sendButton().disabled).toBe(true);
-    fireEvent.change(words, { target: { value: "And reliable,\nabove all." } });
-    expect(words.maxLength).toBe(4_000);
+    expect([choice("Fast"), choice("Good")].map((input) => input.checked)).toEqual([false, false]);
+    fireEvent.click(choice("Cheap"));
+    expect(choice("Other").checked).toBe(false);
+    fireEvent.click(choice("Cheap"));
+    fireEvent.click(choice("Good"));
+    fireEvent.click(choice("Fast"));
     expect((await send())?.answers).toEqual([
       { ask: 1, picks: [0, 2], text: "And reliable,\nabove all." },
     ]);
     expect(page.bodies()[0]).not.toHaveProperty("text");
   });
 
-  it("names what is staged in the card's terms: the picks and Other, or an answer written", async () => {
+  it("names what is staged in the card's terms: the picks with notes, Other, or an answer written", async () => {
     await opening(three);
     fireEvent.click(choice("Cheap"));
-    fireEvent.click(choice("Other"));
-    fireEvent.change(within(card()).getByRole("textbox", { name: "Other" }), {
+    fireEvent.change(within(card()).getByRole("textbox", { name: "Notes" }), {
       target: { value: "Quietly." },
     });
-    expect(stagedLine()?.textContent).toContain(`${quoted(["Cheap"])}, ${otherLabel}`);
+    expect(stagedLine()?.textContent).toContain(quoted(["Cheap"]));
+    expect(stagedLine()?.textContent).not.toContain(otherLabel);
+    fireEvent.click(choice("Other"));
+    expect(stagedLine()?.textContent).toContain(otherLabel);
+    expect(stagedLine()?.textContent).not.toContain(quoted(["Cheap"]));
     cleanup();
     page = new ThreadPageTest();
     await opening({ suggestions: [] });
@@ -331,7 +385,7 @@ describe("answering on the card", () => {
   it("says own words are missing only once their field is left without them", async () => {
     await opening();
     fireEvent.click(choice("Other"));
-    const words = within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" });
+    const words = within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
     // Choosing Other moves to its field, to write in.
     expect(document.activeElement).toBe(words);
     expect(words.getAttribute("aria-invalid")).toBeNull();
@@ -343,38 +397,46 @@ describe("answering on the card", () => {
     expect(sendButton().disabled).toBe(false);
   });
 
-  it("keeps own words when Other is unchecked, staging nothing only once nothing is left", async () => {
+  it("keeps the notes in view when every choice is unchecked, staging nothing only once nothing is left", async () => {
     await opening(three);
-    fireEvent.click(choice("Cheap"));
+    page.api.on("POST", `${path}/messages`, written(2));
     fireEvent.click(choice("Other"));
-    const words = () => within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" });
+    const words = () => within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
     fireEvent.change(words(), { target: { value: "Quietly." } });
     choice("Cheap").focus();
     fireEvent.click(choice("Other"));
     // Unchecking Other leaves focus where it was.
     expect(document.activeElement).toBe(choice("Cheap"));
-    fireEvent.click(choice("Cheap"));
-    // Nothing is chosen, but the words are kept: the answer stays, not yet sendable.
+    // Nothing is chosen, but the words are kept in view: the answer stays,
+    // not yet sendable, and Clear can remove it.
+    expect(words().value).toBe("Quietly.");
     expect(stagedLine()).not.toBeNull();
     expect(sendButton().disabled).toBe(true);
-    fireEvent.click(choice("Other"));
-    expect(words().value).toBe("Quietly.");
+    expect(within(card()).getByRole("button", { name: "Clear" })).toBeTruthy();
+    // Choosing again makes it whole, the words going beside the pick.
+    fireEvent.click(choice("Cheap"));
+    expect(sendButton().disabled).toBe(false);
+    fireEvent.click(choice("Cheap"));
+    // Emptying the words with nothing chosen stages nothing, and the field goes.
     fireEvent.change(words(), { target: { value: "" } });
-    fireEvent.click(choice("Other"));
     expect(stagedLine()).toBeNull();
+    expect(within(card()).queryByRole("textbox", { name: "Notes" })).toBeNull();
+    fireEvent.click(choice("Cheap"));
+    fireEvent.change(words(), { target: { value: "Quietly." } });
+    expect((await send())?.answers).toEqual([{ ask: 1, picks: [1], text: "Quietly." }]);
   });
 
   it("clears the card, own words included, when the answer is removed, and returns to the box", async () => {
     await opening(three);
     fireEvent.click(choice("Other"));
-    fireEvent.change(within(card()).getByRole("textbox", { name: "Other" }), {
+    fireEvent.change(within(card()).getByRole("textbox", { name: "Notes" }), {
       target: { value: "Quietly." },
     });
     removeAnswer(1);
     expect(stagedLine()).toBeNull();
     expect(document.activeElement).toBe(textBox());
     fireEvent.click(choice("Other"));
-    expect(within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" }).value).toBe(
+    expect(within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" }).value).toBe(
       "",
     );
   });
@@ -387,7 +449,7 @@ describe("answering on the card", () => {
       failure("invalid_input", "must be at most 4000 characters", { field: "answers.0.text" }),
     );
     fireEvent.click(choice("Other"));
-    const words = within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" });
+    const words = within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
     fireEvent.change(words, { target: { value: "Files." } });
     fireEvent.click(sendButton());
     await waitFor(() => expect(words.getAttribute("aria-invalid")).toBe("true"));
@@ -408,7 +470,7 @@ describe("answering on the card", () => {
       `${path}/messages`,
       failure("invalid_input", "must not hold control characters", { field: "answers.0.text" }),
     );
-    const words = () => within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" });
+    const words = () => within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" });
     const refuse = async () => {
       fireEvent.click(sendButton());
       await waitFor(() => expect(words().getAttribute("aria-invalid")).toBe("true"));
@@ -434,7 +496,7 @@ describe("answering on the card", () => {
     fireEvent.click(choice(/^SQLite/));
     fireEvent.click(choice("Other"));
     expect(choice(/^SQLite/).checked).toBe(false);
-    fireEvent.change(within(card()).getByRole("textbox", { name: "Other" }), {
+    fireEvent.change(within(card()).getByRole("textbox", { name: "Notes" }), {
       target: { value: "Neither; use files." },
     });
     expect((await send())?.answers).toEqual([{ ask: 1, text: "Neither; use files." }]);
@@ -483,12 +545,11 @@ describe("answering on the card", () => {
   it.each([
     ["a pick where the ask allows one", {}, () => fireEvent.click(choice(/^SQLite/))],
     [
-      "picks and Other's words where it allows several",
+      "picks and notes where it allows several",
       three,
       () => {
         fireEvent.click(choice("Fast"));
-        fireEvent.click(choice("Other"));
-        fireEvent.change(within(card()).getByRole("textbox", { name: "Other" }), {
+        fireEvent.change(within(card()).getByRole("textbox", { name: "Notes" }), {
           target: { value: "Quietly." },
         });
       },
@@ -518,7 +579,7 @@ describe("answering on the card", () => {
       expect(choices().some((input) => input.checked)).toBe(false);
       fireEvent.click(choice("Other"));
       expect(
-        within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" }).value,
+        within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" }).value,
       ).toBe("");
     },
   );
@@ -583,7 +644,7 @@ describe("answering on the card", () => {
     fireEvent.click(choice(/^SQLite/, 1));
     fireEvent.click(choice("Other", 2));
     expect(sendButton().disabled).toBe(true);
-    fireEvent.change(within(card(2)).getByRole("textbox", { name: "Other" }), {
+    fireEvent.change(within(card(2)).getByRole("textbox", { name: "Notes" }), {
       target: { value: "Files." },
     });
     expect(sendButton().disabled).toBe(false);
@@ -607,10 +668,10 @@ describe("answering on the card", () => {
     expect(heldHint(group)).toBeNull();
   });
 
-  it("changes an answer, loading its picks, own words, text and detail, and sends it as a replacement", async () => {
+  it("changes an answer, loading its pick, notes, text and detail, and sends it as a replacement", async () => {
     const answer = { declined: false, picks: [0], labels: ["SQLite"], text: "Also files." };
     await page.openWith([
-      message(1, { asks: [ask({ multiple: true, open: false, answer: { seq: 2, ...answer } })] }),
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, ...answer } })] }),
       operatorMessage(2, {
         text: "Small data.",
         detail: "Under a gigabyte a year.",
@@ -628,11 +689,11 @@ describe("answering on the card", () => {
     await waitFor(() => expect(textBox().value).toBe("Small data."));
     expect(detailsBox().value).toBe("Under a gigabyte a year.");
     expect(choice(/^SQLite/).checked).toBe(true);
-    expect(choice("Other").checked).toBe(true);
-    expect(within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Other" }).value).toBe(
+    // Words beside a pick are its notes, not Other.
+    expect(choice("Other").checked).toBe(false);
+    expect(within(card()).getByRole<HTMLTextAreaElement>("textbox", { name: "Notes" }).value).toBe(
       "Also files.",
     );
-    fireEvent.click(choice(/^SQLite/));
     fireEvent.click(choice(/^Postgres/));
     page.api.on("POST", `${path}/messages`, written(3));
     expect(await send()).toMatchObject({

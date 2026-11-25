@@ -253,8 +253,9 @@ test("the operator answers two asks in one message, and the agent reads the answ
 
   // Each answer is written on its ask's card, which leads with the ask's
   // number: a radio button for each suggested answer, and Other for the
-  // operator's own words. Both answers go in one message, beside which the
-  // box holds additional information.
+  // operator's own words, written in Notes, which also go beside a pick.
+  // Both answers go in one message, beside which the box holds additional
+  // information.
   const ask = page.getByRole("region", { name: "Ask 1: Ship it today?" });
   const tag = page.getByRole("region", { name: "Ask 2: Tag the release?" });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -263,8 +264,9 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await ask.getByRole("radio", { name: "Other" }).check();
   await expect(ask.getByRole("radio", { name: "Hold" })).not.toBeChecked();
   await expect(send).toBeDisabled();
-  await ask.getByRole("textbox", { name: "Other" }).fill("Hold until Monday.");
+  await ask.getByRole("textbox", { name: "Notes" }).fill("Hold until Monday.");
   await tag.getByRole("radio", { name: "Skip" }).check();
+  await tag.getByRole("textbox", { name: "Notes" }).fill("Tag with the next one.");
   const reply = page.getByRole("region", { name: "Reply" });
   await reply.getByRole("textbox").fill("Notes are late.");
   // The Details box folds under the message box until opened.
@@ -282,6 +284,8 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await expect(answered.locator(".event")).toHaveCount(2);
   await expect(answered.locator(".event").first()).toContainText("Other");
   await expect(answered.locator(".event").last()).toContainText("Skip");
+  await expect(answered.locator(".event").last()).not.toContainText("Other");
+  await expect(tag.getByText("Tag with the next one.")).toBeVisible();
 
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/1`);
   expect(read.body.thread.title).toBe(title);
@@ -292,7 +296,7 @@ test("the operator answers two asks in one message, and the agent reads the answ
     detail: "The changelog is in **review**.",
     answers: [
       { ask: 1, declined: false, text: "Hold until Monday." },
-      { ask: 2, declined: false, picks: [1], labels: ["Skip"] },
+      { ask: 2, declined: false, picks: [1], labels: ["Skip"], text: "Tag with the next one." },
     ],
   });
 });

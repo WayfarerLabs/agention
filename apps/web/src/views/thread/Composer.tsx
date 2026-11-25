@@ -57,13 +57,15 @@ import {
 // its bound.
 
 // describeAnswer names a staged answer by its ask's number, in the card's
-// terms: declined, the suggestions picked and Other, or on an ask without
-// suggestions, the answer written.
+// terms: declined, the suggestions picked with notes when words go beside
+// them, or Other, or on an ask without suggestions, the answer written.
 function describeAnswer(staged: StagedAnswer): string {
   const { answer, labels } = staged;
+  const notes = answer.picks.length > 0 && ownWords(staged) !== undefined;
   const chosen = [
     ...answer.picks.map((pick) => quoted([labels[pick] ?? `#${pick + 1}`])),
     ...(answer.other ? [otherLabel] : []),
+    ...(notes ? ["with notes"] : []),
   ];
   const what = answer.declined
     ? "Declined"
