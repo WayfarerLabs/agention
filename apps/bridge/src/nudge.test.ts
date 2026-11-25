@@ -373,6 +373,46 @@ describe("the bridge's nudge", () => {
     },
   );
 
+  it("starts the next nudge a poll says is due while the last one's outcome was sent again", async () => {
+    const nudges = new FakeNudges({ sent: true }, { sent: true });
+    let failing = true;
+    harness.answer = (seen) =>
+      seen.path.endsWith("/monitor/nudge") &&
+      (seen.body as { phase?: string }).phase === "done" &&
+      failing
+        ? new Response("Bad gateway", { status: 502 })
+        : undefined;
+    // Polls wait five seconds, so a next nudge that starts well within that
+    // did not wait for the poll that follows the due answer to end.
+    const bridge = await nudgedBridge(nudges, nudging, 5);
+    await harness.operatorStarts("Over to you.");
+    await eventually(() => (nudgeBodies().length >= 2 ? true : undefined), "the first outcome");
+    // The agent checks in, and the operator writes again, so the next nudge
+    // is due while the first one's outcome is still being sent.
+    harness.server.fixture.advance(1);
+    await bridge.ok("thread_list");
+    harness.server.fixture.advance(1);
+    await harness.operatorStarts("And this.");
+    const told = performance.now();
+    await eventually(
+      () =>
+        harness.polls().some((seen) => seen.at > told && seen.query.get("nudge") === "true") ||
+        undefined,
+      "the poll that knows the next nudge is due",
+      400,
+    );
+    expect(nudges.calls).toHaveLength(1);
+    failing = false;
+    const resumed = performance.now();
+    await eventually(() => (nudges.calls.length === 2 ? true : undefined), "the next nudge");
+    expect((nudges.calls[1]?.at ?? Infinity) - resumed).toBeLessThan(2500);
+    await eventually(() => (outcome() === 1 ? true : undefined), "the next nudge's outcome");
+    expect(nudgeBodies().filter((body) => (body as { phase: string }).phase === "start")).toEqual([
+      { phase: "start" },
+      { phase: "start" },
+    ]);
+  });
+
   it("stops nudging for good once the server refuses a claim as invalid", async () => {
     const nudges = new FakeNudges({ sent: true }, { sent: true });
     harness.answer = (seen) =>

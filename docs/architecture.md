@@ -1248,10 +1248,12 @@ its tokens and where its requests may go.
   server or the server fails on or rate limits it, a claim within the one try, before the observer
   reads the pane again. Where such a failure may have left the server holding a claim that the claim
   sent again finds no longer due, the reporter sends `{phase: "done", sent: false}`, so a nudge
-  never typed is not shown as sent. A claim or outcome the server refuses as `invalid_input` stops
-  nudging for the life of the process, logged by the code alone, and from then on its reports say
-  the session cannot be nudged and `register` says `check`; any other refusal is the poll's to deal
-  with. A takeover or the bridge closing stops a nudge under way with no key more.
+  never typed is not shown as sent. A poll that says a nudge is due while an outcome is still being
+  sent starts the next nudge once that ends. A claim or outcome the server refuses as
+  `invalid_input` stops nudging for the life of the process, logged by the code alone, and from then
+  on its reports say the session cannot be nudged and `register` says `check`; any other refusal is
+  the poll's to deal with. A takeover or the bridge closing stops a nudge under way with no key
+  more.
 - **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
   monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
   server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with

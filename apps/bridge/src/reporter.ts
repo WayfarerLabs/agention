@@ -338,14 +338,23 @@ export class Reporter {
 
   // startNudging tries the nudge the server says is due, while the bridge
   // acts for its session, unless its tries run already or nudging is off.
+  // Tries that end while a poll says one is due again, as one can while an
+  // outcome is sent again, start anew, since that poll could not.
   #startNudging(): void {
     const acting = this.#acting;
     if (this.#nudging || this.#nudgeOff || acting === undefined) {
       return;
     }
     this.#nudging = true;
+    let ended = false;
     void this.#nudgeWhileDue(AbortSignal.any([acting.signal, this.#closed.signal]))
-      .finally(() => (this.#nudging = false))
+      .then(() => (ended = true))
+      .finally(() => {
+        this.#nudging = false;
+        if (ended && this.#due) {
+          this.#startNudging();
+        }
+      })
       .catch(() => undefined);
   }
 
