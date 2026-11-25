@@ -1,7 +1,7 @@
 # Session monitoring and nudge: Functional Requirements
 
 - Status: Draft, for the operator's acceptance
-- Date: 2026-11-23, restructured 2026-11-24
+- Date: 2026-11-23, restructured with rulings 3 and 4
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
   records operator rulings here verbatim.

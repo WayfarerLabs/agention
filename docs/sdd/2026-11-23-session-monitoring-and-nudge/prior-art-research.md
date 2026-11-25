@@ -111,7 +111,8 @@ cursor shows.
 - **Two Claude Code states look like its prompt.** In vim's normal mode the input looks the same but
   the footer lacks `-- INSERT --`, Backspace only moves the cursor, and a paste still inserts. In
   shell mode, entered by typing `!` at the start, the glyph becomes `!` and Enter runs the line in a
-  shell. Claude Code's profile needs both checks.
+  shell. The later captures for the profiles refined both: Claude Code's marker is `❯` and a
+  no-break space, and its vim normal mode shows no footer at all, so its profile reads none.
 - **Clearing.** Backspace, as many times as the pasted text is long, cleared the line on both hosts,
   wrapped lines included, and extra Backspaces at an empty prompt did nothing. Ctrl-U clears only to
   the start of a screen row on Claude Code. Escape must never be sent: on Claude Code it leaves vim
