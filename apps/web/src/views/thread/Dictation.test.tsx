@@ -105,6 +105,24 @@ describe("dictation in the composer", () => {
     expect(page.writes()).toEqual([]);
   });
 
+  it("keeps focus on After sending as it moves back beside Send", async () => {
+    const recorder = installRecorder();
+    await openThread();
+    fireEvent.change(textBox(), { target: { value: "Use it." } });
+    answerTranscriptions({ body: { text: "SQLite" } });
+    await record(recorder);
+    const option = () => within(composer()).getByRole("combobox", { name: "After sending" });
+    // While recording, it sits below the Send row.
+    expect(option().closest(".actions")).toBeNull();
+    option().focus();
+    fireEvent.click(control("Stop"));
+    await waitFor(() => {
+      expect(textBox().value).toBe("Use it. SQLite");
+      expect(document.activeElement).toBe(option());
+    });
+    expect(option().closest(".actions")).not.toBeNull();
+  });
+
   it("puts the text in Details when that box last had focus", async () => {
     const recorder = installRecorder();
     await openThread();

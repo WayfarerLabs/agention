@@ -205,10 +205,13 @@ Refines the shared **Recorded state and migrations** check. One SQLite database 
 `node:sqlite`, one serialized writer (immediate transactions that are synchronous functions and
 never span an `await`), pragmas applied on open, and private file permissions verified independent
 of umask (`docs/architecture.md` "Database"; `SECURITY.md` "Private files"). Migrations are keyed on
-`user_version` and append-only: a migration that has shipped is never edited
-(`apps/server/src/database/migrations.ts`). A backup is consistent and changes nothing:
-`agention backup` opens the database read-only without migrating it and copies it with SQLite's
-online backup in one step, into a new private file that it checks and removes on failure
+`user_version` and append-only: a migration that has shipped is never edited. CI checks each
+migration against its hash in `apps/server/src/database/migrations.test.ts`, so a change to an
+existing hash there is legitimate only for a migration no release tag contains: confirm it is absent
+from `git show <latest release tag>:apps/server/src/database/migrations.ts`, or that
+`git tag --contains` on the commit that added it prints nothing. A backup is consistent and changes
+nothing: `agention backup` opens the database read-only without migrating it and copies it with
+SQLite's online backup in one step, into a new private file that it checks and removes on failure
 (`docs/architecture.md` "Database"); a raw copy of a running instance's files is no proof of a valid
 live backup. Restore is stop, replace the database and its `-wal` and `-shm` files, start
 (`docs/operator-guide.md` "Backing up"). History is retained indefinitely (ADR 0001 "Consequences").

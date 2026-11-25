@@ -36,8 +36,11 @@ import {
   threadCounts,
   threadFilters,
   threadList,
+  threadNeighbors,
+  threadParams,
   threadStartInput,
   threadsQuery,
+  threadsView,
   writeResult,
 } from "@wayfarerlabs/agention-api";
 import {
@@ -47,6 +50,7 @@ import {
   countThreads,
   createGroup,
   createTag,
+  findThreadNeighbors,
   listGroupsAndTags,
   listRegistrations,
   listSessions,
@@ -100,6 +104,20 @@ export const operatorOperations: readonly OperatorOperation[] = [
     query: threadFilters,
     response: threadCounts,
     handler: ({ store, identity, query }) => countThreads(store, identity, query),
+  }),
+  operation({
+    name: "findThreadNeighbors",
+    method: "GET",
+    path: "/s/:agent/:session/threads/:thread/neighbors",
+    summary:
+      "Find the threads just above and below a thread in the thread list, filtered, sorted " +
+      "and grouped, with the thread at its own place though the filters would leave it out",
+    scope: "threads:read",
+    params: threadParams,
+    query: threadsView,
+    response: threadNeighbors,
+    handler: ({ store, identity, params, query }) =>
+      findThreadNeighbors(store, identity, params, query),
   }),
   // The operator's long poll, the agent's waitForThreads across every
   // session. It ends when a message it reports commits, the credential is

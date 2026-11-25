@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect } from "vitest";
 import { type Answer, TestAuthenticator } from "../auth/test-authenticator.ts";
-import { Database } from "../database/database.ts";
+import { openTestDatabase } from "../database/test-database.ts";
 import { createStore, type Store } from "../store/index.ts";
 import { start } from "../store/test-fixture.ts";
 import { createApp } from "./app.ts";
@@ -15,7 +15,7 @@ import { defaultRates, type Rates } from "./rates.ts";
 
 export class TestServer {
   readonly root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-passkeys-")));
-  readonly db = Database.open(path.join(this.root, "agention.db"));
+  readonly db = openTestDatabase(path.join(this.root, "agention.db"));
   readonly origin: string;
   readonly store: Store;
   readonly app: Hono;

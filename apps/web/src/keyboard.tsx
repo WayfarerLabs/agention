@@ -2,6 +2,7 @@ import {
   createContext,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -28,11 +29,28 @@ import { Link, navigate, useLocation } from "./router.tsx";
 // screen reader in its browse mode takes single keys for its own navigation
 // before the page sees them, so these act only once it passes keys through,
 // as in its focus mode or where the operator lets a key through.
+//
+// Side by side, the thread list and a thread are on the page at once, each
+// in its pane, which its view's ShortcutArea names. While focus is in one
+// place's area, another place's keys act there only if they reach across
+// (reachesAcross): the list's do, moving focus into it, as j does from the
+// thread beside it, but a thread's do not, so e, a digit or u never acts on
+// the thread while the operator is in the list. A key both places bind, as
+// both bind n, acts in the place whose area holds focus, or, with focus in
+// neither, in the later place in shortcutPlaces: the thread.
 
 // Where a shortcut acts: anywhere, on the thread list, on a thread's page,
 // or within the composer's text fields.
 const shortcutPlaces = ["Anywhere", "Thread list", "Thread", "Composer"] as const;
 export type ShortcutPlace = (typeof shortcutPlaces)[number];
+
+// Whether a place's keys act while focus is in another place's area.
+const reachesAcross: Record<ShortcutPlace, boolean> = {
+  Anywhere: true,
+  "Thread list": true,
+  Thread: false,
+  Composer: false,
+};
 
 // A key is a KeyboardEvent key value, such as "j", "?" or "Escape"; one with
 // a modifier it needs, "Control+Enter" or "Meta+Enter"; "1-9", any digit from
@@ -42,6 +60,10 @@ export interface Shortcut {
   // The keys that do it, any one of them.
   keys: readonly string[];
   description: string;
+  // Whether a key held down acts once, not again as it repeats: those that
+  // leave the page, which would otherwise go on past where the operator
+  // meant to stop.
+  once?: true;
 }
 
 export const shortcuts = {
@@ -65,7 +87,24 @@ export const shortcuts = {
   search: { place: "Thread list", keys: ["/"], description: "Search the threads" },
   backToList: { place: "Thread", keys: ["u", "Escape"], description: "Back to the thread list" },
   reply: { place: "Thread", keys: ["r"], description: "Write in the composer" },
-  archive: { place: "Thread", keys: ["e"], description: "Archive all of the thread" },
+  archive: {
+    place: "Thread",
+    keys: ["e"],
+    description: "Archive all of the thread, then go where Auto-advance says",
+    once: true,
+  },
+  openAbove: {
+    place: "Thread",
+    keys: ["["],
+    description: "Open the thread above in the list",
+    once: true,
+  },
+  openBelow: {
+    place: "Thread",
+    keys: ["]"],
+    description: "Open the thread below in the list",
+    once: true,
+  },
   jump: {
     place: "Thread",
     keys: ["n"],
@@ -109,6 +148,19 @@ const keyboardSettingsHref = "/settings/keyboard";
 
 const digit = /^[1-9]$/;
 
+// modified says whether Ctrl, Alt or Meta is held for its own sake. AltGr,
+// which types a character on many layouts, as ] on a German keyboard, and
+// which Chrome on Windows reports as Ctrl and Alt held together, holds none
+// for a key it types, punctuation such as [ and ]: the key is the character
+// it typed. Chrome on Windows reports AltGr for a real Ctrl and Alt chord
+// too, so with a letter or a digit, which no shortcut needs AltGr to type,
+// or a named key such as Escape, which types nothing, it counts as Ctrl and
+// Alt.
+function modified(event: KeyboardEvent | ReactKeyboardEvent): boolean {
+  const typedByAltGr = event.getModifierState("AltGraph") && /^[^\p{L}\p{N}]$/u.test(event.key);
+  return event.metaKey || (!typedByAltGr && (event.ctrlKey || event.altKey));
+}
+
 // stepMatches says whether one key of a shortcut is the key pressed.
 function stepMatches(step: string, event: KeyboardEvent | ReactKeyboardEvent): boolean {
   const [modifier, key] = step.includes("+") && step.length > 1 ? step.split("+") : [];
@@ -117,7 +169,7 @@ function stepMatches(step: string, event: KeyboardEvent | ReactKeyboardEvent): b
     const other = modifier === "Control" ? event.metaKey : event.ctrlKey;
     return held && !other && !event.altKey && !event.shiftKey && event.key === key;
   }
-  if (event.ctrlKey || event.altKey || event.metaKey) {
+  if (modified(event)) {
     return false;
   }
   return step === "1-9" ? digit.test(event.key) : event.key === step;
@@ -167,10 +219,17 @@ interface Keyboard {
   setOn: (on: boolean) => void;
   showHelp: () => void;
   // register gives a shortcut its action, through a getter of the latest,
-  // until the returned function takes it away. Only one component gives a
-  // shortcut its action at a time.
-  register: (id: ShortcutId, action: () => ShortcutAction) => () => void;
+  // in the area of the page its place holds, if it names one, until the
+  // returned function takes it away. Only one component gives a shortcut its
+  // action at a time.
+  register: (id: ShortcutId, action: () => ShortcutAction, area?: Area) => () => void;
 }
+
+// The part of the page a place holds, side by side: its pane.
+type Area = RefObject<HTMLElement | null>;
+
+// ShortcutArea names, for the views within it, the area their place holds.
+export const ShortcutArea = createContext<Area | undefined>(undefined);
 
 const KeyboardContext = createContext<Keyboard | undefined>(undefined);
 
@@ -195,22 +254,23 @@ export function useShortcuts<P extends "Thread list" | "Thread">(
   _place: P,
   actions: PlaceActions<P>,
 ): void {
-  useRegistered(useKeyboardContext().register, actions);
+  useRegistered(useKeyboardContext().register, actions, useContext(ShortcutArea));
 }
 
 function useRegistered<P extends ShortcutPlace>(
   register: Keyboard["register"],
   actions: PlaceActions<P>,
+  area?: Area,
 ): void {
   const latest = useRef(actions);
   latest.current = actions;
   const ids = Object.keys(actions).sort().join(" ");
   useEffect(() => {
     const removals = (ids.split(" ") as IdsIn<P>[]).map((id) =>
-      register(id, () => latest.current[id]),
+      register(id, () => latest.current[id], area),
     );
     return () => removals.forEach((remove) => remove());
-  }, [register, ids]);
+  }, [register, ids, area]);
 }
 
 // useFieldShortcuts gives the composer's form a key handler for the
@@ -241,16 +301,16 @@ export function useFieldShortcuts(
 // the help overlay, which shows the shortcuts whether or not they are on.
 export function KeyboardProvider({ children }: { children: ReactNode }) {
   const [on, setOn] = useDeviceChoice(shortcutsChoice, true);
-  // Each shortcut's action, by its id.
-  const actions = useRef(new Map<ShortcutId, () => ShortcutAction>());
+  // Each shortcut's action, and its place's area, by its id.
+  const actions = useRef(new Map<ShortcutId, { action: () => ShortcutAction; area?: Area }>());
   const [helpOpen, setHelpOpen] = useState(false);
   const showHelp = useCallback(() => setHelpOpen(true), []);
-  const register = useCallback((id: ShortcutId, action: () => ShortcutAction) => {
+  const register = useCallback((id: ShortcutId, action: () => ShortcutAction, area?: Area) => {
     const map = actions.current;
     if (map.has(id)) {
       throw new Error(`The shortcut ${id} already has an action`);
     }
-    map.set(id, action);
+    map.set(id, area === undefined ? { action } : { action, area });
     return () => map.delete(id);
   }, []);
   useRegistered<"Anywhere">(register, {
@@ -271,9 +331,11 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       pending = undefined;
     };
     // actionFor finds the action of the registered shortcut a key completes,
-    // after the first key of two, before, or alone.
+    // after the first key of two, before, or alone, among those that act
+    // where focus is; of two places' that both bind it, the one in the area
+    // that holds focus, or else the later place's.
     const actionFor = (event: KeyboardEvent, before: string | undefined) => {
-      for (const [id, action] of actions.current) {
+      const completed = [...actions.current].flatMap(([id, registered]) => {
         const shortcut: Shortcut = shortcuts[id];
         const matches = shortcut.keys.some((key) => {
           const steps = stepsOf(key);
@@ -282,11 +344,21 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
             ? steps.length === 1 && first !== undefined && stepMatches(first, event)
             : first === before && second !== undefined && stepMatches(second, event);
         });
-        if (matches) {
-          return action();
-        }
-      }
-      return undefined;
+        return matches
+          ? [{ place: shortcut.place, once: shortcut.once === true, ...registered }]
+          : [];
+      });
+      const focus = document.activeElement;
+      const holds = (area: Area | undefined) =>
+        focus !== null && area?.current?.contains(focus) === true;
+      const inArea = [...actions.current.values()].some(({ area }) => holds(area));
+      const acting = completed.filter(
+        ({ place, area }) => !inArea || holds(area) || reachesAcross[place],
+      );
+      const order = ({ place }: { place: ShortcutPlace }) => shortcutPlaces.indexOf(place);
+      const focused = acting.find(({ area }) => holds(area));
+      const later = acting.sort((one, other) => order(other) - order(one))[0];
+      return focused ?? later;
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const before = pending?.key;
@@ -295,21 +367,17 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         return;
       }
       const second = before === undefined ? undefined : actionFor(event, before);
-      if (
-        second === undefined &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        !event.metaKey &&
-        prefixes.has(event.key)
-      ) {
+      if (second === undefined && !modified(event) && prefixes.has(event.key)) {
         event.preventDefault();
         pending = { key: event.key, timer: setTimeout(clear, prefixTimeout) };
         return;
       }
-      const action = second ?? actionFor(event, undefined);
-      if (action !== undefined) {
+      const found = second ?? actionFor(event, undefined);
+      if (found !== undefined) {
         event.preventDefault();
-        action(event.key);
+        if (!(found.once && event.repeat)) {
+          found.action()(event.key);
+        }
       }
     };
     document.addEventListener("keydown", onKeyDown);

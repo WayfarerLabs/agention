@@ -978,17 +978,32 @@ export function MessageView({
   );
 }
 
-// MessageList lists messages in order, marking whether each was read: those
-// unread when the page first showed them are marked unread. Each live message
-// has its options menu, one open at a time.
+// ArchivedDivider is the quiet rule after the last message the operator
+// archived, setting the messages after it apart. Its words are its name, so
+// a screen reader says them once.
+function ArchivedDivider() {
+  const label = "Archived through here";
+  return (
+    <div role="separator" aria-label={label} className="archived-divider">
+      <span aria-hidden="true">{label}</span>
+    </div>
+  );
+}
+
+// MessageList lists messages in order, marking unread those the page counts
+// unread. Each live message has its options menu, one open at a time. The
+// archived divider leads the first message after the archive mark, where the
+// page divides the two.
 export function MessageList({
   messages,
-  fresh,
+  unread,
   context,
+  firstAfterArchived,
 }: {
   messages: Message[];
-  fresh: ReadonlySet<number>;
+  unread: ReadonlySet<number>;
   context: MessageContext;
+  firstAfterArchived?: number | undefined;
 }) {
   const [open, setOpen] = useState<number>();
   const menu: OpenMenu = { open, set: setOpen };
@@ -998,10 +1013,11 @@ export function MessageList({
     <ol className="messages">
       {messages.map((message) => (
         <li key={message.seq}>
+          {message.seq === firstAfterArchived && <ArchivedDivider />}
           <MessageView
             message={message}
             context={context}
-            unread={fresh.has(message.seq)}
+            unread={unread.has(message.seq)}
             menu={menu}
           />
         </li>

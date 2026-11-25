@@ -20,8 +20,8 @@ import { Destination, Field, KeyField, TryIt } from "./VoiceParts.tsx";
 
 // Settings' voice: the transcription provider dictation sends recordings
 // to, through the server, which holds its key. The operator picks a preset
-// or enters their own server's address, a model, words to expect, and a key,
-// which is written and shown again at most as its last four characters. A
+// or enters their own server's address, a model, additional context, and a
+// key, which is written and shown again at most as its last four characters. A
 // field the server's environment supplies shows as set there and cannot be
 // changed here. Below the fields
 // the section says where recordings go, and once voice is on, Try it records
@@ -419,13 +419,14 @@ function VoiceForm({
       </Field>
       <Field
         id={`${id}-prompt`}
-        label="Words to recognize"
-        hint="Optional. Such as names, which the provider may otherwise mishear."
+        label="Additional context"
+        hint="Optional. Background the transcription can use: what you talk about, names, terms."
         problem={problemAt("prompt")}
       >
         {(describedBy, invalid) => (
-          <input
+          <textarea
             id={`${id}-prompt`}
+            rows={3}
             value={prompt}
             aria-invalid={invalid}
             aria-describedby={describedBy}

@@ -45,7 +45,12 @@ export {
 export { serverName, storedName, storeName } from "./server-name.ts";
 export { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
 export { createStore, type Store } from "./store.ts";
-export { countThreads, listSessionThreads, listThreads } from "./thread-lists.ts";
+export {
+  countThreads,
+  findThreadNeighbors,
+  listSessionThreads,
+  listThreads,
+} from "./thread-lists.ts";
 export {
   createThread,
   getThread,
