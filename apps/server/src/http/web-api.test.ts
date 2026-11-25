@@ -219,7 +219,7 @@ describe("the operator's views", () => {
       ["sort=oldest", "sort"],
       ["sort=latest&sort=due", "sort"],
       ["reverse=yes", "reverse"],
-      ["group=topic", "group"],
+      ["group=tag", "group"],
       ["session=main", "session.0"],
       ["agent=builder&agent=builder", "agent"],
       ["topic=auth", "topic.0"],
@@ -256,7 +256,7 @@ describe("the operator's views", () => {
     const grouped = (group: string) =>
       harness.web("GET", `/threads?session=builder/main&sort=due&group=${group}`);
     const rollup = { threads: 1, unread: 1, blocked: false, archived: false };
-    expect((await grouped("session")).body).toMatchObject({
+    expect((await grouped("topic")).body).toMatchObject({
       threads: [{ number: 1 }],
       total: 1,
       groups: {
@@ -272,12 +272,15 @@ describe("the operator's views", () => {
         truncated: false,
       },
     });
-    // Grouped by agent, the roll-ups are the sessions' alone.
-    expect((await grouped("agent")).body).toMatchObject({
-      groups: { sessions: [{ agent: "builder", session: "main", rollup }], truncated: false },
-    });
-    const [session] = ((await grouped("agent")).body as ThreadList).groups?.sessions ?? [];
-    expect(session).not.toHaveProperty("topics");
+    // Grouped any other way, the roll-ups are the sessions' alone.
+    for (const group of ["session_group", "session", "agent"]) {
+      const { body } = await grouped(group);
+      expect(body).toMatchObject({
+        groups: { sessions: [{ agent: "builder", session: "main", rollup }], truncated: false },
+      });
+      const [session] = (body as ThreadList).groups?.sessions ?? [];
+      expect(session).not.toHaveProperty("topics");
+    }
     expect(codeOf(await harness.web("GET", "/threads/counts?topic=auth"))).toBe("invalid_input");
     expect(codeOf(await harness.web("GET", "/threads/counts", undefined, { cookie: null }))).toBe(
       "unauthenticated",

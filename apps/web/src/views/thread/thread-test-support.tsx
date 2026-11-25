@@ -13,8 +13,9 @@ import {
   threadAnswer,
   threadSummary,
 } from "../../test-support.tsx";
-import { goBackChoice } from "./Composer.tsx";
+import { afterSendingChoice } from "./Composer.tsx";
 import { mine } from "./Messages.tsx";
+import { autoAdvanceChoice } from "./neighbor-thread.ts";
 
 export const path = "/s/builder/main/threads/1";
 
@@ -102,13 +103,14 @@ export const shownMessages = (
     .map(Number);
 
 // ThreadPageTest serves one thread, builder/main #1, to the thread page,
-// which stays open after sending, to show what sending did, unless a test
-// chooses otherwise.
+// which stays open after sending, to show what sending did, and goes back to
+// the list after archiving, unless a test chooses otherwise.
 export class ThreadPageTest {
   readonly api = new FakeApi();
 
   constructor() {
-    window.localStorage.setItem(goBackChoice, "false");
+    window.localStorage.setItem(afterSendingChoice, "stay");
+    window.localStorage.setItem(autoAdvanceChoice, "list");
   }
 
   // serve answers the thread's GET from state, paging the messages as the

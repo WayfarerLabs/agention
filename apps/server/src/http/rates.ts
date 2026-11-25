@@ -49,13 +49,14 @@ export const defaultRates: Rates = {
 export type SharedBudget = Exclude<keyof Rates, "key" | "apiKey">;
 
 // RateLimitedError is the rate_limited error, with the seconds until the
-// budget has a token again for the Retry-After header.
+// budget has a token again, or a place is likely free, for the Retry-After
+// header; what says what is exhausted, by default the requests.
 export class RateLimitedError extends ApiError {
   readonly retryAfter: number;
 
-  constructor(retryAfterMs: number) {
+  constructor(retryAfterMs: number, what = "too many requests") {
     const retryAfter = Math.max(1, Math.ceil(retryAfterMs / 1000));
-    super("rate_limited", `too many requests; retry in ${retryAfter} seconds`);
+    super("rate_limited", `${what}; retry in ${retryAfter} seconds`);
     this.retryAfter = retryAfter;
   }
 }
