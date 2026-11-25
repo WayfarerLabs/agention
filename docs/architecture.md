@@ -77,6 +77,13 @@ bundle includes, holds:
   thread's file list and file totals, and the types: the type an upload declares (`declaredTypeOf`),
   the type a name's extension suggests (`typeOfName`), and the type a file is served as and its
   disposition (`servedTypeOf`, `dispositionOf`), which the server serves by and the web UI shows by;
+- pull requests and branches (`packages/api/src/code-links.ts`): a GitHub repository as
+  `owner/name`, a pull request's number, a branch's name under git's own rules
+  (`git check-ref-format --branch`), at most 255 code points, and an entry's optional URL; a
+  message's lists, each of at most 20 and naming an entry once; the short forms `owner/name#135` and
+  `owner/name:branch`, their parsers, and the key, the short form with the owner and name folded to
+  lower case, as GitHub compares them, the number and the branch never folded, as git compares
+  branch names; and a thread's roll-up of each;
 - `canonicalOrigin`, below, and the claims of an agent's token, and the error shape.
 
 `packages/server-api`, which only the server and the web UI ship, holds:
@@ -210,6 +217,12 @@ not complete. Triggers let a file's row change only by completing once and being
 a chunk's bytes from ever changing, and refuse removing an attached file or any of its chunks. A
 file is missing when its last chunk is gone, which is what a future purge, deleting all of a file's
 chunks, would leave; a zero-byte file never is.
+
+`message_links` holds the pull requests and branches each message names, a row for each, in the
+order the message gave them: the kind, the entry's key, its repository, number or branch and URL as
+written. A check holds a pull request's row to a number without a branch, and a branch's to a branch
+without a number; a message names a key once; and triggers keep the rows append-only, as messages
+are. An index on the key serves the filters, which read the thread and sequence from it alone.
 
 The database uses incremental vacuuming, so the pages that removing an upload frees return to the
 disk a step at a time. SQLite takes that mode only on a database without tables, or through a
@@ -449,6 +462,17 @@ one live carrier, since an upload is attached once and only a replacement keeps 
 settings' `storage` counts every completed file, pending ones included, since that is the disk they
 take, and their bytes.
 
+A message's pull requests and branches (`store/code-links.ts`) are written with it, in the same
+transaction, and read back with it as written, in its order; a message may carry them alone, and the
+digest a request id covers includes them. A thread's answer carries their roll-up, `pull_requests`
+and `branches`, derived in a query over `live_messages`, never stored: each key its live messages
+name, once, as its latest live mention wrote it, with the URL of the latest live mention that gave
+one, the most recently mentioned first and a message's own in its order, at most 500 of each with
+`truncated` saying the least recent were left out. A replaced message keeps its own lists, which
+play no part in the roll-up; its replacement counts when it names an entry again. A session's thread
+list takes one pull request and one branch by short form, and keeps the threads whose live messages
+name that entry's key, which are exactly those whose roll-up lists it.
+
 The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those completed more
 than 24 hours ago, and those left incomplete that are not in the set of uploads in flight, each in a
 transaction of its own. `agention serve` runs it once before it listens, when nothing is in flight,
@@ -674,10 +698,10 @@ client disconnects, when the server shuts down, or when its wait runs out. The o
 across sessions, `GET /wait`, answers and ends the same way across every session, and also when its
 API key or browser session ends or expires ([Store](#store)).
 
-The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 3 in this release,
-serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
-to the agent contract, a new route or a new field on one, bumps it. Every answer on the agent mount,
-the refusals of the checks before it included, states the server's version in the
+The agent mount speaks a version of the agent API, `agentApi` in `packages/api`, serving every
+version from its `oldest`, which only a maintainer's decision moves. Every change to the agent
+contract bumps it ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api)). Every answer on the agent
+mount, the refusals of the checks before it included, states the server's version in the
 `Agention-Agent-API` header, set by the first middleware for the mount's paths. A request states its
 own there, and a missing one means 1, which every bridge released before the header sends. The
 mount's first middleware refuses a request stating a version above the server's or below its oldest
@@ -686,15 +710,21 @@ as the bridge's own problems are: a newer bridge is told to have the operator up
 pin the plugin to a release that matches the server, an older one to have them update the plugin.
 Anyone who reaches the server can read the refusal, so it names the versions the server serves,
 never its release. A version is read whole, however many digits it has, and a header that is not a
-positive integer written without leading zeros is `invalid_input`, naming it. The web mount is not
-versioned: the server serves its own web UI, always in step.
+positive integer written without leading zeros is `invalid_input`, naming it. An answer to a request
+stating an older version leaves out the fields added after it, so a bridge never has to fit a field
+it does not know within its answer cap: before `codeLinksAgentApiVersion`, the next middleware drops
+a message's `pull_requests` and `branches`, and the thread's roll-up of them, from the thread's
+answer and a stale write's missed messages. The web mount is not versioned: the server serves its
+own web UI, always in step.
 
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores
 response fields it does not know; a change that would break a client is a new version beside the
-old, by a maintainer's decision. `GET /api/operator`, which needs no credential, answers the
-versions the server serves, `{"versions":[1]}`, and a version it does not serve is unknown, as any
-unknown API route is.
+old, by a maintainer's decision. Until 1.0, a change in what an existing field or value means may
+land in place by a maintainer's decision, marked breaking
+([ADR 0005](adrs/0005-operator-api-meaning-before-1-0.md)). `GET /api/operator`, which needs no
+credential, answers the versions the server serves, `{"versions":[1]}`, and a version it does not
+serve is unknown, as any unknown API route is.
 
 Unknown API routes answer `not_found`, and so does every path under `/docs/api` while the API's
 documentation is not served. Every other path serves the web UI: a file of the Vite build, or the
@@ -1091,28 +1121,29 @@ its key file, its tokens and where its requests may go.
   `thread_list`, `thread_read`, `thread_archive` and `message_wait`, `session_update`, which reports
   the session's status, and two file tools, `file_upload` and `file_get`, each annotated neither
   read-only nor destructive and as acting on a closed world. `thread_create` and `message_send` take
-  a message's detail beside its text, refusing detail without text as the server does, and its
-  `attachments`, which may be all a message carries, and the session's `state`, with its `outcome`,
-  and a `note`, which report its status with the write, refusing an outcome apart from `stopped` as
-  `session_update` does. A session never answers an ask, so `message_send` takes no answers; it
-  takes the withdrawals of the session's own open asks. `message_wait` waits for nothing by default
-  and answers at once, which is how an agent checks for answers as it works; a longer wait is for an
-  agent with no other work and open asks or unread messages, or for a waiter of its own.
-  `register`'s answer, once approved, says how answers reach the agent: when it checks. No tool
-  marks a thread unread, which agents have no use for, though the agent API offers it as the web API
-  does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but the
-  bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the field,
-  as the server would answer it. A tool also refuses a field it does not know, at any depth, as
-  `invalid_input` naming it, so a misspelled field never drops silently, while the server's request
-  schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying on that
-  against an older server. An answer is the API's JSON as text, followed by the status reminder when
-  one is due, and a call the server refuses is an error result holding the API's error JSON. A
-  problem the bridge finds itself, such as its configuration, an unreachable server, missing names
-  or a cancelled call, is an error result in plain text, worded for the agent: what to do, or, for
-  what only the operator can fix, to tell them at the terminal what to change and whether the
-  session must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error
-  but `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's
-  start, so an agent that waits again at once does not call a server it cannot use in a tight loop.
+  a message's detail beside its text, refusing detail without text as the server does, its
+  `pull_requests` and `branches`, and its `attachments`, each of which may be all a message carries,
+  and the session's `state`, with its `outcome`, and a `note`, which report its status with the
+  write, refusing an outcome apart from `stopped` as `session_update` does. A session never answers
+  an ask, so `message_send` takes no answers; it takes the withdrawals of the session's own open
+  asks. `message_wait` waits for nothing by default and answers at once, which is how an agent
+  checks for answers as it works; a longer wait is for an agent with no other work and open asks or
+  unread messages, or for a waiter of its own. `register`'s answer, once approved, says how answers
+  reach the agent: when it checks. No tool marks a thread unread, which agents have no use for,
+  though the agent API offers it as the web API does. The SDK advertises each tool's JSON Schema,
+  generated from the shared schemas, but the bridge parses the arguments itself, so input outside a
+  bound is `invalid_input` naming the field, as the server would answer it. A tool also refuses a
+  field it does not know, at any depth, as `invalid_input` naming it, so a misspelled field never
+  drops silently, while the server's request schemas ignore unknown fields, and the agent API
+  version keeps a newer bridge from relying on that against an older server. An answer is the API's
+  JSON as text, followed by the status reminder when one is due, and a call the server refuses is an
+  error result holding the API's error JSON. A problem the bridge finds itself, such as its
+  configuration, an unreachable server, missing names or a cancelled call, is an error result in
+  plain text, worded for the agent: what to do, or, for what only the operator can fix, to tell them
+  at the terminal what to change and whether the session must restart. `apps/bridge/src/errors.ts`
+  words those. `message_wait` gives every error but `invalid_input` no sooner than its
+  `wait_seconds` would have ended, counted from the call's start, so an agent that waits again at
+  once does not call a server it cannot use in a tight loop.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a status update the server logged (one with a note, one whose status differs
   from the last it knew, or its first), or, until then, when a tool first answered in the session,
@@ -1166,21 +1197,25 @@ its key file, its tokens and where its requests may go.
   since how Claude Code measures a result of several blocks is not documented. A page of messages or
   threads over the limit is asked for again with half as many elements as the smaller of the last
   page size and what the answer held, down to one; `message_wait` asks for those smaller pages with
-  no wait. The bridge gives a server 30 seconds to answer a request beyond any wait it asks for, and
-  a whole `message_wait` call, its credential lookup and every request included, the same 30 seconds
-  beyond its `wait_seconds`, so it ends within 55 seconds, under Codex's 60-second tool timeout, and
-  answers that the server did not answer in time if it runs out. An answer still over it at one
-  element leaves out its largest text-bearing fields, largest first, until it fits: texts (each
-  answer's own words included) and details, references, a message's attachments whole, each ask's
-  fallback text, question and suggested answers, the question each answer carries, and the reasons
-  of withdrawals, the thread's and each ask's included, each named in `omitted` as a dotted path,
-  such as `messages.0.asks.2.fallback`. A detail of one-byte characters that JSON need not escape
-  always comes back whole beside its text, unless the message's other fields are large too; one in
-  other scripts can be left out and named in `omitted`, from roughly 19,000 code points in a
-  two-byte script down to about 9,500 in emoji, and the web UI always shows it in full. A `stale`
-  error lists only the leading missed messages that fit and says from which sequence to read the
-  rest, or that none fits; every other error stays within its limit by construction, quoting at most
-  100 characters of any configured value.
+  no wait. Before asking for a smaller page, an answer over the limit leaves out the thread's
+  roll-up, `pull_requests` and `branches`, each that lists any entry, naming them in `omitted`, so a
+  page of messages comes first, and a smaller page brings the roll-up back unless the roll-up alone
+  is over the limit, when each message's own lists still name its entries and the web UI shows the
+  roll-up whole. The bridge gives a server 30 seconds to answer a request beyond any wait it asks
+  for, and a whole `message_wait` call, its credential lookup and every request included, the same
+  30 seconds beyond its `wait_seconds`, so it ends within 55 seconds, under Codex's 60-second tool
+  timeout, and answers that the server did not answer in time if it runs out. An answer still over
+  it at one element leaves out its largest text-bearing fields, largest first, until it fits: texts
+  (each answer's own words included) and details, references, a message's pull requests, branches
+  and attachments, each list whole, each ask's fallback text, question and suggested answers, the
+  question each answer carries, and the reasons of withdrawals, the thread's and each ask's
+  included, each named in `omitted` as a dotted path, such as `messages.0.asks.2.fallback`. A detail
+  of one-byte characters that JSON need not escape always comes back whole beside its text, unless
+  the message's other fields are large too; one in other scripts can be left out and named in
+  `omitted`, from roughly 19,000 code points in a two-byte script down to about 9,500 in emoji, and
+  the web UI always shows it in full. A `stale` error lists only the leading missed messages that
+  fit and says from which sequence to read the rest, or that none fits; every other error stays
+  within its limit by construction, quoting at most 100 characters of any configured value.
 
 The bridge's tests run the server from `apps/server` in process, over TLS with a certificate made at
 test time, and drive bridges through the MCP SDK's client: in memory, message by message for the
@@ -1450,13 +1485,15 @@ The thread page parses a message's detail only once its fold is opened, and the 
 each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
 button (`src/views/thread/copy.ts`) writes its text, and its detail while that fold is open, to the
 clipboard as Markdown, through `navigator.clipboard`, and says under the message when the browser
-refuses. The composer checks its boxes against the API's bounds of a message's text and detail,
-counted with the API's `codePointLength` as the server counts them, and never cuts what is typed
-into them. Its Send row, which holds what answers Send, sticks to the foot of the screen within the
-composer, and the page's viewport asks a phone to shrink the layout for its keyboard
-(`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer measures
-the row as it changes and the page's scroll padding keeps that much clear, so the caret and a
-control focused from the keyboard scroll into view above the row.
+refuses. A change of answers or an edit sends a whole message, so it carries again, unchanged, the
+references, pull requests and branches of the message it replaces, which the composer has no box for
+(`src/views/thread/writer.ts`). The composer checks its boxes against the API's bounds of a
+message's text and detail, counted with the API's `codePointLength` as the server counts them, and
+never cuts what is typed into them. Its Send row, which holds what answers Send, sticks to the foot
+of the screen within the composer, and the page's viewport asks a phone to shrink the layout for its
+keyboard (`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer
+measures the row as it changes and the page's scroll padding keeps that much clear, so the caret and
+a control focused from the keyboard scroll into view above the row.
 
 The composer's After sending is where a message the server accepts takes the operator, a choice the
 browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
@@ -1716,5 +1753,5 @@ the generated outputs stay current without regeneration. A `v*` tag runs
 `.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
 [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
 
-The agent API has a version of its own, 3 in this release, which a release bumps only when it
-changes the agent contract, as [HTTP API](#http-api) describes.
+The agent API has a version of its own, which a release bumps only when it changes the agent
+contract, as [HTTP API](#http-api) describes.

@@ -43,6 +43,9 @@ export const voiceServerName = "Voice";
 export const keysServerName = "Keys";
 // The name of the server the attachment tests start for themselves.
 export const filesServerName = "Files";
+// The name of the server the pull request and branch tests start for
+// themselves.
+export const linksServerName = "Links";
 
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
@@ -201,6 +204,7 @@ export const test = base.extend<
     voiceServer: Agention;
     keysServer: Agention;
     filesServer: Agention;
+    linksServer: Agention;
   }
 >({
   certificate: [
@@ -215,6 +219,7 @@ export const test = base.extend<
   voiceServer: [serving(voiceServerName), { scope: "worker" }],
   keysServer: [serving(keysServerName), { scope: "worker" }],
   filesServer: [serving(filesServerName), { scope: "worker" }],
+  linksServer: [serving(linksServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({

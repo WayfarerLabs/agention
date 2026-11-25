@@ -822,7 +822,7 @@ describe("a database an earlier release wrote", () => {
     }
   });
 
-  it("opens with every earlier row intact, no files and no API keys", () => {
+  it("opens with every earlier row intact, and no files, API keys or message links", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
       connection.exec(`PRAGMA application_id = ${applicationId}`);
@@ -861,15 +861,17 @@ describe("a database an earlier release wrote", () => {
           "api_keys",
           "message_positions",
           "tags",
+          "message_links",
         ].sort(),
       );
       expect(earlier(after, before)).toEqual(before);
-      expect([after.files, after.file_chunks, after.attachments, after.api_keys]).toEqual([
-        [],
-        [],
-        [],
-        [],
-      ]);
+      expect([
+        after.files,
+        after.file_chunks,
+        after.attachments,
+        after.api_keys,
+        after.message_links,
+      ]).toEqual([[], [], [], [], []]);
     } finally {
       database.close();
     }

@@ -53,11 +53,13 @@ import { takeNotice } from "../../notice.ts";
 import { Link, listHref, navigate, threadPathParts, useListView } from "../../router.tsx";
 import { useVoiceOn } from "../../voice/Dictation.tsx";
 import { Composer, useAfterSending } from "./Composer.tsx";
+import { ThreadCodeLinks } from "./CodeLinks.tsx";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
 import { returnToList, useLeaving } from "./leaving.ts";
 import {
   blank,
+  keptParts,
   type Staged,
   type StagedAnswer,
   staleChange,
@@ -603,7 +605,8 @@ function ThreadPage({
   );
   // A change or an edit is a whole message, so it starts only from an empty
   // composer, loading the text, detail and files of the message it replaces,
-  // before anything is staged. A change also needs the asks its message
+  // before anything is staged, and stages the parts it carries again
+  // unchanged. A change also needs the asks its message
   // answered, from the page or from the server; a message that fails to load
   // stages nothing.
   const drafting = staged !== undefined || !blank(text) || !blank(detail) || files.files.length > 0;
@@ -689,6 +692,7 @@ function ThreadPage({
       kind: "answers",
       answers: staging,
       replaces: message.seq,
+      kept: keptParts(message),
       ...(dropped.length === 0 ? {} : { dropped }),
     };
     const learned = [...shownNow.current, ...(writer.missedNow() ?? []), ...asking];
@@ -753,7 +757,8 @@ function ThreadPage({
           return next;
         }),
       changeAnswers: (message) => void changeAnswers(message),
-      edit: (message) => replace(message, { kind: "edit", replaces: message.seq }),
+      edit: (message) =>
+        replace(message, { kind: "edit", replaces: message.seq, kept: keptParts(message) }),
       markUnread: (message) => {
         reading.stop();
         setMarkedFrom({ seq: message.seq, mark: "unread" });
@@ -881,6 +886,7 @@ function ThreadPage({
       </header>
 
       <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
+      <ThreadCodeLinks pullRequests={data.pull_requests} branches={data.branches} />
 
       {!thread.credential_active && (
         <p className="notice">

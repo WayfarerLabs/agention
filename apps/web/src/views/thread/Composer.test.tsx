@@ -110,6 +110,21 @@ const three = {
   ],
 };
 
+// The parts of a message the composer has no box for, which a replacement
+// carries again.
+const kept = {
+  references: [{ label: "CI run", url: "https://ci.example.com/runs/7" }],
+  pull_requests: [
+    { repo: "acme/agention", number: 135, url: "https://github.com/acme/agention/pull/135" },
+  ],
+  branches: [{ repo: "acme/agention", branch: "feat/links" }],
+};
+const keptOf = (body: Record<string, unknown> | undefined) => ({
+  references: body?.references,
+  pull_requests: body?.pull_requests,
+  branches: body?.branches,
+});
+
 async function send(): Promise<Record<string, unknown> | undefined> {
   const before = page.writes().length;
   fireEvent.click(sendButton());
@@ -846,6 +861,32 @@ describe("editing", () => {
     page.api.on("POST", `${path}/messages`, written(4));
     expect(await send()).toMatchObject({ text: "Use SQLite for now.", replaces: 2 });
     await waitFor(() => expect(textBox().value).toBe(""));
+  });
+
+  it("sends the references, pull requests and branches of the message it edits unchanged", async () => {
+    await page.openWith([message(1), operatorMessage(2, { text: "Use SQLite.", ...kept })]);
+    fireEvent.click(edit());
+    await waitFor(() => expect(textBox().value).toBe("Use SQLite."));
+    fireEvent.change(textBox(), { target: { value: "Use SQLite for now." } });
+    page.api.on("POST", `${path}/messages`, written(3));
+    const body = await send();
+    expect(body).toMatchObject({ text: "Use SQLite for now.", replaces: 2 });
+    expect(keptOf(body)).toEqual(kept);
+  });
+
+  it("sends the references, pull requests and branches of the message whose answers change unchanged", async () => {
+    const sqlite = { picks: [0], labels: ["SQLite"] };
+    await page.openWith([
+      message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)], ...kept }),
+    ]);
+    fireEvent.click(option(2, "Change answer"));
+    await waitFor(() => expect(choice(/^SQLite/).checked).toBe(true));
+    fireEvent.click(choice(/^Postgres/));
+    page.api.on("POST", `${path}/messages`, written(3));
+    const body = await send();
+    expect(body).toMatchObject({ answers: [{ ask: 1, picks: [1] }], replaces: 2 });
+    expect(keptOf(body)).toEqual(kept);
   });
 
   it("never sends a replacement without text, which would retract the message", async () => {
@@ -1639,7 +1680,7 @@ describe("a stale write", () => {
     const sqlite = { picks: [0], labels: ["SQLite"] };
     const state = await page.openWith([
       message(1, { asks: [ask({ open: false, answer: { seq: 2, declined: false, ...sqlite } })] }),
-      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)] }),
+      operatorMessage(2, { text: "Small data.", answers: [answerTo(sqlite)], ...kept }),
     ]);
     landing(state, [message(3, { replaces: 1, asks: [ask({ number: 2 })] })]);
     fireEvent.click(option(2, "Change answer"));
@@ -1654,6 +1695,8 @@ describe("a stale write", () => {
     await waitFor(() => expect(page.writes()).toHaveLength(2));
     expect(page.bodies()[1]).toMatchObject({ text: "Small data.", replaces: 2, seen_through: 3 });
     expect(page.bodies()[1]).not.toHaveProperty("answers");
+    // The edit carries again what the change carried from the message.
+    expect(keptOf(page.bodies()[1])).toEqual(kept);
   });
 
   it("drops a staged change of answers whole when the message it changes was replaced", async () => {

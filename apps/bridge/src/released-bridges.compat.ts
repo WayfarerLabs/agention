@@ -1,7 +1,9 @@
 import { readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import path from "node:path";
+import { maxLinks, maxUrlLength } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { maxResultBytes } from "./fit.ts";
 import { agent, BridgeHarness, session, type TestBridge } from "./test-harness.ts";
 
 // The agent compatibility suite, which CONTRIBUTING.md "The agent API"
@@ -342,6 +344,73 @@ describe.each(versions)("the bridge released as %s", (version) => {
         expect((await harness.server.web("GET", "/sessions")).body).toMatchObject({
           agents: [{ sessions: [{ status: { state: "working", note: "Resumed." } }] }],
         });
+      }
+    }
+
+    // The operator's message naming as many pull requests and branches as it
+    // may, each with the longest URL, more than the answer cap on its own.
+    // Every release reads it within the cap, and one whose writes do not name
+    // them, being older than they are, reads it without them.
+    const url = (path: string) => `https://example.com/${path}/`.padEnd(maxUrlLength, "x");
+    const named = await harness.operatorWrites(2, {
+      text: "These.",
+      pull_requests: Array.from({ length: maxLinks }, (_, i) => ({
+        repo: "acme/website",
+        number: i + 1,
+        url: url(`pull/${i + 1}`),
+      })),
+      branches: Array.from({ length: maxLinks }, (_, i) => ({
+        repo: "acme/website",
+        branch: `fix/${i + 1}`,
+        url: url(`tree/fix/${i + 1}`),
+      })),
+    });
+    const linked = await bridge.call("thread_get", { thread: 2, after: named - 1 });
+    expect(linked.isError).toBe(false);
+    expect(Buffer.byteLength(linked.text)).toBeLessThanOrEqual(maxResultBytes);
+    expect(linked.json).toMatchObject({ messages: [{ seq: named }] });
+    if (!takes("thread_create", "pull_requests")) {
+      const { messages, ...read } = linked.json as { messages: object[] };
+      for (const answer of [read, ...messages]) {
+        expect(answer).not.toHaveProperty("pull_requests");
+        expect(answer).not.toHaveProperty("branches");
+      }
+    }
+
+    // Pull requests and branches, in a release whose writes name them: a
+    // replacement naming another drops the first from the thread's roll-up,
+    // and the list finds the thread only by what its roll-up names.
+    if (takes("thread_create", "pull_requests")) {
+      const first = { repo: "acme/agention", number: 135, url: "https://example.com/pull/135" };
+      const second = { repo: "acme/agention", number: 136 };
+      const branch = { repo: "acme/agention", branch: "feat/links" };
+      const { number } = await call("thread_create", {
+        request_id: "compat-13",
+        title: "Links",
+        pull_requests: [first],
+      });
+      expect(
+        await call("message_send", {
+          thread: number,
+          request_id: "compat-14",
+          seen_through: 1,
+          pull_requests: [second],
+          branches: [branch],
+          replaces: 1,
+        }),
+      ).toEqual({ number, seq: 2 });
+      expect(await call("thread_get", { thread: number })).toMatchObject({
+        messages: [
+          { seq: 1, live: false, pull_requests: [first] },
+          { seq: 2, pull_requests: [second], branches: [branch] },
+        ],
+        pull_requests: { links: [second], truncated: false },
+        branches: { links: [branch], truncated: false },
+      });
+      if (takes("thread_list", "pull_request")) {
+        expect(await numbers({ pull_request: "Acme/Agention#136" })).toEqual([number]);
+        expect(await numbers({ pull_request: "acme/agention#135" })).toEqual([]);
+        expect(await numbers({ branch: "acme/agention:feat/links" })).toEqual([number]);
       }
     }
 

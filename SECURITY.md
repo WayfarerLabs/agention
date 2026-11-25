@@ -44,38 +44,40 @@ the server's part of them on every request, and the web UI renders content inert
   created ([API keys](#api-keys)). No credential works on another's surface: a browser session only
   on the web mount, an agent's token only on the agent mount, and an API key only on the operator
   mount.
-- **Inert content.** A message's text, its detail and its references are displayed, never executed,
-  fetched or followed by the server. Markdown renders with raw HTML shown as text, images shown as
-  links rather than loaded, and only HTTPS links live; no class or style comes from the text. A
-  Markdown link to `attachment:` and a name is live only when the name is a file of the message's
-  own, and then opens that file as the message's own list does. Files attached to messages are not
-  message text: they load only as [Attachments](#attachments) describes, and nothing in a message's
-  text loads one. Every other field, such as a title, a question or an answer's own words, shows as
-  plain text, as written. Search text is matched word by word, each word quoted, so it is never read
-  as query syntax. A fenced `mermaid` block is drawn as a diagram, by Mermaid in a frame of its own,
-  never in the web UI's page: the frame is sandboxed with scripts only, so its origin is opaque and
-  it can read none of the web UI's cookies, storage or page, navigate the page, open windows or
-  submit forms, and its own content security policy sandboxes it too, even opened on its own, lets
-  it load nothing but its one script and fetch nothing, and lets only the server's own pages frame
-  it. The page sends the frame the diagram's text, accepts answers only from the frame's window, and
-  shows the SVG it answers as an image, which runs no script and loads nothing. The SVG is never
-  shown any other way. Its `blob:` URL, opened on its own by browser navigation, would be a document
-  of the web UI's origin under none of the web UI's content security policy, where what Mermaid's
-  strict level keeps, such as an image in a label or a link, would load; so the page revokes each
-  image's URL as soon as the image has loaded, leaving none to open, and until then only the page's
-  own script knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict
-  security level. Where a browser runs the frame on the page's own thread, a diagram that sends
-  Mermaid into a busy loop can still freeze the page; the size cap and Mermaid's own limits are the
-  defense there. The content security policy lets the web UI load only its own scripts, styles,
-  images and media, and the `blob:` images it makes from the frame's answers, and frame only the
-  diagram frame, as a second line. No text can break the web UI: a field that fails to render shows
-  as its text, and text nested too deeply shows as text without being parsed. Text can still slow
-  it: some Markdown parses in more than linear time, milliseconds for a message's text, which holds
-  at most 1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A
-  thread page renders the text of up to 50 messages at a time and parses a detail once each time it
-  is opened, not as the page refreshes, so a deliberately hostile detail can stall one thread's page
-  for that long each time it is opened. The lists render no Markdown, so the operator can still
-  reach the sessions view and revoke the session's credential.
+- **Inert content.** A message's text, its detail, its references and the pull requests and branches
+  it names are displayed, never executed, fetched or followed by the server: Agention never contacts
+  GitHub or any other forge about them, and they say only what their writer declared. Markdown
+  renders with raw HTML shown as text, images shown as links rather than loaded, and only HTTPS
+  links live; no class or style comes from the text. A Markdown link to `attachment:` and a name is
+  live only when the name is a file of the message's own, and then opens that file as the message's
+  own list does. Files attached to messages are not message text: they load only as
+  [Attachments](#attachments) describes, and nothing in a message's text loads one. Every other
+  field, such as a title, a question or an answer's own words, shows as plain text, as written.
+  Search text is matched word by word, each word quoted, so it is never read as query syntax. A
+  fenced `mermaid` block is drawn as a diagram, by Mermaid in a frame of its own, never in the web
+  UI's page: the frame is sandboxed with scripts only, so its origin is opaque and it can read none
+  of the web UI's cookies, storage or page, navigate the page, open windows or submit forms, and its
+  own content security policy sandboxes it too, even opened on its own, lets it load nothing but its
+  one script and fetch nothing, and lets only the server's own pages frame it. The page sends the
+  frame the diagram's text, accepts answers only from the frame's window, and shows the SVG it
+  answers as an image, which runs no script and loads nothing. The SVG is never shown any other way.
+  Its `blob:` URL, opened on its own by browser navigation, would be a document of the web UI's
+  origin under none of the web UI's content security policy, where what Mermaid's strict level
+  keeps, such as an image in a label or a link, would load; so the page revokes each image's URL as
+  soon as the image has loaded, leaving none to open, and until then only the page's own script
+  knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict security
+  level. Where a browser runs the frame on the page's own thread, a diagram that sends Mermaid into
+  a busy loop can still freeze the page; the size cap and Mermaid's own limits are the defense
+  there. The content security policy lets the web UI load only its own scripts, styles, images and
+  media, and the `blob:` images it makes from the frame's answers, and frame only the diagram frame,
+  as a second line. No text can break the web UI: a field that fails to render shows as its text,
+  and text nested too deeply shows as text without being parsed. Text can still slow it: some
+  Markdown parses in more than linear time, milliseconds for a message's text, which holds at most
+  1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A thread page
+  renders the text of up to 50 messages at a time and parses a detail once each time it is opened,
+  not as the page refreshes, so a deliberately hostile detail can stall one thread's page for that
+  long each time it is opened. The lists render no Markdown, so the operator can still reach the
+  sessions view and revoke the session's credential.
 - **No network identity.** No authentication decision or rate limit depends on source address,
   forwarded headers or network identity, so Agention does not rely on its network path for security.
   The server answers only for its configured origin's host, and plain HTTP is refused on a

@@ -1,6 +1,11 @@
 // Test support for the thread page's component tests: a thread served from
 // state a test can change, as the server pages it and marks it read.
-import type { Message, ThreadSummary, WriteResult } from "@wayfarerlabs/agention-api";
+import type {
+  Message,
+  ThreadGetResult,
+  ThreadSummary,
+  WriteResult,
+} from "@wayfarerlabs/agention-api";
 import { fireEvent, screen, within } from "@testing-library/react";
 import {
   type Call,
@@ -27,6 +32,8 @@ export interface State {
   requester?: number;
   // How far the operator has archived.
   archived?: number;
+  // The thread's roll-up of pull requests and branches, by default none.
+  rollup?: Pick<ThreadGetResult, "pull_requests" | "branches">;
 }
 
 export const range = (from: number, to: number) =>
@@ -146,6 +153,7 @@ export class ThreadPageTest {
     return {
       body: {
         ...answer,
+        ...state.rollup,
         cursors: { ...answer.cursors, requester: state.requester ?? state.thread.last_seq },
         marks: { ...answer.marks, archived_through: state.archived ?? 0 },
       },

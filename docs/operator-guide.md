@@ -587,6 +587,16 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - A message's files show under it, and **Attach** beside **Send** adds yours, as
     [Attachments](#attachments) describes. While the thread's current messages carry any, its head
     holds **Files**, folded, with how many there are and the space they take.
+  - The GitHub pull requests and branches a message is about show on one short line under its text,
+    beside a branch icon: one by its short form, `owner/name#135` for a pull request or
+    `owner/name:branch` for a branch, as a link when the agent gave its URL; two or more as a count,
+    such as **2 pull requests, 1 branch**, which unfolds to the list. While the thread's messages
+    name any, its head holds **Pull requests and branches**, folded, with how many there are,
+    listing each once, pull requests and then branches, each the most recently named first. A
+    replaced message keeps its own, but they leave the thread's list unless its replacement names
+    them again. They are what the writer declared: Agention never contacts GitHub, so a link says
+    nothing about whether the pull request is open, merged or still exists, which the message's text
+    says when it matters. Programs using the operator API can name them on a message too.
   - Each ask shows as a card on its message, which may carry several. Asks are numbered within the
     thread as the agent writes them, and the card leads with the number (**Ask 3**), then the
     question, its priority, impact, how long answering takes when the agent said, and answer-by,
@@ -624,9 +634,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     nothing is staged.
   - **Edit** in the options of your other messages changes their text and details, and drops their
     answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
-    whole message, so they need empty boxes with nothing staged. A replaced message folds into one
-    line naming its replacement, and opens to show what it said; one replaced by a message carrying
-    nothing reads **retracted in** that message, which says **Retracted #** and the number.
+    whole message, so they need empty boxes with nothing staged, and keep its references, pull
+    requests and branches as they are. A replaced message folds into one line naming its
+    replacement, and opens to show what it said; one replaced by a message carrying nothing reads
+    **retracted in** that message, which says **Retracted #** and the number.
   - At the foot is a box labelled **Additional information** while you write answers and **Message**
     otherwise, a **Details** line under it that opens a second box for the message's details, and
     one **Send** button. The message box holds a summary of up to 1,000 characters, and **Details**
@@ -1138,7 +1149,8 @@ refused. A key that is mistyped, revoked or expired is refused as `unauthenticat
 an operation outside the key's scopes answers `not_found`, status 404, as if it did not exist.
 `GET /api/operator` lists the versions the server serves. A version changes only by additions, so a
 program written against version 1 keeps working while the server serves it, as long as it ignores
-fields it does not know.
+fields it does not know. Until 1.0, what a field or value means may also change within a version;
+the changelog marks each such change as breaking.
 
 To see every operation, with its scope, parameters and answer, start the server with `--api-docs`:
 it then serves the documentation at `/docs/api/`, and the OpenAPI document that client generators
