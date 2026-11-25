@@ -429,7 +429,12 @@ describe("the bridge's nudge", () => {
     const reset = gaps()[4] ?? Infinity;
     expect(reset).toBeGreaterThanOrEqual(1000 - 50);
     expect(reset).toBeLessThan(3000);
-    await eventually(() => (nudges.calls.length === 6 ? true : undefined), "the next nudge");
+    // A call is recorded before its claim answers, so wait for the answer and
+    // the nudge's log line, not for the call alone.
+    await eventually(
+      () => (nudges.calls[5]?.began !== undefined && bridge.logged.length === 2 ? true : undefined),
+      "the next nudge",
+    );
     expect(nudges.calls.map((call) => call.began)).toEqual([
       false,
       false,
