@@ -572,16 +572,16 @@ legend {
 
 /* The thread list */
 
-/* The list's head: one row of compact controls, each an icon in a box the
-   size of a touch, or the search field in their place. A control shows its
-   words beside its icon only where the head has room for them, which it
-   measures as its own container, so the list beside a thread, as narrow as
-   a phone, keeps its icons alone: a choice's words, what it holds, from 28rem;
-   every control's from 41rem, past the widest that row gets by touch with
-   every control set in the widest font measured, DejaVu Sans, a common Linux
-   system font (about 40.3rem; Arial about 36.5rem). The browser tests hold
-   the row to it in the system's own font and in Arial. The row wraps rather
-   than scroll sideways should a wider font leave it no room. */
+/* The list's head: one row of compact controls, or the search field in
+   their place. A control shows its words beside its icon only where the head
+   has room for them, which it measures as its own container, so the list
+   beside a thread, as narrow as a phone, keeps its icons alone: a pick list's
+   words, what it holds, from 28rem; every control's from 41rem, past the
+   widest that row gets by touch with every control set in the widest font
+   measured, DejaVu Sans, a common Linux system font (about 40.2rem; Arial
+   about 36.6rem). The browser tests hold the row to it in the system's own
+   font and in Arial. The row wraps rather than scroll sideways should a wider
+   font leave it no room. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
@@ -591,7 +591,11 @@ legend {
   container: list-head / inline-size;
 }
 
-.head-control {
+/* A compact control: an icon in a box the size of a touch, beside its words
+   where the row it sits in shows them. Its lower corner says what kind it
+   is: a caret for a pick list, a small box for a checkbox, nothing for a
+   button (icon-controls.tsx). */
+.icon-control {
   position: relative;
   display: inline-flex;
   flex: none;
@@ -609,35 +613,39 @@ legend {
   font-weight: 600;
 }
 
-.head-label {
+.control-label {
   display: none;
 }
 
 @container list-head (min-width: 28rem) {
-  .head-select .head-label {
+  .pick-list .control-label {
     display: inline;
   }
 }
 
 @container list-head (min-width: 41rem) {
-  .head-label {
+  .control-label {
     display: inline;
   }
 }
 
-/* A choice: a native select over the whole control, unseen and square, so a
-   tap anywhere on it, its corners too, opens its picker, at the size of text
-   a phone does not zoom in on. Its focus ring is the control's. */
-.head-select {
+/* A pick list and a checkbox: a native select or checkbox over the whole
+   control, unseen and square, so a tap anywhere on it, its corners too,
+   reaches it, a select at the size of text a phone does not zoom in on. Its
+   focus ring is the control's, which dims while it is disabled. */
+.pick-list,
+.icon-checkbox {
   cursor: pointer;
 }
 
-.head-select select {
+.pick-list select,
+.icon-checkbox input[type="checkbox"] {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   min-height: 0;
+  margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -646,9 +654,88 @@ legend {
   cursor: pointer;
 }
 
-.head-select:has(select:focus-visible) {
+/* Its words keep clear of the corner that says its kind by a hair, enough
+   for a descender beside it, since each pixel here widens the list's head. */
+:is(.pick-list, .icon-checkbox) .control-label {
+  margin-right: 2px;
+}
+
+.pick-list:has(select:focus-visible),
+.icon-checkbox:has(input:focus-visible) {
   outline: 3px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+.pick-list:has(select:disabled),
+.icon-checkbox:has(input:disabled) {
+  opacity: 0.6;
+}
+
+.pick-list :disabled,
+.icon-checkbox :disabled {
+  cursor: default;
+}
+
+/* The corner that says a control's kind, drawn within its box, so it takes
+   no room from the row: a pick list's caret, pointing down at the choices it
+   opens. */
+.pick-list::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  border: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  border-bottom: 0;
+  pointer-events: none;
+}
+
+/* Forced colors would paint the caret's clear sides, making a block of it,
+   so it keeps its shape in the system's color for text. */
+@media (forced-colors: active) {
+  .pick-list::after {
+    forced-color-adjust: none;
+    border-top-color: CanvasText;
+  }
+}
+
+/* A checkbox's small box, hollow while off. On, it fills, and the control's
+   face is tinted and outlined in the accent, a second line of it inside its
+   border, so on and off differ by more than color. */
+.icon-checkbox::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.icon-checkbox:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  color: var(--color-accent);
+}
+
+.icon-checkbox:has(input:checked)::after {
+  background: currentColor;
+}
+
+/* Forced colors drop the tint and the inner line, so a checkbox that is on
+   keeps the system's own colors for what is selected. */
+@media (forced-colors: active) {
+  .icon-checkbox:has(input:checked) {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+    box-shadow: none;
+    color: HighlightText;
+  }
 }
 
 /* The dot a control carries while it is set to anything but its default,
@@ -675,8 +762,8 @@ legend {
   }
 }
 
-/* The order and the button reversing it, together, as far apart as the
-   row's other controls, so the order's mark stays clear of the button. */
+/* The order and the checkbox reversing it, together, as far apart as the
+   row's other controls, so the order's mark stays clear of the checkbox. */
 .sort-control {
   display: flex;
   gap: var(--space-2);
@@ -1773,18 +1860,41 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: 0;
 }
 
-/* After sending: its word beside its select, both on one line, the select
-   as wide as its longest option. */
+/* After sending: where a send goes, a pick list, and whether it archives
+   the thread first, a checkbox, close together as one pair, their icons
+   alone so the row holds on one line at a phone's width. Past a phone's
+   width, as for dictation's words, it says what the pair is for, and each
+   shows a word or two. */
 .after-sending {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-weight: 400;
+  gap: var(--space-1);
 }
 
-.after-sending select {
-  width: auto;
+.after-sending .caption {
+  display: none;
+  margin-right: var(--space-1);
+}
+
+@media (min-width: 40rem) {
+  .after-sending .caption,
+  .after-sending .control-label {
+    display: inline;
+  }
+}
+
+/* The narrowest phones keep the row's controls closer, and Send's own
+   padding tighter, so Send, Attach, Dictate, and the pair still share one
+   line in a font as wide as DejaVu Sans. */
+@media (max-width: 22.5rem) {
+  .composer .actions {
+    column-gap: var(--space-2);
+  }
+
+  .composer .actions > button:not(.secondary) {
+    padding-inline: var(--space-3);
+  }
 }
 
 article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .composer .actions {
@@ -3445,9 +3555,10 @@ textarea.secret {
 }
 
 /* In the composer's row beside Send, and the new-thread sheet's foot, the
-   microphone is its icon alone on a phone, the recording's time drops its
-   "Recording", and a failure drops its "Failed", which the notice says, so
-   the row stays short; the words stay for assistive technology. */
+   microphone is its icon alone on a phone, in a box as wide as Attach's, the
+   recording's time drops its "Recording", and a failure drops its "Failed",
+   which the notice says, so the row stays short; the words stay for
+   assistive technology. */
 @media (max-width: 40rem) {
   :is(.composer, .sheet-foot) :is(.dictate-label, .recording-word, .dictation-failed) {
     position: absolute;
@@ -3456,5 +3567,11 @@ textarea.secret {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  :is(.composer, .sheet-foot) .dictation > button:has(.dictate-label) {
+    justify-content: center;
+    min-width: var(--touch);
+    padding: var(--space-2);
   }
 }

@@ -82,7 +82,8 @@ const select = (name: string) => screen.getByRole<HTMLSelectElement>("combobox",
 const choose = (name: string, value: string) =>
   fireEvent.change(select(name), { target: { value } });
 const offered = (name: string) => Array.from(select(name).options).map((each) => each.text);
-const direction = () => screen.queryByRole("button", { name: /, reverse to / });
+// The checkbox reversing the order, the head's only one.
+const direction = () => screen.queryByRole<HTMLInputElement>("checkbox");
 const address = () => window.location.pathname + window.location.search;
 // The folds' names at a level: the groups', the agents' under a group, or
 // the sessions' rows standing alone.
@@ -141,13 +142,13 @@ describe("the sessions view's arrangement", () => {
       expect(heads("groups")).toEqual(["Group archive", "Group Billing", "No group"]),
     );
     expect(address()).toBe("/sessions?sort=alphabetic");
-    fireEvent.click(screen.getByRole("button", { name: "A to Z, reverse to z to a" }));
+    fireEvent.click(direction() as HTMLElement);
     await waitFor(() =>
       expect(heads("groups")).toEqual(["Group Billing", "Group archive", "No group"]),
     );
     expect(heads("agents", inGroup("Group Billing"))).toEqual(["Agent reviewer", "Agent builder"]);
     expect(address()).toBe("/sessions?sort=alphabetic&reverse=true");
-    expect(direction()?.textContent).toBe("Z to A");
+    expect(direction()?.checked).toBe(true);
   });
 
   it("sorts by registration time, a group or an agent by its earliest session", async () => {
@@ -157,9 +158,9 @@ describe("the sessions view's arrangement", () => {
     await waitFor(() =>
       expect(heads("groups")).toEqual(["Group Billing", "Group archive", "No group"]),
     );
-    expect(direction()?.textContent).toBe("Newest first");
+    expect(direction()?.checked).toBe(false);
     expect(heads("agents", inGroup("Group Billing"))).toEqual(["Agent reviewer", "Agent builder"]);
-    fireEvent.click(screen.getByRole("button", { name: "Newest first, reverse to oldest first" }));
+    fireEvent.click(direction() as HTMLElement);
     await waitFor(() =>
       expect(heads("groups")).toEqual(["Group archive", "Group Billing", "No group"]),
     );
@@ -225,11 +226,11 @@ describe("the sessions view's arrangement", () => {
     await open("/sessions?group=agent&sort=registered&reverse=true");
     expect(select("Group").value).toBe("agent");
     expect(select("Sort").value).toBe("registered");
-    expect(direction()?.textContent).toBe("Oldest first");
+    expect(direction()?.checked).toBe(true);
     cleanup();
     await open("/sessions?group=session&sort=manual&reverse=true");
     expect(select("Sort").value).toBe("alphabetic");
-    expect(direction()?.textContent).toBe("Z to A");
+    expect(direction()?.checked).toBe(true);
   });
 
   it("keeps its arrangement when Back returns to it", async () => {

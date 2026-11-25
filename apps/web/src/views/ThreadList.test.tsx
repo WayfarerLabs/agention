@@ -72,10 +72,11 @@ const sheetSearch = () =>
   within(sheet()).getByRole<HTMLInputElement>("searchbox", { hidden: true, name: "Search" });
 const groupSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Group" });
 const sortSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Sort" });
-// The button reversing the order, found by the words it shows, which start
-// its name.
-const directionButton = (shown: string) =>
-  screen.getByRole("button", { name: new RegExp(`^${shown}, reverse to `) });
+// The checkbox reversing the order, the head's only one.
+const directionButton = () =>
+  within(document.querySelector(".list-head") as HTMLElement).getByRole<HTMLInputElement>(
+    "checkbox",
+  );
 const sheet = () => screen.getByRole<HTMLDialogElement>("dialog", { hidden: true });
 const isOpen = () => sheet().hasAttribute("open");
 const chips = () => Array.from(document.querySelectorAll<HTMLElement>("button.chip"));
@@ -371,15 +372,13 @@ describe("the thread list", () => {
       searchButton(),
       filtersButton(),
       sortSelect(),
-      directionButton("Most pressing first"),
+      directionButton(),
       groupSelect(),
     ]);
     // No search box shows until Search opens one.
     expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
     // Sort and its direction are held together.
-    expect(directionButton("Most pressing first").parentElement).toBe(
-      sortSelect().closest(".sort-control"),
-    );
+    expect(directionButton().closest(".sort-control")).toBe(sortSelect().closest(".sort-control"));
     expect(heading.nextElementSibling).toBe(head);
     expect(Array.from(groupSelect().options).map((each) => each.value)).toEqual([
       "",
@@ -417,20 +416,21 @@ describe("the thread list", () => {
     renderAt("/?search=notes&unread=true&sort=due&reverse=true&group=agent");
     await screen.findByRole("heading", { level: 1 });
     const marked = (control: HTMLElement) =>
-      control.closest(".head-control")?.querySelector(":scope > .set-mark") !== null;
-    expect(
-      [searchButton(), sortSelect(), directionButton("Latest first"), groupSelect()].map(marked),
-    ).toEqual([true, true, true, true]);
+      control.closest(".icon-control")?.querySelector(":scope > .set-mark") !== null;
+    expect([searchButton(), sortSelect(), groupSelect()].map(marked)).toEqual([true, true, true]);
+    // The direction's own box says it is reversed, so it carries no mark.
+    expect(directionButton().checked).toBe(true);
+    expect(marked(directionButton())).toBe(false);
     expect(filtersButton().querySelector(".badge")?.textContent).toBe("2");
     expect(filtersButton().getAttribute("aria-label")).toBe("Filters, 2 on");
     // Each mark is for the eye alone.
     for (const mark of document.querySelectorAll(".list-head .set-mark, .list-head .badge")) {
       expect(mark.getAttribute("aria-hidden")).toBe("true");
     }
-    // Back at their defaults, the order and its direction lose their marks
-    // one by one.
-    fireEvent.click(directionButton("Latest first"));
-    await waitFor(() => expect(marked(directionButton("Soonest first"))).toBe(false));
+    // Back at their defaults, the order's direction is off, and the order
+    // and the grouping lose their marks one by one.
+    fireEvent.click(directionButton());
+    await waitFor(() => expect(directionButton().checked).toBe(false));
     expect(marked(sortSelect())).toBe(true);
     fireEvent.change(sortSelect(), { target: { value: "priority" } });
     await waitFor(() => expect(marked(sortSelect())).toBe(false));
@@ -458,20 +458,21 @@ describe("the thread list", () => {
     expect(window.history.length).toBe(length);
   });
 
-  it("reverses the order with its direction button, keeping the filters and focus, and replacing the address", async () => {
+  it("reverses the order with its direction's checkbox, keeping the filters and focus, and replacing the address", async () => {
     serve([]);
     renderAt("/?unread=true&sort=due&group=agent");
     await screen.findByRole("heading", { level: 1 });
     const length = window.history.length;
-    const button = directionButton("Soonest first");
+    const button = directionButton();
     button.focus();
     fireEvent.click(button);
     await waitFor(() => expect(address()).toBe("?unread=true&sort=due&reverse=true&group=agent"));
     await waitFor(() => expect(lastQuery()?.get("reverse")).toBe("true"));
     expect(lastQuery()?.get("sort")).toBe("due");
     expect(lastQuery()?.get("unread")).toBe("true");
-    // The same button now shows the order reversed, and keeps focus.
-    expect(directionButton("Latest first")).toBe(button);
+    // The same checkbox, now on, shows the order reversed, and keeps focus.
+    expect(directionButton()).toBe(button);
+    expect(button.checked).toBe(true);
     expect(document.activeElement).toBe(button);
     // The direction is no filter.
     expect(chips().map(chipText)).toEqual(["Unread"]);
@@ -479,28 +480,30 @@ describe("the thread list", () => {
     fireEvent.click(button);
     await waitFor(() => expect(address()).toBe("?unread=true&sort=due&group=agent"));
     await waitFor(() => expect(lastQuery()?.has("reverse")).toBe(false));
+    expect(button.checked).toBe(false);
     expect(window.history.length).toBe(length);
   });
 
   it.each(["priority", "due", "effort", "latest", "created"])(
-    "names the %s order's direction by the words it shows, first in its name, and no pressed state",
+    "names the %s order's checkbox by the words it shows, the same on and off, on only while reversed",
     async (sort) => {
       serve([]);
       renderAt(`/?sort=${sort}`);
       await screen.findByRole("heading", { level: 1 });
-      const button = screen.getByRole("button", { name: /, reverse to / });
-      const own = button.textContent ?? "";
-      expect(button.getAttribute("aria-label")?.startsWith(`${own}, reverse to `)).toBe(true);
-      expect(button.hasAttribute("aria-pressed")).toBe(false);
+      const button = directionButton();
+      const words = () => button.closest(".icon-control")?.textContent ?? "";
+      const shown = words();
+      expect(shown).not.toBe("");
+      expect(button.getAttribute("aria-label")?.startsWith(shown)).toBe(true);
+      expect(button.checked).toBe(false);
       fireEvent.click(button);
       // Priority, the default order, leaves the address.
       const order = sort === "priority" ? "" : `sort=${sort}&`;
       await waitFor(() => expect(address()).toBe(`?${order}reverse=true`));
-      const reversed = button.textContent ?? "";
-      expect(reversed).not.toBe(own);
-      expect(button.getAttribute("aria-label")).toBe(
-        `${reversed}, reverse to ${own.toLowerCase()}`,
-      );
+      // What it turns on reads the same once it is on.
+      expect(words()).toBe(shown);
+      expect(button.getAttribute("aria-label")?.startsWith(shown)).toBe(true);
+      expect(button.checked).toBe(true);
     },
   );
 
@@ -508,12 +511,12 @@ describe("the thread list", () => {
     serve([]);
     renderAt("/?sort=due&reverse=true");
     await screen.findByRole("heading", { level: 1 });
-    directionButton("Latest first");
+    expect(directionButton().checked).toBe(true);
     fireEvent.change(sortSelect(), { target: { value: "created" } });
     await waitFor(() => expect(address()).toBe("?sort=created"));
     await waitFor(() => expect(lastQuery()?.has("reverse")).toBe(false));
     expect(lastQuery()?.get("sort")).toBe("created");
-    directionButton("Newest first");
+    expect(directionButton().checked).toBe(false);
   });
 
   it("groups the list as chosen, keeping the filters, the order and focus, and replacing the address", async () => {

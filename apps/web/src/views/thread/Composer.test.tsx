@@ -21,7 +21,7 @@ import {
   threadAnswer,
   threadSummary,
 } from "../../test-support.tsx";
-import { afterSendingChoice, goBackChoice } from "./Composer.tsx";
+import { afterSendingChoice, archiveAfterSendingChoice, goBackChoice } from "./Composer.tsx";
 import { autoAdvanceChoice } from "./neighbor-thread.ts";
 import { endOfList } from "./leaving.ts";
 import {
@@ -1822,16 +1822,31 @@ describe("where sending goes", () => {
       name: "After sending",
     });
   const choose = (where: string) => fireEvent.change(after(), { target: { value: where } });
+  const archiving = () =>
+    within(screen.getByRole("region", { name: "Reply" })).getByRole<HTMLInputElement>("checkbox", {
+      name: "Archive after sending",
+    });
   const where = () => `${window.location.pathname}${window.location.search}`;
   const list = "/?unread=true&include_archived=true";
 
-  // opened opens a thread from a list, with this device's choice as given.
-  async function opened(choice: string | undefined): Promise<State> {
+  // keeps has this device keep where to go after sending, when given, and
+  // whether to archive then, when that is to.
+  function keeps(choice: string | undefined, archive = false): void {
     if (choice === undefined) {
       window.localStorage.removeItem(afterSendingChoice);
     } else {
       window.localStorage.setItem(afterSendingChoice, choice);
     }
+    if (archive) {
+      window.localStorage.setItem(archiveAfterSendingChoice, "true");
+    } else {
+      window.localStorage.removeItem(archiveAfterSendingChoice);
+    }
+  }
+
+  // opened opens a thread from a list, with this device's choices as given.
+  async function opened(choice: string | undefined, archive = false): Promise<State> {
+    keeps(choice, archive);
     const state = await page.open(
       {
         thread: threadSummary({ unread: 0, ...openAsks(1) }),
@@ -1857,12 +1872,14 @@ describe("where sending goes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     window.localStorage.removeItem(afterSendingChoice);
+    window.localStorage.removeItem(archiveAfterSendingChoice);
     window.localStorage.removeItem(goBackChoice);
   });
 
-  // Archiving goes on to the thread below in these tests.
+  // Archive all goes back to the list in these tests, so a send that goes on
+  // to a thread goes by After sending alone.
   beforeEach(() => {
-    window.localStorage.setItem(autoAdvanceChoice, "below");
+    window.localStorage.setItem(autoAdvanceChoice, "list");
   });
 
   // holdWrites answers writes only once released, as landing at 2, and,
@@ -1949,24 +1966,70 @@ describe("where sending goes", () => {
     expect(where()).toBe(path);
   });
 
-  it("archives the thread once the server accepts the message, then goes where Auto-advance says in its place, as Archive all does", async () => {
+  // posted lists what the page posted, in order.
+  const posted = () =>
+    page.api.calls
+      .filter((call) => call.method === "POST")
+      .map((call) => call.url.pathname.replace(/^\/api\/web/, ""));
+
+  it("archives the thread once the server accepts the message, then opens the thread below in its place, whatever Auto-advance says", async () => {
     serveNext();
-    await opened("archive");
+    await opened("below", true);
+    expect(archiving().checked).toBe(true);
     const entries = window.history.length;
     fireEvent.click(choice(/^SQLite/));
     fireEvent.click(sendButton());
     await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
     expect(window.history.length).toBe(entries);
     // The archive went after the answer landed.
-    const order = page.api.calls
-      .filter((call) => call.method === "POST")
-      .map((call) => call.url.pathname.replace(/^\/api\/web/, ""));
-    expect(order).toEqual([`${path}/messages`, `${path}/archive`]);
+    expect(posted()).toEqual([`${path}/messages`, `${path}/archive`]);
+    await waitFor(() => expect(composerSays()).not.toBe(""));
   });
 
-  it("archives the thread once the server accepts the message, then goes back to the list once Auto-advance says so, saying what was sent", async () => {
-    window.localStorage.setItem(autoAdvanceChoice, "list");
-    await opened("archive");
+  it("archives the thread once the server accepts the message and stays on it, showing it archived and saying what was sent", async () => {
+    await openPlain("stay", true);
+    const shown = (seq: number) =>
+      screen.queryByRole("article", { name: new RegExp(`^Message ${seq} by`) });
+    expect(shown(1)).not.toBeNull();
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    // What was archived folds away, but for the message just written.
+    await waitFor(() => expect(shown(1)).toBeNull());
+    expect(shown(2)).not.toBeNull();
+    expect(posted()).toEqual([`${path}/messages`, `${path}/archive`]);
+    expect(where()).toBe(path);
+    expect(composerSays()).not.toBe("");
+    expect(page.api.callsTo("GET", neighbors)).toEqual([]);
+    // The page is free to send again.
+    fireEvent.change(textBox(), { target: { value: "And another." } });
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it("archives nothing unless After sending says to, wherever the send goes", async () => {
+    await opened("list");
+    expect(archiving().checked).toBe(false);
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(where()).toBe(list));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
+  });
+
+  it("keeps the choice to archive beside where to go, each as the other stands", async () => {
+    await opened("above");
+    fireEvent.click(archiving());
+    expect(archiving().checked).toBe(true);
+    expect(window.localStorage.getItem(archiveAfterSendingChoice)).toBe("true");
+    expect(window.localStorage.getItem(afterSendingChoice)).toBe("above");
+    choose("stay");
+    expect(archiving().checked).toBe(true);
+    expect(window.localStorage.getItem(afterSendingChoice)).toBe("stay");
+    fireEvent.click(archiving());
+    expect(window.localStorage.getItem(archiveAfterSendingChoice)).toBe("false");
+    expect(after().value).toBe("stay");
+  });
+
+  it("archives the thread once the server accepts the message, then goes back to the list in its place, saying what was sent", async () => {
+    await opened("list", true);
     const entries = window.history.length;
     fireEvent.click(choice(/^SQLite/));
     fireEvent.click(sendButton());
@@ -1978,7 +2041,7 @@ describe("where sending goes", () => {
 
   it("stays on the thread, saying why, when the server refuses the archive for an ask still open", async () => {
     serveNext();
-    await opened("archive");
+    await opened("below", true);
     const { reply, described } = refusal(
       "invalid_input",
       "ask 1 is open to you; answer or decline it before archiving",
@@ -1995,7 +2058,7 @@ describe("where sending goes", () => {
 
   it("archives once, holding another send back while the first's archive and move on are under way", async () => {
     serveNext();
-    await opened("archive");
+    await opened("below", true);
     // Finding the thread below is held.
     const release = holdNeighbors();
     fireEvent.change(textBox(), { target: { value: "First." } });
@@ -2011,9 +2074,9 @@ describe("where sending goes", () => {
   });
 
   // openPlain opens a thread with no ask open, from a list, with this
-  // device's choice as given.
-  async function openPlain(choice: string): Promise<State> {
-    window.localStorage.setItem(afterSendingChoice, choice);
+  // device's choices as given.
+  async function openPlain(choice: string, archive = false): Promise<State> {
+    keeps(choice, archive);
     serveNext();
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
@@ -2061,6 +2124,7 @@ describe("where sending goes", () => {
     pressBelow();
     await waitFor(() => expect(page.api.callsTo("GET", neighbors)).toHaveLength(1));
     expect(after().disabled).toBe(true);
+    expect(archiving().disabled).toBe(true);
     landed();
     await waitFor(() => expect(composerSays()).not.toBe(""));
     expect(after().value).toBe("stay");
@@ -2119,7 +2183,7 @@ describe("where sending goes", () => {
   });
 
   it("holds Thread above and Thread below back while a message that will archive is on its way", async () => {
-    window.localStorage.setItem(afterSendingChoice, "archive");
+    keeps("below", true);
     serveNext();
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
@@ -2143,7 +2207,7 @@ describe("where sending goes", () => {
   });
 
   it("archives a message sent past what the page had loaded only once the page has loaded through it, and no further than it shows", async () => {
-    window.localStorage.setItem(afterSendingChoice, "archive");
+    keeps("below", true);
     serveNext();
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
@@ -2191,7 +2255,7 @@ describe("where sending goes", () => {
 
   it("archives nothing with e while a message is on its way, then archives once it lands", async () => {
     // No ask is open, so e could archive but for the message on its way.
-    window.localStorage.setItem(afterSendingChoice, "archive");
+    keeps("below", true);
     serveNext();
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
@@ -2220,6 +2284,7 @@ describe("where sending goes", () => {
       window.localStorage.setItem(goBackChoice, kept);
       await opened(undefined);
       expect(after().value).toBe(carried);
+      expect(archiving().checked).toBe(false);
       // Chosen again, it is kept in its own place.
       choose("below");
       expect(window.localStorage.getItem(afterSendingChoice)).toBe("below");
@@ -2271,7 +2336,7 @@ describe("where sending goes", () => {
     expect(listSays()).toBe("");
   });
 
-  it("stays on the page when Stay here is chosen, a choice this device keeps", async () => {
+  it("stays on the page once staying is chosen, a choice this device keeps", async () => {
     await opened(undefined);
     choose("stay");
     expect(after().value).toBe("stay");

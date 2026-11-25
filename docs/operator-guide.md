@@ -370,12 +370,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 - **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
   counts those holding a message you have not read, the threads the **Unread** filter keeps with no
   other filter on, and reading or archiving them clears the count. The list's head is one row of
-  icon buttons: **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the
-  filters that are on; **Sort**, the order the list is in, beside a button whose arrow says which
-  way the order runs; and **Group**, how the list is grouped. Holding the pointer over one names it,
-  and each but **Filters** carries a dot while it is set to anything but its default. Where the list
-  has room, as in a tablet's window or beside a thread on a wide screen, **Sort** and **Group** show
-  their choice beside their icons, and with more room every button shows its words.
+  icon controls: **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the
+  filters that are on; **Sort**, the order the list is in, beside a checkbox, an arrow pointing up,
+  that reverses it; and **Group**, how the list is grouped. Holding the pointer over one names it,
+  and **Search**, **Sort**, and **Group** each carry a dot while set to anything but their default.
+  Where the list has room, as in a tablet's window or beside a thread on a wide screen, **Sort** and
+  **Group** show their choice beside their icons, and with more room every button shows its words.
+  **Sort** and **Group** are pick lists, and here as everywhere in the web UI the lower corner of
+  such a compact control says what kind it is: a small down caret marks a pick list, which opens its
+  choices and changes nothing until you choose one; a small box marks a checkbox, hollow while it is
+  off and filled, with the control tinted and outlined, while it is on; and a button, which acts
+  when pressed or opens a dialog or a menu of things to do, has nothing there.
   - **Search** opens the search field in the row's place, holding the search on, such as
     **"release"**, which its chip shows, with focus in it; this is where you change the search. Its
     cross, or Escape, closes it, applying what you typed at once, and so does Enter. Text the search
@@ -394,14 +399,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Latest message**: every thread by its latest message, newest first.
     - **Created**: every thread by when it began, newest first. Within a session that is the order
       of the threads' numbers, which start again in every session.
-  - The button beside **Sort** says which way the order runs, by its arrow and, where there is room,
-    in words, such as **Most pressing first**, **Soonest first**, **Quickest first**, or **Newest
-    first**, and choosing it reverses the order, to **Least pressing first**, **Latest first**,
-    **Longest first**, or **Oldest first**. Reversing turns around the threads the order ranks: for
-    **Priority** those with asks open to you, for **Due** those whose ask has an answer-by, for
-    **Effort** those whose ask says how long it takes, and for **Latest message** and **Created**
-    every thread. The threads it does not rank still follow them, as before. Choosing another order
-    starts it in its own direction.
+  - The checkbox beside **Sort**, an arrow pointing up, reverses the order: it is on, its corner box
+    filled, while the order is reversed. Its name, which it shows in words where there is room, is
+    what turning it on gives, on or off: **Least pressing first** for **Priority**, **Latest first**
+    for **Due**, **Longest first** for **Effort**, and **Oldest first** for **Latest message** and
+    **Created**. Reversing turns around the threads the order ranks: for **Priority** those with
+    asks open to you, for **Due** those whose ask has an answer-by, for **Effort** those whose ask
+    says how long it takes, and for **Latest message** and **Created** every thread. The threads it
+    does not rank still follow them, as before. Choosing another order starts it in its own
+    direction.
   - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
     session group's sessions under its header when the list holds two or more groups, those in none
     under **No group**, and each session as **Session** folds it; by **Session**, each session's
@@ -729,26 +735,38 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it, keeps the latest 50, and forgets them all when you sign out here or remove the passkey it
     signed in with. A browser that refuses storage, as a private window may, keeps none, and the
     composer works as before.
-  - Beside **Send**, **After sending** chooses where sending takes you once a message is sent:
-    **Back to the list**, as **Threads** does, where the list says what was sent; **Stay here**;
-    **Archive**, which archives this thread once the message lands and then goes where
-    **Auto-advance** says, as **Archive all** does, so a reply that answers the last ask open to you
-    can archive the thread too; or **Thread above** or **Thread below**, as their buttons do. The
-    thread it takes you to says beside its **Send** what you sent, or the list does, saying too when
-    you reached its end. If an ask is still open to you, the archive is refused and you stay on the
-    thread, and beside **Send**, after what was sent, the page says which ask to answer or decline
-    first; when the thread to open cannot be found, it says that there instead. While a message that
-    will take you somewhere is on its way, **Thread above**, **Thread below** and **Archive all**
-    wait for it, and while the page is moving to another thread or the list, **Send** and **After
-    sending** wait for it. A message that fails to send stays on the page with your draft. It is
-    **Back to the list** until you choose otherwise, and this browser keeps your choice. While you
-    write, **Send** and its option stay at the foot of the screen, above a phone's keyboard, with
-    what answers **Send** beside it: why a message failed to send above it, and what was sent after
-    it. While voice is on, **Dictate** sits there too, and what it says goes in the same places: why
-    dictation failed above, and anything else after. While dictation shows its controls there, from
-    the moment the microphone is asked for through a recording and its transcription to its
-    **Retry**, **After sending** moves just below the row, so the row stays short above a phone's
-    keyboard.
+  - Beside **Send**, **After sending** is two compact controls for what follows once a message is
+    sent, their icons alone on a phone, and past a phone's width a word or two beside each, after
+    the words **After sending**. Holding the pointer over one names it and says what it is set to.
+    - The first is a pick list of where sending takes you, whose icon shows the choice it holds, and
+      whose choices say what each does: **After sending, go back to the list**, an arrow pointing
+      back, as **Threads** does, where the list says what was sent; **After sending, stay on this
+      thread**, a ring around a dot; or **After sending, open the thread above** or **After sending,
+      open the thread below**, an arrow pointing up or down, as their buttons do. A phone shows the
+      choices in its own picker.
+    - The second is a checkbox, an archive box named **Archive after sending**. While it is on, this
+      thread is archived once the message lands, and then you go wherever the pick list says, so a
+      reply that answers the last ask open to you can archive the thread too, whatever you do next.
+      A thread you go on to takes the archived thread's place, so **Back** does not return to it;
+      staying shows the thread archived. **Auto-advance** has no say here: it is where **Archive
+      all** goes.
+
+    The thread sending takes you to says beside its **Send** what you sent, or the list does, saying
+    too when you reached its end. If an ask is still open to you, the archive is refused and you
+    stay on the thread, and beside **Send**, after what was sent, the page says which ask to answer
+    or decline first; when the thread to open cannot be found, it says that there instead. While a
+    message that will archive the thread or take you somewhere is on its way, **Thread above**,
+    **Thread below**, and **Archive all** wait for it, and while the page is moving to another
+    thread or the list, **Send** and **After sending** wait for it. A message that fails to send
+    stays on the page with your draft. Sending goes back to the list, archiving nothing, until you
+    choose otherwise, and this browser keeps your choices. While you write, **Send** and its options
+    stay at the foot of the screen, above a phone's keyboard, with what answers **Send** beside it:
+    why a message failed to send above it, and what was sent after it. While voice is on,
+    **Dictate** sits there too, and what it says goes in the same places: why dictation failed
+    above, and anything else after. While dictation shows its controls there, from the moment the
+    microphone is asked for through a recording and its transcription to its **Retry**, **After
+    sending** moves just below the row, so the row stays short above a phone's keyboard.
+
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
     asks for the microphone, with **Cancel** while it waits, since a browser may wait on its
     permission prompt for as long as you leave it; then it records, showing how long against its
@@ -867,15 +885,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     level in order: **Alphabetic** by name; **Registration time** by when each session was first
     approved, a group or an agent by its earliest session; or **Manual**, offered only grouped by
     **Group**, which keeps your groups in your order and their agents and sessions in name order.
-    The button beside **Sort** says which way it runs, by its arrow and, where there is room, in
-    words, **A to Z** or **Newest first**, and choosing it reverses it; **Manual** has no direction,
-    and **No group** comes last whichever way. Choosing another sort starts it in its own direction,
-    and grouping by **Agent** or **Session** while sorted **Manual** sorts **Alphabetic**. In
-    **Manual**, each group's head ends in **Move up** and **Move down**, and, with a mouse, a handle
-    to drag it onto another group's head and put it in that one's place, which changes your groups'
-    order everywhere, as [Groups and tags](#groups-and-tags) does in Settings. While a move is under
-    way, the groups take no other; one another browser made stale is refused, and the groups show as
-    they are.
+    The checkbox beside **Sort** reverses it, as on the thread list, named for what turning it on
+    gives, **Z to A** or **Oldest first**; **Manual** has no direction, and **No group** comes last
+    whichever way. Choosing another sort starts it in its own direction, and grouping by **Agent**
+    or **Session** while sorted **Manual** sorts **Alphabetic**. In **Manual**, each group's head
+    ends in **Move up** and **Move down**, and, with a mouse, a handle to drag it onto another
+    group's head and put it in that one's place, which changes your groups' order everywhere, as
+    [Groups and tags](#groups-and-tags) does in Settings. While a move is under way, the groups take
+    no other; one another browser made stale is refused, and the groups show as they are.
 
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
@@ -883,7 +900,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
   (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Threads**
-  (`/settings/threads`), whose **Auto-advance** chooses where archiving a thread takes you, as
+  (`/settings/threads`), whose **Auto-advance** chooses where **Archive all** takes you, as
   [Using the web UI](#using-the-web-ui) describes, **Groups and tags**
   (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
   (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as

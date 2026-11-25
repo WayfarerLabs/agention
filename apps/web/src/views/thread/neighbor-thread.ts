@@ -15,16 +15,17 @@ import type { ListedThread } from "../list/listing.ts";
 // Which way to move from a thread, by its row's place on screen.
 export type Direction = "above" | "below";
 
-// Where archiving a thread takes the operator: to the thread that was just
-// above or below it, or back to the list.
+// Where Archive all takes the operator: to the thread that was just above or
+// below it, or back to the list.
 export const autoAdvanceOptions = ["above", "below", "list"] as const;
 export type AutoAdvance = (typeof autoAdvanceOptions)[number];
 
 // Where this device keeps its Auto-advance.
 export const autoAdvanceChoice = "agention.auto-advance";
 
-// useAutoAdvance gives where archiving takes the operator on this device, the
-// thread above unless they choose otherwise, and a way to change and keep it.
+// useAutoAdvance gives where Archive all takes the operator on this device,
+// the thread above unless they choose otherwise, and a way to change and keep
+// it.
 export const useAutoAdvance = () => useDeviceOption(autoAdvanceChoice, autoAdvanceOptions, "above");
 
 interface Place {

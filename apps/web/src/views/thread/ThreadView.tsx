@@ -372,7 +372,7 @@ function ThreadPage({
     [reach, refresh],
   );
   const writer = useWriter(target, written);
-  // Where a message the server accepts takes the operator.
+  // What follows a message the server accepts.
   const [after, setAfter] = useAfterSending();
   // The messages the page shows as they stand, which a change judges once its
   // asks load, with those a stale write missed, which the writer gives exactly
@@ -475,6 +475,7 @@ function ThreadPage({
     marking: markedFrom !== undefined,
     clearMarking: () => setMarkedFrom(undefined),
     archiveAndLeave: (through, onward) => leaveWith(archive, "/archive", { through }, onward),
+    showArchived: refresh,
     stillOpen,
     sendPending: writer.pending,
     after,

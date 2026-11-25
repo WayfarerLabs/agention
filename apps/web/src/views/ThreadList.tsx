@@ -18,6 +18,7 @@ import {
 import { changeLanded, query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
 import { useFollowing, usePages } from "../data.ts";
+import { openPicker } from "../icon-controls.tsx";
 import { takeNotice } from "../notice.ts";
 import { PaletteProvider } from "../organizing.tsx";
 import {
@@ -32,7 +33,6 @@ import {
   useLocation,
 } from "../router.tsx";
 import type { ListShown } from "./filter-links.tsx";
-import { openPicker } from "./list-head.tsx";
 import { ListBeside } from "./list/beside.ts";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet } from "./list/FilterSheet.tsx";

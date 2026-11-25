@@ -19,12 +19,19 @@ const shapes = {
   filters: <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />,
   // Arrows up and down, for the order.
   sort: <path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4" />,
-  // An arrow pointing down, for an order in its own direction and the thread
-  // below, and one pointing up, for an order reversed and the thread above.
+  // An arrow pointing down, for the thread below, and one pointing up, for
+  // reversing an order and the thread above.
   "arrow-down": <path d="M12 4v16m-6-6 6 6 6-6" />,
   "arrow-up": <path d="M12 20V4m-6 6 6-6 6 6" />,
   // An arrow pointing back, for the way back to the list.
   "arrow-left": <path d="M20 12H4m6-6-6 6 6 6" />,
+  // A ring around a dot, for staying where one is.
+  stay: (
+    <>
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M12 12h.01" strokeWidth="3" />
+    </>
+  ),
   // Two headings, each over its indented rows, for grouping.
   group: <path d="M3 4h9M7 8h14M7 11h14M3 15h9M7 19h14" />,
   // A check mark, for what a picker has chosen and a copy that landed.

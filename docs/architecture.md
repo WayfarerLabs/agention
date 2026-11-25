@@ -1269,15 +1269,23 @@ keep nothing. A header of no topic, which no filter names, links nothing. The se
 links are these same links (`src/views/filter-links.tsx`), starting from no filters instead of the
 list on screen.
 
-The list's head (`src/views/list/ListHead.tsx`) is one row of icon controls, built from the controls
-the sessions view's head shares (`src/views/list-head.tsx`), each marked while it is set to anything
-but its default. A control's words show beside its icon only where the head has room for them, which
-the head measures as a CSS size container rather than by the window, since the list beside a thread
-is as narrow as a phone. The order and the grouping are native selects lying unseen over their
-controls, so a phone shows its own picker and assistive technology hears the choice. **Search**
-opens the search field in the row's place until it closes, which applies its text at once; the
-search applied shows among the filter chips as one that removes it, the field being the one place to
-change it. Typed text applies once typing pauses, and only to the view it was typed on
+The list's head (`src/views/list/ListHead.tsx`) is one row of icon controls, built from the buttons
+the sessions view's head shares (`src/views/list-head.tsx`) and the compact controls the composer's
+After sending shares too (`src/icon-controls.tsx`), each marked while it is set to anything but its
+default. A control's words show beside its icon only where the head has room for them, which the
+head measures as a CSS size container rather than by the window, since the list beside a thread is
+as narrow as a phone. The order and the grouping are pick lists: native selects lying unseen over
+their controls, so a phone shows its own picker and assistive technology hears the choice. The
+order's direction is a checkbox, a native one drawn the same way, on while the order is reversed,
+named, on or off, for what turning it on gives, the order's reversed direction, which are the words
+it shows, as speech input hears them, and whose corner box alone marks it. One convention tells the
+kinds of compact control apart wherever they appear, by the control's lower corner, drawn within its
+box so it takes no room: a small down caret for a pick list, which only opens its choices; a small
+box for a checkbox, hollow while off and, on, filled, with the control tinted and outlined; and
+nothing for a button, which acts when pressed or opens a dialog or a menu of things to do.
+**Search** opens the search field in the row's place until it closes, which applies its text at
+once; the search applied shows among the filter chips as one that removes it, the field being the
+one place to change it. Typed text applies once typing pauses, and only to the view it was typed on
 (`src/views/list/search.tsx`): a choice the list makes meanwhile applies it first, and any other
 change of the list's view, such as a link or Back, drops it.
 
@@ -1562,15 +1570,15 @@ counts them, since they can overlap and land out of order), so no read can undo 
 again at the message as the page shows it. It looks only at the messages loaded, so on a thread read
 already whose agent last wrote before the newest 50, `U` with no message focused does nothing. `f`
 presses Filters, and `s` and `b` give focus to the order's select and the grouping's, opening their
-pickers with `showPicker` where the browser allows it; `s` alone is a key of its own, though `g`
-then `s` goes to Sessions. The shortcuts are on unless the operator turns them off in Settings'
-Keyboard section, which this browser keeps in its local storage (`src/device.ts`). Enter sends, in
-the same section, is a choice of its own, off until the operator turns it on and kept the same way,
-and not a shortcut, so it holds with the shortcuts off: on, the composer's form handler takes
-`Enter` alone in its Message or Details box and gives it its Send shortcut's action, but not its
-repeats, which type nothing, and leaves `Shift+Enter` and `Enter` on its buttons to the browser; the
-boxes' hints say so. No key in the composer acts while an input method composes, by `isComposing` or
-WebKit's key code 229 (`composing`).
+pickers with `showPicker` where the browser allows it (`openPicker` in `src/icon-controls.tsx`); `s`
+alone is a key of its own, though `g` then `s` goes to Sessions. The shortcuts are on unless the
+operator turns them off in Settings' Keyboard section, which this browser keeps in its local storage
+(`src/device.ts`). Enter sends, in the same section, is a choice of its own, off until the operator
+turns it on and kept the same way, and not a shortcut, so it holds with the shortcuts off: on, the
+composer's form handler takes `Enter` alone in its Message or Details box and gives it its Send
+shortcut's action, but not its repeats, which type nothing, and leaves `Shift+Enter` and `Enter` on
+its buttons to the browser; the boxes' hints say so. No key in the composer acts while an input
+method composes, by `isComposing` or WebKit's key code 229 (`composing`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
@@ -1587,23 +1595,27 @@ page's viewport asks a phone to shrink the layout for its keyboard
 the row as it changes and the page's scroll padding keeps that much clear, with the bar's height
 while it floats, so the caret and a control focused from the keyboard scroll into view above them.
 
-The composer's After sending is where a message the server accepts takes the operator, a choice the
-browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
-release kept, going back or staying, stands in its place, as it does for a value After sending does
-not know. A message that lands while the page is still open goes by the choice as it stands then
-(the composer's `onward`): back to the list, which says what was sent; to the thread above or below,
-as their buttons go; or Archive all's own path, run without the page's check for asks open to the
-operator, since the message may have answered them, so the server's refusal, naming the ask, shows
-instead and the page stays. What was sent goes with the operator: the thread opened says it beside
-Send (`leaveNotice` for the thread, in `src/notice.ts`), and a list gone back to says it, before
-saying it reached its end when it did. When a send's way on fails, its composer says so beside Send,
-after what was sent, in the head's own words, which a phone's keyboard can hide. An archive after
-sending goes through the message sent at least, which a stale send's retry can place past the latest
-the page has loaded. One rule holds for leaving the page: while a way on is under way, or a message
-that will take the page somewhere is on its way, no other way on starts, the buttons', Archive all's
-or a send's; a send's own way on, once it lands, waits only for the others. Each way on checks and
-marks it as it stands when it starts (`start`), not as the render that set it up saw it, and the
-buttons are disabled meanwhile, as Archive all is.
+The composer's After sending is what follows a message the server accepts, two choices the browser
+keeps apart (`useAfterSending` in `src/views/thread/Composer.tsx`): where the operator goes, a pick
+list, and whether the thread is archived first, a checkbox, which goes with any destination. Without
+a destination kept, the choice an earlier release kept, going back or staying, stands in its place,
+as it does for a value After sending does not know. A message that lands while the page is still
+open goes by the choices as they stand then (the composer's `onward`): back to the list, which says
+what was sent, or to the thread above or below, as their buttons go; and when it archives, by
+Archive all's own path first, going on to the destination in the archived thread's place, or staying
+and loading the thread again to show it archived. That path runs without the page's check for asks
+open to the operator, since the message may have answered them, so the server's refusal, naming the
+ask, shows instead and the page stays. Auto-advance is Archive all's alone: a send goes where After
+sending says, archiving or not. What was sent goes with the operator: the thread opened says it
+beside Send (`leaveNotice` for the thread, in `src/notice.ts`), and a list gone back to says it,
+before saying it reached its end when it did. When a send's way on fails, its composer says so
+beside Send, after what was sent, in the head's own words, which a phone's keyboard can hide. An
+archive after sending goes through the message sent at least, which a stale send's retry can place
+past the latest the page has loaded. One rule holds for leaving the page: while a way on is under
+way, or a message that will archive the thread or take the page somewhere is on its way, no other
+way on starts, the buttons', Archive all's or a send's; a send's own way on, once it lands, waits
+only for the others. Each way on checks and marks it as it stands when it starts (`start`), not as
+the render that set it up saw it, and the buttons are disabled meanwhile, as Archive all is.
 
 The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
 `src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
@@ -1782,11 +1794,12 @@ went wrong and what it says otherwise apart. The composer puts all three in its 
 before Send and anything else after it; the new-thread sheet puts the controls in its foot beside
 Attach and the rest under its boxes; and an ask's card puts all three under its own-words field. The
 composer's row and the sheet's foot stay short on a phone whatever their fonts: the microphone is
-its icon alone, the recording's time and a failure drop the words the rest says, and After sending
-moves below the row, and Discard draft hides, while dictation shows more than Dictate (`busy`),
-keeping focus as it moves. Each control that replaces another moves focus to the next state's own
-control, unless the operator has put focus somewhere else meanwhile, as into the message box while
-the microphone opens, and starting a recording is announced once.
+its icon alone, the recording's time and a failure drop the words the rest says, After sending's two
+controls are their icons alone, sharing one line with Send, Attach, and Dictate, and they move below
+the row, and Discard draft hides, while dictation shows more than Dictate (`busy`), keeping focus as
+it moves. Each control that replaces another moves focus to the next state's own control, unless the
+operator has put focus somewhere else meanwhile, as into the message box while the microphone opens,
+and starting a recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a
