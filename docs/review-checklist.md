@@ -111,28 +111,30 @@ escalations, and validation that second-guesses what the agent reports.
 
 Refines the shared **Lifecycle, idempotency, and convergence** and **Ordering and enforcement
 ownership** checks. Every message states the latest sequence its writer has seen (`seen_through`),
-and a stale write fails and returns the missed messages. A retried request id with the same content
-returns the original result, and with different content is rejected (ADR 0001 "Read and archive
-marks, and optimistic concurrency"). Marks move only the caller's own cursors, never change the
-thread or conflict with a write, and never answer an ask; how they move, and what counts as unread
-and as archived, is in `docs/architecture.md` "Store". A session's presence is stamped in a
-transaction of its own before the call's work, so a call refused later still counts: the bridge's
-background requests stamp its connection and never a check-in, and every other call by an approved
-key is the agent checking in, with the agent API version it states. A registration's stamp follows
-its body's parse, since the body says whether it is a background request, so a registration whose
-body fails to parse stamps nothing. A background registration only reads: it never registers a key
-the server does not know, which only the agent's own requests, `register` and a tool call's lookup
-of its credential, can. A session's status changes only through its own reports, with its status
-tool or beside a thread it starts or a message it sends, and the one inference A6 names: an update
-merges into the current status and appends the result to the session log, appending nothing when it
-changes nothing and carries no note, so it needs no request id; updates are last-writer-wins and
-exempt from the stale rule, since only the session writes its own status. A report beside a write,
-and the inference from a write, apply in the write's transaction once its checks pass, so a write
-that fails changes no status, and the report is part of the write's digest, so a replay applies
-nothing again. The UI keeps the draft on a stale write (`docs/operator-guide.md` "Using the web
-UI"). Look for marks or derived counts that depart from those definitions, check-then-write races
-outside one immediate transaction, writes that skip the sequence check, a status a write changes
-outside its transaction, and request-id handling that replays a different payload.
+and a stale write fails and returns the missed messages; the server's declines in the operator's
+action on many threads are the one exception, which ADR 0001 "Read and archive marks, and optimistic
+concurrency" records with its bounds. A retried request id with the same content returns the
+original result, and with different content is rejected (ADR 0001 "Read and archive marks, and
+optimistic concurrency"). Marks move only the caller's own cursors, never change the thread or
+conflict with a write, and never answer an ask; how they move, and what counts as unread and as
+archived, is in `docs/architecture.md` "Store". A session's presence is stamped in a transaction of
+its own before the call's work, so a call refused later still counts: the bridge's background
+requests stamp its connection and never a check-in, and every other call by an approved key is the
+agent checking in, with the agent API version it states. A registration's stamp follows its body's
+parse, since the body says whether it is a background request, so a registration whose body fails to
+parse stamps nothing. A background registration only reads: it never registers a key the server does
+not know, which only the agent's own requests, `register` and a tool call's lookup of its
+credential, can. A session's status changes only through its own reports, with its status tool or
+beside a thread it starts or a message it sends, and the one inference A6 names: an update merges
+into the current status and appends the result to the session log, appending nothing when it changes
+nothing and carries no note, so it needs no request id; updates are last-writer-wins and exempt from
+the stale rule, since only the session writes its own status. A report beside a write, and the
+inference from a write, apply in the write's transaction once its checks pass, so a write that fails
+changes no status, and the report is part of the write's digest, so a replay applies nothing again.
+The UI keeps the draft on a stale write (`docs/web-ui.md` "A thread"). Look for marks or derived
+counts that depart from those definitions, check-then-write races outside one immediate transaction,
+writes that skip the sequence check, a status a write changes outside its transaction, and
+request-id handling that replays a different payload.
 
 ## A8. Append-only, attributed history
 
@@ -146,24 +148,27 @@ signals.
 
 ## A9. Inert content
 
-Message text, details, references, and topics are displayed, never executed, fetched, or followed
-(the **Inert content** invariant in `SECURITY.md` "Security model"; ADR 0001 "Text is Markdown,
-rendered inert"). A message's text and its detail are Markdown rendered inert, every other text
-field is plain, and text is stored and returned exactly as written. A reference is a label plus at
-least one of an identifier, an HTTPS URL, and a thread of the same session
-(`packages/api/src/references.ts`), and `isLinkableUrl` is the one rule for what shows as a link
-(`docs/architecture.md` "API contract"). No image written in message text loads: it shows as a link.
-Files attached to messages are not message text, and load only as A17 holds them (ADR 0004); message
-text reaches a file only through a link to one of its own message's files. A diagram drawn from
-message text is drawn in isolation, so drawing it can neither run anything in the app's page nor
-fetch anything, and shows as an image, with the content security policy kept strict: it gains only
-the diagram frame's route as a frame source, `blob:` images, and media from its own origin for
-attachments, and the frame's own policy sandboxes it. Look for content-driven fetches or previews,
-raw HTML or images other than such a diagram or an attached file reaching the DOM, a link from text
-to a file another message carries, a diagram drawn outside its isolation, classes or styles taken
-from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as
-query syntax, and message content treated as the operator's direction anywhere, the usage skill
-included, unless the operator wrote it (its author is the person).
+Message text, details, references, pull requests and branches, and topics are displayed, never
+executed, fetched, or followed (the **Inert content** invariant in `SECURITY.md` "Security model";
+ADR 0001 "Text is Markdown, rendered inert" and "Not doing"). A message's text and its detail are
+Markdown rendered inert, every other text field is plain, and text is stored and returned exactly as
+written. A reference is a label plus at least one of an identifier, an HTTPS URL, and a thread of
+the same session (`packages/api/src/references.ts`); a pull request or branch is a GitHub repository
+with a number or a branch name under git's rules, and an optional HTTPS URL
+(`packages/api/src/code-links.ts`), shown by its short form; and `isLinkableUrl` is the one rule for
+what shows as a link (`docs/architecture.md` "API contract"). No image written in message text
+loads: it shows as a link. Files attached to messages are not message text, and load only as A17
+holds them (ADR 0004); message text reaches a file only through a link to one of its own message's
+files. A diagram drawn from message text is drawn in isolation, so drawing it can neither run
+anything in the app's page nor fetch anything, and shows as an image, with the content security
+policy kept strict: it gains only the diagram frame's route as a frame source, `blob:` images, and
+media from its own origin for attachments, and the frame's own policy sandboxes it. Look for
+content-driven fetches or previews, any call to GitHub or another forge about a pull request or
+branch, raw HTML or images other than such a diagram or an attached file reaching the DOM, a link
+from text to a file another message carries, a diagram drawn outside its isolation, classes or
+styles taken from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search
+text read as query syntax, and message content treated as the operator's direction anywhere, the
+usage skill included, unless the operator wrote it (its author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 
@@ -196,10 +201,11 @@ checks. The store owns thread, session, and registration rules for every adapter
 API's agent, web and operator mounts, and, through the agent mount, the bridge's tools
 (`docs/architecture.md` "Store" and "HTTP API"). Request and response shapes come from one shared
 schema package, `packages/api`. Once a bridge is released, agent routes only grow: each release's
-agent routes accept what earlier released bridges send and answer what they read, because agents run
-whatever bridge version their plugin pins; the agent compatibility gate holds this, and every agent
-contract change bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set
-(at least invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
+agent routes accept what earlier released bridges send and answer what they read, leaving out of an
+answer to an older bridge the fields added after its version, because agents run whatever bridge
+version their plugin pins; the agent compatibility gate holds this, and every agent contract change
+bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set (at least
+invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
 `packages/api/src/errors.ts`) is the same on every mount and in the bridge's tool errors. Tool names
 use lowercase letters, digits, and underscores; tool annotations are true of the tools;
 `message_wait` stays well below the 60-second Codex tool timeout, worst case included; tool schemas

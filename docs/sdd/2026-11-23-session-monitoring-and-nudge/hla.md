@@ -109,7 +109,7 @@ interface Observation {
 
 interface Observer {
   observations(signal: AbortSignal): AsyncIterable<Observation>; // yields on change
-  // Delivery 2 adds nudge({ warning, message }): Promise<NudgeOutcome>.
+  // Delivery 2 adds nudge({ warning, message }, { begin, signal }): Promise<NudgeOutcome>.
 }
 ```
 
@@ -154,21 +154,29 @@ package's tests cover the sequence:
 
 1. **Ready?** The latest observation is at its prompt, with no stopped-by usage limit still before
    its reset; the host holds the terminal; keys are not blocked; no key from any client for the last
-   ten seconds; the input line is empty and has room for the warning and the message. Otherwise
-   `not-ready`, and nothing was sent.
-2. **Warning.** Paste it through a buffer of the bridge's own (`paste-buffer -b ... -d`), so the
-   operator's paste buffer is untouched; confirm the input line holds exactly it, cursor at its end;
-   wait five seconds; confirm again. A failure abandons at `warning`, removing nothing.
-3. **Clear.** Confirm it once more, send one Backspace per character, and confirm the line is empty;
-   otherwise `cleared`.
+   ten seconds; the profile knows its prompt marker; the input line is empty and has room for the
+   warning and the message; and the caller's `begin` agrees, which is where the bridge claims the
+   nudge from the server. Otherwise `not-ready`, and nothing was sent.
+2. **Warning.** Paste it through a buffer of the observer's own, loaded from standard input
+   (`load-buffer -b ... -`, then `paste-buffer -p -d -b ...`), so the operator's paste buffer is
+   untouched and no text is read as tmux command syntax; confirm the input line holds exactly it,
+   cursor at its end; wait five seconds; confirm again. A failure abandons at `warning`, removing
+   nothing.
+3. **Clear.** Send one Backspace per character, each right after a reading that shows the line one
+   character shorter than the last, until the line is empty; otherwise `cleared`.
 4. **Message.** Paste it and confirm it as in step 2; otherwise remove it if it is still exactly
    there, and abandon at `message`.
 5. **Submit.** Confirm, send Enter, and within five seconds see the line clear and the screen
    change; otherwise `submitted`, the one failure after the message went in.
 
 Only Backspace and Enter are ever sent, never an ordinary character or Escape (the spike), and each
-only right after a confirmation. `paste` refuses newlines and control characters, so no text can end
-the bracketed paste early.
+only right after a confirmation, and none once the caller's `signal` aborts. An error ends the nudge
+as a failed check at its step does: the warning stays, and the message is removed where it is still
+exactly there. Every confirmation also requires one pane, the host holding the terminal, keys not
+blocked and no key typed since the nudge began; the one before Enter, and the one after the
+warning's wait, require the whole screen unchanged as well. `paste` refuses control characters, so
+no text can end the bracketed paste early, and `nudge()` throws for a text that is empty or not
+printable ASCII, whose width it could never confirm: a caller's mistake, not a moment to wait out.
 
 ### Captures
 
@@ -216,10 +224,11 @@ This keeps from agention#67's `push.ts` its loop and pacing (`#run`, `#registrat
 for starting on approval, recovery and the floor. Its host directory, wake file, notice, lapse line,
 saved cursor and `claude-code` gate do not carry over.
 
-### The agent API, version 6
+### The agent API, version 8
 
-Main took version 5 for notes beside an answer, so monitoring is version 6 and the nudge 7, each
-bumping by one as CONTRIBUTING.md "The agent API" says.
+Main took version 5 for notes beside an answer, and versions 6 and 7 for pull request and branch
+links, so monitoring is version 8 and the nudge 9, each bumping by one as CONTRIBUTING.md "The agent
+API" says.
 
 - **`GET .../monitor`**, a long poll reusing the wait's machinery: it answers after 25 seconds, or
   at once with `replaced`. It never marks the session checked in.
@@ -246,7 +255,7 @@ bumping by one as CONTRIBUTING.md "The agent API" says.
   and the condition, shown only while connected, so a dead bridge's last report is never shown as
   current.
 - **Older bridges (C1).** While no background request is fresh and the latest check-in came from a
-  version below 6, the session follows today's presence and stranded rule, never shown disconnected.
+  version below 8, the session follows today's presence and stranded rule, never shown disconnected.
   So a plugin pinned back to an older release reads as it always did.
 - **Shown.** The operator API's session reads carry connection, last check-in, condition with since,
   stopped-by and the profile's name (delivery 1a); the sessions view shows them, flags the sessions
@@ -257,22 +266,43 @@ bumping by one as CONTRIBUTING.md "The agent API" says.
 
 ## The nudge
 
-Delivery 2 bumps the agent API to version 7:
+Delivery 2 bumps the agent API to version 9:
 
-- **Due.** `GET .../monitor` also answers `nudge` as soon as a nudge is due: the session has a
-  thread with a message from the operator the agent has not read, written after the agent's last
-  check-in, while no nudge has been tried since that check-in (N1, N3). The server works this out,
-  so it holds across bridge restarts, takeovers and Codex's several bridges, and the bridge learns
-  only that one is due, never why: nothing about threads or presence reaches the agent through it.
-- **The outcome.** `POST .../monitor` gains whether the session can be nudged and the latest nudge's
-  time and outcome, sent or not. The server shows "not responding to the nudge" when it was sent and
-  no check-in followed, and applies M6's nudge branches.
+- **Due.** `GET .../monitor` also answers `nudge`, whether a nudge is due: the latest report says
+  the session can be nudged and is at its prompt, not stopped by a usage limit before its reset; the
+  session has a thread with a message the agent has not read, written by someone else after the
+  agent's last check-in; and no nudge has been claimed since that check-in (N1, N3, N4). The answer
+  is level-triggered: a bridge that already knows one is due says so, and its poll is held until
+  that changes, so a nudge waiting for a still prompt costs no requests (C2). A report that finds
+  the session at its prompt, able to be nudged, and a message wake the poll, since those make a
+  nudge due; what ends one wakes nothing, because a claim checks again that one is due; working it
+  out writes nothing, and a replaced bridge is never told. The server works this out from the
+  session's own rows, so it holds across bridge restarts, takeovers and Codex's several bridges, and
+  the bridge learns only that one is due, never why: nothing about threads or presence reaches the
+  agent through it.
+- **The claim and the outcome.** `POST .../monitor/nudge` starts a nudge, in one transaction: the
+  server checks that the bridge acts for the session and that one is due, records the nudge at its
+  own clock with no outcome yet, and answers whether to go. The bridge types nothing until it does,
+  and retries the claim inside `begin`; a claim whose answer was lost and is then refused is
+  reported not sent, so a nudge never typed never reads as sent. The same route takes the outcome,
+  sent or not, filling only a nudge that has none. A nudge whose outcome never arrives, because its
+  bridge died, counts as sent. The check-in stamp moves whenever it is older than the latest nudge,
+  so an agent that checks in while the nudge is under way counts as answering it. The server shows
+  "not responding to the nudge" while a nudge it recorded has no check-in after it (N6), and applies
+  M6's nudge branches, which strand the thread once the quiet time passes. The report gains only
+  whether the session can be nudged.
 
-On `nudge`, the reporter calls `observer.nudge()` with the warning (fixed words and a token from a
-cryptographic random source) and the message (fixed words), retrying `not-ready` once a second until
-the observer is ready or the due answer lapses, and reports the outcome; a `not-ready` outcome is
-not a nudge and is not reported. The bridge's log names the step a nudge stopped at, never pane
-text. T1's `register` answer and the usage skill come with this delivery.
+On a due answer, the reporter calls `observer.nudge()` with the warning (fixed words and a token
+from a cryptographic random source), the message (fixed words), the claim as `begin`, and a signal
+it aborts when it is replaced or stops. It retries `not-ready` about once a second from the pane
+alone until the observer is ready or a poll says the nudge lapsed, then sends the outcome; a
+`not-ready` outcome is not a nudge and is not reported. The bridge's log names the step a nudge
+stopped at, never pane text. A bridge whose claim or outcome the server refuses as invalid stops
+nudging until it restarts, and reports that the session cannot be nudged, so it cannot loop. A
+session whose profile is generic cannot be nudged: a generic profile cannot tell a draft on the
+input line from its prompt, and N2 and N5 allow nothing on the line but the nudge's own text. T1's
+`register` answer carries how answers reach the agent (`answers`: `nudge` or `check`), so the usage
+skill can point at it; it and the skill come with this delivery.
 
 ## Configuration
 
@@ -293,7 +323,7 @@ What goes wrong, and where it shows (CF4):
 | No socket                                      | nothing              | answers arrive when checked | none      |
 | Socket unreachable, path too long, or no tmux  | the error, once      | answers arrive when checked | unknown   |
 | More than one pane, or the host lacks the pane | once                 | answers arrive when checked | unknown   |
-| Unknown profile name                           | once; strict generic | as with strict generic      | as read   |
+| Unknown profile name                           | once; strict generic | answers arrive when checked | as read   |
 | Unknown nudge type, or a nudge type, no socket | once; nudge off      | answers arrive when checked | as read   |
 
 The tools work as without monitoring in every case.
@@ -327,7 +357,7 @@ The tools work as without monitoring in every case.
 
 1. **Monitoring.**
    - **1a**: the observer package's reading side with the Claude Code, Codex and generic profiles
-     and their captures; the reporter; agent API version 6, the migration and the derivations; the
+     and their captures; the reporter; agent API version 8, the migration and the derivations; the
      operator API's session reads and `docs/api/openapi.json`; the configuration and plugin
      forwarding; the web UI's "not connected" stranded reason, which 1a's new stranded cause needs;
      the monitoring ADR; and the collateral E1 names for monitoring outside the sessions view.
@@ -335,7 +365,7 @@ The tools work as without monitoring in every case.
      operator guide's account of them.
    - **1c**: usage limits in the Claude Code and Codex profiles, from the captures and samples of
      ruling 5.
-2. **The nudge**: `nudge()`, agent API version 7, the due answer and outcome, M6's nudge branches,
+2. **The nudge**: `nudge()`, agent API version 9, the due answer and outcome, M6's nudge branches,
    T1 and the usage skill, the ADR and the rest of E1.
 
 ## Risks and open items
@@ -346,15 +376,24 @@ The tools work as without monitoring in every case.
   and on the operator's Codex samples, so 1c runs whenever they arrive; **block and error** need
   captures before any profile claims them.
 - **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
-- **The nudge with a generic profile**: a generic profile cannot tell a prompt marker from typed
-  text, so its input line is the cursor's whole row; `nudge()` will confirm its texts by comparing
-  that row before and after each paste, settled with delivery 2.
-- **Claude Code's vim normal mode** looks the same on screen as its insert mode at an empty prompt,
-  and there Backspace moves the cursor rather than deleting, so a nudge would leave its warning in
-  the input at the clear step. Settled with delivery 2: accept and report it, or learn the mode
-  another way.
+- **Generic profiles cannot be nudged**, since they cannot tell a draft from a prompt marker. A
+  harness gains the nudge with its own profile; until then its sessions are monitored only.
+- **Check-ins are stamped to the minute**, so a check-in up to a minute after an operator message
+  can still leave one nudge due for it: an extra nudge at worst, never a missed one.
+- **Claude Code's vim normal mode** looks the same on screen as the normal editor's prompt at an
+  empty input, and there Backspace moves the cursor rather than deleting. Accepted: the clear step
+  then finds the line not shortened and abandons at `cleared` (or at `warning`, where the cursor
+  sits on the text's last character) and reports not sent, so the warning stays in the input, where
+  the operator sees it and nothing submits it. Learning the mode another way waits until it proves
+  common.
 - **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
   told from typed text only by the captured patterns, since captures carry no color; an unknown hint
-  leaves the nudge not ready. Reading text attributes is the alternative, for delivery 2.
+  leaves the nudge not ready, which is safe. Reading text attributes waits until a hint is missed.
+- **Bracketed paste** cannot be detected: tmux has no format saying whether the program asked for
+  it. Claude Code and Codex both do, and only their profiles nudge; a profile added for a harness
+  that does not must be checked for it, since that harness would receive each text as typed keys.
+- **Keys go to tmux's default target**, as reads do. Each key follows a reading that found one pane,
+  and Agentworks sessions hold one pane, so only a pane created in the milliseconds between could
+  receive it.
 - **A restarted bridge outside Agentworks** starts reporting only at the agent's next tool call,
   since it learns its session's names then; until then the session shows disconnected.

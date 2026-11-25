@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v6",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 6."
+    "version": "operator v1, agent v8",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 8."
   },
   "tags": [
     {
@@ -12,7 +12,7 @@
     },
     {
       "name": "agent",
-      "description": "The agent API, which the Agention bridge calls for an agent's session. Every request and every answer states in Agention-Agent-API the version its sender speaks."
+      "description": "The agent API, which the Agention bridge calls for an agent's session. Every request and every answer states in Agention-Agent-API the version its sender speaks. An answer leaves out the fields added after the version the request states, a missing header meaning 1."
     }
   ],
   "paths": {
@@ -258,6 +258,42 @@
             "explode": true
           },
           {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 157,
+                "description": "A pull request as owner/name#number."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 396,
+                "description": "A branch as owner/name:branch."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -425,6 +461,32 @@
                               "seq"
                             ]
                           },
+                          "links": {
+                            "type": "object",
+                            "properties": {
+                              "pull_requests": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "branches": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "pull_request": {
+                                "$ref": "#/components/schemas/PullRequestLink"
+                              },
+                              "branch": {
+                                "$ref": "#/components/schemas/BranchLink"
+                              }
+                            },
+                            "required": [
+                              "pull_requests",
+                              "branches"
+                            ],
+                            "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                          },
                           "credential_active": {
                             "type": "boolean"
                           },
@@ -452,6 +514,7 @@
                           "archived",
                           "open_asks",
                           "status",
+                          "links",
                           "credential_active"
                         ]
                       }
@@ -582,11 +645,18 @@
                         "sessions",
                         "truncated"
                       ]
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "description": "The position, among every message, of the latest message when the list was read. An action on every thread matching the list's filters takes it, so it acts on nothing newer."
                     }
                   },
                   "required": [
                     "threads",
-                    "total"
+                    "total",
+                    "as_of"
                   ]
                 }
               }
@@ -796,6 +866,42 @@
               "items": {
                 "type": "string",
                 "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 157,
+                "description": "A pull request as owner/name#number."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 396,
+                "description": "A branch as owner/name:branch."
               }
             },
             "style": "form",
@@ -1218,6 +1324,90 @@
                         "truncated"
                       ]
                     },
+                    "pull_request": {
+                      "type": "object",
+                      "properties": {
+                        "pull_requests": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "repo": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+                                "description": "The GitHub repository, as owner/name."
+                              },
+                              "number": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991,
+                                "description": "The pull request's number."
+                              },
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "repo",
+                              "number",
+                              "total"
+                            ]
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "pull_requests",
+                        "truncated"
+                      ]
+                    },
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branches": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "repo": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+                                "description": "The GitHub repository, as owner/name."
+                              },
+                              "branch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255,
+                                "description": "The branch's name, as git names it."
+                              },
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "repo",
+                              "branch",
+                              "total"
+                            ]
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "branches",
+                        "truncated"
+                      ]
+                    },
                     "reset": {
                       "type": "integer",
                       "minimum": 0,
@@ -1238,6 +1428,8 @@
                     "topic",
                     "session_group",
                     "tag",
+                    "pull_request",
+                    "branch",
                     "reset"
                   ]
                 }
@@ -1482,6 +1674,42 @@
             "explode": true
           },
           {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 157,
+                "description": "A pull request as owner/name#number."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 396,
+                "description": "A branch as owner/name:branch."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -1626,6 +1854,32 @@
                             "seq"
                           ]
                         },
+                        "links": {
+                          "type": "object",
+                          "properties": {
+                            "pull_requests": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "branches": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "pull_request": {
+                              "$ref": "#/components/schemas/PullRequestLink"
+                            },
+                            "branch": {
+                              "$ref": "#/components/schemas/BranchLink"
+                            }
+                          },
+                          "required": [
+                            "pull_requests",
+                            "branches"
+                          ],
+                          "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                        },
                         "credential_active": {
                           "type": "boolean"
                         },
@@ -1653,6 +1907,7 @@
                         "archived",
                         "open_asks",
                         "status",
+                        "links",
                         "credential_active"
                       ]
                     },
@@ -1741,6 +1996,32 @@
                             "seq"
                           ]
                         },
+                        "links": {
+                          "type": "object",
+                          "properties": {
+                            "pull_requests": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "branches": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "pull_request": {
+                              "$ref": "#/components/schemas/PullRequestLink"
+                            },
+                            "branch": {
+                              "$ref": "#/components/schemas/BranchLink"
+                            }
+                          },
+                          "required": [
+                            "pull_requests",
+                            "branches"
+                          ],
+                          "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                        },
                         "credential_active": {
                           "type": "boolean"
                         },
@@ -1768,6 +2049,7 @@
                         "archived",
                         "open_asks",
                         "status",
+                        "links",
                         "credential_active"
                       ]
                     }
@@ -1977,6 +2259,46 @@
                         "count",
                         "bytes"
                       ]
+                    },
+                    "pull_requests": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PullRequestLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct pull requests the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
+                    },
+                    "branches": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BranchLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct branches the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
                     }
                   },
                   "required": [
@@ -1984,7 +2306,9 @@
                     "messages",
                     "cursors",
                     "marks",
-                    "files"
+                    "files",
+                    "pull_requests",
+                    "branches"
                   ]
                 }
               }
@@ -2076,6 +2400,24 @@
                     "items": {
                       "$ref": "#/components/schemas/Reference"
                     }
+                  },
+                  "pull_requests": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PullRequestLink"
+                    },
+                    "description": "Up to 20 GitHub pull requests the message is about, each once, with its URL whenever you have it."
+                  },
+                  "branches": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/BranchLink"
+                    },
+                    "description": "Up to 20 git branches of GitHub repositories the message is about, each once, with its URL whenever you have it."
                   },
                   "attachments": {
                     "minItems": 1,
@@ -3289,6 +3631,527 @@
                   "required": [
                     "archived",
                     "skipped"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/threads/actions": {
+      "post": {
+        "operationId": "operatorActOnThreads",
+        "summary": "Mark several threads read or unread, or archive them, declining their open asks first if asked, each through a message",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "unread",
+                      "read_and_archive",
+                      "decline_read_and_archive"
+                    ],
+                    "description": "read marks each thread read through its message; unread marks it unread from the latest live message of the other party at or before that message, leaving out a thread with none; read_and_archive marks it read and archives it through that message, keeping out each thread holding an ask open to you at or before it; decline_read_and_archive first declines every ask open to you at or before that message, in messages of yours holding at most 10 answers each, then marks it read and archives it through the last of them, keeping out a thread holding such an ask and a newer message, which you have not seen."
+                  },
+                  "threads": {
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "agent": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "session": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "thread": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "through": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "agent",
+                        "session",
+                        "thread",
+                        "through"
+                      ]
+                    },
+                    "description": "The threads, each once and through the latest message you saw of it. A message that arrived since stays unread and keeps its thread out of the archive."
+                  }
+                },
+                "required": [
+                  "action",
+                  "threads"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "acted": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "thread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "thread"
+                        ]
+                      },
+                      "description": "The threads the action applied to: marked, or marked and archived. A thread unread leaves out has no message of the other party to mark unread from."
+                    },
+                    "declined": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "thread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "asks": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "thread",
+                          "asks"
+                        ]
+                      },
+                      "description": "For decline_read_and_archive, each thread whose asks it declined, and those asks."
+                    },
+                    "kept": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "thread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "open_asks": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "thread",
+                          "open_asks"
+                        ]
+                      },
+                      "description": "The threads left as they were, each with the asks open to you that kept it: for read_and_archive, those holding one; for decline_read_and_archive, those holding one and a message newer than the one acted through."
+                    }
+                  },
+                  "required": [
+                    "acted",
+                    "declined",
+                    "kept"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/threads/actions/matching": {
+      "post": {
+        "operationId": "operatorActOnMatchingThreads",
+        "summary": "Mark every thread the thread list's filters keep read or unread, or archive them, declining their open asks first if asked",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "unread",
+                      "read_and_archive",
+                      "decline_read_and_archive"
+                    ],
+                    "description": "read marks each thread read through its message; unread marks it unread from the latest live message of the other party at or before that message, leaving out a thread with none; read_and_archive marks it read and archives it through that message, keeping out each thread holding an ask open to you at or before it; decline_read_and_archive first declines every ask open to you at or before that message, in messages of yours holding at most 10 answers each, then marks it read and archives it through the last of them, keeping out a thread holding such an ask and a newer message, which you have not seen."
+                  },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "search": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "Only threads whose title, or the text and detail of one of whose live messages, holds every word of this text, each as the start of a word, ignoring case and accents."
+                      },
+                      "status": {
+                        "$ref": "#/components/schemas/ThreadStatus",
+                        "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none."
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "normal",
+                          "high",
+                          "urgent"
+                        ],
+                        "description": "Only threads holding an open ask at this priority or higher."
+                      },
+                      "impact": {
+                        "type": "string",
+                        "enum": [
+                          "blocking",
+                          "assuming"
+                        ],
+                        "description": "Only threads holding an open ask with this impact."
+                      },
+                      "overdue": {
+                        "default": false,
+                        "type": "boolean",
+                        "description": "Only threads holding an open ask past its answer-by time."
+                      },
+                      "effort": {
+                        "type": "string",
+                        "enum": [
+                          "quick",
+                          "under_15m",
+                          "under_1h"
+                        ],
+                        "description": "Only threads holding an open ask that states this effort or less."
+                      },
+                      "unread": {
+                        "default": false,
+                        "type": "boolean",
+                        "description": "Only threads with messages from the other party that you have neither read nor archived."
+                      },
+                      "agent_read": {
+                        "type": "string",
+                        "enum": [
+                          "unread",
+                          "stranded"
+                        ],
+                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped."
+                      },
+                      "agent": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "description": "Only threads of these agents."
+                      },
+                      "session": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "description": "Only threads of these sessions, each written agent/session."
+                      },
+                      "topic": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "description": "Only threads on these topics, each written agent/session/topic."
+                      },
+                      "session_group": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "none"
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          ]
+                        },
+                        "description": "Only threads of sessions in these groups, each by its id, or none for no group."
+                      },
+                      "tag": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "description": "Only threads whose session or agent carries one of these tags."
+                      },
+                      "pull_request": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 157,
+                          "description": "A pull request as owner/name#number."
+                        },
+                        "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case."
+                      },
+                      "branch": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 396,
+                          "description": "A branch as owner/name:branch."
+                        },
+                        "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case."
+                      },
+                      "include_archived": {
+                        "default": false,
+                        "type": "boolean",
+                        "description": "Also list threads you archived that nothing new has brought back."
+                      }
+                    },
+                    "description": "The thread list's filters, as listing threads takes them. The action reaches every thread they keep when it runs, and is refused when that is more than 500."
+                  },
+                  "as_of": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "The as_of of the thread list you acted from. Each thread is acted on only through its latest message at or before it, and a thread with none is left out."
+                  },
+                  "expected": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "How many threads you chose to act on: the list's total as you saw it. The action is refused as stale, acting on none, when the threads it would act on number otherwise, so read the list again and choose again."
+                  }
+                },
+                "required": [
+                  "action",
+                  "filters",
+                  "as_of",
+                  "expected"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "acted": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "thread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "thread"
+                        ]
+                      },
+                      "description": "The threads the action applied to: marked, or marked and archived. A thread unread leaves out has no message of the other party to mark unread from."
+                    },
+                    "declined": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "thread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "asks": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "thread",
+                          "asks"
+                        ]
+                      },
+                      "description": "For decline_read_and_archive, each thread whose asks it declined, and those asks."
+                    },
+                    "kept": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "session": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                          },
+                          "thread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "open_asks": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "required": [
+                          "agent",
+                          "session",
+                          "thread",
+                          "open_asks"
+                        ]
+                      },
+                      "description": "The threads left as they were, each with the asks open to you that kept it: for read_and_archive, those holding one; for decline_read_and_archive, those holding one and a message newer than the one acted through."
+                    }
+                  },
+                  "required": [
+                    "acted",
+                    "declined",
+                    "kept"
                   ]
                 }
               }
@@ -5170,6 +6033,24 @@
                       "$ref": "#/components/schemas/Reference"
                     }
                   },
+                  "pull_requests": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PullRequestLink"
+                    },
+                    "description": "Up to 20 GitHub pull requests the message is about, each once, with its URL whenever you have it."
+                  },
+                  "branches": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/BranchLink"
+                    },
+                    "description": "Up to 20 git branches of GitHub repositories the message is about, each once, with its URL whenever you have it."
+                  },
                   "attachments": {
                     "minItems": 1,
                     "maxItems": 10,
@@ -5336,6 +6217,26 @@
             "schema": {
               "type": "string",
               "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name this pull request, as owner/name#number.",
+            "schema": {
+              "type": "string",
+              "maxLength": 157
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name this branch, as owner/name:branch.",
+            "schema": {
+              "type": "string",
+              "maxLength": 396
             }
           },
           {
@@ -5617,6 +6518,46 @@
                         "count",
                         "bytes"
                       ]
+                    },
+                    "pull_requests": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PullRequestLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct pull requests the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
+                    },
+                    "branches": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BranchLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct branches the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
                     }
                   },
                   "required": [
@@ -5624,7 +6565,9 @@
                     "messages",
                     "cursors",
                     "marks",
-                    "files"
+                    "files",
+                    "pull_requests",
+                    "branches"
                   ]
                 }
               }
@@ -5717,6 +6660,24 @@
                     "items": {
                       "$ref": "#/components/schemas/Reference"
                     }
+                  },
+                  "pull_requests": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PullRequestLink"
+                    },
+                    "description": "Up to 20 GitHub pull requests the message is about, each once, with its URL whenever you have it."
+                  },
+                  "branches": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/BranchLink"
+                    },
+                    "description": "Up to 20 git branches of GitHub repositories the message is about, each once, with its URL whenever you have it."
                   },
                   "attachments": {
                     "minItems": 1,
@@ -6842,7 +7803,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "6"
+          "const": "8"
         }
       }
     },
@@ -7189,6 +8150,32 @@
           }
         ]
       },
+      "BranchLink": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+            "description": "The GitHub repository, as owner/name."
+          },
+          "branch": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "The branch's name, as git names it."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "The pull request's or branch's https URL. Give it whenever you have it."
+          }
+        },
+        "required": [
+          "repo",
+          "branch"
+        ]
+      },
       "Cursors": {
         "type": "object",
         "properties": {
@@ -7346,6 +8333,18 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Reference"
+            }
+          },
+          "pull_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PullRequestLink"
+            }
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchLink"
             }
           },
           "attachments": {
@@ -7696,6 +8695,32 @@
           "low"
         ],
         "description": "Where the audience should focus, by what delay costs, independent of impact. urgent: something is breaking, costing money or about to miss a real deadline now. high: delay costs real work or time. normal, the default: waiting costs little. low: whenever convenient."
+      },
+      "PullRequestLink": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+            "description": "The GitHub repository, as owner/name."
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "The pull request's number."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "The pull request's or branch's https URL. Give it whenever you have it."
+          }
+        },
+        "required": [
+          "repo",
+          "number"
+        ]
       },
       "Reference": {
         "type": "object",
@@ -8162,6 +9187,32 @@
               "seq"
             ]
           },
+          "links": {
+            "type": "object",
+            "properties": {
+              "pull_requests": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "branches": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pull_request": {
+                "$ref": "#/components/schemas/PullRequestLink"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/BranchLink"
+              }
+            },
+            "required": [
+              "pull_requests",
+              "branches"
+            ],
+            "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+          },
           "credential_active": {
             "type": "boolean"
           },
@@ -8186,6 +9237,7 @@
           "archived",
           "open_asks",
           "status",
+          "links",
           "credential_active"
         ]
       },

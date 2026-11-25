@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey } from "../auth/api-keys.ts";
 import { listThreads } from "../store/index.ts";
+import { asOf } from "../store/thread-lists.ts";
 import { hour } from "../store/test-fixture.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { uploaded } from "./file-test-support.ts";
@@ -92,6 +93,26 @@ async function requests(): Promise<Record<string, Call>> {
       "POST",
       "/archives",
       { threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
+    ],
+    actOnThreads: [
+      "POST",
+      "/threads/actions",
+      {
+        action: "read",
+        threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }],
+      },
+    ],
+    actOnMatchingThreads: [
+      "POST",
+      "/threads/actions/matching",
+      // A search nothing matches, so the other calls' threads leave the set as
+      // expected.
+      {
+        action: "read",
+        filters: { search: "unmatched" },
+        as_of: asOf(harness.fixture.db),
+        expected: 0,
+      },
     ],
     listSessions: ["GET", "/sessions", undefined],
     readSessionLog: ["GET", "/s/builder/main/updates", undefined],
@@ -209,6 +230,51 @@ describe("the operator mount", () => {
       messages: { author: unknown }[];
     };
     expect(thread.messages.at(-1)?.author).toEqual({ kind: "person", name: "operator" });
+  });
+
+  it("writes and reads a message's branches", async () => {
+    const { secret } = await harness.createKey(["threads:write"]);
+    const branch = { repo: "acme/agention", branch: "fix/links", url: "https://example.com/b" };
+    const sent = await harness.operator(secret, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      branches: [branch],
+    });
+    expect(codeOf(sent)).toBe("ok");
+    const read = await harness.operator(secret, "GET", "/s/builder/main/threads/1");
+    expect(read.body).toMatchObject({
+      messages: [{ seq: 1 }, { seq: 2, branches: [branch] }],
+      branches: { links: [branch], truncated: false },
+    });
+  });
+
+  it("lists and counts the threads by pull request and branch, as the web mount does", async () => {
+    const { secret } = await harness.createKey(["threads:read", "threads:write"]);
+    const pull = { repo: "acme/agention", number: 135 };
+    const sent = await harness.operator(secret, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      pull_requests: [pull],
+    });
+    expect(codeOf(sent)).toBe("ok");
+    const narrowed = `pull_request=${encodeURIComponent("Acme/Agention#135")}`;
+    const listed = await harness.operator(secret, "GET", `/threads?${narrowed}`);
+    expect(listed.body).toMatchObject({
+      threads: [{ number: 1, links: { pull_requests: 1, branches: 0, pull_request: pull } }],
+      total: 1,
+    });
+    const none = await harness.operator(secret, "GET", "/threads?branch=acme/agention:main");
+    expect(none.body).toMatchObject({ threads: [], total: 0 });
+    const counts = await harness.operator(secret, "GET", `/threads/counts?${narrowed}`);
+    expect(counts.body).toMatchObject({
+      pull_request: { pull_requests: [{ ...pull, total: 1 }], truncated: false },
+      branch: { branches: [], truncated: false },
+    });
+    for (const path of [`/threads?${narrowed}`, `/threads/counts?${narrowed}`]) {
+      expect((await harness.operator(secret, "GET", path)).body).toEqual(
+        (await harness.web("GET", path)).body,
+      );
+    }
   });
 });
 

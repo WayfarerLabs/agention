@@ -24,6 +24,13 @@ import { Link, navigate, useLocation } from "./router.tsx";
 // listed goes without an action. The operator turns them all off in
 // Settings, and this browser keeps the choice.
 //
+// Enter in the composer's text boxes is a choice of its own, off unless the
+// operator turns it on in Settings, which this browser keeps: on, Enter sends
+// and Shift+Enter starts a new line, as in a terminal. It is not a shortcut,
+// so turning the shortcuts off leaves it as chosen: someone who turns them
+// off for their screen reader or voice control and turns it on still wants
+// Enter to send. The composer's boxes say so in their hints while it is on.
+//
 // The handler listens on the document, after the page's own handlers, so a
 // control that handles a key itself, such as a menu's Escape, keeps it. A
 // screen reader in its browse mode takes single keys for its own navigation
@@ -33,11 +40,13 @@ import { Link, navigate, useLocation } from "./router.tsx";
 // Side by side, the thread list and a thread are on the page at once, each
 // in its pane, which its view's ShortcutArea names. While focus is in one
 // place's area, another place's keys act there only if they reach across
-// (reachesAcross): the list's do, moving focus into it, as j does from the
-// thread beside it, but a thread's do not, so e, a digit or u never acts on
-// the thread while the operator is in the list. A key both places bind, as
-// both bind n, acts in the place whose area holds focus, or, with focus in
-// neither, in the later place in shortcutPlaces: the thread.
+// (reachesAcross): the list's do, acting on the list from the thread beside
+// it, as j moves focus into the list and I marks the open thread's row,
+// leaving focus in the thread; but a thread's do not, so e, a digit, or u
+// never acts on the thread while the operator is in the list. A key both
+// places bind, as both bind n and U, acts in the place whose area holds
+// focus, or, with focus in neither, in the later place in shortcutPlaces:
+// the thread.
 
 // Where a shortcut acts: anywhere, on the thread list, on a thread's page,
 // or within the composer's text fields.
@@ -62,7 +71,8 @@ export interface Shortcut {
   description: string;
   // Whether a key held down acts once, not again as it repeats: those that
   // leave the page, which would otherwise go on past where the operator
-  // meant to stop.
+  // meant to stop, and those that mark threads, which would otherwise mark
+  // the selection and then, as it clears, the current row's thread too.
   once?: true;
 }
 
@@ -84,7 +94,31 @@ export const shortcuts = {
     description: "Move to the previous thread that is unread or blocked on you",
   },
   openThread: { place: "Thread list", keys: ["o"], description: "Open the thread" },
+  toggleSelected: {
+    place: "Thread list",
+    keys: ["x"],
+    description: "Select or unselect the thread, to act on it with others",
+  },
+  markRead: {
+    place: "Thread list",
+    keys: ["I"],
+    description: "Mark read the threads selected, or with none, the thread",
+    once: true,
+  },
+  markUnread: {
+    place: "Thread list",
+    keys: ["U"],
+    description: "Mark unread the threads selected, or with none, the thread",
+    once: true,
+  },
   search: { place: "Thread list", keys: ["/"], description: "Search the threads" },
+  openFilters: { place: "Thread list", keys: ["f"], description: "Open the filters" },
+  chooseSort: { place: "Thread list", keys: ["s"], description: "Choose how the list is sorted" },
+  chooseGrouping: {
+    place: "Thread list",
+    keys: ["b"],
+    description: "Choose how the list is grouped",
+  },
   backToList: { place: "Thread", keys: ["u", "Escape"], description: "Back to the thread list" },
   reply: { place: "Thread", keys: ["r"], description: "Write in the composer" },
   archive: {
@@ -103,6 +137,13 @@ export const shortcuts = {
     place: "Thread",
     keys: ["]"],
     description: "Open the thread below in the list",
+    once: true,
+  },
+  markUnreadFrom: {
+    place: "Thread",
+    keys: ["U"],
+    description:
+      "Mark the thread unread from the message that has focus, or else from the first unread or the agent's latest loaded, then go back to the list",
     once: true,
   },
   jump: {
@@ -142,6 +183,9 @@ export const prefixTimeout = 1500;
 
 // Where this browser keeps whether the shortcuts are on.
 export const shortcutsChoice = "agention.keyboard-shortcuts";
+
+// Where this browser keeps whether Enter sends from the composer.
+export const enterSendsChoice = "agention.enter-sends";
 
 // Where the shortcuts are turned on and off.
 const keyboardSettingsHref = "/settings/keyboard";
@@ -204,6 +248,25 @@ function typing(target: EventTarget | null): boolean {
   return target.closest('[contenteditable]:not([contenteditable="false"])') !== null;
 }
 
+// composing says whether a key is an input method's, while it composes text:
+// the Enter that commits what it composed acts on nothing else. WebKit sends
+// that Enter with isComposing false, but with the key code 229, as every
+// browser does while composing.
+export const composing = (event: ReactKeyboardEvent) =>
+  event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+
+// sendsByEnter says whether a key is Enter alone, typed into one of the
+// composer's text boxes, which sends while the operator chose that it does,
+// though not as it repeats (useFieldShortcuts). Shift+Enter, like Enter
+// elsewhere in its form, such as on a button, is the browser's.
+const sendsByEnter = (event: ReactKeyboardEvent) =>
+  event.key === "Enter" &&
+  !event.shiftKey &&
+  !event.ctrlKey &&
+  !event.altKey &&
+  !event.metaKey &&
+  event.target instanceof HTMLTextAreaElement;
+
 // overlaid says whether a dialog or an options menu is open, which takes the
 // keys for itself, the composer's own included.
 const overlaid = () => document.querySelector("dialog[open]") !== null || anyMenuOpen();
@@ -217,6 +280,9 @@ const heldBack = (event: KeyboardEvent) =>
 interface Keyboard {
   on: boolean;
   setOn: (on: boolean) => void;
+  // Whether Enter sends from the composer, and a way to choose it.
+  enterSends: boolean;
+  setEnterSends: (enterSends: boolean) => void;
   showHelp: () => void;
   // register gives a shortcut its action, through a getter of the latest,
   // in the area of the page its place holds, if it names one, until the
@@ -242,8 +308,12 @@ function useKeyboardContext(): Keyboard {
 }
 
 // useKeyboard gives whether the shortcuts are on, a way to turn them on or
-// off, and a way to show their overlay.
-export function useKeyboard(): Pick<Keyboard, "on" | "setOn" | "showHelp"> {
+// off, whether Enter sends from the composer, a way to choose it, and a way
+// to show their overlay.
+export function useKeyboard(): Pick<
+  Keyboard,
+  "on" | "setOn" | "enterSends" | "setEnterSends" | "showHelp"
+> {
   return useKeyboardContext();
 }
 
@@ -275,14 +345,29 @@ function useRegistered<P extends ShortcutPlace>(
 
 // useFieldShortcuts gives the composer's form a key handler for the
 // shortcuts that act within its fields, all of them, while the shortcuts are
-// on and no dialog or menu is open, such as Attach's within the form.
+// on and no dialog or menu is open, such as Attach's within the form; and,
+// while the operator chose that Enter sends, for Enter in its text boxes,
+// which does what its Send shortcut does, the shortcuts on or off.
 export function useFieldShortcuts(
   _place: "Composer",
   actions: PlaceActions<"Composer">,
 ): (event: ReactKeyboardEvent) => void {
-  const { on } = useKeyboardContext();
+  const { on, enterSends } = useKeyboardContext();
   return (event) => {
-    if (!on || event.defaultPrevented || event.nativeEvent.isComposing || overlaid()) {
+    if (event.defaultPrevented || composing(event) || overlaid()) {
+      return;
+    }
+    if (enterSends && sendsByEnter(event)) {
+      // A held Enter sends once, and its repeats type nothing: one that
+      // began as Shift+Enter, Shift then let go, or one after a send that
+      // failed, would otherwise send.
+      event.preventDefault();
+      if (!event.repeat) {
+        actions.send(event.key);
+      }
+      return;
+    }
+    if (!on) {
       return;
     }
     for (const [id, action] of Object.entries(actions) as [ShortcutId, ShortcutAction][]) {
@@ -301,6 +386,7 @@ export function useFieldShortcuts(
 // the help overlay, which shows the shortcuts whether or not they are on.
 export function KeyboardProvider({ children }: { children: ReactNode }) {
   const [on, setOn] = useDeviceChoice(shortcutsChoice, true);
+  const [enterSends, setEnterSends] = useDeviceChoice(enterSendsChoice, false);
   // Each shortcut's action, and its place's area, by its id.
   const actions = useRef(new Map<ShortcutId, { action: () => ShortcutAction; area?: Area }>());
   const [helpOpen, setHelpOpen] = useState(false);
@@ -388,7 +474,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
   }, [on]);
 
   return (
-    <KeyboardContext.Provider value={{ on, setOn, showHelp, register }}>
+    <KeyboardContext.Provider value={{ on, setOn, enterSends, setEnterSends, showHelp, register }}>
       {children}
       {helpOpen && <ShortcutsHelp on={on} onClose={() => setHelpOpen(false)} />}
     </KeyboardContext.Provider>

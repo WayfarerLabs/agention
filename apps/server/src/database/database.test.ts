@@ -902,7 +902,7 @@ describe("a database an earlier release wrote", () => {
     }
   });
 
-  it("opens with every earlier row intact, no files, no API keys and no monitoring", () => {
+  it("opens with every earlier row intact, and no files, API keys, message links or monitoring", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
       connection.exec(`PRAGMA application_id = ${applicationId}`);
@@ -941,6 +941,7 @@ describe("a database an earlier release wrote", () => {
           "api_keys",
           "message_positions",
           "tags",
+          "message_links",
           "monitor_reports",
         ].sort(),
       );
@@ -950,8 +951,9 @@ describe("a database an earlier release wrote", () => {
         after.file_chunks,
         after.attachments,
         after.api_keys,
+        after.message_links,
         after.monitor_reports,
-      ]).toEqual([[], [], [], [], []]);
+      ]).toEqual([[], [], [], [], [], []]);
     } finally {
       database.close();
     }

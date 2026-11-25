@@ -2,6 +2,7 @@ export * from "./agent-api.ts";
 export * from "./api-keys.ts";
 export * from "./attention.ts";
 export * from "./bounds.ts";
+export * from "./code-links.ts";
 export * from "./errors.ts";
 export * from "./files.ts";
 export * from "./groups-and-tags.ts";

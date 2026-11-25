@@ -2,7 +2,8 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram, voice, API key and attachment tests' own.
+// and so do servers of the diagram, voice, API key, attachment and selection
+// tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -43,6 +44,14 @@ export const voiceServerName = "Voice";
 export const keysServerName = "Keys";
 // The name of the server the attachment tests start for themselves.
 export const filesServerName = "Files";
+// The name of the server the pull request and branch tests start for
+// themselves.
+export const linksServerName = "Links";
+// The name of the server the selection tests start for themselves.
+export const selectionServerName = "Selection";
+
+// The name of the server the README's screenshots are taken of.
+export const screenshotsServerName = "Agention";
 
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
@@ -201,6 +210,9 @@ export const test = base.extend<
     voiceServer: Agention;
     keysServer: Agention;
     filesServer: Agention;
+    linksServer: Agention;
+    selectionServer: Agention;
+    screenshotsServer: Agention;
   }
 >({
   certificate: [
@@ -215,6 +227,9 @@ export const test = base.extend<
   voiceServer: [serving(voiceServerName), { scope: "worker" }],
   keysServer: [serving(keysServerName), { scope: "worker" }],
   filesServer: [serving(filesServerName), { scope: "worker" }],
+  linksServer: [serving(linksServerName), { scope: "worker" }],
+  selectionServer: [serving(selectionServerName), { scope: "worker" }],
+  screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({
@@ -244,16 +259,23 @@ const devtools = new WeakMap<Page, CDPSession>();
 // Sizes the window as a test's device: below a phone's width the main pointer
 // is a touch screen, as on a phone, so the page takes the sizes it gives a
 // fingertip; at a wider one it is the mouse Playwright's Chromium has, which
-// takes the denser sizes (styles.css, pointer: fine).
-export async function resize(page: Page, size: { width: number; height: number }): Promise<void> {
+// takes the denser sizes (styles.css, pointer: fine), unless touch says
+// otherwise, as for a tablet.
+export async function resize(
+  page: Page,
+  size: { width: number; height: number },
+  touch = size.width < phoneWidth,
+): Promise<void> {
   let session = devtools.get(page);
   if (session === undefined) {
     session = await page.context().newCDPSession(page);
     devtools.set(page, session);
   }
-  await session.send("Emulation.setTouchEmulationEnabled", {
-    enabled: size.width < phoneWidth,
-    maxTouchPoints: 1,
-  });
+  await session.send("Emulation.setTouchEmulationEnabled", { enabled: touch, maxTouchPoints: 1 });
   await page.setViewportSize(size);
+  // The page may see the new size late under load, and its media listeners,
+  // which lay it out by width and pointer, run only at the next frame after;
+  // measure nothing before they do.
+  await page.waitForFunction((width) => window.innerWidth === width, size.width);
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
 }

@@ -1,4 +1,10 @@
-import { type Message, maxAnswers, type Reference } from "@wayfarerlabs/agention-api";
+import {
+  carriesAPart,
+  type Message,
+  maxAnswers,
+  type Reference,
+  type ThreadsView,
+} from "@wayfarerlabs/agention-api";
 import {
   type Dispatch,
   Fragment,
@@ -36,6 +42,7 @@ import {
   useSpeechFailed,
   wordsOf,
 } from "../../voice/speech.ts";
+import { MessageCodeLinks } from "./CodeLinks.tsx";
 import { type Copying, markdownOf, useCopy } from "./copy.ts";
 import { useMessageFiles } from "./files/FileList.tsx";
 import {
@@ -109,6 +116,9 @@ export const mine = (message: Message) => message.author.kind === "person";
 
 export interface MessageContext {
   target: ThreadTarget;
+  // The list the page returns to, whose order and grouping the lists a
+  // message's pull requests and branches lead to keep.
+  origin: ThreadsView;
   // A message on screen, by its sequence.
   find(seq: number): Message | undefined;
   actions?: MessageActions | undefined;
@@ -204,20 +214,6 @@ export function References({
   );
 }
 
-// carriesNothing says whether a message carries no part of its own, so that,
-// replacing another, it retracts it.
-function carriesNothing(message: Message): boolean {
-  return (
-    message.text === undefined &&
-    message.references === undefined &&
-    message.attachments === undefined &&
-    message.asks === undefined &&
-    message.answers === undefined &&
-    message.withdrawals === undefined &&
-    message.topic === undefined
-  );
-}
-
 // An answer as a message carries it, and an ask as its message carries it.
 type AnswerRead = NonNullable<Message["answers"]>[number];
 type Ask = NonNullable<Message["asks"]>[number];
@@ -238,14 +234,12 @@ function answered(answer: Pick<AnswerRead, "labels" | "text">, suggested: boolea
   return suggested && answer.text !== undefined ? `: ${otherLabel}` : ":";
 }
 
-// Picked marks a choice as picked: a check to see, drawn so that it shows
+// Picked marks a choice as picked: a check to see, an icon so that it shows
 // whatever the font, and words for assistive technology.
 function Picked() {
   return (
     <>
-      <svg className="check" aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-        <path d="M3 8.5 6.5 12 13 4.5" />
-      </svg>
+      <Icon name="check" />
       <span className="visually-hidden">Picked: </span>
     </>
   );
@@ -307,6 +301,13 @@ export function suggestionChoices(): HTMLInputElement[] {
   }
   const open = Array.from(document.querySelectorAll("section.ask.open"));
   return choices(open.find((card) => choices(card).length > 0));
+}
+
+// focusedMessage gives the sequence of the message that holds focus, itself
+// or within it, if one does.
+export function focusedMessage(): number | undefined {
+  const seq = document.activeElement?.closest<HTMLElement>("article.message")?.dataset.seq;
+  return seq === undefined ? undefined : Number(seq);
 }
 
 function AskCard({
@@ -433,7 +434,7 @@ function AskCard({
       : !message.live
         ? replacement?.asks !== undefined
           ? `Revised in #${message.replaced_by}.`
-          : replacement !== undefined && carriesNothing(replacement)
+          : replacement !== undefined && !carriesAPart(replacement)
             ? `Retracted in #${message.replaced_by}.`
             : `Replaced by #${message.replaced_by}.`
         : ask.open
@@ -766,7 +767,7 @@ function Events({
     <>
       {message.replaces !== undefined && (
         <p className="event">
-          {carriesNothing(message)
+          {!carriesAPart(message)
             ? `Retracted #${message.replaces}.`
             : `Replaces #${message.replaces}.`}
         </p>
@@ -801,6 +802,12 @@ interface Option {
   choose(): void;
 }
 
+// offersMarks says whether a message offers the marks made from it, Mark
+// unread from here and Archive through here: while it is live and the
+// archive mark has not reached it.
+export const offersMarks = (message: Message, archivedThrough: number) =>
+  message.live && message.seq > archivedThrough;
+
 // optionsOf lists what the operator can do from a live message: mark the
 // thread unread from it and archive through it, until the archive mark
 // reaches it; change the answers it carries while any ask they answer is
@@ -812,9 +819,8 @@ function optionsOf(message: Message, actions: MessageActions): Option[] {
   const answersLive = message.answers?.some((answer) => answer.ask_live) === true;
   const changeable = answersLive && mine(message) && !changing;
   const archiveHint = actions.archiveHint(message);
-  const archived = message.seq <= actions.archivedThrough;
   return [
-    ...(archived
+    ...(!offersMarks(message, actions.archivedThrough)
       ? []
       : [
           {
@@ -1085,6 +1091,11 @@ function MessageBody({
       {message.references !== undefined && (
         <References references={message.references} target={context.target} />
       )}
+      <MessageCodeLinks
+        pullRequests={message.pull_requests}
+        branches={message.branches}
+        origin={context.origin}
+      />
       {files.list}
       {message.asks?.map((ask) => (
         <AskCard key={ask.number} message={message} ask={ask} context={context} />
@@ -1111,9 +1122,14 @@ export function MessageView({
     // A replacement carrying nothing retracts the message.
     const replacement =
       message.replaced_by === undefined ? undefined : context.find(message.replaced_by);
-    const retracted = replacement !== undefined && carriesNothing(replacement);
+    const retracted = replacement !== undefined && !carriesAPart(replacement);
     return (
-      <article id={`message-${message.seq}`} className="message replaced" aria-label={label}>
+      <article
+        id={`message-${message.seq}`}
+        data-seq={message.seq}
+        className="message replaced"
+        aria-label={label}
+      >
         <details>
           <summary>
             #{message.seq} by {authorName(message.author)},{" "}
@@ -1134,6 +1150,7 @@ export function MessageView({
   return (
     <article
       id={`message-${message.seq}`}
+      data-seq={message.seq}
       tabIndex={-1}
       className={unread ? "message unread" : "message"}
       aria-label={label}

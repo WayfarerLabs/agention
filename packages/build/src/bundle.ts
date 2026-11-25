@@ -6,7 +6,9 @@ import { suppliedNotices } from "./supplied-notices.ts";
 // The file the build writes beside each bundle.
 export const noticesFile = "THIRD-PARTY-NOTICES.txt";
 
-// The license notice of one npm package that a published package includes.
+// The license notice of one third-party package that a published package
+// includes: an npm package, or a work whose files a workspace copies in, such
+// as the web UI's icons.
 export interface PackageNotice {
   name: string;
   version: string;
@@ -15,7 +17,7 @@ export interface PackageNotice {
 }
 
 // Other files a published package ships beside its bundle, such as the web UI
-// the server serves, and the npm packages they include.
+// the server serves, and the third-party packages they include.
 export interface ShippedFiles {
   name: string;
   packages: PackageNotice[];
@@ -228,7 +230,7 @@ function noticeSection(name: string, packages: PackageNotice[]): string {
     return `${title}${name} includes no third-party packages.\n`;
   }
   const sections = packages.map(formatNotice).sort();
-  return `${title}${name} includes the npm packages below, each under the license shown with it.\n\n${sections.join("\n")}`;
+  return `${title}${name} includes the third-party packages below, each under the license shown with it.\n\n${sections.join("\n")}`;
 }
 
 function packageNotice(dir: string): PackageNotice {

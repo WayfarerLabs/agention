@@ -10,7 +10,11 @@ import {
   submitRegistration,
 } from "../store/index.ts";
 import { agentOperations, backgroundOperations, registration } from "./agent-operations.ts";
-import { requestedAgentApiVersion, requireServedAgentApiVersion } from "./agent-api-version.ts";
+import {
+  type AgentApiVersionEnv,
+  answerAsStatedVersion,
+  requireServedAgentApiVersion,
+} from "./agent-api-version.ts";
 import { parseBody } from "./input.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
@@ -29,12 +33,13 @@ export interface AgentApiOptions {
 export const seenFailureLogInterval = 60_000;
 
 // agentApi is the agent bridge's API, mounted at /api/agent. A request
-// stating an agent API version the server does not serve is refused first.
+// stating an agent API version the server does not serve is refused first,
+// and an answer to one it serves is the answer of the version it states.
 // Every request carries a token signed by its session's key; cookies are
 // refused, so a browser's sign-in never works here.
-export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
+export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiVersionEnv> {
   const { store, origin, budgets, log } = options;
-  const api = new Hono<IdentityEnv>();
+  const api = new Hono<IdentityEnv & AgentApiVersionEnv>();
 
   // seen marks the presence of the session an approved registration acts
   // for: connected, for its bridge's background requests, and otherwise its
@@ -43,12 +48,17 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   // failure that lasts, such as a full or busy database, recurs on every
   // call, so it is logged at most once a minute, by the store's clock.
   let failureLoggedAt: number | undefined;
-  const seen = (c: Context, registrationId: number, background: boolean): void => {
+  const seen = (
+    c: Context<IdentityEnv & AgentApiVersionEnv>,
+    registrationId: number,
+    background: boolean,
+  ): void => {
     try {
       if (background) {
         markBackground(store, registrationId);
       } else {
-        markCheckedIn(store, registrationId, requestedAgentApiVersion(c));
+        // A served version is at most this server's, so it fits a number.
+        markCheckedIn(store, registrationId, Number(c.var.agentApiVersion));
       }
     } catch (error) {
       const now = store.clock();
@@ -60,6 +70,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   };
 
   api.use(requireServedAgentApiVersion);
+  api.use(answerAsStatedVersion);
   api.use(async (c, next) => {
     if (c.req.header("cookie") !== undefined) {
       throw unauthenticated("the agent API does not accept cookies");
