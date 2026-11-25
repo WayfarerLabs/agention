@@ -14,8 +14,8 @@ index of those docs.
 
 ## Identity and design
 
-- Overview, values, and architecture: `README.md` (its opening, "Status" and "Design");
-  `SECURITY.md` "Security model"; `docs/architecture.md`, which describes what exists;
+- Overview, values, and architecture: `README.md` (its opening, "How it works" and "What it does not
+  do"); `SECURITY.md` "Security model"; `docs/architecture.md`, which describes what exists;
   `docs/adrs/0001-agention-v1-architecture.md`, the intended design and the alternatives considered
 - Decision records: `docs/adrs/` (`.adr-dir`), in the format of ADR 0000; `CONTRIBUTING.md`
   "Architecture decision records"
@@ -83,7 +83,9 @@ index of those docs.
   generated from the server's operation declarations and the `packages/api` schemas they use by
   `apps/server/generate-api-docs.ts`, through `scripts/generate-api-docs.sh`, with the parity test
   `apps/server/src/http/api-docs.test.ts` in the "Tests" gate (`CONTRIBUTING.md` "Generated API
-  document")
+  document"); and the screenshots in `docs/images/`, retaken by `apps/web/e2e/readme-screenshots.ts`
+  through `scripts/generate-screenshots.sh`, with no drift check (`CONTRIBUTING.md` "README
+  screenshots")
 - Everything CI requires on a pull request, in order: `.github/workflows/ci.yml`: the `check` job
   runs `scripts/check.sh`, whose gates `CONTRIBUTING.md` "Checks" lists in order; then `ci-success`,
   the one required check, which passes only when `check` succeeded
@@ -96,13 +98,16 @@ index of those docs.
   doing"
 - Collateral to keep in sync: docs `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/architecture.md`, `docs/operator-guide.md`, `docs/adrs/`, `docs/review-checklist.md`,
-  `docs/live-testing.md`, this file, and `.github/pull_request_template.md`; sample config none (the
-  operator guide's systemd unit and launchd plist are its examples); CLI help and completions: the
-  usage text in `apps/server/src/cli.ts` and `apps/bridge/src/cli.ts`, and no completions; product
-  guidance: the usage skill in `apps/agent-plugin/skills/`, the plugin definition
-  `apps/agent-plugin/plugin.json` and their generated outputs, the tool and field descriptions
-  agents read, in `apps/bridge/src/tools.ts` and the `packages/api` schemas, and the operation
-  summaries and field descriptions clients read in the generated `docs/api/openapi.json`
+  `docs/live-testing.md`, this file, and `.github/pull_request_template.md`, the published packages'
+  pages on npm, `apps/server/README.md` and `apps/bridge/README.md`, and the screenshots of the web
+  UI in `docs/images/`, which the README shows and the server package's page loads from `main` by
+  name, retaken under the same names by `scripts/generate-screenshots.sh` when the views they show
+  change; sample config none (the operator guide's systemd unit and launchd plist are its examples);
+  CLI help and completions: the usage text in `apps/server/src/cli.ts` and `apps/bridge/src/cli.ts`,
+  and no completions; product guidance: the usage skill in `apps/agent-plugin/skills/`, the plugin
+  definition `apps/agent-plugin/plugin.json` and their generated outputs, the tool and field
+  descriptions agents read, in `apps/bridge/src/tools.ts` and the `packages/api` schemas, and the
+  operation summaries and field descriptions clients read in the generated `docs/api/openapi.json`
 - Command or API reference: `agention --help` and each command's `--help`, with
   `docs/operator-guide.md` "Commands" and "Running the server"; `agention-mcp --help`; the API's
   request and response schemas in `packages/api` (`docs/architecture.md` "API contract") and the
