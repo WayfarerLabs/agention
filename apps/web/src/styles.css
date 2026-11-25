@@ -2021,6 +2021,45 @@ audio.file-media {
   margin-top: 0;
 }
 
+/* The pull requests and branches a message names, on one short line under
+   its text, or folded to a count that unfolds to a list; and its thread's,
+   folded under the head beside its files. Short forms can be long, so they
+   wrap anywhere rather than widen the page. */
+.code-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.code-links .icon {
+  flex: none;
+}
+
+.code-links-list {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-border);
+  list-style: none;
+}
+
+.code-link {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.thread-code-links {
+  margin-bottom: var(--space-3);
+}
+
+.thread-code-links .code-links-list {
+  margin-bottom: var(--space-3);
+}
+
 /* A draft's files, in the composer above its Send row and in the new-thread
    sheet, each with how it stands and Remove. */
 .attached {

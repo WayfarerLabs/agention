@@ -141,24 +141,27 @@ signals.
 
 ## A9. Inert content
 
-Message text, details, references, and topics are displayed, never executed, fetched, or followed
-(the **Inert content** invariant in `SECURITY.md` "Security model"; ADR 0001 "Text is Markdown,
-rendered inert"). A message's text and its detail are Markdown rendered inert, every other text
-field is plain, and text is stored and returned exactly as written. A reference is a label plus at
-least one of an identifier, an HTTPS URL, and a thread of the same session
-(`packages/api/src/references.ts`), and `isLinkableUrl` is the one rule for what shows as a link
-(`docs/architecture.md` "API contract"). No image written in message text loads: it shows as a link.
-Files attached to messages are not message text, and load only as A17 holds them (ADR 0004); message
-text reaches a file only through a link to one of its own message's files. A diagram drawn from
-message text is drawn in isolation, so drawing it can neither run anything in the app's page nor
-fetch anything, and shows as an image, with the content security policy kept strict: it gains only
-the diagram frame's route as a frame source, `blob:` images, and media from its own origin for
-attachments, and the frame's own policy sandboxes it. Look for content-driven fetches or previews,
-raw HTML or images other than such a diagram or an attached file reaching the DOM, a link from text
-to a file another message carries, a diagram drawn outside its isolation, classes or styles taken
-from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as
-query syntax, and message content treated as the operator's direction anywhere, the usage skill
-included, unless the operator wrote it (its author is the person).
+Message text, details, references, pull requests and branches, and topics are displayed, never
+executed, fetched, or followed (the **Inert content** invariant in `SECURITY.md` "Security model";
+ADR 0001 "Text is Markdown, rendered inert" and "Not doing"). A message's text and its detail are
+Markdown rendered inert, every other text field is plain, and text is stored and returned exactly as
+written. A reference is a label plus at least one of an identifier, an HTTPS URL, and a thread of
+the same session (`packages/api/src/references.ts`); a pull request or branch is a GitHub repository
+with a number or a branch name under git's rules, and an optional HTTPS URL
+(`packages/api/src/code-links.ts`), shown by its short form; and `isLinkableUrl` is the one rule for
+what shows as a link (`docs/architecture.md` "API contract"). No image written in message text
+loads: it shows as a link. Files attached to messages are not message text, and load only as A17
+holds them (ADR 0004); message text reaches a file only through a link to one of its own message's
+files. A diagram drawn from message text is drawn in isolation, so drawing it can neither run
+anything in the app's page nor fetch anything, and shows as an image, with the content security
+policy kept strict: it gains only the diagram frame's route as a frame source, `blob:` images, and
+media from its own origin for attachments, and the frame's own policy sandboxes it. Look for
+content-driven fetches or previews, any call to GitHub or another forge about a pull request or
+branch, raw HTML or images other than such a diagram or an attached file reaching the DOM, a link
+from text to a file another message carries, a diagram drawn outside its isolation, classes or
+styles taken from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search
+text read as query syntax, and message content treated as the operator's direction anywhere, the
+usage skill included, unless the operator wrote it (its author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 
@@ -193,14 +196,14 @@ contract: `packages/api` for what the bridge shares, and `packages/server-api` f
 server and the web UI ship, which the bridge's bundle never includes
 (`apps/bridge/src/bundle.test.ts`; `docs/architecture.md` "Source and packages"). Once a bridge is
 released, agent routes only grow: each release's agent routes accept what earlier released bridges
-send and answer what they read, because agents run whatever bridge version their plugin pins; the
-agent compatibility gate holds this, and every agent contract change bumps the agent API version
-(`CONTRIBUTING.md` "The agent API"). The typed error set (at least invalid input, not found, stale,
-request-id conflict, rate limited, unauthenticated; `packages/api/src/errors.ts`) is the same on
-every mount and in the bridge's tool errors. Tool names use lowercase letters, digits, and
-underscores; tool annotations are true of the tools; `message_wait` stays well below the 60-second
-Codex tool timeout, worst case included; tool schemas are the payload reference
-(`docs/architecture.md` "Agent bridge").
+send and answer what they read, leaving out of an answer to an older bridge the fields added after
+its version, because agents run whatever bridge version their plugin pins; the agent compatibility
+gate holds this, and every agent contract change bumps the agent API version (`CONTRIBUTING.md` "The
+agent API"). The typed error set (at least invalid input, not found, stale, request-id conflict,
+rate limited, unauthenticated; `packages/api/src/errors.ts`) is the same on every mount and in the
+bridge's tool errors. Tool names use lowercase letters, digits, and underscores; tool annotations
+are true of the tools; `message_wait` stays well below the 60-second Codex tool timeout, worst case
+included; tool schemas are the payload reference (`docs/architecture.md` "Agent bridge").
 
 ## A13. SQLite persistence and backup
 
@@ -317,14 +320,15 @@ key-reachable route that manages credentials or Settings, and a scope whose mean
 The operator API's version is in its path, and a version changes only additively: a new operation, a
 new optional request field, a new response field. A change that would break a client, such as a
 field removed, renamed, narrowed or made required, is a new version beside the old, by a
-maintainer's decision (`docs/architecture.md` "HTTP API"). The OpenAPI document,
-`docs/api/openapi.json`, is generated from the declarations and never edited by hand: a change to an
-operator or agent operation, or to a schema one uses, regenerates it with
-`scripts/generate-api-docs.sh` in the same change, and its diff is reviewed as the contract change
-it is; the server's suite fails while the committed document differs from the code's
-(`CONTRIBUTING.md` "Generated API document"; `docs/architecture.md` "API documentation"). Look for a
-contract change whose document was not regenerated, a regenerated document whose diff removes or
-narrows anything a served version or the agent API (A12) carries, a document that describes more
-than the server checks (it may describe less: a rule enforced only in code answers `invalid_input`,
-naming the field when the rule concerns one), and documentation served with anything beyond the
-contract or without `--api-docs`.
+maintainer's decision (`docs/architecture.md` "HTTP API"). Until 1.0, a change in what an existing
+field or value means may land in place (`docs/architecture.md` "HTTP API"); look for one without a
+maintainer's decision or a `BREAKING CHANGE:` footer. The OpenAPI document, `docs/api/openapi.json`,
+is generated from the declarations and never edited by hand: a change to an operator or agent
+operation, or to a schema one uses, regenerates it with `scripts/generate-api-docs.sh` in the same
+change, and its diff is reviewed as the contract change it is; the server's suite fails while the
+committed document differs from the code's (`CONTRIBUTING.md` "Generated API document";
+`docs/architecture.md` "API documentation"). Look for a contract change whose document was not
+regenerated, a regenerated document whose diff removes or narrows anything a served version or the
+agent API (A12) carries, a document that describes more than the server checks (it may describe
+less: a rule enforced only in code answers `invalid_input`, naming the field when the rule concerns
+one), and documentation served with anything beyond the contract or without `--api-docs`.

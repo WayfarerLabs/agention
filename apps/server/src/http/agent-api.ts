@@ -1,10 +1,14 @@
 import type { RegistrationState } from "@wayfarerlabs/agention-api";
-import { type Context, Hono, type MiddlewareHandler } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { authenticateAgent, verifyRegistrationToken } from "../auth/agent-tokens.ts";
 import { unauthenticated } from "../errors.ts";
 import { findRegistrationByKey, markSeen, type Store, submitRegistration } from "../store/index.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
-import { requireServedAgentApiVersion, statedAgentApiVersion } from "./agent-api-version.ts";
+import {
+  type AgentApiVersionEnv,
+  answerAsStatedVersion,
+  requireServedAgentApiVersion,
+} from "./agent-api-version.ts";
 import { parseBody } from "./input.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
 import type { RateBudgets } from "./rates.ts";
@@ -23,12 +27,13 @@ export interface AgentApiOptions {
 export const seenFailureLogInterval = 60_000;
 
 // agentApi is the agent bridge's API, mounted at /api/agent. A request
-// stating an agent API version the server does not serve is refused first.
+// stating an agent API version the server does not serve is refused first,
+// and an answer to one it serves is the answer of the version it states.
 // Every request carries a token signed by its session's key; cookies are
 // refused, so a browser's sign-in never works here.
-export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
+export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiVersionEnv> {
   const { store, origin, budgets, log } = options;
-  const api = new Hono<IdentityEnv>();
+  const api = new Hono<IdentityEnv & AgentApiVersionEnv>();
 
   // seen marks the session an approved registration acts for as seen,
   // speaking the agent API version the call states, which the mount's first
@@ -37,9 +42,9 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   // full or busy database, recurs on every call, so it is logged at most once
   // a minute, by the store's clock.
   let failureLoggedAt: number | undefined;
-  const seen = (c: Context, registrationId: number): void => {
+  const seen = (registrationId: number, agentApiVersion: bigint): void => {
     try {
-      markSeen(store, registrationId, Number(statedAgentApiVersion(c)));
+      markSeen(store, registrationId, Number(agentApiVersion));
     } catch (error) {
       const now = store.clock();
       if (failureLoggedAt === undefined || now - failureLoggedAt >= seenFailureLogInterval) {
@@ -50,6 +55,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   };
 
   api.use(requireServedAgentApiVersion);
+  api.use(answerAsStatedVersion);
   api.use(async (c, next) => {
     if (c.req.header("cookie") !== undefined) {
       throw unauthenticated("the agent API does not accept cookies");
@@ -70,7 +76,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
       budgets.spend("submit");
     } else {
       budgets.spendForKey(key);
-      seen(c, known.id);
+      seen(known.id, c.var.agentApiVersion);
     }
     const input = await parseBody(c, registration.body);
     const state: RegistrationState = submitRegistration(store, key, input);
@@ -80,13 +86,13 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv> {
   // A failed authentication spends the shared failed-authentication budget;
   // a key that verifies spends only its own. Every authenticated call marks
   // its session seen before its own work, so one refused later counts too.
-  const authenticate: MiddlewareHandler<IdentityEnv> = async (c, next) => {
+  const authenticate: MiddlewareHandler<IdentityEnv & AgentApiVersionEnv> = async (c, next) => {
     const { identity, publicKey } = await budgets.spendOnFailure("failedAgentAuth", () =>
       authenticateAgent(store.db, c.req.header("authorization"), origin, store.clock()),
     );
     budgets.spendForKey(publicKey);
     if (identity.credential.kind === "registration") {
-      seen(c, identity.credential.registrationId);
+      seen(identity.credential.registrationId, c.var.agentApiVersion);
     }
     c.set("identity", identity);
     await next();

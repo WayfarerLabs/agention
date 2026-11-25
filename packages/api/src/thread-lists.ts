@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { cursor, pageLimit, queryBoolean, queryNumber } from "./bounds.ts";
+import { branchShortForm, pullRequestShortForm } from "./code-links.ts";
 import { singleLineText } from "./text.ts";
 import { threadStatus, threadSummary, topic } from "./threads.ts";
 
@@ -36,6 +37,16 @@ export const unreadFilter = z
     "Only threads with messages from the other party that you have neither read nor archived.",
   );
 
+// The filters on the pull requests and branches a thread's live messages
+// name, which match an entry's repository ignoring case and its number or
+// branch exactly.
+export const pullRequestFilter = pullRequestShortForm.describe(
+  "Only threads whose live messages name this pull request, as owner/name#number.",
+);
+export const branchFilter = branchShortForm.describe(
+  "Only threads whose live messages name this branch, as owner/name:branch.",
+);
+
 // A session's threads, as its own agent lists them.
 export const sessionThreadsQuery = z.object({
   include_archived: queryBoolean(includeArchivedFilter),
@@ -43,6 +54,8 @@ export const sessionThreadsQuery = z.object({
   status: statusFilter.optional(),
   unread: queryBoolean(unreadFilter),
   topic: topic.optional(),
+  pull_request: pullRequestFilter.optional(),
+  branch: branchFilter.optional(),
   cursor: cursor.optional(),
   limit: queryNumber(pageLimit),
 });

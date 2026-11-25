@@ -36,6 +36,7 @@ import {
   useSpeechFailed,
   wordsOf,
 } from "../../voice/speech.ts";
+import { MessageCodeLinks } from "./CodeLinks.tsx";
 import { type Copying, markdownOf, useCopy } from "./copy.ts";
 import { useMessageFiles } from "./files/FileList.tsx";
 import {
@@ -210,6 +211,8 @@ function carriesNothing(message: Message): boolean {
   return (
     message.text === undefined &&
     message.references === undefined &&
+    message.pull_requests === undefined &&
+    message.branches === undefined &&
     message.attachments === undefined &&
     message.asks === undefined &&
     message.answers === undefined &&
@@ -1085,6 +1088,7 @@ function MessageBody({
       {message.references !== undefined && (
         <References references={message.references} target={context.target} />
       )}
+      <MessageCodeLinks pullRequests={message.pull_requests} branches={message.branches} />
       {files.list}
       {message.asks?.map((ask) => (
         <AskCard key={ask.number} message={message} ask={ask} context={context} />

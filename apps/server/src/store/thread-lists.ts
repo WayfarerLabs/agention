@@ -1,7 +1,12 @@
 import {
+  type BranchLink,
   formatTimestamp,
+  linkKey,
   maxListed,
+  parseBranch,
+  parsePullRequest,
   priority,
+  type PullRequestLink,
   type SessionThreadsQuery,
   type ThreadPage,
   type ThreadSummary,
@@ -67,12 +72,28 @@ const carriedTags = `(
   UNION SELECT s.id, a.name FROM agent_tags a JOIN sessions s ON s.agent_id = a.agent_id
 )`;
 
+// A list's filters as the store applies them: the operator's, and those on
+// the pull requests and branches a thread's live messages name, each a list
+// of short forms, which a session's list takes.
+type ListFilters = ThreadFilters & {
+  pull_request?: string[] | undefined;
+  branch?: string[] | undefined;
+};
+
 // A part of a list: which threads it keeps, over seen as th, and whether a
 // list's filters turn it on.
 interface Part {
   keeps: string;
-  on: (query: ThreadFilters) => boolean;
+  on: (query: ListFilters) => boolean;
 }
+
+// namedBy keeps the threads whose live messages name one of the entries of a
+// kind whose keys the parameter given binds.
+const namedBy = (kind: "pull_request" | "branch") => `th.id IN (
+  SELECT k.thread_id FROM message_links k
+  JOIN live_messages l ON l.thread_id = k.thread_id AND l.seq = k.seq
+  WHERE k.kind = '${kind}' AND k.link_key IN (SELECT value FROM json_each(:${kind}))
+)`;
 
 // Search keeps the threads whose title holds every word of the search, or,
 // searching what messages say too, those one of whose live messages does in
@@ -116,6 +137,11 @@ const listParts = {
       IN (SELECT value FROM json_each(:topic))`,
     on: (query) => query.topic !== undefined,
   },
+  pull_request: {
+    keeps: namedBy("pull_request"),
+    on: (query) => query.pull_request !== undefined,
+  },
+  branch: { keeps: namedBy("branch"), on: (query) => query.branch !== undefined },
   // A session in no group counts as in the group 0, which no group's id is.
   session_group: {
     keeps: "COALESCE(th.group_id, 0) IN (SELECT value FROM json_each(:session_group))",
@@ -151,7 +177,7 @@ const unfiltered = threadFilters.parse({});
 // where is the condition a query's list keeps threads by: that of every part
 // its filters turn on, of the operator's list unless the parts given are
 // another's.
-function where(query: ThreadFilters, parts: Parts = listParts): string {
+function where(query: ListFilters, parts: Parts = listParts): string {
   const on: Part[] = Object.values(parts).filter((part) => part.on(query));
   return on.length === 0 ? "1" : on.map((part) => `(${part.keeps})`).join(" AND ");
 }
@@ -195,6 +221,20 @@ export function ftsQuery(text: string): string {
 
 type Parameters = Record<string, string | number | null>;
 
+// linkKeysOf binds the keys of a filter's short forms as a JSON array. The
+// filter's schema refused any short form that does not parse.
+function linkKeysOf(
+  shortForms: string[] | undefined,
+  parse: (text: string) => PullRequestLink | BranchLink | undefined,
+): string {
+  return JSON.stringify(
+    (shortForms ?? []).flatMap((text) => {
+      const link = parse(text);
+      return link === undefined ? [] : [linkKey(link)];
+    }),
+  );
+}
+
 // The threads a list reaches, over threads as t: those of every session the
 // viewer reaches, bound by sessionScope; or those of one session.
 export const reached =
@@ -204,7 +244,7 @@ const inSession = "t.session_id = :session_id";
 // parametersOf gives the values a query's parts and filters bind, beside the
 // viewer and the quiet cut-off, and the time, which overdue compares answer-by
 // times with.
-function parametersOf(query: ThreadFilters, viewing: ViewerAndCutoff, now: number): Parameters {
+function parametersOf(query: ListFilters, viewing: ViewerAndCutoff, now: number): Parameters {
   return {
     ...viewing,
     now,
@@ -221,6 +261,8 @@ function parametersOf(query: ThreadFilters, viewing: ViewerAndCutoff, now: numbe
       (query.session_group ?? []).map((group) => (group === noGroup ? 0 : group)),
     ),
     tag: JSON.stringify(query.tag ?? []),
+    pull_request: linkKeysOf(query.pull_request, parsePullRequest),
+    branch: linkKeysOf(query.branch, parseBranch),
   };
 }
 
@@ -372,7 +414,7 @@ const keysOf = (grouping: ThreadGrouping | undefined): readonly OrderKey[] =>
 // query keeps, as the list shows it: only a group holding no other thread
 // takes its place from the kept one.
 function placing(
-  query: ThreadFilters,
+  query: ListFilters,
   parts: Parts,
   grouping: ThreadGrouping | undefined,
   alsoKept?: string,
@@ -403,7 +445,7 @@ interface PageQuery<T> {
   scope: string;
   bySession: boolean;
   parameters: Parameters;
-  query: ThreadFilters;
+  query: ListFilters;
   // The parts the list keeps its threads by.
   parts: Parts;
   sort: ThreadSort;
@@ -465,18 +507,20 @@ export function listSessionThreads(
   store: Store,
   identity: Identity,
   target: SessionTarget,
-  { topic, ...query }: SessionThreadsQuery,
+  { topic, pull_request: pullRequest, branch, ...query }: SessionThreadsQuery,
 ): ThreadPage {
   const { db } = store;
   return db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:read", target, now);
     // The filters a session's list does not take stay off, and its topic is
-    // the session's own.
-    const filters: ThreadFilters = {
+    // the session's own. It takes one pull request and one branch.
+    const filters: ListFilters = {
       ...unfiltered,
       ...query,
       topic: topic === undefined ? undefined : [`${target.agent}/${target.session}/${topic}`],
+      pull_request: pullRequest === undefined ? undefined : [pullRequest],
+      branch: branch === undefined ? undefined : [branch],
     };
     return pageThreads(db, now, {
       scope: inSession,

@@ -23,6 +23,7 @@ import {
   type ResolvedAttachment,
   threadFileTotals,
 } from "./attachments.ts";
+import { insertLinks, type MessageLinks, threadLinks } from "./code-links.ts";
 import { findOperator, resolveSession, sessionActorId } from "./directory.ts";
 import { writeDigest } from "./digest.ts";
 import { statusOnWrite } from "./sessions.ts";
@@ -137,7 +138,7 @@ function replayed(
 }
 
 // The parts a message carries.
-interface Parts {
+interface Parts extends MessageLinks {
   text?: string | undefined;
   detail?: string | undefined;
   references?: Reference[] | undefined;
@@ -173,8 +174,9 @@ function keepArchived(db: Database, actor: number, threadId: number, seq: number
 
 // appendMessage writes a message at the thread's next sequence and the
 // session's next position, with its asks, numbered on from the thread's
-// highest, its answers, its withdrawals and its attachments, which marks
-// each file it names attached, and moves the writer's read
+// highest, its answers, its withdrawals, its pull requests and branches,
+// and its attachments, which marks each file it names attached, and moves
+// the writer's read
 // cursor to it: a writer has read through its own message. A writer for whom
 // the thread is archived keeps it archived. Its caller's transaction holds it
 // all, so a message and its rows land together or not at all.
@@ -267,6 +269,7 @@ function appendMessage(
       insert.run({ thread_id: thread.id, seq, ask: withdrawal.ask, reason: withdrawal.reason });
     }
   }
+  insertLinks(db, thread.id, seq, parts);
   insertAttachments(db, thread.id, seq, write.attachments);
   db.prepare("UPDATE threads SET last_seq = ? WHERE id = ?").run(seq, thread.id);
   raiseReadMark(db, identity.actor, thread.id, seq);
@@ -657,7 +660,8 @@ export function sendMessage(
 }
 
 // getThread reads a thread, a page of its messages, both parties' read
-// cursors, the caller's own marks and the totals of the thread's files.
+// cursors, the caller's own marks, the totals of the thread's files and the
+// roll-up of the pull requests and branches its live messages name.
 export function getThread(
   store: Store,
   identity: Identity,
@@ -675,6 +679,7 @@ export function getThread(
       cursors: partyCursors(db, stored),
       marks: marksOf(db, identity.actor, stored.id),
       files: threadFileTotals(db, stored.id),
+      ...threadLinks(db, stored.id),
     };
   });
 }
