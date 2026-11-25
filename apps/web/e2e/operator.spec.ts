@@ -1,7 +1,8 @@
 // cspell:ignore filechooser
 // The web UI in Chromium against the real server: the server's name in the
 // banner and titles, linking the first passkey, approving an agent and the
-// Sessions tab's count of registrations waiting, answering its asks, a
+// Sessions tab's count of registrations waiting, their section a line once
+// none waits, at a phone's width too, answering its asks, a
 // message's detail folded under its text and the message copied with it,
 // the composer's Details box, a stale write, a draft kept across the
 // Sessions tab and a reload until discarded,
@@ -181,6 +182,32 @@ test("the operator approves an agent's registration by its code", async () => {
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Session main" })).toBeVisible();
   await expect(tab("Sessions")).toHaveAccessibleName("Sessions");
+  // With none waiting, the section takes one line on the narrowest phone,
+  // in whatever font the machine running the tests has for the system's,
+  // and in Arial. The widest of them is DejaVu Sans, the usual system font
+  // on Linux, which sets the limit on the line's words.
+  const wide = page.viewportSize();
+  const waiting = page.getByRole("region", { name: "Waiting for approval" });
+  await resize(page, { width: 320, height: 844 });
+  for (const font of [undefined, "Arial"]) {
+    const { height, line } = await waiting.evaluate((section, family) => {
+      const root = document.documentElement.style;
+      if (family === undefined) {
+        root.removeProperty("--font-body");
+      } else {
+        root.setProperty("--font-body", family);
+      }
+      return {
+        height: section.getBoundingClientRect().height,
+        line: parseFloat(getComputedStyle(section.querySelector("p") as Element).lineHeight),
+      };
+    }, font);
+    expect(height).toBeLessThanOrEqual(line);
+  }
+  await page.evaluate(() => document.documentElement.style.removeProperty("--font-body"));
+  if (wide !== null) {
+    await resize(page, wide);
+  }
   await page.getByRole("button", { name: "Credentials and past requests" }).click();
   await expect(card.locator(".state")).toHaveText("approved");
 
