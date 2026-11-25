@@ -113,7 +113,7 @@ export class Reporter {
   // Whether the server last said a nudge is due, which the next poll tells
   // it the bridge knows; whether a nudge's tries are running; and whether
   // nudging has stopped for the life of the process, the server having
-  // refused a claim or an outcome as invalid.
+  // refused a claim or an outcome as invalid (turnNudgingOff).
   #due = false;
   #nudging = false;
   #nudgeOff = false;
@@ -306,7 +306,7 @@ export class Reporter {
   // follow it come only once the server has taken it.
   async #poll(claim: boolean, signal: AbortSignal): Promise<MonitorPollAnswer> {
     const wait = claim ? 0 : this.#timing.waitSeconds;
-    const nudge = !claim && this.#due;
+    const nudge = this.#due;
     return this.#monitorRequest(
       signal,
       (path) => ({
@@ -337,7 +337,7 @@ export class Reporter {
   }
 
   // startNudging tries the nudge the server says is due, while the bridge
-  // acts for the session, unless its tries run already or nudging is off.
+  // acts for its session, unless its tries run already or nudging is off.
   #startNudging(): void {
     const acting = this.#acting;
     if (this.#nudging || this.#nudgeOff || acting === undefined) {
@@ -353,122 +353,96 @@ export class Reporter {
   // nothing from the server or the screen reaches, until a nudge starts or
   // the server no longer says one is due. While the session is not ready,
   // the observer reads only the pane, so the tries cost the server nothing.
-  // Once it is, the observer asks begin, which claims the nudge; a nudge the
-  // server refuses as no longer due is not tried, and one it claimed is
-  // logged by its step alone, never its text, and its outcome sent. A claim
-  // that fails is tried again after a pause that doubles, unless the server
-  // refused it as invalid, which trying again would not change, so nudging
-  // stops for good, or for another reason the poll's own handling deals
-  // with. The signal ends the tries, and stops a nudge under way without
-  // another key, since another bridge may be nudging the session now.
+  // Once it is, the observer asks begin, which claims the nudge, sending the
+  // claim again while it fails in a way that may pass, and reads the pane
+  // again once the claim is answered. A nudge the server does not let go
+  // ahead is not tried, and one it claimed is logged by its step alone,
+  // never its text, and its outcome sent. Where a claim may have reached the
+  // server before one it answered no, that claim's nudge is sent as not
+  // sent, since nothing was typed for it. The signal ends the tries, and
+  // stops a nudge under way without another key, since another bridge may
+  // be nudging the session now.
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
-    let retry = this.#timing.retryFirst;
     while (this.#due && !signal.aborted && !this.#nudgeOff) {
       // The observer calls begin, if at all, before it resolves.
-      let claim = undefined as Claim | undefined;
+      let claim = undefined as NudgeAnswer | undefined;
       const outcome = await this.#monitor.nudge(nudgeTexts(), {
-        begin: async () => {
-          claim = await this.#claim(signal);
-          return claim === "go";
-        },
+        begin: async () => (claim = await this.#nudgeRequest({ phase: "start" }, signal)).go,
         signal,
       });
       if (claim === undefined) {
         await pause(this.#timing.nudgeEvery, signal);
         continue;
       }
-      if (claim === "go") {
-        this.#due = false;
+      this.#due = false;
+      if (claim.go) {
         this.#log(
           outcome.sent
             ? "the bridge nudged the agent"
             : `a nudge was not sent: it stopped at the ${outcome.step} step`,
         );
         await this.#nudgeRequest({ phase: "done", sent: outcome.sent }, signal);
-        return;
+      } else if (claim.maybeTaken) {
+        await this.#nudgeRequest({ phase: "done", sent: false }, signal);
       }
-      if (claim === "no") {
-        this.#due = false;
-        return;
-      }
-      if (!this.#retryable(claim.failure)) {
-        return;
-      }
-      await pause(retry, signal);
-      retry = Math.min(retry * 2, this.#timing.retryMost);
+      return;
     }
   }
 
-  // claim claims the nudge that is due: "go" where the server says the bridge
-  // may go ahead, "no" where it says none is due or another bridge acts for
-  // the session, and the failure otherwise.
-  async #claim(signal: AbortSignal): Promise<Claim> {
-    try {
-      return (await this.#nudgeRequest({ phase: "start" }, signal, false)) ? "go" : "no";
-    } catch (error) {
-      return { failure: error };
-    }
-  }
-
-  // nudgeRequest sends a nudge's claim or outcome, and says whether the
-  // server answered go. One the server answers as replaced stops this bridge
-  // acting, as a report does. Where again is true, a failure that may pass is
-  // sent again after a pause that doubles, until it reaches the server or the
-  // signal aborts; any other failure ends it, and where again is false, every
-  // failure is thrown.
-  async #nudgeRequest(body: MonitorNudge, signal: AbortSignal, again = true): Promise<boolean> {
+  // nudgeRequest sends a nudge's claim or outcome, and again after a pause
+  // that doubles while it fails to reach the server or the server fails on
+  // or rate limits it, until the server answers or refuses it or the signal
+  // aborts. It says whether the server answered go, and whether a request
+  // before the answer failed where the server may have taken it. One the
+  // server answers as replaced stops this bridge acting, as a report does.
+  // A refusal as invalid input turns nudging off; any other refusal, such as
+  // a credential no longer approved, is the poll's to deal with.
+  async #nudgeRequest(body: MonitorNudge, signal: AbortSignal): Promise<NudgeAnswer> {
     let retry = this.#timing.retryFirst;
+    let maybeTaken = false;
     for (;;) {
       try {
         signal.throwIfAborted();
-        const { key, granted } = await this.#session.credential(signal, true);
-        const answer = await this.#api.request(key, {
-          method: "POST",
-          path: `/s/${granted.agent}/${granted.session}/monitor/nudge`,
-          query: { bridge: this.#id },
-          body,
+        const answer = await this.#monitorRequest(
           signal,
-        });
-        const parsed = monitorNudgeAnswer.safeParse(answer);
-        if (!parsed.success) {
-          throw new BridgeError(
-            "The server's monitoring answered with something other than its JSON.",
-          );
-        }
-        if (parsed.data.replaced) {
+          (path) => ({ method: "POST", path: `${path}/nudge`, query: { bridge: this.#id }, body }),
+          monitorNudgeAnswer,
+        );
+        if (answer.replaced) {
           this.#stopActing();
         }
-        return parsed.data.go && !parsed.data.replaced;
+        return { go: answer.go && !answer.replaced, maybeTaken };
       } catch (error) {
-        if (!again) {
-          throw error;
+        const refused = refusalOf(error);
+        if (refused === "invalid_input") {
+          this.#turnNudgingOff(refused);
         }
-        if (signal.aborted || !this.#retryable(error)) {
-          return false;
+        if (signal.aborted || refused !== undefined) {
+          return { go: false, maybeTaken };
         }
+        maybeTaken ||= !rateLimited(error);
         await pause(retry, signal);
         retry = Math.min(retry * 2, this.#timing.retryMost);
       }
     }
   }
 
-  // retryable says whether a nudge's claim or outcome that failed may be
-  // sent again: one that never reached the server, or that it failed on or
-  // rate limited. A refusal as invalid input means the bridge sends what this
-  // server cannot take, so nudging stops for the life of the process: it is
-  // logged by its code alone, and the latest report goes again saying the
-  // session cannot be nudged. Any other refusal, such as a credential no
-  // longer approved, is the poll's to deal with.
-  #retryable(error: unknown): boolean {
-    const refused = refusalOf(error);
-    if (refused === "invalid_input" && !this.#nudgeOff) {
-      this.#nudgeOff = true;
-      this.#log(`the server refused a nudge (${refused}), so the bridge nudges no more`);
-      if (this.#latest !== undefined) {
-        this.#queue(this.#latest.report);
-      }
+  // turnNudgingOff stops nudging for the life of the process once the server
+  // refuses a claim or an outcome as invalid input: the bridge sends what
+  // this server cannot take, which sending again would not change. A refused
+  // claim leaves no nudge known to be due, and the next poll would learn at
+  // once that one is, so without this the bridge would claim again at every
+  // ready prompt. It is logged by its code alone, and the latest report goes
+  // again saying the session cannot be nudged.
+  #turnNudgingOff(code: ErrorCode): void {
+    if (this.#nudgeOff) {
+      return;
     }
-    return refused === undefined;
+    this.#nudgeOff = true;
+    this.#log(`the server refused a nudge (${code}), so the bridge nudges no more`);
+    if (this.#latest !== undefined) {
+      this.#queue(this.#latest.report);
+    }
   }
 
   // queue makes a report the latest, numbered after the one before, and sends
@@ -609,14 +583,24 @@ export class Reporter {
   }
 }
 
-// How a claim of a nudge went: the server said go ahead, or no, or the claim
-// failed.
-type Claim = "go" | "no" | { failure: unknown };
+// How the server answered a nudge's claim or outcome: whether the bridge may
+// go ahead, and whether a request before the answer failed where the server
+// may have taken it.
+interface NudgeAnswer {
+  go: boolean;
+  maybeTaken: boolean;
+}
 
 // pause resolves once the time given has passed or the signal aborts. Its
 // timer never holds the process open.
 async function pause(milliseconds: number, signal: AbortSignal): Promise<void> {
   await delay(milliseconds, undefined, { signal, ref: false }).catch(() => undefined);
+}
+
+// rateLimited says whether a failure is the server's rate limit, which it
+// answers without taking the request.
+function rateLimited(error: unknown): boolean {
+  return error instanceof ApiFailure && error.body.error.code === "rate_limited";
 }
 
 // refusalOf is the code of a failure that refuses a report for good: an

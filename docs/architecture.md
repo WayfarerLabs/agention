@@ -1241,11 +1241,14 @@ its tokens and where its requests may go.
   the screen reaches either. While the session is not ready, the reporter asks again about once a
   second, which reads only the pane and makes no request, until it is ready or a poll says no nudge
   is due. Once ready, the observer asks it to claim the nudge, `POST .../monitor/nudge` with
-  `{phase: "start"}`, and goes on only where the server answers `go`; one it answers no is not
-  tried. A nudge it claimed is logged by the step it stopped at, never a text, and its outcome sent
-  as `{phase: "done", sent}`, again after a pause that backs off from 1 to 60 seconds, doubling,
-  while it fails to reach the server or the server fails on or rate limits it; a claim that fails so
-  is tried again the same way. A claim or outcome the server refuses as `invalid_input` stops
+  `{phase: "start"}`, and goes on only where the server answers `go` and the pane still shows the
+  same screen; one it answers no is not tried. A nudge it claimed is logged by the step it stopped
+  at, never a text, and its outcome sent as `{phase: "done", sent}`. A claim or an outcome is sent
+  again after a pause that backs off from 1 to 60 seconds, doubling, while it fails to reach the
+  server or the server fails on or rate limits it, a claim within the one try, before the observer
+  reads the pane again. Where such a failure may have left the server holding a claim that the claim
+  sent again finds no longer due, the reporter sends `{phase: "done", sent: false}`, so a nudge
+  never typed is not shown as sent. A claim or outcome the server refuses as `invalid_input` stops
   nudging for the life of the process, logged by the code alone, and from then on its reports say
   the session cannot be nudged and `register` says `check`; any other refusal is the poll's to deal
   with. A takeover or the bridge closing stops a nudge under way with no key more.

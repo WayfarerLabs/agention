@@ -1,3 +1,4 @@
+import { statusByErrorCode } from "@wayfarerlabs/agention-api";
 import {
   type NudgeOptions,
   type NudgeOutcome,
@@ -180,12 +181,9 @@ describe("the bridge's nudge", () => {
       expect(text).not.toContain(operatorText);
       expect(text).not.toContain("builder");
     }
-    // The claim and the outcome carry no more than the API's fields, the
-    // reports nothing of the nudge, and the log no text.
+    // The claim and the outcome carry no more than the API's fields, and the
+    // log no text.
     expect(nudgeBodies()).toEqual([{ phase: "start" }, { phase: "done", sent: true }]);
-    for (const report of harness.reports()) {
-      expect(Object.keys(report)).not.toContain("last_nudge");
-    }
     expect(bridge.logged).toHaveLength(1);
     expect(bridge.logged[0]).not.toContain(texts.warning);
     expect(bridge.logged[0]).not.toContain(texts.message);
@@ -301,7 +299,7 @@ describe("the bridge's nudge", () => {
     expect(bridge.logged).toHaveLength(1);
   });
 
-  it("claims again after a rate limit, and nudges", async () => {
+  it("claims again after a rate limit, within the same try, and nudges", async () => {
     const nudges = new FakeNudges({ sent: true }, { sent: true });
     let limited = true;
     harness.answer = (seen) => {
@@ -315,8 +313,65 @@ describe("the bridge's nudge", () => {
     await harness.operatorStarts("Over to you.");
     await eventually(outcome, "the nudge's outcome");
     expect(outcome()).toBe(1);
-    expect(nudges.calls.map((call) => call.began)).toEqual([false, true]);
+    expect(nudges.calls.map((call) => call.began)).toEqual([true]);
+    expect(nudgeBodies()).toEqual([
+      { phase: "start" },
+      { phase: "start" },
+      { phase: "done", sent: true },
+    ]);
   });
+
+  it("sends a claim the server may have taken as not sent, where the claim sent again is refused", async () => {
+    const nudges = new FakeNudges({ sent: true });
+    let lost = true;
+    harness.answer = (seen) => {
+      if (seen.path.endsWith("/monitor/nudge") && lost) {
+        lost = false;
+        // The server takes the claim, and its answer is lost on the way.
+        harness.server.fixture.db
+          .prepare("UPDATE sessions SET nudged_at = ?, nudge_sent = NULL")
+          .run(harness.server.fixture.now);
+        return new Response("Bad gateway", { status: 502 });
+      }
+      return undefined;
+    };
+    const bridge = await nudgedBridge(nudges);
+    await harness.operatorStarts("Over to you.");
+    await eventually(outcome, "the nudge's outcome");
+    expect(outcome()).toBe(0);
+    expect(nudges.calls.map((call) => call.began)).toEqual([false]);
+    expect(nudgeBodies()).toEqual([
+      { phase: "start" },
+      { phase: "start" },
+      { phase: "done", sent: false },
+    ]);
+    expect(bridge.logged).toEqual([]);
+  });
+
+  it.each(["unauthenticated", "not_found"] as const)(
+    "claims and sends a later nudge after a claim refused as %s, which the poll deals with",
+    async (code) => {
+      const nudges = new FakeNudges({ sent: true }, { sent: true });
+      let refused = true;
+      harness.answer = (seen) => {
+        if (seen.path.endsWith("/monitor/nudge") && refused) {
+          refused = false;
+          return serverJson(
+            { error: { code, message: "a refusal's words" } },
+            statusByErrorCode[code],
+          );
+        }
+        return undefined;
+      };
+      const bridge = await nudgedBridge(nudges);
+      await harness.operatorStarts("Over to you.");
+      await eventually(outcome, "the nudge's outcome");
+      expect(outcome()).toBe(1);
+      expect(nudges.calls.map((call) => call.began)).toEqual([false, true]);
+      expect(harness.held()).toMatchObject({ nudge: 1 });
+      expect(bridge.logged).toEqual(["the bridge nudged the agent"]);
+    },
+  );
 
   it("stops nudging for good once the server refuses a claim as invalid", async () => {
     const nudges = new FakeNudges({ sent: true }, { sent: true });
