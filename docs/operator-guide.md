@@ -507,11 +507,11 @@ server removes a day later.
 
 Every file can be downloaded. An image up to 2 MiB shows at once, a larger one behind **Show
 image**. Video and audio play in the page, loading nothing until you play them. Text, code and logs
-show their first 256 KiB behind **Show text**. A PDF opens in a new tab, in the browser's viewer.
-Anything else downloads. A file whose bytes are gone shows as **Missing**. Media does not play in a
-tab of its own, as from a context menu's **Open video in new tab**: a file opened on its own runs
-without your sign-in, for the reasons in [SECURITY.md](../SECURITY.md#attachments), so play it in
-the page or download it.
+show their first 256 KiB behind **Show text**, which says when there is more. A PDF opens in a new
+tab, in the browser's viewer. Anything else downloads. A file whose bytes are gone shows as
+**Missing**. Media does not play in a tab of its own, as from a context menu's **Open video in new
+tab**: a file opened on its own runs without your sign-in, for the reasons in
+[SECURITY.md](../SECURITY.md#attachments), so play it in the page or download it.
 
 A message's text can link to one of its own files as `[the log](attachment:build.log)`, or
 `[the log](<attachment:build log.txt>)` for a name with spaces, which opens it as its entry does.
@@ -691,8 +691,8 @@ keys**. **Create an API key** asks for:
 server keeps only a hash and can never show the key again, so keep it as you would a password, in
 your password manager or the program's secret store. If you lose it, revoke it and create another.
 
-The list shows when each key was last used, to within an hour. A revoked or expired key stays
-listed, marked so, until you next create or revoke a key.
+The list shows when each key was last used, to within an hour, and flags a live key that has no
+expiry. A revoked or expired key stays listed, marked so, until you next create or revoke a key.
 
 **Revoke**, which asks first, ends a key at once: the program's next request is refused, and so is a
 wait it holds. Creating and revoking a key need a sign-in within the last 10 minutes. You can hold
@@ -722,6 +722,7 @@ systemctl --user start agention
 `@latest` installs the newest release; a version, such as `@0.6.0`, installs that one. On macOS,
 stop and start the server with the `launchctl bootout` and `launchctl bootstrap` commands of
 [macOS: a launchd agent](#macos-a-launchd-agent). Run by hand, stop it with Ctrl-C and run it again.
+A browser tab opened before the upgrade keeps running the web UI it loaded, so reload it.
 
 The first start after upgrading from a release before 0.5.0, which brought attachments, rewrites the
 database once, before the server listens, so that space removed uploads free can go back to the
