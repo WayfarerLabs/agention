@@ -26,7 +26,7 @@ export interface BridgeOptions {
   // The home directory, under which the session's key lives.
   home: string;
   // The clock tokens are minted and the status reminder is timed by, in Unix
-  // milliseconds.
+  // milliseconds, which tests replace.
   clock?: () => number;
 }
 
