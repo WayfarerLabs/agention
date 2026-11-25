@@ -1,0 +1,51 @@
+width 160
+cursor 160 44 hidden
+host-has-terminal true
+keys-blocked false
+one-pane true
+---
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ✨ Update available! 0.171.0 -> 0.172.0                                                                          │
+│ Run sh -c 's=$(curl -fsSL https://chatgpt.com/codex/install.sh) && CODEX_NON_INTERACTIVE=1 eval "$s"' to update. │
+│                                                                                                                  │
+│ See full release notes:                                                                                          │
+│ https://github.com/openai/codex/releases/latest                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  >_ OpenAI Codex (v0.171.0)
+     /path/to/project
+
+
+› Run the shell command: touch x.txt
+
+
+• I’ll run touch x.txt in the current directory.
+
+• Running touch x.txt
+
+
+
+
+
+
+
+
+
+
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: Allow creating x.txt in the current directory?
+
+  $ touch x.txt
+
+
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with `touch x.txt` (p)
+  3. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel

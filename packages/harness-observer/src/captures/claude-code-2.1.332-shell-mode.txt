@@ -1,0 +1,51 @@
+width 160
+cursor 2 42 visible
+host-has-terminal true
+keys-blocked false
+one-pane true
+---
+
+ ▐▛███▛█   Claude Code v2.1.332
+▝▜██████▀  Haiku 5.5 · PLAN
+ ▝▝   ▝▝   /path/to/project
+
+
+❯ Run the shell command: touch x.txt
+
+  Did not run 1 call
+  ⎿  $ touch x.txt
+  ⎿  Interrupted · What should Claude do instead?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+! 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ! for shell mode
