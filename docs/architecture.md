@@ -1239,6 +1239,7 @@ package's `web/` directory.
 | `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/action-bar.tsx` | The bars at the foot of a pane, which the thread list and the thread page share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -1297,18 +1298,26 @@ pointer (`pointer: coarse`), as Attach's menu does. On a touch screen a finger h
 for `longPress` selects it; the click that may follow is swallowed page-wide, since the list, as its
 header checkbox and checkboxes appear, can move another row under the finger, until it comes, a key
 is pressed, another touch starts or shortly after the finger lifts; and the link's own menu stays
-shut. The list body's foot holds one bar (`ListBar`), sticky at the bottom of the view and in the
-flow after the last row, so it never covers that row once scrolled to: the bulk actions
-(`src/views/list/BulkActions.tsx`) on every thread shown, as the header checkbox takes them, while
-nothing is selected, each offered only while it would act on a thread, Archive all read only while
-one it takes holds no ask open to the operator, and the first of them the primary button, and the
-selection's toolbar (`src/views/list/SelectionBar.tsx`) while anything is; two components in one
-place, since the toolbar's questions and its acting on every thread that matches are the selection's
-alone. The bar gives the root its height (`useScrollClearOf`, as the composer's Send row does),
-which the page's and the list pane's `scroll-padding-bottom` keep clear, so a row focused from the
-keyboard scrolls into view above it. Focus that a pressed bulk action left moves to the new primary
-button, or, as the bar goes, where the toolbar's goes. The toolbar and the bulk actions act through
-the actions on many threads, in one request (`src/views/list/actions.ts`): on the threads loaded, at
+shut. The list body ends, while it has rows, in one bar (`ListBar`, `src/views/list/ListBar.tsx`),
+whose element stays as its two states give way to each other: the actions on every thread shown
+(`ShownActions`), as the header checkbox takes them, while nothing is selected, and the selection's
+actions (`SelectionActions`, `src/views/list/SelectionControls.tsx`) while anything is; two
+components in one bar, since the selection's questions and its acting on every thread that matches
+are the selection's alone. Every button keeps its place in both, disabled there while it cannot act:
+Archive all read while it would act on no thread or every thread it takes holds an ask open to the
+operator, Mark all read while nothing shown is unread, and Decline while nothing selected holds an
+ask open. With nothing selected, the caption mirrors the list's status region, which alone
+announces, or counts the threads shown. Both states run one action, which `ListBar` holds, so
+neither starts another while one is under way; an action stays under way until the list has tried to
+load afresh, so what the bar offers next is what the list holds, or, when that load failed, the
+list's own error and its retry show, and why one failed shows in the bar, naming it, until the next
+starts. Once an action is done, focus it left, on its button or on nothing, returns once to that
+button while it can act and otherwise moves, without scrolling the page, to the header checkbox, or
+where that is not shown, as on a touch screen with nothing selected or once the list is empty, to
+the list's pane beside a thread, or else to the page's heading; focus the operator moved elsewhere
+stays there. Focus in the bar as the selection clears, or as an action empties the list, moves there
+too, so a key pressed again never reaches a list-wide action. The list's actions act through the
+actions on many threads, in one request (`src/views/list/actions.ts`): on the threads loaded, at
 most `maxActionThreads`, each through the latest message the list showed; or, once every thread that
 matches is selected, through the matching action with the list's filters, its `as_of` and its total
 as `expected`. What a confirmed action sends is taken as it asks, so it is what was on screen;
@@ -1346,7 +1355,24 @@ went, never from where the operator has put it meanwhile, within the landing or 
 opened from the list, by Thread above or below, by archiving or after sending lands on its heading
 at every width. A row that goes while it holds focus passes it to the page's heading, and crossing
 the breakpoint, if it took away what held focus, moves focus to where a navigation lands. The thread
-keeps the page's own scroll, and the list's pane is sticky and scrolls on its own.
+keeps the page's own scroll, and the list's pane is sticky and scrolls on its own; until the page
+scrolls the banner away, the pane starts below it, so its height leaves out how far below the top of
+the screen it starts, which the layout measures as the page scrolls, as the window resizes and as
+the banner changes in height (`usePaneTop`), so the bar at the pane's foot stays on screen.
+
+Both bars at the foot of a pane, the list's and the thread page's, are one component
+(`src/action-bar.tsx`): a labelled region, last in its pane, sticky at the foot of the screen, or of
+the list's pane beside a thread, holding buttons drawn as an icon over a short label whose full name
+is the accessible name, and a caption. Each gives the root its height (`useScrollClearOf`, as the
+composer's Send row does), which the page's and the list pane's `scroll-padding-bottom` keep clear,
+so what a key moves focus to scrolls into view above it. While a text field in its pane has focus,
+and for the thread's bar on a screen under 30rem tall, the stylesheet rests it at the end of its
+pane instead (`:has(:focus)`), so a phone's keyboard leaves room for the field and the Send row
+alone, with no script; the list's bar keeps floating on a short screen, since the list's actions are
+reachable only from it. The thread page's bar (`src/views/thread/ThreadBar.tsx`) holds the ways off
+the page, Back to threads, Thread above and Thread below, and Archive all, which while an ask is
+open to the operator is `aria-disabled` rather than disabled, so it keeps focus and a press, or `e`,
+shows why in its caption, announced by the bar's own status region.
 
 A thread page's **Thread above** and **Thread below**, and Archive all as Auto-advance says, go to
 the row just above or below the thread in the list it returns to, as that list stands when the
@@ -1529,11 +1555,12 @@ refuses. A change of answers or an edit sends a whole message, so it carries aga
 references, pull requests and branches of the message it replaces, which the composer has no box for
 (`src/views/thread/writer.ts`). The composer checks its boxes against the API's bounds of a
 message's text and detail, counted with the API's `codePointLength` as the server counts them, and
-never cuts what is typed into them. Its Send row, which holds what answers Send, sticks to the foot
-of the screen within the composer, and the page's viewport asks a phone to shrink the layout for its
-keyboard (`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer
-measures the row as it changes and the page's scroll padding keeps that much clear, so the caret and
-a control focused from the keyboard scroll into view above the row.
+never cuts what is typed into them. Its Send row, which holds what answers Send, sticks within the
+composer just above the thread's bar, or to the foot of the screen while the bar rests, and the
+page's viewport asks a phone to shrink the layout for its keyboard
+(`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer measures
+the row as it changes and the page's scroll padding keeps that much clear, with the bar's height
+while it floats, so the caret and a control focused from the keyboard scroll into view above them.
 
 The composer's After sending is where a message the server accepts takes the operator, a choice the
 browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier

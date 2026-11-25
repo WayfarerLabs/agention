@@ -23,6 +23,8 @@ const shapes = {
   // below, and one pointing up, for an order reversed and the thread above.
   "arrow-down": <path d="M12 4v16m-6-6 6 6 6-6" />,
   "arrow-up": <path d="M12 20V4m-6 6 6-6 6 6" />,
+  // An arrow pointing back, for the way back to the list.
+  "arrow-left": <path d="M20 12H4m6-6-6 6 6 6" />,
   // Two headings, each over its indented rows, for grouping.
   group: <path d="M3 4h9M7 8h14M7 11h14M3 15h9M7 19h14" />,
   // A check mark, for what a picker has chosen and a copy that landed.
@@ -59,6 +61,13 @@ const shapes = {
     <>
       <path d="M3 10 12 4l9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
       <path d="m3 10 9 6 9-6" />
+    </>
+  ),
+  // A circle struck through, for declining asks.
+  decline: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m5.6 5.6 12.8 12.8" />
     </>
   ),
   // A pencil, for a draft.

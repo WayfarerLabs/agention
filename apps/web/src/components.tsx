@@ -172,14 +172,27 @@ export function LeftOut({ items }: { items: string }) {
   );
 }
 
-// Failure shows why something did not work, announced as it appears.
-export function Failure({ failure, children }: { failure: unknown; children?: ReactNode }) {
+// Failure shows why something did not work, announced as it appears, and,
+// when given, the action that failed.
+export function Failure({
+  failure,
+  action,
+  children,
+}: {
+  failure: unknown;
+  action?: string | undefined;
+  children?: ReactNode;
+}) {
   if (failure === undefined) {
     return null;
   }
   return (
     <div className="notice danger" role="alert">
-      <p>{describeFailure(failure)}</p>
+      <p>
+        {action === undefined
+          ? describeFailure(failure)
+          : `${action} failed: ${describeFailure(failure)}`}
+      </p>
       {children}
     </div>
   );
@@ -220,7 +233,9 @@ export function Loadable<T>({
 // typing or a control focused from the keyboard, clear of a bar stuck at the
 // foot of the screen, such as the composer's Send row, however tall what it
 // holds makes it: it gives the root's property the bar's height while the
-// bar is shown, for the stylesheet's scroll padding.
+// bar is shown, for the stylesheet, whose scroll padding keeps that much
+// clear and which may stand other bars above it, as the Send row stands
+// above the thread's bar.
 export function useScrollClearOf(bar: RefObject<HTMLElement | null>, property: string): void {
   useEffect(() => {
     const element = bar.current;

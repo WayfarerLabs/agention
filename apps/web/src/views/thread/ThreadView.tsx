@@ -13,7 +13,6 @@ import {
   Fragment,
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -57,6 +56,7 @@ import { ThreadCodeLinks } from "./CodeLinks.tsx";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
 import { returnToList, useLeaving } from "./leaving.ts";
+import { ThreadBar } from "./ThreadBar.tsx";
 import {
   blank,
   keptParts,
@@ -68,10 +68,10 @@ import {
   wordsFailure,
 } from "./writer.ts";
 
-// The thread page follows email: what is on screen is read, actions on the
-// thread as a whole sit in its head, and answering happens on the message
-// that asked, sent by the composer at the foot, with the way back to the
-// list under it as well as in the head.
+// The thread page follows email: what is on screen is read, answering
+// happens on the message that asked, sent by the composer, and the ways off
+// the page and the action on the thread as a whole sit in the bar at its
+// foot (ThreadBar), under the composer's Send row.
 
 // The messages the page shows at first, and adds each time it shows more.
 const pageSize = 50;
@@ -408,10 +408,15 @@ function ThreadPage({
   const [sentStaged, setSentStaged] = useState<Staged>();
   // The messages the operator wrote on this page.
   const [writtenHere, setWrittenHere] = useState<ReadonlySet<number>>(new Set());
-  const archiveAllHint = useId();
   // The operator is every thread's audience, so its open asks are open to
   // them.
   const openCount = thread.open_asks.count;
+  // How many times the operator has asked why Archive all waits, by pressing
+  // it or e, since the asks open to them last closed.
+  const [archiveAsked, setArchiveAsked] = useState(0);
+  if (openCount === 0 && archiveAsked !== 0) {
+    setArchiveAsked(0);
+  }
   // archiveHint says which ask to answer or decline before archiving through
   // a message: the earliest open to the operator, when it is in that message
   // or before it.
@@ -780,19 +785,27 @@ function ThreadPage({
     agentRead: cursors.requester,
   };
 
+  // Archive all, by its button or e: nothing while the page is leaving,
+  // and while an ask is open to the operator, why it waits.
+  const pressArchive = () => {
+    if (leaving) {
+      return;
+    }
+    if (openCount > 0) {
+      setArchiveAsked((count) => count + 1);
+    } else {
+      archiveAll();
+    }
+  };
+
   // The thread page's shortcuts each do what a control on it does, and only
   // while that control could; choosing a suggestion picks it as a press of
   // its control does, and moves focus there.
-  const canArchiveAll = !leaving && openCount === 0;
   const composerBox = useRef<HTMLTextAreaElement>(null);
   useShortcuts("Thread", {
     backToList: () => navigate(listHref(origin)),
     reply: () => composerBox.current?.focus(),
-    archive: () => {
-      if (canArchiveAll) {
-        archiveAll();
-      }
-    },
+    archive: pressArchive,
     openAbove: () => void openNeighbor("above"),
     openBelow: () => void openNeighbor("below"),
     jump: () => {
@@ -811,51 +824,12 @@ function ThreadPage({
   return (
     <article>
       <header className="thread-header">
-        <div className="thread-bar">
-          <div className="thread-nav">
-            <BackToThreads origin={origin} />
-            <button
-              type="button"
-              className="secondary icon-button"
-              aria-label="Thread above"
-              title="Thread above"
-              disabled={busy}
-              onClick={() => void openNeighbor("above")}
-            >
-              <Icon name="arrow-up" />
-            </button>
-            <button
-              type="button"
-              className="secondary icon-button"
-              aria-label="Thread below"
-              title="Thread below"
-              disabled={busy}
-              onClick={() => void openNeighbor("below")}
-            >
-              <Icon name="arrow-down" />
-            </button>
-          </div>
-          <div className="thread-actions">
-            {thread.archived && <Mark icon="archive" label="Archived" />}
-            <button
-              type="button"
-              className="secondary"
-              disabled={!canArchiveAll}
-              aria-describedby={openCount > 0 ? archiveAllHint : undefined}
-              onClick={archiveAll}
-            >
-              Archive all
-            </button>
-          </div>
+        <div className="thread-title">
+          <PageHeading>
+            <ThreadTitle thread={thread} />
+          </PageHeading>
+          {thread.archived && <Mark icon="archive" label="Archived" />}
         </div>
-        {openCount > 0 && (
-          <p id={archiveAllHint} className="hint">
-            Archive all is available once every ask open to you is answered or declined.
-          </p>
-        )}
-        <PageHeading>
-          <ThreadTitle thread={thread} />
-        </PageHeading>
         <p className="where">
           {threadPathParts(thread, origin).map((part) => (
             <Fragment key={part.kind}>
@@ -959,24 +933,16 @@ function ThreadPage({
         voiceOn={voiceOn}
         draftsEnded={draftsEnded}
       />
-      <div className="thread-foot">
-        <BackToThreads origin={origin} />
-      </div>
+      <ThreadBar
+        origin={origin}
+        busy={busy}
+        leaving={leaving}
+        asksOpen={openCount > 0}
+        openNeighbor={(direction) => void openNeighbor(direction)}
+        onArchive={pressArchive}
+        whyAsked={archiveAsked}
+      />
     </article>
-  );
-}
-
-// BackToThreads is the back button to the thread list as the operator left
-// it, leading the thread's head and again under its composer, so leaving
-// without replying needs no scrolling back up.
-function BackToThreads({ origin }: { origin: ThreadsView }) {
-  return (
-    <Link to={listHref(origin)} className="back" aria-label="Back to threads">
-      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-        <path d="M20 12H5M11 5l-7 7 7 7" />
-      </svg>
-      Threads
-    </Link>
   );
 }
 

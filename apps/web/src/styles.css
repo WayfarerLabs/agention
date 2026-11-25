@@ -377,7 +377,10 @@ main:has(> .side-by-side) {
 .side-by-side > .list-pane {
   position: sticky;
   top: 0;
-  max-height: 100dvh;
+  /* Until the page scrolls the banner away, the pane starts below it, so
+     its height leaves that out, which Threads.tsx measures, and the bar at
+     its foot stays on the screen. */
+  max-height: calc(100dvh - var(--pane-top, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-2);
@@ -1187,47 +1190,148 @@ button.picker[aria-expanded="true"] .icon {
   margin: 0;
 }
 
-/* The bar at the list's foot, acting on every thread shown or, while any is
-   selected, on those selected, stays at the foot of the view while the list
-   scrolls beneath it, and in the flow after the list's last row, so it never
-   covers that row once scrolled to; its actions wrap where the width does
-   not hold them, so all of them stay on a phone's screen, at its end but for
-   the count of those selected. */
-.list-bar {
+/* The bars at the foot of a pane (action-bar.tsx): the thread list's and the
+   thread page's. Each is a strip docked to the foot of the screen, or beside
+   a thread to the foot of the list's pane, floating over what scrolls
+   beneath it on the Send row's surface, and in the flow after the last of
+   what it acts on, so it never covers that once scrolled to. One pane at a
+   time it reaches the screen's edges and its foot; side by side it keeps to
+   its pane. */
+.action-bar {
   position: sticky;
   bottom: 0;
   z-index: var(--layer-sticky);
-  margin: var(--space-3) calc(-1 * var(--space-2)) 0;
-  padding: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg);
-}
-
-/* What a key moves focus to scrolls into view a little above the bar, in
-   the page and in the list's own pane beside a thread, whose height ListBar
-   measures as it changes. */
-:root:has(.list-bar),
-.list-pane:has(.list-bar) {
-  scroll-padding-bottom: calc(var(--list-bar-height, 0px) + var(--space-2));
-}
-
-.list-bar-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
+  gap: 0 var(--space-3);
+  margin: var(--space-3) calc(-1 * var(--bar-bleed, var(--space-4))) 0;
+  padding: var(--space-1) var(--space-2) max(var(--space-1), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
-.selection-count {
-  margin-right: auto;
+main:has(.action-bar) {
+  padding-bottom: 0;
+}
+
+.side-by-side .list-pane {
+  --bar-bleed: var(--space-2);
+}
+
+/* Beside a thread the bar stands at the very foot of the list's pane, so no
+   row shows beneath it. */
+.side-by-side > .list-pane:has(.action-bar) {
+  padding-bottom: 0;
+}
+
+.side-by-side article {
+  --bar-bleed: 0px;
+}
+
+/* What fills the bar's width: a failure, and a question asked before an
+   action, which stand in the bar's place. */
+.action-bar > .notice,
+.action-bar > .bar-confirm {
+  flex-basis: 100%;
+  margin: var(--space-1) 0;
+}
+
+/* What the bar's buttons act on, or what the last one did: beside them
+   where it fits, else on its own line above them. */
+.bar-caption {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-small);
   font-weight: 600;
 }
 
-.selection-note {
+.bar-caption.own-line {
   flex-basis: 100%;
-  margin: 0;
+}
+
+.bar-caption.reason {
   color: var(--color-muted);
+  font-weight: 400;
+}
+
+.bar-slots {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A bar's button: its icon over a short label, in equal columns that fill a
+   phone's width and stop growing on a wider bar, a fingertip tall on a touch
+   screen. */
+button.bar-button,
+a.bar-button {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: min-content;
+  max-width: 6rem;
+  min-height: calc(var(--touch) + var(--space-1));
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-tag);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.bar-button .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.bar-button:not(:disabled, [aria-disabled="true"]):hover {
+  background: var(--color-surface-2);
+}
+
+.bar-button[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The trailing group, at the bar's end, starts at the first button so
+   marked. */
+.bar-button.trailing {
+  margin-left: auto;
+}
+
+/* While a text field in a bar's pane has focus, as a phone's keyboard rises
+   for it, the bar rests in its place at the end of its pane instead of
+   floating; so does the thread's on a screen too short to spare the room
+   for it and the composer's Send row together. The list's keeps floating
+   there, since its actions are reachable only from it. */
+.list-pane:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .action-bar,
+article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) > .action-bar {
+  position: static;
+}
+
+@media (max-height: 30rem) {
+  article > .action-bar {
+    position: static;
+  }
+}
+
+/* What a key moves focus to scrolls into view a little above the list's
+   bar, in the page one pane at a time and in the list's own pane beside a
+   thread, whose height ListBar measures as it changes. */
+:root:has(.list-pane .action-bar):not(:has(.side-by-side)),
+.list-pane:has(.action-bar) {
+  scroll-padding-bottom: calc(var(--list-bar-height, 0px) + var(--space-2));
 }
 
 /* Marks: an icon that says something, with a short text beside it. */
@@ -1566,24 +1670,17 @@ button.fold-toggle[aria-expanded="false"] > .icon {
 
 /* The thread page */
 
-.thread-bar {
+/* The thread's title, with the archive box beside it while the thread is
+   archived. */
+.thread-title {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
 }
 
-/* The way back to the list, and to the threads above and below, together. */
-.thread-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-/* The back button: a heavy arrow and its word, at full strength, bordered
-   like the head's other buttons. */
+/* The way back to Settings' sections on a phone: a heavy arrow and its
+   word, at full strength, bordered like the head's buttons. */
 .back {
   display: inline-flex;
   align-items: center;
@@ -1638,13 +1735,6 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   text-underline-offset: 0.15em;
 }
 
-.thread-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-left: auto;
-}
-
 .thread-header h1 {
   margin-top: 0;
   overflow-wrap: anywhere;
@@ -1654,20 +1744,17 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: var(--space-4) 0;
 }
 
-/* The back button again, under the composer. */
-.thread-foot {
-  margin: 0 0 var(--space-4);
-}
-
 /* Send and its option stay at the foot of the screen while the composer's
-   form is on it, so a phone's keyboard, which the page's viewport shrinks
-   for, does not hide them; they never leave the form, so they never lie
-   over the messages above it. A failed send's or dictation's notice shows
-   above Send, and what was sent or heard after it, so what answers Send or
-   Dictate shows beside it. */
+   form is on it, just above the thread's bar, which the page's order puts
+   after them, so a phone's keyboard, which the page's viewport shrinks for,
+   does not hide them; they never leave the form, so they never lie over the
+   messages above it. While the bar rests, they stand at the foot of the
+   screen themselves. A failed send's or dictation's notice shows above Send,
+   and what was sent or heard after it, so what answers Send or Dictate shows
+   beside it. */
 .composer .actions {
   position: sticky;
-  bottom: 0;
+  bottom: var(--thread-bar-height, 0px);
   align-items: center;
   column-gap: var(--space-4);
   margin-bottom: 0;
@@ -1700,11 +1787,35 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   width: auto;
 }
 
+article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .composer .actions {
+  bottom: 0;
+}
+
+@media (max-height: 30rem) {
+  .composer .actions {
+    bottom: 0;
+  }
+}
+
 /* What the page scrolls into view, as the caret while typing or a control
-   focused from the keyboard, stops a little above the Send row stuck at the
-   foot of the screen, whose height the composer measures as it changes. */
-:root:has(.composer) {
+   focused from the keyboard, stops a little above the Send row and the
+   thread's bar stuck at the foot of the screen, whose heights the composer
+   and the bar measure as they change; above the Send row alone while the
+   bar rests. */
+:root:has(article > .action-bar) {
+  scroll-padding-bottom: calc(
+    var(--send-row-height, 0px) + var(--thread-bar-height, 0px) + var(--space-2)
+  );
+}
+
+:root:has(article :is(textarea, input:not([type="checkbox"], [type="radio"])):focus) {
   scroll-padding-bottom: calc(var(--send-row-height, 0px) + var(--space-2));
+}
+
+@media (max-height: 30rem) {
+  :root:has(article > .action-bar) {
+    scroll-padding-bottom: calc(var(--send-row-height, 0px) + var(--space-2));
+  }
 }
 
 .messages > li {

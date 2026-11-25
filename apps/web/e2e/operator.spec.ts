@@ -402,8 +402,10 @@ test("Send stays on a short phone's screen while the message box is at its foot,
   await page.evaluate(() => window.scrollTo(0, 0));
   const heading = await boxOf(page.getByRole("heading", { name: "Reply" }));
   expect((await boxOf(send)).y).toBeGreaterThanOrEqual(heading.y + heading.height);
-  // At the composer's end, the way back follows it, out of its row.
-  const back = page.getByRole("link", { name: "Back to threads" }).last();
+  // At the composer's end, the thread's bar follows it, out of its row.
+  const back = page
+    .getByRole("region", { name: "Thread actions" })
+    .getByRole("link", { name: "Back to threads" });
   await back.scrollIntoViewIfNeeded();
   const bar = await boxOf(row);
   expect((await boxOf(back)).y).toBeGreaterThanOrEqual(bar.y + bar.height);
@@ -809,7 +811,7 @@ test("at a phone's width, down to the narrowest, the list's head holds its icons
 // moves focus down the rows with j from the top, and checks that each row
 // focused stands clear of the bar.
 async function focusClearOfTheBar(area: Locator, width: number): Promise<void> {
-  const bar = area.locator(".list-bar");
+  const bar = area.getByRole("region", { name: "List actions" });
   const rows = area.locator("ul.threads").getByRole("link");
   const toTop = () =>
     area.evaluate((element) => {
@@ -840,7 +842,7 @@ async function focusClearOfTheBar(area: Locator, width: number): Promise<void> {
 // clearOfTheBar scrolls the list's area, and the page, to their ends, and
 // checks that the bar at the list's foot stands below the last row.
 async function clearOfTheBar(area: Locator): Promise<void> {
-  const bar = area.locator(".list-bar");
+  const bar = area.getByRole("region", { name: "List actions" });
   await expect(bar).toBeVisible();
   await area.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
@@ -1060,8 +1062,8 @@ test("an ask the agent withdraws reads as withdrawn with its reason, on the list
   await expect(page.getByRole("article", { name: /^Message 2 by/ }).locator(".event")).toHaveText([
     `Withdrew ask 1: ${reason}`,
   ]);
-  // The way back under the composer keeps the list's filter, as the head's does.
-  await page.getByRole("link", { name: "Back to threads" }).last().click();
+  // The way back in the thread's bar keeps the list's filter.
+  await page.getByRole("link", { name: "Back to threads" }).click();
   await page.getByRole("button", { name: "Remove filter: Status: Withdrawn" }).click();
   await expect(page).toHaveURL(/\/$/);
 });
@@ -1581,20 +1583,18 @@ test("the threads above and below, and archiving, move the same way beside the l
       async (index) => (await rows.nth(index).getByRole("heading").textContent()) ?? "",
     ),
   );
-  const head = page.locator(".thread-bar");
+  const head = page.getByRole("region", { name: "Thread actions" });
   const above = head.getByRole("button", { name: "Thread above" });
   const below = head.getByRole("button", { name: "Thread below" });
   const archiveAll = head.getByRole("button", { name: "Archive all", exact: true });
   const entries = () => page.evaluate(() => window.history.length);
 
-  // Beside the list, ] and [ and the head's buttons open the threads below
+  // Beside the list, ] and [ and the bar's buttons open the threads below
   // and above, and the list keeps its scroll, the open thread's row marked.
   await rows.nth(1).click();
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
-  // Reading the thread refreshes the list beside it, which then offers to
-  // archive the read threads above its rows; the browser keeps the rows where
-  // they were on screen by scrolling as far as that grew. Scroll once the
-  // list shows the thread read, so the scroll measured is the list's own.
+  // Reading the thread refreshes the list beside it. Scroll once the list
+  // shows the thread read, so the scroll measured is the list's own.
   await expect(list.locator("li.thread-row").nth(1)).not.toHaveClass(/\bunread\b/);
   const shown = await list.locator("ul.threads").elementHandle();
   const scrolled = await list.evaluate((element) => {
@@ -1623,7 +1623,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   expect(await entries()).toBe(before);
   await expect(rows).toHaveCount(3);
 
-  // On a phone the thread's head holds the same controls within its width.
+  // On a phone the thread's bar holds the same controls within its width.
   await resize(page, { width: 390, height: 844 });
   await expect(list).toHaveCount(0);
   await expect(heading).toHaveText(titles[1] ?? "");

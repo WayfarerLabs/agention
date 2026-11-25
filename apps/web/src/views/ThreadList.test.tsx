@@ -1702,6 +1702,14 @@ describe("paging", () => {
 describe("bulk marks", () => {
   // said waits for the status region to say what an action did.
   const said = () => waitFor(() => expect(screen.getByRole("status").textContent).not.toBe(""));
+  const listBar = () => screen.getByRole("region", { name: "List actions" });
+  const bulk = (name: string) => within(listBar()).getByRole<HTMLButtonElement>("button", { name });
+  // Each button in the bar, in order: its name and whether it can act.
+  const buttons = () =>
+    within(listBar())
+      .getAllByRole<HTMLButtonElement>("button")
+      .map((each) => [each.getAttribute("aria-label") ?? each.textContent, !each.disabled]);
+  const caption = () => listBar().querySelector(".bar-caption");
 
   it("archive every read thread through its latest message, saying what stayed", async () => {
     let archived = false;
@@ -1761,15 +1769,19 @@ describe("bulk marks", () => {
     async (address) => {
       serve([threadSummary({ number: 2, title: "Read", unread: 0 })]);
       renderAt(address);
-      await screen.findByText("Read");
-      expect(screen.queryByRole("button", { name: "Archive all read" })).toBeNull();
+      await waitFor(() => expect(titles()).toEqual(["Read"]));
+      expect(bulk("Archive all read").disabled).toBe(true);
     },
   );
 
-  it("mark every unread thread read through its latest message", async () => {
-    serve([asking, threadSummary({ number: 2, title: "Notes", last_seq: 6 })]);
+  it("mark every unread thread read through its latest message, leaving read ones out", async () => {
+    serve([
+      asking,
+      threadSummary({ number: 2, title: "Notes", last_seq: 6 }),
+      threadSummary({ number: 3, title: "Read", unread: 0, last_seq: 3 }),
+    ]);
     api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
-    renderAt("/?unread=true");
+    renderAt("/");
     fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
     await said();
     expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
@@ -1781,51 +1793,28 @@ describe("bulk marks", () => {
     });
   });
 
-  it("offer Mark all read first while any thread loaded is unread, and Archive all read once none is", async () => {
-    let read = false;
+  it("caption how many threads are shown, of how many match, then what the last action did", async () => {
     api
-      .on("GET", "/threads", () => ({
-        body: {
-          threads: [
-            threadSummary({ number: 1, title: "Unread", unread: read ? 0 : 2, last_seq: 3 }),
-            threadSummary({ number: 2, title: "Read", unread: 0, last_seq: 4 }),
-          ],
-          total,
-        },
-      }))
-      .on("POST", "/threads/actions", () => {
-        read = true;
-        return {
-          body: {
-            acted: [{ agent: "builder", session: "main", thread: 1 }],
-            declined: [],
-            kept: [],
-          },
-        };
+      .on("GET", "/threads", {
+        body: { threads: [threadSummary({ number: 2, last_seq: 6 })], next: "page-2", total },
+      })
+      .on("POST", "/threads/actions", {
+        body: { acted: [{ agent: "builder", session: "main", thread: 2 }], declined: [], kept: [] },
       });
     renderAt("/");
-    const loaded = async () => screen.findByRole("group", { name: "Threads shown" });
-    // The primary action, the one not drawn as secondary, comes last.
-    const offered = async () =>
-      within(await loaded())
-        .getAllByRole("button")
-        .map((each) => [each.textContent, each.classList.contains("secondary")]);
-    expect(await offered()).toEqual([
-      ["Archive all read", true],
-      ["Mark all read", false],
-    ]);
-    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    await waitFor(() => expect(caption()?.textContent).toContain(String(total)));
+    expect(caption()?.textContent).toContain("1");
+    expect(caption()?.getAttribute("aria-hidden")).toBeNull();
+    fireEvent.click(bulk("Mark all read"));
     await said();
-    // Without the Unread filter it marks only the threads holding something
-    // unread.
-    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
-      action: "read",
-      threads: [{ agent: "builder", session: "main", thread: 1, through: 3 }],
-    });
-    await waitFor(async () => expect(await offered()).toEqual([["Archive all read", false]]));
+    // The outcome shows beside the buttons as the status region says it,
+    // which alone announces it.
+    const status = screen.getByRole("status").textContent;
+    await waitFor(() => expect(caption()?.textContent).toBe(status));
+    expect(caption()?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("move focus that the action pressed left to the next one, and to Select all once the bar goes", async () => {
+  it("move focus that the action pressed left to Select all once it cannot act again, never to the other", async () => {
     let step = 0;
     const withAsk = threadSummary({
       number: 3,
@@ -1851,16 +1840,32 @@ describe("bulk marks", () => {
         return { body: { acted: [], declined: [], kept: [] } };
       });
     renderAt("/");
-    const markRead = await screen.findByRole("button", { name: "Mark all read" });
-    markRead.focus();
-    fireEvent.click(markRead);
-    const archive = await screen.findByRole("button", { name: "Archive all read" });
-    await waitFor(() => expect(document.activeElement).toBe(archive));
-    fireEvent.click(archive);
-    // Only a thread holding an ask is left, which archiving would keep, so
-    // the bar goes, and focus moves where the selection's toolbar sends it.
-    await waitFor(() => expect(document.querySelector(".list-bar")).toBeNull());
-    expect(document.activeElement).toBe(screen.getByRole("checkbox", { name: "Select all" }));
+    await screen.findByText("Notes");
+    const selectAll = () => screen.getByRole("checkbox", { name: "Select all" });
+    bulk("Mark all read").focus();
+    fireEvent.click(bulk("Mark all read"));
+    // Nothing is left unread, so Mark all read cannot act, and focus goes
+    // to Select all, not to Archive all read, which a second press would
+    // then archive.
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(true));
+    await waitFor(() => expect(document.activeElement).toBe(selectAll()));
+    bulk("Archive all read").focus();
+    fireEvent.click(bulk("Archive all read"));
+    // Only a thread holding an ask is left, which archiving would keep.
+    await waitFor(() => expect(bulk("Archive all read").disabled).toBe(true));
+    await waitFor(() => expect(document.activeElement).toBe(selectAll()));
+  });
+
+  it("keep focus on the action pressed while it can act again", async () => {
+    serve([threadSummary({ number: 1, title: "Notes", unread: 1 })]);
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    renderAt("/");
+    await screen.findByText("Notes");
+    bulk("Mark all read").focus();
+    fireEvent.click(bulk("Mark all read"));
+    await said();
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(false));
+    expect(document.activeElement).toBe(bulk("Mark all read"));
   });
 
   it("offer no archiving while every read thread shown holds an ask open, which it would keep", async () => {
@@ -1874,16 +1879,24 @@ describe("bulk marks", () => {
     ]);
     renderAt("/");
     await screen.findByText("Read, with an ask");
-    expect(screen.queryByRole("button", { name: "Archive all read" })).toBeNull();
-    expect(document.querySelector(".list-bar")).toBeNull();
+    expect(bulk("Archive all read").disabled).toBe(true);
   });
 
-  it("show no bar when there is nothing to mark read or archive", async () => {
+  it("keep the bar, its buttons disabled in place, when there is nothing to mark read or archive", async () => {
     serve([threadSummary({ number: 2, title: "Read", unread: 0 })]);
     renderAt("/?include_archived=true");
-    await screen.findByText("Read");
-    expect(screen.queryByRole("group", { name: "Threads shown" })).toBeNull();
-    expect(document.querySelector(".list-bar")).toBeNull();
+    await waitFor(() => expect(titles()).toEqual(["Read"]));
+    expect(buttons()).toEqual([
+      ["Archive all read", false],
+      ["Mark all read", false],
+    ]);
+  });
+
+  it("show no bar while the list has no rows", async () => {
+    serve([]);
+    renderAt("/");
+    await screen.findByText("No threads to show.");
+    expect(screen.queryByRole("region", { name: "List actions" })).toBeNull();
   });
 
   it("act on the threads loaded while more remain to load", async () => {

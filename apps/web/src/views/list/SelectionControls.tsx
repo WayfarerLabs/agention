@@ -10,48 +10,22 @@ import {
   type ThreadSummary,
   type ThreadsView,
 } from "@wayfarerlabs/agention-api";
-import {
-  type ReactNode,
-  type RefObject,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, query, request } from "../../api.ts";
-import { Confirmation, Failure, focusLeftWith, useScrollClearOf } from "../../components.tsx";
-import { useAction, useFollowing } from "../../data.ts";
+import { BarButton, BarCaption, BarSlots } from "../../action-bar.tsx";
+import { Confirmation, focusLeftWith } from "../../components.tsx";
+import type { IconName } from "../../icons.tsx";
+import { useFollowing } from "../../data.ts";
 import { plural } from "../../format.tsx";
 import { queryOf } from "../../router.tsx";
 import { actOn, outcome, targetsOf } from "./actions.ts";
+import type { BarActing } from "./ListBar.tsx";
 import type { Selection } from "./selection.tsx";
 
 // The selection's controls: the header above the list, its checkbox
 // selecting every thread shown and the offer to select every thread the
-// filters keep; and the toolbar below it while anything is selected, which
-// acts on what is.
-
-// The root's property holding how tall the bar at the list's foot is, which
-// the scroll padding of the page and of the list's own pane keeps clear.
-const listBarHeight = "--list-bar-height";
-
-// ListBar is the bar at the list's foot, stuck to the foot of the view, which
-// acts on every thread shown or on those selected; what a key moves focus to
-// scrolls into view clear of it. bar is the caller's hold on it.
-export function ListBar({
-  bar,
-  children,
-}: {
-  bar: RefObject<HTMLDivElement | null>;
-  children: ReactNode;
-}) {
-  useScrollClearOf(bar, listBarHeight);
-  return (
-    <div ref={bar} className="list-bar">
-      {children}
-    </div>
-  );
-}
+// filters keep; and the actions the bar at the list's foot holds while
+// anything is selected, which act on what is.
 
 // SelectHead is the list's header checkbox, with a mouse or a trackpad, or
 // on a touch screen while anything is selected; and, once every thread shown
@@ -130,6 +104,15 @@ const actionLabel: Record<ThreadAction, string> = {
   decline_read_and_archive: "Decline, mark read and archive",
 };
 
+// Each action's button in the bar: its icon, and the short label it shows
+// in place of its full name.
+const actionFace: Record<ThreadAction, { icon: IconName; label: string }> = {
+  read: { icon: "read", label: "Read" },
+  unread: { icon: "unread", label: "Unread" },
+  read_and_archive: { icon: "archive", label: "Archive" },
+  decline_read_and_archive: { icon: "decline", label: "Decline" },
+};
+
 // What an action acts on: the threads selected, each through the latest
 // message the list showed; or every thread the filters keep, as of the
 // list's as_of.
@@ -175,57 +158,67 @@ function question(
   );
 }
 
-// SelectionToolbar acts on the threads selected, in one request: on those
-// loaded, at most as many as one action takes; or on every thread the
-// filters keep, as of the list's as_of. Declining, and acting on every thread
-// that matches, ask first, and what they act on is taken as they ask, so
-// what is sent is what was on screen; refused as stale, acting on every
-// thread that matches loads the list afresh and asks again. Once an action is done it says what it
-// did, clears the selection and refreshes the list. Focus that was in the
-// toolbar as it goes moves to fallback.
-export function SelectionToolbar({
+// SelectionActions is what the bar at the list's foot holds while threads
+// are selected: Clear, leading, then the actions on the threads selected,
+// each in its fixed place, Decline among them, disabled while no thread
+// selected holds an ask open to the operator. An action acts in one request:
+// on the threads loaded, at most as many as one action takes; or on every
+// thread the filters keep, as of the list's as_of. Declining, and acting on
+// every thread that matches, ask first, in the bar's place, and what they act
+// on is taken as they ask, so what is sent is what was on screen; refused as
+// stale, acting on every thread that matches loads the list afresh and asks
+// again. An action stays under way until the list has tried to load
+// afresh; once it is done it says what it did and clears the selection, so
+// what the bar offers then is what the list holds, or, when that load
+// failed, the list's own error and its retry show. Focus it left goes back to its button
+// while the selection stays, as when it failed. Focus in the bar as the
+// selection clears, as Clear clears it, goes where the bar sends it.
+export function SelectionActions({
   view,
   selection,
   total,
   asOf,
   refresh,
   say,
-  fallback,
+  acting,
 }: {
   view: ThreadsView;
   selection: Selection;
   total: number;
   asOf: string;
-  refresh: () => Promise<unknown>;
+  refresh: () => Promise<boolean>;
   say: (text: string) => void;
-  fallback: () => HTMLElement | null | undefined;
+  acting: BarActing;
 }) {
-  const action = useAction();
+  const { bar, pending, run, press, leave } = acting;
+  // Focus is still in the bar as these actions go, before they leave it.
+  useLayoutEffect(() => {
+    const shown = bar.current;
+    return () => {
+      if (shown?.contains(document.activeElement) === true) {
+        leave();
+      }
+    };
+  }, [bar, leave]);
   const [asking, setAsking] = useState<{
     action: ThreadAction;
     acted: Acted;
     question: string;
     submitted: number;
   }>();
-  const bar = useRef<HTMLDivElement>(null);
-  const fallbackRef = useRef(fallback);
-  fallbackRef.current = fallback;
-  useLayoutEffect(() => {
-    const shown = bar.current;
-    return () => {
-      if (shown?.contains(document.activeElement) === true) {
-        fallbackRef.current()?.focus();
-      }
-    };
-  }, []);
-  // Once a question is answered and the actions are back, focus returns to
-  // the action that asked it, unless the operator has put it elsewhere.
+  // The button of an action, which a question asked first stands in place
+  // of.
+  const buttonOf = (chosen: ThreadAction) =>
+    bar.current?.querySelector<HTMLButtonElement>(`button[data-action="${chosen}"]`);
+  // Once a question is answered with Cancel and the actions are back, focus
+  // returns to the action that asked it, unless the operator has put it
+  // elsewhere; answered with the action, it returns once that is done.
   const lastAsked = useRef<ThreadAction>(undefined);
   useLayoutEffect(() => {
     const before = lastAsked.current;
     lastAsked.current = asking?.action;
-    if (asking === undefined && before !== undefined && focusLeftWith(bar.current)) {
-      bar.current?.querySelector<HTMLButtonElement>(`button[data-action="${before}"]`)?.focus();
+    if (asking === undefined && before !== undefined && !pending && focusLeftWith(bar.current)) {
+      buttonOf(before)?.focus();
     }
   }, [asking]);
   const { chosen, everything } = selection;
@@ -247,9 +240,10 @@ export function SelectionToolbar({
   // submitted is the selection's revision as the action took what it acts
   // on, so one that lands after the operator chose again clears nothing.
   const perform = async (chosenAction: ThreadAction, acted: Acted, submitted: number) => {
+    press(() => buttonOf(chosenAction));
     setAsking(undefined);
     say("");
-    const done = await action.run(async (csrf) => {
+    const send = async (csrf: string | undefined) => {
       if ("threads" in acted) {
         return actOn(chosenAction, acted.threads, csrf);
       }
@@ -264,21 +258,28 @@ export function SelectionToolbar({
         }
         throw failure;
       }
+    };
+    const done = await run(actionLabel[chosenAction], async (csrf) => {
+      const result = await send(csrf);
+      return { result, loaded: await refresh() };
     });
-    if (done === "stale") {
+    if (done === undefined) {
+      // The server may have acted before the answer was lost, as when the
+      // connection dropped, so the list shows what it holds now.
+      void refresh();
+      return;
+    }
+    if (done.result === "stale") {
       say("The threads that match have changed since you chose. Look again before you confirm.");
       // Asked again only from the list loaded afresh, and only while the
       // selection is as it was; a load that failed shows why instead.
-      if ((await refresh()) === true && selection.revision() === submitted) {
+      if (done.loaded && selection.revision() === submitted) {
         setAskAgain(chosenAction);
       }
       return;
     }
-    if (done !== undefined) {
-      say(outcome(chosenAction, done));
-      selection.clearIf(submitted);
-    }
-    void refresh();
+    say(outcome(chosenAction, done.result));
+    selection.clearIf(submitted);
   };
 
   const choose = (chosenAction: ThreadAction) => {
@@ -309,16 +310,13 @@ export function SelectionToolbar({
   }, [askAgain]);
 
   const declining = everything ? holding !== 0 : chosen.some((each) => each.open_asks.count > 0);
-  const offered = (Object.keys(actionLabel) as ThreadAction[]).filter(
-    (each) => each !== "decline_read_and_archive" || declining,
-  );
   return (
-    <ListBar bar={bar}>
-      <Failure failure={action.failure} />
+    <>
       {asking !== undefined ? (
         // Escape answers the question with Cancel, before it would clear the
         // selection.
         <div
+          className="bar-confirm"
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.preventDefault();
@@ -329,38 +327,44 @@ export function SelectionToolbar({
           <Confirmation
             question={asking.question}
             confirmLabel={actionLabel[asking.action]}
-            disabled={action.pending}
+            disabled={pending}
             onConfirm={() => void perform(asking.action, asking.acted, asking.submitted)}
             onCancel={() => setAsking(undefined)}
           />
         </div>
       ) : (
-        <div role="group" aria-label={`${count} selected`} className="list-bar-actions">
-          <span className="selection-count" aria-hidden="true">
+        <>
+          {/* The group of actions is named by the count, so the caption's
+              copy of it is hidden from assistive technology. */}
+          <BarCaption ownLine aria-hidden>
             {count} selected
-          </span>
+          </BarCaption>
           {tooMany && (
-            <p className="selection-note">
+            <BarCaption ownLine reason>
               Select at most {maxActionThreads} to act on them together.
-            </p>
+            </BarCaption>
           )}
-          {offered.map((each) => (
-            <button
-              key={each}
-              type="button"
-              data-action={each}
-              className="secondary"
-              disabled={action.pending || tooMany}
-              onClick={() => choose(each)}
-            >
-              {actionLabel[each]}
-            </button>
-          ))}
-          <button type="button" onClick={selection.clear}>
-            Done
-          </button>
-        </div>
+          <BarSlots group={`${count} selected`}>
+            <BarButton
+              icon="close"
+              label="Clear"
+              name="Clear selection"
+              onClick={() => selection.clear()}
+            />
+            {(Object.keys(actionLabel) as ThreadAction[]).map((each, index) => (
+              <BarButton
+                key={each}
+                {...actionFace[each]}
+                name={actionLabel[each]}
+                trailing={index === 0}
+                action={each}
+                disabled={pending || tooMany || (each === "decline_read_and_archive" && !declining)}
+                onClick={() => choose(each)}
+              />
+            ))}
+          </BarSlots>
+        </>
       )}
-    </ListBar>
+    </>
   );
 }
