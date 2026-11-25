@@ -325,7 +325,7 @@ From those the reads derive, against the request's clock and never stored:
 - **Quiet**: the agent never checked in, or has not within `agention serve --quiet-minutes`, 15 by
   default, and the minute a stamp may lag, so an agent that keeps calling never is quiet.
 - **Connected**: the bridge made a background request within the last minute. A bridge older than
-  agent API version 5 cannot report a connection, so while no bridge is connected and the agent last
+  agent API version 6 cannot report a connection, so while no bridge is connected and the agent last
   checked in through such a bridge, as every check-in from before versions were kept did, the
   session follows their rule: connected is not stated and never counts against it.
 - **Stranded**: a thread holding a live message of the operator's that the session has not read
