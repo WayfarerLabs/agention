@@ -13,10 +13,13 @@ export const scriptedHarness = [
   path.join(import.meta.dirname, "scripted-harness.ts"),
 ];
 
+// The longest path a Unix socket can have on Linux, in bytes.
+const longestSocketPath = 107;
+
 // A tmux server of a test's own, with no configuration, in a temporary
-// directory with a short path, since a Unix socket's path is limited to about
-// 107 bytes. A test kills it when it finishes, pass or fail, which also
-// removes the directory.
+// directory with a short path, since a Unix socket's path is limited to 107
+// bytes. A test kills it when it finishes, pass or fail, which also removes
+// the directory.
 export class TmuxServer {
   readonly directory: string;
   readonly socket: string;
@@ -27,8 +30,16 @@ export class TmuxServer {
   }
 
   // start starts a server whose one pane runs a command, 80 columns by 12 rows.
+  // It fails at once, saying why, where TMPDIR is too long for the socket.
   static async start(command: readonly string[]): Promise<TmuxServer> {
     const server = new TmuxServer(mkdtempSync(path.join(tmpdir(), "ho-")));
+    if (Buffer.byteLength(server.socket) > longestSocketPath) {
+      await server.kill();
+      throw new Error(
+        `a tmux socket at ${server.socket} would be longer than ${longestSocketPath} bytes: ` +
+          "run the tests with a shorter TMPDIR",
+      );
+    }
     try {
       await server.tmux(
         "-f",
