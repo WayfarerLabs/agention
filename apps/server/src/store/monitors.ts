@@ -1,14 +1,9 @@
 import {
-  formatTimestamp,
   type MonitorAnswer,
-  type MonitorCondition,
   type MonitorPollQuery,
-  type MonitorProfile,
   type MonitorReport,
   type MonitorReportQuery,
-  type MonitorState,
   parseTimestamp,
-  type StoppedBy,
 } from "@wayfarerlabs/agention-api";
 import type { Identity } from "../identity.ts";
 import type { Store } from "./store.ts";
@@ -117,40 +112,4 @@ export function reportMonitor(
     bridges.hold(outcome.sessionId, query.bridge, query.seq);
   }
   return { replaced: false };
-}
-
-// A session's latest report as a read selects it from monitor_reports, every
-// column null when no bridge has reported.
-export interface MonitorRow {
-  monitored: number | null;
-  profile: MonitorProfile | null;
-  condition: MonitorCondition | null;
-  since: number | null;
-  stopped_by: StoppedBy["reason"] | null;
-  resets_at: number | null;
-}
-
-// monitorStateOf describes a report the row holds, as the operator sees it.
-// The table's checks hold a monitored row's profile, condition and since,
-// and a reset time only beside a usage limit.
-export function monitorStateOf(row: MonitorRow): MonitorState {
-  if (row.monitored !== 1 || row.profile === null || row.condition === null || row.since === null) {
-    return { monitored: false };
-  }
-  const stoppedBy =
-    row.stopped_by === null
-      ? undefined
-      : row.stopped_by === "usage_limit"
-        ? {
-            reason: row.stopped_by,
-            ...(row.resets_at === null ? {} : { resets_at: formatTimestamp(row.resets_at) }),
-          }
-        : { reason: row.stopped_by };
-  return {
-    monitored: true,
-    profile: row.profile,
-    condition: row.condition,
-    since: formatTimestamp(row.since),
-    ...(stoppedBy === undefined ? {} : { stopped_by: stoppedBy }),
-  };
 }

@@ -24,7 +24,7 @@ import { authorizeScope, type Identity } from "../identity.ts";
 import { findOperator, sessionActorId } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
-import { monitorStateOf, type MonitorRow } from "./monitors.ts";
+import { type PresenceRow, presenceOf } from "./presence.ts";
 import { connectedOf, pageOf, quietOf, threadsSeen, viewerAndCutoff } from "./thread-reads.ts";
 import { authorizeSession, type SessionTarget } from "./threads.ts";
 
@@ -295,14 +295,11 @@ export function readSessionLog(
   });
 }
 
-interface SessionRow extends MonitorRow {
+interface SessionRow extends PresenceRow {
   id: number;
   agent_id: number;
   name: string;
   created_at: number;
-  last_seen_at: number | null;
-  quiet: number;
-  connected: number | null;
   latest_seq: number | null;
   state: WorkState | null;
   outcome: WorkOutcome | null;
@@ -447,14 +444,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
       created_at: formatTimestamp(row.created_at),
       ...(groups.has(row.id) ? { group: groups.get(row.id) } : {}),
       tags: sessionTags.get(row.id) ?? [],
-      presence: {
-        ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
-        quiet: row.quiet === 1,
-        ...(row.connected === null ? {} : { connected: row.connected === 1 }),
-        // A report shows only while its bridge is connected, so a bridge
-        // that ended never leaves its last one standing as current.
-        ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
-      },
+      presence: presenceOf(row),
       registrations: (registrations.get(row.id) ?? []).map((registration) => ({
         id: registration.id,
         code: registrationCode(registration.public_key),

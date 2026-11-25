@@ -8024,6 +8024,9 @@
           "connected": {
             "type": "boolean"
           },
+          "monitor": {
+            "$ref": "#/components/schemas/MonitorState"
+          },
           "state": {
             "$ref": "#/components/schemas/WorkState"
           },

@@ -49,15 +49,6 @@ export const workOutcome = z
   );
 export type WorkOutcome = z.infer<typeof workOutcome>;
 
-// A session's presence as a thread's summary shows it to the thread's
-// audience: with the state and outcome the session last reported, both absent
-// until it first reports, so the audience can tell why a thread is stranded.
-export const threadPresence = presence.extend({
-  state: workState.optional(),
-  outcome: workOutcome.optional(),
-});
-export type ThreadPresence = z.infer<typeof threadPresence>;
-
 // A session's title is bounded as a thread's is.
 export const sessionTitle = singleLineText({ min: 1, max: 200 }).describe(
   "A short title for this line of work, which the operator sees beside the session's name.",
@@ -205,6 +196,17 @@ export type SessionsQuery = z.infer<typeof sessionsQuery>;
 // bridge's latest report while it is connected, absent until one reports.
 export const sessionPresence = presence.extend({ monitor: monitorState.optional() });
 export type SessionPresence = z.infer<typeof sessionPresence>;
+
+// A session's presence as a thread's summary shows it to the thread's
+// audience, the operator: as the sessions view shows it, with the state and
+// outcome the session last reported, both absent until it first reports, so
+// the audience can tell why a thread is stranded, and what its terminal shows
+// while its bridge is connected.
+export const threadPresence = sessionPresence.extend({
+  state: workState.optional(),
+  outcome: workOutcome.optional(),
+});
+export type ThreadPresence = z.infer<typeof threadPresence>;
 
 // A session as the operator's sessions view shows it: its presence; its
 // approved registrations, each by its id and code; its status with the latest

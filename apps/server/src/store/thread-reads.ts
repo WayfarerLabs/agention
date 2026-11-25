@@ -23,7 +23,13 @@ import {
 import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { authorOf } from "./directory.ts";
-import { connectedFor, monitoringVersion, seenStep } from "./presence.ts";
+import {
+  connectedFor,
+  monitoringVersion,
+  type PresenceRow,
+  presenceOf,
+  seenStep,
+} from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -119,8 +125,8 @@ export function connectedOf(sessions: string): string {
 // withdraws: open while any is open; otherwise withdrawn when every one is
 // withdrawn, answered when there are any, and none when there are none)
 // with, while withdrawn, the latest live withdrawal, the first of its
-// message's, its session's presence and the state and outcome it last
-// reported, whether the other party has not read a live message of the
+// message's, its session's presence, its bridge's latest report and the state
+// and outcome it last reported, whether the other party has not read a live message of the
 // viewer's, and whether the thread is stranded: so, while the session is
 // quiet, has no active credential, is not connected or has stopped; and the
 // operator's group for its session, which only the operator's list shows.
@@ -145,6 +151,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         s.last_seen_at,
         ${quietOf("s")} AS quiet,
         ${connectedOf("s")} AS connected,
+        mr.monitored, mr.profile, mr.condition, mr.since, mr.stopped_by, mr.resets_at,
         reported.state AS session_state, reported.outcome AS session_outcome,
         member.group_id, grouped.name AS group_name
       FROM threads t
@@ -152,6 +159,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
       JOIN agents g ON g.id = s.agent_id
       JOIN messages latest ON latest.thread_id = t.id AND latest.seq = t.last_seq
       LEFT JOIN thread_marks mark ON mark.actor_id = :viewer AND mark.thread_id = t.id
+      LEFT JOIN monitor_reports mr ON mr.session_id = t.session_id
       LEFT JOIN session_group_members member ON member.session_id = t.session_id
       LEFT JOIN session_groups grouped ON grouped.id = member.group_id
       LEFT JOIN session_updates reported ON reported.session_id = t.session_id
@@ -263,7 +271,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
     )`;
 }
 
-export interface ThreadRow {
+export interface ThreadRow extends PresenceRow {
   id: number;
   session_id: number;
   number: number;
@@ -279,9 +287,6 @@ export interface ThreadRow {
   read_seq: number;
   archived_seq: number;
   credential_active: number;
-  last_seen_at: number | null;
-  quiet: number;
-  connected: number | null;
   session_state: WorkState | null;
   session_outcome: WorkOutcome | null;
   group_id: number | null;
@@ -334,8 +339,9 @@ function askSummaryOf(json: string, now: number): AskSummary {
 
 // toThreadSummary describes a row of seen. An ask is overdue once its
 // answer-by time is before now. The thread's audience also sees its
-// session's presence, with whether it is connected and the state and outcome
-// it last reported, and whether the thread is stranded.
+// session's presence, with whether it is connected, its bridge's latest
+// report while it is, and the state and outcome it last reported, and whether
+// the thread is stranded.
 export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
@@ -374,11 +380,7 @@ export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
     ...(row.audience === 1
       ? {
           presence: {
-            ...(row.last_seen_at === null
-              ? {}
-              : { last_seen_at: formatTimestamp(row.last_seen_at) }),
-            quiet: row.quiet === 1,
-            ...(row.connected === null ? {} : { connected: row.connected === 1 }),
+            ...presenceOf(row),
             ...(row.session_state === null ? {} : { state: row.session_state }),
             ...(row.session_outcome === null ? {} : { outcome: row.session_outcome }),
           },
