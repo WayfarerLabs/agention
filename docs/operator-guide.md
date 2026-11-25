@@ -350,14 +350,14 @@ To pin it to a release, the latest in this example, in Claude Code:
 <!-- x-release-please-start-version -->
 
 ```bash
-claude plugin marketplace add WayfarerLabs/agention#v0.6.0
+claude plugin marketplace add WayfarerLabs/agention#v0.7.0
 claude plugin install agention@agention
 ```
 
 In Codex:
 
 ```bash
-codex plugin marketplace add WayfarerLabs/agention --ref v0.6.0
+codex plugin marketplace add WayfarerLabs/agention --ref v0.7.0
 codex plugin add agention@agention
 ```
 
@@ -410,11 +410,11 @@ server over standard input and output, one process for each agent session, on a 
 <!-- x-release-please-start-version -->
 
 ```bash
-npx -y @wayfarerlabs/agention-mcp@0.6.0
+npx -y @wayfarerlabs/agention-mcp@0.7.0
 ```
 
 [skill]:
-  https://github.com/WayfarerLabs/agention/blob/v0.6.0/apps/agent-plugin/skills/agention/SKILL.md
+  https://github.com/WayfarerLabs/agention/blob/v0.7.0/apps/agent-plugin/skills/agention/SKILL.md
 
 <!-- x-release-please-end -->
 
@@ -771,7 +771,7 @@ uninstalls the plugin, then add it and install the plugin again:
 
 ```bash
 claude plugin marketplace remove agention
-claude plugin marketplace add WayfarerLabs/agention#v0.6.0
+claude plugin marketplace add WayfarerLabs/agention#v0.7.0
 claude plugin install agention@agention
 ```
 
@@ -779,7 +779,7 @@ In Codex:
 
 ```bash
 codex plugin marketplace remove agention
-codex plugin marketplace add WayfarerLabs/agention --ref v0.6.0
+codex plugin marketplace add WayfarerLabs/agention --ref v0.7.0
 codex plugin add agention@agention
 ```
 
