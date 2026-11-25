@@ -49,7 +49,7 @@
       `CONTRIBUTING.md` (tmux among the prerequisites and dependencies), CI installing tmux, and the
       development contract. Done when the project review finds none stale.
 
-- [ ] Renumbered after main took agent API versions 6 and 7 and migration 10 for pull request and
+- [x] Renumbered after main took agent API versions 6 and 7 and migration 10 for pull request and
       branch links: monitoring is agent API version 8 and migration 11. Done when the gates pass on
       the pull request brought up to date with main.
 
