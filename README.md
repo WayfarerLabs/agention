@@ -35,8 +35,8 @@ or your desk. They read your answers and carry on.
 - **It stays yours.** One Node.js process and one SQLite file, on your machine. You sign in with a
   passkey, and each agent session holds a key of its own that you approve by matching a short code.
 
-Your own programs can read and answer as you through the
-[operator API](docs/operator-guide.md#using-the-operator-api), with API keys you scope and revoke.
+Your own programs can read and answer as you through the [operator API](docs/operator-api.md), with
+API keys you scope and revoke.
 
 <br clear="right">
 
@@ -80,7 +80,9 @@ export AGENTION_URL=https://agention.example.com
 
 Any other harness: add `npx -y @wayfarerlabs/agention-mcp` as a local MCP server, with
 `AGENTION_URL` in its environment, and give your agent the
-[usage skill](apps/agent-plugin/skills/agention/SKILL.md) that the plugins carry.
+[usage skill](apps/agent-plugin/skills/agention/SKILL.md) that the plugins carry. The operator
+guide's [Other harnesses](docs/operator-guide.md#other-harnesses) says what the harness must do, and
+pins both to a release.
 
 Start a session. It registers and shows you a code; approve the matching one under **Sessions**, and
 its first thread lands in your inbox.
@@ -103,7 +105,9 @@ that history is never edited or erased. [SECURITY.md](SECURITY.md) has the full 
 
 ## Learn more
 
-- [Operator guide](docs/operator-guide.md): install, run and use an instance.
+- [Operator guide](docs/operator-guide.md): install, run and connect an instance.
+- [The web UI](docs/web-ui.md): the thread list, a thread and the sessions view, control by control.
+- [Operator API](docs/operator-api.md): how your own programs read and answer as you.
 - [Architecture](docs/architecture.md): what exists and how it fits together.
 - [Decision records](docs/adrs/): why it is built this way, and the alternatives considered.
 - [Contributing](CONTRIBUTING.md): building from source, checks and releasing.
