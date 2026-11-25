@@ -24,6 +24,9 @@ export const codeLinksAgentApiVersion = 6;
 // requests and branches the thread's live messages name.
 export const summaryLinksAgentApiVersion = 7;
 
+// The first version whose background polls answer whether a nudge is due.
+export const nudgeAgentApiVersion = 9;
+
 export const agentApiHeader = "Agention-Agent-API";
 
 // A version as agentApiHeader carries it: a positive integer written without

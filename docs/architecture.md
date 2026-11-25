@@ -818,7 +818,8 @@ it does not know within its answer cap. The next middleware keeps a list of what
 and drops those fields: before `codeLinksAgentApiVersion`, a message's `pull_requests` and
 `branches`, and the thread's roll-up of them, from the thread's answer and a stale write's missed
 messages; before `summaryLinksAgentApiVersion`, the summaries' `links` from a thread's answer, a
-list, and a wait. The web mount is not versioned: the server serves its own web UI, always in step.
+list, and a wait; before `nudgeAgentApiVersion`, the background poll's `nudge`. The web mount is not
+versioned: the server serves its own web UI, always in step.
 
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores

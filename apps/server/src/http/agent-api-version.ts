@@ -3,6 +3,7 @@ import {
   agentApiHeader,
   agentApiVersion,
   codeLinksAgentApiVersion,
+  nudgeAgentApiVersion,
   summaryLinksAgentApiVersion,
 } from "@wayfarerlabs/agention-api";
 import type { MiddlewareHandler } from "hono";
@@ -68,7 +69,8 @@ type Json = Record<string, unknown>;
 // codeLinksAgentApiVersion added the pull requests and branches of a thread
 // read's messages, its roll-up of them, and those of the messages a stale
 // write missed; summaryLinksAgentApiVersion added links to the thread
-// summaries a thread read, a list, and a wait carry.
+// summaries a thread read, a list, and a wait carry; nudgeAgentApiVersion
+// added nudge to the background poll's answer, which no other answer has.
 const added: { version: number; leaveOut: (answer: Json) => void }[] = [
   {
     version: codeLinksAgentApiVersion,
@@ -90,6 +92,12 @@ const added: { version: number; leaveOut: (answer: Json) => void }[] = [
           delete each.links;
         }
       }
+    },
+  },
+  {
+    version: nudgeAgentApiVersion,
+    leaveOut: (answer) => {
+      delete answer.nudge;
     },
   },
 ];

@@ -3,6 +3,7 @@ import {
   agentApiHeader,
   type ErrorBody,
   formatTimestamp,
+  nudgeAgentApiVersion,
   type SessionsPage,
   type ThreadPage,
 } from "@wayfarerlabs/agention-api";
@@ -97,7 +98,7 @@ const atPrompt = {
 
 describe("check-ins and background requests", () => {
   it("stamp the background time on every background request, and never a check-in", async () => {
-    expect((await poll(first)).body).toEqual({ replaced: false, nudge: false });
+    expect((await poll(first)).body).toEqual({ replaced: false });
     expect(stamps()).toEqual({
       last_seen_at: null,
       last_seen_version: null,
@@ -193,18 +194,15 @@ describe("one bridge acting for a session", () => {
     await polling();
     const controller = new AbortController();
     const taking = poll(second, "claim=true&wait=25", controller.signal);
-    expect((await pending).body).toEqual({ replaced: true, nudge: false });
+    expect((await pending).body).toEqual({ replaced: true });
     expect((await report(first, atPrompt)).body).toEqual({ replaced: true });
-    expect((await poll(first)).body).toEqual({ replaced: true, nudge: false });
+    expect((await poll(first)).body).toEqual({ replaced: true });
     expect((await report(second, atPrompt)).body).toEqual({ replaced: false });
     controller.abort();
-    expect((await taking).body).toEqual({ replaced: false, nudge: false });
+    expect((await taking).body).toEqual({ replaced: false });
     // A replaced bridge acts again once it claims the session, which deletes
     // the report of the bridge it took the session from.
-    expect((await poll(first, "claim=true&wait=0")).body).toEqual({
-      replaced: false,
-      nudge: false,
-    });
+    expect((await poll(first, "claim=true&wait=0")).body).toEqual({ replaced: false });
     expect((await report(second, { monitored: false })).body).toEqual({ replaced: true });
     expect(await presence()).not.toHaveProperty("monitor");
     expect((await report(first, atPrompt)).body).toEqual({ replaced: false });
@@ -303,6 +301,18 @@ describe("the nudge", () => {
       seen_through: 1,
       text: "Over to you.",
     });
+  });
+
+  it("is left out of the poll's answer to a version before it", async () => {
+    const before = await harness.agent(
+      approved,
+      "GET",
+      `/s/builder/main/monitor?bridge=${first}&wait=0`,
+      undefined,
+      speaking(nudgeAgentApiVersion - 1),
+    );
+    expect(before.body).toEqual({ replaced: false });
+    expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: true });
   });
 
   it("is due to the bridge, which claims it and reports the outcome the operator then sees", async () => {
