@@ -50,6 +50,9 @@ export const linksServerName = "Links";
 // The name of the server the selection tests start for themselves.
 export const selectionServerName = "Selection";
 
+// The name of the server the README's screenshots are taken of.
+export const screenshotsServerName = "Agention";
+
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
 const serverBundle = fileURLToPath(new URL("../../server/dist/agention.js", import.meta.url));
@@ -209,6 +212,7 @@ export const test = base.extend<
     filesServer: Agention;
     linksServer: Agention;
     selectionServer: Agention;
+    screenshotsServer: Agention;
   }
 >({
   certificate: [
@@ -225,6 +229,7 @@ export const test = base.extend<
   filesServer: [serving(filesServerName), { scope: "worker" }],
   linksServer: [serving(linksServerName), { scope: "worker" }],
   selectionServer: [serving(selectionServerName), { scope: "worker" }],
+  screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({
