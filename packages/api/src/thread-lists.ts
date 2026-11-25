@@ -360,8 +360,10 @@ export function composeRollup(parts: readonly Rollup[]): Rollup {
 }
 
 // composePresence gives an agent's presence from its sessions': quiet when
-// every one is, last seen when the latest was, and connected when any is,
-// not connected when none is and any says so, and neither when none says.
+// every one is, last seen when the latest was, connected when any is, and
+// not connected only when every one says it is not. A session whose bridge
+// predates monitoring says neither, and may be running, so beside one the
+// agent says neither too, unless another session is connected.
 export function composePresence(parts: readonly Presence[]): Presence {
   const seen = parts.flatMap((each) =>
     each.last_seen_at === undefined ? [] : [each.last_seen_at],
@@ -370,11 +372,15 @@ export function composePresence(parts: readonly Presence[]): Presence {
     (best, each) => (best === undefined || Date.parse(each) > Date.parse(best) ? each : best),
     undefined,
   );
-  const stated = parts.flatMap((each) => (each.connected === undefined ? [] : [each.connected]));
+  const connected = parts.some((each) => each.connected === true)
+    ? true
+    : parts.length > 0 && parts.every((each) => each.connected === false)
+      ? false
+      : undefined;
   return {
     ...(latest === undefined ? {} : { last_seen_at: latest }),
     quiet: parts.every((each) => each.quiet),
-    ...(stated.length === 0 ? {} : { connected: stated.some((each) => each) }),
+    ...(connected === undefined ? {} : { connected }),
   };
 }
 

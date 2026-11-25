@@ -143,13 +143,17 @@ describe("composePresence", () => {
     expect(composePresence([{ quiet: true }, { quiet: true }])).toEqual({ quiet: true });
   });
 
-  it("is connected when any part is, and states it only when some part does", () => {
+  it("is connected when any part is, and not connected only when every part says so", () => {
     const on = { quiet: true, connected: true };
     const off = { quiet: true, connected: false };
     const unstated = { quiet: true };
     expect(composePresence([off, unstated, on]).connected).toBe(true);
-    expect(composePresence([off, unstated]).connected).toBe(false);
+    expect(composePresence([off, off]).connected).toBe(false);
+    // A session on a bridge from before monitoring may be running, so an
+    // agent with one and a disconnected session is not said to be either.
+    expect(composePresence([off, unstated])).not.toHaveProperty("connected");
     expect(composePresence([unstated, unstated])).not.toHaveProperty("connected");
+    expect(composePresence([])).not.toHaveProperty("connected");
   });
 });
 
