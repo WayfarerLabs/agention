@@ -10,6 +10,7 @@ import {
   type Marks,
   maxListedAsks,
   type Message,
+  monitoringAgentApiVersion,
   type Priority,
   priority,
   type Reference,
@@ -25,7 +26,7 @@ import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
-import { connectedFor, monitoringVersion, seenStep } from "./presence.ts";
+import { connectedFor, seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -104,7 +105,7 @@ export function connectedOf(sessions: string): string {
   return `(CASE
     WHEN ${sessions}.background_at >= :connected_from THEN 1
     WHEN ${sessions}.last_seen_at IS NOT NULL
-      AND COALESCE(${sessions}.last_seen_version, 1) < ${monitoringVersion} THEN NULL
+      AND COALESCE(${sessions}.last_seen_version, 1) < ${monitoringAgentApiVersion} THEN NULL
     ELSE 0
   END)`;
 }

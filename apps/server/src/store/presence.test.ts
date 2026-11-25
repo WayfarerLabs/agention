@@ -1,7 +1,12 @@
-import { agentApi, threadFilters, threadsQuery } from "@wayfarerlabs/agention-api";
+import {
+  agentApi,
+  monitoringAgentApiVersion,
+  threadFilters,
+  threadsQuery,
+} from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { markRead } from "./marks.ts";
-import { connectedFor, monitoringVersion, seenStep } from "./presence.ts";
+import { connectedFor, seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
 import { defaultQuietAfter } from "./store.ts";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
@@ -106,7 +111,7 @@ describe("connected", () => {
   });
 
   it("is never stated while the agent last checked in through a bridge older than monitoring", () => {
-    fixture.seen(agent, monitoringVersion - 1);
+    fixture.seen(agent, monitoringAgentApiVersion - 1);
     expect(thread().presence).toEqual({
       last_seen_at: new Date(fixture.now).toISOString(),
       quiet: false,
@@ -131,9 +136,9 @@ describe("connected", () => {
     fixture.connect(agent);
     fixture.advance(connectedFor + 1);
     expect(thread().presence?.connected).toBe(false);
-    fixture.seen(agent, monitoringVersion - 1);
+    fixture.seen(agent, monitoringAgentApiVersion - 1);
     expect(thread().presence).not.toHaveProperty("connected");
-    fixture.seen(agent, monitoringVersion);
+    fixture.seen(agent, monitoringAgentApiVersion);
     expect(thread().presence?.connected).toBe(false);
   });
 });
@@ -248,7 +253,7 @@ describe("stranded", () => {
 
   it("holds no such message for want of a connection a bridge older than monitoring cannot report", () => {
     fixture.advance(connectedFor + 1);
-    fixture.seen(agent, monitoringVersion - 1);
+    fixture.seen(agent, monitoringAgentApiVersion - 1);
     expect(thread(1).stranded).toBe(false);
     expect(stranded()).toEqual([]);
     fixture.advance(defaultQuietAfter + seenStep + 1);
