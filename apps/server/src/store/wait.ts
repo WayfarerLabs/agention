@@ -12,9 +12,9 @@ import type { Store } from "./store.ts";
 import { reached } from "./thread-lists.ts";
 import {
   pageOf,
+  summariesOf,
   type ThreadRow,
   threadsSeen,
-  toThreadSummary,
   viewerAndCutoff,
 } from "./thread-reads.ts";
 import { authorizeSession, type SessionTarget } from "./threads.ts";
@@ -60,7 +60,7 @@ export function pollThreads(
     return {
       sessionId,
       result: {
-        threads: page.rows.map((row) => toThreadSummary(row, now)),
+        threads: summariesOf(db, page.rows, now),
         since: encodeCursor("since", [covered]),
       },
     };
@@ -175,7 +175,7 @@ export function pollEverySession(
     const covered = page.more && last !== undefined ? last.position : latest;
     return {
       result: {
-        threads: page.rows.map((row) => toThreadSummary(row, now)),
+        threads: summariesOf(db, page.rows, now),
         since: encodeCursor(everySessionSince, [covered]),
       },
       expiresAt,

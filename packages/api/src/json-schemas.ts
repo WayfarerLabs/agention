@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { branchLink, pullRequestLink } from "./code-links.ts";
 import { errorBody } from "./errors.ts";
 import { groupRef } from "./groups-and-tags.ts";
 import { reference } from "./references.ts";
@@ -55,6 +56,7 @@ const named: Record<string, ApiSchema> = {
   askRead,
   askSummary,
   author,
+  branchLink,
   cursors,
   effort,
   errorBody,
@@ -65,6 +67,7 @@ const named: Record<string, ApiSchema> = {
   openAsks,
   presence,
   priority,
+  pullRequestLink,
   reference,
   registration,
   sessionStatus,

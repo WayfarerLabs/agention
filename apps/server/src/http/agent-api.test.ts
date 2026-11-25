@@ -1,8 +1,10 @@
 import {
   agentApi,
   agentApiHeader,
+  codeLinksAgentApiVersion,
   type ErrorBody,
   formatTimestamp,
+  summaryLinksAgentApiVersion,
   type ThreadGetResult,
   type ThreadPage,
   type WaitResult,
@@ -478,6 +480,14 @@ describe("agent session routes", () => {
       ["POST", "/s/builder/main/threads", newThread("r-1", { topic: "Auth" }), "topic"],
       ["POST", `${thread}/messages`, { request_id: "m", seen_through: 1, topic: "a/b" }, "topic"],
       ["GET", "/s/builder/main/threads?topic=builder/main/auth", undefined, "topic"],
+      ["GET", "/s/builder/main/threads?pull_request=acme/agention", undefined, "pull_request"],
+      ["GET", "/s/builder/main/threads?branch=acme/agention:a..b", undefined, "branch"],
+      [
+        "POST",
+        `${thread}/messages`,
+        { request_id: "m", seen_through: 1, branches: [{ repo: "acme", branch: "main" }] },
+        "branches.0.repo",
+      ],
       ["GET", "/s/builder/main/wait?wait=26", undefined, "wait"],
       ["GET", "/s/builder/main/threads/x", undefined, "thread"],
       ["GET", "/s/Builder/main/threads", undefined, "agent"],
@@ -521,6 +531,35 @@ describe("agent session routes", () => {
         [text, detail],
       ]);
     }
+  });
+
+  it("list the threads naming a pull request or branch, its short form escaped in the query", async () => {
+    const pull = { repo: "acme/agention", number: 135 };
+    const branch = { repo: "acme/agention", branch: "feat/a#1" };
+    await harness.agent(
+      approved,
+      "POST",
+      "/s/builder/main/threads",
+      newThread("r-1", { pull_requests: [pull], branches: [branch] }),
+    );
+    await harness.agent(approved, "POST", "/s/builder/main/threads", newThread("r-2"));
+    const numbers = async (query: string) =>
+      (
+        (await harness.agent(approved, "GET", `/s/builder/main/threads?${query}`)).body as {
+          threads: { number: number }[];
+        }
+      ).threads.map((each) => each.number);
+    expect(await numbers(`pull_request=${encodeURIComponent("Acme/Agention#135")}`)).toEqual([1]);
+    expect(await numbers(`branch=${encodeURIComponent("acme/agention:feat/a#1")}`)).toEqual([1]);
+    expect(await numbers(`branch=${encodeURIComponent("acme/agention:feat/a")}`)).toEqual([]);
+    const read = await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, {
+      headers: { [agentApiHeader]: String(agentApi.version) },
+    });
+    expect(read.body).toMatchObject({
+      messages: [{ pull_requests: [pull], branches: [branch] }],
+      pull_requests: { links: [pull], truncated: false },
+      branches: { links: [branch], truncated: false },
+    });
   });
 
   it("refuses a body that is not JSON", async () => {
@@ -583,6 +622,91 @@ describe("the agent API version", () => {
     for (const version of [undefined, "1", String(agentApi.version)]) {
       const headers = version === undefined ? {} : { [agentApiHeader]: version };
       expect([version, codeOf(await list(approved, { headers }))]).toEqual([version, "ok"]);
+    }
+  });
+
+  it("leaves pull requests and branches out of answers to a version before them", async () => {
+    const pull = { repo: "acme/agention", number: 135 };
+    const branch = { repo: "acme/agention", branch: "feat/links" };
+    await harness.agent(
+      approved,
+      "POST",
+      "/s/builder/main/threads",
+      newThread("r-1", { pull_requests: [pull], branches: [branch] }),
+    );
+    // What a bridge stating the version reads: the thread, its first message
+    // and the first message a stale write missed.
+    const answers = async (version: string | undefined) => {
+      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const read = await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, {
+        headers,
+      });
+      const stale = await harness.agent(
+        approved,
+        "POST",
+        "/s/builder/main/threads/1/messages",
+        { request_id: `r-${version ?? "none"}`, seen_through: 0, text: "Late." },
+        { headers },
+      );
+      const { messages, ...thread } = read.body as { messages: object[] };
+      return [thread, messages[0], (stale.body as ErrorBody).error.missed?.[0]];
+    };
+    for (const version of [undefined, String(codeLinksAgentApiVersion - 1)]) {
+      for (const answer of await answers(version)) {
+        expect([version, answer]).toEqual([version, expect.objectContaining({})]);
+        expect(answer).not.toHaveProperty("pull_requests");
+        expect(answer).not.toHaveProperty("branches");
+      }
+    }
+    const [thread, message, missed] = await answers(String(agentApi.version));
+    expect(thread).toMatchObject({
+      pull_requests: { links: [pull] },
+      branches: { links: [branch] },
+    });
+    for (const answer of [message, missed]) {
+      expect(answer).toMatchObject({ seq: 1, pull_requests: [pull], branches: [branch] });
+    }
+  });
+
+  it("leaves links out of the thread summaries answered to a version before them", async () => {
+    const pull = { repo: "acme/agention", number: 135 };
+    await harness.agent(
+      approved,
+      "POST",
+      "/s/builder/main/threads",
+      newThread("r-1", { pull_requests: [pull] }),
+    );
+    await harness.web("POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      text: "Seen it.",
+    });
+    // The summaries a bridge stating the version reads: a thread's, and those
+    // of a list and a wait.
+    const summaries = async (version: string | undefined) => {
+      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const read = async (path: string) =>
+        (await harness.agent(approved, "GET", `/s/builder/main${path}`, undefined, { headers }))
+          .body as { thread?: object; threads?: object[] };
+      return [
+        (await read("/threads/1")).thread,
+        ...((await read("/threads")).threads ?? []),
+        ...((await read("/wait")).threads ?? []),
+      ];
+    };
+    for (const version of [undefined, String(summaryLinksAgentApiVersion - 1)]) {
+      const read = await summaries(version);
+      expect([version, read.length]).toEqual([version, 3]);
+      for (const summary of read) {
+        expect(summary).toMatchObject({ number: 1 });
+        expect(summary).not.toHaveProperty("links");
+      }
+    }
+    for (const summary of await summaries(String(agentApi.version))) {
+      expect(summary).toMatchObject({
+        number: 1,
+        links: { pull_requests: 1, branches: 0, pull_request: pull },
+      });
     }
   });
 

@@ -1,11 +1,23 @@
-import { agentApi, agentApiHeader, agentApiVersion } from "@wayfarerlabs/agention-api";
+import {
+  agentApi,
+  agentApiHeader,
+  agentApiVersion,
+  codeLinksAgentApiVersion,
+  summaryLinksAgentApiVersion,
+} from "@wayfarerlabs/agention-api";
 import type { MiddlewareHandler } from "hono";
 import { ApiError } from "../errors.ts";
 import { parse } from "./input.ts";
 
 // The agent API's version, as the agent mount speaks it: every answer states
-// the version this server speaks, and a request stating one it does not
-// serve is refused before anything else reads it.
+// the version this server speaks, a request stating one it does not serve is
+// refused before anything else reads it, and an answer to one it serves
+// leaves out the fields added after the version the request states.
+
+// The variables of the agent mount's routes: the version the request states.
+export interface AgentApiVersionEnv {
+  Variables: { agentApiVersion: bigint };
+}
 
 // stateAgentApiVersion states this server's version on every answer on the
 // agent mount, its refusals included, once the answer is made.
@@ -19,8 +31,12 @@ export const stateAgentApiVersion: MiddlewareHandler = async (c, next) => {
 // authentication or any other work. The refusal is worded for the agent, as
 // the bridge's own problems are, so a bridge that relays it as it is tells the
 // agent what the operator updates. Anyone who reaches the server can read it,
-// so it names the versions the server serves, never its release.
-export const requireServedAgentApiVersion: MiddlewareHandler = async (c, next) => {
+// so it names the versions the server serves, never its release. A version it
+// serves goes on the context, for the answer.
+export const requireServedAgentApiVersion: MiddlewareHandler<AgentApiVersionEnv> = async (
+  c,
+  next,
+) => {
   const version = parse(agentApiVersion, c.req.header(agentApiHeader), agentApiHeader);
   const served =
     `This session's Agention bridge speaks version ${version} of the agent API, and the ` +
@@ -40,8 +56,75 @@ export const requireServedAgentApiVersion: MiddlewareHandler = async (c, next) =
         "resuming it to keep this conversation",
     );
   }
+  c.set("agentApiVersion", version);
   await next();
 };
+
+type Json = Record<string, unknown>;
+
+// What each version added to the agent's answers, which an answer to a
+// request stating an older version leaves out: an older bridge does not know
+// them, so it could neither use them nor keep them within its answer cap.
+// codeLinksAgentApiVersion added the pull requests and branches of a thread
+// read's messages, its roll-up of them, and those of the messages a stale
+// write missed; summaryLinksAgentApiVersion added links to the thread
+// summaries a thread read, a list, and a wait carry.
+const added: { version: number; leaveOut: (answer: Json) => void }[] = [
+  {
+    version: codeLinksAgentApiVersion,
+    leaveOut: (answer) => {
+      const missed = isJson(answer.error) ? answer.error.missed : undefined;
+      for (const each of [answer, ...listOf(answer.messages), ...listOf(missed)]) {
+        if (isJson(each)) {
+          delete each.pull_requests;
+          delete each.branches;
+        }
+      }
+    },
+  },
+  {
+    version: summaryLinksAgentApiVersion,
+    leaveOut: (answer) => {
+      for (const each of [answer.thread, ...listOf(answer.threads)]) {
+        if (isJson(each)) {
+          delete each.links;
+        }
+      }
+    },
+  },
+];
+
+// answerAsStatedVersion leaves out of a JSON answer, its refusals included,
+// the fields added to the agent API after the version the request states. A
+// file is never served as JSON (servedTypeOf), so every JSON answer is the
+// API's own. Each JSON answer to an older bridge is parsed and written again
+// whole, a cost too small to see beside building it.
+export const answerAsStatedVersion: MiddlewareHandler<AgentApiVersionEnv> = async (c, next) => {
+  await next();
+  const leaving = added.filter(({ version }) => c.var.agentApiVersion < version);
+  if (
+    leaving.length === 0 ||
+    c.res.headers.get("content-type")?.startsWith("application/json") !== true
+  ) {
+    return;
+  }
+  const answer: unknown = await c.res.json();
+  if (isJson(answer)) {
+    for (const { leaveOut } of leaving) {
+      leaveOut(answer);
+    }
+  }
+  c.res = new Response(JSON.stringify(answer), c.res);
+};
+
+function isJson(value: unknown): value is Json {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// The elements of a list, or none for anything else.
+function listOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
 
 // unsupported is the refusal of a version: problem is a sentence without its
 // period, and fix what the operator does.

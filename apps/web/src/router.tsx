@@ -62,7 +62,7 @@ export function matchRoute(pathname: string): Route {
 // The thread list's address is the API's query of the list without its
 // page, a ThreadsView: each part not at its default, in the API's order, a
 // flag as true and a filter of several values once for each, as
-// /?search=release&unread=true&agent=builder&agent=reviewer&session=builder/main&topic=builder/main/auth&sort=due&reverse=true&group=session.
+// /?search=release&unread=true&agent=builder&agent=reviewer&session=builder/main&topic=builder/main/auth&pull_request=acme/agention%23135&sort=due&reverse=true&group=session.
 // With none, the list holds every thread the operator has not archived, in
 // priority order, in that order's own direction, ungrouped.
 
@@ -100,9 +100,10 @@ export function listViewOf(search: URLSearchParams): ThreadsView {
 }
 
 // listHref writes the address of a list. The slashes of a session or a
-// topic are left as they are, which a query may hold.
+// topic, and the colon of a branch, are left as they are, which a query may
+// hold.
 export function listHref(view: ThreadsView): string {
-  return `/${query(queryOf(view)).replaceAll("%2F", "/")}`;
+  return `/${query(queryOf(view)).replaceAll("%2F", "/").replaceAll("%3A", ":")}`;
 }
 
 // Every change of the history entry is announced as navigated, which the
@@ -205,10 +206,14 @@ export const arrangementOf = ({ sort, reverse, group }: ThreadsView) => ({
   group,
 });
 
+// narrowedHref is the address of the list narrowed by a change alone, with
+// no other filter on, so it shows everything the change keeps, in the order,
+// direction and grouping of the list given, which a thread page returns to.
+export const narrowedHref = (origin: ThreadsView, change: Partial<ThreadsView>): string =>
+  listHref({ ...unfiltered, ...arrangementOf(origin), ...change });
+
 // threadPathParts gives where a thread is, its agent, session and topic,
-// each linking to the list narrowed to it alone, with no other filter on, so
-// it shows everything there, in the order, direction and grouping of the
-// list the page returns to.
+// each linking to the list narrowed to it alone, as narrowedHref does.
 export function threadPathParts(
   thread: {
     agent: string;
@@ -217,8 +222,6 @@ export function threadPathParts(
   },
   origin: ThreadsView,
 ): { kind: PathKind; label: string; href: string }[] {
-  const narrowed = (change: Partial<ThreadsView>) =>
-    listHref({ ...unfiltered, ...arrangementOf(origin), ...change });
   const session = `${thread.agent}/${thread.session}`;
   // The one filter each part sets, to it.
   const narrowing: Record<PathKind, (name: string) => Partial<ThreadsView>> = {
@@ -229,7 +232,7 @@ export function threadPathParts(
   return placeOf(thread).map(([kind, label]) => ({
     kind,
     label,
-    href: narrowed(narrowing[kind](label)),
+    href: narrowedHref(origin, narrowing[kind](label)),
   }));
 }
 

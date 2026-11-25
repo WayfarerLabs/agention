@@ -23,9 +23,11 @@ describe("JsonSchemas", () => {
     });
     const result = schemas.of(threadGetResult, "output");
     expect(refsIn(result).sort()).toEqual([
+      "#/components/schemas/BranchLink",
       "#/components/schemas/Cursors",
       "#/components/schemas/Marks",
       "#/components/schemas/Message",
+      "#/components/schemas/PullRequestLink",
       "#/components/schemas/ThreadSummary",
     ]);
   });

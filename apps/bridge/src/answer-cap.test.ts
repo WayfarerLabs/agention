@@ -27,6 +27,16 @@ function references(urlLength: number) {
   }));
 }
 
+// count branches named for a message, whose URLs take the given number of
+// characters each.
+function branches(count: number, message: number, urlLength: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    repo: "acme/agention",
+    branch: `feature-${message}-${i}`,
+    url: `https://example.com/${"b".repeat(urlLength - 20)}`,
+  }));
+}
+
 // Four bytes of UTF-8 each.
 const astral = (n: number) => "\u{1F600}".repeat(n);
 
@@ -203,6 +213,31 @@ describe("a result over the cap", () => {
     }
   });
 
+  it("leaves out the one entry threads name, when a server ignores the page size", async () => {
+    await startThread("r1");
+    const path = "/api/agent/s/builder/main/threads";
+    harness.beforeRequest = (request) => {
+      if (request.method !== "GET" || new URL(request.url).pathname !== path) {
+        return undefined;
+      }
+      // Twenty threads, each naming one branch whose URL takes 2,048 bytes.
+      const threads = Array.from({ length: 20 }, (_, i) => ({
+        number: i + 1,
+        links: { pull_requests: 0, branches: 1, branch: branches(1, i, 2_048)[0] },
+      }));
+      return serverJson({ threads });
+    };
+    const answer = await bridge.call("thread_list", {});
+    withinCap(answer);
+    const result = answer.json as { threads: { links: object }[]; omitted: string[] };
+    expect(result.omitted.length).toBeGreaterThan(0);
+    for (const omitted of result.omitted) {
+      expect(omitted).toMatch(/^threads\.\d+\.links\.branch$/);
+      const index = Number(omitted.split(".")[1]);
+      expect(result.threads[index]?.links).toEqual({ pull_requests: 0, branches: 1 });
+    }
+  });
+
   it("fits a message's text and detail each at its bound whole, the detail in ASCII", async () => {
     // A summary of four-byte characters, and Markdown lines of ASCII.
     const text = astral(1_000);
@@ -272,6 +307,35 @@ describe("a result over the cap", () => {
     const result = answer.json as { messages: object[]; omitted: string[] };
     expect(result.omitted).toEqual(["messages.0.references"]);
     expect(result.messages).toMatchObject([{ seq: 1, text: "Details." }]);
+  });
+
+  it("leaves out the thread's roll-up before it asks for fewer messages", async () => {
+    // Branches of about 20,000 bytes in all, named by the first message, and
+    // three messages of about 10,000 bytes each after it.
+    await startThread("r1", { text: "Start.", branches: branches(13, 0, 1_500) });
+    for (let i = 0; i < 3; i++) {
+      await harness.operatorWrites(1, { text: "Notes.", detail: "m".repeat(10_000) });
+    }
+    const answer = await bridge.call("thread_get", { thread: 1, after: 1 });
+    withinCap(answer);
+    const result = answer.json as Record<string, unknown>;
+    expect(sequencesOf(result.messages)).toEqual([2, 3, 4]);
+    expect(result.omitted).toEqual(["branches"]);
+    expect(result).not.toHaveProperty("branches");
+    expect(result.pull_requests).toEqual({ links: [], truncated: false });
+    // Fewer messages bring the roll-up back.
+    const fewer = await bridge.ok("thread_get", { thread: 1, after: 1, limit: 1 });
+    expect(fewer).not.toHaveProperty("omitted");
+    expect((fewer.branches as { links: unknown[] }).links).toHaveLength(13);
+  });
+
+  it("leaves out a message's branches when they alone are too long", async () => {
+    await startThread("r1", { text: "Branches.", branches: branches(20, 0, 2_048) });
+    const answer = await bridge.call("thread_get", { thread: 1 });
+    withinCap(answer);
+    const result = answer.json as { messages: object[]; omitted: string[] };
+    expect(result.omitted).toEqual(["branches", "messages.0.branches"]);
+    expect(result.messages).toMatchObject([{ seq: 1, text: "Branches." }]);
   });
 
   it("counts bytes of UTF-8, not UTF-16 code units", async () => {
