@@ -314,14 +314,15 @@ that manages credentials or Settings, and a scope whose meaning changes.
 The operator API's version is in its path, and a version changes only additively: a new operation, a
 new optional request field, a new response field. A change that would break a client, such as a
 field removed, renamed, narrowed or made required, is a new version beside the old, by a
-maintainer's decision (`docs/architecture.md` "HTTP API"). The OpenAPI document,
-`docs/api/openapi.json`, is generated from the declarations and never edited by hand: a change to an
-operator or agent operation, or to a schema one uses, regenerates it with
-`scripts/generate-api-docs.sh` in the same change, and its diff is reviewed as the contract change
-it is; the server's suite fails while the committed document differs from the code's
-(`CONTRIBUTING.md` "Generated API document"; `docs/architecture.md` "API documentation"). Look for a
-contract change whose document was not regenerated, a regenerated document whose diff removes or
-narrows anything a served version or the agent API (A12) carries, a document that describes more
-than the server checks (it may describe less: a rule enforced only in code answers `invalid_input`,
-naming the field when the rule concerns one), and documentation served with anything beyond the
-contract or without `--api-docs`.
+maintainer's decision (`docs/architecture.md` "HTTP API"). Until 1.0, a change in what an existing
+field or value means may land in place (`docs/architecture.md` "HTTP API"); look for one without a
+maintainer's decision or a `BREAKING CHANGE:` footer. The OpenAPI document, `docs/api/openapi.json`,
+is generated from the declarations and never edited by hand: a change to an operator or agent
+operation, or to a schema one uses, regenerates it with `scripts/generate-api-docs.sh` in the same
+change, and its diff is reviewed as the contract change it is; the server's suite fails while the
+committed document differs from the code's (`CONTRIBUTING.md` "Generated API document";
+`docs/architecture.md` "API documentation"). Look for a contract change whose document was not
+regenerated, a regenerated document whose diff removes or narrows anything a served version or the
+agent API (A12) carries, a document that describes more than the server checks (it may describe
+less: a rule enforced only in code answers `invalid_input`, naming the field when the rule concerns
+one), and documentation served with anything beyond the contract or without `--api-docs`.

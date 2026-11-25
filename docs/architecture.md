@@ -653,10 +653,10 @@ client disconnects, when the server shuts down, or when its wait runs out. The o
 across sessions, `GET /wait`, answers and ends the same way across every session, and also when its
 API key or browser session ends or expires ([Store](#store)).
 
-The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 3 in this release,
-serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
-to the agent contract, a new route or a new field on one, bumps it. Every answer on the agent mount,
-the refusals of the checks before it included, states the server's version in the
+The agent mount speaks a version of the agent API, `agentApi` in `packages/api`, serving every
+version from its `oldest`, which only a maintainer's decision moves. Every change to the agent
+contract bumps it ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api)). Every answer on the agent
+mount, the refusals of the checks before it included, states the server's version in the
 `Agention-Agent-API` header, set by the first middleware for the mount's paths. A request states its
 own there, and a missing one means 1, which every bridge released before the header sends. The
 mount's first middleware refuses a request stating a version above the server's or below its oldest
@@ -671,9 +671,11 @@ versioned: the server serves its own web UI, always in step.
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores
 response fields it does not know; a change that would break a client is a new version beside the
-old, by a maintainer's decision. `GET /api/operator`, which needs no credential, answers the
-versions the server serves, `{"versions":[1]}`, and a version it does not serve is unknown, as any
-unknown API route is.
+old, by a maintainer's decision. Until 1.0, a change in what an existing field or value means may
+land in place by a maintainer's decision, marked breaking
+([ADR 0005](adrs/0005-operator-api-meaning-before-1-0.md)). `GET /api/operator`, which needs no
+credential, answers the versions the server serves, `{"versions":[1]}`, and a version it does not
+serve is unknown, as any unknown API route is.
 
 Unknown API routes answer `not_found`, and so does every path under `/docs/api` while the API's
 documentation is not served. Every other path serves the web UI: a file of the Vite build, or the
@@ -1695,5 +1697,5 @@ the generated outputs stay current without regeneration. A `v*` tag runs
 `.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
 [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
 
-The agent API has a version of its own, 3 in this release, which a release bumps only when it
-changes the agent contract, as [HTTP API](#http-api) describes.
+The agent API has a version of its own, which a release bumps only when it changes the agent
+contract, as [HTTP API](#http-api) describes.
