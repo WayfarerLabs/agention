@@ -298,11 +298,12 @@ sends only what its tools are given.
   which already owns the tmux server, so it gains no access it lacked. It sends no keys. The
   screen's text, which whatever runs in the pane draws, stays in the bridge's memory: a report holds
   only enumerations, a boolean, times and the name of the profile, and the bridge's log names a
-  problem with the pane, the processes and what tmux said of it, never the screen. The server shows
-  a report only to the operator, never to an agent. Monitoring is advisory, on the honor system
-  above: a report is the bridge's observation, which the screen can imitate, and any holder of the
-  session's key, its agent included, can send one or keep the session connected, as it can report
-  its status, so a report informs the operator and authorizes nothing.
+  problem with the pane, the processes and what tmux said of it, and the error code of a report the
+  server refused, never the screen or the report. The server shows a report only to the operator,
+  never to an agent. Monitoring is advisory, on the honor system above: a report is the bridge's
+  observation, which the screen can imitate, and any holder of the session's key, its agent
+  included, can send one or keep the session connected, as it can report its status, so a report
+  informs the operator and authorizes nothing.
 - **Files it reads.** `file_upload` reads only the path the agent gives it, as the user the bridge
   runs as, and refuses anything but a regular file, a file over 100 MiB, and anything whose real
   path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a

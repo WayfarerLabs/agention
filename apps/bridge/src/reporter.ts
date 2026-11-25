@@ -1,15 +1,17 @@
 import {
+  type ErrorCode,
   monitorAnswer,
   type MonitorAnswer,
   type MonitorReport,
   type PublicKey,
+  statusByErrorCode,
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { type AgentApi, type ApiRequest, tokenLifetimeSeconds } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
-import type { Monitor } from "./monitoring.ts";
+import type { Log, Monitor } from "./monitoring.ts";
 import type { Session } from "./session.ts";
 
 // The reporter holds a session's background connection to the server and
@@ -61,6 +63,7 @@ export interface ReporterOptions {
   // The clock pending registrations expire by, in Unix milliseconds.
   clock: () => number;
   timing: ReporterTiming;
+  log: Log;
 }
 
 // What reading the registration found: approved, ended, or pending, with the
@@ -74,6 +77,7 @@ export class Reporter {
   readonly #monitor: Monitor;
   readonly #clock: () => number;
   readonly #timing: ReporterTiming;
+  readonly #log: Log;
   // The id the server tells this bridge from the session's others by, drawn
   // once for the life of the process.
   readonly #id = randomBytes(16).toString("base64url");
@@ -92,6 +96,9 @@ export class Reporter {
   #unsent = false;
   #sending = false;
   #retryWake: AbortController | undefined;
+  // The code the server last refused a report with, until it takes one, so
+  // a run of refusals for the same reason is logged once.
+  #refused: ErrorCode | undefined;
   // The number of the latest report the bridge made, which counts up with
   // each for the life of the process, so the server ignores a report that
   // arrives after a later one.
@@ -103,6 +110,7 @@ export class Reporter {
     this.#monitor = options.monitor;
     this.#clock = options.clock;
     this.#timing = options.timing;
+    this.#log = options.log;
   }
 
   // start runs the reporter, which reads the registration until it is
@@ -316,10 +324,13 @@ export class Reporter {
 
   // send sends the latest report, one request at a time, and each report
   // that comes meanwhile once the one before is answered. A report that fails
-  // is sent again, or the one that replaced it, after a pause that doubles
-  // with each failure in a row, or as soon as a poll is answered; one the
-  // server refuses because another bridge acts for the session stops this one
-  // acting, and its next poll learns it is replaced.
+  // to reach the server, or that the server fails on or rate limits, is sent
+  // again, or the one that replaced it, after a pause that doubles with each
+  // failure in a row, or as soon as a poll is answered. One the server
+  // refuses, which sending again would not change, is logged by its error's
+  // code and dropped. One the server answers as replaced, because another
+  // bridge acts for the session, stops this one acting, and its next poll
+  // learns it is replaced.
   #send(): void {
     const acting = this.#acting;
     if (this.#sending || !this.#unsent || acting === undefined) {
@@ -340,13 +351,19 @@ export class Reporter {
             body: report,
           }));
           retry = this.#timing.retryFirst;
+          this.#refused = undefined;
           if (answer.replaced) {
             this.#stopActing();
             return;
           }
-        } catch {
+        } catch (error) {
           if (signal.aborted) {
             return;
+          }
+          const refused = refusalOf(error);
+          if (refused !== undefined) {
+            this.#noteRefusal(refused);
+            continue;
           }
           this.#unsent = true;
           const wake = new AbortController();
@@ -370,6 +387,15 @@ export class Reporter {
       .catch(() => undefined);
   }
 
+  // noteRefusal logs a refused report by its error's code alone, never the
+  // report or the server's message, once for each run of the same refusal.
+  #noteRefusal(code: ErrorCode): void {
+    if (this.#refused !== code) {
+      this.#refused = code;
+      this.#log(`the server refused a monitoring report (${code}), so the bridge dropped it`);
+    }
+  }
+
   // pause resolves once the time given has passed, the reporter closes or
   // start wakes it. Its timer never holds the process open.
   #pause(milliseconds: number, signal: AbortSignal): Promise<void> {
@@ -388,4 +414,17 @@ export class Reporter {
       this.#wake = end;
     });
   }
+}
+
+// refusalOf is the code of a failure that refuses a report for good: an
+// answer in the 4xx range other than rate_limited, which passes with time.
+// Anything else, a 5xx answer or a request that never reached the server,
+// may succeed when sent again.
+function refusalOf(error: unknown): ErrorCode | undefined {
+  if (!(error instanceof ApiFailure)) {
+    return undefined;
+  }
+  const { code } = error.body.error;
+  const status = statusByErrorCode[code];
+  return status >= 400 && status < 500 && code !== "rate_limited" ? code : undefined;
 }

@@ -124,6 +124,51 @@ describe("the reporter", () => {
     await eventually(() => (harness.held()?.condition === "waiting" ? true : undefined), "waiting");
   });
 
+  it("drops a report the server refuses, logging the refusal's code once", async () => {
+    const pane = new DrawnPane();
+    let refusing = false;
+    harness.answer = (seen) =>
+      refusing && seen.method === "POST" && seen.path.endsWith("/monitor")
+        ? serverJson({ error: { code: "invalid_input", message: "a refusal's words" } }, 400)
+        : undefined;
+    const bridge = await harness.registered(
+      { AGENTION_TMUX_SOCKET: "/drawn" },
+      { pane: () => pane },
+    );
+    await eventually(
+      () => (harness.held()?.condition === "at_prompt" ? true : undefined),
+      "at_prompt",
+    );
+    refusing = true;
+    const before = harness.seen.length;
+    // The screen changes, which reports running and then waiting, each of
+    // which the server refuses.
+    pane.screen = { ...pane.screen, cursor: { ...pane.screen.cursor, visible: false } };
+    const sent = () =>
+      harness.seen
+        .slice(before)
+        .filter((seen) => seen.method === "POST" && seen.path.endsWith("/monitor"));
+    await eventually(
+      () =>
+        sent().some((seen) => (seen.body as { condition?: string }).condition === "waiting") ||
+        undefined,
+      "the refused reports",
+    );
+    // Polls are answered meanwhile, which would wake a retry.
+    await delay(1500);
+    const numbers = sent().map((seen) => seen.query.get("seq"));
+    expect(numbers.length).toBeGreaterThan(1);
+    expect(new Set(numbers).size).toBe(numbers.length);
+    expect(bridge.logged).toHaveLength(1);
+    expect(bridge.logged[0]).toContain("invalid_input");
+    expect(bridge.logged[0]).not.toContain("a refusal's words");
+    expect(harness.held()?.condition).toBe("at_prompt");
+    // The next report the server takes is held.
+    refusing = false;
+    pane.screen = { ...pane.screen, lines: [">", "a turn"] };
+    await eventually(() => (harness.held()?.condition === "waiting" ? true : undefined), "waiting");
+  });
+
   it("numbers its reports, counting up", async () => {
     const pane = new DrawnPane();
     await harness.registered({ AGENTION_TMUX_SOCKET: "/drawn" }, { pane: () => pane });
@@ -164,6 +209,7 @@ describe("the reporter", () => {
       monitor,
       clock: () => harness.server.fixture.now,
       timing,
+      log: () => undefined,
     });
     reporter.start();
     try {

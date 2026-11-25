@@ -1146,14 +1146,18 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   asks for no wait, so the server has taken the claim before any report follows. From then on it
   watches the monitor and sends `POST .../monitor` with the whole report and its number, counting up
   from 1 for the life of the process: the first on claiming, then one for each observation that
-  differs from the last, one request at a time. A report that fails is sent again, or the one that
-  replaced it, after a pause that backs off from 1 to 60 seconds, doubling, or as soon as a poll is
-  answered. A poll or report answered `replaced` means another bridge of the session claimed it: the
-  reporter stops polling, watching and reporting until this bridge next handles `register` or a tool
-  call that finds the credential, when it claims the session again. Its requests sign with the key
-  on disk and act in the names granted to it, and a request it makes to learn them is marked
-  `background` too, so none marks the agent checked in. Against a server older than the bridge's
-  agent API version, its requests fail as every tool's do and it backs off to a minute between them.
+  differs from the last, one request at a time. A report that fails to reach the server, or that the
+  server fails on or answers `rate_limited`, is sent again, or the one that replaced it, after a
+  pause that backs off from 1 to 60 seconds, doubling, or as soon as a poll is answered. One the
+  server refuses with any other error of the 4xx range, such as `invalid_input`, which sending again
+  would not change, is dropped, and the bridge logs the error's code, once for a run of the same
+  refusal, never the report or the server's message. A poll or report answered `replaced` means
+  another bridge of the session claimed it: the reporter stops polling, watching and reporting until
+  this bridge next handles `register` or a tool call that finds the credential, when it claims the
+  session again. Its requests sign with the key on disk and act in the names granted to it, and a
+  request it makes to learn them is marked `background` too, so none marks the agent checked in.
+  Against a server older than the bridge's agent API version, its requests fail as every tool's do
+  and it backs off to a minute between them.
 - **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
   monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
   server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with

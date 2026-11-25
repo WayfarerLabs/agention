@@ -164,6 +164,7 @@ function connect(
       monitor,
       clock,
       timing: options.reporterTiming ?? reporterTiming,
+      log,
     }),
   };
 }
