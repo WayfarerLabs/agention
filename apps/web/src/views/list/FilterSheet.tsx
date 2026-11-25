@@ -1,4 +1,11 @@
-import { threadStatus } from "@wayfarerlabs/agention-api";
+import {
+  threadStatus,
+  type CodeLink,
+  parseBranch,
+  parsePullRequest,
+  shortForm,
+  shortFormKey,
+} from "@wayfarerlabs/agention-api";
 import {
   agentReadFilter,
   type Color,
@@ -111,18 +118,24 @@ interface Choice {
 }
 
 // The filters taking several values, each a multi-select.
-type Several = PathKind | "group" | "tag";
+type Worded = "group" | "tag" | "pull_request" | "branch";
+type Several = PathKind | Worded;
 
 // What a multi-select's filter is called, and the word for its values.
-const severalWords: Record<"group" | "tag", { label: string; items: string }> = {
+const severalWords: Record<Worded, { label: string; items: string }> = {
   group: { label: "Group", items: "groups" },
   tag: { label: "Tag", items: "tags" },
+  pull_request: { label: "Pull request", items: "pull requests" },
+  branch: { label: "Branch", items: "branches" },
 };
 
+const worded = (kind: Several): kind is Worded => kind in severalWords;
+
 // FilterLabel names a filter taking several values: a part of where threads
-// are behind its badge, or the operator's groups or tags in a word.
+// are behind its badge, or the operator's groups or tags, or pull requests
+// or branches, in a word.
 function FilterLabel({ kind }: { kind: Several }): ReactNode {
-  return kind === "group" || kind === "tag" ? (
+  return worded(kind) ? (
     severalWords[kind].label
   ) : (
     <>
@@ -185,7 +198,19 @@ function MultiSelect({
   const summary =
     first === undefined ? "Any" : chosen.length === 1 ? nameOf(first) : `${chosen.length} chosen`;
   const words = text.trim().toLowerCase();
-  const shown = (choices ?? []).filter(
+  // A value chosen that the counts do not list, as one from an address that
+  // keeps nothing now, is offered after them with no threads, so it can be
+  // unchecked.
+  const offered: Choice[] | undefined =
+    choices === undefined
+      ? undefined
+      : [
+          ...choices,
+          ...chosen
+            .filter((value) => !choices.some((choice) => choice.value === value))
+            .map((value) => ({ value, name: nameOf(value), count: 0 })),
+        ];
+  const shown = (offered ?? []).filter(
     (choice) =>
       choice.name.toLowerCase().includes(words) || choice.of?.toLowerCase().includes(words),
   );
@@ -218,10 +243,10 @@ function MultiSelect({
             value={text}
             onChange={(event) => setText(event.target.value)}
           />
-          {choices === undefined ? (
+          {offered === undefined ? (
             <p className="muted">Loading…</p>
           ) : shown.length === 0 ? (
-            <p className="muted">{choices.length === 0 ? "None yet." : "None match."}</p>
+            <p className="muted">{offered.length === 0 ? "None yet." : "None match."}</p>
           ) : (
             <ul className="picks">
               {shown.map((choice) => (
@@ -255,11 +280,7 @@ function MultiSelect({
           )}
           {truncated && (
             <LeftOut
-              items={
-                kind === "group" || kind === "tag"
-                  ? severalWords[kind].items
-                  : `${pathWord(kind).toLowerCase()}s`
-              }
+              items={worded(kind) ? severalWords[kind].items : `${pathWord(kind).toLowerCase()}s`}
             />
           )}
           <button type="button" className="secondary" onClick={close}>
@@ -371,6 +392,12 @@ export function FilterSheet({
     color: palette.tag(each.tag),
     count: each.total,
   }));
+  const pullRequests = entryChoices(
+    counts?.pull_request.pull_requests,
+    view.pull_request,
+    parsePullRequest,
+  );
+  const branches = entryChoices(counts?.branch.branches, view.branch, parseBranch);
   return (
     <dialog
       ref={sheet}
@@ -532,6 +559,26 @@ export function FilterSheet({
             choose={(chosen) => choose({ tag: narrowing(chosen) })}
             {...popupOf("tag")}
           />
+          <MultiSelect
+            kind="pull_request"
+            searchLabel="Search pull requests"
+            nameOf={(value) => value}
+            choices={pullRequests.choices}
+            truncated={counts?.pull_request.truncated === true}
+            chosen={pullRequests.chosen}
+            choose={(chosen) => choose({ pull_request: narrowing(chosen) })}
+            {...popupOf("pull_request")}
+          />
+          <MultiSelect
+            kind="branch"
+            searchLabel="Search branches"
+            nameOf={(value) => value}
+            choices={branches.choices}
+            truncated={counts?.branch.truncated === true}
+            chosen={branches.chosen}
+            choose={(chosen) => choose({ branch: narrowing(chosen) })}
+            {...popupOf("branch")}
+          />
         </div>
         <Segmented
           legend="Archived"
@@ -553,6 +600,26 @@ export function FilterSheet({
       </div>
     </dialog>
   );
+}
+
+// entryChoices offers the pull requests or branches the counts list, each by
+// its short form as its latest mention wrote it, and gives those chosen as
+// the same short forms, so a chosen entry written otherwise, as an address
+// may, is checked as the one it is.
+function entryChoices(
+  counted: (CodeLink & { total: number })[] | undefined,
+  chosen: string[] = [],
+  parse: (text: string) => CodeLink | undefined,
+): { choices: Choice[] | undefined; chosen: string[] } {
+  const keyOf = (text: string) => shortFormKey(text, parse);
+  const offered = (counted ?? []).map((each) => ({
+    value: shortForm(each),
+    name: shortForm(each),
+    count: each.total,
+  }));
+  const named = new Map(offered.map((each) => [keyOf(each.value), each.value]));
+  const shown = chosen.map((value) => named.get(keyOf(value)) ?? value);
+  return { choices: counted === undefined ? undefined : offered, chosen: shown };
 }
 
 // groupValue reads a group the sheet offers, by its id or as no group, into

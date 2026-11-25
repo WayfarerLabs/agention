@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary, PageFailed } from "../boundary.tsx";
 import { focusLanding } from "../components.tsx";
 import { ShortcutArea } from "../keyboard.tsx";
@@ -62,6 +62,7 @@ export function Threads({
   const listPane = useRef<HTMLElement>(null);
   const threadPane = useRef<HTMLElement>(null);
   useFocusKept(sideBySide, layout);
+  usePaneTop(sideBySide, listPane);
   // A pane's own name and focus, side by side alone.
   const pane = (name: string) => (sideBySide ? { "aria-label": name, tabIndex: -1 } : {});
   return (
@@ -142,6 +143,57 @@ function useFocusKept(sideBySide: boolean, layout: RefObject<HTMLElement | null>
       focusLanding(page);
     }
   }, [sideBySide, layout]);
+}
+
+// The list's pane's property holding how far below the top of the screen
+// the pane starts, which its height leaves out (styles.css, .side-by-side).
+const paneTop = "--pane-top";
+
+// usePaneTop sets, side by side, how far below the top of the screen the
+// list's pane starts, which its height leaves out so the pane, and the bar
+// at its foot, stay within the screen: until the page scrolls the banner
+// away, the pane starts below it. It measures again as the page scrolls, as
+// the window resizes and as what stands above the page's content, such as
+// the banner, changes in height.
+function usePaneTop(sideBySide: boolean, pane: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const shown = pane.current;
+    if (!sideBySide || shown === null) {
+      return;
+    }
+    let frame: number | undefined;
+    const measure = () => {
+      frame = undefined;
+      // The pane sticks at the top of the screen, so its top is where it
+      // starts until the page scrolls past it, and 0 after.
+      const top = Math.max(0, shown.getBoundingClientRect().top);
+      shown.style.setProperty(paneTop, `${top}px`);
+    };
+    const soon = () => {
+      frame ??= requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener("scroll", soon, { passive: true });
+    window.addEventListener("resize", soon);
+    const above = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(soon);
+    const page = shown.closest("main");
+    for (
+      let before = page?.previousElementSibling;
+      before;
+      before = before.previousElementSibling
+    ) {
+      above?.observe(before);
+    }
+    return () => {
+      above?.disconnect();
+      window.removeEventListener("scroll", soon);
+      window.removeEventListener("resize", soon);
+      if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+      }
+      shown.style.removeProperty(paneTop);
+    };
+  }, [sideBySide, pane]);
 }
 
 // NoThread holds the thread's pane while none is open.

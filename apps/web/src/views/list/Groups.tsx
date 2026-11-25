@@ -281,13 +281,14 @@ function headsOf(groups: ThreadGroups | undefined) {
   };
 }
 
-const rowsOf = (threads: ListedThread[], level: FoldLevel) => (
+const rowsOf = (threads: ListedThread[], level: FoldLevel, list: ListShown) => (
   <ul className="threads">
     {threads.map((thread) => (
       <ThreadRow
         key={`${thread.agent}/${thread.session}/${thread.number}`}
         thread={thread}
         level={level}
+        list={list}
       />
     ))}
   </ul>
@@ -355,11 +356,11 @@ export function GroupedRows({
                       folds={folds}
                       list={list}
                     >
-                      {rowsOf(onTopic, under(inner).level)}
+                      {rowsOf(onTopic, under(inner).level, list)}
                     </GroupFold>
                   );
                 })
-              : rowsOf(inSession, inner.level)}
+              : rowsOf(inSession, inner.level, list)}
           </GroupFold>
         );
       });
@@ -430,10 +431,10 @@ export function GroupedRows({
                 folds={folds}
                 list={list}
               >
-                {rowsOf(inSession, under(inner).level)}
+                {rowsOf(inSession, under(inner).level, list)}
               </GroupFold>
             ))
-          : rowsOf(held, inner.level)}
+          : rowsOf(held, inner.level, list)}
       </GroupFold>
     );
   });

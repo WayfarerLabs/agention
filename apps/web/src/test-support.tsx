@@ -54,7 +54,7 @@ export const titled = (title: string) => (name: string) =>
 // titleOf reads a thread's title from its heading, without its number.
 export const titleOf = (heading: Element) => untitled(heading.textContent ?? "");
 
-export const emptyList: ThreadList = { threads: [], total: 0 };
+export const emptyList: ThreadList = { threads: [], total: 0, as_of: "as-of-0" };
 
 // The counts of a list that holds nothing.
 export const noCounts: ThreadCounts = {
@@ -71,6 +71,8 @@ export const noCounts: ThreadCounts = {
   topic: { topics: [], truncated: false },
   session_group: { groups: [], none: 0 },
   tag: { tags: [], truncated: false },
+  pull_request: { pull_requests: [], truncated: false },
+  branch: { branches: [], truncated: false },
   reset: 0,
 };
 
@@ -309,6 +311,7 @@ export function threadSummary(overrides: Partial<ThreadSummary> = {}): ThreadSum
     archived: false,
     open_asks: { asks: [], count: 0, blocking: false, overdue: false },
     status: "none",
+    links: { pull_requests: 0, branches: 0 },
     credential_active: true,
     presence: { last_seen_at: time, quiet: false },
     stranded: false,

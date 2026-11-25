@@ -17,29 +17,30 @@ import {
 import { type Organizing, SessionFolds, SessionsHead } from "./sessions/SessionFolds.tsx";
 
 // The sessions view: every session the operator's agents run, in one view.
-// Top to bottom: the registrations waiting for approval; the agents and
-// their sessions, under a head choosing how they are grouped and sorted
-// (sessions/arrangement.ts), as the thread list's head does, which the
-// address keeps; and, folded, the credentials and past requests. By
-// default, once some session is in a group, the agents fold under their
-// groups, in the operator's order, which each group's head moves, and no
-// group last, an agent with sessions in two groups coming under each with
-// that group's sessions alone; until then, and grouped by agent, each agent
-// folds under its header, rolling up its sessions' threads, open asks,
-// unread updates and stranded threads, with links to its threads and its
-// stranded threads, its tags and a menu setting them, over a folded row for
-// each of its sessions; grouped by session, the rows stand alone. Every chip
-// that stands for threads, the names of groups, agents and sessions among
-// them, links to those threads on the thread list, and following one never
-// folds anything; a header's chevron folds it, as a click on the rest of its
-// bar does. The view reads every session before it shows any, so it
-// arranges them whole. It refreshes as every view does. The operator's
-// groups and tags load beside the sessions, for their colors and the
-// groups' order; a session's group and an agent's or a session's tags are
-// picked from their options menus, each pick applied at once. This browser
-// keeps the groups and agents it folds and whether the past requests are
-// shown; a session's row starts folded on every visit. What a fold hides is
-// not loaded, so a session's log loads and is read only while its row is
+// Top to bottom: the registrations waiting for approval, their section one
+// muted line while none waits, or explaining how one arrives until some
+// agent has a session; the agents and their sessions, under a head choosing
+// how they are grouped and sorted (sessions/arrangement.ts), as the thread
+// list's head does, which the address keeps; and, folded, the credentials
+// and past requests. By default, once some session is in a group, the agents
+// fold under their groups, in the operator's order, which each group's head
+// moves, and no group last, an agent with sessions in two groups coming
+// under each with that group's sessions alone; until then, and grouped by
+// agent, each agent folds under its header, rolling up its sessions'
+// threads, open asks, unread updates and stranded threads, with links to its
+// threads and its stranded threads, its tags and a menu setting them, over a
+// folded row for each of its sessions; grouped by session, the rows stand
+// alone. Every chip that stands for threads, the names of groups, agents and
+// sessions among them, links to those threads on the thread list, and
+// following one never folds anything; a header's chevron folds it, as a
+// click on the rest of its bar does. The view reads every session before it
+// shows any, so it arranges them whole. It refreshes as every view does. The
+// operator's groups and tags load beside the sessions, for their colors and
+// the groups' order; a session's group and an agent's or a session's tags
+// are picked from their options menus, each pick applied at once. This
+// browser keeps the groups and agents it folds and whether the past requests
+// are shown; a session's row starts folded on every visit. What a fold hides
+// is not loaded, so a session's log loads and is read only while its row is
 // unfolded and shown.
 
 // Where this browser keeps its folds: the groups and agents folded, and the
@@ -98,19 +99,34 @@ export function Sessions() {
           .find((entry) => entry.agent === writing.agent)
           ?.sessions.find((session) => session.session === writing.session.session) ??
         writing.session);
+  // Until some agent has a session, the empty section explains how a
+  // registration arrives. Otherwise, while none waits or the list is still
+  // loading, and it has not failed, the section is one line, the loading
+  // line until the list arrives and then one saying what the heading
+  // would, so the heading is left to screen readers and the top of the
+  // view keeps still from the first paint.
+  const firstRun = sessions.data?.agents.length === 0;
+  const quiet =
+    (pending.data?.rows.length ?? 0) === 0 && pending.failure === undefined && !firstRun;
   return (
     <PaletteProvider known={known.data}>
       <PageHeading visuallyHidden>Sessions</PageHeading>
       <section aria-labelledby="pending-heading">
-        <h2 id="pending-heading">Waiting for approval</h2>
+        <h2 id="pending-heading" className={quiet ? "visually-hidden" : undefined}>
+          Waiting for approval
+        </h2>
         <Loadable data={pending.data} failure={pending.failure} retry={pending.refresh}>
           {({ rows, next }) => (
             <>
               {rows.length === 0 ? (
-                <p className="empty">
-                  No registration is waiting. When an agent registers, it shows a code to relay to
-                  you, and its registration appears here.
-                </p>
+                firstRun ? (
+                  <p className="empty">
+                    No registration is waiting. When an agent registers, it shows a code to relay to
+                    you, and its registration appears here.
+                  </p>
+                ) : (
+                  <p className="muted">None waiting for approval.</p>
+                )
               ) : (
                 <ul className="registrations">
                   {rows.map((registration) => (

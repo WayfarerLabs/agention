@@ -91,38 +91,61 @@ with each other or with what the product does, the disagreement is the finding.
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
   filters with their counts, the session group and tag filters among them, with a removed group's
-  and an unused tag's chips, its search, from the box atop the list or the sheet's, one in both,
-  reaching what live messages say and not what a replaced one said, its sorts and their direction,
+  and an unused tag's chips, its head's one row of icon controls, each marked while set, fitting a
+  phone's width, `f` opening Filters, and `s` and `b` the order's and the grouping's pickers, in
+  each browser, its search, from the head's search field or the sheet's box, one in both, its chip
+  clearing it, reaching what live messages say and not what a replaced one said, its sorts and the
+  checkbox reversing each, named for the reversed order on and off, its box filled while reversed,
   and grouping with roll-ups, by session group, by session, by topic and by agent, each header's
-  label and marks adding their filters to the list and its bar folding but on a link; the thread
-  page's numbered asks answered several at once, a message's details, replacements, mark unread from
-  a message, archive through a message, with the divider after what it archived once unfolded, and
-  archive all, going where Auto-advance says, the thread that was above it, the one below or the
-  list, and Thread above and Thread below, with `[` and `]`, through the list the thread returns to,
-  alike beside the list and on a phone, from the list, from a link and after a reload, following the
-  thread when its own answers and replies move it in the list, a thread read out of a list kept to
-  the unread, grouped or not, keeping its place there, a held key acting once, Send held while the
-  page moves, and back to the list, which says so, at its end; Send and what answers it kept on a
-  short screen while writing, After sending's choices, back to the list, staying, archiving, refused
-  while an ask stays open, and the threads above and below, and the way back under the composer; the
-  compact sizes with a mouse and the full ones by touch, a touchscreen laptop among them; the
-  Threads tab side by side at a desktop's width, filling it, the list kept as chosen beside each
-  thread opened, the open thread's row marked, Back from thread to thread, focus back on the row
-  left, and one at a time below that width; stranded's reasons, in the warning's color in both tabs;
-  the sessions view, its group and agent folds and folded rows with what each session reports, when
-  it was last seen and whether it is quiet, how old its status is, its open asks in the thread
-  list's words and its threads' roll-up, the links from a row, an agent and a group, their names and
-  every chip standing for threads among them, to the thread list filtered to them, folding nothing,
-  and from a row's and an agent's stranded flag to their stranded threads, a row unfolded to its log
-  and marking it read, the Sessions tab's count of registrations waiting falling as they are
-  approved or rejected, the Threads tab's count of unread threads falling as they are read or
-  archived, and the folds kept, on a phone's width too; the operator's session groups and tags: a
-  session's group and an agent's and a session's tags picked from their options, each pick applied
-  at once, by pointer and by the keys, the pickers beside the menu on a wide screen and as a sheet
-  on a phone, the chips that show them in their colors in both color schemes, and Settings' groups
-  and tags, with create, rename, its refusal of a name another group or tag has, recolor, removal,
-  asked first, and the groups' order by their buttons and by dragging, followed by the sessions
-  view; the sessions view's arrangement, grouped by group, by agent and by session, sorted
+  label and marks adding their filters to the list and its bar folding but on a link; selecting
+  threads in the list: a row's checkbox with a mouse and a row held down then tapped by touch, `x`,
+  `I` and `U` on the current row and on what is selected, the header checkbox leaving out the rows
+  under a folded header, the banner selecting every thread that matches and going back, the
+  selection's actions on both, the bar at the list's foot, one bar in both states: with nothing
+  selected its caption of how many are shown and of what the last action did, Archive all read and
+  Mark all read in fixed places, each dimmed in place while it cannot act, and focus going to Select
+  all once the button pressed has nothing more to do; with a selection Clear, Read, Unread, Archive,
+  and Decline on one row at 320 pixels across, Decline dimmed with no open ask selected; clearing
+  the last row and a row focused with `j`, on a phone and beside a thread, and resting at the end of
+  the list while its search field has focus; the decline question with its counts and Cancel,
+  Escape, and Clear, the selection kept through a refresh, and threads arriving since the list
+  loaded left as they were, beside a thread and on a phone; beside a thread, the list's pane and its
+  bar within the screen before the page scrolls; the thread page's bar, Threads, Above, Below, and
+  Archive all on one row at 320 pixels across, as the only such controls on the page, Archive all
+  dimmed while an ask is open to you and saying why when pressed or on `e`, the Send row above the
+  bar while the composer is on screen, the bar resting under the composer while a box on the page
+  has focus and on a screen under 30rem tall, and a message focused from the keyboard clear of both;
+  the thread page's numbered asks answered several at once, a message's details, replacements, mark
+  unread from a message, by its option and with `U`, archive through a message, with the divider
+  after what it archived once unfolded, and archive all, going where Auto-advance says, the thread
+  that was above it, the one below or the list, and Thread above and Thread below, with `[` and `]`,
+  through the list the thread returns to, alike beside the list and on a phone, from the list, from
+  a link and after a reload, following the thread when its own answers and replies move it in the
+  list, a thread read out of a list kept to the unread, grouped or not, keeping its place there, a
+  held key acting once, Send held while the page moves, and back to the list, which says so, at its
+  end; Send and what answers it kept on a short screen while writing, After sending's pick list,
+  back to the list, staying, and the threads above and below, each alone and with its checkbox on,
+  archiving first, refused while an ask stays open, the two on one line with Send, Attach, and
+  Dictate on a phone, whose own picker says what each choice does, and a pick list's caret and a
+  checkbox's box telling them from buttons, in the lists' heads too; the compact sizes with a mouse
+  and the full ones by touch, a touchscreen laptop among them; the Threads tab side by side at a
+  desktop's width, filling it, the list kept as chosen beside each thread opened, the open thread's
+  row marked, Back from thread to thread, focus back on the row left, and one at a time below that
+  width; stranded's reasons, in the warning's color in both tabs; the sessions view, its group and
+  agent folds and folded rows with what each session reports, when it was last seen and whether it
+  is quiet, how old its status is, its open asks in the thread list's words and its threads'
+  roll-up, the links from a row, an agent and a group, their names and every chip standing for
+  threads among them, to the thread list filtered to them, folding nothing, and from a row's and an
+  agent's stranded flag to their stranded threads, a row unfolded to its log and marking it read,
+  the Sessions tab's count of registrations waiting falling as they are approved or rejected, their
+  section one line while none waits, the Threads tab's count of unread threads falling as they are
+  read or archived, and the folds kept, on a phone's width too; the operator's session groups and
+  tags: a session's group and an agent's and a session's tags picked from their options, each pick
+  applied at once, by pointer and by the keys, the pickers beside the menu on a wide screen and as a
+  sheet on a phone, the chips that show them in their colors in both color schemes, and Settings'
+  groups and tags, with create, rename, its refusal of a name another group or tag has, recolor,
+  removal, asked first, and the groups' order by their buttons and by dragging, followed by the
+  sessions view; the sessions view's arrangement, grouped by group, by agent and by session, sorted
   alphabetically, by registration time and manually, each way, no group last, its groups moved in
   the manual order by their buttons and by dragging, and the arrangement kept in the address through
   a reload, Back and a shared link; a thread the operator starts there, with the warning for a
@@ -147,12 +170,21 @@ with each other or with what the product does, the disagreement is the finding.
   uploads, a message of files alone, an edit keeping and removing files, a new thread started with
   files and its sheet cancelled with uploads, each kind of file shown in place, **Show image** and
   **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
-  **Files** fold, and **Storage**, on a phone's width too (`docs/operator-guide.md` "Signing in",
-  "Using the web UI", "Voice", "Attachments" and "Approving agents"). Real-phone passkeys, Send
-  above a phone's keyboard while writing, dictation with a real provider, diagrams and their viewer
-  in iOS Safari, what each item of Attach's menu opens on a real phone, and a photo from the phone
-  read by an agent, with an image, a PDF, a video and a text file an agent attached opened in
-  Android Chrome and Windows Edge or Chrome, are the operator's acceptance, not the tester's.
+  **Files** fold, and **Storage**, on a phone's width too; and pull requests and branches: a
+  message's one entry and its fold, the thread's fold, a row's one entry, beside its checkbox too,
+  and its mark counting several, each entry leading to the thread list filtered by it, alone from a
+  message or the thread's fold and added to the list on screen from a row, but selecting the row in
+  its place when held by touch, and when tapped while a touch selection is under way, the forge link
+  beside a message's or the fold's entry opening the forge's page in a new tab, and the filter
+  sheet's **Pull request** and **Branch** with their counts, chips, and the address, on a phone's
+  width too (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice", "Attachments" and
+  "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
+  with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
+  opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick
+  list told at a glance from the thread bar's arrow buttons just below it, its choices read in the
+  phone's own picker, and a photo from the phone read by an agent, with an image, a PDF, a video and
+  a text file an agent attached opened in Android Chrome and Windows Edge or Chrome, are the
+  operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 

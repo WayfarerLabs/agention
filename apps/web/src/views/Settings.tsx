@@ -1,5 +1,6 @@
 import { useCallback, useId, useRef } from "react";
 import { PageHeading, usePageTitle } from "../components.tsx";
+import { Icon } from "../icons.tsx";
 import { Link } from "../router.tsx";
 import { NotFound } from "./NotFound.tsx";
 import {
@@ -41,9 +42,7 @@ function SettingsPage({ open, listing }: { open: SettingsSection; listing: boole
       <SettingsNavigation open={open} listing={listing} />
       {/* The way back to the list, in the navigation's place on a phone. */}
       <Link to="/settings" className="back settings-back" aria-label="Back to settings">
-        <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-          <path d="M20 12H5M11 5l-7 7 7 7" />
-        </svg>
+        <Icon name="arrow-left" />
         Settings
       </Link>
       <section className="settings-section" aria-labelledby={headingId}>

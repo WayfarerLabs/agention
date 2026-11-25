@@ -4,16 +4,17 @@ import { type Action, useAction } from "../../data.ts";
 import { leaveNotice } from "../../notice.ts";
 import { currentListView, listHref, navigate, threadHref } from "../../router.tsx";
 import type { ListedThread } from "../list/listing.ts";
-import type { AfterSending } from "./Composer.tsx";
-import { type AutoAdvance, type Direction, neighborIn, useAutoAdvance } from "./neighbor-thread.ts";
+import type { AfterSending, Destination } from "./Composer.tsx";
+import { type Direction, neighborIn, useAutoAdvance } from "./neighbor-thread.ts";
 import type { ThreadTarget } from "./writer.ts";
 
 // The ways a thread's page leaves for another: Thread above and Thread below,
 // Archive all as Auto-advance says, and a send's way on as After sending
-// says. One rule holds for them all: while a way on is under way, or a send
-// that will take the page somewhere is on its way, no other way on starts,
-// and a send's own way on, once it lands, waits only for the others. Each
-// leaves only if the page is still open once it is ready to.
+// says, archiving the thread first when it says so. One rule holds for them
+// all: while a way on is under way, or a send that will archive the thread or
+// take the page somewhere is on its way, no other way on starts, and a send's
+// own way on, once it lands, waits only for the others. Each leaves only if
+// the page is still open once it is ready to.
 
 // returnToList leaves the thread page for the list it returns to, as it
 // stands when called, replacing the page's history entry, so going back does
@@ -63,11 +64,12 @@ const findingWords = "Finding the thread to open";
 // operator keeps changing the list it is found in.
 const findingTries = 3;
 
-// An Archive all under way: where it goes once archived, what the send that
-// started it sent, if one did, and the message it archives through at least,
-// the one that send wrote, which can lie past the latest the page has loaded.
+// An Archive all under way: where it goes once archived, staying only for a
+// send that says so, what the send that started it sent, if one did, and the
+// message it archives through at least, the one that send wrote, which can
+// lie past the latest the page has loaded.
 interface Archiving {
-  to: AutoAdvance;
+  to: Destination;
   sent: string | undefined;
   atLeast: number;
 }
@@ -92,9 +94,12 @@ interface Leaving {
   // Archives the thread through a message, as archive's action, and, once
   // that lands with the page still open, goes onward.
   archiveAndLeave: (through: number, onward: () => void) => Promise<void>;
+  // Shows the thread as it stands once archived, for a send that archives it
+  // and stays.
+  showArchived: () => void;
   stillOpen: () => boolean;
-  // Whether a send is on its way, and where a send takes the page, as the
-  // operator has it chosen now.
+  // Whether a send is on its way, and what follows a send, as the operator
+  // has it chosen now.
   sendPending: boolean;
   after: AfterSending;
 }
@@ -112,6 +117,7 @@ export function useLeaving({
   marking,
   clearMarking,
   archiveAndLeave,
+  showArchived,
   stillOpen,
   sendPending,
   after,
@@ -123,18 +129,20 @@ export function useLeaving({
   // never archives a message the page has not shown: one sent from the page
   // counts only once the page has loaded through it, with the messages before
   // it. When loading them fails, it stops and says so, until the operator
-  // chooses it again. Once archived, it goes where Auto-advance says, in place
-  // of this page in history, so going back does not return to the archived
-  // thread: back to the list, or to the thread that was just above or below
-  // it, which the server finds where the thread stands, archived or not.
-  // Should finding it fail, the page stays on the thread, archived, and says
-  // so.
+  // chooses it again. Once archived, it goes where Auto-advance says, or,
+  // started by a send, where After sending says, in place of this page in
+  // history, so going back does not return to the archived thread: back to
+  // the list, or to the thread that was just above or below it, which the
+  // server finds where the thread stands, archived or not. Should finding it
+  // fail, the page stays on the thread, archived, and says so, as it stays
+  // for a send that says to.
   const [archivingAll, setArchivingAll] = useState<Archiving>();
   const [showingFailure, setShowingFailure] = useState<unknown>();
   // The failure the thread's last load had when Archive all was chosen.
   const failedBefore = useRef<unknown>(undefined);
   const moving = unread.pending || archive.pending || finding.pending || archivingAll !== undefined;
-  const sendGoing = sendPending && after !== "stay";
+  // A send that will archive holds the page as one that will leave it does.
+  const sendGoing = sendPending && (after.archive || after.to !== "stay");
   // moving and after as they stand now, not as this render saw them, for a
   // send's way on, which runs from the render that sent the message once the
   // server accepts it, and goes by the choice as it stands then. Each way on
@@ -185,17 +193,18 @@ export function useLeaving({
       goToNeighbor(found.thread, direction, found.from, replace, sent);
     }
   };
-  // startArchiving starts Archive all once start lets it, saying what a send
-  // that started it sent, through the message that send wrote at least.
-  const startArchiving = (sent: string | undefined, atLeast: number) => {
+  // startArchiving starts Archive all once start lets it, going to where
+  // once archived, saying what a send that started it sent, through the
+  // message that send wrote at least.
+  const startArchiving = (to: Destination, sent: string | undefined, atLeast: number) => {
     clearMarking();
     failedBefore.current = loadFailure;
-    setArchivingAll({ to: autoAdvance, sent, atLeast });
+    setArchivingAll({ to, sent, atLeast });
     show(Math.max(last, atLeast));
   };
   const archiveAll = () => {
     if (start(false)) {
-      startArchiving(undefined, 0);
+      startArchiving(autoAdvance, undefined, 0);
     }
   };
   const openNeighbor = (direction: Direction) => {
@@ -214,7 +223,9 @@ export function useLeaving({
     } else if (!later && last >= atLeast) {
       setArchivingAll(undefined);
       void archiveAndLeave(last, () => {
-        if (to !== "list") {
+        if (to === "stay") {
+          showArchived();
+        } else if (to !== "list") {
           void find(to, true, sent);
         } else {
           if (sent !== undefined) {
@@ -226,22 +237,23 @@ export function useLeaving({
     }
   }, [archivingAll, last, later, loadFailure]);
   // A send's way on, once the server accepts the message written, with the
-  // page still open: where After sending says, saying there what was sent.
+  // page still open: where After sending says, saying there what was sent,
+  // once the thread is archived when After sending says that too.
   const sentOnward = (sent: string, written: number) => {
-    const where = afterNow.current;
-    if (where === "stay" || !stillOpen() || !start(true)) {
+    const { to, archive: archives } = afterNow.current;
+    if ((to === "stay" && !archives) || !stillOpen() || !start(true)) {
       return;
     }
-    if (where === "list") {
-      leaveNotice(sent);
-      returnToList();
-    } else if (where === "archive") {
+    if (archives) {
       // Run as Archive all is, through the message sent at least, but left
       // to the server to refuse while an ask is open, since what was just
       // sent may have answered it; a refusal shows, naming the ask.
-      startArchiving(sent, written);
-    } else {
-      void find(where, false, sent);
+      startArchiving(to, sent, written);
+    } else if (to === "list") {
+      leaveNotice(sent);
+      returnToList();
+    } else if (to !== "stay") {
+      void find(to, false, sent);
     }
   };
   // A mark from a message says its own failure there, not here.
@@ -253,8 +265,8 @@ export function useLeaving({
         ? { action: archivingWords, failure: archiveFailure }
         : undefined;
   return {
-    // Whether a way on holds the page, or a send that will take it somewhere
-    // is on its way.
+    // Whether a way on holds the page, or a send that will archive the thread
+    // or take the page somewhere is on its way.
     busy: moving || sendGoing,
     // Whether a way on is under way, which holds Send back, so a send never
     // lands to find its own way on refused.

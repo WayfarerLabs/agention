@@ -15,6 +15,7 @@ import {
   type Reference,
   type Suggestion,
   type ThreadStatus,
+  type SummaryLinks,
   type ThreadSummary,
   type Withdrawal,
   type WorkOutcome,
@@ -22,7 +23,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
-import { readLinks } from "./code-links.ts";
+import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
 import { seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
@@ -307,11 +308,11 @@ function askSummaryOf(json: string, now: number): AskSummary {
   };
 }
 
-// toThreadSummary describes a row of seen. An ask is overdue once its
-// answer-by time is before now. The thread's audience also sees its
-// session's presence, with the state and outcome it last reported, and
-// whether the thread is stranded.
-export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
+// toThreadSummary describes a row of seen, with its summary's links. An ask
+// is overdue once its answer-by time is before now. The thread's audience
+// also sees its session's presence, with the state and outcome it last
+// reported, and whether the thread is stranded.
+export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
     agent: row.agent_name,
@@ -345,6 +346,7 @@ export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
     ...(row.latest_withdrawal === null
       ? {}
       : { withdrawal: JSON.parse(row.latest_withdrawal) as Withdrawal & { seq: number } }),
+    links,
     credential_active: row.credential_active === 1,
     ...(row.audience === 1
       ? {
@@ -372,7 +374,17 @@ export function readThread(
   const row = store.db
     .prepare(`${threadsSeen("t.id = :thread")} SELECT * FROM seen`)
     .get({ thread: threadId, ...viewerAndCutoff(store, viewer, now) }) as unknown as ThreadRow;
-  return toThreadSummary(row, now);
+  return toThreadSummary(row, now, summaryLinksFor(store.db, [threadId])(threadId));
+}
+
+// summariesOf describes rows of seen, reading their summaries' links for
+// those rows alone.
+export function summariesOf(db: Database, rows: ThreadRow[], now: number): ThreadSummary[] {
+  const links = summaryLinksFor(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => toThreadSummary(row, now, links(row.id)));
 }
 
 export interface ThreadParties {

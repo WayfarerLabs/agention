@@ -363,10 +363,15 @@ describe("Archive all and Auto-advance", () => {
       "/",
       [message(1, { asks: [ask()] })],
     );
-    expect(archiveAll().disabled).toBe(true);
+    // It waits, though it keeps its place and focus, and says why, as e
+    // does, without archiving or moving on.
+    expect(archiveAll().disabled).toBe(false);
+    expect(archiveAll().getAttribute("aria-disabled")).toBe("true");
     const hint = document.getElementById(archiveAll().getAttribute("aria-describedby") ?? "");
     expect(hint?.textContent).not.toBe("");
+    expect(hint?.hidden).toBe(true);
     press("e");
+    expect(hint?.hidden).toBe(false);
     expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
     expect(window.location.pathname).toBe(path);
   });
