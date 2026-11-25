@@ -92,59 +92,62 @@ with each other or with what the product does, the disagreement is the finding.
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
   filters with their counts, the session group and tag filters among them, with a removed group's
-  and an unused tag's chips, its search reaching what live messages say and not what a replaced one
-  said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
-  by agent, each header's label and marks adding their filters to the list and its bar folding but
-  on a link; the thread page's numbered asks answered several at once, a message's details,
-  replacements, mark unread from a message, archive through a message, with the divider after what
-  it archived once unfolded, and archive all, going where Auto-advance says, the thread that was
-  above it, the one below or the list, and Thread above and Thread below, with `[` and `]`, through
-  the list the thread returns to, alike beside the list and on a phone, from the list, from a link
-  and after a reload, following the thread when its own answers and replies move it in the list, a
-  thread read out of a list kept to the unread, grouped or not, keeping its place there, a held key
-  acting once, Send held while the page moves, and back to the list, which says so, at its end; Send
-  and what answers it kept on a short screen while writing, After sending's choices, back to the
-  list, staying, archiving, refused while an ask stays open, and the threads above and below, and
-  the way back under the composer; the compact sizes with a mouse and the full ones by touch, a
-  touchscreen laptop among them; the Threads tab side by side at a desktop's width, filling it, the
-  list kept as chosen beside each thread opened, the open thread's row marked, Back from thread to
-  thread, focus back on the row left, and one at a time below that width; stranded's reasons, in the
-  warning's color in both tabs; the sessions view, its group and agent folds and folded rows with
-  what each session reports, when it was last seen and whether it is quiet, how old its status is,
-  its open asks in the thread list's words and its threads' roll-up, the links from a row, an agent
-  and a group, their names and every chip standing for threads among them, to the thread list
-  filtered to them, folding nothing, and from a row's and an agent's stranded flag to their stranded
-  threads, a row unfolded to its log and marking it read, the Sessions tab's count of registrations
-  waiting falling as they are approved or rejected, the Threads tab's count of unread threads
-  falling as they are read or archived, and the folds kept, on a phone's width too; the operator's
-  session groups and tags: a session's group and an agent's and a session's tags picked from their
-  options, each pick applied at once, by pointer and by the keys, the pickers beside the menu on a
-  wide screen and as a sheet on a phone, the chips that show them in their colors in both color
-  schemes, and Settings' groups and tags, with create, rename, its refusal of a name another group
-  or tag has, recolor, removal, asked first, and the groups' order by their buttons and by dragging,
-  followed by the sessions view; the sessions view's arrangement, grouped by group, by agent and by
-  session, sorted alphabetically, by registration time and manually, each way, no group last, its
-  groups moved in the manual order by their buttons and by dragging, and the arrangement kept in the
-  address through a reload, Back and a shared link; a thread the operator starts there, with the
-  warning for a session not there to see it, and the agent's reply in it; registration approval,
-  with a group and tags picked, rejection, and revocation from past requests and a session's
-  options; diagrams, drawn in light and dark, with their Source toggle, their fallback, and the
-  viewer's gestures, buttons and keys, on a phone's width too; Settings in sections, listed beside
-  the open one on a wide screen and listed first on a phone with each section's way back, with
-  `/passkeys` leading to Passkeys; API keys: one created with each expiry choice, the no-expiry
-  warning and the list's flag, a scope that a chosen one includes shown chosen with it, the secret
-  shown once with Copy and gone once dismissed, nowhere in storage or the address, the list's last
-  use, Revoke asked first, creating and revoking held back without a recent sign-in, and Create held
-  back at 20 live keys, at a phone's width too; and voice set up, with the write-only key shown
-  masked but for its last four characters, what the environment supplies shown read-only, Turn off
-  and Try it; dictation through Chromium's fake microphone and a stub provider, its text at the
-  caret with nothing sent, the microphone and what it says beside Send on a short screen, its
-  failures keeping the recording for a retry, and a recording stopped when the page is hidden; and
-  Read aloud and Stop, in WebKit too where it installs; attachments: **Attach**, its menu on a touch
-  device (each item's picker, Escape and a tap elsewhere), a pasted image and a paste carrying text,
-  progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message of
-  files alone, an edit keeping and removing files, each kind of file shown in place, **Show image**
-  and **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
+  and an unused tag's chips, its search, from the box atop the list or the sheet's, one in both,
+  reaching what live messages say and not what a replaced one said, its sorts and their direction,
+  and grouping with roll-ups, by session group, by session, by topic and by agent, each header's
+  label and marks adding their filters to the list and its bar folding but on a link; the thread
+  page's numbered asks answered several at once, a message's details, replacements, mark unread from
+  a message, archive through a message, with the divider after what it archived once unfolded, and
+  archive all, going where Auto-advance says, the thread that was above it, the one below or the
+  list, and Thread above and Thread below, with `[` and `]`, through the list the thread returns to,
+  alike beside the list and on a phone, from the list, from a link and after a reload, following the
+  thread when its own answers and replies move it in the list, a thread read out of a list kept to
+  the unread, grouped or not, keeping its place there, a held key acting once, Send held while the
+  page moves, and back to the list, which says so, at its end; Send and what answers it kept on a
+  short screen while writing, After sending's choices, back to the list, staying, archiving, refused
+  while an ask stays open, and the threads above and below, and the way back under the composer; the
+  compact sizes with a mouse and the full ones by touch, a touchscreen laptop among them; the
+  Threads tab side by side at a desktop's width, filling it, the list kept as chosen beside each
+  thread opened, the open thread's row marked, Back from thread to thread, focus back on the row
+  left, and one at a time below that width; stranded's reasons, in the warning's color in both tabs;
+  the sessions view, its group and agent folds and folded rows with what each session reports, when
+  it was last seen and whether it is quiet, how old its status is, its open asks in the thread
+  list's words and its threads' roll-up, the links from a row, an agent and a group, their names and
+  every chip standing for threads among them, to the thread list filtered to them, folding nothing,
+  and from a row's and an agent's stranded flag to their stranded threads, a row unfolded to its log
+  and marking it read, the Sessions tab's count of registrations waiting falling as they are
+  approved or rejected, the Threads tab's count of unread threads falling as they are read or
+  archived, and the folds kept, on a phone's width too; the operator's session groups and tags: a
+  session's group and an agent's and a session's tags picked from their options, each pick applied
+  at once, by pointer and by the keys, the pickers beside the menu on a wide screen and as a sheet
+  on a phone, the chips that show them in their colors in both color schemes, and Settings' groups
+  and tags, with create, rename, its refusal of a name another group or tag has, recolor, removal,
+  asked first, and the groups' order by their buttons and by dragging, followed by the sessions
+  view; the sessions view's arrangement, grouped by group, by agent and by session, sorted
+  alphabetically, by registration time and manually, each way, no group last, its groups moved in
+  the manual order by their buttons and by dragging, and the arrangement kept in the address through
+  a reload, Back and a shared link; a thread the operator starts there, with the warning for a
+  session not there to see it, and the agent's reply in it; registration approval, with a group and
+  tags picked, rejection, and revocation from past requests and a session's options; diagrams, drawn
+  in light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons
+  and keys, on a phone's width too; Settings in sections, listed beside the open one on a wide
+  screen and listed first on a phone with each section's way back, with `/passkeys` leading to
+  Passkeys; API keys: one created with each expiry choice, the no-expiry warning and the list's
+  flag, a scope that a chosen one includes shown chosen with it, the secret shown once with Copy and
+  gone once dismissed, nowhere in storage or the address, the list's last use, Revoke asked first,
+  creating and revoking held back without a recent sign-in, and Create held back at 20 live keys, at
+  a phone's width too; and voice set up, with the write-only key shown masked but for its last four
+  characters, what the environment supplies shown read-only, Turn off and Try it; dictation through
+  Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
+  microphone and what it says beside Send on a short screen, its failures keeping the recording for
+  a retry, and a recording stopped when the page is hidden, alike in the composer, an ask's
+  own-words field and the new-thread sheet; and Read aloud and Stop, in WebKit too where it
+  installs; a message's copy button, with its details folded and open; attachments: **Attach**, its
+  menu on a touch device (each item's picker, Escape and a tap elsewhere), a pasted image and a
+  paste carrying text, progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on
+  uploads, a message of files alone, an edit keeping and removing files, a new thread started with
+  files and its sheet cancelled with uploads, each kind of file shown in place, **Show image** and
+  **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
   **Files** fold, and **Storage**, on a phone's width too (`docs/operator-guide.md` "Signing in",
   "Using the web UI", "Voice", "Attachments" and "Approving agents"). Real-phone passkeys, Send
   above a phone's keyboard while writing, dictation with a real provider, diagrams and their viewer

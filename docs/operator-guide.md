@@ -357,7 +357,10 @@ stays as you set it, its filters, order, folds and scroll, as threads open besid
 back and forward; the row of the thread open is outlined, and choosing it again takes you to the
 thread; and choosing another order or filter keeps the thread open. The thread scrolls with the page
 while the list stays in view, scrolling on its own. Going back to the list from a thread, with its
-**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left.
+**Threads** button, **Back**, `u` or `Esc`, puts focus on the row of the thread you left. Opening a
+thread, from the list, with **Thread above** or **Thread below**, or as archiving or sending moves
+you on, puts focus on its heading once it has loaded, on a phone too, unless you have moved focus
+elsewhere while it loaded.
 
 Where a thread is, its agent, its session and its topic, shows each part behind a small badge: **A**
 for the agent, **S** for the session and **T** for the topic; holding the pointer over a badge names
@@ -366,11 +369,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
   counts those holding a message you have not read, the threads the **Unread** filter keeps with no
-  other filter on, and reading or archiving them clears the count. The list's head holds **Sort**,
-  the order it is in, beside a button saying which way the order runs, then **Group**, how the list
-  is grouped, and **Filters**, a funnel with a badge counting the filters that are on. On a phone,
-  **Sort** and its button take one row, with **Group** and **Filters** beneath them; on the
-  narrowest phones, or with enlarged text, the button wraps beneath **Sort**.
+  other filter on, and reading or archiving them clears the count. The list's head holds a search
+  box across its top, **Search threads**, then **Sort**, the order it is in, beside a button saying
+  which way the order runs, then **Group**, how the list is grouped, and **Filters**, a funnel with
+  a badge counting the filters that are on. On a phone, **Sort** and its button take one row, with
+  **Group** and **Filters** beneath them; on the narrowest phones, or with enlarged text, the button
+  wraps beneath **Sort**.
   - **Sort** orders the list by:
     - **Priority**, the default: the threads with asks open to you first, each by the most pressing
       of its asks: by priority, then those blocking the agent's work, then by the earliest
@@ -394,27 +398,27 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
     session group's sessions under its header when the list holds two or more groups, those in none
     under **No group**, and each session as **Session** folds it; by **Session**, each session's
-    threads under its header, and under their topics' when they carry two or more, those without one
-    under **No topic**; or by **Agent**, each agent's threads under its header, and under their
-    sessions' when it has two or more. Groups, sessions, topics and agents come in the order of
-    their first thread, and the list loads a page at a time, its threads arriving group by group.
-    Each header shows all its group holds, collapsed or not, and before all of it has loaded: how
-    many threads, the closed envelope with how many are unread or the open envelope when none is,
-    **Blocked on you** when an agent's ask blocks its work on your answer, the highest priority of
-    an open ask, the archive box when all are archived, and, in the warning's color on a session's
-    or an agent's header while it is quiet, **last seen** and when, or **never seen** (an agent is
-    quiet while every session it shows is). A session group's header adds up its sessions'. A
-    header's name, and each of those marks a filter matches, is a link that adds what the header
-    heads (its group, session, topic or agent) and the mark's own filter to the filters on, keeping
-    the others, the order and the grouping: the name and the count keep all its threads, the
-    envelope its unread ones, **Blocked on you** those blocking an agent on your answer, and the
-    priority those with an ask at that priority or higher. While a filter on open asks is on,
-    **Blocked on you** and the priority link nowhere, since they count every open ask of the threads
-    shown while those filters keep a thread for one ask meeting them all. **No topic**, which no
-    filter names, the archive box and **last seen** link nowhere. The chevron before a header's name
-    collapses everything under it or expands it again, as a click anywhere else on the header does
-    but on a link. Every header starts expanded, and this browser keeps the ones you collapse, for
-    each way of grouping, a session group's however you rename it.
+    threads under its header; by **Topic**, each session's threads under its header, and under their
+    topics' when they carry two or more, those without one under **No topic**; or by **Agent**, each
+    agent's threads under its header, and under their sessions' when it has two or more. Groups,
+    sessions, topics and agents come in the order of their first thread, and the list loads a page
+    at a time, its threads arriving group by group. Each header shows all its group holds, collapsed
+    or not, and before all of it has loaded: how many threads, the closed envelope with how many are
+    unread or the open envelope when none is, **Blocked on you** when an agent's ask blocks its work
+    on your answer, the highest priority of an open ask, the archive box when all are archived, and,
+    in the warning's color on a session's or an agent's header while it is quiet, **last seen** and
+    when, or **never seen** (an agent is quiet while every session it shows is). A session group's
+    header adds up its sessions'. A header's name, and each of those marks a filter matches, is a
+    link that adds what the header heads (its group, session, topic or agent) and the mark's own
+    filter to the filters on, keeping the others, the order and the grouping: the name and the count
+    keep all its threads, the envelope its unread ones, **Blocked on you** those blocking an agent
+    on your answer, and the priority those with an ask at that priority or higher. While a filter on
+    open asks is on, **Blocked on you** and the priority link nowhere, since they count every open
+    ask of the threads shown while those filters keep a thread for one ask meeting them all. **No
+    topic**, which no filter names, the archive box and **last seen** link nowhere. The chevron
+    before a header's name collapses everything under it or expands it again, as a click anywhere
+    else on the header does but on a link. Every header starts expanded, and this browser keeps the
+    ones you collapse, for each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it
@@ -424,7 +428,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Search** keeps the threads whose title holds every word you type, or one of whose messages
       does in its text and details, each as the start of a word, ignoring case and accents. A
       message you or an agent replaced no longer matches; its replacement does. It applies once you
-      pause typing. An agent's own search of its threads looks at titles alone.
+      pause typing, or at once on Enter. The search box atop the list's head and this one are the
+      same search: typing in either shows in both. Text the search cannot take, such as a tab or an
+      invisible character, stays in the box, which says why, and the list stays as it was. An
+      agent's own search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
@@ -571,9 +578,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - A message's text is a short summary of what the matter is and what is needed. Whatever else the
     message says is in its details: a **Details** line directly under the text opens them in place
     and folds them again, and details you opened stay open as the page refreshes.
+  - The copy button at the end of a message's head, beside its **⋯** button, copies the whole
+    message as Markdown, as it was written: its text, and its details too, after a blank line, while
+    you have them open. Its asks, answers, references and files are not copied. Every message with
+    text has one, a replaced message too once you open it, and a message without text has none. The
+    button shows a check for a moment once the message is copied. Where the browser refuses the
+    clipboard, the message says so, and you can select the text to copy it by hand.
   - A message's files show under it, and **Attach** beside **Send** adds yours, as
-    [Attachments](#attachments) describes. While the thread holds any, its head holds **Files**,
-    folded, with how many there are and the space they take.
+    [Attachments](#attachments) describes. While the thread's current messages carry any, its head
+    holds **Files**, folded, with how many there are and the space they take.
   - Each ask shows as a card on its message, which may carry several. Asks are numbered within the
     thread as the agent writes them, and the card leads with the number (**Ask 3**), then the
     question, its priority, impact, how long answering takes when the agent said, and answer-by,
@@ -584,24 +597,31 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     and the reason for each ask it withdrew. An agent may withdraw an ask in the message that
     revises its others, and the card reads withdrawn all the same. A withdrawn ask takes no answer.
     An answered card checks the suggested answers you picked, sets the others apart and shows your
-    own words under **Other**; a declined one says so. The message carrying your answers says the
-    same for each, naming the ask by its number: the suggested answers you picked and **Other** with
-    your words beneath, your words alone on an ask without suggested answers, or that you declined.
+    words under **Notes** beside your picks, or under **Other** when you picked none; a declined one
+    says so. The message carrying your answers says the same for each, naming the ask by its number:
+    the suggested answers you picked, with notes when you wrote them, or **Other**, with your words
+    beneath; your words alone on an ask without suggested answers; or that you declined.
   - You answer on the card. Where the ask allows one answer, its suggested answers are radio buttons
     under **Choose one**; where it allows several, checkboxes under **Choose any that apply**. The
-    last choice, **Other**, is for your own words, instead of a pick or, where several are allowed,
-    beside your picks: choosing it opens a field for them and moves you there, and clearing it keeps
-    the words for when you choose it again, and sends none. An ask without suggested answers has
-    only that field. **Decline to answer**, below the choices, sets them aside and declines the ask
+    last choice, **Other**, is for an answer in your own words instead, in place of any picks:
+    choosing it unchecks them, and picking a suggested answer unchecks it. Once you choose anything,
+    a **Notes** field opens under the choices: beside your picks, what you write there is optional
+    notes that go with the answer; with **Other** chosen, the field is your answer, so choosing
+    **Other** moves you there. Changing your choice keeps what you wrote. Where several may be
+    picked and you uncheck everything, the field stays while it holds words, and the answer waits
+    until you choose again or clear them. An ask without suggested answers has only a field, for
+    your answer. While [voice](#voice) is on, **Dictate** under the field puts what you say in it,
+    as the composer's does. Files for an answer go with the message that sends it: attach them in
+    the composer. **Decline to answer**, below the choices, sets them aside and declines the ask
     when you send, until you undo it. While the card holds an answer or a decline you have not sent,
     **Clear** there removes it as **Remove** in the line above the box does, leaving you on the card
     as it was before you chose anything. **Change answer**, in the options of a message carrying
     your answers, opens again the card of every ask that message answered that is still live, with
-    your answers, moves you to the first, unfolding the archived messages when it is among them, and
-    puts that message's text and details in their boxes. An answer to an ask the agent since revised
-    or retracted stays with that message, and the line above the box says so. When the asks it
-    changes have to load first, and the page learns meanwhile that the message was replaced, nothing
-    is staged.
+    your answers and notes, moves you to the first, unfolding the archived messages when it is among
+    them, and puts that message's text and details in their boxes. An answer to an ask the agent
+    since revised or retracted stays with that message, and the line above the box says so. When the
+    asks it changes have to load first, and the page learns meanwhile that the message was replaced,
+    nothing is staged.
   - **Edit** in the options of your other messages changes their text and details, and drops their
     answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
     whole message, so they need empty boxes with nothing staged. A replaced message folds into one
@@ -613,14 +633,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     up to 20,000; neither cuts what you type or paste, but while either is over, or there are
     details and no message, **Send** waits and the box says why. You can answer several asks at
     once, up to ten, and **Send** sends the answers, the text or both as one message. A line above
-    the box names each answer or decline by its ask's number (**Ask 3: “Postgres”**), each with
-    **Remove** to drop it, which also clears its card, as **Clear** on the card does; a change of
-    answers or an edit shows as one line, removed whole there, and the cards of a change offer no
-    **Clear**. **Send** is available only when there is something complete to send: **Other**
-    without words is not, and its field says so once you leave it. Once ten cards hold answers, the
-    other asks' choices are unavailable until you send or remove one. While a change or an edit is
-    staged, nothing else can be started until you send or remove it, and removing it empties both
-    boxes. An edit needs text.
+    the box names each answer or decline by its ask's number (**Ask 3: “Postgres”**, with notes when
+    you wrote them), each with **Remove** to drop it, which also clears its card, as **Clear** on
+    the card does; a change of answers or an edit shows as one line, removed whole there, and the
+    cards of a change offer no **Clear**. **Send** is available only when there is something
+    complete to send: **Other** without words is not, and its field says so once you leave it. Once
+    ten cards hold answers, the other asks' choices are unavailable until you send or remove one.
+    While a change or an edit is staged, nothing else can be started until you send or remove it,
+    and removing it empties both boxes. An edit needs text.
   - This browser keeps your draft's text and details as you type, one draft for each thread, so
     leaving the thread or reloading the page loses nothing: the composer opens with them when you
     come back, and counts from where the draft started, so a message the agent wrote while you were
@@ -652,23 +672,32 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     write, **Send** and its option stay at the foot of the screen, above a phone's keyboard, with
     what answers **Send** beside it: why a message failed to send above it, and what was sent after
     it. While voice is on, **Dictate** sits there too, and what it says goes in the same places: why
-    dictation failed above, and anything else after. While a recording, its transcription or its
-    **Retry** is there, **After sending** moves just below the row, so the row stays short above a
-    phone's keyboard.
+    dictation failed above, and anything else after. While dictation shows its controls there, from
+    the moment the microphone is asked for through a recording and its transcription to its
+    **Retry**, **After sending** moves just below the row, so the row stays short above a phone's
+    keyboard.
   - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
     thread you read without replying, and without scrolling back up.
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
-    records, showing how long against its limit of five minutes, until you choose **Stop**; then
-    **Transcribing**, with **Cancel**, and the text goes in where the cursor was, in the box you
-    were last in, with a space where it meets other text, for you to read and change. Nothing is
-    sent until you send it. A transcript of nothing, or a recording too short to hold any, says
-    **Nothing heard**. A transcription that fails says why and keeps your draft as it was, and the
-    recording for **Retry**, beside **Discard**. A recording also stops when it reaches 1.9 MiB, or
-    when you switch away from the page, so the microphone never runs while you are not looking, and
-    what it recorded is transcribed as usual; if you are still away from the page when the
-    microphone opens, it closes without recording, and leaving the thread discards a recording.
-    Starting a recording counts as seeing the thread then: a message the agent writes while you
-    record makes sending stale, as below.
+    asks for the microphone, with **Cancel** while it waits, since a browser may wait on its
+    permission prompt for as long as you leave it; then it records, showing how long against its
+    limit of five minutes, until you choose **Stop**; then **Transcribing**, with **Cancel**, and
+    the text goes in where the cursor was, in the box you were last in, with a space where it meets
+    other text, for you to read and change. Nothing is sent until you send it. A transcript of
+    nothing, or a recording too short to hold any, says **Nothing heard**. A transcription that
+    fails says why and keeps your draft as it was, and the recording for **Retry**, beside
+    **Discard**. A recording also stops when it reaches 1.9 MiB, or when you switch away from the
+    page, so the microphone never runs while you are not looking, and what it recorded is
+    transcribed as usual; if you are still away from the page when the microphone opens, it closes
+    without recording, and leaving the thread discards a recording. Starting a recording, here or
+    under an ask's **Notes** field, counts as seeing the thread then: a message the agent writes
+    while you record makes sending stale, as below. One recording runs at a time: starting another
+    stops the first, whose text goes in as if you had chosen **Stop**. While a recording is there,
+    here or on an ask's card, from the moment the microphone is asked for through recording and
+    transcribing to awaiting **Retry**, **Send** and its shortcut wait and say why, so your words
+    are never lost under a send; the new-thread sheet's **Send** waits the same way. **Dictate**
+    waits in turn while a message is on its way. Text that arrives after you discarded the draft it
+    was for goes nowhere.
 
   If the agent writes to the thread while you are writing, sending fails as stale: your draft stays,
   the messages you missed appear above it, and **Mark these read and send again** sends it, as it
@@ -745,13 +774,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.
-    **New thread** opens a sheet for a title, the message and its details, as a thread's composer
-    takes them, and **Send** starts the thread and opens it. The session's agent reads it as your
-    words at its terminal and replies in it; the thread asks you nothing, since only agents ask.
-    When the session has stopped, is quiet or has no active credential, the sheet says it is not
-    likely to see the thread, and why: a stopped session not until it is started again, a quiet one
-    not soon, and one without a credential not until you approve a registration for it. The thread
-    is stranded until the session reads it.
+    **New thread** opens a sheet for a title, the message, its details and its files, as a thread's
+    composer takes them: **Attach** at the sheet's foot, or a pasted image, adds files, and while
+    [voice](#voice) is on, **Dictate** beside it puts what you say in the box you were last in.
+    **Send** waits for the files to upload, and for a recording until its text is in or you discard
+    it, then starts the thread and opens it; while it is on its way the sheet stays as it is.
+    **Cancel**, or leaving the sheet any other way, removes the files it uploaded. The session's
+    agent reads it as your words at its terminal and replies in it; the thread asks you nothing,
+    since only agents ask. When the session has stopped, is quiet or has no active credential, the
+    sheet says it is not likely to see the thread, and why: a stopped session not until it is
+    started again, a quiet one not soon, and one without a credential not until you approve a
+    registration for it. The thread is stranded until the session reads it.
 
   - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
     page's address keeps your choice, so going back to the view or a link to it shows it the same.
@@ -871,7 +904,7 @@ anywhere to list them all.
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
 | The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
-| The thread list | `/`                         | Opens **Filters** on its search box                                                                                       |
+| The thread list | `/`                         | Puts focus in the list's search box, selecting what it holds                                                              |
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
 | A thread        | `e`                         | **Archive all**, while it is available, then where **Auto-advance** says                                                  |
@@ -894,12 +927,14 @@ the way of a screen reader, voice control or another tool, clear **Keyboard shor
 
 ## Voice
 
-Voice lets you dictate a reply in a thread instead of typing it, and is off until you set it up. A
-transcription provider turns your recording into text: you choose it in **Settings**, under
-**Voice**, and the server sends it each recording with a key it holds, and returns only the text.
-The provider receives your recordings, so turning voice on means choosing who does, under their
-terms. Agention keeps neither the recording nor the text, and agents never see either: they read
-only what you send. Reading a message aloud needs none of this: the browser speaks on your device.
+Voice lets you dictate a message instead of typing it, and is off until you set it up: wherever you
+write one, in a thread's composer, an ask's **Notes** or a new thread, **Dictate** puts what you say
+in the box you were last in. A transcription provider turns your recording into text: you choose it
+in **Settings**, under **Voice**, and the server sends it each recording with a key it holds, and
+returns only the text. The provider receives your recordings, so turning voice on means choosing who
+does, under their terms. Agention keeps neither the recording nor the text, and agents never see
+either: they read only what you send. Reading a message aloud needs none of this: the browser speaks
+on your device.
 
 **Set up** shows the form:
 
@@ -1001,17 +1036,20 @@ You and your agents can attach files to messages: a screenshot, a log, a report,
 phone. A file belongs to the message that brought it, under its name, for good; editing that message
 carries its files to the new version unless you remove them, and the earlier version keeps them too.
 
-- **Attaching.** **Attach**, the paper clip beside **Send**, opens your device's file picker. On a
-  phone or a tablet it opens a menu instead: **Take a photo** and **Record a video** open the
-  camera, **Photos and videos** your device's photos and videos, and **Other files** documents and
-  text, such as PDFs, office files and archives. A laptop whose screen also takes touch keeps the
-  file picker. Pasting a screenshot or another image into the message box or **Details** attaches
-  it, named by when you pasted it, such as `pasted-20261122-143005.png`; a paste that carries text,
-  as from a spreadsheet, pastes the text. Each file uploads as soon as you add it, one at a time,
-  with its progress in the list above the box. **Remove** takes a file off the message, stopping its
-  upload or removing it from the server; **Retry** sends again one that failed, and **Upload again**
-  one the server no longer holds. **Send** waits until every file has uploaded, and says what it
-  waits on. A message may be files alone. A file you upload and never send is removed a day later.
+- **Attaching.** Wherever you write and send a message, a thread's composer or a new thread's sheet,
+  **Attach**, the paper clip beside **Send**, opens your device's file picker. On a phone or a
+  tablet it opens a menu instead: **Take a photo** and **Record a video** open the camera, **Photos
+  and videos** your device's photos and videos, and **Other files** documents and text, such as
+  PDFs, office files and archives. A laptop whose screen also takes touch keeps the file picker.
+  Pasting a screenshot or another image into the message box or **Details** attaches it, named by
+  when you pasted it, such as `pasted-20261122-143005.png`; a paste that carries text, as from a
+  spreadsheet, pastes the text. Each file uploads as soon as you add it, one at a time, with its
+  progress in the list above the box. **Remove** takes a file off the message, stopping its upload
+  or removing it from the server; **Retry** sends again one that failed, and **Upload again** one
+  the server no longer holds. **Send** waits until every file has uploaded, and says what it waits
+  on. A message may be files alone. A file you upload and never send is removed from the server when
+  you go to another of Agention's pages or close the sheet without sending it; one left by closing
+  or reloading the tab, or whose removal fails, the server removes a day later.
 - **What shows in place.** Each file shows its name, type and size, and **Download**. An image up to
   2 MiB shows at once, and a larger one, such as a phone's photo, behind **Show image**. Video and
   audio play in the page, loading nothing until you play them. Text, code and logs show behind
@@ -1022,17 +1060,20 @@ carries its files to the new version unless you remove them, and the earlier ver
   Media opened in a tab of its own, as from a context menu's **Open video in new tab**, does not
   play there, by design: a file opened on its own runs as nothing of Agention's, without your
   sign-in, so play it in the page or download it.
-- **The thread's files.** **Files** in the thread's head, folded on every visit, lists every file
-  the thread holds, newest first, each with who attached it, when, and a link to its message.
+- **The thread's files.** **Files** in the thread's head, folded on every visit, lists the files the
+  thread's current messages carry, newest first, each with who attached it, when its message was
+  written, and a link to that message. A file that only the earlier version of an edited message
+  carries stays on that version, and leaves the thread's files and their count.
 - **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, with whatever your
   API keys upload, and each agent session, can hold at most 20 files, and 1 GiB, uploaded and not
   yet sent, so a program of yours that uploads files and never sends them can use up your share
-  until they expire a day later; a file you remove before sending stops counting at once, unless you
-  remove it the instant its last bytes leave or the connection fails as you remove it, when it
-  counts until it is removed a day later. The server refuses an upload, saying its disk is too full,
-  unless the disk holding its data directory keeps 1 GiB free beyond the files arriving. An upload
-  has no time limit as long as its bytes keep moving, but stops after 30 seconds without any, so a
-  slow link finishes and a dead one fails.
+  until they expire a day later; a file you remove, or leave unsent by going to another page or
+  closing the sheet, stops counting at once, unless you do so the instant its last bytes leave,
+  before your browser reports them, or the connection fails as you do, when it counts until it is
+  removed a day later. The server refuses an upload, saying its disk is too full, unless the disk
+  holding its data directory keeps 1 GiB free beyond the files arriving. An upload has no time limit
+  as long as its bytes keep moving, but stops after 30 seconds without any, so a slow link finishes
+  and a dead one fails.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.
@@ -1097,7 +1138,8 @@ refused. A key that is mistyped, revoked or expired is refused as `unauthenticat
 an operation outside the key's scopes answers `not_found`, status 404, as if it did not exist.
 `GET /api/operator` lists the versions the server serves. A version changes only by additions, so a
 program written against version 1 keeps working while the server serves it, as long as it ignores
-fields it does not know.
+fields it does not know. Until 1.0, what a field or value means may also change within a version;
+the changelog marks each such change as breaking.
 
 To see every operation, with its scope, parameters and answer, start the server with `--api-docs`:
 it then serves the documentation at `/docs/api/`, and the OpenAPI document that client generators
@@ -1125,8 +1167,9 @@ The first lists your agents with their sessions. The second answers at once with
 session, holding messages you have not read, each naming its agent and session; with none, it waits
 up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
 `wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
-waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
-a rate budget of its own ([Rate budgets](#rate-budgets)).
+waits in a loop hears of each new message once, as soon as it arrives, without polling. A key holds
+at most 4 of these waits at once, so wait again once one answers rather than opening another beside
+it. Each key also has a rate budget of its own ([Rate budgets](#rate-budgets)).
 
 Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
 uploads a file to a session, then names the upload in a message, and a key holding `threads:read`
@@ -1432,6 +1475,11 @@ answered `rate_limited` with a `Retry-After` header.
 
 A key's budget counts every request its session makes, each upload, each file fetched and each read
 a tool makes on the way included: a message of ten files is at least eleven requests.
+
+Apart from these rates, an API key or a browser session holds at most 4 of the waits across sessions
+(`GET /wait`) at once, however fast it starts them: one more is refused as `rate_limited`, with a
+`Retry-After` of a second, and no held wait ends to make room for it. A wait gives its place back as
+it ends, however it ends, and one of `wait=0`, which answers at once, is not counted.
 
 The shared budgets other than registrations are spent only by requests that fail, after they have
 been checked, so exhausting one never refuses a valid agent key, API key, passkey or link; only

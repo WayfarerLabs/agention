@@ -106,11 +106,13 @@ function press(key: string, init: KeyboardEventInit = {}): void {
   fireEvent.keyDown(document.activeElement ?? document.body, { key, ...init });
 }
 
+// landedOn waits for the page to open thread number, focus on its heading.
 async function landedOn(number: number) {
   await waitFor(() => expect(window.location.pathname).toBe(threadPath(number)));
   await waitFor(() =>
     expect(titleOf(screen.getByRole("heading", { level: 1 }))).toBe(`Thread ${number}`),
   );
+  expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
 }
 
 // The list's polite status, once the page went back to it.

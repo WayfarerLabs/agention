@@ -5,6 +5,7 @@ import { changeLanded } from "../api.ts";
 import { leaveNotice } from "../notice.ts";
 import {
   FakeApi,
+  failure,
   message,
   renderAt,
   threadAnswer,
@@ -49,7 +50,7 @@ afterEach(() => {
   expect(api.unhandled).toEqual([]);
 });
 
-const rows = [
+const rows: [ThreadSummary, ThreadSummary, ThreadSummary] = [
   threadSummary({ number: 1, title: "First", unread: 0 }),
   threadSummary({ number: 2, title: "Second", unread: 0 }),
   threadSummary({ number: 3, title: "Third", unread: 1 }),
@@ -76,9 +77,6 @@ const threadPane = () => screen.getByRole("region", { name: "Thread" });
 const rowLink = (title: string) =>
   within(listPane()).getByRole<HTMLAnchorElement>("link", { name: new RegExp(`^#\\d+ ${title}`) });
 const threadHeading = () => within(threadPane()).getByRole("heading", { level: 1 });
-// Whether focus is in the thread's pane: on its heading, or on the pane while
-// the thread loads, as a page's content takes it on a phone.
-const focusInThread = () => threadPane().contains(document.activeElement);
 // Whether the thread's pane holds its word on opening one, with none open.
 const noThread = () => threadPane().querySelector(".empty") !== null;
 
@@ -88,6 +86,18 @@ const listLoads = () => api.callsTo("GET", "/threads");
 // press presses a key where focus is, as the keyboard does.
 function press(key: string): void {
   fireEvent.keyDown(document.activeElement ?? document.body, { key });
+}
+
+// holdThread holds the answer to a thread's page until released, as a slow
+// connection does.
+function holdThread(thread: ThreadSummary): () => void {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  api.on("GET", threadPath(thread.number), async () => {
+    await held;
+    return { body: threadAnswer(thread, [message(1, { text: `In ${thread.title}` })]) };
+  });
+  return () => release();
 }
 
 async function openList() {
@@ -125,7 +135,7 @@ describe("side by side", () => {
     expect(listLoads()).toHaveLength(loads);
   });
 
-  it("opens the thread below beside the list, which stays mounted, its row current, focus in the thread's pane", async () => {
+  it("opens the thread below beside the list, which stays mounted, its row current, focus on the thread's heading", async () => {
     await openList();
     const list = listPane().querySelector("ul.threads");
     await openFromList("First");
@@ -136,9 +146,8 @@ describe("side by side", () => {
     expect(listPane().querySelector("ul.threads")).toBe(list);
     expect(rowLink("Second").getAttribute("aria-current")).toBe("page");
     expect(rowLink("First").getAttribute("aria-current")).toBeNull();
-    // As on opening a thread from the list, focus lands on the pane while
-    // the thread loads.
-    expect(focusInThread()).toBe(true);
+    // As on opening a thread from the list.
+    expect(document.activeElement).toBe(threadHeading());
   });
 
   it("has one level-one heading, the list's while no thread is open and the thread's while one is", async () => {
@@ -160,13 +169,49 @@ describe("side by side", () => {
     expect(rowLink("Second").getAttribute("aria-current")).toBeNull();
   });
 
-  it("moves focus to the thread's pane on opening it, the list first in the page", async () => {
+  it("moves focus to the thread's heading on opening it, the list first in the page", async () => {
     await openList();
     await openFromList("Second");
-    expect(focusInThread()).toBe(true);
+    expect(document.activeElement).toBe(threadHeading());
     expect(
       listPane().compareDocumentPosition(threadPane()) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("lands on the thread's pane while the thread loads, and on its heading once it shows", async () => {
+    await openList();
+    const release = holdThread(rows[1]);
+    fireEvent.click(rowLink("Second"));
+    await waitFor(() => expect(window.location.pathname).toBe(threadPath(2)));
+    expect(document.activeElement).toBe(threadPane());
+    release();
+    await waitFor(() => expect(titleOf(threadHeading())).toBe("Second"));
+    expect(document.activeElement).toBe(threadHeading());
+  });
+
+  it("leaves focus where the operator put it while the thread loaded", async () => {
+    await openList();
+    const release = holdThread(rows[1]);
+    fireEvent.click(rowLink("Second"));
+    await waitFor(() => expect(document.activeElement).toBe(threadPane()));
+    rowLink("Third").focus();
+    release();
+    await waitFor(() => expect(titleOf(threadHeading())).toBe("Second"));
+    expect(document.activeElement).toBe(rowLink("Third"));
+  });
+
+  it("lands on the thread's heading once a load that failed is tried again from its pane", async () => {
+    await openList();
+    api.on("GET", threadPath(2), failure("internal", "the thread broke"));
+    fireEvent.click(rowLink("Second"));
+    const again = await within(threadPane()).findByRole("button", { name: "Try again" });
+    again.focus();
+    api.on("GET", threadPath(2), {
+      body: threadAnswer(rows[1], [message(1, { text: "In Second" })]),
+    });
+    fireEvent.click(again);
+    await waitFor(() => expect(titleOf(threadHeading())).toBe("Second"));
+    expect(document.activeElement).toBe(threadHeading());
   });
 
   it("returns to the list with u, Escape and Back, focus on the row of the thread left", async () => {
@@ -195,7 +240,7 @@ describe("side by side", () => {
     window.history.back();
     await waitFor(() => expect(titleOf(threadHeading())).toBe("First"));
     expect(window.location.pathname).toBe(threadPath(1));
-    expect(focusInThread()).toBe(true);
+    expect(document.activeElement).toBe(threadHeading());
   });
 
   it("moves through the list with j and k from the open thread's row, opening nothing", async () => {
@@ -211,15 +256,15 @@ describe("side by side", () => {
     await waitFor(() => expect(titleOf(threadHeading())).toBe("First"));
   });
 
-  it("moves focus to the thread's pane on opening the thread already open, by o or by its row", async () => {
+  it("moves focus to the thread's heading on opening the thread already open, by o or by its row", async () => {
     await openList();
     await openFromList("Second");
     rowLink("Second").focus();
     press("o");
-    expect(focusInThread()).toBe(true);
+    expect(document.activeElement).toBe(threadHeading());
     rowLink("Second").focus();
     fireEvent.click(rowLink("Second"));
-    expect(focusInThread()).toBe(true);
+    expect(document.activeElement).toBe(threadHeading());
     expect(window.location.pathname).toBe(threadPath(2));
   });
 
@@ -239,7 +284,7 @@ describe("side by side", () => {
     await openFromList("First");
     // In the thread, n jumps within it, which has nothing unread.
     press("n");
-    expect(focusInThread()).toBe(true);
+    expect(document.activeElement).toBe(threadHeading());
     // In the list, it moves to the next row that needs the operator.
     rowLink("First").focus();
     press("n");
@@ -478,7 +523,52 @@ describe("one at a time, below a desktop's width", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
   });
 
-  it("opens the thread above alone, focus on the page's content", async () => {
+  it("opens a thread alone, focus on the page's content while it loads and on its heading once it shows", async () => {
+    wide = false;
+    serve();
+    renderAt("/");
+    await screen.findByRole("heading", { level: 2, name: /First/ });
+    const release = holdThread(rows[1]);
+    fireEvent.click(screen.getByRole("link", { name: /^#2 Second/ }));
+    await waitFor(() => expect(window.location.pathname).toBe(threadPath(2)));
+    expect(document.activeElement).toBe(screen.getByRole("main"));
+    release();
+    await waitFor(() => expect(titleOf(screen.getByRole("heading", { level: 1 }))).toBe("Second"));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
+  });
+
+  it("leaves focus where the operator put it while a thread alone loaded", async () => {
+    wide = false;
+    serve();
+    renderAt("/");
+    await screen.findByRole("heading", { level: 2, name: /First/ });
+    const release = holdThread(rows[1]);
+    fireEvent.click(screen.getByRole("link", { name: /^#2 Second/ }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("main")));
+    const brand = screen.getByRole("link", { name: "Agention" });
+    brand.focus();
+    release();
+    await waitFor(() => expect(titleOf(screen.getByRole("heading", { level: 1 }))).toBe("Second"));
+    expect(document.activeElement).toBe(brand);
+  });
+
+  it("leaves focus on a list control chosen once the window widened while a thread loaded", async () => {
+    wide = false;
+    serve();
+    renderAt("/");
+    await screen.findByRole("heading", { level: 2, name: /First/ });
+    const release = holdThread(rows[1]);
+    fireEvent.click(screen.getByRole("link", { name: /^#2 Second/ }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("main")));
+    resize(true);
+    const row = await screen.findByRole("link", { name: /^#3 Third/ });
+    row.focus();
+    release();
+    await waitFor(() => expect(titleOf(screen.getByRole("heading", { level: 1 }))).toBe("Second"));
+    expect(document.activeElement).toBe(row);
+  });
+
+  it("opens the thread above alone, focus on its heading", async () => {
     wide = false;
     serve();
     renderAt(threadPath(2));
@@ -487,9 +577,8 @@ describe("one at a time, below a desktop's width", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thread above" }));
     await waitFor(() => expect(titleOf(screen.getByRole("heading", { level: 1 }))).toBe("First"));
     expect(screen.queryByRole("region", { name: "Thread list" })).toBeNull();
-    // As on opening a thread from the list, focus lands on the page's
-    // content while the thread loads.
-    expect(document.activeElement).toBe(screen.getByRole("main"));
+    // As on opening a thread from the list.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
   });
 
   it("leaves focus where it was when the row that has it goes, as before", async () => {

@@ -19,7 +19,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { query, request, threadPath } from "../../api.ts";
+import { describeFailure, query, request, threadPath } from "../../api.ts";
+import { useDraftFiles } from "../../attach/attach.ts";
 import {
   Loadable,
   PageHeading,
@@ -50,11 +51,11 @@ import { Icon, Mark } from "../../icons.tsx";
 import { useShortcuts } from "../../keyboard.tsx";
 import { takeNotice } from "../../notice.ts";
 import { Link, listHref, navigate, threadPathParts, useListView } from "../../router.tsx";
+import { useVoiceOn } from "../../voice/Dictation.tsx";
 import { Composer, useAfterSending } from "./Composer.tsx";
-import { useDraftFiles } from "./files/attach.ts";
 import { ThreadFiles } from "./files/FileList.tsx";
 import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
-import { failedWords, returnToList, useLeaving } from "./leaving.ts";
+import { returnToList, useLeaving } from "./leaving.ts";
 import {
   blank,
   type Staged,
@@ -125,10 +126,10 @@ function useThread(target: ThreadTarget) {
   // The latest message the operator has seen outside the log, which a load
   // shows only once it finishes.
   const [reached, setReached] = useState(0);
-  const resource = useResource<LoadedThread>(async () => {
+  const resource = useResource<LoadedThread>(async (signal) => {
     if (span.current === undefined) {
       span.current = openingSpan(
-        await request<ThreadGetResult>("GET", `${path}${query({ limit: 1 })}`),
+        await request<ThreadGetResult>("GET", `${path}${query({ limit: 1 })}`, { signal }),
       );
     }
     const { start, end } = span.current;
@@ -138,7 +139,9 @@ function useThread(target: ThreadTarget) {
     let answer: ThreadGetResult;
     do {
       const limit = Math.min(requestLimit, through - after);
-      answer = await request<ThreadGetResult>("GET", `${path}${query({ after, limit })}`);
+      answer = await request<ThreadGetResult>("GET", `${path}${query({ after, limit })}`, {
+        signal,
+      });
       messages.push(...answer.messages);
       after = messages.at(-1)?.seq ?? after;
     } while (answer.messages.length > 0 && after < Math.min(through, answer.thread.last_seq));
@@ -383,6 +386,11 @@ function ThreadPage({
     restored !== undefined && !blank(restored.detail),
   );
   const [staged, setStaged] = useState<Staged | undefined>(undefined);
+  // The asks whose cards are recording their own words.
+  const [answersRecording, setAnswersRecording] = useState<ReadonlySet<number>>(new Set());
+  const voiceOn = useVoiceOn();
+  // How many drafts have ended, sent or discarded, which the composer counts.
+  const draftsEnded = useRef(0);
   const files = useDraftFiles(target);
   // Kept files belong to the replacement staged, which loaded them, so they
   // go once none is staged: removed, sent, or dropped by what landed since.
@@ -452,12 +460,12 @@ function ThreadPage({
     unread,
     marking: markedFrom !== undefined,
     clearMarking: () => setMarkedFrom(undefined),
-    leaveWith,
+    archiveAndLeave: (through, onward) => leaveWith(archive, "/archive", { through }, onward),
     stillOpen,
     sendPending: writer.pending,
     after,
   });
-  const { busy, archiveAll, openNeighbor, onwardFailure } = ways;
+  const { busy, archiveAll, openNeighbor, onwardFailure: failedOnward } = ways;
   const leaving = busy || reading.pending;
   // Archiving through a message stays on the page, where the messages
   // archived fold away, and focus moves to the fold.
@@ -660,7 +668,8 @@ function ThreadPage({
           labels,
           answer: {
             picks: answer.picks ?? [],
-            other: labels.length > 0 && answer.text !== undefined,
+            // Words beside picks are notes; without them, they are Other's.
+            other: labels.length > 0 && answer.picks === undefined && answer.text !== undefined,
             words: answer.text ?? "",
             declined: answer.declined,
           },
@@ -727,6 +736,22 @@ function ThreadPage({
         staged !== undefined && staged === sentStaged
           ? wordsFailure(writer.failure, staged, ask)
           : undefined,
+      voiceOn,
+      writing: writer.pending,
+      draftsEnded: () => draftsEnded.current,
+      recording: (ask, active) =>
+        setAnswersRecording((current) => {
+          if (current.has(ask) === active) {
+            return current;
+          }
+          const next = new Set(current);
+          if (active) {
+            next.add(ask);
+          } else {
+            next.delete(ask);
+          }
+          return next;
+        }),
       changeAnswers: (message) => void changeAnswers(message),
       edit: (message) => replace(message, { kind: "edit", replaces: message.seq }),
       markUnread: (message) => {
@@ -812,7 +837,7 @@ function ThreadPage({
               className="secondary"
               disabled={!canArchiveAll}
               aria-describedby={openCount > 0 ? archiveAllHint : undefined}
-              onClick={() => archiveAll()}
+              onClick={archiveAll}
             >
               Archive all
             </button>
@@ -851,11 +876,7 @@ function ThreadPage({
             </button>
           </div>
         )}
-        {onwardFailure !== undefined && (
-          <div className="notice danger" role="alert">
-            <p>{onwardFailure}</p>
-          </div>
-        )}
+        {failedOnward !== undefined && <HeadFailure {...failedOnward} />}
         <HeadFailure action="Reading this thread" failure={reading.failure} />
       </header>
 
@@ -912,7 +933,7 @@ function ThreadPage({
         setAfter={setAfter}
         onward={ways.sentOnward}
         moving={ways.moving}
-        onwardFailure={onwardFailure}
+        onwardFailure={failedOnward && failedWords(failedOnward.action, failedOnward.failure)}
         shown={shown}
         text={text}
         setText={setText}
@@ -928,6 +949,9 @@ function ThreadPage({
         files={files}
         restored={restored}
         box={composerBox}
+        recordingAnswer={answersRecording.size > 0}
+        voiceOn={voiceOn}
+        draftsEnded={draftsEnded}
       />
       <div className="thread-foot">
         <BackToThreads origin={origin} />
@@ -965,6 +989,10 @@ function Stranded({ thread }: { thread: ThreadSummary }) {
     </p>
   );
 }
+
+// failedWords says which action on the thread failed, and why.
+const failedWords = (action: string, failure: unknown) =>
+  `${action} failed: ${describeFailure(failure)}`;
 
 // HeadFailure says which action on the thread failed, and why.
 function HeadFailure({ action, failure }: { action: string; failure: unknown }) {

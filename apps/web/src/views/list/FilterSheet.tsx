@@ -29,6 +29,7 @@ import { Icon } from "../../icons.tsx";
 import { Swatch, usePalette } from "../../organizing.tsx";
 import { impactShown, priorityAtLeast } from "./Chips.tsx";
 import { groupNamed, removedGroup, sessionOf, topicShown } from "./listing.ts";
+import { SearchBox, type SearchText } from "./search.tsx";
 
 // The filter sheet holds every filter, in a modal dialog: a sheet from the
 // bottom on a phone, a panel on a wide screen. The list behind it follows
@@ -272,20 +273,11 @@ function MultiSelect({
 
 const anyLabel = plain("Any");
 
-// The search box's text, and why it cannot search when the API would refuse
-// it.
-export interface SearchText {
-  text: string;
-  problem: string | undefined;
-  type: (text: string) => void;
-}
-
 // FilterSheet's dialog closes by its button or Escape, which returns focus to
 // the button that opened it; a popup open within it closes first.
 export function FilterSheet({
   sheet,
   heading,
-  searchBox,
   opener,
   view,
   search,
@@ -298,7 +290,6 @@ export function FilterSheet({
 }: {
   sheet: RefObject<HTMLDialogElement | null>;
   heading: RefObject<HTMLHeadingElement | null>;
-  searchBox: RefObject<HTMLInputElement | null>;
   opener: RefObject<HTMLButtonElement | null>;
   view: ThreadsView;
   search: SearchText;
@@ -395,22 +386,9 @@ export function FilterSheet({
         <h2 id={`${id}-title`} ref={heading} tabIndex={-1}>
           Filters
         </h2>
+        {/* The same search as the box at the top of the list's head. */}
         <label htmlFor={`${id}-search`}>Search</label>
-        <input
-          ref={searchBox}
-          id={`${id}-search`}
-          type="search"
-          maxLength={200}
-          value={search.text}
-          aria-invalid={search.problem === undefined ? undefined : true}
-          aria-describedby={search.problem === undefined ? undefined : `${id}-search-error`}
-          onChange={(event) => search.type(event.target.value)}
-        />
-        {search.problem !== undefined && (
-          <p id={`${id}-search-error`} className="field-error">
-            {search.problem}
-          </p>
-        )}
+        <SearchBox search={search} id={`${id}-search`} />
         {/* Open whenever a property of open asks narrows the list, which
             keeps only open threads; choosing another status turns those off,
             and choosing a property under another status chooses Open. */}

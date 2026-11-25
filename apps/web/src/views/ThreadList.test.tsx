@@ -56,6 +56,10 @@ const lastQuery = () => api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
 const address = () => window.location.search;
 
 const filtersButton = () => screen.getByRole("button", { name: /^Filters/ });
+// The search box at the top of the list's head, and the sheet's.
+const searchBox = () => screen.getByRole<HTMLInputElement>("searchbox", { name: "Search threads" });
+const sheetSearch = () =>
+  within(sheet()).getByRole<HTMLInputElement>("searchbox", { hidden: true, name: "Search" });
 const groupSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Group" });
 const sortSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Sort" });
 // The button reversing the order, found by the words it shows, which start
@@ -347,13 +351,14 @@ describe("the thread list", () => {
     expect(api.callsTo("GET", "/threads/counts")).toEqual([]);
   });
 
-  it("heads the list with the order and its direction, the grouping and the Filters button, after its heading", async () => {
+  it("heads the list with the search box, the order and its direction, the grouping and the Filters button, after its heading", async () => {
     serve([]);
     renderAt("/");
     const heading = await screen.findByRole("heading", { level: 1 });
     const head = filtersButton().parentElement as HTMLElement;
-    const controls = Array.from(head.querySelectorAll("h1, select, button"));
+    const controls = Array.from(head.querySelectorAll("h1, input, select, button"));
     expect(controls).toEqual([
+      searchBox(),
       sortSelect(),
       directionButton("Most pressing first"),
       groupSelect(),
@@ -368,6 +373,7 @@ describe("the thread list", () => {
       "",
       "session_group",
       "session",
+      "topic",
       "agent",
     ]);
     expect(groupSelect().value).toBe("");
@@ -668,6 +674,9 @@ function serveCounts() {
 
 const countCalls = () => api.callsTo("GET", "/threads/counts");
 
+// pause waits past the pause after typing, so a pending search would apply.
+const pause = () => new Promise((resolve) => setTimeout(resolve, 600));
+
 describe("the filter sheet", () => {
   it("opens as a modal dialog of labelled groups, and returns focus to Filters on closing", async () => {
     serve([]);
@@ -867,9 +876,6 @@ describe("the filter sheet", () => {
     expect(groupSelect().value).toBe("session");
   });
 
-  // pause waits past the pause after typing, so a pending search would apply.
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 600));
-
   it("applies a pending search to the list as it stands, keeping a filter chosen meanwhile", async () => {
     serve([]);
     renderAt("/");
@@ -938,6 +944,74 @@ describe("the filter sheet", () => {
     await pause();
     expect(address()).toBe("");
     expect(box.value).toBe("");
+  });
+});
+
+describe("the search boxes", () => {
+  it("the head's box and the sheet's are one search", async () => {
+    serve([]);
+    renderAt("/?unread=true");
+    await screen.findByRole("heading", { level: 1 });
+    expect(searchBox().type).toBe("search");
+    // Typing in either shows in the other, and applies once typing pauses.
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    expect(sheetSearch().value).toBe("release");
+    await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
+    const open = await openSheet();
+    fireEvent.change(sheetSearch(), { target: { value: "notes" } });
+    expect(searchBox().value).toBe("notes");
+    await waitFor(() => expect(address()).toBe("?search=notes&unread=true"));
+    // Text the API would refuse marks both.
+    fireEvent.change(sheetSearch(), { target: { value: "no\u200btes" } });
+    for (const box of [searchBox(), sheetSearch()]) {
+      expect(box.getAttribute("aria-invalid")).toBe("true");
+      const error = document.getElementById(box.getAttribute("aria-describedby") ?? "");
+      expect(error?.classList.contains("field-error")).toBe(true);
+    }
+    // The chip clears both, and so does Reset filters.
+    fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Search/ }));
+    await waitFor(() => expect(address()).toBe("?unread=true"));
+    expect([searchBox().value, sheetSearch().value]).toEqual(["", ""]);
+    fireEvent.change(sheetSearch(), { target: { value: "release" } });
+    await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
+    fireEvent.click(within(open).getByRole("button", { name: /^Reset filters/ }));
+    await waitFor(() => expect(address()).toBe(""));
+    expect([searchBox().value, sheetSearch().value]).toEqual(["", ""]);
+  });
+
+  it("applies on Enter at once, in either box, but not text the API would refuse", async () => {
+    serve([]);
+    renderAt("/");
+    await screen.findByRole("heading", { level: 1 });
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    expect(address()).toBe("?search=release");
+    fireEvent.change(searchBox(), { target: { value: "no\u200btes" } });
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await pause();
+    expect(address()).toBe("?search=release");
+    await openSheet();
+    fireEvent.change(sheetSearch(), { target: { value: "notes" } });
+    fireEvent.keyDown(sheetSearch(), { key: "Enter" });
+    expect(address()).toBe("?search=notes");
+    // Enter leaves the sheet open on its filters.
+    expect(isOpen()).toBe(true);
+  });
+
+  it("searches nothing while an input method composes, and the text it ends with once typing pauses", async () => {
+    serve([]);
+    renderAt("/");
+    await screen.findByRole("heading", { level: 1 });
+    fireEvent.compositionStart(searchBox());
+    fireEvent.input(searchBox(), { target: { value: "にほ" }, isComposing: true });
+    expect(searchBox().value).toBe("にほ");
+    // Enter, which ends a composition, applies nothing during it.
+    fireEvent.keyDown(searchBox(), { key: "Enter", isComposing: true });
+    await pause();
+    expect(address()).toBe("");
+    fireEvent.input(searchBox(), { target: { value: "日本" }, isComposing: true });
+    fireEvent.compositionEnd(searchBox());
+    await waitFor(() => expect(address()).toBe(`?search=${encodeURIComponent("日本")}`));
   });
 });
 

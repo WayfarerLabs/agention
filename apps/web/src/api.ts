@@ -43,6 +43,8 @@ export interface RequestOptions {
   body?: unknown;
   // The session's CSRF token, which every change needs.
   csrf?: string | undefined;
+  // Aborting it ends the request as a network failure.
+  signal?: AbortSignal | undefined;
 }
 
 // The answer is read as an error body only when it has the API's error shape:
@@ -105,6 +107,7 @@ export async function request<T>(
       method,
       headers,
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     },
     options.csrf,
     requestTimeout,
@@ -368,14 +371,15 @@ const agentPage = 100;
 // listSessions reads the agents with their sessions, as the sessions view
 // shows them, at most maxListed agents a page at a time, saying whether it
 // stopped with agents left to read. The view comes whole, as the approval
-// form's choices need it.
-export async function listSessions(): Promise<AgentList> {
+// form's choices need it. Aborting signal stops it before its next page.
+export async function listSessions(signal?: AbortSignal): Promise<AgentList> {
   const agents: Agents = [];
   let cursor: string | undefined;
   for (let page = 0; page < maxListed / agentPage; page++) {
     const answer = await request<SessionsPage>(
       "GET",
       `/sessions${query({ cursor, limit: agentPage })}`,
+      { signal },
     );
     agents.push(...answer.agents);
     cursor = answer.next;

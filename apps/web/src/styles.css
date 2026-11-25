@@ -569,15 +569,26 @@ legend {
 
 /* The thread list */
 
-/* The list's head: the order with its direction, the grouping, then the
-   Filters button at the end of its row, in one row that wraps, rather than
-   squeezing them, where the width does not hold them all. */
+/* The list's head: the search box across its top, then the order with its
+   direction, the grouping, and the Filters button at the end of their row,
+   which wraps, rather than squeezing them, where the width does not hold
+   them all. The search box takes the head's whole width at every width, so
+   it keeps its room beside a thread as on a phone. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
+}
+
+.list-search {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.list-search .field-error {
+  margin-bottom: 0;
 }
 
 /* A part of where a thread is, its agent, session or topic, is marked by a
@@ -758,6 +769,17 @@ button.chip {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border);
+}
+
+/* Tools a sheet's foot holds before its buttons, such as the new-thread
+   sheet's Attach and Dictate, which take the room left, so the buttons stay
+   together at the end. */
+.sheet-tools {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 @media (min-width: 40rem) {
@@ -1660,7 +1682,23 @@ button.detail-fold[aria-expanded="false"] > .icon {
   z-index: var(--layer-menu);
 }
 
-button.options-button {
+/* A message's own controls, at the end of its head: Copy, then its options,
+   drawn out to the card's corner as a lone options button is. */
+.head-controls {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 0;
+}
+
+.head-controls .options {
+  margin: 0;
+}
+
+/* An options button, and a message's Copy beside it: an icon alone, quiet
+   until hovered. */
+button.options-button,
+button.copy-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1672,7 +1710,8 @@ button.options-button {
 }
 
 button.options-button:hover,
-button.options-button[aria-expanded="true"] {
+button.options-button[aria-expanded="true"],
+button.copy-button:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
 }
@@ -1828,8 +1867,16 @@ button.options-button[aria-expanded="true"] {
   margin-top: 0.125rem;
 }
 
-.other-words {
-  margin: 0 0 var(--space-2) calc(1.25rem + var(--space-3));
+/* Notes under an ask's choices, the field while answering and the words
+   under an answer's picks, each under its label. */
+.answer-notes {
+  margin: 0 0 var(--space-2);
+}
+
+.answer-notes > label,
+.answer-notes > .notes-label {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
 }
 
 /* A declined card's line, and the card's own controls under its choices:
@@ -1974,8 +2021,8 @@ audio.file-media {
   margin-top: 0;
 }
 
-/* The composer's files, above its Send row, each with how it stands and
-   Remove. */
+/* A draft's files, in the composer above its Send row and in the new-thread
+   sheet, each with how it stands and Remove. */
 .attached {
   margin: var(--space-3) 0 0;
 }
@@ -2014,7 +2061,7 @@ audio.file-media {
 
 /* Attach beside Send: its paper clip alone, named for assistive
    technology. */
-.composer button.attach {
+button.attach {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2023,20 +2070,20 @@ audio.file-media {
 }
 
 /* On a phone or a tablet, Attach discloses a menu of where files come from,
-   which opens above it, since the Send row stays at the foot of the screen,
-   each item an icon and its words. */
-.composer .actions > .options {
+   which opens above it, since the row it sits in stays at the foot of the
+   screen or of the sheet, each item an icon and its words. */
+.options:has(> button.attach) {
   margin: 0;
 }
 
-.composer .actions > .options .options-menu {
+.options:has(> button.attach) .options-menu {
   top: auto;
   right: auto;
   bottom: calc(100% + var(--space-1));
   left: 0;
 }
 
-.composer .actions > .options .options-menu button {
+.options:has(> button.attach) .options-menu button {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -3047,8 +3094,8 @@ textarea.secret {
   background: var(--color-surface-2);
 }
 
-/* Dictation: the microphone beside Send, and while it records, how long it
-   has recorded against its limit. */
+/* Dictation: the microphone beside Send, or under an ask's own-words field,
+   and while it records, how long it has recorded against its limit. */
 .dictation {
   display: flex;
   flex-wrap: wrap;
@@ -3058,6 +3105,15 @@ textarea.secret {
 
 .dictation > p {
   margin: 0;
+}
+
+.own-words-dictation {
+  margin-top: var(--space-2);
+}
+
+.own-words-dictation > .notice,
+.own-words-dictation > .field-error {
+  margin: 0 0 var(--space-2);
 }
 
 .dictation > button {
@@ -3073,14 +3129,12 @@ textarea.secret {
   font-variant-numeric: tabular-nums;
 }
 
-/* In the composer's row beside Send, the microphone is its icon alone on a
-   phone, the recording's time drops its "Recording", and a failure drops its
-   "Failed", which the notice above says, so the row stays short; the words
-   stay for assistive technology. */
+/* In the composer's row beside Send, and the new-thread sheet's foot, the
+   microphone is its icon alone on a phone, the recording's time drops its
+   "Recording", and a failure drops its "Failed", which the notice says, so
+   the row stays short; the words stay for assistive technology. */
 @media (max-width: 40rem) {
-  .composer .dictate-label,
-  .composer .recording-word,
-  .composer .dictation-failed {
+  :is(.composer, .sheet-foot) :is(.dictate-label, .recording-word, .dictation-failed) {
     position: absolute;
     width: 1px;
     height: 1px;

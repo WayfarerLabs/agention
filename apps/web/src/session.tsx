@@ -31,6 +31,18 @@ export interface Session {
   recheck(): void;
   // Reads the session again after it could not be reached.
   retry(): void;
+  // Holds the page's own asking from the moment the operator starts ending
+  // the session, by signing out or by removing the passkey that signed this
+  // browser in, and returns the release for an ending that failed or did not
+  // sign the browser out. The signed-out page releases every hold.
+  signingOut(): () => void;
+  // Aborted while any ending holds the page's asking, and renewed once none
+  // does. While it is aborted the page asks nothing that needs the session on
+  // its own, as its polls and refreshes do, since the server may sign the
+  // browser out before anything sent meanwhile arrives, which it would
+  // refuse; a load under way that asks again, such as for its next page,
+  // stops before it does.
+  askSignal(): AbortSignal;
 }
 
 const SessionContext = createContext<Session | undefined>(undefined);
@@ -46,6 +58,24 @@ export function useSession(): Session {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SessionStatus>({ status: "loading" });
   const checking = useRef<Promise<void> | undefined>(undefined);
+  // The endings under way, each held until it is released, and the signal
+  // they abort, replaced once none is held.
+  const holds = useRef(new Set<object>());
+  const asking = useRef(new AbortController());
+  const releaseAll = useCallback(() => {
+    holds.current.clear();
+    if (asking.current.signal.aborted) {
+      asking.current = new AbortController();
+    }
+  }, []);
+  const signedOut = status.status === "ready" && !status.state.signed_in;
+  // Signed out, the page holds nothing that asks on its own, and signing in
+  // again starts afresh.
+  useEffect(() => {
+    if (signedOut) {
+      releaseAll();
+    }
+  }, [signedOut, releaseAll]);
 
   // Several views can be told at once that the session ended; they share one
   // check. A recheck that cannot reach the server keeps the state it knew.
@@ -65,6 +95,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(check, [check]);
 
+  // Kept the same across renders, so what depends on them does not reload as
+  // the status changes.
+  const signingOut = useCallback(() => {
+    const hold = {};
+    holds.current.add(hold);
+    asking.current.abort();
+    return () => {
+      holds.current.delete(hold);
+      if (holds.current.size === 0) {
+        releaseAll();
+      }
+    };
+  }, [releaseAll]);
+  const askSignal = useCallback(() => asking.current.signal, []);
+
   const session = useMemo<Session>(
     () => ({
       status,
@@ -76,8 +121,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setStatus({ status: "loading" });
         check();
       },
+      signingOut,
+      askSignal,
     }),
-    [status, check],
+    [status, check, signingOut, askSignal],
   );
   return <SessionContext.Provider value={session}>{children}</SessionContext.Provider>;
 }

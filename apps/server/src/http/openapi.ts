@@ -60,7 +60,8 @@ const mounts: readonly Mount[] = [
       "with an API key the operator created in Settings. Each operation requires one scope, " +
       "which the key must hold; an operation whose scope the key lacks answers not_found. " +
       "A version changes only additively, with new operations, new optional request fields " +
-      "and new response fields, so a client ignores response fields it does not know.",
+      "and new response fields, so a client ignores response fields it does not know. Until 1.0, " +
+      "what a field or value means may also change within a version, marked breaking in the changelog.",
     prefix: operatorApiPrefix,
     security: "apiKey",
     versionHeader: false,
@@ -188,6 +189,7 @@ function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaratio
   return {
     operationId: `${mount.tag}${name}`,
     summary: declaration.summary,
+    ...(declaration.description === undefined ? {} : { description: declaration.description }),
     tags: [mount.tag],
     security: mount.security === undefined ? [] : [{ [mount.security]: scopes }],
     ...(parameters.length === 0 ? {} : { parameters }),
