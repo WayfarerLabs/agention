@@ -521,9 +521,13 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // withdrawal, the first of its message's; credential_active says whether its
 // session still has an approved credential. Its audience also sees its
 // session's presence, with its state and what its bridge last reported of
-// its terminal, and whether it is stranded: it holds a live message by the
-// audience that the session has not read while the session is quiet, has no
-// active credential, is not connected or has stopped.
+// its terminal and its latest nudge, and whether it is stranded: it holds a
+// live message by the audience that the session has not read, and nothing
+// will bring it to the session soon. So, while the session has no active
+// credential or is not connected; while it cannot be nudged and is quiet or
+// has stopped; and while it can be nudged, once the latest nudge since that
+// message was not sent, or was sent with no check-in within the quiet time,
+// or none was sent within it.
 export const threadSummary = z.object({
   agent: name,
   session: name,

@@ -125,11 +125,19 @@ export function connectedOf(sessions: string): string {
 // withdraws: open while any is open; otherwise withdrawn when every one is
 // withdrawn, answered when there are any, and none when there are none)
 // with, while withdrawn, the latest live withdrawal, the first of its
-// message's, its session's presence, its bridge's latest report and the state
-// and outcome it last reported, whether the other party has not read a live message of the
-// viewer's, and whether the thread is stranded: so, while the session is
-// quiet, has no active credential, is not connected or has stopped; and the
-// operator's group for its session, which only the operator's list shows.
+// message's, its session's presence, its bridge's latest report, its latest
+// nudge and the state and outcome it last reported, whether the other party
+// has not read a live message of the viewer's, with when the earliest of
+// those was written, and whether the thread is stranded, so that nothing
+// will bring such a message to the other party soon. That holds while the
+// session has no active credential or is not connected; while it cannot be
+// nudged, which takes a connected bridge whose report says it can, and it is
+// quiet or has stopped; and while it can be, once the latest nudge since the
+// earliest such message was not sent, or was sent before the quiet cut-off
+// with no check-in since, or, with none tried since, that message was
+// written before the quiet cut-off. Last comes the operator's group for its
+// session, which only the operator's list shows.
+//
 // scope reads the threads as t, their sessions as s and their agents as g.
 // Callers bind a ViewerAndCutoff and whatever lead's conditions name, and
 // select from seen.
@@ -151,7 +159,8 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         s.last_seen_at,
         ${quietOf("s")} AS quiet,
         ${connectedOf("s")} AS connected,
-        mr.monitored, mr.profile, mr.condition, mr.since, mr.stopped_by, mr.resets_at,
+        mr.monitored, mr.profile, mr.condition, mr.since, mr.stopped_by, mr.resets_at, mr.nudge,
+        s.nudged_at, s.nudge_sent,
         reported.state AS session_state, reported.outcome AS session_outcome,
         member.group_id, grouped.name AS group_name
       FROM threads t
@@ -245,27 +254,39 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           WHEN rolled.withdrawn_count = rolled.rolled_count THEN 'withdrawn'
           ELSE 'answered'
         END AS status,
-        EXISTS (
-          SELECT 1 FROM live_messages l
+        (
+          SELECT min(l.created_at) FROM live_messages l
           WHERE l.thread_id = base.id AND l.actor_id = :viewer AND l.seq > COALESCE((
             SELECT m.read_seq FROM thread_marks m
             WHERE m.actor_id = base.other_actor_id AND m.thread_id = base.id
           ), 0)
-        ) AS unread_by_other
+        ) AS unread_by_other_since
       FROM base
       LEFT JOIN open_summary r ON r.thread_id = base.id
       LEFT JOIN rolled_asks rolled ON rolled.thread_id = base.id
     ),
     seen AS (
       SELECT joined.*,
+        joined.unread_by_other_since IS NOT NULL AS unread_by_other,
         IIF(joined.status = 'withdrawn', (
           SELECT json_object('ask', w.ask, 'seq', w.seq, 'reason', w.reason) FROM withdrawals w
           JOIN live_messages lw ON lw.thread_id = w.thread_id AND lw.seq = w.seq
           WHERE w.thread_id = joined.id ORDER BY w.seq DESC, w.ask LIMIT 1
         ), NULL) AS latest_withdrawal,
-        joined.unread_by_other AND (
-          joined.quiet OR NOT joined.credential_active OR joined.connected IS 0
-            OR joined.session_state IS 'stopped'
+        joined.unread_by_other_since IS NOT NULL AND (
+          NOT joined.credential_active OR joined.connected IS 0
+          OR IIF(
+            joined.connected IS 1 AND joined.nudge IS 1,
+            IIF(
+              joined.nudged_at >= joined.unread_by_other_since,
+              joined.nudge_sent = 0 OR (
+                COALESCE(joined.last_seen_at >= joined.nudged_at, 0) = 0
+                AND joined.nudged_at < :quiet_before
+              ),
+              joined.unread_by_other_since < :quiet_before
+            ),
+            joined.quiet OR joined.session_state IS 'stopped'
+          )
         ) AS stranded
       FROM joined
     )`;
@@ -292,6 +313,7 @@ export interface ThreadRow extends PresenceRow {
   group_id: number | null;
   group_name: string | null;
   unread_by_other: number;
+  unread_by_other_since: number | null;
   status: ThreadStatus;
   unread: number;
   message_count: number;

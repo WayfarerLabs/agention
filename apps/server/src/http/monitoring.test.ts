@@ -1,4 +1,5 @@
 import {
+  agentApi,
   agentApiHeader,
   type ErrorBody,
   formatTimestamp,
@@ -96,7 +97,7 @@ const atPrompt = {
 
 describe("check-ins and background requests", () => {
   it("stamp the background time on every background request, and never a check-in", async () => {
-    expect((await poll(first)).body).toEqual({ replaced: false });
+    expect((await poll(first)).body).toEqual({ replaced: false, nudge: false });
     expect(stamps()).toEqual({
       last_seen_at: null,
       last_seen_version: null,
@@ -170,6 +171,10 @@ describe("check-ins and background requests", () => {
   });
 });
 
+// The report as the operator sees it, from a bridge that does not say whether
+// the session can be nudged.
+const shownAtPrompt = { ...atPrompt, nudge: false };
+
 describe("one bridge acting for a session", () => {
   // polling waits until the session's one poll is waiting.
   async function polling(): Promise<void> {
@@ -188,19 +193,22 @@ describe("one bridge acting for a session", () => {
     await polling();
     const controller = new AbortController();
     const taking = poll(second, "claim=true&wait=25", controller.signal);
-    expect((await pending).body).toEqual({ replaced: true });
+    expect((await pending).body).toEqual({ replaced: true, nudge: false });
     expect((await report(first, atPrompt)).body).toEqual({ replaced: true });
-    expect((await poll(first)).body).toEqual({ replaced: true });
+    expect((await poll(first)).body).toEqual({ replaced: true, nudge: false });
     expect((await report(second, atPrompt)).body).toEqual({ replaced: false });
     controller.abort();
-    expect((await taking).body).toEqual({ replaced: false });
+    expect((await taking).body).toEqual({ replaced: false, nudge: false });
     // A replaced bridge acts again once it claims the session, which deletes
     // the report of the bridge it took the session from.
-    expect((await poll(first, "claim=true&wait=0")).body).toEqual({ replaced: false });
+    expect((await poll(first, "claim=true&wait=0")).body).toEqual({
+      replaced: false,
+      nudge: false,
+    });
     expect((await report(second, { monitored: false })).body).toEqual({ replaced: true });
     expect(await presence()).not.toHaveProperty("monitor");
     expect((await report(first, atPrompt)).body).toEqual({ replaced: false });
-    expect((await presence())?.monitor).toEqual(atPrompt);
+    expect((await presence())?.monitor).toEqual(shownAtPrompt);
   });
 });
 
@@ -215,7 +223,7 @@ describe("what the operator sees", () => {
       last_seen_at: formatTimestamp(harness.fixture.now),
       quiet: false,
       connected: true,
-      monitor: atPrompt,
+      monitor: shownAtPrompt,
     });
     harness.fixture.advance(connectedFor + 1);
     expect(await presence()).toEqual({
@@ -250,6 +258,96 @@ describe("what the operator sees", () => {
         expect(text).not.toContain(`"${field}"`);
       }
     }
+  });
+});
+
+describe("the nudge", () => {
+  const nudging = speaking(agentApi.version);
+  const canBeNudged = { ...atPrompt, nudge: true };
+
+  const nudgePoll = () =>
+    harness.agent(
+      approved,
+      "GET",
+      `/s/builder/main/monitor?bridge=${first}&wait=0`,
+      undefined,
+      nudging,
+    );
+  const nudgeReport = (body: unknown) =>
+    harness.agent(
+      approved,
+      "POST",
+      `/s/builder/main/monitor?bridge=${first}&seq=${++sent}`,
+      body,
+      nudging,
+    );
+
+  // The agent checks in and starts a thread; its bridge reports that the
+  // session can be nudged; and the operator writes to it.
+  beforeEach(async () => {
+    await harness.agent(approved, "POST", "/s/builder/main/threads", newThread("r-1"), nudging);
+    await nudgePoll();
+    await nudgeReport(canBeNudged);
+    harness.fixture.advance(1);
+    await harness.web("POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      text: "Over to you.",
+    });
+  });
+
+  it("is due to the bridge, which reports the outcome the operator then sees", async () => {
+    expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: true });
+    const offered = harness.fixture.now;
+    harness.fixture.advance(6_000);
+    const outcome = { ...canBeNudged, last_nudge: { at: formatTimestamp(Date.now()), sent: true } };
+    expect((await nudgeReport(outcome)).body).toEqual({ replaced: false });
+    expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
+    const { secret } = await harness.createKey(["sessions:read", "threads:read"]);
+    const page = (await harness.operator(secret, "GET", "/sessions")).body as SessionsPage;
+    const shown = { at: formatTimestamp(offered), sent: true, answered: false };
+    expect(page.agents[0]?.sessions[0]?.presence).toMatchObject({
+      monitor: { ...shownAtPrompt, nudge: true },
+      last_nudge: shown,
+    });
+    const listed = (await harness.operator(secret, "GET", "/threads")).body as ThreadPage;
+    expect(listed.threads[0]?.presence?.last_nudge).toEqual(shown);
+    // The agent's reply to it shows at once, whatever the minute.
+    await list(agentApi.version);
+    expect((await presence())?.last_nudge).toMatchObject({ answered: true });
+  });
+
+  it("refuses a latest nudge it cannot read, keeping the report before it", async () => {
+    const refused = await nudgeReport({ ...canBeNudged, last_nudge: { at: "now", sent: true } });
+    expect(codeOf(refused)).toBe("invalid_input");
+    expect((await presence())?.monitor).toEqual({ ...shownAtPrompt, nudge: true });
+    expect(await presence()).not.toHaveProperty("last_nudge");
+  });
+
+  it("never reaches the agent, but for the due answer itself", async () => {
+    await nudgePoll();
+    await nudgeReport({ ...canBeNudged, last_nudge: { at: since, sent: false } });
+    const answers: Response[] = [
+      await list(agentApi.version),
+      await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, nudging),
+      await harness.agent(approved, "GET", "/s/builder/main/wait?wait=0", undefined, nudging),
+      await harness.agent(
+        approved,
+        "POST",
+        "/registrations",
+        { agent: "builder", session: "main" },
+        nudging,
+      ),
+      await nudgeReport(canBeNudged),
+    ];
+    for (const answer of answers) {
+      expect(answer.status).toBe(200);
+      const text = JSON.stringify(answer.body);
+      for (const field of ["presence", "nudge", "last_nudge", "answered", "sent", "stranded"]) {
+        expect(text).not.toContain(`"${field}"`);
+      }
+    }
+    expect(Object.keys((await nudgePoll()).body as object).sort()).toEqual(["nudge", "replaced"]);
   });
 });
 
@@ -291,12 +389,12 @@ describe("stranded", () => {
     );
     expect(await thread()).toMatchObject({
       stranded: true,
-      presence: { connected: true, state: "stopped", monitor: atPrompt },
+      presence: { connected: true, state: "stopped", monitor: shownAtPrompt },
     });
     // The operator API's thread reads carry it too.
     const { secret } = await harness.createKey(["threads:read"]);
     const listed = (await harness.operator(secret, "GET", "/threads")).body as ThreadPage;
-    expect(listed.threads[0]?.presence?.monitor).toEqual(atPrompt);
+    expect(listed.threads[0]?.presence?.monitor).toEqual(shownAtPrompt);
     harness.fixture.advance(connectedFor + 1);
     expect(await thread()).toMatchObject({ stranded: true, presence: { connected: false } });
     expect((await thread())?.presence).not.toHaveProperty("monitor");
@@ -347,7 +445,7 @@ describe("the report", () => {
     const refused = await report(first, body);
     expect(codeOf(refused)).toBe("invalid_input");
     expect((refused.body as ErrorBody).error.field).toBeDefined();
-    expect((await presence())?.monitor).toEqual(atPrompt);
+    expect((await presence())?.monitor).toEqual(shownAtPrompt);
   });
 
   it("refuses a bridge id it cannot read", async () => {
@@ -363,6 +461,6 @@ describe("the report", () => {
     const waiting = { monitored: true, profile: "codex", condition: "waiting", since };
     expect((await report(first, waiting, 2)).body).toEqual({ replaced: false });
     expect((await report(first, atPrompt, 1)).body).toEqual({ replaced: false });
-    expect((await presence())?.monitor).toEqual(waiting);
+    expect((await presence())?.monitor).toEqual({ ...waiting, nudge: false });
   });
 });

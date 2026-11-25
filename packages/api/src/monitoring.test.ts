@@ -32,6 +32,17 @@ describe("monitorReport", () => {
         stopped_by: { reason: "block" },
       },
     ],
+    [
+      "a session that can be nudged, and its latest nudge",
+      {
+        monitored: true,
+        profile: "codex",
+        condition: "at_prompt",
+        since,
+        nudge: true,
+        last_nudge: { at: since, sent: false },
+      },
+    ],
   ])("takes %s", (_, report) => {
     expect(monitorReport.parse(report)).toEqual(report);
   });
@@ -70,6 +81,7 @@ describe("monitorReport", () => {
         condition: "waiting",
         since,
         stopped_by: { reason: "error", resets_at: since, message: "Overloaded" },
+        last_nudge: { at: since, sent: true, step: "submitted", screen: "> hi" },
       }),
     ).toEqual({
       monitored: true,
@@ -77,6 +89,7 @@ describe("monitorReport", () => {
       condition: "waiting",
       since,
       stopped_by: { reason: "error" },
+      last_nudge: { at: since, sent: true },
     });
   });
 
@@ -137,6 +150,33 @@ describe("monitorReport", () => {
         stopped_by: { reason: "block" },
       },
       "stopped_by",
+    ],
+    [
+      "a nudge that is no boolean",
+      { monitored: true, profile: "codex", condition: "at_prompt", since, nudge: "tmux" },
+      "nudge",
+    ],
+    [
+      "a latest nudge with no outcome",
+      {
+        monitored: true,
+        profile: "codex",
+        condition: "at_prompt",
+        since,
+        last_nudge: { at: since },
+      },
+      "last_nudge.sent",
+    ],
+    [
+      "a latest nudge whose time is no time",
+      {
+        monitored: true,
+        profile: "codex",
+        condition: "at_prompt",
+        since,
+        last_nudge: { at: "just now", sent: true },
+      },
+      "last_nudge.at",
     ],
   ])("refuses %s", (_, report, field) => {
     expect(fieldOf(monitorReport.safeParse(report))).toBe(field);

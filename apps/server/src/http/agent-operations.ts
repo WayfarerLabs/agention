@@ -1,6 +1,7 @@
 import {
   agentMessageSendInput,
   monitorAnswer,
+  monitorPollAnswer,
   monitorPollQuery,
   monitorReport,
   monitorReportQuery,
@@ -87,11 +88,12 @@ export const agentOperations = [
     name: "pollMonitor",
     method: "GET",
     path: "/s/:agent/:session/monitor",
-    summary: "Hold the session's background connection until the wait ends or another bridge acts",
+    summary:
+      "Hold the session's background connection until the wait ends, another bridge acts or a nudge is due",
     scope: "threads:read",
     params: sessionParams,
     query: monitorPollQuery,
-    response: monitorAnswer,
+    response: monitorPollAnswer,
     handler: ({ store, identity, params, query, signal }) =>
       pollMonitor(store, identity, params, query, signal),
   }),
@@ -99,7 +101,8 @@ export const agentOperations = [
     name: "reportMonitor",
     method: "POST",
     path: "/s/:agent/:session/monitor",
-    summary: "Report what the bridge observes of the session, replacing its latest report",
+    summary:
+      "Report what the bridge observes of the session and its latest nudge, replacing its latest report",
     scope: "threads:write",
     params: sessionParams,
     query: monitorReportQuery,

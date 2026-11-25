@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { cursor, maxListed, pageLimit, queryNumber, sequence } from "./bounds.ts";
 import { groupRef, maxTags, tagName } from "./groups-and-tags.ts";
-import { monitorState } from "./monitoring.ts";
+import { monitorState, nudgeState } from "./monitoring.ts";
 import { name } from "./names.ts";
 import { registrationCodePattern, registrationId } from "./registrations.ts";
 import { singleLineText } from "./text.ts";
@@ -193,8 +193,12 @@ export const sessionsQuery = z.object({
 export type SessionsQuery = z.infer<typeof sessionsQuery>;
 
 // A session's presence as the operator's sessions view shows it: with its
-// bridge's latest report while it is connected, absent until one reports.
-export const sessionPresence = presence.extend({ monitor: monitorState.optional() });
+// bridge's latest report while it is connected, absent until one reports, and
+// its latest nudge, absent until its bridge first tries one.
+export const sessionPresence = presence.extend({
+  monitor: monitorState.optional(),
+  last_nudge: nudgeState.optional(),
+});
 export type SessionPresence = z.infer<typeof sessionPresence>;
 
 // A session's presence as a thread's summary shows it to the thread's

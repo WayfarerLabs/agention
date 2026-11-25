@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { errorBody } from "./errors.ts";
 import { groupRef } from "./groups-and-tags.ts";
-import { monitorCondition, monitorProfile, monitorReport, monitorState } from "./monitoring.ts";
+import {
+  lastNudge,
+  monitorCondition,
+  monitorProfile,
+  monitorReport,
+  monitorState,
+  nudgeState,
+} from "./monitoring.ts";
 import { reference } from "./references.ts";
 import { registration } from "./registrations.ts";
 import {
@@ -62,12 +69,14 @@ const named: Record<string, ApiSchema> = {
   errorBody,
   groupRef,
   impact,
+  lastNudge,
   marks,
   message,
   monitorCondition,
   monitorProfile,
   monitorReport,
   monitorState,
+  nudgeState,
   openAsks,
   presence,
   priority,

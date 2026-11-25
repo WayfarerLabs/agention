@@ -80,8 +80,10 @@ export const agentReadFilter = z
   .enum(["unread", "stranded"])
   .describe(
     "Only threads holding a message of yours that the session has not read: unread for any " +
-      "such thread, stranded for one while the session is quiet, has no active credential, is " +
-      "not connected or has stopped.",
+      "such thread, stranded for one nothing will bring to it soon: the session has no active " +
+      "credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or " +
+      "it can be nudged, and the latest nudge since your message was not sent, or was sent " +
+      "with no check-in within the quiet time, or none was sent within it.",
   );
 
 // A session's threads, as its own agent lists them.

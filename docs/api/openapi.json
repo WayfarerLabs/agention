@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v6",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 6."
+    "version": "operator v1, agent v7",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 7."
   },
   "tags": [
     {
@@ -154,7 +154,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it.",
             "schema": {
               "type": "string",
               "enum": [
@@ -698,7 +698,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1378,7 +1378,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent with no check-in within the quiet time, or none was sent within it.",
             "schema": {
               "type": "string",
               "enum": [
@@ -6627,7 +6627,7 @@
     "/api/agent/s/{agent}/{session}/monitor": {
       "get": {
         "operationId": "agentPollMonitor",
-        "summary": "Hold the session's background connection until the wait ends or another bridge acts",
+        "summary": "Hold the session's background connection until the wait ends, another bridge acts or a nudge is due",
         "tags": [
           "agent"
         ],
@@ -6703,10 +6703,14 @@
                   "properties": {
                     "replaced": {
                       "type": "boolean"
+                    },
+                    "nudge": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
-                    "replaced"
+                    "replaced",
+                    "nudge"
                   ]
                 }
               }
@@ -6719,7 +6723,7 @@
       },
       "post": {
         "operationId": "agentReportMonitor",
-        "summary": "Report what the bridge observes of the session, replacing its latest report",
+        "summary": "Report what the bridge observes of the session and its latest nudge, replacing its latest report",
         "tags": [
           "agent"
         ],
@@ -6842,7 +6846,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "6"
+          "const": "7"
         }
       }
     },
@@ -7290,6 +7294,23 @@
         ],
         "description": "How the ask affects the requester's work while it is open: blocking (the work the ask is for stops until it is answered, while the requester carries on with other work), assuming (that work goes on under an assumption the message states) or none."
       },
+      "LastNudge": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "at",
+          "sent"
+        ]
+      },
       "Marks": {
         "type": "object",
         "properties": {
@@ -7503,6 +7524,12 @@
                     ]
                   }
                 ]
+              },
+              "nudge": {
+                "type": "boolean"
+              },
+              "last_nudge": {
+                "$ref": "#/components/schemas/LastNudge"
               }
             },
             "required": [
@@ -7543,6 +7570,9 @@
               },
               "since": {
                 "type": "string"
+              },
+              "nudge": {
+                "type": "boolean"
               },
               "stopped_by": {
                 "oneOf": [
@@ -7592,9 +7622,29 @@
               "monitored",
               "profile",
               "condition",
-              "since"
+              "since",
+              "nudge"
             ]
           }
+        ]
+      },
+      "NudgeState": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "sent": {
+            "type": "boolean"
+          },
+          "answered": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "at",
+          "sent",
+          "answered"
         ]
       },
       "OpenAsks": {
@@ -7814,6 +7864,9 @@
           },
           "monitor": {
             "$ref": "#/components/schemas/MonitorState"
+          },
+          "last_nudge": {
+            "$ref": "#/components/schemas/NudgeState"
           }
         },
         "required": [
@@ -8059,6 +8112,9 @@
           },
           "monitor": {
             "$ref": "#/components/schemas/MonitorState"
+          },
+          "last_nudge": {
+            "$ref": "#/components/schemas/NudgeState"
           },
           "state": {
             "$ref": "#/components/schemas/WorkState"

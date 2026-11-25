@@ -32,13 +32,16 @@ export const monitoringVersion = 6;
 // markCheckedIn stamps the agent of the session a registration acts for as
 // checked in now, with the agent API version of its call, when that moves
 // its last check-in a minute or more, when its last check-in is after now,
-// so a clock stepped back never holds it still, or when the version differs
+// so a clock stepped back never holds it still, when the version differs
 // from the last one's, so a session pinned to an older bridge is read by its
-// rule at once. The agent mount calls it on every call by an approved key
-// but its bridge's background ones, before the call's own work, in a
-// transaction of its own, so a call refused later still counts. A
-// registration that is not approved as it runs, pending or revoked since its
-// token was verified, stamps nothing.
+// rule at once, or when its last check-in is before the latest offer of a
+// nudge (offerNudge), so a check-in during a nudge, or in reply to one,
+// always shows, at the cost of one stamp more for each offer. The agent
+// mount calls it on every call by an approved key but its bridge's
+// background ones, before the call's own work, in a transaction of its own,
+// so a call refused later still counts. A registration that is not approved
+// as it runs, pending or revoked since its token was verified, stamps
+// nothing.
 export function markCheckedIn(store: Store, registrationId: number, version: number): void {
   const { db } = store;
   db.transaction(() => {
@@ -48,7 +51,7 @@ export function markCheckedIn(store: Store, registrationId: number, version: num
            SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
          )
          AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-           OR last_seen_version IS NOT :version)`,
+           OR last_seen_version IS NOT :version OR last_seen_at < nudge_offered_at)`,
     ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
   });
 }
@@ -78,6 +81,7 @@ export interface MonitorRow {
   since: number | null;
   stopped_by: StoppedBy["reason"] | null;
   resets_at: number | null;
+  nudge: number | null;
 }
 
 // monitorStateOf describes a report the row holds, as the operator sees it.
@@ -101,27 +105,42 @@ export function monitorStateOf(row: MonitorRow): MonitorState {
     profile: row.profile,
     condition: row.condition,
     since: formatTimestamp(row.since),
+    nudge: row.nudge === 1,
     ...(stoppedBy === undefined ? {} : { stopped_by: stoppedBy }),
   };
 }
 
 // The columns of a session's presence, as a read selects them: when its
 // agent last checked in, whether it is quiet and connected, as quietOf and
-// connectedOf say, and its bridge's latest report.
+// connectedOf say, its bridge's latest report, and its latest nudge, its
+// columns null until its bridge first reports one.
 export interface PresenceRow extends MonitorRow {
   last_seen_at: number | null;
   quiet: number;
   connected: number | null;
+  nudged_at: number | null;
+  nudge_sent: number | null;
 }
 
 // presenceOf describes a session's presence as the operator sees it. A
 // report shows only while its bridge is connected, so a bridge that ended
-// never leaves its last one standing as current.
+// never leaves its last one standing as current. The latest nudge shows
+// whether its bridge is connected or not, with whether the agent has checked
+// in since: the check-in stamp that markCheckedIn always moves past it.
 export function presenceOf(row: PresenceRow): SessionPresence {
   return {
     ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
     quiet: row.quiet === 1,
     ...(row.connected === null ? {} : { connected: row.connected === 1 }),
     ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
+    ...(row.nudged_at === null || row.nudge_sent === null
+      ? {}
+      : {
+          last_nudge: {
+            at: formatTimestamp(row.nudged_at),
+            sent: row.nudge_sent === 1,
+            answered: row.last_seen_at !== null && row.last_seen_at >= row.nudged_at,
+          },
+        }),
   };
 }
