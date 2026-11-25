@@ -493,7 +493,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
     seen** when, or **never seen**; it has **no active credential**; or its bridge is **not
-    connected**. A session with no active credential also shows its own tag, unless the stranded tag
+    connected**. Where the session's bridge monitors its terminal, the tag also says what the
+    terminal shows, as the sessions view does, such as **last seen 14:02 · stopped at a permission
+    prompt**. A session with no active credential also shows its own tag, unless the stranded tag
     already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
@@ -506,13 +508,13 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   other filter on, showing everything there in the order and grouping you left the list in. Beneath,
   muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
   thread says why its session has not read your latest messages: it stopped, and how, its agent was
-  last seen when, or never, or its bridge is not connected; a session with no active credential says
-  so in a notice under the head. **Threads** stays marked in the navigation. The head holds **Thread
-  above** and **Thread below**, arrow buttons beside **Threads**, **Archive all**, and **Jump to
-  unread** while anything is unread or an ask is open to you, and shows the archive box while the
-  thread is archived. The messages open on the newest ones, or on the first one you had not read
-  after those you archived when that comes before them, and show earlier and later ones when you
-  ask.
+  last seen when, or never, or its bridge is not connected, with what its terminal shows where its
+  bridge monitors it; a session with no active credential says so in a notice under the head.
+  **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread below**,
+  arrow buttons beside **Threads**, **Archive all**, and **Jump to unread** while anything is unread
+  or an ask is open to you, and shows the archive box while the thread is archived. The messages
+  open on the newest ones, or on the first one you had not read after those you archived when that
+  comes before them, and show earlier and later ones when you ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page or
@@ -701,31 +703,53 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     name folds what it heads, as a click anywhere else on the header or the row does but on a link
     or a button.
   - **Agents** holds each agent under a header that folds, as the thread list's group headers do,
-    with how many sessions it has and what they add up to: their threads' roll-up and unread updates
-    as each session's row shows them, their open asks as each row shows its own, their stranded
-    threads, and the agent's tags. At the header's end, its threads open the thread list on the
-    agent's threads; how many of them are stranded, flagged while any are, opens it on those, as the
-    **Stranded** filter does; and the **⋯** button opens **Tags**. Once you have put any session in
-    a group, the agents fold under their groups, groups in your order and **No group** last, each
-    group's head showing what its sessions add up to, with **Blocked on you** when an ask in them
+    with how many sessions it has and what they add up to: how many of them need you, such as **2
+    need you**, flagged in the warning's color while any do, which lists just those sessions, as
+    **Needs you** below says; their threads' roll-up and unread updates as each session's row shows
+    them, their open asks as each row shows its own, their stranded threads, and the agent's tags.
+    At the header's end, its threads open the thread list on the agent's threads; how many of them
+    are stranded, flagged while any are, opens it on those, as the **Stranded** filter does; and the
+    **⋯** button opens **Tags**. Once you have put any session in a group, the agents fold under
+    their groups, groups in your order and **No group** last, each group's head showing what its
+    sessions add up to, how many of them need you, with **Blocked on you** when an ask in them
     blocks an agent's work on your answer, and a link opening the thread list on the group's
     threads. An agent with sessions in two groups shows under each with that group's sessions, and
     its threads' links open its threads, and its stranded threads, in that group. This browser keeps
     the groups you fold, a group however you rename it. Under each agent, each session is a folded
     row, so that many fit on a screen. Its first line holds the session's name, the title its agent
-    gave this line of work, cut to fit, and its percent toward the goal; the second, **Last seen**
-    and when, or **Never seen**, in the warning's color while the session is quiet and has not
-    stopped, and once it has reported a status, how long ago it last updated it, such as **status
-    updated 2 hours ago**, since a session can go on checking Agention long after its status stopped
-    saying what it does; a session marked working because it wrote counts as an update then. While a
-    session is **Working**, its bridge reminds it to update its status once it has sent none for 20
-    minutes, counting a write that marked it working. The bridge counts from the session's own last
-    update through it, not from the age you see, so the two differ when the bridge has restarted or
-    another bridge shares the session. The third line, wrapping on a phone:
+    gave this line of work, cut to fit, and its percent toward the goal; the second, where the
+    session is as Agention knows it, apart from what its agent reports:
+    - **Connected** while its bridge is, and **Not connected** once it is not, in the warning's
+      color unless the session has stopped; a session whose bridge predates the background
+      connection says neither, as [Running the server](#running-the-server) says;
+    - while it is connected and its bridge monitors its terminal, what the terminal shows and since
+      when, as [Monitoring a session's terminal](#monitoring-a-sessions-terminal) describes:
+      **running**, **at its prompt**, **waiting** or **condition unknown**; **stopped at a
+      permission prompt** or **stopped at another prompt**; or, where its profile can tell what
+      stopped it, that first, with any prompt beside it, such as **stopped by a usage limit (resets
+      15:00), at its prompt**. A prompt, or something that stopped it, is in the warning's color,
+      since it needs you;
+    - **Last check-in** and when its agent last called Agention, or **Never checked in**, in the
+      warning's color while the session is quiet and has not stopped, so a session can show
+      **Connected, at its prompt since 14:02 · last check-in 11:40**: online, with an agent that has
+      done nothing for hours;
+    - and once it has reported a status, how long ago it last updated it, such as **status updated 2
+      hours ago**, since an agent can go on checking in long after its status stopped saying what it
+      does; a session marked working because it wrote counts as an update then. While a session is
+      **Working**, its bridge reminds it to update its status once it has sent none for 20 minutes,
+      counting a write that marked it working. The bridge counts from the session's own last update
+      through it, not from the age you see, so the two differ when the bridge has restarted or
+      another bridge shares the session.
+
+    The third line, wrapping on a phone:
     - what the session reports it is doing: **Working** while it does something; **Idle** while it
       has nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
       **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No
-      status** when it has never reported, such as one whose plugin predates session status;
+      status** when it has never reported, such as one whose plugin predates session status. This is
+      the agent's word, and its terminal can say otherwise: a session reporting **Working** may be
+      **stopped at a permission prompt**;
+    - **Needs you**, in the warning's color, while its terminal shows a permission prompt or another
+      prompt, or something that stopped it, which lists just the sessions that need you;
     - its open asks, while it has any, whatever it is doing: a session working on one thing can wait
       on your answer about another. In the thread list's words, **Blocked on you** in red while any
       of them blocks its work on your answer, opening the thread list on the session's threads that
@@ -741,9 +765,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - and its latest update's note, cut to fit, with none after the server marked it working.
 
     Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
-    and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
-    each update changed, newest first, with its note, and **inferred from a write** on one the
-    server logged when the idle session wrote. Consecutive updates that changed only the percent
+    and unfolds it to its goal over a bar of how far it has come, its credentials, the profile its
+    bridge reads its terminal with, or **Terminal not monitored** when it is given none, and its
+    log: what each update changed, newest first, with its note, and **inferred from a write** on one
+    the server logged when the idle session wrote. Consecutive updates that changed only the percent
     show as one line, such as **Progress 20% → 60%**, and **Older** shows the updates before.
     Unfolding reads the updates it shows, which stay marked unread until you fold the row again.
     Rows start folded each time you open the view, and a row under an agent or a group you folded
@@ -758,8 +783,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     When the session has stopped, is quiet, has no active credential or is not connected, the sheet
     says it is not likely to see the thread, and why: a stopped session not until it is started
     again, a quiet one not soon, one without a credential not until you approve a registration for
-    it, and one whose bridge is not connected not until it connects again. The thread is stranded
-    until the session reads it.
+    it, and one whose bridge is not connected not until it connects again, with what its terminal
+    shows where its bridge monitors it. The thread is stranded until the session reads it.
 
   - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
     page's address keeps your choice, so going back to the view or a link to it shows it the same.
@@ -778,6 +803,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     that one's place, which changes your groups' order everywhere, as
     [Groups and tags](#groups-and-tags) does in Settings. While a move is under way, the groups take
     no other; one another browser made stale is refused, and the groups show as they are.
+
+  - **Needs you**, the view's one filter, lists just the sessions whose terminal shows a permission
+    prompt or another prompt, or something that stopped them, under their agents and groups as
+    **Sort** and **Group** arrange them; agents and groups with none such do not show. A row's
+    **Needs you** and a header's count of them turn it on, keeping the arrangement, and while it is
+    on, a **Needs you** chip under **Sort** and **Group** turns it off. The page's address keeps it,
+    as `/sessions?needs_you=true`, beside the arrangement. Only a session whose bridge monitors its
+    terminal can need you this way: an open ask that waits on you shows as **Blocked on you** or its
+    open asks, as above, whatever its terminal shows.
 
   - **Credentials and past requests**, folded until you open it, holds every registration already
     decided.
@@ -1134,12 +1168,14 @@ checked in (`last_seen_at`), whether it is quiet, and whether its bridge is `con
 a bridge from before the background connection; while it is connected, `monitor` holds what its
 bridge last reported of the terminal it runs in: whether it watches one at all and, if it does, the
 session's `condition` and `since` when, what `stopped_by` it where the bridge can tell, and the
-`profile` it reads the terminal with. The second answers at once with the threads, in any session,
-holding messages you have not read, each naming its agent and session; with none, it waits up to 25
-seconds for one. Its answer also holds a `since`: pass that back, as `wait?wait=25&since=...`, to be
-told only of messages newer than those it covered, so a program that waits in a loop hears of each
-new message once, as soon as it arrives, without polling. Each key has a rate budget of its own
-([Rate budgets](#rate-budgets)).
+`profile` it reads the terminal with. A thread's `presence`, in the thread list, a thread's read and
+the wait, carries the same `monitor`, beside the state and outcome its session last reported, so a
+program can say why a stranded thread waits as the web UI does. The second answers at once with the
+threads, in any session, holding messages you have not read, each naming its agent and session; with
+none, it waits up to 25 seconds for one. Its answer also holds a `since`: pass that back, as
+`wait?wait=25&since=...`, to be told only of messages newer than those it covered, so a program that
+waits in a loop hears of each new message once, as soon as it arrives, without polling. Each key has
+a rate budget of its own ([Rate budgets](#rate-budgets)).
 
 Files work as they do in the web UI ([Attachments](#attachments)): a key holding `threads:write`
 uploads a file to a session, then names the upload in a message, and a key holding `threads:read`
@@ -1285,7 +1321,17 @@ checked in ([Using the operator API](#using-the-operator-api)). Given the tmux s
 runs in, the bridge also monitors the session's terminal and reports its condition: unknown, at a
 permission prompt or another prompt, running, at its prompt, or waiting, and since when. It reads
 the screen of that server's one pane on the agent's machine and sends only the condition and its
-time, never the screen's text.
+time, never the screen's text. At rest, a session may also have been stopped by something, where its
+profile can tell: its account's usage limit, with when it resets where the host shows it; a block,
+the host refusing an action on a safety or permission rule; or an error from its model provider. Any
+prompt on the screen is then beside the reason, such as a menu the host shows at its usage limit,
+while a permission prompt or another prompt with no reason is what stopped it. No profile tells a
+reason yet.
+
+The sessions view shows each connected session's condition, apart from the state its agent reports,
+flags each one at a permission prompt or another prompt, or stopped by something, as **Needs you**,
+and lists just those; a stranded thread's reason names its session's condition
+([Using the web UI](#using-the-web-ui)).
 
 The bridge takes the tmux server's socket and how to read the terminal from options or variables, an
 option winning over its variable:
