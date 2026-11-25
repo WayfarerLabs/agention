@@ -78,13 +78,27 @@ async function observe(steps: readonly Step[]): Promise<object[]> {
   return seen;
 }
 
+// plain is an observation with its times as numbers, a usage limit as its
+// reset time, and only the fields it has.
 function plain(observation: Observation): object {
-  const { condition, since, stoppedBy } = observation;
-  if (stoppedBy?.reason === "usage_limit") {
-    return { condition, since: since.getTime(), stoppedBy: stoppedBy.resetsAt?.getTime() };
-  }
-  return { condition, since: since.getTime() };
+  const { activity, screen, since, stoppedBy } = observation;
+  return {
+    activity,
+    ...(screen !== undefined && { screen }),
+    since: since.getTime(),
+    ...(stoppedBy?.reason === "usage_limit" && { stoppedBy: stoppedBy.resetsAt?.getTime() }),
+  };
 }
+
+// The observations the tests expect, in plain's form.
+const running = (since: number) => ({ activity: "running", since });
+const unknown = (since: number) => ({ activity: "unknown", since });
+const atRest = (screen: Screen["kind"], since: number, resetsAt?: string) => ({
+  activity: "at_rest",
+  screen,
+  since,
+  ...(resetsAt !== undefined && { stoppedBy: Date.parse(resetsAt) }),
+});
 
 // still repeats one screen once a second from a time, for a number of samples.
 function still(from: number, samples: number, screen: readonly string[]): Step[] {
@@ -93,10 +107,8 @@ function still(from: number, samples: number, screen: readonly string[]): Step[]
 
 describe("PaneObserver", () => {
   it("finds a screen unchanged for two seconds at rest, and yields it once", async () => {
-    expect(await observe(still(0, 5, ["input"]))).toEqual([
-      { condition: "at_prompt", since: 2000 },
-    ]);
-    expect(await observe(still(0, 5, ["other"]))).toEqual([{ condition: "waiting", since: 2000 }]);
+    expect(await observe(still(0, 5, ["input"]))).toEqual([atRest("input", 2000)]);
+    expect(await observe(still(0, 5, ["other"]))).toEqual([atRest("other", 2000)]);
   });
 
   it("yields nothing until it has seen the screen long enough to tell", async () => {
@@ -110,10 +122,7 @@ describe("PaneObserver", () => {
       { at: 2000, screen: ["input", "c"] },
       ...still(3000, 3, ["input", "c"]),
     ];
-    expect(await observe(steps)).toEqual([
-      { condition: "running", since: 1000 },
-      { condition: "at_prompt", since: 4000 },
-    ]);
+    expect(await observe(steps)).toEqual([running(1000), atRest("input", 4000)]);
   });
 
   it("finds a moving cursor running", async () => {
@@ -121,7 +130,7 @@ describe("PaneObserver", () => {
       { at: 0, screen: ["input"], cursorX: 0 },
       { at: 1000, screen: ["input"], cursorX: 1 },
     ];
-    expect(await observe(steps)).toEqual([{ condition: "running", since: 1000 }]);
+    expect(await observe(steps)).toEqual([running(1000)]);
   });
 
   it("reads a dialog from one screen, so its animation never reads as running", async () => {
@@ -129,9 +138,9 @@ describe("PaneObserver", () => {
       at,
       screen: ["permission_prompt", at % 2000 === 0 ? "*" : " "],
     }));
-    expect(await observe(blinking)).toEqual([{ condition: "permission_prompt", since: 0 }]);
+    expect(await observe(blinking)).toEqual([atRest("permission_prompt", 0)]);
     expect(await observe([{ at: 0, screen: ["other_prompt"] }])).toEqual([
-      { condition: "other_prompt", since: 0 },
+      atRest("other_prompt", 0),
     ]);
   });
 
@@ -143,15 +152,15 @@ describe("PaneObserver", () => {
       { at: 3000, screen: ["throws"] },
     ]) {
       expect(await observe([...still(0, 3, ["input"]), failing])).toEqual([
-        { condition: "at_prompt", since: 2000 },
-        { condition: "unknown", since: 3000 },
+        atRest("input", 2000),
+        unknown(3000),
       ]);
     }
   });
 
   it("puts unknown before a dialog", async () => {
     expect(await observe([{ at: 0, screen: ["permission_prompt"], onePane: false }])).toEqual([
-      { condition: "unknown", since: 0 },
+      unknown(0),
     ]);
   });
 
@@ -162,9 +171,9 @@ describe("PaneObserver", () => {
       ...still(4000, 3, ["input"]),
     ];
     expect(await observe(steps)).toEqual([
-      { condition: "at_prompt", since: 2000 },
-      { condition: "unknown", since: 3000 },
-      { condition: "at_prompt", since: 6000 },
+      atRest("input", 2000),
+      unknown(3000),
+      atRest("input", 6000),
     ]);
   });
 
@@ -179,37 +188,25 @@ describe("PaneObserver", () => {
       ...still(6000, 3, ["other"]),
     ];
     expect(await observe(steps)).toEqual([
-      { condition: "running", since: 1000 },
-      { condition: "waiting", since: 3000, stoppedBy: Date.parse("2026-11-25T10:00:00Z") },
-      { condition: "running", since: 4000 },
-      {
-        condition: "permission_prompt",
-        since: 5000,
-        stoppedBy: Date.parse("2026-11-25T11:00:00Z"),
-      },
-      { condition: "running", since: 6000 },
-      { condition: "waiting", since: 8000 },
+      running(1000),
+      atRest("other", 3000, "2026-11-25T10:00:00Z"),
+      running(4000),
+      atRest("permission_prompt", 5000, "2026-11-25T11:00:00Z"),
+      running(6000),
+      atRest("other", 8000),
     ]);
   });
 
-  it("yields a changed stopped-by reason with the condition's since", async () => {
+  it("yields a changed stopped-by reason with the since of the activity and screen", async () => {
     const steps = [
       ...still(0, 3, ["input", "limit 2026-11-25T10:00:00Z"]),
       { at: 3000, screen: ["permission_prompt", "limit 2026-11-25T10:00:00Z"] },
       { at: 4000, screen: ["permission_prompt", "limit 2026-11-25T11:00:00Z"] },
     ];
     expect(await observe(steps)).toEqual([
-      { condition: "at_prompt", since: 2000, stoppedBy: Date.parse("2026-11-25T10:00:00Z") },
-      {
-        condition: "permission_prompt",
-        since: 3000,
-        stoppedBy: Date.parse("2026-11-25T10:00:00Z"),
-      },
-      {
-        condition: "permission_prompt",
-        since: 3000,
-        stoppedBy: Date.parse("2026-11-25T11:00:00Z"),
-      },
+      atRest("input", 2000, "2026-11-25T10:00:00Z"),
+      atRest("permission_prompt", 3000, "2026-11-25T10:00:00Z"),
+      atRest("permission_prompt", 3000, "2026-11-25T11:00:00Z"),
     ]);
   });
 
@@ -242,7 +239,7 @@ describe("PaneObserver", () => {
     for await (const observation of new PaneObserver(pane, testProfile).observations(
       controller.signal,
     )) {
-      expect(observation.condition).toBe("unknown");
+      expect(observation.activity).toBe("unknown");
       setTimeout(() => controller.abort(), 50);
     }
     expect(Date.now() - started).toBeLessThan(sampleEvery / 2);

@@ -3,7 +3,7 @@
 export interface Pane {
   // snapshot reads the pane once. It rejects when the pane cannot be read at
   // all, such as when its terminal server is gone, which an observer reads as
-  // the harness's condition being unknown.
+  // the harness's activity being unknown.
   snapshot(): Promise<Snapshot>;
 }
 

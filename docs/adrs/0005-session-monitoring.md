@@ -40,11 +40,13 @@ without any access it lacks.
   with since when and, where the harness's profile can tell, what stopped it. A report holds only
   enumerations, booleans, times and the profile's name. The screen's text stays in the bridge's
   memory and never reaches the server, the operator, the agent or the bridge's log.
-- **Reading a terminal stands on its own.** `packages/harness-observer` turns a pane into a
-  condition and knows nothing of Agention, so it can become a package of its own. A profile per
-  harness says what that harness's screens mean, from screens captured from it and checked into the
-  repository; supporting another harness, or a version whose screens changed, is a change to the
-  profiles alone. A harness without a profile gets a generic one that names no prompt.
+- **Reading a terminal stands on its own.** `packages/harness-observer` turns a pane into an
+  observation in its own terms (whether the harness is running and, at rest, what its screen holds
+  and why it stopped), which the bridge spells as the agent API's condition and stopped-by reason;
+  it knows nothing of Agention, so it can become a package of its own. A profile per harness says
+  what that harness's screens mean, from screens captured from it and checked into the repository;
+  supporting another harness, or a version whose screens changed, is a change to the profiles alone.
+  A harness without a profile gets a generic one that names no prompt.
 - **One bridge acts for a session.** A host may run several bridges for one session, as Codex starts
   new ones without ending the old. The latest to claim the session acts for it, and the others stand
   down until their bridge next handles a tool call. The server keeps which bridge acts in memory, a

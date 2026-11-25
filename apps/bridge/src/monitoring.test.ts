@@ -67,9 +67,42 @@ describe("the configuration", () => {
 describe("a report", () => {
   const since = new Date("2026-11-24T10:00:00.000Z");
 
+  it.each([
+    [{ activity: "unknown" }, "unknown"],
+    [{ activity: "running" }, "running"],
+    [{ activity: "at_rest", screen: "input" }, "at_prompt"],
+    [{ activity: "at_rest", screen: "permission_prompt" }, "permission_prompt"],
+    [{ activity: "at_rest", screen: "other_prompt" }, "other_prompt"],
+    [{ activity: "at_rest", screen: "other" }, "waiting"],
+  ] as const)("spells the observation %j as the condition %s", (observed, condition) => {
+    expect(reportOf("codex", { ...observed, since })).toEqual({
+      monitored: true,
+      profile: "codex",
+      condition,
+      since: "2026-11-24T10:00:00.000Z",
+    });
+  });
+
+  it("puts a stopped-by reason beside the condition, prompt or not", () => {
+    for (const [screen, condition] of [
+      ["permission_prompt", "permission_prompt"],
+      ["other", "waiting"],
+    ] as const) {
+      const report = reportOf("codex", {
+        activity: "at_rest",
+        screen,
+        stoppedBy: { reason: "block" },
+        since,
+      });
+      expect(report).toMatchObject({ condition, stopped_by: { reason: "block" } });
+      expect(monitorReport.safeParse(report).success).toBe(true);
+    }
+  });
+
   it("writes the reset time of a usage limit as the agent API takes it", () => {
     const report = reportOf("claude-code", {
-      condition: "permission_prompt",
+      activity: "at_rest",
+      screen: "permission_prompt",
       since,
       stoppedBy: { reason: "usage_limit", resetsAt: new Date("2026-11-24T15:00:00.000Z") },
     });
@@ -88,7 +121,8 @@ describe("a report", () => {
     ["no time at all", new Date(Number.NaN)],
   ])("leaves out a reset time that is %s", (_, resetsAt) => {
     const report = reportOf("claude-code", {
-      condition: "at_prompt",
+      activity: "at_rest",
+      screen: "input",
       since,
       stoppedBy: { reason: "usage_limit", resetsAt },
     });

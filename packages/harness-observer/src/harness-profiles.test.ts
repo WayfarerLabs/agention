@@ -92,8 +92,8 @@ async function replay(captures: readonly string[]): Promise<object[]> {
   const clock: Clock = { now: () => now, sleep: async () => {} };
   const seen: object[] = [];
   const observer = new PaneObserver(pane, profileFor(captures[0]!), clock);
-  for await (const { condition, since } of observer.observations(controller.signal)) {
-    seen.push({ condition, since: since.getTime() });
+  for await (const { activity, screen, since } of observer.observations(controller.signal)) {
+    seen.push({ activity, ...(screen !== undefined && { screen }), since: since.getTime() });
   }
   return seen;
 }
@@ -115,12 +115,12 @@ describe("the observer, replaying captures", () => {
         ...Array(3).fill("claude-code-2.1.331-vim-shell-mode"),
       ]),
     ).toEqual([
-      { condition: "running", since: 1000 },
-      { condition: "permission_prompt", since: 4000 },
-      { condition: "running", since: 8000 },
-      { condition: "at_prompt", since: 10000 },
-      { condition: "running", since: 11000 },
-      { condition: "waiting", since: 13000 },
+      { activity: "running", since: 1000 },
+      { activity: "at_rest", screen: "permission_prompt", since: 4000 },
+      { activity: "running", since: 8000 },
+      { activity: "at_rest", screen: "input", since: 10000 },
+      { activity: "running", since: 11000 },
+      { activity: "at_rest", screen: "other", since: 13000 },
     ]);
   });
 
@@ -134,11 +134,11 @@ describe("the observer, replaying captures", () => {
         ...Array(3).fill("codex-0.171.0-approval-dialog"),
       ]),
     ).toEqual([
-      { condition: "other_prompt", since: 0 },
-      { condition: "running", since: 1000 },
-      { condition: "at_prompt", since: 3000 },
-      { condition: "running", since: 4000 },
-      { condition: "permission_prompt", since: 6000 },
+      { activity: "at_rest", screen: "other_prompt", since: 0 },
+      { activity: "running", since: 1000 },
+      { activity: "at_rest", screen: "input", since: 3000 },
+      { activity: "running", since: 4000 },
+      { activity: "at_rest", screen: "permission_prompt", since: 6000 },
     ]);
   });
 });

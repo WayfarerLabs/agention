@@ -12,7 +12,13 @@ import {
   type StoppedBy,
   TmuxPane,
 } from "@wayfarerlabs/agention-harness-observer";
-import { formatTimestamp, type MonitorReport, quoted, timestamp } from "@wayfarerlabs/agention-api";
+import {
+  formatTimestamp,
+  type MonitorCondition,
+  type MonitorReport,
+  quoted,
+  timestamp,
+} from "@wayfarerlabs/agention-api";
 
 // Monitoring's side in the bridge: what its configuration names, and the
 // reports the reporter sends of what the harness observer reads from the
@@ -137,11 +143,30 @@ export function reportOf(profile: string, observation: Observation): MonitorRepo
   return {
     monitored: true,
     profile,
-    condition: observation.condition,
+    condition: conditionOf(observation),
     since: formatTimestamp(observation.since.getTime()),
     ...(stoppedBy && { stopped_by: stoppedByOf(stoppedBy) }),
   };
 }
+
+// conditionOf spells an observation's activity and screen as the agent API's
+// one condition. The stopped-by reason goes beside it, so a reason with a
+// prompt reads as stopped for that reason with the prompt on screen, and a
+// prompt without one as stopped on it.
+function conditionOf(observation: Observation): MonitorCondition {
+  return observation.activity === "at_rest"
+    ? conditionAtRest[observation.screen ?? "other"]
+    : observation.activity;
+}
+
+// At rest, the screen names the condition: its prompt is at_prompt, and a
+// screen the profile does not recognize is waiting.
+const conditionAtRest: Record<NonNullable<Observation["screen"]>, MonitorCondition> = {
+  input: "at_prompt",
+  permission_prompt: "permission_prompt",
+  other_prompt: "other_prompt",
+  other: "waiting",
+};
 
 function stoppedByOf(
   stoppedBy: StoppedBy,

@@ -5,17 +5,17 @@ considered, are recorded in [ADR 0001](adrs/0001-agention-v1-architecture.md).
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                   | State                                                                                                                                                                                   |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`              | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
-| `packages/build`            | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
-| `packages/private-files`    | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
-| `packages/harness-observer` | Reads an agent harness's tmux pane and says what condition the harness is in, through a profile of the harness's screens; it knows nothing of Agention.                                 |
-| `apps/server`               | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
-| `apps/bridge`               | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
-| `apps/web`                  | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
-| `apps/agent-plugin`         | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`                  | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                  |
+| Component                   | State                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/api`              | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation.                      |
+| `packages/build`            | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                       |
+| `packages/private-files`    | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                              |
+| `packages/harness-observer` | Reads an agent harness's tmux pane and says whether the harness is running and, at rest, what its screen holds and why it stopped, through a profile of the harness's screens; it knows nothing of Agention. |
+| `apps/server`               | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                                          |
+| `apps/bridge`               | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                               |
+| `apps/web`                  | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                      |
+| `apps/agent-plugin`         | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                           |
+| `scripts/`                  | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                                       |
 
 ## Source and packages
 
@@ -1163,13 +1163,16 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   ancestor of the bridge's, walking `/proc`'s parent links, so a socket that names another session's
   pane reads as unknown. A report carries the profile's name, the condition and since when, and what
   stopped the harness with its reset time, all spelled as the API spells them, with a reset time the
-  API would not take left out. The bridge logs to its standard error, once each time one begins, a
-  pane it cannot read (no tmux server at the socket, a path too long for a socket, no `tmux`
-  command), a machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves the
-  formats it is asked for empty, which monitoring needs 3.3 or later to fill, a pane that does not
-  run the bridge, a tmux server holding more than one pane, and a pane whose first process does not
-  hold its terminal, each of which the observer reads as unknown; the line names the socket, process
-  ids and what tmux said, never the screen's text.
+  API would not take left out. The observer says whether the harness is running and, at rest, what
+  its screen holds; the bridge spells that as one condition, the screen naming it at rest (its
+  prompt `at_prompt`, a screen the profile does not recognize `waiting`), and puts the stopped-by
+  reason beside whatever condition it is. The bridge logs to its standard error, once each time one
+  begins, a pane it cannot read (no tmux server at the socket, a path too long for a socket, no
+  `tmux` command), a machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves
+  the formats it is asked for empty, which monitoring needs 3.3 or later to fill, a pane that does
+  not run the bridge, a tmux server holding more than one pane, and a pane whose first process does
+  not hold its terminal, each of which the observer reads as unknown; the line names the socket,
+  process ids and what tmux said, never the screen's text.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a status update the server logged (one with a note, one whose status differs
   from the last it knew, or its first), or, until then, when a tool first answered in the session,

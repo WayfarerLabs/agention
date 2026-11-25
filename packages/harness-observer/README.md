@@ -1,10 +1,11 @@
 # Harness observer
 
-Reads the terminal pane an agent harness, such as Claude Code or Codex, runs in, and says what
-condition the harness is in: unknown, at a permission prompt or another prompt, running a turn, at
-its prompt, or waiting. It knows terminals and harnesses and nothing of Agention, which bundles it
-into the agent bridge, so it can move to a package of its own. It needs Linux, for `/proc`, and tmux
-3.3 or later.
+Reads the terminal pane an agent harness, such as Claude Code or Codex, runs in, and answers two
+questions and gives a reason: is the harness running a turn, at rest or unknown; at rest, what does
+its screen hold (its prompt, a permission prompt, another prompt, or nothing the profile
+recognizes); and at rest, why did it stop, where its profile can tell. It knows terminals and
+harnesses and nothing of Agention, which bundles it into the agent bridge, so it can move to a
+package of its own. It needs Linux, for `/proc`, and tmux 3.3 or later.
 
 ## Interface
 
@@ -31,24 +32,35 @@ Two seams keep terminals and harnesses apart:
   `profileNames` itself.
 
 `PaneObserver` joins them. `observations(signal)` reads the pane once a second until the signal
-aborts and yields an `Observation`, a condition and since when, whenever the condition or the
-stopped-by reason changes. It applies one order for every profile: unknown when the pane cannot be
-read, holds more than one pane or the harness lacks the terminal; the profile's prompts, from the
-latest screen alone; running when the screen changed within two seconds; at its prompt when the
-profile finds the input line; waiting otherwise. A stopped-by reason shows only at rest.
+aborts and yields an `Observation` whenever its activity, screen or stopped-by reason changes:
+
+- `activity`: `running`, `at_rest` or `unknown`;
+- `screen`, at rest only: what the profile finds on the screen, `input` for the harness's prompt,
+  `permission_prompt`, `other_prompt`, or `other` for nothing it recognizes;
+- `stoppedBy`, at rest only: why the harness stopped (`usage_limit`, with its reset time where the
+  screen shows it, `block` or `error`), where the profile can tell. It sits beside whatever prompt
+  is on the screen: a reason with a prompt means the harness stopped for that reason with the prompt
+  beside it, such as a menu shown at a usage limit, and a prompt without one means it stopped on the
+  prompt;
+- `since`: when the activity or the screen last changed, which a change in the reason alone keeps.
+
+It applies one order for every profile: unknown when the pane cannot be read, holds more than one
+pane or the harness lacks the terminal; at rest with the profile's permission or other prompt, from
+the latest screen alone, so a dialog's animation never reads as running; running when the screen
+changed within two seconds; at rest otherwise, with what the profile finds on the screen.
 
 ```ts
 import { PaneObserver, selectProfile, TmuxPane } from "@wayfarerlabs/agention-harness-observer";
 
 const profile = selectProfile("auto", { name: "claude-code", version: "2.1.331" });
 const observer = new PaneObserver(new TmuxPane("/path/to/tmux.sock"), profile);
-for await (const { condition, since } of observer.observations(signal)) {
-  // Report the condition. Screen text never leaves the observer.
+for await (const { activity, screen, stoppedBy, since } of observer.observations(signal)) {
+  // Report them. Screen text never leaves the observer.
 }
 ```
 
 Snapshots hold the screen's text, which whatever runs in the pane draws, so they stay in memory;
-observations carry only conditions, times and fixed reasons.
+observations carry only fixed kinds, times and fixed reasons.
 
 ## Harness profiles
 

@@ -1,23 +1,28 @@
 import { setTimeout as delay } from "node:timers/promises";
 import type { Pane, Snapshot } from "./pane.ts";
-import type { Profile, StoppedBy } from "./profile.ts";
+import type { Profile, Screen, StoppedBy } from "./profile.ts";
 
-// Where a harness is, as its pane shows it, in order of precedence.
-export type Condition =
-  "unknown" | "permission_prompt" | "other_prompt" | "running" | "at_prompt" | "waiting";
-
-// A condition, since when it has held, and, for a harness at rest, why it
-// stopped where its profile can tell.
+// Two questions and a reason: is the harness running a turn, and, at rest,
+// what does its screen hold and why did it stop?
 export interface Observation {
-  readonly condition: Condition;
-  readonly since: Date;
+  // Running a turn, at rest, or unknown when the pane cannot be read or no
+  // longer runs the harness.
+  readonly activity: "running" | "at_rest" | "unknown";
+  // At rest only: what the screen holds, "input" for the harness's own
+  // prompt and "other" for nothing the profile recognizes.
+  readonly screen?: Screen["kind"];
+  // At rest only: why the harness stopped, where its profile can tell,
+  // beside whatever prompt is on its screen.
   readonly stoppedBy?: StoppedBy;
+  // When the activity or the screen last changed. A change in the
+  // stopped-by reason alone keeps it.
+  readonly since: Date;
 }
 
 export interface Observer {
   // observations reads the pane until the signal aborts, yielding an
-  // observation whenever the condition or the stopped-by reason changes. It
-  // never throws: a pane it cannot read is unknown.
+  // observation whenever its activity, screen or stopped-by reason changes.
+  // It never throws: a pane it cannot read is unknown.
   observations(signal: AbortSignal): AsyncIterable<Observation>;
 }
 
@@ -47,26 +52,22 @@ export const sampleEvery = 1000;
 // harness redraws its screen at least every second during a turn.
 export const stillFor = 2000;
 
-// A reading of one snapshot: a condition at a time, or undefined while too
+// A reading of one snapshot: an observation at a time, or undefined while too
 // few snapshots have been read to tell a running harness from one at rest.
-type Reading =
-  | { readonly condition: Condition; readonly stoppedBy?: StoppedBy; readonly at: number }
-  | undefined;
+type Reading = (Omit<Observation, "since"> & { readonly at: number }) | undefined;
 
-// PaneObserver reads a pane through one profile. It applies the order of
-// conditions for every profile, so a profile only says what one screen shows:
+// PaneObserver reads a pane through one profile. It applies one order for
+// every profile, so a profile only says what one screen shows:
 //
 // 1. unknown, when the pane cannot be read, its terminal server holds more
 //    than one pane, the harness does not hold the terminal, or the profile
 //    fails on the screen;
-// 2. the profile's permission or other prompt, from the latest screen alone,
-//    so a dialog's animation never reads as running;
+// 2. at rest with the profile's permission or other prompt, from the latest
+//    screen alone, so a dialog's animation never reads as running;
 // 3. running, when the screen changed within the last two seconds;
-// 4. at its prompt, when the profile finds the input line;
-// 5. waiting otherwise.
+// 4. at rest otherwise, with what the profile finds on the screen.
 //
-// A stopped-by reason shows only at rest: with a prompt, at its prompt or
-// waiting, never with running or unknown.
+// A stopped-by reason shows only at rest.
 export class PaneObserver implements Observer {
   readonly #pane: Pane;
   readonly #profile: Profile;
@@ -89,10 +90,13 @@ export class PaneObserver implements Observer {
         return;
       }
       if (reading !== undefined && !sameReading(latest, reading)) {
+        const { at, ...observed } = reading;
         latest = {
-          condition: reading.condition,
-          since: latest?.condition === reading.condition ? latest.since : new Date(reading.at),
-          ...(reading.stoppedBy && { stoppedBy: reading.stoppedBy }),
+          ...observed,
+          since:
+            latest?.activity === reading.activity && latest.screen === reading.screen
+              ? latest.since
+              : new Date(at),
         };
         yield latest;
       }
@@ -121,22 +125,23 @@ export class PaneObserver implements Observer {
     remember(history, snapshot);
     const at = snapshot.at;
     const stoppedBy = screen.stoppedBy && { stoppedBy: screen.stoppedBy };
+    const atRest = { activity: "at_rest", screen: screen.kind, at, ...stoppedBy } as const;
     if (screen.kind === "permission_prompt" || screen.kind === "other_prompt") {
-      return { condition: screen.kind, at, ...stoppedBy };
+      return atRest;
     }
     if (changedRecently(history)) {
-      return { condition: "running", at };
+      return { activity: "running", at };
     }
     if (history[0]!.at > at - stillFor) {
       return undefined;
     }
-    return { condition: screen.kind === "input" ? "at_prompt" : "waiting", at, ...stoppedBy };
+    return atRest;
   }
 }
 
 function unknown(history: Snapshot[], at: number): Reading {
   history.length = 0;
-  return { condition: "unknown", at };
+  return { activity: "unknown", at };
 }
 
 // remember adds a snapshot to the history and drops those it no longer needs:
@@ -166,7 +171,8 @@ function sameScreen(a: Snapshot, b: Snapshot): boolean {
 
 function sameReading(observation: Observation | undefined, reading: NonNullable<Reading>): boolean {
   return (
-    observation?.condition === reading.condition &&
+    observation?.activity === reading.activity &&
+    observation.screen === reading.screen &&
     sameStoppedBy(observation.stoppedBy, reading.stoppedBy)
   );
 }
