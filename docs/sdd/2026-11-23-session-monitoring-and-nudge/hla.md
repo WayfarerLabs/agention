@@ -60,6 +60,7 @@ interface Pane {
 interface Snapshot {
   readonly lines: readonly string[]; // the visible screen, top to bottom
   readonly cursor: { readonly x: number; readonly y: number; readonly visible: boolean };
+  readonly width: number; // columns, since a capture trims trailing spaces
   readonly hostHasTerminal: boolean; // the foreground process group is the pane's first process
   readonly keysBlocked: boolean; // a mode, such as tmux's copy mode, keeps keys from the host
   readonly lastTyped: number | undefined; // the latest key from any attached client, ms
@@ -133,7 +134,7 @@ the configured name.
   changed within the last two seconds; **at its prompt** when the profile finds the input line;
   **waiting** otherwise. Dialogs come before stillness, so a dialog's animation (Claude Code's
   blinking bullet) never reads as running. The stopped-by reason comes from the profile's screen and
-  shows only at rest.
+  shows at any condition but running and unknown.
 - **Harness profiles** tell what their captures show: the permission dialogs (cursor hidden, the
   dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after `❯` or
   `›` and a space; for Claude Code, `-- INSERT --` when vim mode is on and not `!` shell mode).
@@ -321,5 +322,8 @@ The tools work as without monitoring in every case.
 - **Usage limit, block and error** need captures before any profile claims them; how one is obtained
   is open with the operator.
 - **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
+- **The nudge with a generic profile**: a generic profile cannot tell a prompt marker from typed
+  text, so its input line is the cursor's whole row; `nudge()` will confirm its texts by comparing
+  that row before and after each paste, settled with delivery 2.
 - **A restarted bridge** starts reporting only at the agent's next tool call, since it learns its
   session's names then; until then the session shows disconnected.
