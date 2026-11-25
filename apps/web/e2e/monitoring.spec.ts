@@ -1,11 +1,12 @@
 // Session monitoring in Chromium against the real server, on a server of
 // these tests' own: two sessions whose bridges, speaking the agent API's
 // current version, hold the background connection and report their
-// terminals, one at a permission prompt and one running; the sessions view
-// showing each connected with its condition apart from its reported state,
-// flagging the one at the prompt and counting it on its agent's header,
-// whose count lists just that session, its chip removing the filter, at a
-// phone's width too; and a thread stranded on the session at the prompt,
+// terminals, one stopped by its usage limit at a prompt, with when the limit
+// resets, and one running; the sessions view showing each connected with its
+// condition apart from its reported state, the longest line there is fitting
+// a phone's width, flagging the stopped one and counting it on its agent's
+// header, whose count lists just that session, its chip removing the filter,
+// at a phone's width too; and a thread stranded on a session at a prompt,
 // whose reason names its condition on the thread list, on the thread and in
 // the new-thread sheet.
 import type { BrowserContext, Page } from "@playwright/test";
@@ -111,33 +112,48 @@ const at = (condition: "permission_prompt" | "running"): MonitorReport => ({
   since: new Date(Date.now() - 60_000).toISOString(),
 });
 
+// Stopped by a usage limit, beside a prompt, with when it resets on another
+// day, which says the most a session's line can.
+const limited = (): MonitorReport => ({
+  monitored: true,
+  profile: "claude-code",
+  condition: "other_prompt",
+  since: new Date(Date.now() - 60_000).toISOString(),
+  stopped_by: {
+    reason: "usage_limit",
+    resets_at: new Date(Date.now() + 26 * 3600_000).toISOString(),
+  },
+});
+
 const row = (name: Name) =>
   page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Session ${name}` }) });
 
 // The filter's chip, which shows while it is on.
 const chip = () => page.getByRole("button", { name: "Remove filter: Needs you" });
 
-test("the sessions view flags a session at a permission prompt, and lists just those sessions, at a phone's width too", async () => {
+test("the sessions view flags a session stopped by its usage limit, and lists just those sessions, at a phone's width too", async () => {
   for (const name of Object.keys(sessions) as Name[]) {
     const reported = await agentOf(name).send("POST", `/s/builder/${name}/status`, {
       state: "working",
     });
     expect(reported.status).toBe(200);
   }
-  await report("main", at("permission_prompt"));
+  await report("main", limited());
   await report("review", at("running"));
   for (const size of [wide, phone]) {
     await resize(page, size);
     await page.goto("/sessions");
     // Each session is connected, with what its terminal shows and since
     // when, on the line under its head, apart from the state it reports.
+    // Connected is not a warning, though what follows it may be.
     for (const name of Object.keys(sessions) as Name[]) {
       await expect(row(name).locator(".session-seen .session-connection")).toBeVisible();
+      await expect(row(name).locator(".session-seen .session-connection.warning")).toHaveCount(0);
       await expect(row(name).locator(".session-condition time")).toBeVisible();
       await expect(row(name).locator(".session-facts").getByText("Working")).toBeVisible();
     }
-    // The session at the permission prompt is flagged, in the warning's
-    // tone, and the other is not.
+    // The session stopped by its limit is flagged, in the warning's tone,
+    // and the other is not.
     await expect(row("main").locator(".session-condition .warning")).toBeVisible();
     await expect(row("review").locator(".session-condition .warning")).toHaveCount(0);
     await expect(row("main").getByRole("link", { name: /needs you/ })).toBeVisible();
