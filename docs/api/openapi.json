@@ -6851,12 +6851,8 @@
       },
       "MonitorProfile": {
         "type": "string",
-        "enum": [
-          "claude-code",
-          "codex",
-          "generic-strict",
-          "generic-lenient"
-        ]
+        "maxLength": 40,
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
       },
       "MonitorReport": {
         "oneOf": [

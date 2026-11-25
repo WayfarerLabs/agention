@@ -6,7 +6,8 @@ import { timestamp } from "./time.ts";
 // host runs in, and the background connection it reports over. One bridge
 // acts for a session at a time; the server keeps which in memory. What a
 // bridge reports reaches only the operator, never an agent, and holds no
-// text: every field is an enumeration, a boolean or a time.
+// text: every field is an enumeration, a boolean, a time or the name of a
+// profile.
 
 // The id a bridge draws when its reporter starts, so the server can tell the
 // bridges of one session apart.
@@ -37,9 +38,18 @@ const atRest: readonly MonitorCondition[] = [
   "waiting",
 ];
 
-// The profile a bridge reads the terminal with, as its configuration names
-// it: a harness's own, or a generic one for a harness without.
-export const monitorProfile = z.enum(["claude-code", "codex", "generic-strict", "generic-lenient"]);
+// The profile a bridge reads the terminal with, by the name its registry and
+// configuration give it, such as "claude-code" or "generic-strict": a
+// harness's own, or a generic one for a harness without. Profiles are added
+// as harnesses are, so the name is held to a shape rather than to a list,
+// and is never text from the terminal.
+export const monitorProfile = z
+  .string()
+  .max(40)
+  .regex(
+    /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/,
+    "must be lowercase letters, digits and single hyphens, starting with a letter",
+  );
 export type MonitorProfile = z.infer<typeof monitorProfile>;
 
 // What stopped a session at rest, where its profile can tell: its account's

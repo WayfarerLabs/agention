@@ -36,6 +36,29 @@ describe("monitorReport", () => {
     expect(monitorReport.parse(report)).toEqual(report);
   });
 
+  it.each(["codex", "my-harness", "generic-strict", "v2-profile-3", "c".repeat(40)])(
+    "takes the profile %j, any name of its shape",
+    (profile) => {
+      const report = { monitored: true, profile, condition: "waiting", since };
+      expect(monitorReport.parse(report)).toEqual(report);
+    },
+  );
+
+  it.each([
+    "",
+    "Codex",
+    "1codex",
+    "-codex",
+    "codex-",
+    "code--x",
+    "code x",
+    "codex_2",
+    "c".repeat(41),
+  ])("refuses the profile %j, no name of its shape", (profile) => {
+    const report = { monitored: true, profile, condition: "waiting", since };
+    expect(fieldOf(monitorReport.safeParse(report))).toBe("profile");
+  });
+
   it("keeps no field it does not know, so no text rides along", () => {
     expect(monitorReport.parse({ monitored: false, screen: "$ rm -rf", profile: "codex" })).toEqual(
       { monitored: false },
@@ -60,11 +83,6 @@ describe("monitorReport", () => {
   it.each([
     ["no monitored", { profile: "codex" }, "monitored"],
     ["a condition without a profile", { monitored: true, condition: "running", since }, "profile"],
-    [
-      "a profile it does not know",
-      { monitored: true, profile: "my-harness", condition: "running", since },
-      "profile",
-    ],
     [
       "a condition it does not know",
       { monitored: true, profile: "codex", condition: "thinking", since },

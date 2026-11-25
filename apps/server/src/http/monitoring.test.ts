@@ -260,7 +260,10 @@ describe("stranded", () => {
 describe("the report", () => {
   it.each([
     ["free text", { monitored: true, profile: "codex", condition: "Do you trust this?", since }],
-    ["an unknown profile", { monitored: true, profile: "mine", condition: "waiting", since }],
+    [
+      "a profile that is no name",
+      { monitored: true, profile: "Do it?", condition: "waiting", since },
+    ],
     [
       "a stop beside running",
       {
