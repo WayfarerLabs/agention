@@ -149,8 +149,9 @@ export class Session {
 
   // stateOf reads the state of a key's registration with the request register
   // makes, marked as the bridge's background request, and learns the names
-  // granted to it. For a key the server knows it creates nothing. Only a key
-  // on disk, from storedKey, is given, once the names are fixed.
+  // granted to it. It creates nothing: for a key no registration has, the
+  // server answers not_found. Only a key on disk, from storedKey, is given,
+  // once the names are fixed.
   async stateOf(key: SessionKey, signal?: AbortSignal): Promise<RegistrationState> {
     if (this.#proposed === undefined) {
       throw new Error("the session's names are not fixed");
@@ -165,7 +166,8 @@ export class Session {
   // bridge does not know the names granted to the key on disk, it asks with
   // the request register makes, which for a key the server knows creates
   // nothing, marked as the bridge's background request when it is made for
-  // one. It never creates or replaces a key.
+  // one, which creates nothing for any key. It never creates or replaces a
+  // key.
   async credential(
     signal?: AbortSignal,
     background = false,
@@ -240,7 +242,7 @@ export class Session {
 
   // submit makes the request register makes. A background one, the bridge's
   // own rather than the agent's, marks the session connected and never its
-  // agent checked in.
+  // agent checked in, and registers no key the server does not know.
   async #submit(
     key: SessionKey,
     names: SessionNames,

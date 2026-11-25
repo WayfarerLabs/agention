@@ -4,6 +4,7 @@ import {
   type MonitorAnswer,
   type MonitorReport,
   type PublicKey,
+  type RegistrationState,
   statusByErrorCode,
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
@@ -243,11 +244,12 @@ export class Reporter {
   }
 
   // registration reads the state of the key on disk with the request register
-  // makes, as a background request. It never creates a key, and never
-  // submits one that is not on disk, or one whose last reading was pending,
-  // given, once past the expiry it gave, since the server may have pruned it
-  // and would register it afresh: the loop ends there, as it does at a
-  // registration that can never be approved.
+  // makes, as a background request, which registers no key the server does
+  // not know. It never creates a key, and never submits one that is not on
+  // disk, or one whose last reading was pending, given, once past the expiry
+  // it gave, since the server has likely pruned it. The loop ends there, as it
+  // does at a key the server does not know and at a registration that can
+  // never be approved.
   async #registration(
     signal: AbortSignal,
     pending: { key: PublicKey; expires: number } | undefined,
@@ -259,7 +261,15 @@ export class Reporter {
     if (pending?.key === key.publicKey && !(this.#clock() < pending.expires - expiryMargin)) {
       return { state: "ended" };
     }
-    const state = await this.#session.stateOf(key, signal);
+    let state: RegistrationState;
+    try {
+      state = await this.#session.stateOf(key, signal);
+    } catch (error) {
+      if (error instanceof ApiFailure && error.body.error.code === "not_found") {
+        return { state: "ended" };
+      }
+      throw error;
+    }
     if (state.status === "approved") {
       return { state: "approved" };
     }

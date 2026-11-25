@@ -12,7 +12,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import type { Database } from "../database/database.ts";
-import { invalidInput, notFound } from "../errors.ts";
+import { ApiError, invalidInput, notFound } from "../errors.ts";
 import { authorizeScope, holds, type Identity } from "../identity.ts";
 import { findAgentId, findSessionId, insertAgent, insertSession } from "./directory.ts";
 import { putInGroup, tagSession } from "./groups-and-tags.ts";
@@ -122,6 +122,11 @@ export function findRegistrationByKey(
 // anything, so a retry is harmless and the same call reports progress. The
 // caller has verified that the request was signed by the key.
 //
+// A bridge's background read only reads: for a key no registration has, as
+// when its pending registration expired and was pruned, it records nothing
+// and answers not_found, so a key only its agent's register submits is never
+// registered unasked.
+//
 // A new key whose code equals another pending registration's is refused: the
 // genuine registration holds its code while it is pending, so a key found to
 // match a code an agent relayed cannot even be submitted.
@@ -136,6 +141,12 @@ export function submitRegistration(
     const known = findRegistrationByKey(db, publicKey);
     if (known !== undefined) {
       return toState(readRegistration(db, known.id, now) as RegistrationRow);
+    }
+    if (input.background === true) {
+      throw new ApiError(
+        "not_found",
+        "no registration has this key, and a background read registers none; call register",
+      );
     }
     deleteExpiredPending(db, now);
     const code = registrationCode(publicKey);

@@ -9,7 +9,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { connectedFor, monitoringVersion } from "../store/presence.ts";
 import { defaultQuietAfter } from "../store/store.ts";
 import { hour } from "../store/test-fixture.ts";
-import { type AgentKey, codeOf, Harness, newThread, type Response } from "./test-harness.ts";
+import {
+  type AgentKey,
+  codeOf,
+  Harness,
+  newAgentKey,
+  newThread,
+  type Response,
+} from "./test-harness.ts";
 
 let harness: Harness;
 let approved: AgentKey;
@@ -137,6 +144,29 @@ describe("check-ins and background requests", () => {
       last_seen_version: monitoringVersion,
       background_at: harness.fixture.now - hour,
     });
+  });
+
+  it("register nothing for a background read of a key no registration has", async () => {
+    const unknown = newAgentKey();
+    const names = { agent: "builder", session: "other" };
+    const count = () =>
+      (harness.fixture.db.prepare("SELECT count(*) AS n FROM registrations").get() as { n: number })
+        .n;
+    const before = count();
+    const read = await harness.agent(
+      unknown,
+      "POST",
+      "/registrations",
+      { ...names, background: true },
+      monitoring,
+    );
+    expect(read.status).toBe(404);
+    expect(codeOf(read)).toBe("not_found");
+    expect(count()).toBe(before);
+    // The agent's own register submits it, as ever.
+    const submitted = await harness.agent(unknown, "POST", "/registrations", names, monitoring);
+    expect(submitted.body).toMatchObject({ status: "pending" });
+    expect(count()).toBe(before + 1);
   });
 });
 

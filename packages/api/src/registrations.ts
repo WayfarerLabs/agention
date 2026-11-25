@@ -31,9 +31,10 @@ export type RegistrationStatus = z.infer<typeof registrationStatus>;
 
 // The agent and session names an agent proposes when it registers its key,
 // and whether the request is its bridge's background one, reading the
-// registration's state while it waits for approval: an approved key's
-// background request marks its session connected, and any other marks its
-// agent checked in.
+// registration's state while it waits for approval. A background request
+// only reads: for a key no registration has, it registers nothing and
+// answers not_found. An approved key's background request marks its session
+// connected, and any other request marks its agent checked in.
 export const registrationSubmitInput = z.object({
   agent: name,
   session: name,

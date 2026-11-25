@@ -414,6 +414,37 @@ describe("the reporter at bridge start", () => {
     expect(bridge.logged).toEqual([]);
   });
 
+  it("stays quiet for a key the server no longer knows, until a tool call submits it", async () => {
+    const first = await harness.monitored();
+    await first.ok("register");
+    const key = harness.keyOnDisk();
+    await restart(first);
+    // The pending registration expires, and another session registering
+    // prunes it.
+    harness.server.fixture.advance(hour + 1);
+    await (await harness.bridge({ AGENTWORKS_SESSION: "other" })).ok("register");
+    expect(harness.registrations().map((row) => row.public_key)).not.toContain(key);
+    // This session's requests from here on, not the other's.
+    const pruned = harness.seen.length;
+    const mine = () =>
+      harness.seen
+        .slice(pruned)
+        .filter((seen) => (seen.body as { session?: string } | undefined)?.session !== "other");
+    const bridge = await harness.monitored();
+    await eventually(() => (mine().length > 0 ? true : undefined), "the reporter's read");
+    await delay(300);
+    // That one background read, which registered nothing, and no poll.
+    expect(mine()).toMatchObject([
+      { path: expect.stringMatching(/\/registrations$/), body: { session, background: true } },
+    ]);
+    expect(harness.registrations().map((row) => row.public_key)).not.toContain(key);
+    expect(bridge.logged).toEqual([]);
+    // A tool call submits the key as the agent's request, which registers it
+    // afresh, as it always has.
+    expect((await bridge.error("thread_list")).code).toBe("unauthenticated");
+    expect(harness.registrations().map((row) => row.public_key)).toContain(key);
+  });
+
   it("does nothing unless both variables name the session, until register", async () => {
     const first = await harness.registered();
     const before = await restart(first);
