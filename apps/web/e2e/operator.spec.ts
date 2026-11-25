@@ -1,19 +1,22 @@
+// cspell:ignore filechooser
 // The web UI in Chromium against the real server: the server's name in the
 // banner and titles, linking the first passkey, approving an agent and the
 // Sessions tab's count of registrations waiting, answering its asks, a
-// message's detail folded under its text and the composer's Details box, a
-// stale write, a draft kept across the Sessions tab and a reload until discarded,
+// message's detail folded under its text and the message copied with it,
+// the composer's Details box, a stale write, a draft kept across the
+// Sessions tab and a reload until discarded,
 // Send kept on a short phone's screen, text written to take the page down,
 // the divider after messages archived and unfolded, at a phone's width too,
 // reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
-// order, the order's direction and grouping, moving through the list, opening
+// search box, fitting beside a thread and on a phone, its order, the order's
+// direction and grouping, moving through the list, opening
 // a thread and returning from the keyboard, the list and the thread side by
 // side at a desktop's width and one at a time on a phone, the threads above
 // and below and where archiving goes, alike in both, an ask the agent withdraws and the
 // way back under the composer, the sessions view with a session's status and
-// log, at a phone's width too, a thread the operator starts there and
-// stranded's reason, a session's options menu over the next agent's header and
+// log, at a phone's width too, a thread the operator starts there with a file
+// and stranded's reason, a session's options menu over the next agent's header and
 // the picker it opens beside it on a wide screen and as a sheet on a phone,
 // the sessions view folded by group, a group created and tags picked in the
 // pickers, its headers folding by a click on their bars but for their chips,
@@ -60,6 +63,9 @@ const requestedHosts = new Set<string>();
 
 test.beforeAll(async ({ browser, agention }) => {
   context = await browser.newContext({ baseURL: agention.origin });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: agention.origin,
+  });
   page = await context.newPage();
   page.on("console", (message) => consoleMessages.push(message.text()));
   page.on("pageerror", (error) => consoleMessages.push(`page error: ${error.message}`));
@@ -234,14 +240,22 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await page.keyboard.press("Enter");
   await expect(details).toHaveAttribute("aria-expanded", "true");
   await expect(first.getByRole("heading", { name: "Rollback plan" })).toBeVisible();
+  // Copy, beside the message's options, copies its Markdown as written, with
+  // the detail while it is open.
+  await first.getByRole("button", { name: "Copy message 1" }).click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(`${text}\n\n${detail}`);
+  await details.focus();
   await page.keyboard.press("Space");
   await expect(details).toHaveAttribute("aria-expanded", "false");
   await expect(first.getByRole("heading", { name: "Rollback plan" })).toHaveCount(0);
 
   // Each answer is written on its ask's card, which leads with the ask's
   // number: a radio button for each suggested answer, and Other for the
-  // operator's own words. Both answers go in one message, beside which the
-  // box holds additional information.
+  // operator's own words, written in Notes, which also go beside a pick.
+  // Both answers go in one message, beside which the box holds additional
+  // information.
   const ask = page.getByRole("region", { name: "Ask 1: Ship it today?" });
   const tag = page.getByRole("region", { name: "Ask 2: Tag the release?" });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -250,8 +264,9 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await ask.getByRole("radio", { name: "Other" }).check();
   await expect(ask.getByRole("radio", { name: "Hold" })).not.toBeChecked();
   await expect(send).toBeDisabled();
-  await ask.getByRole("textbox", { name: "Other" }).fill("Hold until Monday.");
+  await ask.getByRole("textbox", { name: "Notes" }).fill("Hold until Monday.");
   await tag.getByRole("radio", { name: "Skip" }).check();
+  await tag.getByRole("textbox", { name: "Notes" }).fill("Tag with the next one.");
   const reply = page.getByRole("region", { name: "Reply" });
   await reply.getByRole("textbox").fill("Notes are late.");
   // The Details box folds under the message box until opened.
@@ -269,6 +284,8 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await expect(answered.locator(".event")).toHaveCount(2);
   await expect(answered.locator(".event").first()).toContainText("Other");
   await expect(answered.locator(".event").last()).toContainText("Skip");
+  await expect(answered.locator(".event").last()).not.toContainText("Other");
+  await expect(tag.getByText("Tag with the next one.")).toBeVisible();
 
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/1`);
   expect(read.body.thread.title).toBe(title);
@@ -279,7 +296,7 @@ test("the operator answers two asks in one message, and the agent reads the answ
     detail: "The changelog is in **review**.",
     answers: [
       { ask: 1, declined: false, text: "Hold until Monday." },
-      { ask: 2, declined: false, picks: [1], labels: ["Skip"] },
+      { ask: 2, declined: false, picks: [1], labels: ["Skip"], text: "Tag with the next one." },
     ],
   });
 });
@@ -590,9 +607,14 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await expect(newest).toBeVisible();
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Latest message");
 
-  await filters.click();
-  await sheet.getByRole("searchbox").fill("deep");
+  // The search box atop the list's head searches, and the sheet's box shows
+  // the same search.
+  const search = page.getByRole("searchbox", { name: "Search threads" });
+  await search.fill("deep");
   await expect(page).toHaveURL(/search=deep/);
+  await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
+  await filters.click();
+  await expect(sheet.getByRole("searchbox")).toHaveValue("deep");
   await sheet.getByRole("button", { name: /^Show 1 thread$/ }).click();
   await expect(sheet).toBeHidden();
   await expect(page.getByRole("heading", { name: "Deep text" })).toBeVisible();
@@ -613,7 +635,9 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await sheet.getByRole("button", { name: "Done" }).click();
   await sheet.getByRole("button", { name: /^Reset filters/ }).click();
   await expect(page).toHaveURL(/\/\?sort=latest$/);
+  await expect(sheet.getByRole("searchbox")).toHaveValue("");
   await page.keyboard.press("Escape");
+  await expect(search).toHaveValue("");
   await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
 
@@ -653,6 +677,10 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Remove filter: Session builder/main" }).click();
   await expect(page).toHaveURL(/\/\?sort=latest&group=session$/);
+  // Grouped by topic, the sessions head the list as they do by session.
+  await page.getByRole("combobox", { name: "Group" }).selectOption("Topic");
+  await expect(page).toHaveURL(/\/\?sort=latest&group=topic$/);
+  await expect(page.getByRole("button", { name: "Agent builder Session main" })).toBeVisible();
   await page.getByRole("combobox", { name: "Group" }).selectOption("Flat");
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);
@@ -684,6 +712,24 @@ test("the keyboard moves through the list with j and k, its focus ring showing, 
   await page.keyboard.press("u");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
 });
+
+// fitsAcross checks that a box takes its area's whole content width, and
+// that neither the area nor the page scrolls sideways.
+async function fitsAcross(box: Locator, area: Locator): Promise<void> {
+  const shown = await box.boundingBox();
+  expect(shown).not.toBeNull();
+  const content = await area.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  });
+  expect(Math.abs((shown?.width ?? 0) - content)).toBeLessThanOrEqual(2);
+  expect(await area.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+}
 
 test("at a desktop's width the list stands beside the thread open, kept as chosen and marking it, each thread at its own address, and one at a time on a phone", async () => {
   await showList();
@@ -732,6 +778,19 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await expect(page).toHaveURL(/\/\?sort=latest$/);
   await expect(first).toBeFocused();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+
+  // The list's search box, across its head, fits its pane with nothing to
+  // scroll sideways, down to the narrowest width side by side, and / puts
+  // focus in it.
+  const searchBox = list.getByRole("searchbox", { name: "Search threads" });
+  await page.keyboard.press("/");
+  await expect(searchBox).toBeFocused();
+  const sideBySide = page.viewportSize();
+  for (const width of [1024, sideBySide?.width ?? 1280]) {
+    await resize(page, { width, height: sideBySide?.height ?? 720 });
+    await expect(pane).toBeVisible();
+    await fitsAcross(searchBox, list);
+  }
 
   // Back keeps the list as set: an order chosen beside the second thread
   // stays on going back to the first, whose entry then returns to it, and on
@@ -785,6 +844,7 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true);
   await page.keyboard.press("u");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+  await fitsAcross(page.getByRole("searchbox", { name: "Search threads" }), page.locator("main"));
   await page.locator("ul.threads").getByRole("link").first().click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
   await expect(page.locator("ul.threads")).toHaveCount(0);
@@ -892,6 +952,29 @@ test("the sessions view shows a session's status and log, and starts a thread th
   expect(await scrollsSideways()).toBe(false);
   await sheet.getByLabel("Title").fill("Keep the archive");
   await sheet.getByLabel("Message").fill("Keep the nightly archive a week longer.");
+  // Attach, a menu at a phone's width, opens above itself within the sheet,
+  // and the file it adds goes with the thread's first message.
+  const attach = sheet.getByRole("button", { name: "Attach files" });
+  await attach.click();
+  const menu = sheet.locator(".options-menu");
+  const placed = await menu.boundingBox();
+  expect(placed).not.toBeNull();
+  expect(placed!.y).toBeGreaterThanOrEqual(0);
+  expect(placed!.y + placed!.height).toBeLessThanOrEqual((await attach.boundingBox())!.y);
+  // Escape closes the menu alone, leaving the sheet open.
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+  await expect(attach).toBeFocused();
+  await attach.click();
+  const chooser = page.waitForEvent("filechooser");
+  await menu.getByRole("button", { name: "Other files" }).click();
+  await (
+    await chooser
+  ).setFiles({ name: "plan.txt", mimeType: "text/plain", buffer: Buffer.from("A week.\n") });
+  const attached = sheet.getByRole("list", { name: "Files to send" }).getByRole("listitem");
+  await expect(attached.getByText("Uploaded")).toHaveCount(1);
+  expect(await scrollsSideways()).toBe(false);
   await sheet.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Keep the archive$/);
   if (wide !== null) {
@@ -902,6 +985,7 @@ test("the sessions view shows a session's status and log, and starts a thread th
   // The agent reads the thread as the operator's own words.
   const read = await agent.send<ThreadGetResult>("GET", `${threads}/${number}`);
   expect(read.body.messages[0]?.author.kind).toBe("person");
+  expect(read.body.messages[0]?.attachments?.map((each) => each.name)).toEqual(["plan.txt"]);
   expect(read.body.thread.title).toBe("Keep the archive");
 
   // Once the session stops, the thread it has not read is stranded, saying
@@ -1342,6 +1426,8 @@ test("the threads above and below, and archiving, move the same way beside the l
   expect(scrolled).toBeGreaterThan(0);
   await page.keyboard.press("]");
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[2] ?? "");
+  // Focus lands on the heading of the thread opened, once it has loaded.
+  await expect(pane.getByRole("heading", { level: 1 })).toBeFocused();
   await expect(rows.nth(2)).toHaveAttribute("aria-current", "page");
   expect(await shown?.evaluate((element) => element.isConnected)).toBe(true);
   expect(await list.evaluate((element) => element.scrollTop)).toBe(scrolled);
@@ -1355,6 +1441,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   const before = await entries();
   await archiveAll.click();
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
+  await expect(pane.getByRole("heading", { level: 1 })).toBeFocused();
   expect(await entries()).toBe(before);
   await expect(rows).toHaveCount(3);
 
@@ -1379,6 +1466,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   ).toBe(true);
   await below.click();
   await expect(heading).toHaveText(titles[3] ?? "");
+  await expect(heading).toBeFocused();
   await above.click();
   await expect(heading).toHaveText(titles[1] ?? "");
 
@@ -1395,6 +1483,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
   await reply.getByRole("button", { name: "Send" }).click();
   await expect(heading).toHaveText(titles[0] ?? "");
+  await expect(heading).toBeFocused();
   expect(await entries()).toBe(sending);
   await after.selectOption(chosenBefore);
 
@@ -1434,16 +1523,36 @@ test("the threads above and below, and archiving, move the same way beside the l
 test("signing in with the passkey returns to the page that needed it", async () => {
   await page.getByRole("link", { name: "Settings" }).click();
   await settings().getByRole("link", { name: "Sign out" }).click();
-  // Signing out reads the tabs' counts no more, and nothing answers the page
-  // unauthenticated.
+  // Once the operator signs out, the page asks nothing that needs the session:
+  // from the sign-out request the click sends until the Sign in page, it reads
+  // the tabs' counts no more, and nothing it asks is answered unauthenticated,
+  // though the server may sign the browser out before anything sent meanwhile
+  // arrives. The window regains focus as the click lands, which sets off every
+  // poll the page has at once, rather than leaving them to an interval that
+  // rarely falls in that window.
+  await page.evaluate(() => {
+    window.addEventListener("click", () => window.dispatchEvent(new Event("focus")), {
+      once: true,
+    });
+  });
   const strays: string[] = [];
+  let out = false;
+  const asked = new Set<Request>();
   const counted = (request: Request) => {
+    if (new URL(request.url()).pathname === "/api/web/auth/signout") {
+      out = true;
+      return;
+    }
+    if (!out) {
+      return;
+    }
+    asked.add(request);
     if (new URL(request.url()).pathname === "/api/web/attention") {
       strays.push(`read ${request.url()}`);
     }
   };
   const refused = (response: Response) => {
-    if (response.status() === 401) {
+    if (asked.has(response.request()) && response.status() === 401) {
       strays.push(`401 ${response.url()}`);
     }
   };

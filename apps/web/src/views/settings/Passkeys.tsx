@@ -137,6 +137,11 @@ function PasskeyItem({
 
   const remove = async () => {
     setStatus("");
+    // Removing the passkey that signed this browser in signs it out, so from
+    // here, as from Sign out, the page asks nothing more that needs the
+    // session.
+    const leaving = passkey.current;
+    const release = leaving ? session.signingOut() : undefined;
     const removed = await action.run((csrf) =>
       needingRecent(
         request<PasskeyRemoved>("POST", `/passkeys/${passkey.id}/remove`, { csrf }),
@@ -148,7 +153,13 @@ function PasskeyItem({
       forgetDrafts();
       const signedOut: SessionState = { signed_in: false, operator_exists: true };
       session.update(signedOut);
-    } else if (removed !== undefined) {
+      return;
+    }
+    release?.();
+    // A removal of this browser's passkey that failed reads the list again
+    // here, since it could not while the browser was signing out: a sign-in
+    // found too old is then offered again.
+    if (leaving || removed !== undefined) {
       refresh();
     }
   };

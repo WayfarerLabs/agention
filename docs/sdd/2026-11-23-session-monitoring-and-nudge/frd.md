@@ -131,10 +131,10 @@ predates monitoring runs beside one that reports it, the newer one's report appl
 one's calls count as check-ins.
 
 **M8. Monitoring is the operator's, and holds no pane text.** What monitoring reports reaches the
-operator, through the web UI and the operator API's session reads, and never an agent. No text from
-the pane reaches the server, the operator, the agent or the bridge's log: monitoring carries
-conditions, times, and fields of fixed types its profile defines, such as a reset time, never a
-string copied from the pane.
+operator, through the web UI and the operator API's session and thread reads, and never an agent. No
+text from the pane reaches the server, the operator, the agent or the bridge's log: monitoring
+carries conditions, times, and fields of fixed types its profile defines, such as a reset time,
+never a string copied from the pane.
 
 **M9. Starts on approval.** When the operator approves a registration while the agent sits at its
 prompt, monitoring and the nudge start without the agent calling a tool (ruling 2), through what a

@@ -2,13 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v5",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 5."
+    "version": "operator v1, agent v6",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 6."
   },
   "tags": [
     {
       "name": "operator",
-      "description": "Version 1 of the operator API, which a client calls as the operator with an API key the operator created in Settings. Each operation requires one scope, which the key must hold; an operation whose scope the key lacks answers not_found. A version changes only additively, with new operations, new optional request fields and new response fields, so a client ignores response fields it does not know."
+      "description": "Version 1 of the operator API, which a client calls as the operator with an API key the operator created in Settings. Each operation requires one scope, which the key must hold; an operation whose scope the key lacks answers not_found. A version changes only additively, with new operations, new optional request fields and new response fields, so a client ignores response fields it does not know. Until 1.0, what a field or value means may also change within a version, marked breaking in the changelog."
     },
     {
       "name": "agent",
@@ -154,7 +154,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -297,11 +297,13 @@
             "name": "group",
             "in": "query",
             "required": false,
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups.",
             "schema": {
               "type": "string",
               "enum": [
                 "session_group",
                 "session",
+                "topic",
                 "agent"
               ]
             }
@@ -696,7 +698,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1376,7 +1378,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1519,11 +1521,13 @@
             "name": "group",
             "in": "query",
             "required": false,
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups.",
             "schema": {
               "type": "string",
               "enum": [
                 "session_group",
                 "session",
+                "topic",
                 "agent"
               ]
             }
@@ -1782,6 +1786,7 @@
       "get": {
         "operationId": "operatorWaitForThreads",
         "summary": "Wait for messages you have not read, in any session, since a cursor",
+        "description": "One credential, an API key or a browser session, holds at most 4 of these waits at once. Another is refused at once as rate_limited (429), with Retry-After; the waits already held go on. A wait of 0 answers at once and counts toward none.",
         "tags": [
           "operator"
         ],
@@ -2619,7 +2624,7 @@
     "/api/operator/v1/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "operatorListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "operator"
         ],
@@ -2973,6 +2978,34 @@
                     "minLength": 1,
                     "maxLength": 20000,
                     "description": "Markdown, shown folded under the text, which it needs beside it: everything else the reader needs to decide on or understand the message without looking elsewhere, such as what was found, the options and their tradeoffs, evidence, and excerpts of diffs, logs or errors. A fenced code block marked mermaid shows as the diagram it describes. Never point at what only your own conversation shows. Messages are never deleted, so take keys, tokens and passwords out of any excerpt."
+                  },
+                  "attachments": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "upload": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{22}$",
+                          "description": "The reference an upload of yours answered with, in this session and not yet attached to a message."
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "With upload: the name to attach the file under, by default the one it was uploaded under."
+                        },
+                        "keep": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "On a replacement: a file of the message it replaces, by its name there, which this message carries again."
+                        }
+                      }
+                    },
+                    "description": "Up to 10 files this message carries, in order, each under a name unique within it. Upload a file first, then name its upload here; a replacement carries a file of the message it replaces only by keeping it."
                   }
                 },
                 "required": [
@@ -6280,7 +6313,7 @@
     "/api/agent/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "agentListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "agent"
         ],
@@ -6809,7 +6842,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "5"
+          "const": "6"
         }
       }
     },
@@ -6855,7 +6888,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 4000,
-            "description": "Plain text: the audience's own words on the ask, instead of a pick or, where several are allowed, beside its picks; the whole answer to an ask without suggested answers."
+            "description": "Plain text: the audience's own words on the ask, part of the answer: notes beside its picks, or the whole answer when nothing is picked."
           }
         },
         "required": [
@@ -6925,7 +6958,7 @@
             "items": {
               "$ref": "#/components/schemas/Suggestion"
             },
-            "description": "Suggested answers the audience may pick; it may always answer in its own words instead, or beside its picks where several are allowed."
+            "description": "Suggested answers the audience may pick; it may add its own words beside its picks as notes, or answer in its own words alone instead."
           },
           "multiple": {
             "default": false,

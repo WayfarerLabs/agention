@@ -6,6 +6,7 @@ import {
 import {
   Fragment,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,8 +22,10 @@ import { stopSpeaking } from "./speech.ts";
 
 // Dictation: the operator records, the server has the recording transcribed
 // by the provider in Settings, and the text goes where the caller puts it.
-// Nothing is ever sent by itself. The composer and Settings' Try it share it,
-// so Try it tests the path dictation takes.
+// Nothing is ever sent by itself. Every box whose words become part of a
+// message takes it through useDictationInto: the composer's message and
+// Details boxes, an ask's own-words field, and the new-thread sheet's boxes.
+// Settings' Try it shares it too, so Try it tests the path dictation takes.
 
 // A recording stops at five minutes, or at 1.9 MiB of data, whichever comes
 // first. At 32 kbit/s five minutes is about 1.2 MB, which keeps a recording
@@ -60,6 +63,12 @@ export function useVoiceOn(): boolean {
   return settings?.voice?.on === true && recorderType() !== undefined;
 }
 
+// How to stop the recording under way on the page, if one is. The page
+// records one dictation at a time: one starting stops another, which then
+// transcribes what it recorded, as its Stop would, so there is never more
+// than one microphone open, nor one recording heard twice.
+let recordingOnPage: (() => void) | undefined;
+
 // A finished recording, with the type it was asked for.
 interface Take {
   blob: Blob;
@@ -76,7 +85,7 @@ type Phase =
 
 // The control that takes focus once the next state shows, when one of this
 // dictation's own controls replaced another.
-type Focus = "dictate" | "stop" | "transcribing" | "retry";
+type Focus = "dictate" | "opening" | "stop" | "transcribing" | "retry";
 
 const clock = (milliseconds: number) => {
   const seconds = Math.floor(milliseconds / 1000);
@@ -93,13 +102,17 @@ function microphoneProblem(error: unknown): string {
 }
 
 export interface Dictation {
-  // The controls: Dictate, then Stop while recording, Cancel while
-  // transcribing, and Retry and Discard after a failure.
+  // The controls: Dictate, then Cancel while the microphone opens, Stop while
+  // recording, Cancel while transcribing, and Retry and Discard after a
+  // failure.
   controls: ReactNode;
   // What went wrong, such as why a transcription failed, or null.
   problem: ReactNode;
   // What dictation says otherwise, such as that nothing was heard, or null.
   said: ReactNode;
+  // Whether the controls show more than Dictate: Cancel while the microphone
+  // opens, Stop, Cancel while transcribing, or Retry and Discard.
+  busy: boolean;
 }
 
 // useDictation records, has the recording transcribed, and gives the text to
@@ -114,9 +127,10 @@ export function useDictation({
   // Takes a transcript that holds words, and whether focus is still where
   // dictation's controls left it, free for the caller to move.
   onText: (text: string, focusFree: boolean) => void;
-  // Told when a recording starts and when none is left: recording,
-  // transcribing or awaiting Retry.
-  onActive?: (active: boolean) => void;
+  // Told when a recording starts, from the moment the microphone is asked
+  // for, and when none is left: opening, recording, transcribing or awaiting
+  // Retry, until it is done with, refused or failed, or the caller goes away.
+  onActive?: ((active: boolean) => void) | undefined;
   disabled?: boolean;
 }): Dictation {
   const { csrf } = useSession();
@@ -124,6 +138,10 @@ export function useDictation({
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [notice, setNotice] = useState<{ text: string; problem: boolean }>();
   const recorder = useRef<MediaRecorder>(undefined);
+  // The microphone being opened, which Cancel abandons: a browser may never
+  // answer while its permission prompt goes unanswered, and one that answers
+  // after Cancel has its tracks stopped and records nothing.
+  const opening = useRef<{ abandoned: boolean }>(undefined);
   const dropped = useRef(false);
   const transcription = useRef<AbortController>(undefined);
   const mounted = useRef(true);
@@ -131,6 +149,12 @@ export function useDictation({
   onTextRef.current = onText;
   const onActiveRef = useRef(onActive);
   onActiveRef.current = onActive;
+  // Whether onActive was last told of a recording.
+  const active = useRef(false);
+  // Whether the caller holds dictation back as it stands, which a microphone
+  // that opens after the caller did so heeds.
+  const disabledNow = useRef(disabled);
+  disabledNow.current = disabled;
   const focus = useRef<Focus>(undefined);
   const controlRefs = useRef(new Map<Focus, HTMLElement>());
   const refFor = (which: Focus) => (element: HTMLElement | null) => {
@@ -167,6 +191,7 @@ export function useDictation({
   const end = useCallback((then?: Focus) => {
     focus.current = then;
     setPhase({ kind: "idle" });
+    active.current = false;
     onActiveRef.current?.(false);
   }, []);
 
@@ -220,25 +245,36 @@ export function useDictation({
       setNotice({ text: "This browser cannot record.", problem: true });
       return;
     }
+    // A recording counts from the moment the microphone is asked for, so
+    // nothing the caller holds back while one is under way, such as Send,
+    // goes ahead while the microphone opens.
+    const attempt = { abandoned: false };
+    opening.current = attempt;
+    focus.current = "opening";
     setPhase({ kind: "starting" });
+    active.current = true;
+    onActiveRef.current?.(true);
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (error) {
-      if (mounted.current) {
+      if (mounted.current && !attempt.abandoned) {
+        opening.current = undefined;
         end("dictate");
         setNotice({ text: microphoneProblem(error), problem: true });
       }
       return;
     }
     const stopTracks = () => stream.getTracks().forEach((track) => track.stop());
-    if (!mounted.current) {
+    if (!mounted.current || attempt.abandoned) {
       stopTracks();
       return;
     }
+    opening.current = undefined;
     // A page still hidden when the microphone opens was hidden before any
-    // recorder existed for the hide to stop, so none starts unwatched.
-    if (document.visibilityState === "hidden") {
+    // recorder existed for the hide to stop, so none starts unwatched; and
+    // one the caller held back meanwhile does not start at all.
+    if (document.visibilityState === "hidden" || disabledNow.current) {
       stopTracks();
       end("dictate");
       return;
@@ -258,6 +294,9 @@ export function useDictation({
     }
     recorder.current = made;
     dropped.current = false;
+    const stopThis = () => finish(false);
+    recordingOnPage?.();
+    recordingOnPage = stopThis;
     const timer = window.setInterval(() => {
       const elapsed = Date.now() - started;
       if (elapsed >= recordingLimit) {
@@ -281,6 +320,9 @@ export function useDictation({
       window.clearInterval(timer);
       stopTracks();
       recorder.current = undefined;
+      if (recordingOnPage === stopThis) {
+        recordingOnPage = undefined;
+      }
       if (!mounted.current) {
         return;
       }
@@ -293,7 +335,6 @@ export function useDictation({
     };
     focus.current = "stop";
     setPhase({ kind: "recording", elapsed: 0 });
-    onActiveRef.current?.(true);
   };
 
   // A hidden page stops the recording, so the microphone never runs
@@ -308,19 +349,32 @@ export function useDictation({
     return () => document.removeEventListener("visibilitychange", hidden);
   }, [finish]);
 
-  // Going away stops the recording, every track with it, and drops a
-  // transcription under way.
+  // Going away stops the recording, every track with it, drops a
+  // transcription under way, and tells the caller none is left.
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       finish(true);
       transcription.current?.abort();
+      if (active.current) {
+        active.current = false;
+        onActiveRef.current?.(false);
+      }
     };
   }, [finish]);
 
   const cancel = () => {
     transcription.current?.abort();
+    end("dictate");
+  };
+
+  // Cancel while the microphone opens abandons it.
+  const cancelOpening = () => {
+    if (opening.current !== undefined) {
+      opening.current.abandoned = true;
+      opening.current = undefined;
+    }
     end("dictate");
   };
 
@@ -342,19 +396,36 @@ export function useDictation({
   let controls: ReactNode;
   switch (phase.kind) {
     case "idle":
-    case "starting":
       controls = (
         <button
           key="dictate"
           ref={refFor("dictate")}
           type="button"
           className="secondary"
-          disabled={disabled || phase.kind === "starting"}
+          disabled={disabled}
           onClick={() => void start()}
         >
           <Icon name="microphone" />
           <span className="dictate-label">Dictate</span>
         </button>
+      );
+      break;
+    case "starting":
+      controls = (
+        <Fragment key="opening">
+          <span className="visually-hidden" role="status">
+            Opening the microphone
+          </span>
+          <button
+            ref={refFor("opening")}
+            type="button"
+            className="secondary"
+            aria-label="Cancel dictation"
+            onClick={cancelOpening}
+          >
+            Cancel
+          </button>
+        </Fragment>
       );
       break;
     case "recording":
@@ -381,7 +452,12 @@ export function useDictation({
           <p ref={refFor("transcribing")} tabIndex={-1} className="status" role="status">
             Transcribing
           </p>
-          <button type="button" className="secondary" onClick={cancel}>
+          <button
+            type="button"
+            className="secondary"
+            aria-label="Cancel dictation"
+            onClick={cancel}
+          >
             Cancel
           </button>
         </Fragment>
@@ -409,5 +485,73 @@ export function useDictation({
     ),
     problem,
     said,
+    busy: phase.kind !== "idle",
   };
+}
+
+// useDictationInto is dictation into a form's message boxes, named by the
+// caller. The text goes in at the caret of the box that last had focus, or
+// the first box until one has, or while the one that had is gone, with a
+// space on each side where it meets other text, and focus moves there, to
+// after it, unless the operator has put focus somewhere else meanwhile. The
+// caller tells it, through focused, as each box takes focus, and sets a
+// box's value through set. A transcript that accepts refuses, as one arriving
+// after its draft was sent, goes nowhere.
+export function useDictationInto<Box extends string>({
+  boxes,
+  first,
+  set,
+  accepts,
+  onActive,
+  disabled = false,
+}: {
+  boxes: Readonly<Record<Box, RefObject<HTMLTextAreaElement | null>>>;
+  first: NoInfer<Box>;
+  set: (box: NoInfer<Box>, value: string) => void;
+  accepts?: () => boolean;
+  onActive?: (active: boolean) => void;
+  disabled?: boolean;
+}): { dictation: Dictation; focused: (box: Box) => void } {
+  const last = useRef<Box>(first);
+  // Where to put the caret once a transcript is in, and in which box.
+  const caret = useRef<{ box: Box; at: number }>(undefined);
+  const insert = (words: string, focusFree: boolean) => {
+    if (accepts?.() === false) {
+      return;
+    }
+    const which = boxes[last.current].current === null ? first : last.current;
+    const element = boxes[which].current;
+    if (element === null) {
+      return;
+    }
+    const { value } = element;
+    const start = element.selectionStart ?? value.length;
+    const before = value.slice(0, start);
+    const after = value.slice(element.selectionEnd ?? start);
+    const lead = before !== "" && !/\s$/.test(before) ? " " : "";
+    const trail = after !== "" && !/^\s/.test(after) ? " " : "";
+    const placed = `${before}${lead}${words}`;
+    set(which, `${placed}${trail}${after}`);
+    if (focusFree || document.activeElement === element) {
+      caret.current = { box: which, at: placed.length };
+    }
+  };
+  // The caret moves in the same commit as the text it follows, before the
+  // browser paints or handles another key, so a key typed as a transcript
+  // arrives lands after it, never at the end of the box.
+  useLayoutEffect(() => {
+    const placed = caret.current;
+    if (placed === undefined) {
+      return;
+    }
+    caret.current = undefined;
+    const element = boxes[placed.box].current;
+    element?.focus();
+    element?.setSelectionRange(placed.at, placed.at);
+  });
+  const dictation = useDictation({ disabled, onText: insert, onActive });
+  const focused = useCallback((box: Box) => {
+    last.current = box;
+  }, []);
+  return { dictation, focused };
 }

@@ -35,10 +35,10 @@ import { useOrganize } from "./Organize.tsx";
 // loadRegistrations reads a page of registrations, only those waiting for
 // approval when status says so.
 export function loadRegistrations(status: "pending" | undefined) {
-  return (cursor: string | undefined) =>
-    request<RegistrationsPage>("GET", `/registrations${query({ status, cursor })}`).then(
-      (page) => ({ rows: page.registrations, next: page.next }),
-    );
+  return (cursor: string | undefined, signal: AbortSignal) =>
+    request<RegistrationsPage>("GET", `/registrations${query({ status, cursor })}`, {
+      signal,
+    }).then((page) => ({ rows: page.registrations, next: page.next }));
 }
 
 export function PendingRegistration({

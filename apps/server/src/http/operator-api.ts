@@ -10,7 +10,8 @@ import type { RateBudgets } from "./rates.ts";
 // The version of the operator API this mount serves, and where. A version
 // changes only additively, with new operations, new optional request fields
 // and new response fields; a change that would break a client is a new
-// version beside the old, by a maintainer's decision.
+// version beside the old, by a maintainer's decision. Until 1.0, a change in
+// what a field or value means may land in place, marked breaking.
 export const operatorApiVersion = 1;
 export const operatorApiPrefix = `/api/operator/v${operatorApiVersion}`;
 

@@ -69,9 +69,10 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    you can see, too, such as the state of the pull request an ask is about, and withdraw an ask the
    world has settled.
 4. **Read** each thread it returns with `thread_get` after its `read_through`, act on the answers,
-   and mark what you have handled with `thread_read`. An answer that reports something you can
-   check, such as "Merged", check before you rely on it, and say in the thread when it does not
-   hold.
+   and mark what you have handled with `thread_read`. An answer's `text` beside its picks is the
+   operator's notes and part of the answer, as binding as the pick. An answer that reports something
+   you can check, such as "Merged", check before you rely on it, and say in the thread when it does
+   not hold.
 5. **Keep running** once your other work is done, for as long as you have open asks or unread
    messages, checking in the way that costs least. Report `idle`, with a note, when you start
    waiting with nothing else to do, with or after your last write of any kind: give `state` and

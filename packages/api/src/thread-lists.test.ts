@@ -76,7 +76,7 @@ describe("list queries", () => {
     [threadsQuery, { topic: "builder/main/a/b" }, "topic.0"],
     [threadsQuery, { topic: [] }, "topic"],
     [threadFilters, { topic: ["builder/main/auth", "builder/main/auth"] }, "topic"],
-    [threadsQuery, { group: "topic" }, "group"],
+    [threadsQuery, { group: "tag" }, "group"],
     [threadsQuery, { group: ["session", "agent"] }, "group"],
     [threadsQuery, { overdue: "yes" }, "overdue"],
     [threadsQuery, { status: "closed" }, "status"],

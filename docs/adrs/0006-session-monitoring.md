@@ -1,4 +1,4 @@
-# 5. Session monitoring from the harness's terminal
+# 6. Session monitoring from the harness's terminal
 
 Date: 2026-11-24
 

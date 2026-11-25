@@ -282,29 +282,29 @@ holds open, since a replacement's asks are numbered anew and the count is what c
 thread reference names a thread in the same session. Refusals name asks by their numbers. An answer
 is a decline, or distinct picks among the ask's suggested answers and the answerer's own words, at
 least one of them: an ask without suggested answers takes own words alone, and one that allows a
-single answer takes one pick or own words, never both. The own words are the answer's, plain text
-apart from the message's Markdown text and detail, which are any additional information. It appends
-the message with its asks and answers and raises the writer's read mark through it in the same
-transaction, where a writer for whom the thread is archived keeps it archived, its archive mark
-moving to its own message. A later message carries some part unless it replaces another, a rule the
-request's schema holds, since no constraint on a message's row sees the rows of its own; a thread's
-first message may carry nothing, since its title speaks for it, and a replacement carrying nothing
-retracts the message it replaces, which the rules above allow only while that message holds no open
-ask. A replacement is a whole message: what it leaves out, its detail included, is gone with the
-message it replaces. A write answers with the thread number and the message's sequence, and a retry
-of the same request id gets that same answer, while a retry with any part changed, its detail
-included, is a request-id conflict. A stale write appends nothing, so its retry may reuse the id.
-Everything a thread shows beyond its title, roles and latest sequence, such as its topic, open asks,
-status, unread count and count of live messages, is derived in queries over the two views, never
-stored. A thread's status rolls up the asks on its live messages and those a live message withdraws,
-so an ask its own message's replacement withdrew counts and a revised ask does not: `open` while any
-is open; otherwise `withdrawn` when every one is withdrawn, with the latest such withdrawal, and
-`answered` when there are any; `none` when there are none. It is the same whoever views it. After a
-write or a registration's revocation commits, an in-process notifier wakes the long polls waiting on
-the session, and with them the waits across every session. Revoking an API key and ending a browser
-session, by signing out, signing in again on that browser, removing the passkey that signed it in or
-replacing the passkeys through a link, wake the waits across every session alone once they commit,
-since no session's own changed.
+single answer takes one pick at most. The own words are part of the answer, notes beside its picks
+or the whole answer without them, plain text apart from the message's Markdown text and detail,
+which are any additional information. It appends the message with its asks and answers and raises
+the writer's read mark through it in the same transaction, where a writer for whom the thread is
+archived keeps it archived, its archive mark moving to its own message. A later message carries some
+part unless it replaces another, a rule the request's schema holds, since no constraint on a
+message's row sees the rows of its own; a thread's first message may carry nothing, since its title
+speaks for it, and a replacement carrying nothing retracts the message it replaces, which the rules
+above allow only while that message holds no open ask. A replacement is a whole message: what it
+leaves out, its detail included, is gone with the message it replaces. A write answers with the
+thread number and the message's sequence, and a retry of the same request id gets that same answer,
+while a retry with any part changed, its detail included, is a request-id conflict. A stale write
+appends nothing, so its retry may reuse the id. Everything a thread shows beyond its title, roles
+and latest sequence, such as its topic, open asks, status, unread count and count of live messages,
+is derived in queries over the two views, never stored. A thread's status rolls up the asks on its
+live messages and those a live message withdraws, so an ask its own message's replacement withdrew
+counts and a revised ask does not: `open` while any is open; otherwise `withdrawn` when every one is
+withdrawn, with the latest such withdrawal, and `answered` when there are any; `none` when there are
+none. It is the same whoever views it. After a write or a registration's revocation commits, an
+in-process notifier wakes the long polls waiting on the session, and with them the waits across
+every session. Revoking an API key and ending a browser session, by signing out, signing in again on
+that browser, removing the passkey that signed it in or replacing the passkeys through a link, wake
+the waits across every session alone once they commit, since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
 every conversation, marks its session's presence before its own work, in a transaction of its own,
@@ -325,7 +325,7 @@ From those the reads derive, against the request's clock and never stored:
 - **Quiet**: the agent never checked in, or has not within `agention serve --quiet-minutes`, 15 by
   default, and the minute a stamp may lag, so an agent that keeps calling never is quiet.
 - **Connected**: the bridge made a background request within the last minute. A bridge older than
-  agent API version 5 cannot report a connection, so while no bridge is connected and the agent last
+  agent API version 6 cannot report a connection, so while no bridge is connected and the agent last
   checked in through such a bridge, as every check-in from before versions were kept did, the
   session follows their rule: connected is not stated and never counts against it.
 - **Stranded**: a thread holding a live message of the operator's that the session has not read
@@ -429,15 +429,16 @@ in name order, with its color and how many agents and how many sessions carry it
 nothing carries, saying when it leaves any out. The sessions view's page carries each agent's tags,
 and each session's group and tags.
 
-The operator starts a thread on a session with a title and a first message of text, with its detail.
-The session stays the thread's requester and the operator its audience, so the operator's request
-has no field for asks or a topic, nor for references or attachments, which the web UI does not offer
-there; a request carrying any of them starts a thread without them. The session reads the thread as
-the operator's words and replies in it. The thread starts whatever the session's state or
-credential, stranded from the start when the session is not there to read it; the operator's read
-mark reaches their message, and the session's long polls wake. A retry with the same request id is
-answered as the first was, and one with other content is a request-id conflict, as for a session's
-own thread, which a session still starts only in itself.
+The operator starts a thread on a session with a title and a first message of text, with its detail
+and its files, uploads of theirs to that session, checked as any first message's are. The session
+stays the thread's requester and the operator its audience, so the operator's request has no field
+for asks or a topic, nor for references, which the web UI does not offer there; a request carrying
+any of them starts a thread without them. The session reads the thread as the operator's words and
+replies in it. The thread starts whatever the session's state or credential, stranded from the start
+when the session is not there to read it; the operator's read mark reaches their message, and the
+session's long polls wake. A retry with the same request id is answered as the first was, and one
+with other content is a request-id conflict, as for a session's own thread, which a session still
+starts only in itself.
 
 An upload (`apps/server/src/store/files.ts`) begins in one transaction, which authorizes the session
 under `threads:write` and refuses it while its writer holds 20 pending uploads, or would hold more
@@ -450,7 +451,8 @@ expired API key stops within one chunk. Completing checks that the bytes receive
 declared size, and records the hash and the time. Any failure after the upload begins, a body cut
 off, a revoked credential or a length that does not match among them, removes the file and its
 chunks in one transaction; a removal that itself fails is logged and left to the sweep. A completed
-upload no message names expires 24 hours after it completed.
+upload no message names expires 24 hours after it completed, unless its writer removes it first, as
+the web UI does for a draft left unsent ([Web UI](#web-ui)).
 
 A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
 `store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
@@ -463,11 +465,14 @@ digest a request id covers, and the replay runs before the check, so a retry who
 consumed its uploads answers as the first did. A message may carry files alone; a replacement that
 keeps files does not retract the message it replaces, and one that does not keep a file leaves it
 with the replaced message. A message reads back with its attachments, in order: each file's name,
-reference, size, declared type, and whether it is missing. A thread's answer carries `files`, the
-count and bytes of its distinct files, each counted once however many messages carry it, and its
-file list gives each once, with the first message that carried it, newest first, paged by an opaque
-cursor. The settings' `storage` counts every completed file, pending ones included, since that is
-the disk they take, and their bytes.
+reference, size, declared type, and whether it is missing. A thread's files are those its live
+messages carry: a replaced message still reads back with its own, but they count toward the thread
+only while a live message, such as a replacement that kept them, carries them. A thread's answer
+carries `files`, the count and bytes of those distinct files, and its file list gives each once,
+with the live message that carries it, newest first, paged by an opaque cursor; a file has at most
+one live carrier, since an upload is attached once and only a replacement keeps a file. The
+settings' `storage` counts every completed file, pending ones included, since that is the disk they
+take, and their bytes.
 
 The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those completed more
 than 24 hours ago, and those left incomplete that are not in the set of uploads in flight, each in a
@@ -536,7 +541,7 @@ and leaves the others after them as they were; it never changes a thread's lead.
 thread's number, and across sessions first on the session, so the positions a session's own list
 gives out say nothing about other sessions. Lists page by keyset cursors, each bound to its order,
 its direction and its grouping, so a cursor another gave out is refused; a cursor is at most 1,024
-characters, room for a grouped list's position, four sets of keys. All of these keys change as
+characters, room for a grouped list's position, three sets of keys. All of these keys change as
 threads do, so a thread that changes between two pages can be skipped or repeated, and the next
 refresh shows it. Beside a page, the operator's list says how many threads it holds. Bulk read and
 archive take each thread through the message the list showed; bulk archive skips the threads holding
@@ -545,17 +550,17 @@ an ask open to the operator and names them.
 Each thread in the operator's list carries its session's group, which no agent's list shows. With
 `group`, the operator's list orders its threads by their group, then by the sort, so a group's
 threads arrive together: grouped by session group (`group=session_group`), each session's group, no
-group being one of its own, each session within it, and each topic within that, is placed by its
-first thread under the sort, reversed or not; grouped by session, each session, and each topic
-within it, likewise; grouped by agent, each agent, and each session within it, likewise. A group's
-place is its first thread's keys, which a cursor carries beside the thread's own. As a moved thread
-does in the flat list, a change that moves a group ahead of a page's cursor skips that group's
-remaining threads for the rest of that pass, and one that moves it behind repeats them; the next
-load from the first page shows the list whole, and the web UI reloads from the first page on every
-refresh. A group can therefore come in two runs. A change that moves a group's first thread moves
-the whole group, so while every thread the list keeps is in one session group, it can skip or repeat
-the rest of the pass. Every page of a grouped list carries the roll-up of each session holding a
-thread the list keeps, with its group, and, grouped by session group or by session, of each of its
+group being one of its own, and each session within it, is placed by its first thread under the
+sort, reversed or not; grouped by session, each session, likewise; grouped by topic, each session,
+and each topic within it, likewise; grouped by agent, each agent, and each session within it,
+likewise. A group's place is its first thread's keys, which a cursor carries beside the thread's
+own. As a moved thread does in the flat list, a change that moves a group ahead of a page's cursor
+skips that group's remaining threads for the rest of that pass, and one that moves it behind repeats
+them; the next load from the first page shows the list whole, and the web UI reloads from the first
+page on every refresh. A group can therefore come in two runs. A change that moves a group's first
+thread moves the whole group, so while every thread the list keeps is in one session group, it can
+skip or repeat the rest of the pass. Every page of a grouped list carries the roll-up of each
+session holding a thread the list keeps, with its group, and, grouped by topic, of each of its
 topics: how many threads, how many unread, whether any holds a blocking ask open to the caller, the
 highest priority of an open ask, and whether all are archived for the caller, and each session's
 presence: when it was last seen, whether it is quiet and whether it is connected. `composeRollup`
@@ -594,7 +599,15 @@ wakes the client for no message it was already told of, and a full page continue
 it left out; a `since` past the latest position counts as none, as a session's own does. It waits on
 the notifier's channel across every session, which every session's notification wakes, and the end
 of an API key or a browser session too, and it polls again when its credential expires, so an expiry
-ends the wait with the credential's refusal, as a revocation does.
+ends the wait with the credential's refusal, as a revocation does. Every message wakes every such
+wait to poll again, so one credential, an API key or a browser session, holds at most 4 at once,
+which the store's `OperatorWaits` (`apps/server/src/store/operator-waits.ts`) counts in the server
+process, as the notifier holds the waits. The operation takes a place once the request is
+authenticated and its input read, for a wait longer than 0, which answers at once and takes none,
+and gives it back however the wait ends: answered, run out, left by its client, ended by its
+credential's end or failed. One past the limit is refused at once as `rate_limited`, with a
+`Retry-After` of a second, and no held wait ends to make room, since clients that each wait again
+would then push each other out.
 
 ## HTTP API
 
@@ -690,10 +703,10 @@ client disconnects, when the server shuts down, or when its wait runs out. The o
 across sessions, `GET /wait`, answers and ends the same way across every session, and also when its
 API key or browser session ends or expires ([Store](#store)).
 
-The agent mount speaks a version of the agent API, `agentApi` in `packages/api`: 5 in this release,
-serving every version from its `oldest`, 1, which only a maintainer's decision moves. Every change
-to the agent contract, a new route or a new field on one, bumps it. Every answer on the agent mount,
-the refusals of the checks before it included, states the server's version in the
+The agent mount speaks a version of the agent API, `agentApi` in `packages/api`, serving every
+version from its `oldest`, which only a maintainer's decision moves. Every change to the agent
+contract bumps it ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api)). Every answer on the agent
+mount, the refusals of the checks before it included, states the server's version in the
 `Agention-Agent-API` header, set by the first middleware for the mount's paths. A request states its
 own there, and a missing one means 1, which every bridge released before the header sends. The
 mount's first middleware refuses a request stating a version above the server's or below its oldest
@@ -708,9 +721,11 @@ versioned: the server serves its own web UI, always in step.
 The operator mount's version is in its path, `/api/operator/v1/`. A version changes only additively,
 with new operations, new optional request fields and new response fields, so a client ignores
 response fields it does not know; a change that would break a client is a new version beside the
-old, by a maintainer's decision. `GET /api/operator`, which needs no credential, answers the
-versions the server serves, `{"versions":[1]}`, and a version it does not serve is unknown, as any
-unknown API route is.
+old, by a maintainer's decision. Until 1.0, a change in what an existing field or value means may
+land in place by a maintainer's decision, marked breaking
+([ADR 0005](adrs/0005-operator-api-meaning-before-1-0.md)). `GET /api/operator`, which needs no
+credential, answers the versions the server serves, `{"versions":[1]}`, and a version it does not
+serve is unknown, as any unknown API route is.
 
 Unknown API routes answer `not_found`, and so does every path under `/docs/api` while the API's
 documentation is not served. Every other path serves the web UI: a file of the Vite build, or the
@@ -758,9 +773,9 @@ share the operator's pending limits, and the web UI can name one in a message.
   reference that names nothing. An upload still arriving has not yet answered with its reference;
   ending its request stops it, and the server removes what arrived. The web UI's **Remove** calls it
   for an uploaded file; the bridge has no tool for it.
-- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists a thread's files, each
-  once with the message that brought it, its author and its time, newest first, up to 50 a page by
-  default.
+- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists the files a thread's live
+  messages carry, each once with the message that carries it, its author and its time, newest first,
+  up to 50 a page by default.
 - **Reading a file.** `GET` and `HEAD /threads/:thread/messages/:seq/files/:name?file=<reference>`
   read the file a message carries under a name, percent-encoded in the path and compared after NFC
   normalization (`apps/server/src/http/files.ts`). The thread must be the session's, the message the
@@ -985,8 +1000,9 @@ else spends one budget per class: registrations of new keys, failed agent authen
 key authentication (`failedKeyAuth`), failed passkey sign-ins and failed passkey links. Every class
 but new registrations is charged only for a request that failed, after it was checked, so draining
 one never refuses a valid key, passkey or link, and beginning a ceremony costs nothing. An exhausted
-budget answers `rate_limited`, with a `Retry-After` header. The
-[operator guide](operator-guide.md#rate-budgets) lists the rates.
+budget answers `rate_limited`, with a `Retry-After` header, as does a wait across sessions past its
+credential's limit ([Store](#store)). The [operator guide](operator-guide.md#rate-budgets) lists the
+rates.
 
 ## Serving
 
@@ -1274,20 +1290,21 @@ harness in a tmux server of their own.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's search, sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
@@ -1336,16 +1353,20 @@ or the list's address, so the entry, a reload, `u` and the list agree. The route
 listener to `popstate`, and runs the corrections views register (`correctPoppedEntry`) within it,
 with telling the page: a listener of its own would run only once the page had rendered the entry
 uncorrected. A row's link records the list on screen as it is followed. The open thread's row is
-`aria-current="page"`, and opening it again moves focus to the thread's pane. The page keeps one
+`aria-current="page"`, and opening it again moves focus into the thread's pane. The page keeps one
 title and one level-one heading, the thread's while one is open, and a change that leaves a thread,
 such as Archive all or a send that goes back to the list, returns to the list as it stands once the
 change lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
 `src/components.tsx`), the place a view marks with `data-landing`, its heading or else the place
-itself: the thread's pane, as a phone lands on the page's content while a thread loads, or on
-returning to the list, the row of the thread just left (`src/views/list/beside.ts`). A row that goes
-while it holds focus passes it to the page's heading, and crossing the breakpoint, if it took away
-what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
-and the list's pane is sticky and scrolls on its own.
+itself: side by side the thread's pane, on a phone the page's content, or on returning to the list,
+the row of the thread just left (`src/views/list/beside.ts`). A landing with no heading yet, as a
+thread's while it loads, is pending: the first heading to show in it (`PageHeading`) takes focus as
+it shows, while focus is still on the landing itself or on nothing, as when the control that had it
+went, never from where the operator has put it meanwhile, within the landing or not. So a thread
+opened from the list, by Thread above or below, by archiving or after sending lands on its heading
+at every width. A row that goes while it holds focus passes it to the page's heading, and crossing
+the breakpoint, if it took away what held focus, moves focus to where a navigation lands. The thread
+keeps the page's own scroll, and the list's pane is sticky and scrolls on its own.
 
 A thread page's **Thread above** and **Thread below**, and Archive all as Auto-advance says, go to
 the row just above or below the thread in the list it returns to, as that list stands when the
@@ -1473,11 +1494,15 @@ where it was. While the operator is signed in, the navigation reads what waits o
 `GET /attention`, and shows it as a badge on each tab while there is any: the unread threads on
 Threads and the registrations waiting for approval on Sessions. The counts refresh on an interval,
 on returning to the page, on going to another view, and at once after any change the page makes
-lands, which the web API client announces for every request but a read and signing in or out.
-Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
-summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
-seen; otherwise no active credential; otherwise its bridge not connected; and, beside any but the
-last, what its terminal shows, where the bridge reports it.
+lands, which the web API client announces for every request but a read and signing in or out. From
+the moment the operator starts ending the session, by signing out or by removing the passkey that
+signed this browser in, the page asks nothing more that needs the session on its own: no view
+refreshes, no count is read and a load under way stops before it asks again, since the server may
+sign the browser out before anything sent meanwhile arrives and would refuse it. Wherever a thread
+shows as stranded, the UI says why from the session's presence in the thread's summary: the stop the
+session reported, with its outcome; otherwise quiet, with when it was last seen; otherwise no active
+credential; otherwise its bridge not connected; and, beside any but the last, what its terminal
+shows, where the bridge reports it.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
@@ -1533,14 +1558,16 @@ shortcuts are on unless the operator turns them off in Settings' Keyboard sectio
 browser keeps in its local storage (`src/device.ts`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
-each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
-its boxes against the API's bounds of a message's text and detail, counted with the API's
-`codePointLength` as the server counts them, and never cuts what is typed into them. Its Send row,
-which holds what answers Send, sticks to the foot of the screen within the composer, and the page's
-viewport asks a phone to shrink the layout for its keyboard (`interactive-widget=resizes-content`),
-so the keyboard does not hide Send. The composer measures the row as it changes and the page's
-scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
-into view above the row.
+each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
+button (`src/views/thread/copy.ts`) writes its text, and its detail while that fold is open, to the
+clipboard as Markdown, through `navigator.clipboard`, and says under the message when the browser
+refuses. The composer checks its boxes against the API's bounds of a message's text and detail,
+counted with the API's `codePointLength` as the server counts them, and never cuts what is typed
+into them. Its Send row, which holds what answers Send, sticks to the foot of the screen within the
+composer, and the page's viewport asks a phone to shrink the layout for its keyboard
+(`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer measures
+the row as it changes and the page's scroll padding keeps that much clear, so the caret and a
+control focused from the keyboard scroll into view above the row.
 
 The composer's After sending is where a message the server accepts takes the operator, a choice the
 browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
@@ -1619,16 +1646,28 @@ The Storage section (`src/views/settings/Storage.tsx`) says from the settings' `
 space attachments take, in how many files, and that every backup copies them; nothing there changes
 it.
 
-A message's files (`src/views/thread/files/`) come in two halves. In the composer, **Attach**, an
-icon beside Send, opens a hidden file input that takes several files, with no `accept` and no
-`capture`. Where the primary pointer is coarse (`(pointer: coarse)`), a phone or a tablet, whose
-browser would hand that input to the system's chooser, Attach is an options menu of its own instead,
-of four items each opening its own hidden input: **Take a photo** (`accept="image/*"`,
-`capture="environment"`), **Record a video** (`video/*`, likewise), **Photos and videos**
-(`image/*,video/*`, several, which recent Android shows in its photo picker) and **Other files**
-(`application/*,text/*`, several: a picker that could take images, video or audio is one Android
-hands to its chooser of camera, video camera and files, which the menu stands in for). A touchscreen
-laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
+Writing a message is alike wherever the operator does it. Every box whose words become part of a
+message takes dictation while voice is on, and every place that writes and sends a message, a
+thread's composer and the new-thread sheet, offers Attach and attaches images pasted into its
+message and Details boxes. An ask's own-words field takes dictation on its card; its answer goes
+with the composer's message, which carries the files. Send waits, wherever it is, until the
+message's files have uploaded and while a recording for it opens the microphone, records,
+transcribes or awaits Retry, saying why on Send's `aria-describedby` (`sendWait` in
+`src/attach/attach.ts`); a recording on an ask's card counts for the composer's Send, which sends
+that answer, and the composer's Ctrl or Cmd+Enter waits as its Send does. A thread's title, search
+boxes and names are not message text, and take neither.
+
+A message's files come in two halves: attaching them, in `src/attach/`, which the composer and the
+new-thread sheet share, and showing them, in `src/views/thread/files/`. Wherever the operator writes
+a message, **Attach**, an icon beside Send, opens a hidden file input that takes several files, with
+no `accept` and no `capture`. Where the primary pointer is coarse (`(pointer: coarse)`), a phone or
+a tablet, whose browser would hand that input to the system's chooser, Attach is an options menu of
+its own instead, of four items each opening its own hidden input: **Take a photo**
+(`accept="image/*"`, `capture="environment"`), **Record a video** (`video/*`, likewise), **Photos
+and videos** (`image/*,video/*`, several, which recent Android shows in its photo picker) and
+**Other files** (`application/*,text/*`, several: a picker that could take images, video or audio is
+one Android hands to its chooser of camera, video camera and files, which the menu stands in for). A
+touchscreen laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
 `(any-pointer: coarse)` would not. The page's sizes follow the primary pointer the same way: where
 it is fine (`(pointer: fine)`), a mouse or a trackpad, the size tokens shrink, `--touch` from 44 to
 32 pixels and the spacing scale by about a quarter, and a touch screen keeps the sizes for a
@@ -1654,13 +1693,31 @@ shows each file's name, size and state, with a progress bar while it uploads, **
 failed, **Upload again** for one that expired, and **Remove**, which stops an upload under way while
 bytes remain, lets one whose every byte has gone answer and then removes it from the server, and
 removes a finished one from the server, so it stops counting against the operator's pending uploads
-at once. Only a Remove in the instant before the list shows the last byte gone or the upload's
-answer, or a removal the connection loses, leaves the upload counting until it expires. Send waits
-until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
+at once. It decides by the bytes the upload last reported and the answer as it arrives, not by what
+the list shows, so only a Remove in the instant after the last bytes leave and before the browser
+reports them, or a removal the connection loses, leaves the upload counting until it expires. Send
+waits until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
 uploads as `{upload, name}`; a refusal naming an upload marks that file expired. Editing a message,
 or changing its answers, loads its files as kept, which **Remove** drops from the replacement. A
 stale write keeps the files with the draft, except the kept files of a replacement its missed
-messages drop.
+messages drop. The new-thread sheet's files upload to the session before the thread exists, since an
+upload belongs to a session and not to a thread, and go with the start; a refusal naming an upload
+marks that file expired there too. While a start is on its way the sheet holds still: Cancel waits,
+it refuses Escape's `cancel` and the keydown that would raise it, Attach and Dictate wait, and a
+paste attaches nothing, so nothing added meanwhile is left behind.
+
+A writer that goes without sending, the thread page left or the sheet closed, by Cancel, Escape, a
+link, Back or its session leaving the list, removes its uploads from the server as it unmounts, in
+`useDraftFiles`, so they stop counting against the operator's pending uploads: it stops the upload
+under way as **Remove** does and removes each finished upload no send carries. A write or start
+carries its files from when it is sent, and for good once it lands, since the server may yet attach
+them, and **Remove** waits on a file a send on its way carries; a file carried by two sends stays
+carried until both have settled, and a send that fails after its writer went removes its files then.
+Each finished upload is recorded as its answer arrives, before the list shows it, and one stopped as
+its answer arrives is removed, so an answer landing in the same tick as the writer goes is removed
+too. Kept files are a sent message's, and a kept draft keeps no files, so leaving touches neither. A
+tab closed or reloaded unmounts nothing, so its uploads expire, as does an upload whose removal
+fails or the connection loses.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with
@@ -1674,30 +1731,44 @@ more; a PDF as **Open**, a link that opens it in a new tab, since Chromium shows
 and anything else as **Download** alone. A Markdown link whose destination is `attachment:` and a
 name, percent-encoded or in angle brackets, is live when the name, decoded and NFC-normalized, is
 one of that message's own files, and opens it as its entry in the list does; any other is its text,
-and an image written with one still never loads. The thread's head, when the thread holds any file,
-holds a fold, **Files** with their count and size, folded on every visit, which reads the thread's
-file list a page at a time while it is open, each entry with who attached it, when, and a link to
-its message. Sizes are written in binary units, KiB, MiB and GiB.
+and an image written with one still never loads. The thread's head, while its live messages carry
+any file, holds a fold, **Files** with their count and size, folded on every visit, which reads the
+thread's file list a page at a time while it is open, each entry with who attached it, when its
+message was written, and a link to that message. Sizes are written in binary units, KiB, MiB and
+GiB.
 
-Dictation (`src/voice/Dictation.tsx`) shows in the composer, and in Settings' Try it, while the
-settings the page read when it opened say voice is on and the browser has a `MediaRecorder` for
-`audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`, tried in that order. It records at
-32 kbit/s with a one-second timeslice, so it can count the data, and stops at five minutes by the
-clock or 1.9 MiB of data, which keeps a recording within the API's body cap; a page hidden while it
-records stops it and transcribes what it recorded, and one still hidden when the microphone opens
-closes it unused, so the microphone never runs unwatched. A recording under the API's 1,000 bytes is
-not sent, and reads as nothing heard. The upload declares the type the recorder was asked for and
-waits up to two minutes. A recording, or one awaiting a transcription or a retry, holds the
-composer's draft open, so its stale-write check counts from when the recording started. The text
-goes in at the caret of the box that last had focus, unless the draft was sent meanwhile; a failure
-keeps the recording for Retry until it is discarded. `useDictation` gives its caller the controls,
-what went wrong and what it says otherwise apart, and the composer puts all three in its Send row, a
-failure before Send and anything else after it. The row stays short on a phone whatever its fonts:
-the microphone is its icon alone, the recording's time and a failure drop the words the rest says,
-and After sending moves below the row while dictation has controls in it, keeping focus as it moves.
-Each control that replaces another moves focus to the next state's own control, unless the operator
-has put focus somewhere else meanwhile, as into the message box while the microphone opens, and
-starting a recording is announced once.
+Dictation (`src/voice/Dictation.tsx`) shows in the composer, the new-thread sheet and an ask's card,
+and in Settings' Try it, while the settings the page read when it opened say voice is on and the
+browser has a `MediaRecorder` for `audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`,
+tried in that order. It records at 32 kbit/s with a one-second timeslice, so it can count the data,
+and stops at five minutes by the clock or 1.9 MiB of data, which keeps a recording within the API's
+body cap; a page hidden while it records stops it and transcribes what it recorded, and one still
+hidden when the microphone opens closes it unused, so the microphone never runs unwatched. A
+recording under the API's 1,000 bytes is not sent, and reads as nothing heard. The upload declares
+the type the recorder was asked for and waits up to two minutes. A recording counts from the moment
+the microphone is asked for until it is done with, refused or failed: one opening, recording, or
+awaiting a transcription or a retry, in the composer or on an ask's card, holds the composer's draft
+open, so its stale-write check counts from when the recording started, and a microphone that opens
+once its caller has held dictation back closes unused. While the microphone opens, Cancel stands in
+for Dictate, since a browser may never answer while its permission prompt goes unanswered; Cancel
+ends the attempt, and a microphone that opens after it closes unused. `useDictationInto` puts the
+text in at the caret of the caller's box that last had focus, unless the draft was discarded
+meanwhile: the thread page counts the drafts its composer ends, which the composer's and the cards'
+dictation check a transcript against. Dictate waits while a message is on its way, in the composer
+and on the cards as in the new-thread sheet, since the draft a recording would be for may be the one
+sent. A failure keeps the recording for Retry until it is discarded. The page records one dictation
+at a time: one starting stops any other under way, which then transcribes what it recorded as its
+Stop would, so no two microphones run and nothing is heard twice. A dictation whose caller goes away
+tells it none is left, as one that ends does. `useDictation` gives its caller the controls, what
+went wrong and what it says otherwise apart. The composer puts all three in its Send row, a failure
+before Send and anything else after it; the new-thread sheet puts the controls in its foot beside
+Attach and the rest under its boxes; and an ask's card puts all three under its own-words field. The
+composer's row and the sheet's foot stay short on a phone whatever their fonts: the microphone is
+its icon alone, the recording's time and a failure drop the words the rest says, and After sending
+moves below the row, and Discard draft hides, while dictation shows more than Dictate (`busy`),
+keeping focus as it moves. Each control that replaces another moves focus to the next state's own
+control, unless the operator has put focus somewhere else meanwhile, as into the message box while
+the microphone opens, and starting a recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a
@@ -1757,5 +1828,5 @@ the generated outputs stay current without regeneration. A `v*` tag runs
 `.github/workflows/release.yml`, which publishes both packages through npm's trusted publishing, as
 [CONTRIBUTING.md](../CONTRIBUTING.md#releasing) describes.
 
-The agent API has a version of its own, 5 in this release, which a release bumps only when it
-changes the agent contract, as [HTTP API](#http-api) describes.
+The agent API has a version of its own, which a release bumps only when it changes the agent
+contract, as [HTTP API](#http-api) describes.
