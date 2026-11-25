@@ -13,7 +13,7 @@ Codex has none. A terminal multiplexer gives one that works for any harness runn
 bridge, a child of the harness, can type into the harness's own pane. Under Agentworks every session
 runs in a tmux server of its own, owned by the agent's account, so the bridge already has the rights
 to do so. Typing reaches whatever has the keyboard, so the research below bears mostly on the
-nudge's guards, and on presence, which reads the same pane without typing.
+nudge's guards, and on monitoring, which reads the same pane without typing.
 
 ## Hosts as a plugin sees them
 
