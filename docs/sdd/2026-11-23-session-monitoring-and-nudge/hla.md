@@ -248,7 +248,9 @@ saved cursor and `claude-code` gate do not carry over.
 - **Shown.** The operator API's session reads carry connection, last check-in, condition with since,
   stopped-by and the profile's name (delivery 1a); the sessions view shows them, flags the sessions
   at a prompt or stopped by something with a filter listing them (M4), and names the condition in a
-  stranded thread's reason (delivery 1b). No agent-facing answer carries any of it (M8).
+  stranded thread's reason, for which thread presence carries the same condition while the bridge is
+  connected, on the operator API's thread reads too (delivery 1b). No agent-facing answer carries
+  any of it (M8).
 
 ## The nudge
 
