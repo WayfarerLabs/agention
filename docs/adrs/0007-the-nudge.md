@@ -72,8 +72,10 @@ every check that can be made before each key.
   The server fills it in only where the latest claim has none yet, and stamps the agent's next
   check-in after a claim at once, so the operator sees a session **not responding to the nudge**
   only while a nudge has had no check-in since; one whose outcome never arrived counts as sent. A
-  nudge the observer finds the session not ready for puts nothing in the pane, is not claimed and is
-  no nudge: the bridge tries again about a second later while one is due, reading only the pane.
+  nudge can be claimed and then find the pane changed during the claim, which reports it not sent
+  with nothing typed, and no other nudge comes until a check-in. A nudge the observer finds the
+  session not ready for puts nothing in the pane, is not claimed and is no nudge: the bridge tries
+  again about a second later while one is due, reading only the pane.
 - **Off unless asked for.** The nudge needs a nudge type, `--nudge tmux` or `AGENTION_NUDGE`, and
   the socket monitoring reads. A type the bridge does not know, or one without a socket, is logged
   once and leaves the nudge off; the tools work as without it. Once its registration is approved,
