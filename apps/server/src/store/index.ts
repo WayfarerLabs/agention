@@ -35,6 +35,7 @@ export { type Channel, everySession, SessionNotifier, type WaitOutcome } from ".
 export { claimNudge, pollMonitor, recordNudgeOutcome, reportMonitor } from "./monitors.ts";
 export { maxOperatorWaits, OperatorWaits } from "./operator-waits.ts";
 export { markBackground, markCheckedIn } from "./presence.ts";
+export { actOnMatchingThreads, actOnThreads } from "./thread-actions.ts";
 export {
   approveRegistration,
   findRegistrationByKey,

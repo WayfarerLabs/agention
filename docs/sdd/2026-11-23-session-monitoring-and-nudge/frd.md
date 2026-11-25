@@ -358,6 +358,17 @@ an account label, was dropped by ruling 4.
    "I'll capture it myself. You won't have access to do it directly." Taken: the definition of
    done's Claude Code usage-limit screens come from the operator.
 
+7. (2026-11-25) Asked in Agention how pull request 1b's live run should happen, the operator chose
+   "Agentworks-shaped bed". Asked whether, as maintainer, they decide that "stranded" widens to
+   include "not connected" and that `last_seen_at` excludes the bridge's background requests, in
+   place on operator API v1, marked BREAKING CHANGE, they chose "Yes, mark it breaking". Asked
+   whether the effort lead may edit unreleased migration 10's comment and update its frozen hash,
+   they chose "Yes, edit it". Asked whether, after a nudge was sent and the agent checked in without
+   reading the thread, that thread should be stranded, they answered: "Definitely don't resolve it
+   but I think this deserves a special status, right?" Taken: monitoring's live check on a bed
+   shaped like an Agentworks session that the effort lead runs, the breaking-change footers, and
+   migration 10's comment; how that thread's status shows is being settled before acceptance.
+
 ## Definition of done
 
 Monitoring ships first and stands on its own; each delivery is done when its part holds.
@@ -365,11 +376,11 @@ Monitoring ships first and stands on its own; each delivery is done when its par
 - **Monitoring:**
   - M1 to M10, the configuration and C1 and C2 are implemented, tested at their boundary, and
     documented in permanent docs.
-  - Live under Agentworks on Claude Code and on Codex, with the configuration set by Agentworks or,
-    until Agentworks ships it, by hand: the operator sees a session connected, its agent's activity,
-    and its condition, including running, at its prompt and a permission dialog; a session approved
-    while at its prompt starts reporting; and on Codex, of several bridges for one session, only one
-    reports.
+  - Live on Claude Code and on Codex, on a bed shaped like an Agentworks session, one tmux server
+    holding one pane, with the configuration set by hand as Agentworks will set it (ruling 7): the
+    operator sees a session connected, its agent's activity, and its condition, including running,
+    at its prompt and a permission dialog; a session approved while at its prompt starts reporting;
+    and on Codex, of several bridges for one session, only one reports.
   - A usage limit is detected on Claude Code and on Codex from screens of limits that happened on
     their own, never brought about for the purpose: Claude Code screens the operator captures from
     one of their sessions, and Codex samples the operator provides, both scrubbed (rulings 5 and 6).

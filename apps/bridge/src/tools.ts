@@ -6,6 +6,7 @@ import type {
   ToolAnnotations,
 } from "@modelcontextprotocol/server";
 import {
+  branchFilter,
   cursor,
   detailNeedsText,
   includeArchivedFilter,
@@ -17,6 +18,7 @@ import {
   outcomeGoesWithStopped,
   pageLimit,
   priority,
+  pullRequestFilter,
   sequence,
   sessionUpdateInput,
   statusFilter,
@@ -130,6 +132,10 @@ const writeStatusText =
   "message, as session_update would, such as idle on your last message before you wait; " +
   "a write that reports none of them marks an idle session working.";
 const marksWorkingText = "Marks your session working if it was idle.";
+const linkingText =
+  "Name the GitHub pull requests and branches a message is about in pull_requests and " +
+  "branches, with their URLs whenever you have them; the thread rolls them up, and " +
+  "thread_list finds its threads by them.";
 
 // registerTools defines the bridge's tools on the MCP server. Each thread tool
 // is one request on the agent API, apart from asking again for a smaller page
@@ -274,8 +280,9 @@ export function registerTools(server: McpServer, connection: Connection): void {
   tool(
     "thread_create",
     "Start a thread with the operator about one matter, with a title and a first message that " +
-      "may carry Markdown text and its detail, references, asks and a topic. Ask whenever you " +
-      "want an answer: a message without asks is only read. Each ask has a question and " +
+      "may carry Markdown text and its detail, references, pull requests and branches, asks " +
+      "and a topic. Ask whenever you want an answer: a message without asks is only read. " +
+      "Each ask has a question and " +
       "suggested answers, each a short label with a description, and is numbered within the " +
       "thread as it is written, in the order given. Put asks that belong together in one " +
       "message; the operator may answer them together or apart, each by its number. The " +
@@ -283,8 +290,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "with notes in their own words beside them or not; their own words instead; or, on an " +
       "ask without suggested answers, their own words alone. They may also decline it. The title, " +
       "questions, suggested answers, fallbacks and references are plain text. " +
-      `${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} Answers with the ` +
-      "thread's number and its first message's sequence.",
+      `${linkingText} ${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} ` +
+      "Answers with the thread's number and its first message's sequence.",
     threadCreateInput,
     (input, signal) =>
       writeInSession(signal, input, (path) => ({
@@ -297,8 +304,9 @@ export function registerTools(server: McpServer, connection: Connection): void {
   tool(
     "message_send",
     "Send a message to one of this session's threads: any of Markdown text and its detail, " +
-      "references, asks, withdrawals, a topic, and replaces, an earlier message of yours that " +
-      "it replaces, which is ignored from then on. Each ask is numbered within the thread as it " +
+      "references, pull requests and branches, asks, withdrawals, a topic, and replaces, an " +
+      "earlier message of yours that it replaces, which is ignored from then on. " +
+      "Each ask is numbered within the thread as it " +
       "is written; put asks that belong together in one message, and the operator may answer " +
       "them together or apart. Withdraw an open ask you no longer need answered, such as one " +
       "settled elsewhere, with a withdrawal saying why; a withdrawal is never undone. Revise an " +
@@ -311,8 +319,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "message it replaces, and it withdraws again every ask that message withdrew. " +
       "seen_through is the latest message sequence you have read: if others landed since, the " +
       "message fails as stale and lists what you missed, so read it and decide again. " +
-      `${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} Answers with the ` +
-      "new message's sequence.",
+      `${linkingText} ${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} ` +
+      "Answers with the new message's sequence.",
     messageFields
       .omit({ answers: true })
       .extend({ thread, ...writeStatusFields })
@@ -339,9 +347,12 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "their labels, and in text their own words on the ask, part of the answer: notes beside " +
       "the picks, or the whole answer when nothing is picked; the text and detail of the " +
       "message carrying it are any additional information. A message lists the files it " +
-      "carries in attachments, which file_get fetches. " +
-      "More messages follow while the last one's seq is below the thread's " +
-      "last_seq. A result too long to return comes back with fewer messages; " +
+      "carries in attachments, which file_get fetches, and the pull requests and branches it " +
+      "names. pull_requests and branches roll up those the thread's live messages name, each " +
+      "once. More messages follow while the last one's seq is below the thread's " +
+      "last_seq. A result too long to return first leaves out that roll-up, naming it in " +
+      "omitted, which fewer messages bring back unless the roll-up alone is too long (the " +
+      "messages' own lists still name its entries), and then comes back with fewer messages; " +
       tooLongText,
     z.object({
       thread,
@@ -365,20 +376,26 @@ export function registerTools(server: McpServer, connection: Connection): void {
     "List this session's threads you have not archived, your own new ones included, or with " +
       "include_archived the ones you archived too. Filters you turn on combine: search finds " +
       "titles, status keeps threads of one status, unread those with messages you have not " +
-      "read, topic those on a topic. Messages you archived never count as unread. Threads with " +
+      "read, topic those on a topic, and pull_request and branch those whose live messages name " +
+      "it, its repository matched ignoring case: list them whenever a pull request moves, to " +
+      "bring each up to date. Messages you archived never count as unread. Threads with " +
       "open asks come first, most pressing first; the rest follow by latest message. Each " +
       "summary gives how far you have read as read_through, counts the messages after it you " +
       "have neither read nor archived as unread, says whether you archived it, gives its " +
-      "status, with the latest withdrawal while it is withdrawn, and rolls up the thread's " +
-      "open asks, listing the most pressing; summaries carry no Markdown, so read a thread " +
-      "with thread_get after its read_through. Continue with cursor set to next. A result too " +
-      `long to return comes back as a smaller page; ${tooLongText}`,
+      "status, with the latest withdrawal while it is withdrawn, rolls up the thread's open " +
+      "asks, listing the most pressing, and in links counts the pull requests and branches " +
+      "its live messages name, giving the one when there is only one; summaries carry no " +
+      "Markdown, so read a thread with thread_get after its read_through. Continue with " +
+      "cursor set to next. A result too long to return comes back as a smaller page; " +
+      tooLongText,
     z.object({
       include_archived: includeArchivedFilter,
       search: titleSearchFilter.optional(),
       status: statusFilter.optional(),
       unread: unreadFilter,
       topic: topic.optional().describe("Only threads with this topic."),
+      pull_request: pullRequestFilter.optional(),
+      branch: branchFilter.optional(),
       cursor: cursor.optional().describe("The previous page's next value, to continue the list."),
       limit,
     }),
@@ -393,6 +410,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
             status: input.status,
             unread: input.unread,
             topic: input.topic,
+            pull_request: input.pull_request,
+            branch: input.branch,
             cursor: input.cursor,
             limit: pageSize,
           },

@@ -1,4 +1,4 @@
-import { holdsScope, type Scope, scopes } from "@wayfarerlabs/agention-api";
+import { holdsScope, type Scope, scopes, threadsQuery } from "@wayfarerlabs/agention-api";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
@@ -12,6 +12,7 @@ import {
   writeChunk,
 } from "../store/index.ts";
 import { type Agent, Fixture, newPublicKey } from "../store/test-fixture.ts";
+import { asOf, listThreads } from "../store/thread-lists.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
 import { parse } from "./input.ts";
 import { isBytes, type Operation } from "./operations.ts";
@@ -150,6 +151,19 @@ const bodies: Record<string, unknown> = {
   archiveThread: { through: 1 },
   bulkRead: { threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
   bulkArchive: { threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
+  actOnThreads: {
+    action: "read",
+    threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }],
+  },
+  // A list read now, when the operation runs.
+  get actOnMatchingThreads() {
+    return {
+      action: "read",
+      filters: {},
+      as_of: asOf(fixture.db),
+      expected: listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).total,
+    };
+  },
   markSessionLogRead: { through: 0 },
   createGroup: { name: "Home" },
   orderGroups: { groups: [1] },

@@ -125,6 +125,19 @@ file a message lists in its `attachments` with `file_get`, which writes it to a 
 bridge's own and shows you an image directly when it can. Files are kept for good, as messages are,
 so attach nothing that holds a key, token or password.
 
+## Pull requests and branches
+
+Name the GitHub pull requests and branches a message is about in its `pull_requests` and `branches`,
+each with its full `url` whenever you have it; a message may name them alone. A thread lists each
+one its live messages name once, in what `thread_get` returns, so a replacement that leaves one out
+drops it there. They are what you declare and Agention never fetches them, so say a pull request's
+state, such as merged, in your text.
+
+Whenever a pull request moves significantly, when it is opened, marked ready for review, reviewed,
+merged or closed, list your threads about it with `thread_list` and its `pull_request` (`branch` for
+a branch), and bring each up to date: say what changed, withdraw the asks the move settled, and
+archive what is done.
+
 ## Your terminal and Agention
 
 The operator may follow you at your terminal, in Agention, or both, switching as they like, and

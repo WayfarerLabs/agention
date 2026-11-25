@@ -18,11 +18,12 @@ import {
 } from "../../attach/attach.ts";
 import { AttachButton } from "../../attach/AttachButton.tsx";
 import { AttachList } from "../../attach/AttachList.tsx";
-import { ConfirmButton, Status } from "../../components.tsx";
+import { ConfirmButton, Status, useScrollClearOf } from "../../components.tsx";
 import { type KeptDraft, useDeviceChoice, useDeviceOption } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
-import { Icon } from "../../icons.tsx";
-import { useFieldShortcuts } from "../../keyboard.tsx";
+import { IconCheckbox, PickList } from "../../icon-controls.tsx";
+import { Icon, type IconName } from "../../icons.tsx";
+import { useFieldShortcuts, useKeyboard } from "../../keyboard.tsx";
 import { useDictationInto } from "../../voice/Dictation.tsx";
 import { useKeptDraft } from "./kept-draft.ts";
 import { type MessageContext, MessageView } from "./Messages.tsx";
@@ -100,33 +101,70 @@ function describeDropped(dropped: number[]): string {
 }
 
 // Where Send takes the operator once the server accepts the message: nowhere,
-// staying on the thread; back to the list; on wherever Auto-advance says once
-// this thread is archived; or on to the thread above or below.
-export const afterSendingOptions = ["stay", "list", "archive", "above", "below"] as const;
-export type AfterSending = (typeof afterSendingOptions)[number];
+// staying on the thread; back to the list; or on to the thread above or
+// below.
+export const destinations = ["stay", "list", "above", "below"] as const;
+export type Destination = (typeof destinations)[number];
 
-const afterSendingLabels: Record<AfterSending, string> = {
-  stay: "Stay here",
-  list: "Back to the list",
-  archive: "Archive",
-  above: "Thread above",
-  below: "Thread below",
-};
+// What follows a message the server accepts: whether the thread is archived,
+// and where the operator goes, which the archive does not change.
+export interface AfterSending {
+  to: Destination;
+  archive: boolean;
+}
 
-// Where this device keeps where to go after sending.
+// Each destination as After sending offers it: its arrow, the word the
+// control shows where it has room, and what its option says it does, naming
+// sending, since a phone's own picker shows the options without the
+// control's name.
+const destinationOptions: readonly {
+  value: Destination;
+  icon: IconName;
+  shown: string;
+  label: string;
+}[] = [
+  { value: "stay", icon: "stay", shown: "Stay", label: "After sending, stay on this thread" },
+  { value: "list", icon: "arrow-left", shown: "List", label: "After sending, go back to the list" },
+  {
+    value: "above",
+    icon: "arrow-up",
+    shown: "Above",
+    label: "After sending, open the thread above",
+  },
+  {
+    value: "below",
+    icon: "arrow-down",
+    shown: "Below",
+    label: "After sending, open the thread below",
+  },
+];
+
+// Where this device keeps where to go after sending, and whether to archive
+// the thread then.
 export const afterSendingChoice = "agention.after-sending";
+export const archiveAfterSendingChoice = "agention.archive-after-sending";
 
 // Where an earlier release kept whether to go back after sending, which this
 // device's choice carries on from: back to the list, or staying.
 export const goBackChoice = "agention.go-back-after-sending";
 
-// useAfterSending gives where a message the server accepts takes the
-// operator, a choice this device keeps: back to the list unless they choose
-// otherwise, or, with none kept, as the earlier release's choice to go back
-// or stay was. It gives a way to change and keep it too.
+// useAfterSending gives what follows a message the server accepts, choices
+// this device keeps: back to the list, archiving nothing, unless they choose
+// otherwise, or, with no destination kept, as the earlier release's choice to
+// go back or stay was. It gives a way to change and keep them too.
 export function useAfterSending(): [AfterSending, (after: AfterSending) => void] {
   const [wentBack] = useDeviceChoice(goBackChoice, true);
-  return useDeviceOption(afterSendingChoice, afterSendingOptions, wentBack ? "list" : "stay");
+  const [to, keepTo] = useDeviceOption(
+    afterSendingChoice,
+    destinations,
+    wentBack ? "list" : "stay",
+  );
+  const [archive, keepArchive] = useDeviceChoice(archiveAfterSendingChoice, false);
+  const choose = (after: AfterSending) => {
+    keepTo(after.to);
+    keepArchive(after.archive);
+  };
+  return [{ to, archive }, choose];
 }
 
 function sentStatus(staged: Staged | undefined): string {
@@ -151,28 +189,6 @@ function sentStatus(staged: Staged | undefined): string {
 // The root's property holding how tall the Send row is, which the page's
 // scroll padding keeps clear.
 const sendRowHeight = "--send-row-height";
-
-// useScrollClearOf keeps what the page scrolls into view, as the caret while
-// typing or a control focused from the keyboard, clear of the Send row stuck
-// at the foot of the screen, however tall what it holds makes it: it gives
-// the root the row's height while the composer is open.
-function useScrollClearOf(row: RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    const element = row.current;
-    if (element === null || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const root = document.documentElement;
-    const observer = new ResizeObserver(() => {
-      root.style.setProperty(sendRowHeight, `${element.offsetHeight}px`);
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      root.style.removeProperty(sendRowHeight);
-    };
-  }, [row]);
-}
 
 export function Composer({
   writer,
@@ -220,8 +236,8 @@ export function Composer({
   // Send and After sending back, so a send never lands to find its own way
   // on refused.
   moving: boolean;
-  // Where a message the server accepts takes the operator, which this
-  // device keeps, and a way to choose it.
+  // What follows a message the server accepts, which this device keeps, and
+  // a way to choose it.
   after: AfterSending;
   setAfter: (after: AfterSending) => void;
   // What the thread page that opened this one after sending sent, which it
@@ -324,9 +340,9 @@ export function Composer({
   const [status, setStatus] = useState(arrived ?? "");
   const said = onwardFailure === undefined ? status : `${status} ${onwardFailure}`.trim();
   const actions = useRef<HTMLDivElement>(null);
-  useScrollClearOf(actions);
-  // Whether After sending had focus as dictation moved it.
-  const afterHadFocus = useRef(false);
+  useScrollClearOf(actions, sendRowHeight);
+  // Which of After sending's controls had focus as dictation moved it.
+  const afterHadFocus = useRef(-1);
   const id = useId();
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
   const draft = { text, detail, attachments };
@@ -446,8 +462,11 @@ export function Composer({
   };
 
   // Its shortcuts, within its fields: Send, while Send can, and one to leave
-  // it, for its heading, where the page's own shortcuts act again.
+  // it, for its heading, where the page's own shortcuts act again. While
+  // Enter sends, each box's hint says so, where focus lands.
   const heading = useRef<HTMLHeadingElement>(null);
+  const { enterSends } = useKeyboard();
+  const enterNote = enterSends ? " Enter sends, and Shift+Enter starts a new line." : "";
   const fieldKeys = useFieldShortcuts("Composer", {
     send: () => {
       if (canSend) {
@@ -521,8 +540,8 @@ export function Composer({
     },
   });
   // After sending sits beside Send, and drops below the row while dictation
-  // has controls there, so the row stays short at the foot of a phone's
-  // screen.
+  // records or has more to show there, so the row stays short at the foot of
+  // a phone's screen.
   const afterOption = (
     <AfterSendingOption
       value={after}
@@ -609,7 +628,7 @@ export function Composer({
           {staged?.kind === "answers" ? "Additional information" : "Message"}
         </label>
         <p className="hint" id={`${id}-hint`}>
-          Markdown.
+          Markdown.{enterNote}
         </p>
         <textarea
           ref={box}
@@ -632,7 +651,7 @@ export function Composer({
           <>
             <label htmlFor={`${id}-detail`}>Details</label>
             <p className="hint" id={`${id}-detail-hint`}>
-              Markdown, shown folded under the message.
+              Markdown, shown folded under the message.{enterNote}
             </p>
             <textarea
               ref={detailBox}
@@ -714,12 +733,14 @@ export function Composer({
   );
 }
 
-// AfterSendingOption is After sending, a select of where Send takes the
-// operator, compact enough for the Send row at a phone's width. It sits in
-// that row, which stays at the foot of the screen, and below it while
-// dictation shows its controls; no style can move a control out of that row, so moving it mounts
-// it afresh. The one leaving records, in its layout cleanup, whether it had
-// focus, before React removes it from the page; the one arriving takes focus
+// AfterSendingOption is After sending, compact enough for the Send row at a
+// phone's width: a pick list of where Send takes the operator, its arrow the
+// way it goes, and a checkbox for archiving the thread first, which goes
+// with any of them. It sits in that row, which stays at the foot of the
+// screen, and below it while dictation shows its controls; no style can move
+// a control out of that row, so moving it mounts it afresh. The one leaving
+// records, in its layout cleanup, which of its controls had focus, before
+// React removes it from the page; the one arriving gives that control focus
 // back in the same commit's layout effects, before dictation's own focus
 // moves run.
 function AfterSendingOption({
@@ -731,39 +752,42 @@ function AfterSendingOption({
   value: AfterSending;
   onChange: (value: AfterSending) => void;
   disabled: boolean;
-  hadFocus: RefObject<boolean>;
+  // The place among its controls of the one that had focus, or -1.
+  hadFocus: RefObject<number>;
 }) {
-  const select = useRef<HTMLSelectElement>(null);
+  const pair = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    if (hadFocus.current) {
-      hadFocus.current = false;
-      select.current?.focus();
-    }
-    const element = select.current;
+    const element = pair.current;
+    const controls = () => [...(element?.querySelectorAll<HTMLElement>("select, input") ?? [])];
+    controls()[hadFocus.current]?.focus();
+    hadFocus.current = -1;
     return () => {
-      hadFocus.current = element !== null && document.activeElement === element;
+      hadFocus.current = controls().findIndex((control) => control === document.activeElement);
     };
   }, [hadFocus]);
+  const to = destinationOptions.find((option) => option.value === value.to);
   return (
-    <label className="after-sending">
-      After sending
-      <select
-        ref={select}
-        value={value}
+    <div ref={pair} className="after-sending">
+      {/* For the eye, where there is room: each control's name says it. */}
+      <span className="caption" aria-hidden="true">
+        After sending
+      </span>
+      <PickList
+        icon={to?.icon ?? "arrow-left"}
+        label="After sending"
+        value={value.to}
+        options={destinationOptions}
         disabled={disabled}
-        onChange={(event) => {
-          const chosen = afterSendingOptions.find((option) => option === event.target.value);
-          if (chosen !== undefined) {
-            onChange(chosen);
-          }
-        }}
-      >
-        {afterSendingOptions.map((option) => (
-          <option key={option} value={option}>
-            {afterSendingLabels[option]}
-          </option>
-        ))}
-      </select>
-    </label>
+        choose={(chosen) => onChange({ ...value, to: chosen })}
+      />
+      <IconCheckbox
+        icon="archive"
+        shown="Archive"
+        name="Archive after sending"
+        checked={value.archive}
+        disabled={disabled}
+        onChange={(archive) => onChange({ ...value, archive })}
+      />
+    </div>
   );
 }

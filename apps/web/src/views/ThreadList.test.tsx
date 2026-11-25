@@ -6,12 +6,13 @@ import {
   type ThreadCounts,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { keepDraft, signOutMark } from "../device.ts";
 import { absoluteTime, conditionWords, sinceTime } from "../format.tsx";
 import { Icon, type IconName } from "../icons.tsx";
 import { leaveNotice } from "../notice.ts";
+import { navigate } from "../router.tsx";
 import {
   csrf,
   FakeApi,
@@ -57,16 +58,26 @@ const lastQuery = () => api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
 const address = () => window.location.search;
 
 const filtersButton = () => screen.getByRole("button", { name: /^Filters/ });
-// The search box at the top of the list's head, and the sheet's.
+// Search, which opens the head's search field, its name saying the search
+// on; the field's box, while it is open; and the sheet's.
+const searchButton = () => screen.getByRole("button", { name: /^Search(, "[^"]*")?$/ });
 const searchBox = () => screen.getByRole<HTMLInputElement>("searchbox", { name: "Search threads" });
+const closeSearch = () => screen.getByRole("button", { name: "Close search" });
+// openSearch opens the head's search field from Search.
+async function openSearch() {
+  await screen.findByRole("heading", { level: 1 });
+  fireEvent.click(searchButton());
+  return searchBox();
+}
 const sheetSearch = () =>
   within(sheet()).getByRole<HTMLInputElement>("searchbox", { hidden: true, name: "Search" });
 const groupSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Group" });
 const sortSelect = () => screen.getByRole<HTMLSelectElement>("combobox", { name: "Sort" });
-// The button reversing the order, found by the words it shows, which start
-// its name.
-const directionButton = (shown: string) =>
-  screen.getByRole("button", { name: new RegExp(`^${shown}, reverse to `) });
+// The checkbox reversing the order, the head's only one.
+const directionButton = () =>
+  within(document.querySelector(".list-head") as HTMLElement).getByRole<HTMLInputElement>(
+    "checkbox",
+  );
 const sheet = () => screen.getByRole<HTMLDialogElement>("dialog", { hidden: true });
 const isOpen = () => sheet().hasAttribute("open");
 const chips = () => Array.from(document.querySelectorAll<HTMLElement>("button.chip"));
@@ -378,23 +389,23 @@ describe("the thread list", () => {
     expect(api.callsTo("GET", "/threads/counts")).toEqual([]);
   });
 
-  it("heads the list with the search box, the order and its direction, the grouping and the Filters button, after its heading", async () => {
+  it("heads the list with one row of Search, Filters, the order and its direction, and the grouping, after its heading", async () => {
     serve([]);
     renderAt("/");
     const heading = await screen.findByRole("heading", { level: 1 });
     const head = filtersButton().parentElement as HTMLElement;
     const controls = Array.from(head.querySelectorAll("h1, input, select, button"));
     expect(controls).toEqual([
-      searchBox(),
-      sortSelect(),
-      directionButton("Most pressing first"),
-      groupSelect(),
+      searchButton(),
       filtersButton(),
+      sortSelect(),
+      directionButton(),
+      groupSelect(),
     ]);
+    // No search box shows until Search opens one.
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
     // Sort and its direction are held together.
-    expect(directionButton("Most pressing first").parentElement).toBe(
-      sortSelect().closest(".sort-control"),
-    );
+    expect(directionButton().closest(".sort-control")).toBe(sortSelect().closest(".sort-control"));
     expect(heading.nextElementSibling).toBe(head);
     expect(Array.from(groupSelect().options).map((each) => each.value)).toEqual([
       "",
@@ -412,14 +423,46 @@ describe("the thread list", () => {
       "created",
     ]);
     expect(sortSelect().value).toBe("priority");
-    // Each control's icon is drawn for the eye alone; Filters is named by
-    // words, and says how many filters are on once any are.
+    // Each control's icon, and the words it shows where there is room, are
+    // for the eye alone: each button is named by its aria-label, each select
+    // by its own; Filters says how many filters are on once any are.
     for (const icon of head.querySelectorAll("svg")) {
       expect(icon.getAttribute("aria-hidden")).toBe("true");
     }
+    for (const button of head.querySelectorAll("button")) {
+      expect(button.getAttribute("aria-label")).toBeTruthy();
+    }
     expect(filtersButton().getAttribute("aria-label")).toBe("Filters");
     expect(filtersButton().getAttribute("aria-haspopup")).toBe("dialog");
-    expect(filtersButton().querySelector(".badge")).toBeNull();
+    // With everything at its default, nothing is marked.
+    expect(head.querySelector(".badge, .set-mark")).toBeNull();
+  });
+
+  it("marks each control set to anything but its default, and Filters with how many are on", async () => {
+    serve([]);
+    renderAt("/?search=notes&unread=true&sort=due&reverse=true&group=agent");
+    await screen.findByRole("heading", { level: 1 });
+    const marked = (control: HTMLElement) =>
+      control.closest(".icon-control")?.querySelector(":scope > .set-mark") !== null;
+    expect([searchButton(), sortSelect(), groupSelect()].map(marked)).toEqual([true, true, true]);
+    // The direction's own box says it is reversed, so it carries no mark.
+    expect(directionButton().checked).toBe(true);
+    expect(marked(directionButton())).toBe(false);
+    expect(filtersButton().querySelector(".badge")?.textContent).toBe("2");
+    expect(filtersButton().getAttribute("aria-label")).toBe("Filters, 2 on");
+    // Each mark is for the eye alone.
+    for (const mark of document.querySelectorAll(".list-head .set-mark, .list-head .badge")) {
+      expect(mark.getAttribute("aria-hidden")).toBe("true");
+    }
+    // Back at their defaults, the order's direction is off, and the order
+    // and the grouping lose their marks one by one.
+    fireEvent.click(directionButton());
+    await waitFor(() => expect(directionButton().checked).toBe(false));
+    expect(marked(sortSelect())).toBe(true);
+    fireEvent.change(sortSelect(), { target: { value: "priority" } });
+    await waitFor(() => expect(marked(sortSelect())).toBe(false));
+    fireEvent.change(groupSelect(), { target: { value: "" } });
+    await waitFor(() => expect(marked(groupSelect())).toBe(false));
   });
 
   it("orders the list as chosen, keeping the filters and focus, and replacing the address", async () => {
@@ -442,20 +485,21 @@ describe("the thread list", () => {
     expect(window.history.length).toBe(length);
   });
 
-  it("reverses the order with its direction button, keeping the filters and focus, and replacing the address", async () => {
+  it("reverses the order with its direction's checkbox, keeping the filters and focus, and replacing the address", async () => {
     serve([]);
     renderAt("/?unread=true&sort=due&group=agent");
     await screen.findByRole("heading", { level: 1 });
     const length = window.history.length;
-    const button = directionButton("Soonest first");
+    const button = directionButton();
     button.focus();
     fireEvent.click(button);
     await waitFor(() => expect(address()).toBe("?unread=true&sort=due&reverse=true&group=agent"));
     await waitFor(() => expect(lastQuery()?.get("reverse")).toBe("true"));
     expect(lastQuery()?.get("sort")).toBe("due");
     expect(lastQuery()?.get("unread")).toBe("true");
-    // The same button now shows the order reversed, and keeps focus.
-    expect(directionButton("Latest first")).toBe(button);
+    // The same checkbox, now on, shows the order reversed, and keeps focus.
+    expect(directionButton()).toBe(button);
+    expect(button.checked).toBe(true);
     expect(document.activeElement).toBe(button);
     // The direction is no filter.
     expect(chips().map(chipText)).toEqual(["Unread"]);
@@ -463,28 +507,30 @@ describe("the thread list", () => {
     fireEvent.click(button);
     await waitFor(() => expect(address()).toBe("?unread=true&sort=due&group=agent"));
     await waitFor(() => expect(lastQuery()?.has("reverse")).toBe(false));
+    expect(button.checked).toBe(false);
     expect(window.history.length).toBe(length);
   });
 
   it.each(["priority", "due", "effort", "latest", "created"])(
-    "names the %s order's direction by the words it shows, first in its name, and no pressed state",
+    "names the %s order's checkbox by the words it shows, the same on and off, on only while reversed",
     async (sort) => {
       serve([]);
       renderAt(`/?sort=${sort}`);
       await screen.findByRole("heading", { level: 1 });
-      const button = screen.getByRole("button", { name: /, reverse to / });
-      const own = button.textContent ?? "";
-      expect(button.getAttribute("aria-label")?.startsWith(`${own}, reverse to `)).toBe(true);
-      expect(button.hasAttribute("aria-pressed")).toBe(false);
+      const button = directionButton();
+      const words = () => button.closest(".icon-control")?.textContent ?? "";
+      const shown = words();
+      expect(shown).not.toBe("");
+      expect(button.getAttribute("aria-label")?.startsWith(shown)).toBe(true);
+      expect(button.checked).toBe(false);
       fireEvent.click(button);
       // Priority, the default order, leaves the address.
       const order = sort === "priority" ? "" : `sort=${sort}&`;
       await waitFor(() => expect(address()).toBe(`?${order}reverse=true`));
-      const reversed = button.textContent ?? "";
-      expect(reversed).not.toBe(own);
-      expect(button.getAttribute("aria-label")).toBe(
-        `${reversed}, reverse to ${own.toLowerCase()}`,
-      );
+      // What it turns on reads the same once it is on.
+      expect(words()).toBe(shown);
+      expect(button.getAttribute("aria-label")?.startsWith(shown)).toBe(true);
+      expect(button.checked).toBe(true);
     },
   );
 
@@ -492,12 +538,12 @@ describe("the thread list", () => {
     serve([]);
     renderAt("/?sort=due&reverse=true");
     await screen.findByRole("heading", { level: 1 });
-    directionButton("Latest first");
+    expect(directionButton().checked).toBe(true);
     fireEvent.change(sortSelect(), { target: { value: "created" } });
     await waitFor(() => expect(address()).toBe("?sort=created"));
     await waitFor(() => expect(lastQuery()?.has("reverse")).toBe(false));
     expect(lastQuery()?.get("sort")).toBe("created");
-    directionButton("Newest first");
+    expect(directionButton().checked).toBe(false);
   });
 
   it("groups the list as chosen, keeping the filters, the order and focus, and replacing the address", async () => {
@@ -683,6 +729,17 @@ const counts: ThreadCounts = {
   },
   session_group: { groups: [{ id: 4, name: "Billing migration", total: 38 }], none: 39 },
   tag: { tags: [{ tag: "infra", total: 41 }], truncated: false },
+  pull_request: {
+    pull_requests: [
+      { repo: "acme/agention", number: 136, total: 42 },
+      { repo: "acme/agention", number: 135, total: 43 },
+    ],
+    truncated: false,
+  },
+  branch: {
+    branches: [{ repo: "acme/agention", branch: "feat/links", total: 44 }],
+    truncated: false,
+  },
   reset: 40,
 };
 
@@ -903,7 +960,7 @@ describe("the filter sheet", () => {
     expect(groupSelect().value).toBe("session");
   });
 
-  it("applies a pending search to the list as it stands, keeping a filter chosen meanwhile", async () => {
+  it("applies a pending search at once with a filter chosen meanwhile, which keeps it", async () => {
     serve([]);
     renderAt("/");
     const open = await openSheet();
@@ -911,7 +968,9 @@ describe("the filter sheet", () => {
       target: { value: "release" },
     });
     fireEvent.click(segment("Read", "Unread"));
-    await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
+    expect(address()).toBe("?search=release&unread=true");
+    await pause();
+    expect(address()).toBe("?search=release&unread=true");
   });
 
   it("leaves the search off while the box holds only white space", async () => {
@@ -978,44 +1037,46 @@ describe("the search boxes", () => {
   it("the head's box and the sheet's are one search", async () => {
     serve([]);
     renderAt("/?unread=true");
-    await screen.findByRole("heading", { level: 1 });
-    expect(searchBox().type).toBe("search");
+    expect((await openSearch()).type).toBe("search");
     // Typing in either shows in the other, and applies once typing pauses.
     fireEvent.change(searchBox(), { target: { value: "release" } });
     expect(sheetSearch().value).toBe("release");
     await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
-    const open = await openSheet();
-    fireEvent.change(sheetSearch(), { target: { value: "notes" } });
-    expect(searchBox().value).toBe("notes");
-    await waitFor(() => expect(address()).toBe("?search=notes&unread=true"));
     // Text the API would refuse marks both.
-    fireEvent.change(sheetSearch(), { target: { value: "no\u200btes" } });
+    fireEvent.change(searchBox(), { target: { value: "no\u200btes" } });
     for (const box of [searchBox(), sheetSearch()]) {
       expect(box.getAttribute("aria-invalid")).toBe("true");
       const error = document.getElementById(box.getAttribute("aria-describedby") ?? "");
       expect(error?.classList.contains("field-error")).toBe(true);
     }
-    // The chip clears both, and so does Reset filters.
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    fireEvent.click(closeSearch());
+    const open = await openSheet();
+    fireEvent.change(sheetSearch(), { target: { value: "notes" } });
+    await waitFor(() => expect(address()).toBe("?search=notes&unread=true"));
+    // The chip clears the search, and so does Reset filters, which the head's
+    // box shows once opened.
     fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Search/ }));
     await waitFor(() => expect(address()).toBe("?unread=true"));
-    expect([searchBox().value, sheetSearch().value]).toEqual(["", ""]);
+    expect(sheetSearch().value).toBe("");
     fireEvent.change(sheetSearch(), { target: { value: "release" } });
     await waitFor(() => expect(address()).toBe("?search=release&unread=true"));
     fireEvent.click(within(open).getByRole("button", { name: /^Reset filters/ }));
     await waitFor(() => expect(address()).toBe(""));
-    expect([searchBox().value, sheetSearch().value]).toEqual(["", ""]);
+    sheet().close();
+    expect((await openSearch()).value).toBe("");
   });
 
   it("applies on Enter at once, in either box, but not text the API would refuse", async () => {
     serve([]);
     renderAt("/");
-    await screen.findByRole("heading", { level: 1 });
-    fireEvent.change(searchBox(), { target: { value: "release" } });
-    fireEvent.keyDown(searchBox(), { key: "Enter" });
-    expect(address()).toBe("?search=release");
+    await openSearch();
     fireEvent.change(searchBox(), { target: { value: "no\u200btes" } });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await pause();
+    expect(address()).toBe("");
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     expect(address()).toBe("?search=release");
     await openSheet();
     fireEvent.change(sheetSearch(), { target: { value: "notes" } });
@@ -1025,10 +1086,30 @@ describe("the search boxes", () => {
     expect(isOpen()).toBe(true);
   });
 
+  it("drops a pending search when the list's view changes other than by its own choice, as a link or Back does", async () => {
+    serve([]);
+    renderAt("/");
+    await openSearch();
+    fireEvent.change(searchBox(), { target: { value: "release" } });
+    act(() => navigate("/?unread=true"));
+    await pause();
+    expect(address()).toBe("?unread=true");
+    expect(searchBox().value).toBe("");
+    fireEvent.change(searchBox(), { target: { value: "notes" } });
+    window.history.back();
+    await waitFor(() => expect(address()).toBe(""));
+    await pause();
+    expect(address()).toBe("");
+    expect(searchBox().value).toBe("");
+    expect(api.callsTo("GET", "/threads").some((call) => call.url.searchParams.has("search"))).toBe(
+      false,
+    );
+  });
+
   it("searches nothing while an input method composes, and the text it ends with once typing pauses", async () => {
     serve([]);
     renderAt("/");
-    await screen.findByRole("heading", { level: 1 });
+    await openSearch();
     fireEvent.compositionStart(searchBox());
     fireEvent.input(searchBox(), { target: { value: "にほ" }, isComposing: true });
     expect(searchBox().value).toBe("にほ");
@@ -1114,6 +1195,24 @@ describe("the agent, session and topic choices", () => {
     expect(await offered("/?agent=builder&session=builder/side")).toEqual([
       "☐ side/deploy builder (0)",
     ]);
+  });
+
+  it("offer one chosen that the counts leave out, with no threads, so it can be unchecked", async () => {
+    serve([]);
+    serveCounts();
+    renderAt("/?topic=builder/main/auth&topic=builder/side/gone");
+    await openSheet();
+    await waitFor(() => expect(countCalls()).toHaveLength(1));
+    fireEvent.click(picker("Topic"));
+    expect(options("Topic")).toEqual([
+      "☑ main/auth builder (21)",
+      "☐ main/billing reviewer (22)",
+      "☑ side/gone (0)",
+    ]);
+    fireEvent.click(
+      within(popupOf("Topic")).getByRole("checkbox", { name: /^builder\/side\/gone/ }),
+    );
+    await waitFor(() => expect(address()).toBe("?topic=builder/main/auth"));
   });
 
   it("offer Topic always, as Agent and Session, saying when it offers none", async () => {
@@ -1392,6 +1491,108 @@ describe("the group and tag choices", () => {
   });
 });
 
+describe("the head's search field", () => {
+  it("opens from Search in place of the row, selecting the search on, and closes by its button, applying it at once", async () => {
+    serve([]);
+    renderAt("/?search=notes&unread=true");
+    const box = await openSearch();
+    expect(document.activeElement).toBe(box);
+    expect([box.value, box.selectionStart, box.selectionEnd]).toEqual(["notes", 0, 5]);
+    // The field takes the row's place: no other control of the row shows,
+    // and the search's chip hides while the field is open.
+    expect(screen.queryByRole("button", { name: /^Filters/ })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Sort" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove filter: Search/ })).toBeNull();
+    expect(chips().map(chipText)).toEqual(["Unread"]);
+    fireEvent.change(box, { target: { value: "release" } });
+    fireEvent.click(closeSearch());
+    // Closing applies the text at once, without waiting for the pause.
+    expect(address()).toBe("?search=release&unread=true");
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
+    expect(document.activeElement).toBe(searchButton());
+    expect(screen.getByRole("button", { name: 'Remove filter: Search "release"' })).toBeTruthy();
+    expect(searchButton().getAttribute("aria-label")).toBe('Search, "release"');
+  });
+
+  it("closes on Escape without clearing it, and on Enter once it applies, but puts back the search on in place of text it cannot take", async () => {
+    serve([]);
+    renderAt("/?search=notes");
+    let box = await openSearch();
+    const escape = fireEvent.keyDown(box, { key: "Escape" });
+    // Escape is the field's own, so the browser does not clear it first.
+    expect(escape).toBe(false);
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
+    expect(document.activeElement).toBe(searchButton());
+    expect(address()).toBe("?search=notes");
+    box = await openSearch();
+    fireEvent.change(box, { target: { value: "release" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(address()).toBe("?search=release");
+    expect(screen.queryByRole("searchbox", { name: "Search threads" })).toBeNull();
+    // Text the search cannot take keeps the field open on Enter, and is put
+    // back on closing.
+    box = await openSearch();
+    fireEvent.change(box, { target: { value: "no\u200btes" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(searchBox()).toBe(box);
+    fireEvent.click(closeSearch());
+    await pause();
+    expect(address()).toBe("?search=release");
+    expect((await openSearch()).value).toBe("release");
+  });
+
+  it("names Search by the search on, keeping its case, and clears it by its chip, focus moving to Filters", async () => {
+    serve([]);
+    renderAt("/?search=Release+Notes&unread=true");
+    await screen.findByRole("heading", { level: 1 });
+    expect(searchButton().getAttribute("aria-label")).toBe('Search, "Release Notes"');
+    expect(searchButton().getAttribute("title")).toBe('Search, "Release Notes"');
+    const remove = screen.getByRole("button", { name: 'Remove filter: Search "Release Notes"' });
+    expect(remove.getAttribute("title")).toBe('Search "Release Notes"');
+    remove.focus();
+    fireEvent.click(remove);
+    await waitFor(() => expect(address()).toBe("?unread=true"));
+    expect(document.activeElement).toBe(filtersButton());
+    expect(searchButton().getAttribute("aria-label")).toBe("Search");
+    expect(searchButton().querySelector(".set-mark")).toBeNull();
+  });
+
+  it("applies nothing on an Enter an input method sends, as Safari's confirming a candidate is", async () => {
+    serve([]);
+    renderAt("/");
+    const box = await openSearch();
+    fireEvent.change(box, { target: { value: "release" } });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(address()).toBe("");
+    expect(searchBox()).toBe(box);
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(address()).toBe("?search=release");
+  });
+
+  it("says why the text cannot search in a polite live region, there before the text goes wrong", async () => {
+    serve([]);
+    renderAt("/");
+    const box = await openSearch();
+    const region = box.parentElement?.querySelector('[aria-live="polite"]');
+    expect(region?.textContent).toBe("");
+    fireEvent.change(box, { target: { value: "no\u200btes" } });
+    expect(box.parentElement?.querySelector('[aria-live="polite"]')).toBe(region);
+    const error = document.getElementById(box.getAttribute("aria-describedby") ?? "");
+    expect(error !== null && region?.contains(error)).toBe(true);
+  });
+
+  it("takes focus when a chip removed while it is open leaves no Filters to move to", async () => {
+    serve([]);
+    renderAt("/?unread=true");
+    const box = await openSearch();
+    const unread = screen.getByRole("button", { name: "Remove filter: Unread" });
+    unread.focus();
+    fireEvent.click(unread);
+    await waitFor(() => expect(address()).toBe(""));
+    expect(document.activeElement).toBe(box);
+  });
+});
+
 describe("the chips", () => {
   it("show each filter that is on, each removing its own, with a badge counting them", async () => {
     serve([]);
@@ -1468,9 +1669,9 @@ describe("the chips", () => {
     );
     await screen.findByRole("heading", { level: 1 });
     const [search, agent, session, topic] = chips() as HTMLElement[];
-    // “12345678901234567890”: 22 characters, cut to 19 and an ellipsis.
-    expect(chipText(search as HTMLElement)).toBe("“123456789012345678…");
-    expect(search?.getAttribute("title")).toBe("Search “12345678901234567890”");
+    // "12345678901234567890": 22 characters, cut to 19 and an ellipsis.
+    expect(chipText(search as HTMLElement)).toBe('"123456789012345678…');
+    expect(search?.getAttribute("title")).toBe('Search "12345678901234567890"');
     // agent-eighteen-chr: 18 characters, beside the badge's two.
     expect(chipText(agent as HTMLElement)).toBe("agent-eighteen-chr");
     // a-long-session-name: 19 characters, cut to an ellipsis and its last 17.
@@ -1583,6 +1784,14 @@ describe("paging", () => {
 describe("bulk marks", () => {
   // said waits for the status region to say what an action did.
   const said = () => waitFor(() => expect(screen.getByRole("status").textContent).not.toBe(""));
+  const listBar = () => screen.getByRole("region", { name: "List actions" });
+  const bulk = (name: string) => within(listBar()).getByRole<HTMLButtonElement>("button", { name });
+  // Each button in the bar, in order: its name and whether it can act.
+  const buttons = () =>
+    within(listBar())
+      .getAllByRole<HTMLButtonElement>("button")
+      .map((each) => [each.getAttribute("aria-label") ?? each.textContent, !each.disabled]);
+  const caption = () => listBar().querySelector(".bar-caption");
 
   it("archive every read thread through its latest message, saying what stayed", async () => {
     let archived = false;
@@ -1605,21 +1814,23 @@ describe("bulk marks", () => {
           total,
         },
       }))
-      .on("POST", "/archives", () => {
+      .on("POST", "/threads/actions", () => {
         archived = true;
         return {
           body: {
-            archived: [{ agent: "builder", session: "main", thread: 2, marks: {} }],
-            skipped: [{ agent: "builder", session: "main", thread: 3, open_asks: [2] }],
+            acted: [{ agent: "builder", session: "main", thread: 2 }],
+            declined: [],
+            kept: [{ agent: "builder", session: "main", thread: 3, open_asks: [2] }],
           },
         };
       });
     renderAt("/");
     fireEvent.click(await screen.findByRole("button", { name: "Archive all read" }));
     await said();
-    const [call] = api.callsTo("POST", "/archives");
+    const [call] = api.callsTo("POST", "/threads/actions");
     expect(call?.headers["x-csrf-token"]).toBe(csrf);
     expect(call?.body).toEqual({
+      action: "read_and_archive",
       threads: [
         { agent: "builder", session: "main", thread: 2, through: 4 },
         { agent: "builder", session: "main", thread: 3, through: 2 },
@@ -1640,18 +1851,23 @@ describe("bulk marks", () => {
     async (address) => {
       serve([threadSummary({ number: 2, title: "Read", unread: 0 })]);
       renderAt(address);
-      await screen.findByText("Read");
-      expect(screen.queryByRole("button", { name: "Archive all read" })).toBeNull();
+      await waitFor(() => expect(titles()).toEqual(["Read"]));
+      expect(bulk("Archive all read").disabled).toBe(true);
     },
   );
 
-  it("mark every unread thread read through its latest message", async () => {
-    serve([asking, threadSummary({ number: 2, title: "Notes", last_seq: 6 })]);
-    api.on("POST", "/reads", { body: { threads: [] } });
-    renderAt("/?unread=true");
+  it("mark every unread thread read through its latest message, leaving read ones out", async () => {
+    serve([
+      asking,
+      threadSummary({ number: 2, title: "Notes", last_seq: 6 }),
+      threadSummary({ number: 3, title: "Read", unread: 0, last_seq: 3 }),
+    ]);
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    renderAt("/");
     fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
     await said();
-    expect(api.callsTo("POST", "/reads")[0]?.body).toEqual({
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
       threads: [
         { agent: "builder", session: "main", thread: 4, through: 1 },
         { agent: "builder", session: "main", thread: 2, through: 6 },
@@ -1659,16 +1875,123 @@ describe("bulk marks", () => {
     });
   });
 
+  it("caption how many threads are shown, of how many match, then what the last action did", async () => {
+    api
+      .on("GET", "/threads", {
+        body: { threads: [threadSummary({ number: 2, last_seq: 6 })], next: "page-2", total },
+      })
+      .on("POST", "/threads/actions", {
+        body: { acted: [{ agent: "builder", session: "main", thread: 2 }], declined: [], kept: [] },
+      });
+    renderAt("/");
+    await waitFor(() => expect(caption()?.textContent).toContain(String(total)));
+    expect(caption()?.textContent).toContain("1");
+    expect(caption()?.getAttribute("aria-hidden")).toBeNull();
+    fireEvent.click(bulk("Mark all read"));
+    await said();
+    // The outcome shows beside the buttons as the status region says it,
+    // which alone announces it.
+    const status = screen.getByRole("status").textContent;
+    await waitFor(() => expect(caption()?.textContent).toBe(status));
+    expect(caption()?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("move focus that the action pressed left to Select all once it cannot act again, never to the other", async () => {
+    let step = 0;
+    const withAsk = threadSummary({
+      number: 3,
+      title: "Read, with an ask",
+      unread: 0,
+      last_seq: 2,
+      open_asks: { ...asking.open_asks, asks: [{ number: 1, seq: 2 }], count: 1 },
+    });
+    api
+      .on("GET", "/threads", () => ({
+        body: {
+          threads: [
+            ...(step < 2
+              ? [threadSummary({ number: 1, title: "Notes", unread: step === 0 ? 1 : 0 })]
+              : []),
+            withAsk,
+          ],
+          total,
+        },
+      }))
+      .on("POST", "/threads/actions", () => {
+        step += 1;
+        return { body: { acted: [], declined: [], kept: [] } };
+      });
+    renderAt("/");
+    await screen.findByText("Notes");
+    const selectAll = () => screen.getByRole("checkbox", { name: "Select all" });
+    bulk("Mark all read").focus();
+    fireEvent.click(bulk("Mark all read"));
+    // Nothing is left unread, so Mark all read cannot act, and focus goes
+    // to Select all, not to Archive all read, which a second press would
+    // then archive.
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(true));
+    await waitFor(() => expect(document.activeElement).toBe(selectAll()));
+    bulk("Archive all read").focus();
+    fireEvent.click(bulk("Archive all read"));
+    // Only a thread holding an ask is left, which archiving would keep.
+    await waitFor(() => expect(bulk("Archive all read").disabled).toBe(true));
+    await waitFor(() => expect(document.activeElement).toBe(selectAll()));
+  });
+
+  it("keep focus on the action pressed while it can act again", async () => {
+    serve([threadSummary({ number: 1, title: "Notes", unread: 1 })]);
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    renderAt("/");
+    await screen.findByText("Notes");
+    bulk("Mark all read").focus();
+    fireEvent.click(bulk("Mark all read"));
+    await said();
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(false));
+    expect(document.activeElement).toBe(bulk("Mark all read"));
+  });
+
+  it("offer no archiving while every read thread shown holds an ask open, which it would keep", async () => {
+    serve([
+      threadSummary({
+        number: 3,
+        title: "Read, with an ask",
+        unread: 0,
+        open_asks: { ...asking.open_asks, asks: [{ number: 1, seq: 1 }], count: 1 },
+      }),
+    ]);
+    renderAt("/");
+    await screen.findByText("Read, with an ask");
+    expect(bulk("Archive all read").disabled).toBe(true);
+  });
+
+  it("keep the bar, its buttons disabled in place, when there is nothing to mark read or archive", async () => {
+    serve([threadSummary({ number: 2, title: "Read", unread: 0 })]);
+    renderAt("/?include_archived=true");
+    await waitFor(() => expect(titles()).toEqual(["Read"]));
+    expect(buttons()).toEqual([
+      ["Archive all read", false],
+      ["Mark all read", false],
+    ]);
+  });
+
+  it("show no bar while the list has no rows", async () => {
+    serve([]);
+    renderAt("/");
+    await screen.findByText("No threads to show.");
+    expect(screen.queryByRole("region", { name: "List actions" })).toBeNull();
+  });
+
   it("act on the threads loaded while more remain to load", async () => {
     api
       .on("GET", "/threads", {
         body: { threads: [threadSummary({ number: 2, last_seq: 6 })], next: "page-2", total },
       })
-      .on("POST", "/reads", { body: { threads: [] } });
+      .on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
     renderAt("/?unread=true");
     fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
     await said();
-    expect(api.callsTo("POST", "/reads")[0]?.body).toEqual({
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
       threads: [{ agent: "builder", session: "main", thread: 2, through: 6 }],
     });
   });

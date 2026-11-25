@@ -27,7 +27,7 @@ export const connectedFor = 60_000;
 // checked in through an older bridge, while no bridge is connected, follows
 // the rule of the bridges before it: it is never shown disconnected, since
 // such a bridge cannot report a connection.
-export const monitoringVersion = 6;
+export const monitoringVersion = 8;
 
 // markCheckedIn stamps the agent of the session a registration acts for as
 // checked in now, with the agent API version of its call, when that moves

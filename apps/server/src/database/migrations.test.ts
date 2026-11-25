@@ -27,9 +27,11 @@ const frozen = [
   "25c3c21b1c1e7aca5a5c42c10e97df84fb6bef573e74bd09bc1e02afe90ba754",
   // 9, group colors and order, and tags of their own.
   "c2f5bcfd9cacfcbbb7f23688a119ed71244d4071fd77f4dcddb836329465be63",
-  // 10, monitoring: check-in versions, background requests and monitor reports.
-  "3b0f284828ec191467b7be179d5d53a176dded2bad571a7f7ad49c89a788f895",
-  // 11, the nudge: whether a session can be nudged, and its latest nudge.
+  // 10, the pull requests and branches messages name.
+  "5325889655de911ccfa4b4710b209e88db1a1930bf215eb08e9e314f13486a61",
+  // 11, monitoring: check-in versions, background requests and monitor reports.
+  "a6caf3294f9c7bd48aeb1dc3595926cb9b4cabdff649f3f37f4d60e2068619c5",
+  // 12, the nudge: whether a session can be nudged, and its latest nudge.
   "e0c4abe7f2f0532d3c38f2620e0d40f2039ff1c44fda0c10b6b9cf00f6b80873",
 ];
 

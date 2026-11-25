@@ -3,6 +3,9 @@
     "default": true,
     // Prettier wraps prose at its printWidth; line length is not linted twice.
     "MD013": false,
+    // The README sizes and theme-switches its screenshots, which Markdown's
+    // own image syntax cannot do.
+    "MD033": { "allowed_elements": ["picture", "source", "img", "br"] },
   },
   "gitignore": true,
   "ignores": ["out/**", "CHANGELOG.md"],

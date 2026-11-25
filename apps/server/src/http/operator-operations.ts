@@ -12,6 +12,7 @@ import {
   groupParams,
   groupRead,
   groupsAndTags,
+  matchingThreadActionInput,
   messageSendInput,
   operatorWaitQuery,
   operatorWaitResult,
@@ -33,6 +34,8 @@ import {
   tagParams,
   tagRead,
   tagsInput,
+  threadActionInput,
+  threadActionResult,
   threadCounts,
   threadFilters,
   threadList,
@@ -44,6 +47,8 @@ import {
   writeResult,
 } from "@wayfarerlabs/agention-api";
 import {
+  actOnMatchingThreads,
+  actOnThreads,
   approveRegistration,
   bulkArchive,
   bulkRead,
@@ -193,6 +198,30 @@ export const operatorOperations: readonly OperatorOperation[] = [
     body: bulkMarkInput,
     response: bulkArchiveResult,
     handler: ({ store, identity, body }) => bulkArchive(store, identity, body),
+  }),
+  operation({
+    name: "actOnThreads",
+    method: "POST",
+    path: "/threads/actions",
+    summary:
+      "Mark several threads read or unread, or archive them, declining their open asks first " +
+      "if asked, each through a message",
+    scope: "threads:write",
+    body: threadActionInput,
+    response: threadActionResult,
+    handler: ({ store, identity, body }) => actOnThreads(store, identity, body),
+  }),
+  operation({
+    name: "actOnMatchingThreads",
+    method: "POST",
+    path: "/threads/actions/matching",
+    summary:
+      "Mark every thread the thread list's filters keep read or unread, or archive them, " +
+      "declining their open asks first if asked",
+    scope: "threads:write",
+    body: matchingThreadActionInput,
+    response: threadActionResult,
+    handler: ({ store, identity, body }) => actOnMatchingThreads(store, identity, body),
   }),
 
   // sessions:read and sessions:write

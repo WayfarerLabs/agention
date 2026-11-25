@@ -15,6 +15,7 @@ import {
   type Reference,
   type Suggestion,
   type ThreadStatus,
+  type SummaryLinks,
   type ThreadSummary,
   type Withdrawal,
   type WorkOutcome,
@@ -22,6 +23,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
+import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
 import {
   connectedFor,
@@ -360,12 +362,12 @@ function askSummaryOf(json: string, now: number): AskSummary {
   };
 }
 
-// toThreadSummary describes a row of seen. An ask is overdue once its
-// answer-by time is before now. The thread's audience also sees its
-// session's presence, with whether it is connected, its bridge's latest
-// report while it is, and the state and outcome it last reported, and whether
-// the thread is stranded.
-export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
+// toThreadSummary describes a row of seen, with its summary's links. An ask
+// is overdue once its answer-by time is before now. The thread's audience
+// also sees its session's presence, with whether it is connected, its
+// bridge's latest report while it is, and the state and outcome it last
+// reported, and whether the thread is stranded.
+export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
     agent: row.agent_name,
@@ -399,6 +401,7 @@ export function toThreadSummary(row: ThreadRow, now: number): ThreadSummary {
     ...(row.latest_withdrawal === null
       ? {}
       : { withdrawal: JSON.parse(row.latest_withdrawal) as Withdrawal & { seq: number } }),
+    links,
     credential_active: row.credential_active === 1,
     ...(row.audience === 1
       ? {
@@ -423,7 +426,17 @@ export function readThread(
   const row = store.db
     .prepare(`${threadsSeen("t.id = :thread")} SELECT * FROM seen`)
     .get({ thread: threadId, ...viewerAndCutoff(store, viewer, now) }) as unknown as ThreadRow;
-  return toThreadSummary(row, now);
+  return toThreadSummary(row, now, summaryLinksFor(store.db, [threadId])(threadId));
+}
+
+// summariesOf describes rows of seen, reading their summaries' links for
+// those rows alone.
+export function summariesOf(db: Database, rows: ThreadRow[], now: number): ThreadSummary[] {
+  const links = summaryLinksFor(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => toThreadSummary(row, now, links(row.id)));
 }
 
 export interface ThreadParties {
@@ -568,8 +581,9 @@ function groupBySeq<T extends { seq: number }>(rows: T[]): Map<number, T[]> {
 }
 
 // readMessages reads up to limit messages after the given sequence, in order,
-// as they read now: whether each is live and what replaced it; its files, in
-// the order it gave them, each marked when its contents are gone; each ask's
+// as they read now: whether each is live and what replaced it; its pull
+// requests and branches, and its files, in the order it gave them, each file
+// marked when its contents are gone; each ask's
 // number, whether it is open, and its live answer or live withdrawal; each
 // answer's ask, with its question, and whether that ask is still live; and
 // each withdrawal, all as the two views define them. An ask has at most one
@@ -641,6 +655,7 @@ export function readMessages(
       .all(span) as unknown as (Withdrawal & { seq: number })[],
   );
   const files = readAttachments(db, span);
+  const links = readLinks(db, span);
   return rows.map((row) => {
     const attached = files.get(row.seq);
     const own = asks.get(row.seq);
@@ -658,6 +673,7 @@ export function readMessages(
       ...(row.message_references === null
         ? {}
         : { references: JSON.parse(row.message_references) as Reference[] }),
+      ...links.get(row.seq),
       ...(attached === undefined ? {} : { attachments: attached }),
       ...(row.topic === null ? {} : { topic: row.topic }),
       ...(own === undefined ? {} : { asks: own.map(toAsk) }),

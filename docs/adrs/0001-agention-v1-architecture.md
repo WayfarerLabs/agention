@@ -16,11 +16,10 @@ message text stays inert, and files load only as attachments, under that ADR's r
 view's tab counting the sessions with unread updates is superseded: a navigation badge counts only
 what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
 approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
-UI" and the [operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row
-still marks its unread updates. Its "No push" is superseded for agents, and its "No permissions, no
-harness control" amended, by [ADR 0007](0007-the-nudge.md): where the operator turns it on, the
-bridge nudges an agent at its prompt with one fixed message, and those keys and texts are the one
-exception.
+UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates. Its
+"No push" is superseded for agents, and its "No permissions, no harness control" amended, by
+[ADR 0007](0007-the-nudge.md): where the operator turns it on, the bridge nudges an agent at its
+prompt with one fixed message, and those keys and texts are the one exception.
 
 ## Context
 
@@ -171,6 +170,19 @@ holding one is never archived for it. Every write states the latest message its 
 another landed first, the write fails as stale and returns the missed messages. Every write also
 carries a client request identifier, so retries are safe and a reused identifier with different
 content is rejected. Marking never conflicts with a write.
+
+One write is the exception: the operator's action on many threads that declines their asks before
+archiving them writes the declines from the server, at most as many to a message as any message
+answers, which state no latest message of their own and carry request identifiers the server makes.
+The request stands in for both, as the operator confirmed it in the web UI or as a program holding
+an API key sent it, bounded by what it names: each thread is acted on through the message the list
+showed it at, or, for every thread matching the list's filters, through its latest message at or
+before the list's position among all messages (`as_of`). Which threads match is decided as the
+action runs, since a thread can come to match without a new message, and the action is refused as
+stale when they number other than the count the request expected. A thread holding an ask to decline
+and a newer message is left as it was, since writing would answer what was not seen and read it;
+every other thread is marked, or marked and archived, through the older message, leaving the newer
+unread. A retry declines nothing twice, since a declined ask is open no more.
 
 ### Sessions report what they are doing; presence is observed
 
@@ -365,6 +377,11 @@ These are deliberate limits, not gaps to fill later without a new decision:
   labels; session groups do not nest; tags are assigned, never matched to names by pattern.
 - **No agent secret on the server.** The server keeps agents' public keys and nothing an attacker
   could replay, so a copy of the database cannot impersonate an agent.
+- **Agention never calls a forge.** The pull requests and branches a message names are what its
+  writer declared, shown as data; the server never fetches them, follows their links or receives a
+  forge's webhooks, and records no pull request's state. Checking them would need forge credentials
+  and network access the server does not have, and would make it a forge client; agents say in their
+  text what changed, and the operator reads the forge itself.
 
 ## Alternatives considered
 

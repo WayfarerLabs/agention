@@ -377,7 +377,10 @@ main:has(> .side-by-side) {
 .side-by-side > .list-pane {
   position: sticky;
   top: 0;
-  max-height: 100dvh;
+  /* Until the page scrolls the banner away, the pane starts below it, so
+     its height leaves that out, which Threads.tsx measures, and the bar at
+     its foot stays on the screen. */
+  max-height: calc(100dvh - var(--pane-top, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-2);
@@ -569,26 +572,233 @@ legend {
 
 /* The thread list */
 
-/* The list's head: the search box across its top, then the order with its
-   direction, the grouping, and the Filters button at the end of their row,
-   which wraps, rather than squeezing them, where the width does not hold
-   them all. The search box takes the head's whole width at every width, so
-   it keeps its room beside a thread as on a phone. */
+/* The list's head: one row of compact controls, or the search field in
+   their place. A control shows its words beside its icon only where the head
+   has room for them, which it measures as its own container, so the list
+   beside a thread, as narrow as a phone, keeps its icons alone: a pick list's
+   words, what it holds, from 28rem; every control's from 41rem, past the
+   widest that row gets by touch with every control set in the widest font
+   measured, DejaVu Sans, a common Linux system font (about 40.2rem; Arial
+   about 36.6rem). The browser tests hold the row to it in the system's own
+   font and in Arial. The row wraps rather than scroll sideways should a wider
+   font leave it no room. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  container: list-head / inline-size;
 }
 
+/* A compact control: an icon in a box the size of a touch, beside its words
+   where the row it sits in shows them. Its lower corner says what kind it
+   is: a caret for a pick list, a small box for a checkbox, nothing for a
+   button (icon-controls.tsx). */
+.icon-control {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.control-label {
+  display: none;
+}
+
+@container list-head (min-width: 28rem) {
+  .pick-list .control-label {
+    display: inline;
+  }
+}
+
+@container list-head (min-width: 41rem) {
+  .control-label {
+    display: inline;
+  }
+}
+
+/* A pick list and a checkbox: a native select or checkbox over the whole
+   control, unseen and square, so a tap anywhere on it, its corners too,
+   reaches it, a select at the size of text a phone does not zoom in on. Its
+   focus ring is the control's, which dims while it is disabled. */
+.pick-list,
+.icon-checkbox {
+  cursor: pointer;
+}
+
+.pick-list select,
+.icon-checkbox input[type="checkbox"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  opacity: 0;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* Its words keep clear of the corner that says its kind by a hair, enough
+   for a descender beside it, since each pixel here widens the list's head. */
+:is(.pick-list, .icon-checkbox) .control-label {
+  margin-right: 2px;
+}
+
+.pick-list:has(select:focus-visible),
+.icon-checkbox:has(input:focus-visible) {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.pick-list:has(select:disabled),
+.icon-checkbox:has(input:disabled) {
+  opacity: 0.6;
+}
+
+.pick-list :disabled,
+.icon-checkbox :disabled {
+  cursor: default;
+}
+
+/* The corner that says a control's kind, drawn within its box, so it takes
+   no room from the row: a pick list's caret, pointing down at the choices it
+   opens. */
+.pick-list::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  border: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  border-bottom: 0;
+  pointer-events: none;
+}
+
+/* Forced colors would paint the caret's clear sides, making a block of it,
+   so it keeps its shape in the system's color for text. */
+@media (forced-colors: active) {
+  .pick-list::after {
+    forced-color-adjust: none;
+    border-top-color: CanvasText;
+  }
+}
+
+/* A checkbox's small box, hollow while off. On, it fills, and the control's
+   face is tinted and outlined in the accent, a second line of it inside its
+   border, so on and off differ by more than color. */
+.icon-checkbox::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.icon-checkbox:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  color: var(--color-accent);
+}
+
+.icon-checkbox:has(input:checked)::after {
+  background: currentColor;
+}
+
+/* Forced colors drop the tint and the inner line, so a checkbox that is on
+   keeps the system's own colors for what is selected. */
+@media (forced-colors: active) {
+  .icon-checkbox:has(input:checked) {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+    box-shadow: none;
+    color: HighlightText;
+  }
+}
+
+/* The dot a control carries while it is set to anything but its default,
+   on its corner, clear of its words, ringed in the page's background. */
+.set-mark {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-bg);
+  pointer-events: none;
+}
+
+/* Forced colors drop the dot's background and ring, so it keeps its own, in
+   the system's colors. */
+@media (forced-colors: active) {
+  .set-mark {
+    forced-color-adjust: none;
+    background: Highlight;
+    box-shadow: 0 0 0 2px Canvas;
+  }
+}
+
+/* The order and the checkbox reversing it, together, as far apart as the
+   row's other controls, so the order's mark stays clear of the checkbox. */
+.sort-control {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* The search field in the row's place, beside the button closing it, with
+   why the text cannot search beneath them, in a live region that takes no
+   room while it is empty. */
 .list-search {
-  flex: 1 0 100%;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
   min-width: 0;
 }
 
+.list-search input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The button closing the field stands where the browser's own clearing
+   cross would, so the field shows no other. */
+.list-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.list-search .search-problem {
+  flex-basis: 100%;
+  order: 1;
+}
+
 .list-search .field-error {
-  margin-bottom: 0;
+  margin: var(--space-1) 0 0;
 }
 
 /* A part of where a thread is, its agent, session or topic, is marked by a
@@ -612,69 +822,12 @@ legend {
   background: var(--color-surface);
 }
 
-/* Icons drawn in lines, in the color of the text around them. */
+/* Icons filled in the color of the text around them (icons.tsx). */
 .icon {
   width: calc(var(--icon-size) * 1.25);
   height: calc(var(--icon-size) * 1.25);
   flex: none;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* The order and the grouping: each a native select with its icon drawn
-   inside, at its start. */
-.head-select {
-  position: relative;
-}
-
-.head-select .icon {
-  position: absolute;
-  top: 50%;
-  left: var(--space-2);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.head-select select {
-  width: auto;
-  padding-left: calc(var(--space-2) * 2 + var(--icon-size) * 1.25);
-  font-size: var(--text-small);
-  font-weight: 600;
-}
-
-/* The order and the button reversing it, together on a row while the width
-   holds them, the button wrapping beneath the order on the narrowest phones
-   or when enlarged text leaves no room for it beside. */
-.sort-control {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-/* The direction: the order's words beside an arrow, in the selects' text
-   size. Its words wrap only when enlarged text leaves no room for them on a
-   row of their own. */
-.direction-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-2);
-  font-size: var(--text-small);
-  text-align: start;
-}
-
-.filters-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-width: var(--touch);
-  margin-left: auto;
-  padding: 0 var(--space-2);
+  fill: currentColor;
 }
 
 .badge {
@@ -1065,6 +1218,206 @@ button.picker[aria-expanded="true"] .icon {
   outline-offset: -2px;
 }
 
+/* Selecting threads (selection.tsx): a row's checkbox stands at its start,
+   level with its title, beside its link, whose own start padding it takes
+   the place of; the row of a thread selected is ringed in the accent. On a
+   touch screen a finger held on a row selects it, so the row's text is not
+   taken for text to select and the browser's own menu for the link stays
+   away. The row is a grid, so what stands beneath the link (code-links.tsx)
+   lines up with it. */
+.thread-row:has(> .row-select) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.thread-row > .row-select {
+  margin: calc(var(--space-4) + 0.1rem) 0 0 var(--space-4);
+}
+
+.thread-row.unread > .row-select {
+  margin-left: calc(var(--space-4) - 3px);
+}
+
+.thread-row > .row-select + .thread-link {
+  padding-left: var(--space-3);
+}
+
+.thread-row.selected {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+@media (pointer: coarse) {
+  .thread-link,
+  .row-code-links a {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* The list's header checkbox, level with the rows', and the offer to select
+   every thread that matches beside it, wrapping below it on a phone. */
+.select-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.select-head .select-all {
+  padding-left: calc(var(--space-4) + 1px);
+}
+
+.select-banner p {
+  margin: 0;
+}
+
+/* The bars at the foot of a pane (action-bar.tsx): the thread list's and the
+   thread page's. Each is a strip docked to the foot of the screen, or beside
+   a thread to the foot of the list's pane, floating over what scrolls
+   beneath it on the Send row's surface, and in the flow after the last of
+   what it acts on, so it never covers that once scrolled to. One pane at a
+   time it reaches the screen's edges and its foot; side by side it keeps to
+   its pane. */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--layer-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  margin: var(--space-3) calc(-1 * var(--bar-bleed, var(--space-4))) 0;
+  padding: var(--space-1) var(--space-2) max(var(--space-1), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+main:has(.action-bar) {
+  padding-bottom: 0;
+}
+
+.side-by-side .list-pane {
+  --bar-bleed: var(--space-2);
+}
+
+/* Beside a thread the bar stands at the very foot of the list's pane, so no
+   row shows beneath it. */
+.side-by-side > .list-pane:has(.action-bar) {
+  padding-bottom: 0;
+}
+
+.side-by-side article {
+  --bar-bleed: 0px;
+}
+
+/* What fills the bar's width: a failure, and a question asked before an
+   action, which stand in the bar's place. */
+.action-bar > .notice,
+.action-bar > .bar-confirm {
+  flex-basis: 100%;
+  margin: var(--space-1) 0;
+}
+
+/* What the bar's buttons act on, or what the last one did: beside them
+   where it fits, else on its own line above them. */
+.bar-caption {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.bar-caption.own-line {
+  flex-basis: 100%;
+}
+
+.bar-caption.reason {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.bar-slots {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A bar's button: its icon over a short label, in equal columns that fill a
+   phone's width and stop growing on a wider bar, a fingertip tall on a touch
+   screen. */
+button.bar-button,
+a.bar-button {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: min-content;
+  max-width: 6rem;
+  min-height: calc(var(--touch) + var(--space-1));
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-tag);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.bar-button .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.bar-button:not(:disabled, [aria-disabled="true"]):hover {
+  background: var(--color-surface-2);
+}
+
+.bar-button[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The trailing group, at the bar's end, starts at the first button so
+   marked. */
+.bar-button.trailing {
+  margin-left: auto;
+}
+
+/* While a text field in a bar's pane has focus, as a phone's keyboard rises
+   for it, the bar rests in its place at the end of its pane instead of
+   floating; so does the thread's on a screen too short to spare the room
+   for it and the composer's Send row together. The list's keeps floating
+   there, since its actions are reachable only from it. */
+.list-pane:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .action-bar,
+article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) > .action-bar {
+  position: static;
+}
+
+@media (max-height: 30rem) {
+  article > .action-bar {
+    position: static;
+  }
+}
+
+/* What a key moves focus to scrolls into view a little above the list's
+   bar, in the page one pane at a time and in the list's own pane beside a
+   thread, whose height ListBar measures as it changes. */
+:root:has(.list-pane .action-bar):not(:has(.side-by-side)),
+.list-pane:has(.action-bar) {
+  scroll-padding-bottom: calc(var(--list-bar-height, 0px) + var(--space-2));
+}
+
 /* Marks: an icon that says something, with a short text beside it. */
 .marks {
   display: inline-flex;
@@ -1402,24 +1755,17 @@ button.fold-toggle[aria-expanded="false"] > .icon {
 
 /* The thread page */
 
-.thread-bar {
+/* The thread's title, with the archive box beside it while the thread is
+   archived. */
+.thread-title {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
 }
 
-/* The way back to the list, and to the threads above and below, together. */
-.thread-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-/* The back button: a heavy arrow and its word, at full strength, bordered
-   like the head's other buttons. */
+/* The way back to Settings' sections on a phone: an arrow and its word, at
+   full strength, bordered like the head's buttons. */
 .back {
   display: inline-flex;
   align-items: center;
@@ -1433,16 +1779,6 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   color: var(--color-text);
   font-weight: 600;
   text-decoration: none;
-}
-
-.back svg {
-  width: calc(var(--icon-size) * 1.25);
-  height: calc(var(--icon-size) * 1.25);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .back:hover {
@@ -1474,13 +1810,6 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   text-underline-offset: 0.15em;
 }
 
-.thread-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-left: auto;
-}
-
 .thread-header h1 {
   margin-top: 0;
   overflow-wrap: anywhere;
@@ -1490,20 +1819,17 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: var(--space-4) 0;
 }
 
-/* The back button again, under the composer. */
-.thread-foot {
-  margin: 0 0 var(--space-4);
-}
-
 /* Send and its option stay at the foot of the screen while the composer's
-   form is on it, so a phone's keyboard, which the page's viewport shrinks
-   for, does not hide them; they never leave the form, so they never lie
-   over the messages above it. A failed send's or dictation's notice shows
-   above Send, and what was sent or heard after it, so what answers Send or
-   Dictate shows beside it. */
+   form is on it, just above the thread's bar, which the page's order puts
+   after them, so a phone's keyboard, which the page's viewport shrinks for,
+   does not hide them; they never leave the form, so they never lie over the
+   messages above it. While the bar rests, they stand at the foot of the
+   screen themselves. A failed send's or dictation's notice shows above Send,
+   and what was sent or heard after it, so what answers Send or Dictate shows
+   beside it. */
 .composer .actions {
   position: sticky;
-  bottom: 0;
+  bottom: var(--thread-bar-height, 0px);
   align-items: center;
   column-gap: var(--space-4);
   margin-bottom: 0;
@@ -1522,25 +1848,72 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: 0;
 }
 
-/* After sending: its word beside its select, both on one line, the select
-   as wide as its longest option. */
+/* After sending: where a send goes, a pick list, and whether it archives
+   the thread first, a checkbox, close together as one pair, their icons
+   alone so the row holds on one line at a phone's width. Past a phone's
+   width, as for dictation's words, it says what the pair is for, and each
+   shows a word or two. */
 .after-sending {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-weight: 400;
+  gap: var(--space-1);
 }
 
-.after-sending select {
-  width: auto;
+.after-sending .caption {
+  display: none;
+  margin-right: var(--space-1);
+}
+
+@media (min-width: 40rem) {
+  .after-sending .caption,
+  .after-sending .control-label {
+    display: inline;
+  }
+}
+
+/* The narrowest phones keep the row's controls closer, and Send's own
+   padding tighter, so Send, Attach, Dictate, and the pair still share one
+   line in a font as wide as DejaVu Sans. */
+@media (max-width: 22.5rem) {
+  .composer .actions {
+    column-gap: var(--space-2);
+  }
+
+  .composer .actions > button:not(.secondary) {
+    padding-inline: var(--space-3);
+  }
+}
+
+article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .composer .actions {
+  bottom: 0;
+}
+
+@media (max-height: 30rem) {
+  .composer .actions {
+    bottom: 0;
+  }
 }
 
 /* What the page scrolls into view, as the caret while typing or a control
-   focused from the keyboard, stops a little above the Send row stuck at the
-   foot of the screen, whose height the composer measures as it changes. */
-:root:has(.composer) {
+   focused from the keyboard, stops a little above the Send row and the
+   thread's bar stuck at the foot of the screen, whose heights the composer
+   and the bar measure as they change; above the Send row alone while the
+   bar rests. */
+:root:has(article > .action-bar) {
+  scroll-padding-bottom: calc(
+    var(--send-row-height, 0px) + var(--thread-bar-height, 0px) + var(--space-2)
+  );
+}
+
+:root:has(article :is(textarea, input:not([type="checkbox"], [type="radio"])):focus) {
   scroll-padding-bottom: calc(var(--send-row-height, 0px) + var(--space-2));
+}
+
+@media (max-height: 30rem) {
+  :root:has(article > .action-bar) {
+    scroll-padding-bottom: calc(var(--send-row-height, 0px) + var(--space-2));
+  }
 }
 
 .messages > li {
@@ -1715,11 +2088,6 @@ button.options-button[aria-expanded="true"],
 button.copy-button:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
-}
-
-.options-button .icon {
-  fill: currentColor;
-  stroke: none;
 }
 
 .options-menu {
@@ -1924,16 +2292,10 @@ button.copy-button:hover {
   font-weight: 600;
 }
 
-.suggestions li.picked .check {
-  width: var(--icon-size);
-  height: var(--icon-size);
+.suggestions li.picked .icon {
   margin-right: var(--space-1);
-  vertical-align: -0.125em;
-  fill: none;
-  stroke: var(--color-success);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  vertical-align: -0.25em;
+  color: var(--color-success);
 }
 
 .suggestions li.unpicked {
@@ -2020,6 +2382,88 @@ audio.file-media {
 
 .thread-files .files {
   margin-top: 0;
+}
+
+/* The pull requests and branches a message names, on one short line under
+   its text, or folded to a count that unfolds to a list; and its thread's,
+   folded under the head beside its files. Short forms can be long, so they
+   wrap anywhere rather than widen the page. */
+.code-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.code-links .icon {
+  flex: none;
+}
+
+.code-links-list {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-border);
+  list-style: none;
+}
+
+.code-link {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* An entry: its short form, which leads to the list filtered by it, then
+   the small link to its forge's page, followed by that page's host. */
+.code-link-entry {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A row's pull request or branch, or its mark counting several, beneath the
+   row's link and in line with its content, the link giving up its bottom
+   padding to it. */
+.thread-link:has(+ .row-code-links) {
+  padding-bottom: var(--space-2);
+}
+
+.row-code-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.thread-row.unread .row-code-links {
+  padding-left: calc(var(--space-4) - 3px);
+}
+
+/* In a row with a checkbox (selection.tsx), the entry stands beneath the
+   link's content, past the checkbox. */
+.thread-row > .row-select ~ .row-code-links {
+  grid-column: 2;
+  padding-left: var(--space-3);
+}
+
+.row-code-links > .icon {
+  flex: none;
+}
+
+.thread-code-links {
+  margin-bottom: var(--space-3);
+}
+
+.thread-code-links .code-links-list {
+  margin-bottom: var(--space-3);
 }
 
 /* A draft's files, in the composer above its Send row and in the new-thread
@@ -3131,9 +3575,10 @@ textarea.secret {
 }
 
 /* In the composer's row beside Send, and the new-thread sheet's foot, the
-   microphone is its icon alone on a phone, the recording's time drops its
-   "Recording", and a failure drops its "Failed", which the notice says, so
-   the row stays short; the words stay for assistive technology. */
+   microphone is its icon alone on a phone, in a box as wide as Attach's, the
+   recording's time drops its "Recording", and a failure drops its "Failed",
+   which the notice says, so the row stays short; the words stay for
+   assistive technology. */
 @media (max-width: 40rem) {
   :is(.composer, .sheet-foot) :is(.dictate-label, .recording-word, .dictation-failed) {
     position: absolute;
@@ -3142,5 +3587,11 @@ textarea.secret {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  :is(.composer, .sheet-foot) .dictation > button:has(.dictate-label) {
+    justify-content: center;
+    min-width: var(--touch);
+    padding: var(--space-2);
   }
 }

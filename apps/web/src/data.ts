@@ -268,6 +268,9 @@ export interface Shown {
 }
 
 export interface Reading {
+  // Whether any mark the view started is still under way: marks overlap, as
+  // when the view shows more before the last mark's answer, so this settles
+  // only once every one has.
   pending: boolean;
   // Why the latest mark failed, until the view shows the entries read.
   failure: unknown;
@@ -293,7 +296,10 @@ export function useReading(
   onRead: () => void,
 ): Reading {
   const visible = useVisible();
-  const { pending, failure, run, clear } = useAction();
+  const { failure, run, clear } = useAction();
+  // How many marks are under way, which the action's own pending, cleared as
+  // each settles, cannot tell.
+  const [outstanding, setOutstanding] = useState(0);
   const markRef = useRef(mark);
   markRef.current = mark;
   const onReadRef = useRef(onRead);
@@ -318,21 +324,24 @@ export function useReading(
     }
     const before = marked.current;
     marked.current = through;
-    void run((csrf) => markRef.current(through, csrf)).then((done) => {
-      if (done === undefined) {
-        // The next answer tries again, unless the view has read further.
-        if (marked.current === through) {
-          marked.current = before;
+    setOutstanding((count) => count + 1);
+    void run((csrf) => markRef.current(through, csrf))
+      .then((done) => {
+        if (done === undefined) {
+          // The next answer tries again, unless the view has read further.
+          if (marked.current === through) {
+            marked.current = before;
+          }
+        } else {
+          onReadRef.current();
         }
-      } else {
-        onReadRef.current();
-      }
-    });
+      })
+      .finally(() => setOutstanding((count) => count - 1));
   }, [shown, visible, run, clear]);
   const stop = useCallback(() => {
     stopped.current = true;
   }, []);
-  return { pending, failure, stop };
+  return { pending: outstanding > 0, failure, stop };
 }
 
 // useFresh remembers which entries, by sequence, were unread when a view
