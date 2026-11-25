@@ -306,7 +306,7 @@ describe("answering on the card", () => {
       request_id: expect.stringMatching(/^web-/),
       seen_through: 1,
     });
-    await screen.findByRole("status");
+    await within(screen.getByRole("region", { name: "Reply" })).findByRole("status");
     expect(stagedLine()).toBeNull();
   });
 

@@ -33,15 +33,15 @@ import {
 } from "../router.tsx";
 import type { ListShown } from "./filter-links.tsx";
 import { ListBeside } from "./list/beside.ts";
-import { BulkActions } from "./list/BulkActions.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
+import { ListBar, ShownActions } from "./list/ListBar.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
 import { ListHead, useHeadSearch } from "./list/ListHead.tsx";
 import { useSearchText } from "./list/search.tsx";
 import { ListSelection, threadKey, useSelection } from "./list/selection.tsx";
-import { SelectHead, SelectionToolbar } from "./list/SelectionBar.tsx";
+import { SelectHead, SelectionActions } from "./list/SelectionControls.tsx";
 import { useListShortcuts } from "./list/shortcuts.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
 
@@ -181,10 +181,11 @@ export function ThreadList() {
 // would be, and as each change the page makes lands, such as the thread
 // beside it being read, besides its refresh. It holds the list's selection
 // (useSelection) and its keyboard shortcuts, among them the one that selects
-// a row; onSearch is what the search shortcut does. At its foot one bar acts
-// on threads: on every thread shown (BulkActions) while none is selected,
-// and on those selected (SelectionToolbar) while any are. Escape within the
-// list clears the selection.
+// a row; onSearch is what the search shortcut does. At its foot, while it has
+// rows, one bar acts on threads (ListBar): on every thread shown
+// (ShownActions) while none is selected, its caption saying what the status
+// region says, and on those selected (SelectionActions) while any are.
+// Escape within the list clears the selection.
 function ListBody({
   list,
   empty,
@@ -267,10 +268,14 @@ function ListBody({
   const shownKeys = useMemo(() => new Set(rendered), [rendered]);
   useListShortcuts(onSearch, selection.toggle);
   const selectAll = useRef<HTMLInputElement>(null);
-  // Where focus goes from the toolbar as it goes: the header checkbox, or
-  // where it is not shown, the page's heading.
+  // Where focus goes from the bar as what it holds goes: the header
+  // checkbox, or where it is not shown, as on a touch screen with nothing
+  // selected or once the list is empty, the list's own pane beside a thread,
+  // which takes focus there alone, or else the page's heading.
   const fallback = () =>
-    selectAll.current ?? body.current?.closest("main")?.querySelector<HTMLElement>("h1");
+    selectAll.current ??
+    body.current?.closest<HTMLElement>(".list-pane[tabindex]") ??
+    body.current?.closest("main")?.querySelector<HTMLElement>("h1");
   return (
     <div
       ref={body}
@@ -303,26 +308,32 @@ function ListBody({
                 <GroupedRows threads={rows} groups={groups} grouping={view.group} list={list} />
               )}
               <MoreButton next={next} loading={pages.loading} more={pages.more} />
-              {selection.selecting ? (
-                <SelectionToolbar
-                  view={view}
-                  selection={selection}
-                  total={total}
-                  asOf={asOf}
-                  refresh={pages.refresh}
-                  say={say}
-                  fallback={fallback}
-                />
-              ) : (
-                <BulkActions
-                  view={view}
-                  threads={rows.filter((thread) => shownKeys.has(threadKey(thread)))}
-                  more={next !== undefined}
-                  refresh={pages.refresh}
-                  say={say}
-                  fallback={fallback}
-                />
-              )}
+              <ListBar fallback={fallback}>
+                {(acting) =>
+                  selection.selecting ? (
+                    <SelectionActions
+                      view={view}
+                      selection={selection}
+                      total={total}
+                      asOf={asOf}
+                      refresh={pages.refresh}
+                      say={say}
+                      acting={acting}
+                    />
+                  ) : (
+                    <ShownActions
+                      view={view}
+                      threads={rows.filter((thread) => shownKeys.has(threadKey(thread)))}
+                      total={total}
+                      more={next !== undefined}
+                      refresh={pages.refresh}
+                      said={said}
+                      say={say}
+                      acting={acting}
+                    />
+                  )
+                }
+              </ListBar>
             </ListSelection.Provider>
           )
         }

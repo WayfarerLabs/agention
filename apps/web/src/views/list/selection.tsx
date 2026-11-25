@@ -5,11 +5,12 @@ import { useMedia } from "../../media.ts";
 // Selecting threads in the list, to act on them together. With a mouse or a
 // trackpad each row carries a checkbox; on a phone or a tablet, holding a
 // row down selects it, and while any is selected a tap selects or unselects
-// a row in place of opening it. Either way the list then shows its toolbar
-// of actions, until Done or Escape clears the selection. The list's header
-// checkbox selects every thread shown, those under a folded header left
-// out, and once it has, the list offers to select every thread its filters
-// keep instead (everything), which the server finds as it acts.
+// a row in place of opening it. Either way the bar at the list's foot then
+// holds the actions on them, until Clear or Escape clears the selection.
+// The list's header checkbox selects every thread shown, those under a
+// folded header left out, and once it has, the list offers to select every
+// thread its filters keep instead (everything), which the server finds as it
+// acts.
 //
 // The selection is the list's own, made afresh for each address, as the list
 // is. It holds threads by their key, so it survives the list's refresh and

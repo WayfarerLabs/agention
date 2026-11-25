@@ -503,17 +503,23 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
     seen** when, or **never seen**; or it has **no active credential**. A session with no active
     credential also shows its own tag, unless the stranded tag already says so.
-  - A bar at the foot of the list acts on every thread shown, leaving out those under a folded
-    header, as **Select all** does. It stays in view as the list scrolls, below its last row once
-    you reach it, and a row you move to with the keys scrolls into view above it. **Mark all read**
-    marks read the threads shown that hold anything unread, and **Archive all read**, while archived
-    threads are not included and no filter keeps only threads with open asks, archives those that
-    hold nothing unread, keeping those with an ask open to you, each through the latest message
-    shown. **Mark all read** shows while a thread shown is unread, and **Archive all read** while
-    one it would archive holds no ask open to you; the first of them is the main button, so once
-    everything is read, **Archive all read** is the one to press next, and focus moves to it. Both
-    act on at most 500 threads at once, and say when more remain. While anything is selected, the
-    bar gives way to the selection's toolbar.
+  - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
+    leaving out those under a folded header, as **Select all** does. It stays in view as the list
+    scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
+    view above it. While you type in the list's search field, it waits at the end of the list
+    instead. Its caption says how many threads are shown, such as **25 of 40 shown** while more
+    match, and after an action, what that action did, as the status line does. Each of its buttons
+    shows an icon over a short word and keeps its place: **Mark all read** marks read the threads
+    shown that hold anything unread, and **Archive all read**, while archived threads are not
+    included and no filter keeps only threads with open asks, archives those that hold nothing
+    unread, keeping those with an ask open to you, each through the latest message shown. Neither
+    asks first. Each is dimmed while it would act on no thread, **Archive all read** also while
+    every thread it would archive holds an ask open to you. Once its action is done, focus stays on
+    the one you pressed while it can act again, and otherwise moves to **Select all**, or, on a
+    phone or a tablet, where **Select all** shows only while anything is selected, to the page's
+    heading, without moving the list, so pressing again does nothing unasked. Both act on at most
+    500 threads at once, and say when more remain. While anything is selected, the same bar acts on
+    the threads selected instead.
   - **Selecting threads** acts on several at once. With a mouse or a trackpad, each row has a
     checkbox at its start; on a phone or a tablet, hold a row down to select it, and then, while
     anything is selected, a tap selects or unselects a row rather than opening it. `x` selects or
@@ -521,38 +527,49 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     thread shown, leaving out those under a folded header; once it has, while the list holds more, a
     button beside it, such as **Select all 40 threads that match**, selects every thread the filters
     keep, up to 500 at once, and another, such as **Select only the 25 shown**, goes back. While
-    anything is selected, the toolbar in the bar's place at the foot of the list says how many and
-    offers **Mark read**; **Mark unread**, which marks each thread unread from the agent's latest
-    message, leaving out a thread holding none, so the count it gives is of the threads now unread;
-    **Mark read and archive**, which keeps each thread holding an ask open to you as it was and says
-    how many it kept; and, while a thread selected holds an ask open to you, **Decline, mark read
-    and archive**, which first declines every such ask in messages of yours, up to ten answers to a
-    message, which the agent reads, then marks the thread read and archives it. Declining asks
-    first: for the threads selected, with how many asks and threads; for every thread that matches,
-    with how many of them hold an ask open to you, as the counts of the filters give it. An action
-    on the threads selected acts on at most 500 at once, each through the latest message the list
-    showed; an action on every thread that matches asks first, with how many, and acts on the
-    threads the filters keep, each through its latest message when the list was last loaded, leaving
-    out a thread started since; when the threads that match have changed in number since, as when a
-    deadline passed, it acts on none, and the list loads again and asks again. Either way a message
-    that arrived since stays unread and brings its thread back, and declining leaves as it was a
-    thread holding such a message, since you have not seen it. The status line says what the action
-    did, and the selection clears. **Done**, or `Esc` within the list, clears it too; with the
-    question open, `Esc` answers it with **Cancel**. The selection stays as the list refreshes and
-    loads more, and a thread that leaves the list leaves it.
-- **A thread** reads like an email. Its head starts with **Threads**, a button back to the list as
-  you left it, with its filters, order and grouping, or with none when you opened the thread
-  directly. Its heading leads with the thread's number, as a row's does. Under it, its agent,
-  session and topic say where the thread is, and each opens the list narrowed to it alone, with no
-  other filter on, showing everything there in the order and grouping you left the list in. Beneath,
-  muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
-  thread says why its session has not read your latest messages: it stopped, and how, or its agent
-  was last seen when, or never; a session with no active credential says so in a notice under the
-  head. **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread
-  below**, arrow buttons beside **Threads**, **Archive all**, and **Jump to unread** while anything
-  is unread or an ask is open to you, and shows the archive box while the thread is archived. The
-  messages open on the newest ones, or on the first one you had not read after those you archived
-  when that comes before them, and show earlier and later ones when you ask.
+    anything is selected, the bar at the foot of the list says how many and offers, after **Clear**,
+    **Read**, which marks them read; **Unread**, which marks each thread unread from the agent's
+    latest message, leaving out a thread holding none, so the count it gives is of the threads now
+    unread; **Archive**, which marks them read and archives them, keeping each thread holding an ask
+    open to you as it was and saying how many it kept; and **Decline**, available while a thread
+    selected holds an ask open to you, which first declines every such ask in messages of yours, up
+    to ten answers to a message, which the agent reads, then marks the thread read and archives it.
+    A screen reader names them in full: **Clear selection**, **Mark read**, **Mark unread**, **Mark
+    read and archive**, and **Decline, mark read and archive**. With more than 500 selected, only
+    **Clear** is available, and the bar says to select fewer. Declining asks first: for the threads
+    selected, with how many asks and threads; for every thread that matches, with how many of them
+    hold an ask open to you, as the counts of the filters give it. An action on the threads selected
+    acts on at most 500 at once, each through the latest message the list showed; an action on every
+    thread that matches asks first, with how many, and acts on the threads the filters keep, each
+    through its latest message when the list was last loaded, leaving out a thread started since;
+    when the threads that match have changed in number since, as when a deadline passed, it acts on
+    none, and the list loads again and asks again. Either way a message that arrived since stays
+    unread and brings its thread back, and declining leaves as it was a thread holding such a
+    message, since you have not seen it. The status line says what the action did, and the selection
+    clears. **Clear**, or `Esc` within the list, clears it too; with the question open, `Esc`
+    answers it with **Cancel**. Focus that was in the bar as the selection clears moves to **Select
+    all**, or on a phone or a tablet to the page's heading. The selection stays as the list
+    refreshes and loads more, and a thread that leaves the list leaves it.
+- **A thread** reads like an email. Its head starts with its heading, which leads with the thread's
+  number, as a row's does, and shows the archive box beside it while the thread is archived for you.
+  Under it, its agent, session and topic say where the thread is, and each opens the list narrowed
+  to it alone, with no other filter on, showing everything there in the order and grouping you left
+  the list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row
+  does, and a stranded thread says why its session has not read your latest messages: it stopped,
+  and how, or its agent was last seen when, or never; a session with no active credential says so in
+  a notice under the head. **Threads** stays marked in the navigation. The head holds **Jump to
+  unread** while anything is unread or an ask is open to you. The messages open on the newest ones,
+  or on the first one you had not read after those you archived when that comes before them, and
+  show earlier and later ones when you ask.
+  - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it,
+    each an icon over a short word: **Threads**, back to the list as you left it, with its filters,
+    order, and grouping, or with none when you opened the thread directly; **Above** and **Below**,
+    **Thread above** and **Thread below** in full; and, at its end, **Archive all**. It comes after
+    the composer and stays at the foot of the screen as the thread scrolls, with the composer's
+    **Send** row just above it while the composer is on screen. While you type in the composer or an
+    ask's box, and on a screen too short to spare the room, the bar waits at the end of the page,
+    under the composer, so only the **Send** row holds the foot of the screen, above a phone's
+    keyboard; leaving the box brings it back.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page or
@@ -577,8 +594,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     list. It takes the archived thread's place, so **Back** does not return to it, and at the end of
     the list that way it goes back to the list, which says so. If finding that thread fails, you
     stay on the thread, archived, and the page says so. While an ask is open to you, answer or
-    decline it first. Writing to a thread you archived keeps it archived, and what you archived
-    never counts as unread.
+    decline it first: **Archive all** is dimmed, and pressing it, or `e`, says why in the bar.
+    Writing to a thread you archived keeps it archived, and what you archived never counts as
+    unread.
   - **Thread above** and **Thread below**, or `[` and `]`, open the row just above or below this
     thread in the list **Threads** returns to, as that list stands when you press them, with its
     filters, order and grouping, read or not. Change that list while they look, and they look again
@@ -592,7 +610,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     threads in folded groups too, since a phone shows no list to fold. At the top or bottom of the
     list, they go back to the list, which says so. **Back** returns to this thread. Side by side,
     the thread opens beside the list, which keeps its scroll, its row outlined; on a phone the same
-    buttons lead the thread's head.
+    buttons are in the thread's bar.
   - The messages you archived fold into one line at the top, **N archived messages**, which shows
     them, each with the archive box. The page never reads them while they are folded. A message you
     send to an archived thread is archived with the rest, but stays in view until you leave the
@@ -727,8 +745,6 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     the moment the microphone is asked for through a recording and its transcription to its
     **Retry**, **After sending** moves just below the row, so the row stays short above a phone's
     keyboard.
-  - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
-    thread you read without replying, and without scrolling back up.
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
     asks for the microphone, with **Cancel** while it waits, since a browser may wait on its
     permission prompt for as long as you leave it; then it records, showing how long against its
@@ -960,7 +976,7 @@ anywhere to list them all.
 | The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                    |
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
-| A thread        | `e`                         | **Archive all**, while it is available, then where **Auto-advance** says                                                  |
+| A thread        | `e`                         | **Archive all**, then where **Auto-advance** says; while an ask is open to you, says why it waits                         |
 | A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                     |
 | A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
 | A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |

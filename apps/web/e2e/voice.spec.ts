@@ -180,6 +180,10 @@ test("Settings at a phone's width lists the sections alone, and a section leads 
       await expect(shows).toBeVisible();
       await expect(settings()).toBeHidden();
       await expectNoOverflow();
+      // The way back is a button of the head's size, its arrow an icon's.
+      const back = await backToSettings().boundingBox();
+      expect(back?.height ?? 0).toBeGreaterThanOrEqual(44);
+      expect(back?.height ?? Infinity).toBeLessThan(80);
       await backToSettings().click();
       await expect(page).toHaveURL(/\/settings$/);
       await expect(settings()).toBeVisible();

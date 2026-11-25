@@ -80,10 +80,13 @@ const rowCheckboxes = () =>
     .queryAllByRole<HTMLInputElement>("checkbox")
     .filter((box) => box.classList.contains("row-select"));
 const selectAll = () => screen.getByRole<HTMLInputElement>("checkbox", { name: "Select all" });
-// The toolbar, a group named by how many are selected.
-const toolbar = () => screen.queryByRole("group", { name: / selected$/ });
+// The selection's actions in the bar at the list's foot, a group named by
+// how many are selected.
+const selected = () => screen.queryByRole("group", { name: / selected$/ });
 const action = (name: string) =>
-  within(screen.getByRole("group", { name: / selected$/ })).getByRole("button", { name });
+  within(screen.getByRole("group", { name: / selected$/ })).getByRole<HTMLButtonElement>("button", {
+    name,
+  });
 const actionCalls = () => api.callsTo("POST", "/threads/actions");
 const said = () => waitFor(() => expect(screen.getByRole("status").textContent).not.toBe(""));
 const through = (thread: ThreadSummary) => ({
@@ -102,41 +105,349 @@ async function press(element: Element) {
 }
 
 describe("the bar at the list's foot", () => {
-  it("acts on every thread loaded while none is selected, and on those selected while any are, in the same place", async () => {
+  const bar = () => screen.getByRole("region", { name: "List actions" });
+  const names = (within_: HTMLElement) =>
+    within(within_)
+      .getAllByRole("button")
+      .map((each) => each.getAttribute("aria-label") ?? each.textContent);
+
+  it("acts on every thread loaded while none is selected, and on those selected while any are, the same bar staying", async () => {
     renderAt("/");
     await screen.findByText("Choose a database");
-    const bar = () => document.querySelector(".list-bar");
-    const loaded = screen.getByRole("group", { name: "Threads shown" });
-    expect(bar()?.contains(loaded)).toBe(true);
-    expect(
-      within(loaded)
-        .getAllByRole("button")
-        .map((each) => each.textContent),
-    ).toEqual(["Archive all read", "Mark all read"]);
-    // It follows the list's rows, so it never stands over the last of them.
+    const shownBar = bar();
+    const loaded = within(shownBar).getByRole("group", { name: "Threads shown" });
+    expect(names(loaded)).toEqual(["Archive all read", "Mark all read"]);
+    // It is the last of the list's body, after its rows, so it never stands
+    // over the last of them.
     const rows = document.querySelector("ul.threads");
-    expect(rows?.compareDocumentPosition(bar() as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(rows?.compareDocumentPosition(shownBar)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(shownBar.parentElement?.lastElementChild).toBe(shownBar);
+    // Selecting changes what it holds, and leaves focus where it was.
+    checkbox("Pick a port").focus();
     fireEvent.click(checkbox("Pick a port"));
-    expect(toolbar()).not.toBeNull();
-    expect(bar()?.contains(toolbar())).toBe(true);
-    expect(screen.queryByRole("group", { name: "Threads shown" })).toBeNull();
-    fireEvent.click(action("Done"));
-    expect(toolbar()).toBeNull();
-    expect(screen.getByRole("group", { name: "Threads shown" })).toBeTruthy();
+    expect(document.activeElement).toBe(checkbox("Pick a port"));
+    expect(bar()).toBe(shownBar);
+    expect(shownBar.contains(selected())).toBe(true);
+    expect(within(shownBar).queryByRole("group", { name: "Threads shown" })).toBeNull();
+    // Clear leads, then every action, Decline among them; each short label
+    // is a part of its full name.
+    expect(names(selected() as HTMLElement)).toEqual([
+      "Clear selection",
+      "Mark read",
+      "Mark unread",
+      "Mark read and archive",
+      "Decline, mark read and archive",
+    ]);
+    for (const button of within(selected() as HTMLElement).getAllByRole("button")) {
+      const label = button.querySelector(".bar-label")?.textContent?.toLowerCase() ?? "";
+      expect(label).not.toBe("");
+      expect(button.getAttribute("aria-label")?.toLowerCase()).toContain(label);
+    }
+    fireEvent.click(action("Clear selection"));
+    expect(selected()).toBeNull();
+    expect(bar()).toBe(shownBar);
+    expect(within(shownBar).getByRole("group", { name: "Threads shown" })).toBeTruthy();
+  });
+
+  it("disables every action but Clear while more are selected than one action takes", async () => {
+    threads = Array.from({ length: 501 }, (_, index) =>
+      threadSummary({ number: index + 1, title: `Thread ${index + 1}` }),
+    );
+    total = 501;
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all" }));
+    const disabled = within(selected() as HTMLElement)
+      .getAllByRole<HTMLButtonElement>("button")
+      .map((each) => each.disabled);
+    expect(disabled).toEqual([false, true, true, true, true]);
+  });
+});
+
+describe("focus and the bar's one action", () => {
+  const listBar = () => screen.getByRole("region", { name: "List actions" });
+  const bulk = (name: string) => within(listBar()).getByRole<HTMLButtonElement>("button", { name });
+  // holdAll holds the answers to actions on named threads until released.
+  function holdAll() {
+    let release = () => {};
+    api.on(
+      "POST",
+      "/threads/actions",
+      () => new Promise((resolve) => (release = () => resolve({ body: done }))),
+    );
+    return () => release();
+  }
+
+  it("returns focus to the action pressed once, and leaves it where it is moved after", async () => {
+    // A read thread holding no ask, which the list keeps showing, so Archive
+    // all read can act again once it is done.
+    threads = [first, third];
+    renderAt("/");
+    await screen.findByText("Ship it");
+    bulk("Archive all read").focus();
+    fireEvent.click(bulk("Archive all read"));
+    await said();
+    await waitFor(() => expect(bulk("Archive all read").disabled).toBe(false));
+    expect(document.activeElement).toBe(bulk("Archive all read"));
+    // Moved within the bar, or off everything, focus stays as the list
+    // refreshes.
+    for (const moveTo of [
+      () => bulk("Mark all read").focus(),
+      () => bulk("Mark all read").blur(),
+    ]) {
+      moveTo();
+      const before = document.activeElement;
+      const loads = api.callsTo("GET", "/threads").length;
+      fireEvent.focus(window);
+      await waitFor(() => expect(api.callsTo("GET", "/threads").length).toBeGreaterThan(loads));
+      await screen.findByText("Ship it");
+      expect(document.activeElement).toBe(before);
+    }
+  });
+
+  it("on a touch screen, moves focus that an action left to the page's heading without scrolling", async () => {
+    onTouch();
+    api.on("POST", "/threads/actions", () => {
+      threads = threads.map((thread) => ({ ...thread, unread: 0 }));
+      return { body: done };
+    });
+    renderAt("/");
+    await screen.findByText("Ship it");
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    bulk("Mark all read").focus();
+    fireEvent.click(bulk("Mark all read"));
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(true));
+    const heading = screen.getByRole("heading", { level: 1 });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    const onHeading = focus.mock.contexts.flatMap((context, index) =>
+      context === heading ? [focus.mock.calls[index]] : [],
+    );
+    expect(onHeading).toEqual([[{ preventScroll: true }]]);
+  });
+
+  it("returns focus to the action that failed while the selection stays, asked first or not", async () => {
+    api.on("POST", "/threads/actions", { status: 502, text: "<h1>Bad gateway</h1>" });
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: titled("Pick a port") }));
+    action("Mark read").focus();
+    fireEvent.click(action("Mark read"));
+    // As a browser does once the button pressed is disabled.
+    action("Mark read").blur();
+    await within(listBar()).findByRole("alert");
+    await waitFor(() => expect(document.activeElement).toBe(action("Mark read")));
+    const decline = "Decline, mark read and archive";
+    fireEvent.click(action(decline));
+    fireEvent.click(screen.getByRole("button", { name: decline }));
+    await waitFor(() => expect(action(decline).disabled).toBe(false));
+    await waitFor(() => expect(document.activeElement).toBe(action(decline)));
+  });
+
+  it("leaves focus where the operator put it while an action was under way", async () => {
+    const release = holdAll();
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: titled("Ship it") }));
+    action("Mark read").focus();
+    fireEvent.click(action("Mark read"));
+    shown("Choose a database").focus();
+    release();
+    await said();
+    await waitFor(() => expect(selected()).toBeNull());
+    expect(document.activeElement).toBe(shown("Choose a database"));
+  });
+
+  // holdLists holds the answers to the list's loads while held, until
+  // released.
+  function holdLists() {
+    let held = false;
+    const waiting: (() => void)[] = [];
+    const answer = () => ({ body: { threads, total, as_of: asOf } });
+    api.on("GET", "/threads", () =>
+      held ? new Promise((resolve) => waiting.push(() => resolve(answer()))) : answer(),
+    );
+    return {
+      hold: () => {
+        held = true;
+      },
+      release: () => {
+        held = false;
+        for (const each of waiting.splice(0)) {
+          each();
+        }
+      },
+    };
+  }
+
+  it("moves focus to the page's heading when an action empties the list", async () => {
+    threads = [third];
+    api.on("POST", "/threads/actions", () => {
+      threads = [];
+      return { body: done };
+    });
+    renderAt("/");
+    await screen.findByText("Ship it");
+    bulk("Archive all read").focus();
+    fireEvent.click(bulk("Archive all read"));
+    // As a browser does once the button pressed is disabled.
+    bulk("Archive all read").blur();
+    await screen.findByText("No threads to show.");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 })),
+    );
+  });
+
+  it("keeps both buttons disabled until the list has loaded afresh after the action", async () => {
+    const lists = holdLists();
+    api.on("POST", "/threads/actions", () => {
+      lists.hold();
+      return { body: done };
+    });
+    renderAt("/");
+    await screen.findByText("Ship it");
+    const loads = api.callsTo("GET", "/threads").length;
+    fireEvent.click(bulk("Mark all read"));
+    await waitFor(() => expect(api.callsTo("GET", "/threads").length).toBeGreaterThan(loads));
+    expect([bulk("Archive all read").disabled, bulk("Mark all read").disabled]).toEqual([
+      true,
+      true,
+    ]);
+    lists.release();
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(false));
+  });
+
+  it("keeps the selection and its actions held until the list has loaded afresh after one", async () => {
+    const lists = holdLists();
+    api.on("POST", "/threads/actions", () => {
+      lists.hold();
+      threads = [first, second];
+      return { body: { ...done, acted: [through(third)] } };
+    });
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: titled("Ship it") }));
+    const loads = api.callsTo("GET", "/threads").length;
+    fireEvent.click(action("Mark read and archive"));
+    await waitFor(() => expect(api.callsTo("GET", "/threads").length).toBeGreaterThan(loads));
+    expect(selected()).not.toBeNull();
+    expect(action("Mark read and archive").disabled).toBe(true);
+    lists.release();
+    // Then the selection clears over the list as it now stands.
+    await waitFor(() => expect(selected()).toBeNull());
+    expect(screen.queryByText("Ship it")).toBeNull();
+    expect(bulk("Mark all read").disabled).toBe(false);
+  });
+
+  it("leaves focus on a row it was moved to during the action, though the row then goes", async () => {
+    const release = holdAll();
+    renderAt("/");
+    await screen.findByText("Ship it");
+    bulk("Archive all read").focus();
+    fireEvent.click(bulk("Archive all read"));
+    shown("Ship it").focus();
+    threads = [first, second];
+    release();
+    await waitFor(() => expect(screen.queryByText("Ship it")).toBeNull());
+    await waitFor(() => expect(bulk("Archive all read").disabled).toBe(true));
+    expect(document.activeElement).not.toBe(bulk("Archive all read"));
+    expect(document.activeElement).not.toBe(bulk("Mark all read"));
+  });
+
+  it("leaves focus elsewhere in the list where it was moved during the action", async () => {
+    const release = holdAll();
+    renderAt("/");
+    await screen.findByText("Ship it");
+    bulk("Mark all read").focus();
+    fireEvent.click(bulk("Mark all read"));
+    const filters = screen.getByRole("button", { name: /^Filters/ });
+    filters.focus();
+    release();
+    await said();
+    await waitFor(() => expect(bulk("Mark all read").disabled).toBe(false));
+    expect(document.activeElement).toBe(filters);
+  });
+
+  it("names the action that failed, and shows a failure that lands after the bar changed state", async () => {
+    let fail = () => {};
+    api.on(
+      "POST",
+      "/threads/actions",
+      () =>
+        new Promise(
+          (resolve) => (fail = () => resolve({ status: 502, text: "<h1>Bad gateway</h1>" })),
+        ),
+    );
+    renderAt("/");
+    await screen.findByText("Ship it");
+    const name = bulk("Mark all read").textContent ?? "";
+    fireEvent.click(bulk("Mark all read"));
+    fireEvent.click(checkbox("Ship it"));
+    fail();
+    // It shows above the selection's actions, naming the action of the
+    // other state.
+    const alert = await within(listBar()).findByRole("alert");
+    expect(alert.textContent).toContain(name);
+    expect(selected()).not.toBeNull();
+    // It stays as the bar changes state again, until another action starts.
+    fireEvent.click(action("Clear selection"));
+    expect(within(listBar()).getByRole("alert")).toBe(alert);
+    fireEvent.click(bulk("Mark all read"));
+    await waitFor(() => expect(within(listBar()).queryByRole("alert")).toBeNull());
+    fail();
+    await within(listBar()).findByRole("alert");
+  });
+
+  it.each(["shown", "selected"])(
+    "loads the list afresh after an action on the threads %s fails, since the server may have acted",
+    async (state) => {
+      api.on("POST", "/threads/actions", () => {
+        threads = [first, second];
+        return { status: 502, text: "<h1>Bad gateway</h1>" };
+      });
+      renderAt("/");
+      await screen.findByText("Ship it");
+      if (state === "shown") {
+        fireEvent.click(bulk("Mark all read"));
+      } else {
+        fireEvent.click(checkbox("Ship it"));
+        fireEvent.click(action("Mark read"));
+      }
+      await within(listBar()).findByRole("alert");
+      await waitFor(() => expect(screen.queryByText("Ship it")).toBeNull());
+    },
+  );
+
+  it("starts no action in one state while one started in the other is under way", async () => {
+    const release = holdAll();
+    renderAt("/");
+    await screen.findByText("Ship it");
+    fireEvent.click(bulk("Mark all read"));
+    fireEvent.click(checkbox("Ship it"));
+    for (const each of within(selected() as HTMLElement).getAllByRole<HTMLButtonElement>(
+      "button",
+    )) {
+      expect(each.disabled).toBe(each.getAttribute("aria-label") !== "Clear selection");
+    }
+    release();
+    await said();
+    await waitFor(() => expect(action("Mark read").disabled).toBe(false));
+    const releaseAgain = holdAll();
+    fireEvent.click(action("Mark read"));
+    fireEvent.click(action("Clear selection"));
+    expect(bulk("Mark all read").disabled).toBe(true);
+    expect(bulk("Archive all read").disabled).toBe(true);
+    releaseAgain();
+    await said();
   });
 });
 
 describe("selecting with a mouse", () => {
-  it("gives each row a checkbox named by its heading, and shows the toolbar once one is checked", async () => {
+  it("gives each row a checkbox named by its heading, and shows the selection's actions once one is checked", async () => {
     renderAt("/");
     await screen.findByText("Choose a database");
     expect(rowCheckboxes()).toHaveLength(3);
-    expect(toolbar()).toBeNull();
+    expect(selected()).toBeNull();
     fireEvent.click(checkbox("Pick a port"));
     expect(checkbox("Pick a port").checked).toBe(true);
-    expect(toolbar()).not.toBeNull();
+    expect(selected()).not.toBeNull();
     // The bar at the list's foot acting on every thread loaded gives way to
-    // the toolbar, in its place.
+    // the selection's actions, in its place.
     expect(screen.queryByRole("group", { name: "Threads shown" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Mark all read" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Archive all read" })).toBeNull();
@@ -149,6 +460,7 @@ describe("selecting with a mouse", () => {
     renderAt("/");
     fireEvent.click(await screen.findByRole("checkbox", { name: titled("Choose a database") }));
     fireEvent.click(checkbox("Ship it"));
+    action("Mark read").focus();
     fireEvent.click(action("Mark read"));
     await said();
     expect(actionCalls()).toHaveLength(1);
@@ -157,9 +469,11 @@ describe("selecting with a mouse", () => {
       action: "read",
       threads: [through(first), through(third)],
     });
-    // Done, the selection clears.
-    await waitFor(() => expect(toolbar()).toBeNull());
+    // Done, the selection clears, and focus the action left in the bar
+    // moves to the header checkbox.
+    await waitFor(() => expect(selected()).toBeNull());
     expect(checkbox("Choose a database").checked).toBe(false);
+    expect(document.activeElement).toBe(selectAll());
   });
 
   it.each([
@@ -177,8 +491,11 @@ describe("selecting with a mouse", () => {
     renderAt("/");
     fireEvent.click(await screen.findByRole("checkbox", { name: titled("Ship it") }));
     const decline = "Decline, mark read and archive";
-    expect(within(toolbar() as HTMLElement).queryByRole("button", { name: decline })).toBeNull();
+    // Without an ask open in what is selected it stays in its place,
+    // disabled.
+    expect(action(decline).disabled).toBe(true);
     fireEvent.click(checkbox("Pick a port"));
+    expect(action(decline).disabled).toBe(false);
     fireEvent.click(action(decline));
     // It asks first, and Cancel sends nothing, returning focus to the action.
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -261,7 +578,7 @@ describe("selecting with a mouse", () => {
     // Asked again, once the list has loaded as it now stands.
     await waitFor(() => expect(api.callsTo("GET", "/threads").length).toBeGreaterThan(loads));
     await screen.findByRole("button", { name: "Cancel" });
-    expect(toolbar()).toBeNull();
+    expect(selected()).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
     await waitFor(() => expect(api.callsTo("POST", "/threads/actions/matching")).toHaveLength(2));
     expect(api.callsTo("POST", "/threads/actions/matching")[1]?.body).toMatchObject({
@@ -321,12 +638,12 @@ describe("selecting with a mouse", () => {
     fireEvent.click(await screen.findByRole("checkbox", { name: titled("Choose a database") }));
     fireEvent.click(action("Mark read"));
     await waitFor(() => expect(actionCalls()).toHaveLength(1));
-    fireEvent.click(action("Done"));
+    fireEvent.click(action("Clear selection"));
     fireEvent.click(checkbox("Ship it"));
     release();
     await said();
     expect(checkbox("Ship it").checked).toBe(true);
-    expect(toolbar()).not.toBeNull();
+    expect(selected()).not.toBeNull();
   });
 
   it("leaves the selection when a row was selected while the action was under way", async () => {
@@ -344,18 +661,19 @@ describe("selecting with a mouse", () => {
     ]);
   });
 
-  it("clears the selection on Escape and on Done", async () => {
+  it("clears the selection on Escape and on Clear", async () => {
     renderAt("/");
     fireEvent.click(await screen.findByRole("checkbox", { name: titled("Ship it") }));
     fireEvent.keyDown(checkbox("Ship it"), { key: "Escape" });
-    expect(toolbar()).toBeNull();
+    expect(selected()).toBeNull();
     expect(checkbox("Ship it").checked).toBe(false);
     fireEvent.click(checkbox("Ship it"));
-    action("Done").focus();
-    fireEvent.click(action("Done"));
-    expect(toolbar()).toBeNull();
-    // Focus leaves the toolbar for the header checkbox.
-    expect(document.activeElement).toBe(selectAll());
+    action("Clear selection").focus();
+    fireEvent.click(action("Clear selection"));
+    expect(selected()).toBeNull();
+    // Focus leaves the bar for the header checkbox, not for a button acting
+    // on every thread shown.
+    await waitFor(() => expect(document.activeElement).toBe(selectAll()));
   });
 
   it("keeps the selection through a refresh, dropping a thread that left the list", async () => {
@@ -391,7 +709,7 @@ describe("selecting with a mouse", () => {
     const decline = "Decline, mark read and archive";
     fireEvent.click(action(decline));
     fireEvent.keyDown(screen.getByRole("button", { name: decline }), { key: "Escape" });
-    expect(toolbar()).not.toBeNull();
+    expect(selected()).not.toBeNull();
     expect(checkbox("Pick a port").checked).toBe(true);
     expect(actionCalls()).toHaveLength(0);
   });
@@ -436,7 +754,7 @@ describe("selecting on a touch screen", () => {
     expect(window.location.pathname).toBe("/");
     expect(checkbox("Choose a database").checked).toBe(false);
     expect(checkbox("Pick a port").checked).toBe(true);
-    expect(toolbar()).not.toBeNull();
+    expect(selected()).not.toBeNull();
     fireEvent.click(shown("Ship it"));
     expect(window.location.pathname).toBe("/");
     expect(checkbox("Ship it").checked).toBe(true);
@@ -463,6 +781,6 @@ describe("selecting on a touch screen", () => {
     fireEvent.pointerDown(link, { pointerType: "touch", isPrimary: true });
     fireEvent.pointerUp(link, { pointerType: "touch", isPrimary: true });
     await new Promise((resolve) => setTimeout(resolve, longPress + 50));
-    expect(toolbar()).toBeNull();
+    expect(selected()).toBeNull();
   });
 });
