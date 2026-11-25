@@ -1,4 +1,4 @@
-import { markedInput } from "./input-line.ts";
+import { atMarkedInput } from "./input-row.ts";
 import type { Profile } from "./profile.ts";
 import { versionTable } from "./version-table.ts";
 
@@ -13,8 +13,7 @@ import { versionTable } from "./version-table.ts";
 //   other prompts.
 //
 // The input line is the cursor's row while the cursor shows after the
-// marker, "›" and a space. An empty input shows a hint, such as "Ask Codex to
-// do anything".
+// marker, "›" and a space.
 const codex0_171_0: Profile = {
   name: "codex",
   screen(snapshot) {
@@ -24,7 +23,7 @@ const codex0_171_0: Profile = {
         rows.includes("Would you like to run the following command?") &&
         rows.some((row) => row.startsWith("› 1. Yes, proceed"))
       ) {
-        return { kind: "permission-prompt" };
+        return { kind: "permission_prompt" };
       }
       if (
         (rows.some((row) => row.startsWith("Trust this folder?")) &&
@@ -32,12 +31,11 @@ const codex0_171_0: Profile = {
         (rows.some((row) => row.startsWith("Update available")) &&
           rows.some((row) => row.startsWith("› 1. Update now")))
       ) {
-        return { kind: "other-prompt" };
+        return { kind: "other_prompt" };
       }
       return { kind: "other" };
     }
-    const input = markedInput(snapshot, "› ", (text) => text === "Ask Codex to do anything");
-    return input === undefined ? { kind: "other" } : { kind: "input", input };
+    return { kind: atMarkedInput(snapshot, "› ") ? "input" : "other" };
   },
 };
 

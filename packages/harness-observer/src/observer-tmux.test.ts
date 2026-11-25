@@ -86,8 +86,8 @@ describe("PaneObserver on a tmux pane", { timeout: 30_000 }, () => {
   it("finds the harness at its prompt with either generic profile", async () => {
     for (const profile of [genericStrict, genericLenient]) {
       const observed = await observe(profile, [], ">");
-      await observed.until("at-prompt");
-      expect(observed.conditions).toEqual(["at-prompt"]);
+      await observed.until("at_prompt");
+      expect(observed.conditions).toEqual(["at_prompt"]);
       await observed.stop();
       await server?.kill();
     }
@@ -99,19 +99,19 @@ describe("PaneObserver on a tmux pane", { timeout: 30_000 }, () => {
     await strict.stop();
     await server?.kill();
     const lenient = await observe(genericLenient, ["e"], "> a draft");
-    await lenient.until("at-prompt");
+    await lenient.until("at_prompt");
   });
 
   it("finds a harness redrawing its screen running, yielding only when the condition changes", async () => {
     const observed = await observe(genericStrict, [], ">");
-    await observed.until("at-prompt");
+    await observed.until("at_prompt");
     await server!.keys("r");
     await observed.until("running");
     // The harness redraws five times a second, but running was yielded once.
     await pause(3000);
     await server!.keys("p");
-    await observed.until("at-prompt");
-    expect(observed.conditions).toEqual(["at-prompt", "running", "at-prompt"]);
+    await observed.until("at_prompt");
+    expect(observed.conditions).toEqual(["at_prompt", "running", "at_prompt"]);
     const [, running, atPrompt] = observed.seen;
     expect(atPrompt!.since.getTime() - running!.since.getTime()).toBeGreaterThan(3000);
   });
@@ -124,17 +124,17 @@ describe("PaneObserver on a tmux pane", { timeout: 30_000 }, () => {
 
   it("finds the pane unknown once the server is gone", async () => {
     const observed = await observe(genericStrict, [], ">");
-    await observed.until("at-prompt");
+    await observed.until("at_prompt");
     await server!.tmux("kill-server");
     await observed.until("unknown");
-    expect(observed.conditions).toEqual(["at-prompt", "unknown"]);
+    expect(observed.conditions).toEqual(["at_prompt", "unknown"]);
   });
 
   it("finds the pane unknown once its server holds a second pane", async () => {
     const observed = await observe(genericStrict, [], ">");
-    await observed.until("at-prompt");
+    await observed.until("at_prompt");
     await server!.tmux("split-window", "-d", "--", ...scriptedHarness);
     await observed.until("unknown");
-    expect(observed.conditions).toEqual(["at-prompt", "unknown"]);
+    expect(observed.conditions).toEqual(["at_prompt", "unknown"]);
   });
 });

@@ -1,8 +1,5 @@
 width 160
 cursor 36 41 visible
-host-has-terminal true
-keys-blocked false
-one-pane true
 ---
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ✨ Update available! 0.171.0 -> 0.172.0                                                                          │

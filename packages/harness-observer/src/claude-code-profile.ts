@@ -1,4 +1,4 @@
-import { markedInput } from "./input-line.ts";
+import { atMarkedInput } from "./input-row.ts";
 import type { Profile } from "./profile.ts";
 import { versionTable } from "./version-table.ts";
 
@@ -12,12 +12,10 @@ import { versionTable } from "./version-table.ts";
 //
 // The input line is the cursor's row while the cursor shows after the
 // marker, "❯" and a no-break space. Shell mode, entered by typing "!" at the
-// start, puts "!" in place of "❯", so it is no input line. An empty input may
-// show a hint, such as Try "fix typecheck errors". Vim mode shows
+// start, puts "!" in place of "❯", so it is no input line. Vim mode shows
 // "-- INSERT --" in the footer in insert mode and nothing in normal mode, the
 // same footer as the normal editor's, so no screen tells vim's normal mode
-// from the normal editor and the footer is not read; in vim's normal mode the
-// cursor rests on a draft's last character, before its end.
+// from the normal editor and the footer is not read.
 const claudeCode2_1_331: Profile = {
   name: "claude-code",
   screen(snapshot) {
@@ -27,18 +25,17 @@ const claudeCode2_1_331: Profile = {
         rows.includes("Do you want to proceed?") &&
         rows.some((row) => row.startsWith("❯ 1. Yes"))
       ) {
-        return { kind: "permission-prompt" };
+        return { kind: "permission_prompt" };
       }
       if (
         rows.includes("Accessing workspace:") &&
         rows.some((row) => row.endsWith("Yes, I trust this folder"))
       ) {
-        return { kind: "other-prompt" };
+        return { kind: "other_prompt" };
       }
       return { kind: "other" };
     }
-    const input = markedInput(snapshot, "❯\u00a0", (text) => /^Try ".*"$/.test(text));
-    return input === undefined ? { kind: "other" } : { kind: "input", input };
+    return { kind: atMarkedInput(snapshot, "❯\u00a0") ? "input" : "other" };
   },
 };
 

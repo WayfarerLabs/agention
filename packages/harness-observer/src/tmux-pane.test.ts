@@ -46,8 +46,6 @@ describe("TmuxPane", () => {
       width: 80,
       cursor: { x: 2, y: 2, visible: true },
       hostHasTerminal: true,
-      keysBlocked: false,
-      lastTyped: undefined,
       onePane: true,
       at: expect.any(Number),
     });
@@ -61,14 +59,6 @@ describe("TmuxPane", () => {
     await server.keys("d");
     const snapshot = await snapshotWhere(pane, (s) => s.lines[2] === "Allow this action?");
     expect(snapshot.cursor.visible).toBe(false);
-  });
-
-  it("reads copy mode as keys blocked", async () => {
-    server = await TmuxServer.start(scriptedHarness);
-    const pane = new TmuxPane(server.socket);
-    await snapshotWhere(pane, showsPrompt);
-    await server.tmux("copy-mode");
-    expect((await pane.snapshot()).keysBlocked).toBe(true);
   });
 
   it("reads a second pane", async () => {

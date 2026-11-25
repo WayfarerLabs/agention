@@ -11,19 +11,19 @@ into the agent bridge, so it can move to a package of its own. It needs Linux, f
 Two seams keep terminals and harnesses apart:
 
 - **`Pane`**, the terminal. `snapshot()` reads it once: the visible screen, the cursor, whether the
-  harness holds the terminal, whether keys reach it, the latest key from an attached client, and
-  whether the terminal server holds one pane. It rejects when the pane cannot be read at all.
-  `TmuxPane` implements it for the one pane of a tmux server, named by its socket path, with one
-  tmux client call and a read of `/proc/<pid>/stat`.
+  harness holds the terminal, and whether the terminal server holds one pane. It rejects when the
+  pane cannot be read at all. `TmuxPane` implements it for the one pane of a tmux server, named by
+  its socket path, with one tmux client call and a read of `/proc/<pid>/stat`.
 - **`Profile`**, the harness. `screen(snapshot)` says what one screen shows: a permission prompt,
   another prompt, the input line, or anything else, with why the harness stopped where its captured
   screens show it. A harness's profiles are a `HarnessProfiles`, which `versionTable` builds from
-  the versions where its screens changed. `claudeCode` and `codex` are this package's (see
-  [Harness profiles](#harness-profiles)); `genericStrict` and `genericLenient` serve a harness with
-  no profile of its own, and never name a prompt or a reason. `profiles.select(name, client)`
-  chooses one, by a configured name (`claude-code`, `codex`, `generic-strict` or `generic-lenient`)
-  or `auto` for the MCP client's harness and version, with the strict generic profile where none
-  applies.
+  the versions where its screens changed. Claude Code's and Codex's are this package's (see
+  [Harness profiles](#harness-profiles)); the generic profiles, `generic-strict` and
+  `generic-lenient`, serve a harness with no profile of its own, and never name a prompt or a
+  reason. `selectProfile(name, client)` chooses one, by a name in `profileNames` (`generic-strict`,
+  `generic-lenient`, `claude-code` or `codex`) or `auto` for the MCP client's harness and version,
+  with the strict generic profile where none applies; a caller checks a configured name against
+  `profileNames` itself.
 
 `PaneObserver` joins them. `observations(signal)` reads the pane once a second until the signal
 aborts and yields an `Observation`, a condition and since when, whenever the condition or the
@@ -33,9 +33,9 @@ latest screen alone; running when the screen changed within two seconds; at its 
 profile finds the input line; waiting otherwise. A stopped-by reason shows only at rest.
 
 ```ts
-import { PaneObserver, profiles, TmuxPane } from "@wayfarerlabs/agention-harness-observer";
+import { PaneObserver, selectProfile, TmuxPane } from "@wayfarerlabs/agention-harness-observer";
 
-const profile = profiles.select("auto", { name: "claude-code", version: "2.1.331" })!;
+const profile = selectProfile("auto", { name: "claude-code", version: "2.1.331" });
 const observer = new PaneObserver(new TmuxPane("/path/to/tmux.sock"), profile);
 for await (const { condition, since } of observer.observations(signal)) {
   // Report the condition. Screen text never leaves the observer.
@@ -75,9 +75,11 @@ that starts with the marker:
   Yes, proceed" choice; the trust dialog ("Trust this folder?") and the update offer at start
   ("Update available", "› 1. Update now") are other prompts. The marker is `›` and a space.
 
-An empty input shows a dimmed hint after the marker, such as `Try "fix typecheck errors"` or
-`Ask Codex to do anything`. A screen holds no colors, so the profiles read the hints their captures
-show as an empty input; any other text after the marker is the input's.
+Where a harness has no profile, the strict generic profile finds the input line only with the cursor
+showing at the end of its row. Terminals disagree on how many columns a wide character, such as a
+CJK ideograph or an emoji, or a combining mark takes, so it tells the end of a row only where the
+row is all printable ASCII, and reads any other row as no input line; the lenient one finds the
+input line wherever the cursor shows.
 
 No profile names a stopped-by reason yet: usage limits, blocks and errors have no captures.
 

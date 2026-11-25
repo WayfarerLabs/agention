@@ -1,4 +1,4 @@
-import { profiles } from "@wayfarerlabs/agention-harness-observer";
+import { profileNames } from "@wayfarerlabs/agention-harness-observer";
 import { parseArgs } from "node:util";
 // esbuild copies this import into the bundle, so a built bridge carries the
 // version it was built at.
@@ -17,9 +17,9 @@ and AGENTWORKS_SESSION name.
 
 Once the session is approved, the bridge reports to the server that it is
 connected, and monitors the session's terminal when it is given the socket of
-the tmux server the agent host runs in, whose one pane it reads: what it
-reports is the session's condition, such as running or at its prompt, never
-the screen's text. An option wins over its variable.
+the tmux server the agent host runs in, whose one pane it reads, on Linux with
+tmux 3.3 or later: what it reports is the session's condition, such as running
+or at its prompt, never the screen's text. An option wins over its variable.
 
 Options:
   --tmux-socket PATH      The tmux server's socket; by default
@@ -27,7 +27,7 @@ Options:
                           monitors no terminal
   --harness-profile NAME  How to read the terminal: auto, the default, for
                           the agent host the bridge runs under, or one of
-                          ${profiles.names.join(", ")};
+                          ${profileNames.join(", ")};
                           by default AGENTION_HARNESS_PROFILE
   --version               Print the version
   -h, --help              Print this help

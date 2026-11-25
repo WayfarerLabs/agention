@@ -1,15 +1,7 @@
+// What the agent bridge uses, and the types its signatures need.
+export { genericStrict } from "./generic-profiles.ts";
+export { type Observation, PaneObserver } from "./observer.ts";
 export type { Pane, Snapshot } from "./pane.ts";
-export type { HarnessProfiles, InputLine, Profile, Screen, StoppedBy } from "./profile.ts";
-export { claudeCode } from "./claude-code-profile.ts";
-export { codex } from "./codex-profile.ts";
-export { genericLenient, genericStrict } from "./generic-profiles.ts";
-export { type HarnessClient, profileRegistry, profiles, type ProfileRegistry } from "./registry.ts";
-export { versionTable, type VersionedProfile } from "./version-table.ts";
-export {
-  type Clock,
-  type Condition,
-  type Observation,
-  type Observer,
-  PaneObserver,
-} from "./observer.ts";
-export { TmuxPane, type TmuxPaneOptions } from "./tmux-pane.ts";
+export type { Profile, StoppedBy } from "./profile.ts";
+export { type HarnessClient, profileNames, selectProfile } from "./registry.ts";
+export { TmuxPane } from "./tmux-pane.ts";

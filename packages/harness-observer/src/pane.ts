@@ -21,11 +21,6 @@ export interface Snapshot {
   // The terminal's foreground process group is the pane's first process, the
   // harness, and not something the harness started, such as an editor.
   readonly hostHasTerminal: boolean;
-  // A mode, such as tmux's copy mode, keeps keys from the harness.
-  readonly keysBlocked: boolean;
-  // The latest key from any attached client, in ms since the epoch, or
-  // undefined when no client is attached.
-  readonly lastTyped: number | undefined;
   // The terminal server holds exactly one pane.
   readonly onePane: boolean;
   // When the snapshot was taken, in ms since the epoch.

@@ -1,67 +1,49 @@
 import { describe, expect, it } from "vitest";
+import { claudeCode } from "./claude-code-profile.ts";
+import { codex } from "./codex-profile.ts";
 import { genericLenient, genericStrict } from "./generic-profiles.ts";
-import type { Profile } from "./profile.ts";
-import { profileRegistry, profiles } from "./registry.ts";
-import { versionTable } from "./version-table.ts";
+import { profileNames, selectProfile } from "./registry.ts";
 
-const older: Profile = { name: "harness", screen: () => ({ kind: "other" }) };
-const newer: Profile = { name: "harness", screen: () => ({ kind: "other" }) };
+const claudeCodeProfile = claudeCode.forVersion("2.1.331");
+const codexProfile = codex.forVersion("0.171.0");
 
-// A harness with profiles from version 1 and from version 2, whose MCP client
-// names itself differently from the harness.
-const harness = versionTable("harness", "harness-client", [
-  { from: "1.0.0", profile: older },
-  { from: "2.0.0", profile: newer },
-]);
-
-describe("profileRegistry", () => {
-  const registry = profileRegistry([harness]);
-
+describe("selectProfile", () => {
   it("names the generic profiles and each harness", () => {
-    expect(registry.names).toEqual(["generic-strict", "generic-lenient", "harness"]);
+    expect(profileNames).toEqual(["generic-strict", "generic-lenient", "claude-code", "codex"]);
   });
 
   it("chooses a generic profile by name, whatever the client", () => {
-    const client = { name: "harness-client", version: "2.0.0" };
-    expect(registry.select("generic-strict", client)).toBe(genericStrict);
-    expect(registry.select("generic-lenient", client)).toBe(genericLenient);
-    expect(registry.select("generic-lenient", undefined)).toBe(genericLenient);
+    const client = { name: "claude-code", version: "2.1.332" };
+    expect(selectProfile("generic-strict", client)).toBe(genericStrict);
+    expect(selectProfile("generic-lenient", client)).toBe(genericLenient);
+    expect(selectProfile("generic-lenient", undefined)).toBe(genericLenient);
   });
 
   it("chooses by the client's MCP client name and version for auto", () => {
-    expect(registry.select("auto", { name: "harness-client", version: "2.1.0" })).toBe(newer);
-    expect(registry.select("auto", { name: "harness-client", version: "1.9.0" })).toBe(older);
+    expect(selectProfile("auto", { name: "claude-code", version: "2.1.332" })).toBe(
+      claudeCodeProfile,
+    );
+    expect(selectProfile("auto", { name: "codex-mcp-client", version: "0.172.0" })).toBe(
+      codexProfile,
+    );
   });
 
   it("chooses a named harness's profile for the client's version", () => {
-    expect(registry.select("harness", { name: "another", version: "1.0.0" })).toBe(older);
+    expect(selectProfile("codex", { name: "another", version: "0.171.0" })).toBe(codexProfile);
   });
 
   it("falls back to the strict generic profile where no harness profile applies", () => {
-    expect(registry.select("auto", { name: "harness", version: "2.0.0" })).toBe(genericStrict);
-    expect(registry.select("auto", { name: "another", version: "2.0.0" })).toBe(genericStrict);
-    expect(registry.select("auto", { name: "harness-client", version: "0.9.0" })).toBe(
+    // Codex's configured name is not its MCP client's.
+    expect(selectProfile("auto", { name: "codex", version: "0.171.0" })).toBe(genericStrict);
+    expect(selectProfile("auto", { name: "another", version: "1.0.0" })).toBe(genericStrict);
+    expect(selectProfile("auto", { name: "claude-code", version: "2.1.330" })).toBe(genericStrict);
+    expect(selectProfile("auto", { name: "claude-code", version: "2.1.332-beta" })).toBe(
       genericStrict,
     );
-    expect(registry.select("auto", undefined)).toBe(genericStrict);
-    expect(registry.select("harness", undefined)).toBe(genericStrict);
-  });
-
-  it("chooses nothing for a name it does not know", () => {
-    expect(registry.select("another", { name: "another", version: "1.0.0" })).toBeUndefined();
-    expect(registry.select("harness-client", undefined)).toBeUndefined();
-  });
-
-  it("refuses two harnesses of one name or MCP client, or one named like a generic profile or auto", () => {
-    expect(() => profileRegistry([harness, harness])).toThrow();
-    expect(() => profileRegistry([harness, { ...harness, harness: "another" }])).toThrow();
-    expect(() => profileRegistry([{ ...harness, harness: "generic-strict" }])).toThrow();
-    expect(() => profileRegistry([{ ...harness, harness: "auto" }])).toThrow();
-  });
-});
-
-describe("the shipped registry", () => {
-  it("serves Claude Code and Codex by their configured names", () => {
-    expect(profiles.names).toEqual(["generic-strict", "generic-lenient", "claude-code", "codex"]);
+    expect(selectProfile("auto", undefined)).toBe(genericStrict);
+    expect(selectProfile("claude-code", undefined)).toBe(genericStrict);
+    expect(selectProfile("claude", { name: "claude-code", version: "2.1.332" })).toBe(
+      genericStrict,
+    );
   });
 });

@@ -67,11 +67,11 @@ describe("the configuration", () => {
 describe("a report", () => {
   const since = new Date("2026-11-24T10:00:00.000Z");
 
-  it("spells conditions and reasons as the agent API does", () => {
+  it("writes the reset time of a usage limit as the agent API takes it", () => {
     const report = reportOf("claude-code", {
-      condition: "permission-prompt",
+      condition: "permission_prompt",
       since,
-      stoppedBy: { reason: "usage-limit", resetsAt: new Date("2026-11-24T15:00:00.000Z") },
+      stoppedBy: { reason: "usage_limit", resetsAt: new Date("2026-11-24T15:00:00.000Z") },
     });
     expect(report).toEqual({
       monitored: true,
@@ -88,9 +88,9 @@ describe("a report", () => {
     ["no time at all", new Date(Number.NaN)],
   ])("leaves out a reset time that is %s", (_, resetsAt) => {
     const report = reportOf("claude-code", {
-      condition: "at-prompt",
+      condition: "at_prompt",
       since,
-      stoppedBy: { reason: "usage-limit", resetsAt },
+      stoppedBy: { reason: "usage_limit", resetsAt },
     });
     expect(report).toMatchObject({ stopped_by: { reason: "usage_limit" } });
     expect(monitorReport.safeParse(report).success).toBe(true);

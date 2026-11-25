@@ -4,7 +4,7 @@ import type { Profile, StoppedBy } from "./profile.ts";
 
 // Where a harness is, as its pane shows it, in order of precedence.
 export type Condition =
-  "unknown" | "permission-prompt" | "other-prompt" | "running" | "at-prompt" | "waiting";
+  "unknown" | "permission_prompt" | "other_prompt" | "running" | "at_prompt" | "waiting";
 
 // A condition, since when it has held, and, for a harness at rest, why it
 // stopped where its profile can tell.
@@ -121,7 +121,7 @@ export class PaneObserver implements Observer {
     remember(history, snapshot);
     const at = snapshot.at;
     const stoppedBy = screen.stoppedBy && { stoppedBy: screen.stoppedBy };
-    if (screen.kind === "permission-prompt" || screen.kind === "other-prompt") {
+    if (screen.kind === "permission_prompt" || screen.kind === "other_prompt") {
       return { condition: screen.kind, at, ...stoppedBy };
     }
     if (changedRecently(history)) {
@@ -130,7 +130,7 @@ export class PaneObserver implements Observer {
     if (history[0]!.at > at - stillFor) {
       return undefined;
     }
-    return { condition: screen.kind === "input" ? "at-prompt" : "waiting", at, ...stoppedBy };
+    return { condition: screen.kind === "input" ? "at_prompt" : "waiting", at, ...stoppedBy };
   }
 }
 
@@ -176,6 +176,6 @@ function sameStoppedBy(a: StoppedBy | undefined, b: StoppedBy | undefined): bool
     return a === b;
   }
   const resetsAt = (stoppedBy: StoppedBy) =>
-    stoppedBy.reason === "usage-limit" ? stoppedBy.resetsAt?.getTime() : undefined;
+    stoppedBy.reason === "usage_limit" ? stoppedBy.resetsAt?.getTime() : undefined;
   return a.reason === b.reason && resetsAt(a) === resetsAt(b);
 }

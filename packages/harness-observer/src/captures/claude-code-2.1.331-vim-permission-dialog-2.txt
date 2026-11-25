@@ -1,8 +1,5 @@
 width 160
 cursor 1 39 hidden
-host-has-terminal true
-keys-blocked false
-one-pane true
 ---
 
  ▐▛███▛█   Claude Code v2.1.331

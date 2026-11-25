@@ -126,8 +126,6 @@ export class DrawnPane implements Pane {
     width: 80,
     cursor: { x: 2, y: 0, visible: true },
     hostHasTerminal: true,
-    keysBlocked: false,
-    lastTyped: undefined,
     onePane: true,
   };
 

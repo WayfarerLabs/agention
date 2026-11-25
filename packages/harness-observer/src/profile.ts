@@ -10,28 +10,16 @@ export interface Profile {
 }
 
 // What one screen shows: a dialog, the harness's input line, or anything
-// else. A profile names a prompt kind or a stopped-by reason only where its
-// harness's captured screens show it.
-export type Screen =
-  | {
-      readonly kind: "permission-prompt" | "other-prompt" | "other";
-      readonly stoppedBy?: StoppedBy;
-    }
-  | { readonly kind: "input"; readonly input: InputLine; readonly stoppedBy?: StoppedBy };
-
-// The harness's input line, on the cursor's row.
-export interface InputLine {
-  // What follows the prompt marker on the cursor's row, or the whole row for
-  // a profile that knows no marker.
-  readonly text: string;
-  readonly cursorAtEnd: boolean;
-  // How many more characters fit on the row.
-  readonly room: number;
+// else, and why a harness at rest stopped. A profile names a prompt kind or a
+// stopped-by reason only where its harness's captured screens show it.
+export interface Screen {
+  readonly kind: "permission_prompt" | "other_prompt" | "input" | "other";
+  readonly stoppedBy?: StoppedBy;
 }
 
 // Why a harness at rest stopped.
 export type StoppedBy =
-  | { readonly reason: "usage-limit"; readonly resetsAt?: Date }
+  | { readonly reason: "usage_limit"; readonly resetsAt?: Date }
   | { readonly reason: "block" }
   | { readonly reason: "error" };
 

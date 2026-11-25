@@ -21,8 +21,6 @@ const paneFormat = [
   "cursor_x",
   "cursor_y",
   "cursor_flag",
-  "pane_in_mode",
-  "pane_input_off",
 ]
   .map((name) => `#{${name}}`)
   .join(" ");
@@ -61,10 +59,6 @@ export class TmuxPane implements Pane {
       "-F",
       "pane",
       ";",
-      "list-clients",
-      "-F",
-      "client #{client_activity}",
-      ";",
       "display-message",
       "-p",
       screenStart,
@@ -75,26 +69,25 @@ export class TmuxPane implements Pane {
     const at = Date.now();
     const output = stdout.endsWith("\n") ? stdout.slice(0, -1).split("\n") : stdout.split("\n");
     const start = output.indexOf(screenStart);
-    const fields = /^(\d+) ([01]) (\d+) (\d+) (\d+) (\d+) ([01]) ([01]) ([01])$/.exec(
-      output[0] ?? "",
-    );
+    const fields = /^(\d+) ([01]) (\d+) (\d+) (\d+) (\d+) ([01])$/.exec(output[0] ?? "");
     if (fields === null || start < 0) {
       throw new Error(`tmux at ${this.#socket} printed an unexpected reading`);
     }
-    const [pid, dead, width, height, x, y, visible, inMode, inputOff] = fields
-      .slice(1)
-      .map(Number) as [number, number, number, number, number, number, number, number, number];
+    const [pid, dead, width, height, x, y, visible] = fields.slice(1).map(Number) as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
     let panes = 0;
-    let lastTyped: number | undefined;
     for (const line of output.slice(1, start)) {
-      const client = /^client (\d*)$/.exec(line);
-      if (line === "pane") {
-        panes++;
-      } else if (client?.[1]) {
-        lastTyped = Math.max(lastTyped ?? 0, Number(client[1]) * 1000);
-      } else if (client === null) {
+      if (line !== "pane") {
         throw new Error(`tmux at ${this.#socket} printed an unexpected reading`);
       }
+      panes++;
     }
     const lines = output.slice(start + 1, start + 1 + height);
     while (lines.length < height) {
@@ -105,8 +98,6 @@ export class TmuxPane implements Pane {
       width,
       cursor: { x, y, visible: visible === 1 },
       hostHasTerminal: dead === 0 && (await this.#leadsForeground(pid)),
-      keysBlocked: inMode === 1 || inputOff === 1,
-      lastTyped,
       onePane: panes === 1,
       at,
     };

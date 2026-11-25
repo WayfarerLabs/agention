@@ -10,56 +10,32 @@ export interface HarnessClient {
   readonly version: string;
 }
 
-// Maps profile names to profiles. A caller configures one of `names`, or
-// "auto" for the profile of the harness it runs under.
-export interface ProfileRegistry {
-  // Every name select accepts besides "auto": the generic profiles' and each
-  // harness's.
-  readonly names: readonly string[];
-  // select returns the profile a configured name chooses, or undefined for a
-  // name the registry does not know. "auto" chooses the harness whose MCP
-  // client the client is, and a harness's name chooses that harness's
-  // profiles; either takes the entry for the client's version, and the strict
-  // generic profile when the harness has no profiles, the version is below
-  // the oldest entry, or there is no client.
-  select(name: string, client: HarnessClient | undefined): Profile | undefined;
-}
-
+// The profiles this package ships: the generic ones, and each harness's. Each
+// harness's name and MCP client name is its own, and none is "auto" or a
+// generic profile's name.
 const generics: readonly Profile[] = [genericStrict, genericLenient];
+const harnesses: readonly HarnessProfiles[] = [claudeCode, codex];
 
-// profileRegistry builds a registry of the given harnesses' profiles beside
-// the generic ones. It throws for two harnesses of one name or one MCP client
-// name, or a harness named "auto" or like a generic profile, since each is a
-// mistake in this package.
-export function profileRegistry(harnesses: readonly HarnessProfiles[]): ProfileRegistry {
-  const byHarness = new Map<string, HarnessProfiles>();
-  const byClient = new Map<string, HarnessProfiles>();
-  const reserved = new Set(["auto", ...generics.map((profile) => profile.name)]);
-  for (const entry of harnesses) {
-    if (reserved.has(entry.harness) || byHarness.has(entry.harness)) {
-      throw new Error(`a harness's profiles cannot be named ${entry.harness}`);
-    }
-    if (byClient.has(entry.client)) {
-      throw new Error(`two harnesses' profiles name the MCP client ${entry.client}`);
-    }
-    byHarness.set(entry.harness, entry);
-    byClient.set(entry.client, entry);
+// Every name selectProfile chooses by besides "auto": the generic profiles'
+// and each harness's. A caller configures one of them, or "auto".
+export const profileNames: readonly string[] = [
+  ...generics.map((profile) => profile.name),
+  ...harnesses.map((entry) => entry.harness),
+];
+
+// selectProfile returns the profile a configured name chooses. "auto" chooses
+// the harness whose MCP client the client is, and a harness's name chooses
+// that harness's profiles; either takes the entry for the client's version.
+// The strict generic profile reads every other case: a harness with no
+// profiles, a version below the oldest entry, no client, or a name that is
+// none of profileNames, which a caller checks for itself.
+export function selectProfile(name: string, client: HarnessClient | undefined): Profile {
+  const generic = generics.find((profile) => profile.name === name);
+  if (generic !== undefined) {
+    return generic;
   }
-  return {
-    names: [...generics.map((profile) => profile.name), ...byHarness.keys()],
-    select(name, client) {
-      const generic = generics.find((profile) => profile.name === name);
-      if (generic !== undefined) {
-        return generic;
-      }
-      if (name !== "auto" && !byHarness.has(name)) {
-        return undefined;
-      }
-      const harness = name === "auto" ? byClient.get(client?.name ?? "") : byHarness.get(name);
-      return (client && harness?.forVersion(client.version)) ?? genericStrict;
-    },
-  };
+  const harness = harnesses.find((entry) =>
+    name === "auto" ? entry.client === client?.name : entry.harness === name,
+  );
+  return (client && harness?.forVersion(client.version)) ?? genericStrict;
 }
-
-// The profiles this package ships.
-export const profiles: ProfileRegistry = profileRegistry([claudeCode, codex]);

@@ -4,18 +4,16 @@ import type { Snapshot } from "../src/pane.ts";
 
 // The captured screens of the harnesses the profiles serve, one text file per
 // screen, named for the harness, its version and what the screen shows. A
-// file holds the snapshot's fields, one per line, then a line "---", then the
-// screen's rows:
+// file holds the snapshot's fields a profile reads, one per line, then a line
+// "---", then the screen's rows:
 //
 //   width 160
 //   cursor 2 42 visible
-//   host-has-terminal true
-//   keys-blocked false
-//   one-pane true
 //   ---
 //   ...
 //
-// A snapshot's time and latest key are the reader's to supply.
+// A capture is of a pane the observer would read, so it reads as one pane
+// whose harness holds the terminal; its time is the reader's to supply.
 export const capturesDirectory = path.join(import.meta.dirname, "..", "src", "captures");
 
 // captureNames lists every capture, by file name without ".txt".
@@ -46,10 +44,8 @@ export function readCapture(name: string, at = 0): Snapshot {
     lines: lines.slice(end + 1),
     width: Number(field("width")[0]),
     cursor: { x: Number(x), y: Number(y), visible: visible === "visible" },
-    hostHasTerminal: field("host-has-terminal")[0] === "true",
-    keysBlocked: field("keys-blocked")[0] === "true",
-    lastTyped: undefined,
-    onePane: field("one-pane")[0] === "true",
+    hostHasTerminal: true,
+    onePane: true,
     at,
   };
 }
@@ -60,9 +56,6 @@ export function formatCapture(snapshot: Snapshot): string {
   const header = [
     `width ${snapshot.width}`,
     `cursor ${cursor.x} ${cursor.y} ${cursor.visible ? "visible" : "hidden"}`,
-    `host-has-terminal ${snapshot.hostHasTerminal}`,
-    `keys-blocked ${snapshot.keysBlocked}`,
-    `one-pane ${snapshot.onePane}`,
   ];
   return [...header, "---", ...snapshot.lines].join("\n") + "\n";
 }

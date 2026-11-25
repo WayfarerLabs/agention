@@ -25,13 +25,10 @@ const testProfile: Profile = {
     }
     const stoppedBy =
       second?.startsWith("limit") === true
-        ? { stoppedBy: { reason: "usage-limit" as const, resetsAt: new Date(second.slice(6)) } }
+        ? { stoppedBy: { reason: "usage_limit" as const, resetsAt: new Date(second.slice(6)) } }
         : {};
-    if (kind === "permission-prompt" || kind === "other-prompt") {
+    if (kind === "permission_prompt" || kind === "other_prompt" || kind === "input") {
       return { kind, ...stoppedBy };
-    }
-    if (kind === "input") {
-      return { kind, input: { text: "", cursorAtEnd: true, room: 10 }, ...stoppedBy };
     }
     return { kind: "other", ...stoppedBy };
   },
@@ -59,8 +56,6 @@ async function observe(steps: readonly Step[]): Promise<object[]> {
         width: 80,
         cursor: { x: step.cursorX ?? 0, y: 0, visible: true },
         hostHasTerminal: step.hostHasTerminal ?? true,
-        keysBlocked: false,
-        lastTyped: undefined,
         onePane: step.onePane ?? true,
         at: step.at,
       } satisfies Snapshot;
@@ -85,7 +80,7 @@ async function observe(steps: readonly Step[]): Promise<object[]> {
 
 function plain(observation: Observation): object {
   const { condition, since, stoppedBy } = observation;
-  if (stoppedBy?.reason === "usage-limit") {
+  if (stoppedBy?.reason === "usage_limit") {
     return { condition, since: since.getTime(), stoppedBy: stoppedBy.resetsAt?.getTime() };
   }
   return { condition, since: since.getTime() };
@@ -99,7 +94,7 @@ function still(from: number, samples: number, screen: readonly string[]): Step[]
 describe("PaneObserver", () => {
   it("finds a screen unchanged for two seconds at rest, and yields it once", async () => {
     expect(await observe(still(0, 5, ["input"]))).toEqual([
-      { condition: "at-prompt", since: 2000 },
+      { condition: "at_prompt", since: 2000 },
     ]);
     expect(await observe(still(0, 5, ["other"]))).toEqual([{ condition: "waiting", since: 2000 }]);
   });
@@ -117,7 +112,7 @@ describe("PaneObserver", () => {
     ];
     expect(await observe(steps)).toEqual([
       { condition: "running", since: 1000 },
-      { condition: "at-prompt", since: 4000 },
+      { condition: "at_prompt", since: 4000 },
     ]);
   });
 
@@ -132,11 +127,11 @@ describe("PaneObserver", () => {
   it("reads a dialog from one screen, so its animation never reads as running", async () => {
     const blinking = [0, 1000, 2000, 3000].map((at) => ({
       at,
-      screen: ["permission-prompt", at % 2000 === 0 ? "*" : " "],
+      screen: ["permission_prompt", at % 2000 === 0 ? "*" : " "],
     }));
-    expect(await observe(blinking)).toEqual([{ condition: "permission-prompt", since: 0 }]);
-    expect(await observe([{ at: 0, screen: ["other-prompt"] }])).toEqual([
-      { condition: "other-prompt", since: 0 },
+    expect(await observe(blinking)).toEqual([{ condition: "permission_prompt", since: 0 }]);
+    expect(await observe([{ at: 0, screen: ["other_prompt"] }])).toEqual([
+      { condition: "other_prompt", since: 0 },
     ]);
   });
 
@@ -148,14 +143,14 @@ describe("PaneObserver", () => {
       { at: 3000, screen: ["throws"] },
     ]) {
       expect(await observe([...still(0, 3, ["input"]), failing])).toEqual([
-        { condition: "at-prompt", since: 2000 },
+        { condition: "at_prompt", since: 2000 },
         { condition: "unknown", since: 3000 },
       ]);
     }
   });
 
   it("puts unknown before a dialog", async () => {
-    expect(await observe([{ at: 0, screen: ["permission-prompt"], onePane: false }])).toEqual([
+    expect(await observe([{ at: 0, screen: ["permission_prompt"], onePane: false }])).toEqual([
       { condition: "unknown", since: 0 },
     ]);
   });
@@ -167,9 +162,9 @@ describe("PaneObserver", () => {
       ...still(4000, 3, ["input"]),
     ];
     expect(await observe(steps)).toEqual([
-      { condition: "at-prompt", since: 2000 },
+      { condition: "at_prompt", since: 2000 },
       { condition: "unknown", since: 3000 },
-      { condition: "at-prompt", since: 6000 },
+      { condition: "at_prompt", since: 6000 },
     ]);
   });
 
@@ -180,7 +175,7 @@ describe("PaneObserver", () => {
       { at: 0, screen: ["other", tenOClock, "a"] },
       ...still(1000, 3, ["other", tenOClock, "b"]),
       { at: 4000, screen: ["other", elevenOClock, "b"] },
-      { at: 5000, screen: ["permission-prompt", elevenOClock] },
+      { at: 5000, screen: ["permission_prompt", elevenOClock] },
       ...still(6000, 3, ["other"]),
     ];
     expect(await observe(steps)).toEqual([
@@ -188,7 +183,7 @@ describe("PaneObserver", () => {
       { condition: "waiting", since: 3000, stoppedBy: Date.parse("2026-11-25T10:00:00Z") },
       { condition: "running", since: 4000 },
       {
-        condition: "permission-prompt",
+        condition: "permission_prompt",
         since: 5000,
         stoppedBy: Date.parse("2026-11-25T11:00:00Z"),
       },
@@ -200,18 +195,18 @@ describe("PaneObserver", () => {
   it("yields a changed stopped-by reason with the condition's since", async () => {
     const steps = [
       ...still(0, 3, ["input", "limit 2026-11-25T10:00:00Z"]),
-      { at: 3000, screen: ["permission-prompt", "limit 2026-11-25T10:00:00Z"] },
-      { at: 4000, screen: ["permission-prompt", "limit 2026-11-25T11:00:00Z"] },
+      { at: 3000, screen: ["permission_prompt", "limit 2026-11-25T10:00:00Z"] },
+      { at: 4000, screen: ["permission_prompt", "limit 2026-11-25T11:00:00Z"] },
     ];
     expect(await observe(steps)).toEqual([
-      { condition: "at-prompt", since: 2000, stoppedBy: Date.parse("2026-11-25T10:00:00Z") },
+      { condition: "at_prompt", since: 2000, stoppedBy: Date.parse("2026-11-25T10:00:00Z") },
       {
-        condition: "permission-prompt",
+        condition: "permission_prompt",
         since: 3000,
         stoppedBy: Date.parse("2026-11-25T10:00:00Z"),
       },
       {
-        condition: "permission-prompt",
+        condition: "permission_prompt",
         since: 3000,
         stoppedBy: Date.parse("2026-11-25T11:00:00Z"),
       },

@@ -5,18 +5,13 @@ import {
   type Pane,
   PaneObserver,
   type Profile,
-  profiles,
+  profileNames,
+  selectProfile,
   type Snapshot,
   type StoppedBy,
   TmuxPane,
 } from "@wayfarerlabs/agention-harness-observer";
-import {
-  formatTimestamp,
-  type MonitorCondition,
-  type MonitorReport,
-  quoted,
-  timestamp,
-} from "@wayfarerlabs/agention-api";
+import { formatTimestamp, type MonitorReport, quoted, timestamp } from "@wayfarerlabs/agention-api";
 
 // Monitoring's side in the bridge: what its configuration names, and the
 // reports the reporter sends of what the harness observer reads from the
@@ -84,15 +79,16 @@ export interface PaneMonitorOptions {
 // socket it reports that it monitors no pane. With one it reads the pane
 // through the configured profile, which "auto" chooses from the MCP client
 // once monitoring first starts, since the client names itself only once it
-// has initialized. A profile name the registry does not know is logged now,
-// once, and the strict generic profile reads the pane instead.
+// has initialized. A profile name the observer does not know is logged now,
+// once, and the strict generic profile reads the pane instead, as
+// selectProfile chooses for such a name.
 export function createMonitor(options: PaneMonitorOptions): Monitor {
   const { settings, log } = options;
-  const known = profiles.select(settings.harnessProfile, undefined) !== undefined;
-  if (!known) {
+  const name = settings.harnessProfile;
+  if (name !== autoProfile && !profileNames.includes(name)) {
     log(
-      `the harness profile ${quoted(settings.harnessProfile)} is none of ` +
-        `${[autoProfile, ...profiles.names].join(", ")}, so monitoring reads the pane with ` +
+      `the harness profile ${quoted(name)} is none of ` +
+        `${[autoProfile, ...profileNames].join(", ")}, so monitoring reads the pane with ` +
         genericStrict.name,
     );
   }
@@ -100,12 +96,11 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
   if (socket === undefined) {
     return { reports: unmonitored };
   }
-  const name = known ? settings.harnessProfile : genericStrict.name;
   const pane = new LoggedPane((options.pane ?? ((path) => new TmuxPane(path)))(socket), log);
   let profile: Profile | undefined;
   return {
     async *reports(signal) {
-      profile ??= profiles.select(name, options.client()) ?? genericStrict;
+      profile ??= selectProfile(name, options.client());
       const observer = new PaneObserver(pane, profile);
       for await (const observation of observer.observations(signal)) {
         yield reportOf(profile.name, observation);
@@ -123,16 +118,6 @@ async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
   }
 }
 
-// The observer's conditions and reasons as the agent API spells them.
-const conditions: Record<Observation["condition"], MonitorCondition> = {
-  unknown: "unknown",
-  "permission-prompt": "permission_prompt",
-  "other-prompt": "other_prompt",
-  running: "running",
-  "at-prompt": "at_prompt",
-  waiting: "waiting",
-};
-
 // reportOf is the report of an observation: the profile's name, the
 // condition, since when, and what stopped the harness. A reset time the
 // agent API would not take, which a profile reads from the screen, is left
@@ -142,7 +127,7 @@ export function reportOf(profile: string, observation: Observation): MonitorRepo
   return {
     monitored: true,
     profile,
-    condition: conditions[observation.condition],
+    condition: observation.condition,
     since: formatTimestamp(observation.since.getTime()),
     ...(stoppedBy && { stopped_by: stoppedByOf(stoppedBy) }),
   };
@@ -151,7 +136,7 @@ export function reportOf(profile: string, observation: Observation): MonitorRepo
 function stoppedByOf(
   stoppedBy: StoppedBy,
 ): NonNullable<Extract<MonitorReport, { monitored: true }>["stopped_by"]> {
-  if (stoppedBy.reason !== "usage-limit") {
+  if (stoppedBy.reason !== "usage_limit") {
     return { reason: stoppedBy.reason };
   }
   const resetsAt = stoppedBy.resetsAt?.getTime();
@@ -166,9 +151,11 @@ function stoppedByOf(
 // LoggedPane logs why the pane cannot be read, once each time that starts:
 // a failure to read it at all, a terminal server holding more than one pane,
 // or a harness that does not hold the terminal. The observer reads each as
-// unknown. A reading that finds the pane as it should be ends the stretch,
-// so a later problem is logged again.
+// unknown. A reading that finds the pane as it should be ends the stretch, so
+// a later problem is logged again.
 type PaneProblem = "unreadable" | "panes" | "terminal";
+
+const unknown = "so the session's condition is unknown";
 
 class LoggedPane implements Pane {
   readonly #pane: Pane;
@@ -187,24 +174,16 @@ class LoggedPane implements Pane {
     } catch (error) {
       // TmuxPane's errors name the socket and what tmux said, never the
       // screen.
-      this.#note(
-        "unreadable",
-        `monitoring cannot read the tmux pane, so the session's condition is unknown: ` +
-          (error as Error).message,
-      );
+      const { message } = error as Error;
+      this.#note("unreadable", `monitoring cannot read the tmux pane, ${unknown}: ${message}`);
       throw error;
     }
     if (!snapshot.onePane) {
-      this.#note(
-        "panes",
-        "monitoring finds more than one pane in the tmux server, so the session's condition " +
-          "is unknown",
-      );
+      this.#note("panes", `monitoring finds more than one pane in the tmux server, ${unknown}`);
     } else if (!snapshot.hostHasTerminal) {
       this.#note(
         "terminal",
-        "monitoring finds the pane's first process not holding its terminal, so the " +
-          "session's condition is unknown",
+        `monitoring finds the pane's first process not holding its terminal, ${unknown}`,
       );
     } else {
       this.#problem = undefined;
