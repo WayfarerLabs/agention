@@ -123,8 +123,8 @@ describe("TmuxPane", () => {
 
   it("refuses a tmux that leaves the formats empty as unusable", async () => {
     server = await TmuxServer.start(scriptedHarness);
-    // A stand-in for a tmux before 3.3, which prints an empty field for each
-    // format it does not know.
+    // A stand-in for a tmux that prints an empty field for each format it
+    // does not know.
     const oldTmux = path.join(server.directory, "old-tmux");
     writeFileSync(oldTmux, `#!/bin/sh\nprintf '      \\npane\\nscreen\\n'\n`);
     chmodSync(oldTmux, 0o755);

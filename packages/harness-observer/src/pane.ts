@@ -30,7 +30,8 @@ export interface Snapshot {
 // Why a pane cannot be read where the cause is the machine or the caller's
 // choice of pane, not the terminal server: "no-proc", no /proc, which reading
 // a pane's processes needs and only Linux has; "old-tmux", a tmux that leaves
-// the formats a reading asks for empty, as one older than 3.3 does; and
+// the formats a reading asks for empty, which no tmux tested, 3.3 or later,
+// does; and
 // "not-ancestor", a pane whose first process is not an ancestor of the
 // process its reader requires it to be (TmuxPaneOptions.requireAncestorOf).
 // A pane rejects with it so its caller can say which.

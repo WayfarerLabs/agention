@@ -82,11 +82,11 @@ export class TmuxPane implements Pane {
     const first = output[0] ?? "";
     const fields = /^(\d+) ([01]) (\d+) (\d+) (\d+) (\d+) ([01])$/.exec(first);
     const parts = first.split(" ");
+    // tmux's CHANGES names none of these formats as new in 3.3, so 3.3 is the
+    // floor only as the oldest version tested, and this check guards against
+    // a tmux that prints them empty.
     if (fields === null && parts.length === paneFormats.length && parts.includes("")) {
-      throw new PaneUnusable(
-        "old-tmux",
-        `tmux at ${this.#socket} left the pane's formats empty, as tmux before 3.3 does`,
-      );
+      throw new PaneUnusable("old-tmux", `tmux at ${this.#socket} left the pane's formats empty`);
     }
     if (fields === null || start < 0) {
       throw new Error(`tmux at ${this.#socket} printed an unexpected reading`);

@@ -1173,10 +1173,10 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   reason beside whatever condition it is. The bridge logs to its standard error, once each time one
   begins, a pane it cannot read (no tmux server at the socket, a path too long for a socket, no
   `tmux` command), a machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves
-  the formats it is asked for empty, which monitoring needs 3.3 or later to fill, a pane that does
-  not run the bridge, a tmux server holding more than one pane, and a pane whose first process does
-  not hold its terminal, each of which the observer reads as unknown; the line names the socket,
-  process ids and what tmux said, never the screen's text.
+  the formats it is asked for empty, which no tmux tested, 3.3 or later, does, a pane that does not
+  run the bridge, a tmux server holding more than one pane, and a pane whose first process does not
+  hold its terminal, each of which the observer reads as unknown; the line names the socket, process
+  ids and what tmux said, never the screen's text.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a status update the server logged (one with a note, one whose status differs
   from the last it knew, or its first), or, until then, when a tool first answered in the session,

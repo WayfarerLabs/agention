@@ -1332,9 +1332,9 @@ Use it to find the sessions to look at, not as proof of what one is doing.
 A setting monitoring can't use never stops the bridge or its tools. The bridge logs it to its
 standard error, once each time the problem begins, and reports the condition as unknown: a socket no
 tmux server listens on, a path too long for a socket, no `tmux` command, a machine without `/proc`,
-a tmux older than 3.3, a pane that does not run the bridge's host, more than one pane, or a pane
-whose first process no longer holds the terminal. A profile name it doesn't know is logged once, and
-the strict generic profile reads the terminal instead.
+a tmux that leaves the pane's formats empty, a pane that does not run the bridge's host, more than
+one pane, or a pane whose first process no longer holds the terminal. A profile name it doesn't know
+is logged once, and the strict generic profile reads the terminal instead.
 
 Several bridges can run for one session, as Codex starts a new one without ending the old; only the
 one the agent called last reports.
