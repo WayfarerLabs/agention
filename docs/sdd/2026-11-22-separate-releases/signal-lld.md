@@ -204,7 +204,7 @@ The tests, at their boundaries, asserting fields, statuses and the notice's pres
 - `docs/architecture.md` "Database" (the recorded version), "Store" (written on the seen path, when
   it is behind, the summary's field), "HTTP API" (the sessions read's field is additive in v1), "Web
   UI" (the notice) and "Agent bridge" (the register sentence).
-- `docs/operator-guide.md` "Using the web UI", the sessions view: what the notice means and what to
-  do.
+- `docs/web-ui.md`, the sessions view (moved there from the operator guide by agention#107): what
+  the notice means and what to do.
 - `docs/live-testing.md` "Surfaces": the notice in the sessions view, the field on both mounts and
   the register sentence.

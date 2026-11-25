@@ -6,9 +6,10 @@ tester method (the `integration-testing` skill's `tester-method.md`), whose inpu
 rails and report format all apply. The test beds the operator has authorized, and their bounds, are
 in the [development context](development-context.md) under "Testing".
 
-Intended behavior comes from `README.md`, `docs/operator-guide.md`, `SECURITY.md`,
-`docs/architecture.md`, the ADRs in `docs/adrs/` and the commands' own help. Where they disagree
-with each other or with what the product does, the disagreement is the finding.
+Intended behavior comes from `README.md`, `docs/operator-guide.md`, `docs/web-ui.md`,
+`docs/operator-api.md`, `SECURITY.md`, `docs/architecture.md`, the ADRs in `docs/adrs/` and the
+commands' own help. Where they disagree with each other or with what the product does, the
+disagreement is the finding.
 
 ## Surfaces
 
@@ -56,20 +57,19 @@ with each other or with what the product does, the disagreement is the finding.
   `/docs/api/openapi.json` without sign-in, `/docs/api` leading to the page, the page running no
   script, the document equal to `docs/api/openapi.json` at the head, and without the flag every path
   under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP API", "API documentation" and
-  "Authentication"; `docs/operator-guide.md` "Using the operator API"). The file routes on every
-  mount, the operator mount with a key of each threads scope among them: an upload's answer, each of
-  its refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
-  `storage_full` with the disk filled, a length that does not match), a message naming another
-  writer's, another session's, an expired or an attached upload refused alike, `keep` on a
-  replacement; a file read with each single range, several ranges answered whole, a range outside
-  the file answered 416 with `Content-Range`, `HEAD`, and a `file` reference that is not the file's,
-  and another session's thread, `not_found`; on the operator mount, an upload or its removal refused
-  to a key without `threads:write` and a list or read refused to one without `threads:read`, as
-  `not_found`, removing an attached file refused, and the file still reading, and a revoked key's
-  transfer stopped within a chunk; and the listener's deadlines, an idle body cut at 30 seconds with
-  a 408 carrying the security headers and, on the agent mount, the version, a request body cut at 30
-  seconds whole, and an upload trickling past that finishing (`docs/architecture.md` "HTTP API" and
-  "Serving").
+  "Authentication"; `docs/operator-api.md`). The file routes on every mount, the operator mount with
+  a key of each threads scope among them: an upload's answer, each of its refusals by its code and
+  status (chunked, over 100 MiB, the pending limits by count and bytes, `storage_full` with the disk
+  filled, a length that does not match), a message naming another writer's, another session's, an
+  expired or an attached upload refused alike, `keep` on a replacement; a file read with each single
+  range, several ranges answered whole, a range outside the file answered 416 with `Content-Range`,
+  `HEAD`, and a `file` reference that is not the file's, and another session's thread, `not_found`;
+  on the operator mount, an upload or its removal refused to a key without `threads:write` and a
+  list or read refused to one without `threads:read`, as `not_found`, removing an attached file
+  refused, and the file still reading, and a revoked key's transfer stopped within a chunk; and the
+  listener's deadlines, an idle body cut at 30 seconds with a 408 carrying the security headers and,
+  on the agent mount, the version, a request body cut at 30 seconds whole, and an upload trickling
+  past that finishing (`docs/architecture.md` "HTTP API" and "Serving").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -184,8 +184,8 @@ with each other or with what the product does, the disagreement is the finding.
   its place when held by touch, and when tapped while a touch selection is under way, the forge link
   beside a message's or the fold's entry opening the forge's page in a new tab, and the filter
   sheet's **Pull request** and **Branch** with their counts, chips, and the address, on a phone's
-  width too (`docs/operator-guide.md` "Signing in", "Using the web UI", "Voice", "Attachments" and
-  "Approving agents"). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
+  width too (`docs/operator-guide.md` "Signing in", "Voice", "Attachments" and "Approving agents";
+  `docs/web-ui.md`). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
   with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
   opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick
   list told at a glance from the thread bar's arrow buttons just below it, its choices read in the
@@ -260,8 +260,8 @@ On top of the method's failure classes, look for:
   render as formatting with a working link, the `http` link is plain text, the tag shows literally,
   the image shows as a link and the browser never requests it, the `mermaid` block shows as a
   diagram image drawn in the sandboxed frame, the title shows its syntax literally, and the agent
-  reads the message back unchanged (`SECURITY.md` "Security model"; `docs/operator-guide.md` "Using
-  the web UI"). Diagrams are drawn in isolation: a hostile `mermaid` source, with script, event
+  reads the message back unchanged (`SECURITY.md` "Security model"; `docs/web-ui.md` "Markdown and
+  diagrams"). Diagrams are drawn in isolation: a hostile `mermaid` source, with script, event
   handlers, links, `click` directives and directives that try to lower the security level, runs
   nothing in the page, requests nothing beyond the server, and leaves the frame where it was; a
   diagram image's `blob:` URL, once the image shows, no longer opens on its own; and

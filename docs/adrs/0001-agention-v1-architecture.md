@@ -16,8 +16,7 @@ message text stays inert, and files load only as attachments, under that ADR's r
 view's tab counting the sessions with unread updates is superseded: a navigation badge counts only
 what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
 approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
-UI" and the [operator guide](../operator-guide.md#using-the-web-ui) describe; each session's row
-still marks its unread updates.
+UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates.
 
 ## Context
 

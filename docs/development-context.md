@@ -14,14 +14,15 @@ index of those docs.
 
 ## Identity and design
 
-- Overview, values, and architecture: `README.md` (its opening, "Status" and "Design");
-  `SECURITY.md` "Security model"; `docs/architecture.md`, which describes what exists;
+- Overview, values, and architecture: `README.md` (its opening, "How it works" and "What it does not
+  do"); `SECURITY.md` "Security model"; `docs/architecture.md`, which describes what exists;
   `docs/adrs/0001-agention-v1-architecture.md`, the intended design and the alternatives considered
 - Decision records: `docs/adrs/` (`.adr-dir`), in the format of ADR 0000; `CONTRIBUTING.md`
   "Architecture decision records"
 - Permanent documentation homes, where SDD decisions are promoted before lock: `docs/adrs/`,
-  `docs/architecture.md`, `docs/operator-guide.md`, `SECURITY.md`, `README.md`, `CONTRIBUTING.md`,
-  `docs/review-checklist.md`, `docs/live-testing.md`, and this file
+  `docs/architecture.md`, `docs/operator-guide.md`, `docs/web-ui.md`, `docs/operator-api.md`,
+  `docs/tunnel.md`, `SECURITY.md`, `README.md`, `CONTRIBUTING.md`, `docs/review-checklist.md`,
+  `docs/live-testing.md`, and this file
 - Opinionated or deliberately plural (for the `project-review` principles-and-fit check):
   opinionated in the deliberate limits of ADR 0001 "Not doing"; plural in its agent hosts, Claude
   Code and Codex, each with a plugin generated from one definition (ADR 0001 "Distribution:
@@ -44,13 +45,13 @@ index of those docs.
   bridge's MCP tools, which agent hosts run (`docs/architecture.md` "Agent bridge"), the HTTP API's
   agent and web mounts and the operator API, its versioned operator mount, whose clients are
   programs the operator runs with API keys (`docs/architecture.md` "HTTP API";
-  `docs/operator-guide.md` "Using the operator API"), and the web UI in the operator's browsers
-  (`docs/operator-guide.md` "Using the web UI"); supported environment matrix: a Linux server with
-  Node.js 24 or later (`docs/operator-guide.md`, its opening and "Linux: a systemd user unit"; the
-  macOS launchd setup is documented as untested in "macOS: a launchd agent"), mobile and desktop
-  browsers with WebAuthn's JSON helpers (`docs/operator-guide.md` "Signing in" and "Using the web
-  UI"), and Claude Code and Codex as agent hosts, with Node.js 24 or later for the bridge
-  (`docs/operator-guide.md` "Agents" and "Installing the plugins")
+  `docs/operator-api.md`), and the web UI in the operator's browsers (`docs/web-ui.md`); supported
+  environment matrix: a Linux server with Node.js 24 or later (`docs/operator-guide.md`, its opening
+  and "Linux: a systemd user unit"; the macOS launchd setup is documented as untested in "macOS: a
+  launchd agent"), mobile and desktop browsers with WebAuthn's JSON helpers
+  (`docs/operator-guide.md` "Signing in"; `docs/web-ui.md`), and Claude Code and Codex as agent
+  hosts, with Node.js 24 or later for the bridge (`docs/operator-guide.md` "Agents" and "Installing
+  the plugins")
 
 ## Contribution and gates
 
@@ -83,7 +84,9 @@ index of those docs.
   generated from the server's operation declarations and the `packages/api` and
   `packages/server-api` schemas they use by `apps/server/generate-api-docs.ts`, through
   `scripts/generate-api-docs.sh`, with the parity test `apps/server/src/http/api-docs.test.ts` in
-  the "Tests" gate (`CONTRIBUTING.md` "Generated API document")
+  the "Tests" gate (`CONTRIBUTING.md` "Generated API document"); and the screenshots in
+  `docs/images/`, retaken by `apps/web/e2e/readme-screenshots.ts` through
+  `scripts/generate-screenshots.sh`, with no drift check (`CONTRIBUTING.md` "README screenshots")
 - Everything CI requires on a pull request, in order: `.github/workflows/ci.yml`: the `check` job
   runs `scripts/check.sh`, whose gates `CONTRIBUTING.md` "Checks" lists in order; then `ci-success`,
   the one required check, which passes only when `check` succeeded
@@ -95,8 +98,12 @@ index of those docs.
   the project checks A1 to A19 in `docs/review-checklist.md`; the deliberate limits in ADR 0001 "Not
   doing"
 - Collateral to keep in sync: docs `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
-  `docs/architecture.md`, `docs/operator-guide.md`, `docs/adrs/`, `docs/review-checklist.md`,
-  `docs/live-testing.md`, this file, and `.github/pull_request_template.md`; sample config none (the
+  `docs/architecture.md`, `docs/operator-guide.md`, `docs/web-ui.md`, `docs/operator-api.md`,
+  `docs/tunnel.md`, `docs/adrs/`, `docs/review-checklist.md`, `docs/live-testing.md`, this file, and
+  `.github/pull_request_template.md`, the published packages' pages on npm, `apps/server/README.md`
+  and `apps/bridge/README.md`, and the screenshots of the web UI in `docs/images/`, which the README
+  shows and the server package's page loads from `main` by name, retaken under the same names by
+  `scripts/generate-screenshots.sh` when the views they show change; sample config none (the
   operator guide's systemd unit and launchd plist are its examples); CLI help and completions: the
   usage text in `apps/server/src/cli.ts` and `apps/bridge/src/cli.ts`, and no completions; product
   guidance: the usage skill in `apps/agent-plugin/skills/`, the plugin definition
@@ -109,7 +116,7 @@ index of those docs.
   "API contract") and the bridge's tool schemas, generated from them (`docs/architecture.md` "Agent
   bridge"); the OpenAPI document of the operator and agent APIs, `docs/api/openapi.json`, and the
   page rendered from it, which `agention serve --api-docs` serves at `/docs/api/`
-  (`docs/architecture.md` "API documentation"; `docs/operator-guide.md` "Using the operator API")
+  (`docs/architecture.md` "API documentation"; `docs/operator-api.md` "Reference")
 
 ## Testing
 
