@@ -118,18 +118,20 @@ thread or conflict with a write, and never answer an ask; how they move, and wha
 and as archived, is in `docs/architecture.md` "Store". A session's presence is stamped in a
 transaction of its own before the call's work, so a call refused later still counts: the bridge's
 background requests stamp its connection and never a check-in, and every other call by an approved
-key is the agent checking in, with the agent API version it states. A session's status changes only
-through its own reports, with its status tool or beside a thread it starts or a message it sends,
-and the one inference A6 names: an update merges into the current status and appends the result to
-the session log, appending nothing when it changes nothing and carries no note, so it needs no
-request id; updates are last-writer-wins and exempt from the stale rule, since only the session
-writes its own status. A report beside a write, and the inference from a write, apply in the write's
-transaction once its checks pass, so a write that fails changes no status, and the report is part of
-the write's digest, so a replay applies nothing again. The UI keeps the draft on a stale write
-(`docs/operator-guide.md` "Using the web UI"). Look for marks or derived counts that depart from
-those definitions, check-then-write races outside one immediate transaction, writes that skip the
-sequence check, a status a write changes outside its transaction, and request-id handling that
-replays a different payload.
+key is the agent checking in, with the agent API version it states. A registration's stamp follows
+its body's parse, since the body says whether it is a background request, so a registration whose
+body fails to parse stamps nothing. A session's status changes only through its own reports, with
+its status tool or beside a thread it starts or a message it sends, and the one inference A6 names:
+an update merges into the current status and appends the result to the session log, appending
+nothing when it changes nothing and carries no note, so it needs no request id; updates are
+last-writer-wins and exempt from the stale rule, since only the session writes its own status. A
+report beside a write, and the inference from a write, apply in the write's transaction once its
+checks pass, so a write that fails changes no status, and the report is part of the write's digest,
+so a replay applies nothing again. The UI keeps the draft on a stale write (`docs/operator-guide.md`
+"Using the web UI"). Look for marks or derived counts that depart from those definitions,
+check-then-write races outside one immediate transaction, writes that skip the sequence check, a
+status a write changes outside its transaction, and request-id handling that replays a different
+payload.
 
 ## A8. Append-only, attributed history
 

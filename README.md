@@ -63,7 +63,9 @@ relays their recordings to it with a key it holds, and keeps none of them, as
 through API keys they create, each limited to its scopes and revocable at once, as
 [ADR 0003](docs/adrs/0003-operator-api-keys.md) records. Files attached to messages live in the same
 database, and are served under rules that keep them from acting as the person, as
-[ADR 0004](docs/adrs/0004-attachments.md) records.
+[ADR 0004](docs/adrs/0004-attachments.md) records. Monitoring reads a session's terminal on its own
+machine and reports only the condition it derives, an advisory observation for the person, as
+[ADR 0005](docs/adrs/0005-session-monitoring.md) records.
 
 Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
 provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY.md) describes.

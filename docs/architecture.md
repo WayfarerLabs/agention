@@ -308,15 +308,17 @@ since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
 every conversation, marks its session's presence before its own work, in a transaction of its own,
-so a call refused later still counts. The bridge's background requests (`backgroundOperations` in
-`apps/server/src/http/agent-operations.ts`: its monitoring poll and report, and a `register` that
-says `background`) stamp when the session's bridge last made one, on every one, and never mark the
-agent checked in; every other call is the agent checking in, stamped with the agent API version the
-call states, and only when that moves the last check-in a minute or more, when the last check-in is
-after now, so a clock stepped back never holds it still, or when the version differs from the last
-one's. A stamp writes only while the registration is still approved, so a revocation that commits as
-a token is verified stamps nothing. A stamp that fails is logged and the call carries on, since
-presence is advisory. A pending registration has no session, so its calls mark nothing.
+so a call refused later still counts. The bridge's background requests, its monitoring poll and
+report (`backgroundOperations` in `apps/server/src/http/agent-operations.ts`) and a `register` that
+says `background`, which the registration route reads from its body, stamp when the session's bridge
+last made one, on every one, and never mark the agent checked in; a registration's stamp follows its
+body's parse, so a body that fails to parse stamps nothing. Every other call is the agent checking
+in, stamped with the agent API version the call states, and only when that moves the last check-in a
+minute or more, when the last check-in is after now, so a clock stepped back never holds it still,
+or when the version differs from the last one's. A stamp writes only while the registration is still
+approved, so a revocation that commits as a token is verified stamps nothing. A stamp that fails is
+logged and the call carries on, since presence is advisory. A pending registration has no session,
+so its calls mark nothing.
 
 From those the reads derive, against the request's clock and never stored:
 
@@ -337,15 +339,22 @@ quiet, last seen and connected, and neither state nor outcome.
 The bridge's monitoring (`apps/server/src/store/monitors.ts`) is a background long poll and a
 report. Several bridges may run for one session with its key, as Codex starts new ones without
 ending the old, and one acts for it: the latest to claim it. The store keeps that bridge's id for
-each session in memory (`BridgeHolders`), since it matters only while bridges poll this process; a
-server that starts again holds none until a bridge polls or reports. A poll names its bridge's id
-and may claim the session, as a bridge's reporter does when it starts and when it handles a tool
-call after being replaced. A claim takes the session from any other bridge and wakes that bridge's
-open poll, which answers `replaced`; a poll or report from a bridge other than the one acting,
-without a claim, answers `replaced` at once and changes nothing. Otherwise the poll waits on the
-session's channel for 25 seconds, or less if it asks, re-authorizing on each wake as every long poll
-does. A report replaces the session's latest and shows to the operator only while the session is
-connected, so a bridge that ended never leaves its last report standing as current.
+each session in memory (`BridgeHolders`), with the number of the latest report accepted from it,
+since it matters only while bridges poll this process; a server that starts again holds none until a
+bridge polls or reports, and revoking a credential of the session forgets its holder, so the next
+bridge to call takes it. A poll names its bridge's id and may claim the session, as a bridge's
+reporter does when it starts and when it handles a tool call after being replaced. A claim takes the
+session from any other bridge, deletes the session's report, so nothing stale shows until the new
+holder reports, and wakes the other bridge's open poll, which answers `replaced`; a poll or report
+from a bridge other than the one acting, without a claim, answers `replaced` at once and changes
+nothing. Otherwise the poll waits on the session's channel for 25 seconds, or less if it asks,
+re-authorizing on each wake as every long poll does. A report carries its bridge's number for it,
+`seq`, which counts up with each report the bridge sends, and replaces the session's latest unless
+its number is no higher than the latest accepted from that bridge, when it is ignored, so a report
+delayed past a later one never overwrites it. The holder changes in memory only once the write that
+goes with it, a claim's deletion or a report, has committed. The latest report shows to the operator
+only while the session is connected, so a bridge that ended never leaves its last report standing as
+current.
 
 A session reports its status itself, on the agent mount's status route or beside a write: a thread
 it starts or a message it sends may carry a state, with its outcome, and a note, which apply as an
@@ -1135,27 +1144,32 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   the last began, and backing off from 1 to 60 seconds, doubling, while requests fail; a key the
   server no longer accepts has its registration read again. Its first poll claims the session and
   asks for no wait, so the server has taken the claim before any report follows. From then on it
-  watches the monitor and sends `POST .../monitor` with the whole report: the first on claiming,
-  then one for each observation that differs from the last, one request at a time. A report that
-  fails is sent again once a poll is answered. A poll or report answered `replaced` means another
-  bridge of the session claimed it: the reporter stops polling, watching and reporting until this
-  bridge next handles `register` or a tool call that finds the credential, when it claims the
-  session again. Its requests sign with the key on disk and act in the names granted to it, and a
-  request it makes to learn them is marked `background` too, so none marks the agent checked in.
-  Against a server older than the bridge's agent API version, its requests fail as every tool's do
-  and it backs off to a minute between them.
+  watches the monitor and sends `POST .../monitor` with the whole report and its number, counting up
+  from 1 for the life of the process: the first on claiming, then one for each observation that
+  differs from the last, one request at a time. A report that fails is sent again, or the one that
+  replaced it, after a pause that backs off from 1 to 60 seconds, doubling, or as soon as a poll is
+  answered. A poll or report answered `replaced` means another bridge of the session claimed it: the
+  reporter stops polling, watching and reporting until this bridge next handles `register` or a tool
+  call that finds the credential, when it claims the session again. Its requests sign with the key
+  on disk and act in the names granted to it, and a request it makes to learn them is marked
+  `background` too, so none marks the agent checked in. Against a server older than the bridge's
+  agent API version, its requests fail as every tool's do and it backs off to a minute between them.
 - **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
   monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
   server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with
   the profile the configuration names; `auto` takes the harness from the name and version of the MCP
   client's `initialize`, each a string of at most 100 and 50 characters or none, and an unknown
-  harness gets the strict generic profile. A report carries the profile's name, the condition and
-  since when, and what stopped the harness with its reset time, the observer's kebab-case names
-  written as the API's snake case, and a reset time the API would not take left out. The bridge logs
-  to its standard error, once each time one begins, a pane it cannot read (no tmux server at the
-  socket, a path too long for a socket, no `tmux` command), a tmux server holding more than one
-  pane, and a pane whose first process does not hold its terminal, each of which the observer reads
-  as unknown; the line names the socket and what tmux said, never the screen's text.
+  harness gets the strict generic profile. The pane is read only while its first process is an
+  ancestor of the bridge's, walking `/proc`'s parent links, so a socket that names another session's
+  pane reads as unknown. A report carries the profile's name, the condition and since when, and what
+  stopped the harness with its reset time, all spelled as the API spells them, with a reset time the
+  API would not take left out. The bridge logs to its standard error, once each time one begins, a
+  pane it cannot read (no tmux server at the socket, a path too long for a socket, no `tmux`
+  command), a machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves the
+  formats it is asked for empty, which monitoring needs 3.3 or later to fill, a pane that does not
+  run the bridge, a tmux server holding more than one pane, and a pane whose first process does not
+  hold its terminal, each of which the observer reads as unknown; the line names the socket, process
+  ids and what tmux said, never the screen's text.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a status update the server logged (one with a note, one whose status differs
   from the last it knew, or its first), or, until then, when a tool first answered in the session,

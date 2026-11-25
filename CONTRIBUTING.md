@@ -148,12 +148,15 @@ npm run -w apps/server typecheck   # tsc --noEmit, for any workspace
 npm run -w apps/web test:browser   # the browser tests, against the server's last build
 ```
 
-The server's and the bridge's tests each run in a `TMPDIR` of their own, and the run fails if they
-leave anything in it (`apps/server/src/test-tmpdir.ts`). A server test takes a temporary directory
-from `testDirectory` (`apps/server/src/test-directory.ts`), which removes it once the test finishes,
-pass or fail, and a test that makes a store or server fixture closes it in `afterEach`, as a bridge
-test closes its `BridgeHarness`. A run that is killed, or a watch session until it exits, leaves its
-`agention-tests-*` directory in the outer `TMPDIR`.
+The server's, the bridge's and the harness observer's tests each run in a `TMPDIR` of their own, and
+the run fails if they leave anything in it (`apps/server/src/test-tmpdir.ts`, and its copy in
+`packages/harness-observer/test/tmpdir.ts`, which imports nothing of Agention's). The tests that
+start tmux servers put their sockets there, so they fail at once, saying so, when `TMPDIR` is too
+long for a socket's 107 bytes. A server test takes a temporary directory from `testDirectory`
+(`apps/server/src/test-directory.ts`), which removes it once the test finishes, pass or fail, and a
+test that makes a store or server fixture closes it in `afterEach`, as a bridge test closes its
+`BridgeHarness`. A run that is killed, or a watch session until it exits, leaves its
+`agention-tests-*` or `observer-tests-*` directory in the outer `TMPDIR`.
 
 A store or server fixture's database is a copy of one that each test file's process migrates once
 (`apps/server/src/database/test-database.ts`), so a test pays for no migrations of its own. A test
@@ -315,6 +318,10 @@ error, and so does a clone without tags. A new tool or field joins the suite.
 - A dependency that shapes the architecture or the supply chain (a framework, an authentication or
   storage library) gets an ADR recording the choice and its alternatives.
 - Dependabot proposes weekly updates. Review them like any other change.
+- CI installs tmux, which the harness observer's tests drive, as the runner distribution's own
+  package, from its package archive with `apt-get`, unpinned: the image's Ubuntu release fixes its
+  version line, which the tests need at 3.3 or later, and the distribution's archive signs and
+  patches it.
 - Advisories below the vulnerability gate's threshold that remain, and why:
   - `fast-uri` (`GHSA-w74x-v6f9-j3xg` and `GHSA-wjr9-j795-jxcr`, moderate; `GHSA-xhq7-xmqj-769h` and
     `GHSA-333x-w4r6-6crp`, low), in the copy inlined in `@modelcontextprotocol/server`, which the

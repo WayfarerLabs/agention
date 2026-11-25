@@ -197,6 +197,10 @@ Presence is observed rather than reported. Every authenticated agent call stamps
 was last seen, and a session not seen within a configured time is quiet. A thread holding a message
 of the operator's that its session has not read is stranded while the session is quiet, stopped or
 without an active credential, so the operator knows the agent is not there to read it.
+[ADR 0005](0005-session-monitoring.md) refines this: a session's bridge keeps a background
+connection whose requests show whether it is connected and never count as the agent's calls, a
+thread is stranded too while its session is not connected, and the bridge may report what its
+harness's terminal shows.
 
 ### One thread list
 

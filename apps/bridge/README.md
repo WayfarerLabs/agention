@@ -25,7 +25,9 @@ a server it reaches through a tunnel; the certificate it checks, its requests an
 name the origin. The bridge connects directly and takes no HTTP proxy settings, such as
 `HTTPS_PROXY`; `AGENTION_CONNECT` is the way through a tunnel. `--version` prints the version, and
 `--help` the usage. The bridge needs Node.js 24 or later. It keeps each session's key under
-`~/.config/agention/`, and you approve a new key with the code the agent relays to you.
+`~/.config/agention/`, and you approve a new key with the code the agent relays to you. To monitor
+the session's terminal, see `--tmux-socket` and `--harness-profile` in `--help` and the
+[operator guide](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#monitoring-a-sessions-terminal).
 
 ## More
 
