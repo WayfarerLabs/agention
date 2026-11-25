@@ -2,10 +2,12 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import type { Context, Hono } from "hono";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { ownHeaders } from "./own-headers.ts";
 
 // The web UI is the Vite build of apps/web, which the server package carries
 // in its web/ directory. A path that names a file of the build gets that file;
-// any other path gets the UI's index page, whose router shows the route.
+// any other path outside assets/ gets the UI's index page, whose router shows
+// the route.
 
 // The page served in place of the UI when the server was built without it.
 // It carries no script or style, so the content security policy holds.
@@ -64,6 +66,36 @@ function namedPage(page: string, name: string): string {
 const isIndexFile = (requested: string) =>
   requested === "/" || requested.toLowerCase() === "/index.html";
 
+// The build's files under assets/ are named for their content, so a browser
+// keeps one for good.
+const assetCaching = "public, max-age=31536000, immutable";
+
+// serveAssets adds the route that serves the build's files under assets/,
+// each as the Brotli copy the package's build wrote beside it (build.ts) when
+// the browser accepts that, or else as it is. A path that names no file there
+// is not_found, since no route of the UI is under assets/, and only the file
+// itself, whole or a range of it, is cached.
+function serveAssets(app: Hono, root: string): void {
+  const serveFile = serveStatic({ root, precompressed: true });
+  app.get("/assets/*", async (c) => {
+    // serveStatic returns what next returns when it finds no file, so with a
+    // next that returns nothing, a miss comes back undefined.
+    const response = await serveFile(c, () => Promise.resolve());
+    if (response === undefined) {
+      return c.notFound();
+    }
+    if (response.ok) {
+      response.headers.set("Cache-Control", assetCaching);
+      ownHeaders(c.req.raw, ["cache-control"]);
+    }
+    // serveStatic varies only the Brotli copy. Varying the file as it is too
+    // saves bytes behind a shared cache, which would otherwise answer every
+    // browser with it.
+    response.headers.set("Vary", "Accept-Encoding");
+    return response;
+  });
+}
+
 // serveWebUi adds the GET routes that serve the build in root, or the
 // placeholder page when root holds no build. The index page is prepared once,
 // as the server starts, carrying the server's name, and its file is never
@@ -77,6 +109,7 @@ export function serveWebUi(app: Hono, root: string | undefined, name: string): v
   const page = namedPage(readFileSync(path.join(root, "index.html"), "utf8"), name);
   const serveIndex = (c: Context) => c.html(page);
   app.get("/*", (c, next) => (isIndexFile(c.req.path) ? serveIndex(c) : next()));
+  serveAssets(app, root);
   app.get("/*", serveStatic({ root }));
   app.get("/*", serveIndex);
 }

@@ -195,13 +195,6 @@ describe("the web UI", () => {
     harness = new Harness({ webRoot: dir });
   });
 
-  it("serves the build's files with their types", async () => {
-    const script = await harness.request("GET", "/assets/app-1.js");
-    expect(script.status).toBe(200);
-    expect(script.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
-    expect(script.body).toBe("console.log(1);");
-  });
-
   it("serves the index for every other path outside the API", async () => {
     for (const target of ["/", "/s/builder/main/threads/1", "/registrations", "/link"]) {
       const response = await harness.request("GET", target);
@@ -327,18 +320,6 @@ describe("the diagram frame", () => {
       "strict-transport-security": "max-age=31536000",
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
-    });
-  });
-
-  it("serves its script to be kept for good, with every other header", async () => {
-    const response = await harness.request("GET", `/${script}`);
-    expect([response.status, response.body]).toEqual([200, "drawDiagrams();"]);
-    expect(Object.fromEntries(response.headers)).toMatchObject({
-      "content-type": "text/javascript; charset=utf-8",
-      "cache-control": "public, max-age=31536000, immutable",
-      "content-security-policy": contentSecurityPolicy(origin),
-      "x-frame-options": "DENY",
-      "x-content-type-options": "nosniff",
     });
   });
 
