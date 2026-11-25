@@ -1452,6 +1452,8 @@ describe("a stale write", () => {
     fireEvent.click(sendButton());
     const panel = await staleNotice();
     expect(within(panel).getByText("I changed my mind about the timeline.")).toBeTruthy();
+    // A missed message can be copied, as any message with text can.
+    expect(within(panel).getByRole("button", { name: "Copy message 2" })).toBeTruthy();
     expect(textBox().value).toBe("Go ahead.");
     expect(detailsBox().value).toBe("Ship it on Friday.");
     // The missed messages come above the draft.

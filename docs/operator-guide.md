@@ -571,6 +571,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - A message's text is a short summary of what the matter is and what is needed. Whatever else the
     message says is in its details: a **Details** line directly under the text opens them in place
     and folds them again, and details you opened stay open as the page refreshes.
+  - The copy button at the end of a message's head, beside its **⋯** button, copies the whole
+    message as Markdown, as it was written: its text, and its details too, after a blank line, while
+    you have them open. Its asks, answers, references and files are not copied. Every message with
+    text has one, a replaced message too once you open it, and a message without text has none. The
+    button shows a check for a moment once the message is copied. Where the browser refuses the
+    clipboard, the message says so, and you can select the text to copy it by hand.
   - A message's files show under it, and **Attach** beside **Send** adds yours, as
     [Attachments](#attachments) describes. While the thread holds any, its head holds **Files**,
     folded, with how many there are and the space they take.
