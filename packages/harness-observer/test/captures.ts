@@ -13,7 +13,8 @@ import type { Snapshot } from "../src/pane.ts";
 //   ...
 //
 // A capture is of a pane the observer would read, so it reads as one pane
-// whose harness holds the terminal; its time is the reader's to supply.
+// whose harness holds the terminal and takes keys, with no client attached;
+// its time is the reader's to supply.
 export const capturesDirectory = path.join(import.meta.dirname, "..", "src", "captures");
 
 // captureNames lists every capture, by file name without ".txt".
@@ -46,6 +47,8 @@ export function readCapture(name: string, at = 0): Snapshot {
     cursor: { x: Number(x), y: Number(y), visible: visible === "visible" },
     hostHasTerminal: true,
     onePane: true,
+    keysBlocked: false,
+    lastTyped: undefined,
     at,
   };
 }

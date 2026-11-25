@@ -1,4 +1,4 @@
-import { atMarkedInput } from "./input-row.ts";
+import { markedInput } from "./input-row.ts";
 import type { Profile } from "./profile.ts";
 import { versionTable } from "./version-table.ts";
 
@@ -15,9 +15,15 @@ import { versionTable } from "./version-table.ts";
 // start, puts "!" in place of "❯", so it is no input line. Vim mode shows
 // "-- INSERT --" in the footer in insert mode and nothing in normal mode, the
 // same footer as the normal editor's, so no screen tells vim's normal mode
-// from the normal editor and the footer is not read.
+// from the normal editor and the footer is not read. An empty input shows a
+// hint, such as 'Try "fix typecheck errors"', with the cursor right after
+// the marker; captures carry no color, so only that pattern tells it from
+// typed text.
+const hints = [/^Try ".*"$/];
+
 const claudeCode2_1_331: Profile = {
   name: "claude-code",
+  knowsMarker: true,
   screen(snapshot) {
     const rows = snapshot.lines.map((line) => line.trim());
     if (!snapshot.cursor.visible) {
@@ -35,7 +41,8 @@ const claudeCode2_1_331: Profile = {
       }
       return { kind: "other" };
     }
-    return { kind: atMarkedInput(snapshot, "❯\u00a0") ? "input" : "other" };
+    const input = markedInput(snapshot, "❯\u00a0", hints);
+    return input === undefined ? { kind: "other" } : { kind: "input", input };
   },
 };
 

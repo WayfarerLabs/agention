@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Profile } from "./profile.ts";
 import { versionTable } from "./version-table.ts";
 
-const first: Profile = { name: "first", screen: () => ({ kind: "other" }) };
-const second: Profile = { name: "second", screen: () => ({ kind: "other" }) };
+const first: Profile = { name: "first", knowsMarker: false, screen: () => ({ kind: "other" }) };
+const second: Profile = { name: "second", knowsMarker: false, screen: () => ({ kind: "other" }) };
 
 describe("versionTable", () => {
   const table = versionTable("harness", "harness-client", [

@@ -3,35 +3,50 @@
 Reads the terminal pane an agent harness, such as Claude Code or Codex, runs in, and answers two
 questions and gives a reason: is the harness running a turn, at rest or unknown; at rest, what does
 its screen hold (its prompt, a permission prompt, another prompt, or nothing the profile
-recognizes); and at rest, why did it stop, where its profile can tell. It knows terminals and
-harnesses and nothing of Agention, which bundles it into the agent bridge, so it can move to a
-package of its own. It needs Linux, for `/proc`, and tmux 3.3 or later.
+recognizes); and at rest, why did it stop, where its profile can tell. It can also nudge the
+harness: put a warning and then a message in its input line, and submit the message, only while it
+sits still at its prompt (see [Nudging](#nudging)). It knows terminals and harnesses and nothing of
+Agention, which bundles it into the agent bridge, so it can move to a package of its own. It needs
+Linux, for `/proc`, and tmux 3.3 or later.
 
 ## Interface
 
 Two seams keep terminals and harnesses apart:
 
 - **`Pane`**, the terminal. `snapshot()` reads it once: the visible screen, the cursor, whether the
-  harness holds the terminal, and whether the terminal server holds one pane. It rejects when the
-  pane cannot be read at all, and with `PaneUnusable` where the cause is the machine or the choice
-  of pane: no `/proc`, a tmux that leaves the formats it is asked for empty, which no tmux tested,
-  3.3 or later, does, or a pane that is not the reader's. `TmuxPane` implements it for the one pane
-  of a tmux server, named by its socket path, with one tmux client call and reads of
-  `/proc/<pid>/stat`. Its `requireAncestorOf` option names a process, such as the reader's own, that
-  the pane's first process must be an ancestor of, so a socket that names some other pane is refused
-  rather than read.
+  harness holds the terminal, whether the terminal server holds one pane, whether keys reach the
+  harness, and when an attached client last sent a key. It rejects when the pane cannot be read at
+  all, and with `PaneUnusable` where the cause is the machine or the choice of pane: no `/proc`, a
+  tmux that leaves the formats it is asked for empty, which no tmux tested, 3.3 or later, does, or a
+  pane that is not the reader's. `paste(line)` puts one line in the pane as a paste, and refuses,
+  before anything reaches the pane, a line holding a line break or a control character, so no text
+  can end the paste early or arrive as a key; `key(key)` presses Backspace or Enter, the only two
+  keys a pane sends. `TmuxPane` implements it for the one pane of a tmux server, named by its socket
+  path: a reading is one tmux client call and reads of `/proc/<pid>/stat`; keys count as blocked in
+  copy mode or any other mode and while the pane's input is off, and a client's last key is its
+  `client_activity`, which tmux gives to the second, so it reads as the end of that second; a paste
+  goes through a buffer of its own, loaded from the client's input and deleted once pasted, so the
+  operator's buffers are never read, replaced or reordered, and `paste-buffer -p` brackets it for a
+  harness that asked for bracketed paste. Its `requireAncestorOf` option names a process, such as
+  the reader's own, that the pane's first process must be an ancestor of, so a socket that names
+  some other pane is refused rather than read.
 - **`Profile`**, the harness. `screen(snapshot)` says what one screen shows: a permission prompt,
   another prompt, the input line, or anything else, with why the harness stopped where its captured
-  screens show it. Claude Code's and Codex's profiles are this package's (see
-  [Harness profiles](#harness-profiles)). Adding a harness, or a version whose screens changed, is a
-  change inside the package, never through its interface: internally, a harness's profiles are a
-  `HarnessProfiles` (`src/profile.ts`), which `versionTable` (`src/version-table.ts`) builds from
-  the versions where its screens changed, and the registry (`src/registry.ts`) lists them; none of
-  these is exported. The generic profiles, `generic-strict` and `generic-lenient`, serve a harness
-  with no profile of its own, and never name a prompt or a reason. `selectProfile(name, client)`
-  chooses one, by a name in `profileNames` (`generic-strict`, `generic-lenient`, `claude-code` or
-  `codex`) or `auto` for the MCP client's harness and version, with the strict generic profile where
-  none applies; a caller checks a configured name against `profileNames` itself.
+  screens show it. The input line comes with its text, whether the cursor is at its end, and how
+  many more characters fit on its row; text that is not all printable ASCII, whose width terminals
+  disagree on, has no end the cursor is known to be at and no room. A harness's own profile knows
+  its prompt marker, so the text is what follows it, and reads the hints its captures show in an
+  empty input as empty; a generic profile gives the cursor's whole row. Claude Code's and Codex's
+  profiles are this package's (see [Harness profiles](#harness-profiles)). Adding a harness, or a
+  version whose screens changed, is a change inside the package, never through its interface:
+  internally, a harness's profiles are a `HarnessProfiles` (`src/profile.ts`), which `versionTable`
+  (`src/version-table.ts`) builds from the versions where its screens changed, and the registry
+  (`src/registry.ts`) lists them; none of these is exported. The generic profiles, `generic-strict`
+  and `generic-lenient`, serve a harness with no profile of its own, and never name a prompt or a
+  reason. `selectProfile(name, client)` chooses one, by a name in `profileNames` (`generic-strict`,
+  `generic-lenient`, `claude-code` or `codex`) or `auto` for the MCP client's harness and version,
+  with the strict generic profile where none applies; a caller checks a configured name against
+  `profileNames` itself.
 
 `PaneObserver` joins them. `observations(signal)` reads the pane once a second until the signal
 aborts and yields an `Observation` whenever its activity, screen or stopped-by reason changes:
@@ -63,6 +78,52 @@ for await (const { activity, screen, stoppedBy, since } of observer.observations
 
 Snapshots hold the screen's text, which whatever runs in the pane draws, so they stay in memory;
 observations carry only fixed kinds, times and fixed reasons.
+
+## Nudging
+
+`nudge({ warning, message })` puts two texts in the harness's input line, both the caller's, and
+submits only the second: a warning that a nudge is coming, which anyone at the terminal can stop by
+typing over it, and then the message. It starts from the latest observation of a running
+`observations`, so it is never ready without one, and runs one nudge at a time. It resolves to
+`{ sent: true }`, or `{ sent: false, step }` with the step it stopped at, in this order:
+
+1. **`not-ready`**: nothing is sent unless the latest observation is at rest at the input line, with
+   no usage limit before its reset, and a fresh reading shows the same screen, with one pane, the
+   harness holding the terminal, keys reaching it, no key from any client for 10 seconds, and an
+   input line with the cursor at its end and room for the longer text; with a harness's own profile,
+   the line must also be empty.
+2. **`warning`**: it pastes the warning and confirms the line holds exactly it, cursor at its end;
+   waits 5 seconds; and confirms again, with nothing else on the screen changed and no client having
+   typed. A failure leaves the warning where it is.
+3. **`cleared`**: it removes the warning one Backspace at a time, confirming before each next one
+   that the last removed one character, until the line is as it was. A failure, such as in vim's
+   normal mode, where Backspace moves the cursor, leaves what is left.
+4. **`message`**: it pastes the message and confirms it as it did the warning. A failure removes the
+   message where the line still holds exactly it, and otherwise leaves the line.
+5. **`submitted`**: it confirms the message once more, presses Enter, and within 5 seconds sees the
+   line as it was before the nudge and another row of the screen changed, as a turn starting shows.
+   A failure before Enter removes the message as step 4 does; after Enter, the message is the
+   harness's.
+
+Its guarantees:
+
+- Every key directly follows a reading that confirmed the line holds exactly what the nudge expects,
+  cursor at its end, in a pane that takes keys, so a key reaches a dialog only if one opens in the
+  milliseconds between them. Only Backspace and Enter are ever pressed: never an ordinary character,
+  which a dialog may take as a choice, and never Escape, which harnesses bind to leaving modes,
+  clearing input and rewinding.
+- Text reaches the pane only as pastes, which dialogs drop, and only the caller's two texts.
+- It confirms against what the profile reads: with a harness's own profile, the line holds the text
+  alone; with a generic one, which cannot tell a prompt marker from typed text, the cursor's row is
+  the row before the nudge with the text appended at the cursor. A generic profile cannot see a
+  draft already in the input, which the 10 seconds without a key guard against.
+- It never puts a text in a line it cannot be shown to fit: it throws a `RangeError`, before
+  anything reaches the pane, for an empty text or one that is not all printable ASCII, and is not
+  ready where the line has too little room.
+- It knows nothing of what the texts say. Its waits and timeouts run on the observer's clock.
+
+A harness that never asked for bracketed paste receives a paste as typed characters, which tmux
+gives no way to tell; Claude Code and Codex both ask for it at start.
 
 ## Harness profiles
 
@@ -123,4 +184,8 @@ The captures so far came from Claude Code 2.1.331 and 2.1.332 and Codex 0.171.0 
 `npm run -w packages/harness-observer test` runs the unit tests, the profiles against their
 captures, and the tests against real tmux servers, each started with no configuration on a socket in
 a temporary directory and killed when the test ends. Those run `test/scripted-harness.ts`, a Node
-script that draws a prompt, a running turn and a dialog and switches between them on a key.
+script that draws a prompt, a running turn and a dialog and switches between them on a key, with an
+input line that takes pastes and typed characters, removes one on Backspace and submits on Enter,
+and options for a Backspace that only moves the cursor, an Enter that does nothing and a dialog that
+opens at the second paste. A test that needs a client attached, typing, attaches one through
+util-linux's `script`.

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readingPane } from "../test/reading-pane.ts";
+import { rowInput } from "./input-row.ts";
 import { type Clock, type Observation, PaneObserver, sampleEvery } from "./observer.ts";
-import type { Pane, Snapshot } from "./pane.ts";
+import type { Snapshot } from "./pane.ts";
 import type { Profile, Screen } from "./profile.ts";
 
 // One reading of a scripted pane: a screen at a time, or a pane that cannot
@@ -18,6 +20,7 @@ type Step =
 
 const testProfile: Profile = {
   name: "test",
+  knowsMarker: false,
   screen(snapshot): Screen {
     const [kind, second] = snapshot.lines;
     if (kind === "throws") {
@@ -27,8 +30,12 @@ const testProfile: Profile = {
       second?.startsWith("limit") === true
         ? { stoppedBy: { reason: "usage_limit" as const, resetsAt: new Date(second.slice(6)) } }
         : {};
-    if (kind === "permission_prompt" || kind === "other_prompt" || kind === "input") {
+    if (kind === "permission_prompt" || kind === "other_prompt") {
       return { kind, ...stoppedBy };
+    }
+    const input = kind === "input" ? rowInput(snapshot) : undefined;
+    if (input !== undefined) {
+      return { kind: "input", input, ...stoppedBy };
     }
     return { kind: "other", ...stoppedBy };
   },
@@ -40,27 +47,27 @@ async function observe(steps: readonly Step[]): Promise<object[]> {
   const controller = new AbortController();
   let index = 0;
   let now = 0;
-  const pane: Pane = {
-    async snapshot() {
-      const step = steps[index++];
-      if (step === undefined) {
-        controller.abort();
-        throw new Error("the steps ran out");
-      }
-      now = step.at;
-      if ("fails" in step) {
-        throw new Error("the pane cannot be read");
-      }
-      return {
-        lines: step.screen,
-        width: 80,
-        cursor: { x: step.cursorX ?? 0, y: 0, visible: true },
-        hostHasTerminal: step.hostHasTerminal ?? true,
-        onePane: step.onePane ?? true,
-        at: step.at,
-      } satisfies Snapshot;
-    },
-  };
+  const pane = readingPane(async () => {
+    const step = steps[index++];
+    if (step === undefined) {
+      controller.abort();
+      throw new Error("the steps ran out");
+    }
+    now = step.at;
+    if ("fails" in step) {
+      throw new Error("the pane cannot be read");
+    }
+    return {
+      lines: step.screen,
+      width: 80,
+      cursor: { x: step.cursorX ?? 0, y: 0, visible: true },
+      hostHasTerminal: step.hostHasTerminal ?? true,
+      onePane: step.onePane ?? true,
+      keysBlocked: false,
+      lastTyped: undefined,
+      at: step.at,
+    } satisfies Snapshot;
+  });
   const sleeps: number[] = [];
   const clock: Clock = {
     now: () => now,
@@ -212,12 +219,10 @@ describe("PaneObserver", () => {
 
   it("reads nothing once its signal has aborted", async () => {
     let reads = 0;
-    const pane: Pane = {
-      async snapshot() {
-        reads++;
-        throw new Error("unreachable");
-      },
-    };
+    const pane = readingPane(async () => {
+      reads++;
+      throw new Error("unreachable");
+    });
     const seen = [];
     for await (const observation of new PaneObserver(pane, testProfile).observations(
       AbortSignal.abort(),
@@ -230,11 +235,9 @@ describe("PaneObserver", () => {
 
   it("stops waiting for its next sample as soon as its signal aborts", async () => {
     const controller = new AbortController();
-    const pane: Pane = {
-      async snapshot() {
-        throw new Error("the pane cannot be read");
-      },
-    };
+    const pane = readingPane(async () => {
+      throw new Error("the pane cannot be read");
+    });
     const started = Date.now();
     for await (const observation of new PaneObserver(pane, testProfile).observations(
       controller.signal,

@@ -1,5 +1,12 @@
 import { setTimeout as delay } from "node:timers/promises";
-import type { Pane, Snapshot } from "./pane.ts";
+import {
+  type LatestReading,
+  Nudge,
+  type NudgeOutcome,
+  type NudgeTexts,
+  refuseNudgeText,
+} from "./nudge.ts";
+import { type Pane, sameScreen, type Snapshot } from "./pane.ts";
 import type { Profile, Screen, StoppedBy } from "./profile.ts";
 
 // Two questions and a reason: is the harness running a turn, and, at rest,
@@ -24,6 +31,13 @@ export interface Observer {
   // observation whenever its activity, screen or stopped-by reason changes.
   // It never throws: a pane it cannot read is unknown.
   observations(signal: AbortSignal): AsyncIterable<Observation>;
+  // nudge puts a warning and then a message in the harness's input line and
+  // submits the message, with every check before each key that the package's
+  // README lists, and says how it ended. It starts from the latest
+  // observation, so it is never ready while observations is not running.
+  // It throws a RangeError for a text it cannot use, an empty one or one
+  // that is not all printable ASCII, before anything reaches the pane.
+  nudge(texts: NudgeTexts): Promise<NudgeOutcome>;
 }
 
 // The time source an observer samples by; tests pass one that needs no
@@ -68,10 +82,17 @@ type Reading = (Omit<Observation, "since"> & { readonly at: number }) | undefine
 // 4. at rest otherwise, with what the profile finds on the screen.
 //
 // A stopped-by reason shows only at rest.
+//
+// nudge starts from the latest observation and the snapshot it came from,
+// and runs one nudge at a time: a second while one runs is not ready.
 export class PaneObserver implements Observer {
   readonly #pane: Pane;
   readonly #profile: Profile;
   readonly #clock: Clock;
+  // The latest observation and the snapshot last read, while observations
+  // runs and the pane was last read with the profile.
+  #latest: LatestReading | undefined;
+  #nudging = false;
 
   constructor(pane: Pane, profile: Profile, clock: Clock = systemClock) {
     this.#pane = pane;
@@ -84,35 +105,63 @@ export class PaneObserver implements Observer {
     // last reading that was unknown.
     const history: Snapshot[] = [];
     let latest: Observation | undefined;
-    while (!signal.aborted) {
-      const reading = await this.#read(history);
-      if (signal.aborted) {
-        return;
+    try {
+      while (!signal.aborted) {
+        const { reading, snapshot } = await this.#read(history);
+        if (signal.aborted) {
+          return;
+        }
+        let changed: Observation | undefined;
+        if (reading !== undefined && !sameReading(latest, reading)) {
+          const { at, ...observed } = reading;
+          changed = latest = {
+            ...observed,
+            since:
+              latest?.activity === reading.activity && latest.screen === reading.screen
+                ? latest.since
+                : new Date(at),
+          };
+        }
+        // A nudge starts from the observation this snapshot bears out.
+        this.#latest =
+          reading !== undefined && snapshot !== undefined && latest !== undefined
+            ? { observation: latest, snapshot }
+            : undefined;
+        if (changed !== undefined) {
+          yield changed;
+        }
+        await this.#clock.sleep(sampleEvery, signal);
       }
-      if (reading !== undefined && !sameReading(latest, reading)) {
-        const { at, ...observed } = reading;
-        latest = {
-          ...observed,
-          since:
-            latest?.activity === reading.activity && latest.screen === reading.screen
-              ? latest.since
-              : new Date(at),
-        };
-        yield latest;
-      }
-      await this.#clock.sleep(sampleEvery, signal);
+    } finally {
+      this.#latest = undefined;
     }
   }
 
-  async #read(history: Snapshot[]): Promise<Reading> {
+  async nudge(texts: NudgeTexts): Promise<NudgeOutcome> {
+    refuseNudgeText(texts.warning);
+    refuseNudgeText(texts.message);
+    if (this.#nudging) {
+      return { sent: false, step: "not-ready" };
+    }
+    this.#nudging = true;
+    try {
+      return await new Nudge(this.#pane, this.#profile, this.#clock).run(this.#latest, texts);
+    } finally {
+      this.#nudging = false;
+    }
+  }
+
+  // read reads the pane once, and returns the reading and, where the profile
+  // read it, the snapshot.
+  async #read(history: Snapshot[]): Promise<{ reading: Reading; snapshot?: Snapshot }> {
     let snapshot: Snapshot;
     try {
       snapshot = await this.#pane.snapshot();
     } catch {
-      return unknown(history, this.#clock.now());
+      return { reading: unknown(history, this.#clock.now()) };
     }
     if (!snapshot.onePane || !snapshot.hostHasTerminal) {
-      return unknown(history, snapshot.at);
+      return { reading: unknown(history, snapshot.at) };
     }
     let screen;
     try {
@@ -120,22 +169,22 @@ export class PaneObserver implements Observer {
     } catch {
       // The screen is untrusted input, so a profile that fails on one cannot
       // say what it shows.
-      return unknown(history, snapshot.at);
+      return { reading: unknown(history, snapshot.at) };
     }
     remember(history, snapshot);
     const at = snapshot.at;
     const stoppedBy = screen.stoppedBy && { stoppedBy: screen.stoppedBy };
     const atRest = { activity: "at_rest", screen: screen.kind, at, ...stoppedBy } as const;
     if (screen.kind === "permission_prompt" || screen.kind === "other_prompt") {
-      return atRest;
+      return { reading: atRest, snapshot };
     }
     if (changedRecently(history)) {
-      return { activity: "running", at };
+      return { reading: { activity: "running", at }, snapshot };
     }
     if (history[0]!.at > at - stillFor) {
-      return undefined;
+      return { reading: undefined, snapshot };
     }
-    return atRest;
+    return { reading: atRest, snapshot };
   }
 }
 
@@ -156,17 +205,6 @@ function remember(history: Snapshot[], snapshot: Snapshot): void {
 
 function changedRecently(history: readonly Snapshot[]): boolean {
   return history.some((snapshot, i) => i > 0 && !sameScreen(history[i - 1]!, snapshot));
-}
-
-function sameScreen(a: Snapshot, b: Snapshot): boolean {
-  return (
-    a.width === b.width &&
-    a.cursor.x === b.cursor.x &&
-    a.cursor.y === b.cursor.y &&
-    a.cursor.visible === b.cursor.visible &&
-    a.lines.length === b.lines.length &&
-    a.lines.every((line, i) => line === b.lines[i])
-  );
 }
 
 function sameReading(observation: Observation | undefined, reading: NonNullable<Reading>): boolean {
