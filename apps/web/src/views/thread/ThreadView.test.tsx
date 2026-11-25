@@ -589,8 +589,11 @@ describe("reading", () => {
   });
 });
 
+// The bar at the foot of the thread's page.
+const threadBar = () => screen.getByRole("region", { name: "Thread actions" });
+
 describe("the head", () => {
-  const back = () => within(threadHeader()).getByRole("link", { name: "Back to threads" });
+  const back = () => within(threadBar()).getByRole("link", { name: "Back to threads" });
 
   it.each([
     ["opened directly", null, "/"],
@@ -611,26 +614,28 @@ describe("the head", () => {
     ],
     ["given another page", { from: "/registrations" }, "/"],
     ["given another site", { from: "//example.com/" }, "/"],
-  ])("leads with a back button to the list as it was left when %s", async (_, from, href) => {
+  ])("leads its bar with a way back to the list as it was left when %s", async (_, from, href) => {
     await page.open({ thread: threadSummary({ unread: 0 }), messages: [message(1)] }, from);
     expect(back().getAttribute("href")).toBe(href);
-    // The back button comes first in the thread's head, and its name holds
-    // the word it shows.
-    expect(back().closest(".thread-header")?.querySelector("a, button")).toBe(back());
+    // The way back leads the bar, and its name holds the word it shows.
+    expect(threadBar().querySelector("a, button")).toBe(back());
     const shown = back().textContent?.trim().toLowerCase() ?? "";
     expect(shown).not.toBe("");
     expect(back().getAttribute("aria-label")?.toLowerCase()).toContain(shown);
     expect(back().querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-    // The same button follows the composer, to the same list.
-    const links = screen.getAllByRole("link", { name: "Back to threads" });
-    expect(links).toHaveLength(2);
-    const [, foot] = links;
-    expect(foot?.getAttribute("href")).toBe(href);
+    // The page has one way back, in the bar, which is the last of the
+    // thread's page, after the composer; the head holds none of the bar's
+    // controls.
+    expect(screen.getAllByRole("link", { name: "Back to threads" })).toEqual([back()]);
+    expect(threadBar().parentElement?.lastElementChild).toBe(threadBar());
     const composer = screen.getByRole("region", { name: "Reply" });
-    expect(composer.contains(foot ?? null)).toBe(false);
     expect(
-      composer.compareDocumentPosition(foot as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+      composer.compareDocumentPosition(threadBar()) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    for (const name of ["Thread above", "Thread below", "Archive all"]) {
+      expect(within(threadBar()).getAllByRole("button", { name })).toHaveLength(1);
+      expect(within(threadHeader()).queryByRole("button", { name })).toBeNull();
+    }
   });
 
   it.each([
@@ -850,9 +855,48 @@ describe("the head", () => {
       open_asks: { asks: [{ number: 1, seq: 1 }], count: 1, blocking: true, overdue: false },
     });
     const archive = screen.getByRole<HTMLButtonElement>("button", { name: "Archive all" });
-    expect(archive.disabled).toBe(true);
+    // It waits in its place, focusable, described by why, which shows in the
+    // bar's caption and its status region once pressed; pressing it archives
+    // nothing.
+    expect(archive.disabled).toBe(false);
+    expect(archive.getAttribute("aria-disabled")).toBe("true");
     const hint = document.getElementById(archive.getAttribute("aria-describedby") ?? "");
     expect(hint?.textContent).not.toBe("");
+    expect(threadBar().contains(hint)).toBe(true);
+    expect(hint?.hidden).toBe(true);
+    const status = within(threadBar()).getByRole("status");
+    expect(status.textContent).toBe("");
+    archive.focus();
+    fireEvent.click(archive);
+    expect(hint?.hidden).toBe(false);
+    await waitFor(() => expect(status.textContent).toBe(hint?.textContent));
+    expect(document.activeElement).toBe(archive);
+    expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
+    // Pressed again, the status region empties and says it again, so it is
+    // heard again.
+    fireEvent.click(archive);
+    expect(status.textContent).toBe("");
+    await waitFor(() => expect(status.textContent).toBe(hint?.textContent));
+  });
+
+  it("forgets that why Archive all waits was asked once the asks close", async () => {
+    const asking = {
+      open_asks: { asks: [{ number: 1, seq: 1 }], count: 1, blocking: true, overdue: false },
+    };
+    const state = await page.openWith([message(1, { asks: [ask()] })], asking);
+    const archive = () => within(threadBar()).getByRole("button", { name: "Archive all" });
+    const why = () => document.getElementById(archive().getAttribute("aria-describedby") ?? "");
+    fireEvent.click(archive());
+    expect(why()?.hidden).toBe(false);
+    // The ask closes, then another opens: why it waits is hidden until asked
+    // again.
+    state.thread = { ...state.thread, open_asks: { ...asking.open_asks, asks: [], count: 0 } };
+    fireEvent.focus(window);
+    await waitFor(() => expect(archive().getAttribute("aria-disabled")).toBeNull());
+    state.thread = { ...state.thread, ...asking };
+    fireEvent.focus(window);
+    await waitFor(() => expect(archive().getAttribute("aria-disabled")).toBe("true"));
+    expect(why()?.hidden).toBe(true);
   });
 
   it("shows the archive box while the thread is archived for the operator", async () => {

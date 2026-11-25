@@ -8,6 +8,15 @@ import {
   sequence,
   threadNumber,
 } from "./bounds.ts";
+import {
+  branchLink,
+  branchList,
+  branchRollup,
+  pullRequestLink,
+  pullRequestList,
+  pullRequestRollup,
+  summaryLinks,
+} from "./code-links.ts";
 import { attachmentList, attachmentRead, fileTotals } from "./files.ts";
 import { name } from "./names.ts";
 import { reference, referenceList } from "./references.ts";
@@ -20,7 +29,8 @@ import { timestamp } from "./time.ts";
 // the messages no later message replaced. A message's text and its detail are
 // Markdown; the title, questions, suggested answers, an answer's own words,
 // fallback text, a withdrawal's reason and reference labels are plain text; a
-// topic is a name, as an agent's and a session's are. All are stored and
+// topic is a name, as an agent's and a session's are; pull requests and
+// branches are their repositories, numbers and names. All are stored and
 // returned exactly as written.
 
 export const impact = z
@@ -255,6 +265,8 @@ const messageParts = {
   text: messageText.optional(),
   detail: messageDetail.optional(),
   references: referenceList.optional(),
+  pull_requests: pullRequestList.optional(),
+  branches: branchList.optional(),
   attachments: attachmentList.optional(),
   asks: askList.optional(),
   topic: topic.optional(),
@@ -322,40 +334,49 @@ export const messageFields = z.object({
     ),
 });
 
-// needsAPart refuses a message that carries nothing. Only a thread's first
-// message may, since the title speaks for it. The database stores a message's
-// asks, answers and withdrawals in rows of their own, which it cannot see from
-// the message's row, so this is where the rule holds. Detail is no part of its
-// own, since it needs text beside it.
+// What counts as a part of a message, by field, with the name needsAPart
+// gives it: every field of messageFields but request_id, seen_through and
+// replaces, and detail aside, since it needs text beside it. It is keyed by
+// those fields, so a new one fails to compile until it says whether it counts.
+const partNames = {
+  text: "text",
+  detail: null,
+  references: "references",
+  pull_requests: "pull requests",
+  branches: "branches",
+  attachments: "attachments",
+  asks: "asks",
+  answers: "answers",
+  withdrawals: "withdrawals",
+  topic: "a topic",
+} as const satisfies Record<
+  Exclude<keyof typeof messageFields.shape, "request_id" | "seen_through" | "replaces">,
+  string | null
+>;
+type PartField = keyof typeof partNames;
+const parts = (Object.keys(partNames) as PartField[]).filter((field) => partNames[field] !== null);
+
+// carriesAPart says whether a message, as written or as it reads, carries any
+// part of its own.
+export function carriesAPart(value: { [field in PartField]?: unknown }): boolean {
+  return parts.some((field) => value[field] !== undefined);
+}
+
+// needsAPart refuses a message that carries nothing and replaces nothing: one
+// that replaces another and carries nothing retracts it. A thread's first
+// message is free of the rule, since its title speaks for it. The database
+// stores a message's asks, answers and withdrawals in rows of their own, which
+// it cannot see from the message's row, so this is where the rule holds.
 export function needsAPart(
-  value: {
-    text?: string | undefined;
-    references?: unknown[] | undefined;
-    attachments?: unknown[] | undefined;
-    asks?: unknown[] | undefined;
-    answers?: unknown[] | undefined;
-    withdrawals?: unknown[] | undefined;
-    topic?: string | undefined;
-    replaces?: number | undefined;
-  },
+  value: { [field in PartField]?: unknown } & { replaces?: number | undefined },
   context: z.RefinementCtx,
 ): void {
-  if (
-    value.text === undefined &&
-    value.references === undefined &&
-    value.attachments === undefined &&
-    value.asks === undefined &&
-    value.answers === undefined &&
-    value.withdrawals === undefined &&
-    value.topic === undefined &&
-    value.replaces === undefined
-  ) {
+  if (!carriesAPart(value) && value.replaces === undefined) {
+    const named = [...parts.map((field) => partNames[field]), "a message it replaces"];
     context.addIssue({
       code: "custom",
       path: [],
-      message:
-        "a message needs text, references, attachments, asks, answers, withdrawals, a topic or a " +
-        "message it replaces",
+      message: `a message needs ${named.slice(0, -1).join(", ")} or ${named.at(-1)}`,
     });
   }
 }
@@ -444,8 +465,9 @@ export const answerRead = z.object({
 export type AnswerRead = z.infer<typeof answerRead>;
 
 // A message as it reads now. live says no later message replaced it, and
-// replaced_by names the one that did. Its attachments come in the order it
-// gave them; its asks, answers and withdrawals in ask number order.
+// replaced_by names the one that did. Its pull requests, branches and
+// attachments come in the order it gave them; its asks, answers and
+// withdrawals in ask number order.
 export const message = z.object({
   seq: sequence,
   author,
@@ -456,6 +478,8 @@ export const message = z.object({
   text: z.string().optional(),
   detail: z.string().optional(),
   references: z.array(reference).optional(),
+  pull_requests: z.array(pullRequestLink).optional(),
+  branches: z.array(branchLink).optional(),
   attachments: z.array(attachmentRead).optional(),
   topic: name.optional(),
   asks: z.array(askRead).optional(),
@@ -523,7 +547,9 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // session's presence, with its state and what its bridge last reported of
 // its terminal, and whether it is stranded: it holds a live message by the
 // audience that the session has not read while the session is quiet, has no
-// active credential, is not connected or has stopped.
+// active credential, is not connected or has stopped. links counts the pull
+// requests and branches its live messages name, giving the one entry when
+// there is exactly one.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -540,6 +566,7 @@ export const threadSummary = z.object({
   open_asks: openAsks,
   status: threadStatus,
   withdrawal: withdrawal.extend({ seq: sequence }).optional(),
+  links: summaryLinks,
   credential_active: z.boolean(),
   presence: threadPresence.optional(),
   stranded: z.boolean().optional(),
@@ -568,14 +595,17 @@ export type MarksResult = z.infer<typeof marksResult>;
 
 // The thread, a page of its messages after the requested sequence (more
 // follow while the last is below the thread's last_seq), both read cursors,
-// the caller's marks, and the distinct files its live messages carry; a
-// replaced message still reads back with its own.
+// the caller's marks, the distinct files its live messages carry, and the
+// distinct pull requests and branches they name; a replaced message still
+// reads back with its own.
 export const threadGetResult = z.object({
   thread: threadSummary,
   messages: z.array(message),
   cursors,
   marks,
   files: fileTotals,
+  pull_requests: pullRequestRollup,
+  branches: branchRollup,
 });
 export type ThreadGetResult = z.infer<typeof threadGetResult>;
 

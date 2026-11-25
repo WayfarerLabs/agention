@@ -198,6 +198,60 @@ describe("the sessions view", () => {
     await waitFor(() => expect(agents?.querySelector(".empty")).not.toBeNull());
   });
 
+  // The registrations waiting for approval, as their section and its
+  // heading.
+  const waitingSection = () => screen.getByRole("region", { name: "Waiting for approval" });
+  const waitingHeading = () => within(waitingSection()).getByRole("heading", { level: 2 });
+  const headingHidden = () => waitingHeading().classList.contains("visually-hidden");
+  const lines = () => Array.from(waitingSection().querySelectorAll("p"), (line) => line.className);
+
+  it("keeps the registrations section to a line while none waits, once some agent has a session", async () => {
+    // Each step changes what both lists answer, or what the registrations
+    // answer alone, and waits for the view to show it, so no refresh the
+    // next step starts is skipped for one still running.
+    const state = serve([]);
+    let waiting: Registration[] = [];
+    let failing = false;
+    api.on("GET", "/registrations", () =>
+      failing ? failure("internal", "internal error") : { body: { registrations: waiting } },
+    );
+    const refresh = () => window.dispatchEvent(new Event("focus"));
+    // Until some agent has a session, its heading shows over the explanation
+    // of how a registration arrives.
+    renderAt("/sessions");
+    await waitFor(() => expect(waitingSection().querySelector(".empty")).not.toBeNull());
+    expect(headingHidden()).toBe(false);
+    // Registrations waiting show under it, as cards.
+    state.agents = [agent("builder", [sessionSummary()])];
+    waiting = [registration()];
+    refresh();
+    await screen.findByRole("button", { name: /^Agent builder/ });
+    await within(waitingSection()).findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    expect(headingHidden()).toBe(false);
+    // Once none waits, the section is one muted line, its heading left to
+    // screen readers. The list has loaded, as the card it took away shows,
+    // so the line is not the one shown while it loads.
+    waiting = [];
+    refresh();
+    await waitFor(() => expect(within(waitingSection()).queryAllByRole("article")).toEqual([]));
+    expect(lines()).toEqual(["muted"]);
+    expect(headingHidden()).toBe(true);
+    // A failed load shows its heading over the failure and its retry.
+    failing = true;
+    refresh();
+    await within(waitingSection()).findByRole("button", { name: "Try again" });
+    expect(headingHidden()).toBe(false);
+  });
+
+  it("keeps the registrations section to a line while they load, once some agent has a session", async () => {
+    // The registrations never answer.
+    api.on("GET", "/registrations", () => new Promise<never>(() => undefined));
+    await open([agent("builder", [sessionSummary()])]);
+    expect(within(waitingSection()).queryByRole("list")).toBeNull();
+    expect(lines()).toEqual(["muted"]);
+    expect(headingHidden()).toBe(true);
+  });
+
   it("folds an agent under its header, rolling up its sessions, and keeps that in this browser", async () => {
     await open([
       agent("builder", [

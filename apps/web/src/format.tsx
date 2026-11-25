@@ -353,8 +353,10 @@ export const statusLabel: Record<ThreadStatus, TerseLabel> = {
   none: { shown: "None", spoken: "No asks" },
 };
 
-// plural counts things in words: "1 thread", "12 threads".
-export const plural = (count: number, one: string) => `${count} ${one}${count === 1 ? "" : "s"}`;
+// plural counts things in words: "1 thread", "12 threads", or with a word
+// for several that is not the one's with an s, "2 branches".
+export const plural = (count: number, one: string, several = `${one}s`) =>
+  `${count} ${count === 1 ? one : several}`;
 
 // byteSize says how large something is in binary units, as the limits are:
 // bytes under 1 KiB, and above, to three figures: "512 B", "1.2 MiB",

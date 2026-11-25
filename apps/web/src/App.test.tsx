@@ -175,9 +175,9 @@ describe("signing in", () => {
       .on("GET", "/threads", {
         body: { threads: [threadSummary()], total: 1 },
       })
-      .on("POST", "/reads", (call) =>
+      .on("POST", "/threads/actions", (call) =>
         call.headers["x-csrf-token"] === "csrf-token-2"
-          ? { body: { threads: [] } }
+          ? { body: { acted: [], declined: [], kept: [] } }
           : failure("unauthenticated", "the CSRF token is missing or does not match the session"),
       );
     renderAt("/?unread=true");

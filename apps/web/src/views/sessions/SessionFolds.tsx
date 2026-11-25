@@ -19,6 +19,7 @@ import {
 } from "../../components.tsx";
 import { useFolds } from "../../device.ts";
 import { plural, Spoken } from "../../format.tsx";
+import { PickList } from "../../icon-controls.tsx";
 import { Swatch, usePalette } from "../../organizing.tsx";
 import { BlockedLink, FilterLink } from "../filter-links.tsx";
 import {
@@ -28,9 +29,10 @@ import {
   useDropTarget,
   useGroupOrder,
 } from "../group-order.tsx";
-import { DirectionButton, HeadSelect } from "../list-head.tsx";
+import { ReverseCheckbox } from "../list-head.tsx";
 import {
   arrange,
+  defaultSortOf,
   groupKeyOf,
   type Held,
   type Lone,
@@ -105,10 +107,11 @@ const groupLabel: Record<SessionGrouping, string> = {
   session: "Session",
 };
 
-// SessionsHead holds the view's sort, beside the button reversing it, and
-// its grouping, as the thread list's head does. Choosing another sort takes
-// it in its own direction; another grouping keeps the sort while it offers
-// it. groupRef is the grouping's select, the head's last control.
+// SessionsHead holds the view's sort, beside the checkbox reversing it, and
+// its grouping, as the thread list's head does, the sort and the grouping
+// marked while set to anything but their defaults. Choosing another sort
+// takes it in its own direction; another grouping keeps the sort while it
+// offers it. groupRef is the grouping's select, the head's last control.
 export function SessionsHead({
   view,
   choose,
@@ -116,17 +119,18 @@ export function SessionsHead({
 }: {
   view: SessionsView;
   choose: (view: SessionsView) => void;
-  groupRef?: Ref<HTMLSelectElement>;
+  groupRef: Ref<HTMLSelectElement>;
 }) {
   const { sort } = view;
   return (
     <div className="list-head">
       <div className="sort-control">
-        <HeadSelect
+        <PickList
           icon="sort"
           label="Sort"
           value={sort}
           options={sortsOf(view.group).map((each) => ({ value: each, label: sortLabel[each] }))}
+          marked={sort !== defaultSortOf(view.group)}
           choose={(value) =>
             choose({
               ...view,
@@ -136,19 +140,20 @@ export function SessionsHead({
           }
         />
         {sort !== "manual" && (
-          <DirectionButton
+          <ReverseCheckbox
             labels={directionLabel[sort]}
             reverse={view.reverse}
             onReverse={() => choose({ ...view, reverse: !view.reverse })}
           />
         )}
       </div>
-      <HeadSelect
-        ref={groupRef}
+      <PickList
+        select={groupRef}
         icon="group"
         label="Group"
         value={view.group}
         options={sessionGroupings.map((each) => ({ value: each, label: groupLabel[each] }))}
+        marked={view.group !== "session_group"}
         choose={(value) =>
           choose(regrouped(view, sessionGroupings.find((each) => each === value) ?? view.group))
         }

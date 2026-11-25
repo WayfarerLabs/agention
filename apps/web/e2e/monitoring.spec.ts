@@ -202,7 +202,7 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
 
   await page.goto(`/s/builder/main/threads/${created.body.number}`);
   const reply = page.getByRole("region", { name: "Reply" });
-  await reply.getByRole("combobox", { name: "After sending" }).selectOption("Stay here");
+  await reply.getByRole("combobox", { name: "After sending" }).selectOption("stay");
   await reply.getByRole("textbox", { name: "Message" }).fill("Postgres.");
   await reply.getByRole("button", { name: "Send" }).click();
   // The thread says why it is stranded, naming the prompt.

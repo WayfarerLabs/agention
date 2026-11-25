@@ -15,6 +15,7 @@ import {
   statusLabel,
   type TerseLabel,
 } from "../../format.tsx";
+import { Icon } from "../../icons.tsx";
 import { Swatch } from "../../organizing.tsx";
 import { groupNamed, removedGroup, sessionOf, tagKept, topicShown } from "./listing.ts";
 
@@ -39,6 +40,8 @@ export const impactShown: Record<(typeof impactFilter.options)[number], string> 
 export interface ChipShown {
   key: string;
   kind?: PathKind;
+  // The icon a chip on pull requests or branches shows before its label.
+  icon?: "branch";
   // The color of the one group or tag a chip names, when known.
   color?: Color | undefined;
   label: TerseLabel;
@@ -98,6 +101,15 @@ function tagsLabel(tags: string[], known: GroupsAndTags | undefined): TerseLabel
     : { shown: `${several}, ${removed} removed`, spoken: `${several}, ${removed} removed` };
 }
 
+// entriesLabel labels the pull requests or branches chosen: the one by its
+// short form, said after the word for its kind, or how many.
+function entriesLabel(values: string[], kind: { one: string; several: string }): TerseLabel {
+  const [one] = values;
+  return values.length === 1 && one !== undefined
+    ? { shown: one, spoken: `${kind.one} ${one}` }
+    : plain(`${values.length} ${kind.several}`);
+}
+
 // oneOf gives the color of the one value chosen, or none for several.
 function oneOf<T>(values: T[], color: (value: T) => Color | undefined): Color | undefined {
   const [one] = values;
@@ -117,7 +129,7 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
   return [
     ...chip(search !== undefined, () => ({
       key: "search",
-      label: { shown: `“${search}”`, spoken: `Search “${search}”` },
+      label: { shown: `"${search}"`, spoken: `Search "${search}"` },
       remove: { search: undefined },
     })),
     ...chip(view.status, (status) => ({
@@ -185,6 +197,18 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
       label: tagsLabel(tags, known),
       remove: { tag: undefined },
     })),
+    ...chip(view.pull_request, (pulls) => ({
+      key: "pull_request",
+      icon: "branch" as const,
+      label: entriesLabel(pulls, { one: "Pull request", several: "pull requests" }),
+      remove: { pull_request: undefined },
+    })),
+    ...chip(view.branch, (branches) => ({
+      key: "branch",
+      icon: "branch" as const,
+      label: entriesLabel(branches, { one: "Branch", several: "branches" }),
+      remove: { branch: undefined },
+    })),
     ...chip(view.include_archived, () => ({
       key: "include_archived",
       label: plain("Archived shown"),
@@ -197,10 +221,11 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
 const chipLength = 20;
 const badgeLength = 2;
 
-// chipText fits a label to a chip, beside a badge when it has one. A label
-// past the room is cut short with an ellipsis: a badged one, which names
-// where threads are, at its front, so a topic keeps its own name and any
-// name its end; any other at its end.
+// chipText fits a label to a chip, beside a badge or an icon when it has
+// one. A label past the room is cut short with an ellipsis: a badged one,
+// which names where threads are or a pull request or branch, at its front,
+// so a topic keeps its own name, a pull request its number, and any name its
+// end; any other at its end.
 function chipText(label: string, badged: boolean): string {
   const room = chipLength - (badged ? badgeLength : 0);
   const characters = Array.from(label);
@@ -242,8 +267,9 @@ export function Chips<T extends ChipShown>({
               <PathBadge kind={chip.kind} />{" "}
             </>
           )}
+          {chip.icon !== undefined && <Icon name={chip.icon} />}
           <Swatch color={chip.color} />
-          {chipText(chip.label.shown, chip.kind !== undefined)}
+          {chipText(chip.label.shown, chip.kind !== undefined || chip.icon !== undefined)}
           <span aria-hidden="true"> ×</span>
         </button>
       ))}
