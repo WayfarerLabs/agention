@@ -93,6 +93,16 @@ function failureForStatus(status: number): ProviderFailure {
   );
 }
 
+// echoesPrompt says whether a transcript is only the prompt again, ignoring
+// case, punctuation and how words are spaced, but not where words break, so
+// "now here" never matches "nowhere". Whisper sometimes answers silence with
+// its prompt, so such a transcript means nothing was heard.
+function echoesPrompt(text: string, prompt: string): boolean {
+  const words = (value: string) =>
+    value.toLowerCase().replace(/\p{P}/gu, " ").replace(/\s+/g, " ").trim();
+  return words(prompt) !== "" && words(text) === words(prompt);
+}
+
 const notTranscript = () =>
   new ProviderFailure("not_transcript", "the transcription provider's answer is not a transcript");
 
@@ -120,10 +130,11 @@ async function readCapped(body: ReadableStream<Uint8Array> | null, max: number):
 }
 
 // openAiCompatible calls POST {base URL}/audio/transcriptions with the
-// recording as multipart/form-data, and reads the JSON answer's text. The
-// base URL it is given has passed the base URL rule as this request read it,
-// from the environment at start or the saved row now. It follows no redirect
-// and never retries.
+// recording as multipart/form-data, and reads the JSON answer's text, or
+// nothing for a transcript that only echoes the prompt. The base URL it is
+// given has passed the base URL rule as this request read it, from the
+// environment at start or the saved row now. It follows no redirect and never
+// retries.
 export function openAiCompatible(options: { timeout?: number } = {}): TranscriptionProvider {
   const timeout = options.timeout ?? providerTimeout;
   return {
@@ -190,7 +201,9 @@ export function openAiCompatible(options: { timeout?: number } = {}): Transcript
       ) {
         throw notTranscript();
       }
-      return answer.text;
+      return config.prompt !== undefined && echoesPrompt(answer.text, config.prompt)
+        ? ""
+        : answer.text;
     },
   };
 }
