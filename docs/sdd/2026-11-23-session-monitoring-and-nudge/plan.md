@@ -30,11 +30,14 @@
       down when replaced and taking over on a tool call, and reporting only on change (M1, M7, M9,
       C2).
 - [ ] Configuration: the options and variables, the plugin forwarding on both hosts, and CF4's
-      cases. Done when the bridge's tests show each case in the log and the `register` answer with
-      the tools unaffected, and the generator's drift check passes.
+      cases. Done when the bridge's tests show each case in the log with the tools unaffected, and
+      the generator's drift check passes; the `register` answer's part comes with T1 in delivery 2.
 - [ ] The operator API's session reads carry connection, last check-in, condition, stopped-by and
       the profile. Done when the operator API's tests show them and no agent route returns them
       (M8).
+- [ ] The ADR for monitoring: the bridge reads its harness's terminal and reports only derived
+      conditions, as advisory observations under ADR 0001's honor system. Done when the project
+      review finds it complete.
 - [ ] Collateral for 1a: `docs/architecture.md`, `SECURITY.md`, `docs/review-checklist.md`, the
       operator guide's configuration, `CONTRIBUTING.md` (tmux among the prerequisites), CI
       installing tmux, and the development contract. Done when the project review finds none stale.
@@ -60,11 +63,11 @@
       latest nudge, "not responding to the nudge", and M6's nudge branches. Done when the store's
       and HTTP tests show a nudge due once per check-in, across a bridge restart and a takeover.
 - [ ] The bridge's nudge: the warning and message, retrying while not ready, reporting the outcome,
-      and T1's `register` answer. Done when tests against the bridge's test server and a real tmux
-      server show it end to end.
-- [ ] The usage skill's step 5 and the tools' descriptions, regenerated into both plugins; the ADR,
-      superseding ADR 0001's "No push" for agents and amending "No permissions, no harness control";
-      review checklist A1 and A6; and the rest of E1. Done when the drift check passes and the
-      project review finds none stale.
+      and T1's `register` answer, with CF4's cases in it. Done when tests against the bridge's test
+      server and a real tmux server show it end to end.
+- [ ] The usage skill's step 5 and the tools' descriptions, regenerated into both plugins; the
+      nudge's ADR, superseding ADR 0001's "No push" for agents and amending "No permissions, no
+      harness control"; review checklist A1 and A6; and the rest of E1. Done when the drift check
+      passes and the project review finds none stale.
 - [ ] Live under Agentworks on Claude Code and Codex: the nudge cases of the definition of done.
 - [ ] `locked.md` in this directory, with the final merge.
