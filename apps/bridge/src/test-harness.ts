@@ -26,7 +26,7 @@ import path from "node:path";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import { fileURLToPath } from "node:url";
 import { AgentApi } from "./agent-api.ts";
-import { type BridgeEnvironment, createBridge } from "./bridge.ts";
+import { type BridgeEnvironment, type BridgeOptions, createBridge } from "./bridge.ts";
 import { KeyFile, type SessionKey } from "./key-file.ts";
 
 // The server's certificate, made once for the test file, which this process
@@ -59,11 +59,21 @@ export interface Answer {
   content: Record<string, unknown>[];
 }
 
+// What a test bridge is started with beyond its environment: the name and
+// version its MCP client gives, and the bridge's own options for monitoring.
+export type BridgeTestOptions = { client?: { name: string; version: string } } & Pick<
+  BridgeOptions,
+  "clock" | "options" | "reporterTiming" | "pane"
+>;
+
 export class TestBridge {
   readonly client: Client;
+  // The lines the bridge logged, for a bridge in this process.
+  readonly logged: string[];
 
-  constructor(client: Client) {
+  constructor(client: Client, logged: string[] = []) {
     this.client = client;
+    this.logged = logged;
   }
 
   async call(name: string, args: Record<string, unknown> = {}): Promise<Answer> {
@@ -172,8 +182,16 @@ export class BridgeHarness {
   }
 
   // bridge starts a bridge with the environment an agent host would give it,
-  // signing with the server's clock, and connects a client to it.
-  async bridge(environment: BridgeEnvironment = {}, home = this.home): Promise<TestBridge> {
+  // signing with the server's clock, and connects a client to it, by the name
+  // and version given, as an agent host would. What the bridge logs is kept
+  // on the bridge returned.
+  async bridge(
+    environment: BridgeEnvironment = {},
+    home = this.home,
+    options: BridgeTestOptions = {},
+  ): Promise<TestBridge> {
+    const { client: clientInfo, ...bridgeOptions } = options;
+    const logged: string[] = [];
     const server = createBridge({
       environment: {
         AGENTION_URL: this.#origin,
@@ -183,12 +201,14 @@ export class BridgeHarness {
       },
       home,
       clock: () => this.server.fixture.now,
+      log: (line) => logged.push(line),
+      ...bridgeOptions,
     });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
-    const client = new Client({ name: "agention-bridge-test", version: "0.0.0" });
+    const client = new Client(clientInfo ?? { name: "agention-bridge-test", version: "0.0.0" });
     await client.connect(clientTransport);
-    const bridge = new TestBridge(client);
+    const bridge = new TestBridge(client, logged);
     this.bridges.push(bridge);
     return bridge;
   }

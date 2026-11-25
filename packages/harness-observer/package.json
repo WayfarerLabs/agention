@@ -4,7 +4,8 @@
   "description": "Reads an agent harness's terminal pane and says what condition the harness is in.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test/*": "./test/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

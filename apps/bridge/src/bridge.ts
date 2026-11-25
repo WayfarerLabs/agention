@@ -5,17 +5,28 @@ import { homedir } from "node:os";
 import path from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
+import type { HarnessClient, Pane } from "@wayfarerlabs/agention-harness-observer";
 import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
+import {
+  createMonitor,
+  harnessClient,
+  type Log,
+  type MonitoringEnvironment,
+  type MonitoringOptions,
+  monitoringSettings,
+} from "./monitoring.ts";
+import { Reporter, type ReporterTiming, reporterTiming } from "./reporter.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
 import { StatusReminder } from "./status-reminder.ts";
 import { type Connection, registerTools } from "./tools.ts";
 
 // The variables the bridge reads: the server's origin and where to open
 // connections to it, the names of the session an agent host runs, which
-// register's arguments override, and Node's switch for skipping certificate
-// checks, which the bridge refuses.
-export interface BridgeEnvironment extends SessionEnvironment {
+// register's arguments override, monitoring's tmux socket and profile, which
+// the command line's options override, and Node's switch for skipping
+// certificate checks, which the bridge refuses.
+export interface BridgeEnvironment extends SessionEnvironment, MonitoringEnvironment {
   AGENTION_URL?: string | undefined;
   AGENTION_CONNECT?: string | undefined;
   NODE_TLS_REJECT_UNAUTHORIZED?: string | undefined;
@@ -28,6 +39,14 @@ export interface BridgeOptions {
   // The clock tokens are minted and the status reminder is timed by, in Unix
   // milliseconds.
   clock?: () => number;
+  // The command line's monitoring options.
+  options?: MonitoringOptions;
+  // Where the bridge logs; by default its standard error.
+  log?: Log;
+  // How the reporter paces its requests; by default reporterTiming.
+  reporterTiming?: ReporterTiming;
+  // The pane at a tmux socket path; by default a TmuxPane.
+  pane?: (socket: string) => Pane;
 }
 
 // The skill's first rule, which the bridge gives every agent host when it
@@ -47,11 +66,25 @@ export function createBridge(options: BridgeOptions): McpServer {
     { name: "agention", version: packageJson.version },
     { capabilities: { tools: {} }, instructions },
   );
-  registerTools(server, connect(options));
+  const log = options.log ?? ((line) => process.stderr.write(`agention-mcp: ${line}\n`));
+  const connection = connect(options, log, () => harnessClient(server.server.getClientVersion()));
+  registerTools(server, connection);
+  // A bridge whose host has gone leaves nothing running in the background.
+  server.server.onclose = () => {
+    if (!("problem" in connection)) {
+      connection.reporter.close();
+    }
+  };
   return server;
 }
 
-function connect(options: BridgeOptions): Connection {
+// connect checks the bridge's settings and makes what the tools act through.
+// client gives the harness the MCP client named itself as.
+function connect(
+  options: BridgeOptions,
+  log: Log,
+  client: () => HarnessClient | undefined,
+): Connection {
   const { environment, home } = options;
   // Tokens and message text never cross TLS the bridge has not verified.
   if (environment.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
@@ -113,21 +146,40 @@ function connect(options: BridgeOptions): Connection {
   }
   const clock = options.clock ?? Date.now;
   const api = new AgentApi({ origin, connectAddress, clock });
+  const session = new Session({ api, home, environment });
+  const monitor = createMonitor({
+    settings: monitoringSettings(options.options ?? {}, environment),
+    client,
+    log,
+    pane: options.pane,
+  });
   return {
     api,
-    session: new Session({ api, home, environment }),
+    session,
     home,
     statusReminder: new StatusReminder(clock),
+    reporter: new Reporter({
+      api,
+      session,
+      monitor,
+      clock,
+      timing: options.reporterTiming ?? reporterTiming,
+    }),
   };
 }
 
 // serveStdio runs the bridge for the agent host that started this process,
-// on its standard input and output, and resolves once the host closes them.
-// It serves the protocol revisions hosts negotiate with initialize.
-export async function serveStdio(): Promise<void> {
-  const server = createBridge({ environment: process.env, home: homedir() });
+// on its standard input and output, with the command line's monitoring
+// options, and resolves once the host closes them. It serves the protocol
+// revisions hosts negotiate with initialize.
+export async function serveStdio(options: MonitoringOptions = {}): Promise<void> {
+  const server = createBridge({ environment: process.env, home: homedir(), options });
   const closed = new Promise<void>((resolve) => {
-    server.server.onclose = resolve;
+    const onclose = server.server.onclose;
+    server.server.onclose = () => {
+      onclose?.();
+      resolve();
+    };
   });
   await server.connect(new StdioServerTransport());
   await closed;
