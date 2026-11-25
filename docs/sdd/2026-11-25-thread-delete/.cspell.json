@@ -1,0 +1,15 @@
+{
+  "version": "0.2",
+  "import": ["../../../.cspell.json"],
+  "words": [
+    "antonz",
+    "CFTT",
+    "freelists",
+    "hongkiat",
+    "Hummert",
+    "nngroup",
+    "Pawlaszczyk",
+    "redactions",
+    "tombstoned"
+  ]
+}
