@@ -128,8 +128,8 @@ line's changes, and the release workflow refuses a tag whose line's versions do 
 - [ ] Reviewed (project review, complexity pass, correctness lane) and CI green.
 
 Done when the gate passes in CI against the newest release of each older agent API version (0.2.1,
-0.4.0 and 0.6.0 while the agent API is at 5, version 4 having shipped in no release) and fails when
-the bridge's refusal is broken.
+0.4.0 and 0.6.0 while the agent API is at 6, versions 4 and 5 having shipped in no release) and
+fails when the bridge's refusal is broken.
 
 ## Closeout
 
