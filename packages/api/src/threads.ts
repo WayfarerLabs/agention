@@ -522,7 +522,8 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // session still has an approved credential. Its audience also sees its
 // session's presence, with its state, and whether it is stranded: it holds a
 // live message by the audience that the session has not read while the
-// session is quiet, has no active credential or has stopped.
+// session is quiet, has no active credential, is not connected or has
+// stopped.
 export const threadSummary = z.object({
   agent: name,
   session: name,

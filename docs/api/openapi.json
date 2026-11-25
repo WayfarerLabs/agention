@@ -154,7 +154,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -698,7 +698,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1378,7 +1378,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
