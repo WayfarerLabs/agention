@@ -1,6 +1,5 @@
 import {
   type GroupsAndTags,
-  messageSearchFilter,
   type ThreadCounts,
   threadFilters,
   type ThreadGrouping,
@@ -10,7 +9,7 @@ import {
   type ThreadsView,
   threadSort,
 } from "@wayfarerlabs/agention-api";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { changeLanded, query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
 import { useFollowing, usePages } from "../data.ts";
@@ -33,21 +32,23 @@ import { ListBeside } from "./list/beside.ts";
 import { BulkActions } from "./list/BulkActions.tsx";
 import { DirectionButton, HeadSelect } from "./list-head.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
-import { FilterSheet, type SearchText } from "./list/FilterSheet.tsx";
+import { FilterSheet } from "./list/FilterSheet.tsx";
 import { GroupedRows } from "./list/Groups.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
+import { SearchBox, useSearchText } from "./list/search.tsx";
 import { useListShortcuts } from "./list/shortcuts.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
 
 // The thread list, built filters first: with no filter on it holds every
 // thread the operator has not archived, and every way of narrowing it is a
-// filter that combines with the others. The head holds the order the list is
-// in beside the button that reverses it, how the list is grouped, and a
-// Filters button, which opens a sheet holding every filter; each filter that
-// is on shows beneath as a chip that removes it. Grouped, each header's links
-// add its group, and a mark's filter, to the filters on. All of it lives in
-// the address. The head stays put while the list below it loads afresh, so its
-// controls keep focus.
+// filter that combines with the others. The head holds a search box across
+// its top, then the order the list is in beside the button that reverses it,
+// how the list is grouped, and a Filters button, which opens a sheet holding
+// every filter, the search among them, whose box there edits the same text;
+// each filter that is on shows beneath as a chip that removes it. Grouped,
+// each header's links add its group, and a mark's filter, to the filters on.
+// All of it lives in the address. The head stays put while the list below it
+// loads afresh, so its controls keep focus.
 
 const sortLabel: Record<ThreadSort, string> = {
   priority: "Priority",
@@ -106,6 +107,7 @@ export function ThreadList() {
   const sheetHeading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const searchBox = useRef<HTMLInputElement>(null);
+  const searchId = useId();
   // The sheet's counts load while it is open, and again after each change.
   const [sheetOpen, setSheetOpen] = useState(false);
   const openSheet = () => {
@@ -115,10 +117,12 @@ export function ThreadList() {
     // rise over the sheet as it opens.
     sheetHeading.current?.focus();
   };
-  // The search shortcut opens the sheet on its search box.
+  // The search shortcut puts focus in the head's search box, which shows
+  // wherever the list does, scrolling it into view, and selects what it
+  // holds, so typing starts a new search rather than narrowing the one on.
   useListShortcuts(() => {
-    openSheet();
     searchBox.current?.focus();
+    searchBox.current?.select();
   });
   const filters = query(queryOf(view, threadFilters.shape));
   const counts = useFollowing(filters, sheetOpen, () =>
@@ -138,6 +142,9 @@ export function ThreadList() {
     <PaletteProvider known={known}>
       {!threadBeside && <PageHeading visuallyHidden>Threads</PageHeading>}
       <div className="list-head">
+        <div className="list-search">
+          <SearchBox search={search} id={searchId} label="Search threads" box={searchBox} />
+        </div>
         {/* Choosing another order takes it in its own direction. */}
         <div className="sort-control">
           <HeadSelect
@@ -193,7 +200,6 @@ export function ThreadList() {
       <FilterSheet
         sheet={sheet}
         heading={sheetHeading}
-        searchBox={searchBox}
         opener={opener}
         view={view}
         search={search}
@@ -222,62 +228,6 @@ export function ThreadList() {
       />
     </PaletteProvider>
   );
-}
-
-// How long typing must pause before the search applies.
-const searchPause = 400;
-
-interface SearchBox extends SearchText {
-  reset: (search: string | undefined) => void;
-}
-
-// searchProblem says why text cannot search, in the API's words for the
-// rule it breaks: text that holds only white space searches nothing, which is
-// no problem.
-function searchProblem(text: string): string | undefined {
-  const search = text.trim();
-  const read = messageSearchFilter.safeParse(search);
-  return search === "" || read.success
-    ? undefined
-    : `The search ${read.error.issues[0]?.message ?? "cannot be used"}.`;
-}
-
-// useSearchText keeps the search box's text, applying it once typing pauses
-// to the address as it then stands, so a filter chosen meanwhile stays. Text
-// the API would refuse is not applied: the list stays as it is, and the box
-// keeps the text and says why. A search set any other way (Reset filters,
-// removing its chip, an address from elsewhere) replaces the text and cancels
-// one still pending.
-function useSearchText(view: ThreadsView, apply: (search: string | undefined) => void): SearchBox {
-  const [text, setText] = useState(view.search ?? "");
-  const applied = useRef(view.search);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const reset = (search: string | undefined) => {
-    clearTimeout(timer.current);
-    applied.current = search;
-    setText(search ?? "");
-  };
-  useEffect(() => {
-    if (view.search !== applied.current) {
-      clearTimeout(timer.current);
-      applied.current = view.search;
-      setText(view.search ?? "");
-    }
-  }, [view.search]);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const type = (value: string) => {
-    setText(value);
-    clearTimeout(timer.current);
-    if (searchProblem(value) !== undefined) {
-      return;
-    }
-    timer.current = setTimeout(() => {
-      const search = value.trim() || undefined;
-      applied.current = search;
-      apply(search);
-    }, searchPause);
-  };
-  return { text, problem: searchProblem(text), type, reset };
 }
 
 // ListBody is the list as its address names it, a page at a time, flat or
