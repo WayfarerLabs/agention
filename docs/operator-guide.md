@@ -1298,7 +1298,7 @@ option winning over its variable:
 Monitoring needs Linux, for `/proc`, and tmux 3.3 or later on the agent's machine.
 
 The socket names one session's tmux server, so set `AGENTION_TMUX_SOCKET` in that session's own
-environment, never globally, such as in a shell profile beside `AGENTION_URL`: the plugins start the
+environment, never globally (in a shell profile beside `AGENTION_URL`, say): the plugins start the
 bridge without options and pass it both variables, so every session started from that shell would
 name the same pane. The bridge never guesses the socket from the tmux it runs in. The tmux server
 must hold just the agent host's pane, as each Agentworks session's does; with more than one pane,
