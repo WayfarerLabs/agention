@@ -6,14 +6,15 @@ import {
   threadSort,
 } from "@wayfarerlabs/agention-api";
 import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { PickList } from "../../icon-controls.tsx";
 import { unfiltered } from "../../router.tsx";
-import { DirectionButton, HeadButton, HeadSelect } from "../list-head.tsx";
+import { HeadButton, ReverseCheckbox } from "../list-head.tsx";
 import { SearchBox, type SearchText } from "./search.tsx";
 
-// The thread list's head: one row of icon buttons, Search, Filters, the
-// order beside the button reversing it, and the grouping, each marked while
+// The thread list's head: one row of icon controls, Search, Filters, the
+// order beside the checkbox reversing it, and the grouping, each marked while
 // it is set to anything but its default, Filters with how many filters are
-// on. Search, whose name says the search on, opens the search field holding
+// on, and the checkbox by its own box. Search, whose name says the search on, opens the search field holding
 // it in place of the row, until it is closed, the one way to edit it; the
 // search applied shows beneath, with the other filters, as a chip that
 // removes it.
@@ -159,7 +160,7 @@ export function ListHead({
         onClick={openSheet}
       />
       <div className="sort-control">
-        <HeadSelect
+        <PickList
           icon="sort"
           label="Sort"
           value={view.sort}
@@ -170,13 +171,13 @@ export function ListHead({
             choose({ sort: threadSort.safeParse(value).data ?? view.sort, reverse: false })
           }
         />
-        <DirectionButton
+        <ReverseCheckbox
           labels={directionLabel[view.sort]}
           reverse={view.reverse}
           onReverse={() => choose({ reverse: !view.reverse })}
         />
       </div>
-      <HeadSelect
+      <PickList
         icon="group"
         label="Group"
         value={view.group ?? ""}

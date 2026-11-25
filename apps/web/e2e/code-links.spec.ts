@@ -137,7 +137,7 @@ test("an edit in the web UI keeps the references, pull requests and branches a p
   const box = composer.getByRole("textbox", { name: "Message" });
   await expect(box).toHaveValue("Watch this one.");
   await box.fill("Watch this one, please.");
-  await composer.getByRole("combobox", { name: "After sending" }).selectOption("Stay here");
+  await composer.getByRole("combobox", { name: "After sending" }).selectOption("stay");
   await composer.getByRole("button", { name: "Send" }).click();
   await expect(message(3).getByRole("link", { name: "CI run" })).toBeVisible();
   await expect(message(3).getByRole("button", { name: "1 pull request, 1 branch" })).toBeVisible();

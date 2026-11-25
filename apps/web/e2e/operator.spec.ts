@@ -334,7 +334,7 @@ test("a write the agent overtakes keeps the draft and sends after one action", a
   const after = page
     .getByRole("region", { name: "Reply" })
     .getByRole("combobox", { name: "After sending" });
-  await after.selectOption("Stay here");
+  await after.selectOption("stay");
   await page.reload();
   await expect(after).toHaveValue("stay");
   const draft = "Thanks; holding until Monday.";
@@ -618,23 +618,24 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Latest message");
   await expect(page).toHaveURL(/\?sort=latest$/);
   await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText("#2 Deep text");
-  // The button beside it reverses it, from the keyboard as from a pointer,
-  // keeping focus, and choosing another order takes that order's own
-  // direction.
-  const newest = page.getByRole("button", { name: "Newest first, reverse to oldest first" });
-  const oldest = page.getByRole("button", { name: "Oldest first, reverse to newest first" });
-  await newest.focus();
-  await page.keyboard.press("Enter");
+  // The checkbox beside it reverses it, from the keyboard as from a pointer,
+  // keeping focus, on while the order is reversed, and choosing another
+  // order takes that order's own direction.
+  const direction = page.locator(".list-head").getByRole("checkbox");
+  await expect(direction).not.toBeChecked();
+  await direction.focus();
+  await page.keyboard.press("Space");
   await expect(page).toHaveURL(/\?sort=latest&reverse=true$/);
   await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(`#1 ${title}`);
-  await expect(oldest).toBeFocused();
+  await expect(direction).toBeFocused();
+  await expect(direction).toBeChecked();
   await page.keyboard.press("Space");
   await expect(page).toHaveURL(/\?sort=latest$/);
-  await newest.click();
+  await direction.click();
   await expect(page).toHaveURL(/\?sort=latest&reverse=true$/);
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Created");
   await expect(page).toHaveURL(/\?sort=created$/);
-  await expect(newest).toBeVisible();
+  await expect(direction).not.toBeChecked();
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Latest message");
 
   // Search opens the search field in place of the head's row, which
@@ -770,7 +771,7 @@ async function fitsAcross(box: Locator, area: Locator): Promise<void> {
 // onOneRow checks that the controls a head holds stand on one row.
 async function onOneRow(head: Locator): Promise<void> {
   const tops = await head
-    .locator(".head-control")
+    .locator(".icon-control")
     .evaluateAll((controls) => controls.map((each) => each.getBoundingClientRect().top));
   expect(tops.length).toBeGreaterThan(0);
   expect(new Set(tops).size).toBe(1);
@@ -786,7 +787,7 @@ test("at a phone's width, down to the narrowest, the list's head holds its icons
     await expect(page.getByRole("button", { name: /^Filters, 2 on$/ })).toBeVisible();
     await fitsAcross(head, page.locator("main"));
     await onOneRow(head);
-    await expect(head.locator(".set-mark")).toHaveCount(4);
+    await expect(head.locator(".set-mark")).toHaveCount(3);
     // Each choice's select, unseen, takes a tap anywhere on its control, out
     // to its corners.
     for (const name of ["Sort", "Group"]) {
@@ -917,7 +918,7 @@ test("from 41rem across, and only from there, the list's head shows every contro
         root.setProperty("--font-body", family);
       }
     }, font);
-    for (const label of await head.locator(".head-label").all()) {
+    for (const label of await head.locator(".control-label").all()) {
       await expect(label).toBeVisible();
     }
     await onOneRow(head);
@@ -927,7 +928,9 @@ test("from 41rem across, and only from there, the list's head shows every contro
   // narrowest the row shows every word at.
   await resize(page, { width: first + tier - (width ?? 0) - 1, height: 844 }, true);
   expect(await head.evaluate((element) => element.clientWidth)).toBe(tier - 1);
-  await expect(page.getByRole("button", { name: /^Filters/ }).locator(".head-label")).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: /^Filters/ }).locator(".control-label"),
+  ).toBeHidden();
   if (wide !== null) {
     await resize(page, wide);
   }
@@ -1481,7 +1484,7 @@ test("the sessions view moves its groups in their manual order, and groups and s
   await page.getByRole("combobox", { name: "Sort" }).selectOption("alphabetic");
   await expect.poll(heads).toEqual(["Group Ops", "Group Work"]);
   await expect(page.getByRole("button", { name: /^Move / })).toHaveCount(0);
-  await page.getByRole("button", { name: "A to Z, reverse to z to a" }).click();
+  await page.locator(".list-head").getByRole("checkbox").click();
   await expect.poll(heads).toEqual(["Group Work", "Group Ops"]);
   await expect(page).toHaveURL(/\/sessions\?sort=alphabetic&reverse=true$/);
   // Grouped by session, the sessions stand alone, the sort held, through a
@@ -1709,21 +1712,24 @@ test("the threads above and below, and archiving, move the same way beside the l
   await above.click();
   await expect(heading).toHaveText(titles[1] ?? "");
 
-  // A reply sent with After sending at Archive archives the thread once it
-  // lands and goes where Auto-advance says, in its place; the choice fits
-  // the phone's width beside Send.
   const reply = page.getByRole("region", { name: "Reply" });
   const after = reply.getByRole("combobox", { name: "After sending" });
+  const archives = reply.getByRole("checkbox", { name: "Archive after sending" });
+
+  // A reply sent with After sending set to archive archives the thread once
+  // it lands, then goes where After sending says, in its place.
   const chosenBefore = await after.inputValue();
-  await after.selectOption("Archive");
-  const afterBox = await after.boundingBox();
-  expect((afterBox?.x ?? 0) + (afterBox?.width ?? 0)).toBeLessThanOrEqual(390);
+  await after.selectOption("above");
+  await archives.check();
   const sending = await entries();
   await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
-  await reply.getByRole("button", { name: "Send" }).click();
+  await reply.getByRole("button", { name: "Send", exact: true }).click();
   await expect(heading).toHaveText(titles[0] ?? "");
   await expect(heading).toBeFocused();
   expect(await entries()).toBe(sending);
+  // This browser keeps both choices, for the thread it opened too.
+  await expect(archives).toBeChecked();
+  await archives.uncheck();
   await after.selectOption(chosenBefore);
 
   // At the top of the list, Thread above goes back to it, which says so.
