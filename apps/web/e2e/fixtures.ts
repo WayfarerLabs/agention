@@ -268,7 +268,9 @@ export async function resize(
   }
   await session.send("Emulation.setTouchEmulationEnabled", { enabled: touch, maxTouchPoints: 1 });
   await page.setViewportSize(size);
-  // The page may see the new size a frame later under load; measure nothing
-  // before it does.
+  // The page may see the new size late under load, and its media listeners,
+  // which lay it out by width and pointer, run only at the next frame after;
+  // measure nothing before they do.
   await page.waitForFunction((width) => window.innerWidth === width, size.width);
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
 }

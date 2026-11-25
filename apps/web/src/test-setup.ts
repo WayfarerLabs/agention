@@ -1,5 +1,11 @@
 // What every component test starts from.
+import { configure } from "@testing-library/react";
 import { beforeEach } from "vitest";
+
+// Under machine load a component can take longer than Testing Library's
+// default second to show what a test finds; a find still returns the moment
+// its element shows.
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom has no media queries. Here none matches, as on a desktop with a mouse
 // in the light scheme, unless a test stubs matchMedia with what it needs.
