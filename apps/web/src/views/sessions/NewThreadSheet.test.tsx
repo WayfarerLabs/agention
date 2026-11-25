@@ -1,5 +1,5 @@
 import type { SessionSummary } from "@wayfarerlabs/agention-api";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type Call,
@@ -17,6 +17,7 @@ import {
   titled,
   uploadAnswer,
 } from "../../test-support.tsx";
+import { navigate } from "../../router.tsx";
 
 // The new-thread sheet's files and dictation, which work as the composer's
 // do (AttachList.test.tsx and Dictation.test.tsx test those at length); the
@@ -55,14 +56,14 @@ const time = "2026-10-27T12:00:00.000Z";
 const ref = (n: number) => String(n).padStart(22, "A");
 const sessionPath = "/s/builder/main";
 
-async function openSheet() {
+async function openSheet({ strict = false } = {}) {
   const session: SessionSummary = sessionSummary({
     status: { state: "working", updated_at: time },
   });
   api.on("GET", "/sessions", {
     body: { agents: [{ agent: "builder", tags: [], sessions: [session], truncated: false }] },
   });
-  renderAt("/sessions");
+  renderAt("/sessions", null, { strict });
   fireEvent.click(await screen.findByRole("button", { name: "Options for builder/main" }));
   fireEvent.click(screen.getByRole("button", { name: "New thread" }));
   return screen.getByRole("dialog", { name: "New thread" });
@@ -90,9 +91,14 @@ function choose(...files: File[]) {
   fireEvent.change(picker, { target: { files } });
 }
 
-// uploaded answers the upload uploads[index] is, as landed.
+// The path that removes the upload ref(n).
+const removal = (n: number) => `${sessionPath}/uploads/${ref(n)}/remove`;
+
+// uploaded answers the upload uploads[index] is, as landed as ref(n), which
+// the server then removes when asked.
 function uploaded(index: number, n: number) {
   const upload = uploads[index]!;
+  api.on("POST", removal(n), { body: {} });
   upload.respond(uploadAnswer(ref(n), upload.query.get("name") ?? "", 1000));
 }
 
@@ -135,16 +141,13 @@ describe("the new-thread sheet's files", () => {
 
   it("removes a file, and its upload from the server", async () => {
     await openSheet();
-    api.on("POST", `${sessionPath}/uploads/${ref(1)}/remove`, { body: {} });
     choose(file("one.png"), file("two.png"));
     await waitFor(() => expect(uploads).toHaveLength(1));
     uploaded(0, 1);
     await waitFor(() => expect(uploads).toHaveLength(2));
     fireEvent.click(control("Remove one.png"));
     expect(listed()).toEqual(["two.png"]);
-    await waitFor(() =>
-      expect(api.callsTo("POST", `${sessionPath}/uploads/${ref(1)}/remove`)).toHaveLength(1),
-    );
+    await waitFor(() => expect(api.callsTo("POST", removal(1))).toHaveLength(1));
     // Focus moves to the next file's Remove.
     expect(document.activeElement).toBe(control("Remove two.png"));
   });
@@ -196,16 +199,24 @@ describe("the new-thread sheet's files", () => {
 
   it("removes its uploads when it closes without sending", async () => {
     await openSheet();
-    api.on("POST", `${sessionPath}/uploads/${ref(1)}/remove`, { body: {} });
     choose(file("one.png"));
     await waitFor(() => expect(uploads).toHaveLength(1));
     uploaded(0, 1);
     await within(sheet()).findByText("Uploaded");
     fireEvent.click(control("Cancel"));
     expect(screen.queryByRole("dialog")).toBeNull();
-    await waitFor(() =>
-      expect(api.callsTo("POST", `${sessionPath}/uploads/${ref(1)}/remove`)).toHaveLength(1),
-    );
+    await waitFor(() => expect(api.callsTo("POST", removal(1))).toHaveLength(1));
+  });
+
+  it("removes its uploads when it goes without closing, as when a link leaves the page", async () => {
+    await openSheet();
+    choose(file("one.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    await within(sheet()).findByText("Uploaded");
+    act(() => navigate("/threads"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(api.callsTo("POST", removal(1))).toHaveLength(1));
   });
 });
 
@@ -297,7 +308,7 @@ describe("the new-thread sheet while its start is on its way", () => {
     started(failure("internal", "internal error"));
     await waitFor(() => expect(control("Cancel").disabled).toBe(false));
     expect(listed()).toEqual(["one.png"]);
-    expect(api.callsTo("POST", `${sessionPath}/uploads/${ref(1)}/remove`)).toEqual([]);
+    expect(api.callsTo("POST", removal(1))).toEqual([]);
   });
 
   it("leaves the start's uploads alone should the sheet close all the same", async () => {
@@ -319,6 +330,45 @@ describe("the new-thread sheet while its start is on its way", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     started({ body: { number: 3, seq: 1 } });
     await waitFor(() => expect(api.callsTo("POST", `${sessionPath}/threads`)).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(api.calls.filter((call) => call.url.pathname.endsWith("/remove"))).toEqual([]);
+  });
+
+  it("keeps the start's uploads when it fails while the sheet stays, in StrictMode too", async () => {
+    await openSheet({ strict: true });
+    write("The plan", "Here it is.");
+    choose(file("one.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    api.on("POST", `${sessionPath}/threads`, failure("internal", "internal error"));
+    await waitFor(() => expect(control("Send").disabled).toBe(false));
+    fireEvent.click(control("Send"));
+    await within(sheet()).findByRole("alert");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(listed()).toEqual(["one.png"]);
+    expect(api.callsTo("POST", removal(1))).toEqual([]);
+  });
+
+  it("removes the start's uploads should it fail after the page was left", async () => {
+    await openSheet();
+    write("The plan", "Here it is.");
+    choose(file("one.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    let started: (reply: Reply) => void = () => undefined;
+    api.on(
+      "POST",
+      `${sessionPath}/threads`,
+      () => new Promise<Reply>((resolve) => (started = resolve)),
+    );
+    await waitFor(() => expect(control("Send").disabled).toBe(false));
+    fireEvent.click(control("Send"));
+    await waitFor(() => expect(control("Cancel").disabled).toBe(true));
+    act(() => navigate("/threads"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(api.callsTo("POST", removal(1))).toEqual([]);
+    started(failure("internal", "internal error"));
+    await waitFor(() => expect(api.callsTo("POST", removal(1))).toHaveLength(1));
   });
 });

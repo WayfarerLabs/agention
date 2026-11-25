@@ -40,10 +40,10 @@ import { blank, draftProblems, failureAt } from "../thread/writer.ts";
 // thread's requester, so the sheet has no asks. When the session is not
 // likely to see the thread soon, the sheet says so, what it waits on and
 // why, following the session as the view refreshes. Send opens the new
-// thread; closing the sheet without sending removes its uploads. While a
+// thread; leaving the sheet without sending, by closing it or any other way
+// it goes, removes its uploads, except those of a start on its way. While a
 // start is on its way the sheet holds still: it neither closes nor takes
-// files or dictation, so nothing it sends is removed and nothing added is
-// left behind.
+// files or dictation, so nothing added is left behind.
 
 // awaited says what a session away waits on before it sees a new thread, by
 // why it is away: a quiet session may not have ended, and may yet look.
@@ -131,18 +131,6 @@ export function NewThreadSheet({
     disabled: send.pending,
     onActive: setDictating,
   });
-  // Closing without sending removes the files' uploads from the server, as
-  // discarding the composer's draft does; while a start is on its way the
-  // sheet does not close, and should it, the start's files stay with it.
-  const close = () => {
-    if (!send.pending) {
-      for (const file of files.files) {
-        files.remove(file.id);
-      }
-    }
-    onClose();
-  };
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!ready) {
@@ -159,17 +147,24 @@ export function NewThreadSheet({
       attempt.current = { content: written, requestId: newRequestId() };
     }
     const body: ThreadStartInput = { ...content, request_id: attempt.current.requestId };
-    const result = await send.run(async (csrf) => {
-      try {
-        return await request<WriteResult>("POST", sessionPath(agent, session.session, "/threads"), {
-          csrf,
-          body,
-        });
-      } catch (failure) {
-        expireRefused(files, failure, fileIds);
-        throw failure;
-      }
-    });
+    // Leaving the sheet keeps the files the start carries.
+    const result = await files.carry(
+      fileIds,
+      () =>
+        send.run(async (csrf) => {
+          try {
+            return await request<WriteResult>(
+              "POST",
+              sessionPath(agent, session.session, "/threads"),
+              { csrf, body },
+            );
+          } catch (failure) {
+            expireRefused(files, failure, fileIds);
+            throw failure;
+          }
+        }),
+      (result) => result !== undefined,
+    );
     if (result !== undefined && stillOpen()) {
       navigate(threadHref(agent, session.session, result.number));
     }
@@ -179,7 +174,7 @@ export function NewThreadSheet({
     <Sheet
       sheet={sheet}
       heading="New thread"
-      onClose={close}
+      onClose={onClose}
       held={send.pending}
       onSubmit={(event) => void submit(event)}
       foot={

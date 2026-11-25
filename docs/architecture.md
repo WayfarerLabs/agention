@@ -405,7 +405,8 @@ expired API key stops within one chunk. Completing checks that the bytes receive
 declared size, and records the hash and the time. Any failure after the upload begins, a body cut
 off, a revoked credential or a length that does not match among them, removes the file and its
 chunks in one transaction; a removal that itself fails is logged and left to the sweep. A completed
-upload no message names expires 24 hours after it completed.
+upload no message names expires 24 hours after it completed, unless its writer removes it first, as
+the web UI does for a draft left unsent ([Web UI](#web-ui)).
 
 A message's `attachments` are checked last of the write's message rules (`checkAttachments` in
 `store/attachments.ts`). Each `upload` must name a file of the writer's own, uploaded in the
@@ -1557,18 +1558,31 @@ shows each file's name, size and state, with a progress bar while it uploads, **
 failed, **Upload again** for one that expired, and **Remove**, which stops an upload under way while
 bytes remain, lets one whose every byte has gone answer and then removes it from the server, and
 removes a finished one from the server, so it stops counting against the operator's pending uploads
-at once. Only a Remove in the instant before the list shows the last byte gone or the upload's
-answer, or a removal the connection loses, leaves the upload counting until it expires. Send waits
-until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
+at once. It decides by the bytes the upload last reported and the answer as it arrives, not by what
+the list shows, so only a Remove in the instant after the last bytes leave and before the browser
+reports them, or a removal the connection loses, leaves the upload counting until it expires. Send
+waits until every file has uploaded, saying what it waits on, and sends kept files as `{keep}`, then
 uploads as `{upload, name}`; a refusal naming an upload marks that file expired. Editing a message,
 or changing its answers, loads its files as kept, which **Remove** drops from the replacement. A
 stale write keeps the files with the draft, except the kept files of a replacement its missed
 messages drop. The new-thread sheet's files upload to the session before the thread exists, since an
 upload belongs to a session and not to a thread, and go with the start; a refusal naming an upload
-marks that file expired there too, and closing the sheet without sending removes the files' uploads
-from the server. While a start is on its way the sheet holds still: Cancel waits, it refuses
-Escape's `cancel` and the keydown that would raise it, Attach and Dictate wait, and a paste attaches
-nothing, so nothing the start sends is removed and nothing added meanwhile is left behind.
+marks that file expired there too. While a start is on its way the sheet holds still: Cancel waits,
+it refuses Escape's `cancel` and the keydown that would raise it, Attach and Dictate wait, and a
+paste attaches nothing, so nothing added meanwhile is left behind.
+
+A writer that goes without sending, the thread page left or the sheet closed, by Cancel, Escape, a
+link, Back or its session leaving the list, removes its uploads from the server as it unmounts, in
+`useDraftFiles`, so they stop counting against the operator's pending uploads: it stops the upload
+under way as **Remove** does and removes each finished upload no send carries. A write or start
+carries its files from when it is sent, and for good once it lands, since the server may yet attach
+them, and **Remove** waits on a file a send on its way carries; a file carried by two sends stays
+carried until both have settled, and a send that fails after its writer went removes its files then.
+Each finished upload is recorded as its answer arrives, before the list shows it, and one stopped as
+its answer arrives is removed, so an answer landing in the same tick as the writer goes is removed
+too. Kept files are a sent message's, and a kept draft keeps no files, so leaving touches neither. A
+tab closed or reloaded unmounts nothing, so its uploads expire, as does an upload whose removal
+fails or the connection loses.
 
 A message lists its files under its text, detail and references, each with its name, type and size,
 and **Download**, an `<a download>`, while its bytes are present; a missing file is marked, with

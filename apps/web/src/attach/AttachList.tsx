@@ -7,7 +7,8 @@ import type { DraftFile, DraftFiles } from "./attach.ts";
 // A draft's files, under its boxes, above Send: each with its name, size
 // and how it stands, waiting, uploading with its progress, uploaded, failed
 // with why and Retry, expired with Upload again, refused with why, or kept
-// from the message a replacement replaces; and each with Remove. The list
+// from the message a replacement replaces; and each with Remove, which waits
+// while a send on its way carries the file. The list
 // says the limits once. A failure, an expiry and a refusal are announced as
 // they show. Attach, beside Send, adds files to it.
 
@@ -126,7 +127,7 @@ export function AttachList({
                   type="button"
                   className="secondary"
                   aria-label={`Remove ${file.name}`}
-                  disabled={disabled}
+                  disabled={disabled || draft.carried.has(file.id)}
                   onClick={() => remove(index)}
                 >
                   Remove
