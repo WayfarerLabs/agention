@@ -16,9 +16,11 @@ import { pageOf } from "./thread-reads.ts";
 // Reads of a thread's files: its list, and a file's bytes by its message and
 // name, for whoever may read the thread.
 
-// listThreadFiles reads a page of a thread's files, each once, with the
-// first message that carried it, which brought it: newest first by that
-// message, then in that message's order.
+// listThreadFiles reads a page of the files a thread's live messages carry,
+// each with the live message that carries it: newest first by that message,
+// then in that message's order. A file has at most one live carrier, since an
+// upload is attached once and only a replacement keeps a file, from the
+// message it replaces, so each file lists once.
 export function listThreadFiles(
   store: Store,
   identity: Identity,
@@ -42,10 +44,8 @@ export function listThreadFiles(
            m.actor_id, m.created_at
          FROM attachments a
          JOIN files f ON f.id = a.file_id
-         JOIN messages m ON m.thread_id = a.thread_id AND m.seq = a.seq
+         JOIN live_messages m ON m.thread_id = a.thread_id AND m.seq = a.seq
          WHERE a.thread_id = :thread
-           AND NOT EXISTS (SELECT 1 FROM attachments e
-             WHERE e.file_id = a.file_id AND e.thread_id = a.thread_id AND e.seq < a.seq)
            AND (a.seq < :seq OR (a.seq = :seq AND a.position > :position))
          ORDER BY a.seq DESC, a.position
          LIMIT :limit`,

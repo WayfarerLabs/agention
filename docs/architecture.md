@@ -417,11 +417,14 @@ digest a request id covers, and the replay runs before the check, so a retry who
 consumed its uploads answers as the first did. A message may carry files alone; a replacement that
 keeps files does not retract the message it replaces, and one that does not keep a file leaves it
 with the replaced message. A message reads back with its attachments, in order: each file's name,
-reference, size, declared type, and whether it is missing. A thread's answer carries `files`, the
-count and bytes of its distinct files, each counted once however many messages carry it, and its
-file list gives each once, with the first message that carried it, newest first, paged by an opaque
-cursor. The settings' `storage` counts every completed file, pending ones included, since that is
-the disk they take, and their bytes.
+reference, size, declared type, and whether it is missing. A thread's files are those its live
+messages carry: a replaced message still reads back with its own, but they count toward the thread
+only while a live message, such as a replacement that kept them, carries them. A thread's answer
+carries `files`, the count and bytes of those distinct files, and its file list gives each once,
+with the live message that carries it, newest first, paged by an opaque cursor; a file has at most
+one live carrier, since an upload is attached once and only a replacement keeps a file. The
+settings' `storage` counts every completed file, pending ones included, since that is the disk they
+take, and their bytes.
 
 The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those completed more
 than 24 hours ago, and those left incomplete that are not in the set of uploads in flight, each in a
@@ -709,9 +712,9 @@ share the operator's pending limits, and the web UI can name one in a message.
   reference that names nothing. An upload still arriving has not yet answered with its reference;
   ending its request stops it, and the server removes what arrived. The web UI's **Remove** calls it
   for an uploaded file; the bridge has no tool for it.
-- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists a thread's files, each
-  once with the message that brought it, its author and its time, newest first, up to 50 a page by
-  default.
+- **A thread's files.** `GET /threads/:thread/files?cursor=&limit=` lists the files a thread's live
+  messages carry, each once with the message that carries it, its author and its time, newest first,
+  up to 50 a page by default.
 - **Reading a file.** `GET` and `HEAD /threads/:thread/messages/:seq/files/:name?file=<reference>`
   read the file a message carries under a name, percent-encoded in the path and compared after NFC
   normalization (`apps/server/src/http/files.ts`). The thread must be the session's, the message the
@@ -1547,10 +1550,11 @@ more; a PDF as **Open**, a link that opens it in a new tab, since Chromium shows
 and anything else as **Download** alone. A Markdown link whose destination is `attachment:` and a
 name, percent-encoded or in angle brackets, is live when the name, decoded and NFC-normalized, is
 one of that message's own files, and opens it as its entry in the list does; any other is its text,
-and an image written with one still never loads. The thread's head, when the thread holds any file,
-holds a fold, **Files** with their count and size, folded on every visit, which reads the thread's
-file list a page at a time while it is open, each entry with who attached it, when, and a link to
-its message. Sizes are written in binary units, KiB, MiB and GiB.
+and an image written with one still never loads. The thread's head, while its live messages carry
+any file, holds a fold, **Files** with their count and size, folded on every visit, which reads the
+thread's file list a page at a time while it is open, each entry with who attached it, when its
+message was written, and a link to that message. Sizes are written in binary units, KiB, MiB and
+GiB.
 
 Dictation (`src/voice/Dictation.tsx`) shows in the composer, and in Settings' Try it, while the
 settings the page read when it opened say voice is on and the browser has a `MediaRecorder` for

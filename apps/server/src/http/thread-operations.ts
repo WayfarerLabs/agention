@@ -125,7 +125,7 @@ export const threadOperations = (messageInput: DescribedSchema<AgentMessageSendI
     name: "listThreadFiles",
     method: "GET",
     path: "/s/:agent/:session/threads/:thread/files",
-    summary: "List a thread's files, each once, with the message that brought it, in pages",
+    summary: "List the files a thread's live messages carry, each with its message, in pages",
     scope: "threads:read",
     params: threadParams,
     query: threadFilesQuery,

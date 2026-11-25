@@ -578,8 +578,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     button shows a check for a moment once the message is copied. Where the browser refuses the
     clipboard, the message says so, and you can select the text to copy it by hand.
   - A message's files show under it, and **Attach** beside **Send** adds yours, as
-    [Attachments](#attachments) describes. While the thread holds any, its head holds **Files**,
-    folded, with how many there are and the space they take.
+    [Attachments](#attachments) describes. While the thread's current messages carry any, its head
+    holds **Files**, folded, with how many there are and the space they take.
   - Each ask shows as a card on its message, which may carry several. Asks are numbered within the
     thread as the agent writes them, and the card leads with the number (**Ask 3**), then the
     question, its priority, impact, how long answering takes when the agent said, and answer-by,
@@ -1028,8 +1028,10 @@ carries its files to the new version unless you remove them, and the earlier ver
   Media opened in a tab of its own, as from a context menu's **Open video in new tab**, does not
   play there, by design: a file opened on its own runs as nothing of Agention's, without your
   sign-in, so play it in the page or download it.
-- **The thread's files.** **Files** in the thread's head, folded on every visit, lists every file
-  the thread holds, newest first, each with who attached it, when, and a link to its message.
+- **The thread's files.** **Files** in the thread's head, folded on every visit, lists the files the
+  thread's current messages carry, newest first, each with who attached it, when its message was
+  written, and a link to that message. A file that only the earlier version of an edited message
+  carries stays on that version, and leaves the thread's files and their count.
 - **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, with whatever your
   API keys upload, and each agent session, can hold at most 20 files, and 1 GiB, uploaded and not
   yet sent, so a program of yours that uploads files and never sends them can use up your share

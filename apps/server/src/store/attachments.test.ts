@@ -141,15 +141,43 @@ describe("a message's attachments", () => {
       ["fresh.txt", fresh],
     ]);
     expect(messageAt(1)?.attachments?.map((each) => each.file)).toEqual([kept, dropped]);
-    // A kept file counts once.
-    expect(fixture.thread(fixture.operator, target()).files).toEqual({
-      count: 3,
-      bytes: "kept".length + "dropped".length + "fresh".length,
-    });
     // A replacement without keep leaves the files with the message it replaced.
     fixture.write(agent.identity, target(), { text: "v3", replaces: 2 });
     expect(messageAt(3)?.attachments).toBeUndefined();
     expect(messageAt(2)?.attachments).toHaveLength(2);
+  });
+
+  it("roll up to the thread from its live messages only, a kept file once", () => {
+    const kept = upload("kept", { name: "kept.txt" });
+    const dropped = upload("dropped", { name: "dropped.txt" });
+    fixture.createThread(agent, {
+      text: "v1",
+      attachments: [{ upload: kept }, { upload: dropped }],
+    });
+    const totals = () => fixture.thread(fixture.operator, target()).files;
+    const listed = () =>
+      listThreadFiles(
+        fixture.store,
+        fixture.operator,
+        target(),
+        threadFilesQuery.parse({}),
+      ).files.map((each) => [each.seq, each.file]);
+    expect(totals()).toEqual({ count: 2, bytes: "kept".length + "dropped".length });
+    fixture.write(agent.identity, target(), {
+      text: "v2",
+      replaces: 1,
+      attachments: [{ keep: "kept.txt" }],
+    });
+    // The file only the replaced message carries drops out; the kept one
+    // stays, with the replacement that carries it, while the replaced
+    // message still shows both.
+    expect(totals()).toEqual({ count: 1, bytes: "kept".length });
+    expect(listed()).toEqual([[2, kept]]);
+    expect(messageAt(1)?.attachments?.map((each) => each.file)).toEqual([kept, dropped]);
+    fixture.write(agent.identity, target(), { text: "v3", replaces: 2 });
+    expect(totals()).toEqual({ count: 0, bytes: 0 });
+    expect(listed()).toEqual([]);
+    expect(messageAt(2)?.attachments?.map((each) => each.file)).toEqual([kept]);
   });
 
   it("keep a file only on a replacement, and only one the replaced message carries", () => {
@@ -272,14 +300,16 @@ describe("a missing file", () => {
 });
 
 describe("the thread's file list", () => {
-  it("lists each file once, with the message that brought it, newest first, in pages", () => {
+  it("lists each file its live messages carry, with that message, newest first, in pages", () => {
     const a = upload("a", { name: "a.txt" });
     const b = upload("b", { name: "b.txt" });
     fixture.createThread(agent, { attachments: [{ upload: a }, { upload: b }] });
     const c = upload("c", { name: "c.txt" });
     fixture.advance(1000);
+    const byOperator = (name: string) =>
+      upload(name, { name: `${name}.txt`, identity: fixture.operator });
     fixture.write(fixture.operator, target(), {
-      attachments: [{ upload: upload("d", { name: "d.txt", identity: fixture.operator }) }],
+      attachments: [{ upload: byOperator("d") }, { upload: byOperator("e") }],
     });
     fixture.write(agent.identity, target(), {
       replaces: 1,
@@ -290,19 +320,19 @@ describe("the thread's file list", () => {
         fixture.store,
         fixture.operator,
         target(),
-        threadFilesQuery.parse({ limit: "2", ...(cursor === undefined ? {} : { cursor }) }),
+        threadFilesQuery.parse({ limit: "3", ...(cursor === undefined ? {} : { cursor }) }),
       );
+    // a.txt went with the message replaced; b.txt lists with the replacement
+    // that kept it, and the second page starts inside message 2.
     const first = page();
-    expect(first.files.map((each) => [each.seq, each.name])).toEqual([
-      [3, "c.txt"],
-      [2, "d.txt"],
+    expect(first.files.map((each) => [each.seq, each.name, each.author.kind])).toEqual([
+      [3, "b.txt", "session"],
+      [3, "c.txt", "session"],
+      [2, "d.txt", "person"],
     ]);
-    expect(first.files[1]?.author).toEqual({ kind: "person", name: "operator" });
+    expect(first.files[2]?.author).toEqual({ kind: "person", name: "operator" });
     const second = page(first.next);
-    expect(second.files.map((each) => [each.seq, each.name, each.author.kind])).toEqual([
-      [1, "a.txt", "session"],
-      [1, "b.txt", "session"],
-    ]);
+    expect(second.files.map((each) => [each.seq, each.name])).toEqual([[2, "e.txt"]]);
     expect(second.next).toBeUndefined();
     expect(failure(() => page("bm90IGEgY3Vyc29y"))).toEqual({
       code: "invalid_input",

@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v4",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 4."
+    "version": "operator v1, agent v5",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 5."
   },
   "tags": [
     {
@@ -2623,7 +2623,7 @@
     "/api/operator/v1/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "operatorListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "operator"
         ],
@@ -6281,7 +6281,7 @@
     "/api/agent/s/{agent}/{session}/threads/{thread}/files": {
       "get": {
         "operationId": "agentListThreadFiles",
-        "summary": "List a thread's files, each once, with the message that brought it, in pages",
+        "summary": "List the files a thread's live messages carry, each with its message, in pages",
         "tags": [
           "agent"
         ],
@@ -6624,7 +6624,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "4"
+          "const": "5"
         }
       }
     },
