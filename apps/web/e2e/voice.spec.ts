@@ -33,7 +33,7 @@ async function linesOf(row: Locator): Promise<number> {
   return row.evaluate((element) => {
     const controls = [
       ...element.querySelectorAll(
-        ":scope > button, :scope > label, .dictation > button, .dictation > p",
+        ":scope > button, :scope > .options > button, .after-sending > *, .dictation > button, .dictation > p",
       ),
     ]
       .map((control) => control.getBoundingClientRect())
@@ -180,6 +180,10 @@ test("Settings at a phone's width lists the sections alone, and a section leads 
       await expect(shows).toBeVisible();
       await expect(settings()).toBeHidden();
       await expectNoOverflow();
+      // The way back is a button of the head's size, its arrow an icon's.
+      const back = await backToSettings().boundingBox();
+      expect(back?.height ?? 0).toBeGreaterThanOrEqual(44);
+      expect(back?.height ?? Infinity).toBeLessThan(80);
       await backToSettings().click();
       await expect(page).toHaveURL(/\/settings$/);
       await expect(settings()).toBeVisible();
@@ -226,12 +230,21 @@ test("dictation puts its text at the caret, and sends nothing, at a desktop's wi
     const box = reply.getByRole("textbox", { name: "Message" });
     await box.fill("Use it.");
     await box.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(3, 3));
+    // Before it records, Dictate shares one line with Send, Attach, and
+    // After sending's two controls, at the narrowest phone's width too.
+    const row = reply.locator(".actions");
+    for (const width of size === phone ? [320, phone.width] : [size.width]) {
+      await resize(page, { ...size, width });
+      await expect(reply.getByRole("button", { name: "Dictate" })).toBeVisible();
+      await expect(row.getByRole("combobox", { name: "After sending" })).toBeVisible();
+      await expect(row.getByRole("checkbox", { name: "Archive after sending" })).toBeVisible();
+      expect(await linesOf(row)).toBe(1);
+    }
     await reply.getByRole("button", { name: "Dictate" }).click();
     await expect(reply.getByText(/^Recording /)).toBeVisible();
     // Send and the recording's controls stay in the row at the foot of the
     // screen, which stays short: at most two lines, with After sending
     // below it while dictation is there.
-    const row = reply.locator(".actions");
     await expect(reply.getByRole("button", { name: "Send" })).toBeInViewport();
     await expect(reply.getByRole("button", { name: "Stop" })).toBeInViewport();
     await expect(row.getByRole("combobox", { name: "After sending" })).toHaveCount(0);

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { Icon } from "../../icons.tsx";
+import { composing } from "../../keyboard.tsx";
 
 // Picker chooses among the operator's groups or tags, as a labels picker
 // does: a popover beside the control that opened it on a wide screen, and a
@@ -147,9 +148,8 @@ export function Picker({
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     // While an input method composes text, its keys are its own: Enter
-    // commits what it composed, and picks nothing. WebKit sends the Enter
-    // that commits with isComposing false, but with the key code 229.
-    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+    // commits what it composed, and picks nothing.
+    if (composing(event)) {
       return;
     }
     const count = items.length;

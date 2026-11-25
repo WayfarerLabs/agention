@@ -1,43 +1,69 @@
+import type { Ref } from "react";
+import { IconCheckbox, SetMark } from "../icon-controls.tsx";
 import { Icon, type IconName } from "../icons.tsx";
 
-// The controls a list's head holds, as the thread list's and the sessions
-// view's do: its order, the button reversing it, and its grouping.
+// What a list's head holds beside its pick lists, as the thread list's and
+// the sessions view's do: its buttons, and the checkbox that reverses its
+// order. The head is one row of compact controls (icon-controls.tsx), which
+// show their words only where it has room for them (styles.css, .list-head).
+// A button or a pick list carries a mark while it is set to anything but its
+// default.
 
-// HeadSelect is one of the head's choices beside its icon, a native select,
-// which a phone shows as its own picker.
-export function HeadSelect({
+// HeadButton is a button of the head: its icon, the words it shows where
+// there is room, and its name, which starts with those words, as speech input
+// hears them, and is its tooltip. It carries its mark while marked, or, given
+// a count above none, a badge showing it, which its name must say.
+export function HeadButton({
   icon,
-  label,
-  value,
-  options,
-  choose,
+  shown,
+  name,
+  marked = false,
+  count = 0,
+  button,
+  popup,
+  onClick,
 }: {
   icon: IconName;
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  choose: (value: string) => void;
+  shown: string;
+  name: string;
+  marked?: boolean;
+  count?: number;
+  button?: Ref<HTMLButtonElement>;
+  // The dialog it opens, when it opens one.
+  popup?: "dialog";
+  onClick: () => void;
 }) {
   return (
-    <div className="head-select">
+    <button
+      ref={button}
+      type="button"
+      className="secondary icon-control"
+      title={name}
+      aria-label={name}
+      aria-haspopup={popup}
+      onClick={onClick}
+    >
       <Icon name={icon} />
-      <select aria-label={label} value={value} onChange={(event) => choose(event.target.value)}>
-        {options.map((each) => (
-          <option key={each.value} value={each.value}>
-            {each.label}
-          </option>
-        ))}
-      </select>
-    </div>
+      <span className="control-label">{shown}</span>
+      {count > 0 ? (
+        <span className="badge" aria-hidden="true">
+          {count}
+        </span>
+      ) : (
+        marked && <SetMark />
+      )}
+    </button>
   );
 }
 
-// DirectionButton names the direction the list's order runs in, in words
-// beside an arrow, and reverses it when pressed. It is a plain button, not a
-// toggle: what it shows is the order the list is in, so its name starts with
-// those words, as speech input hears them, and goes on to say what pressing
-// it does, as in "Newest first, reverse to oldest first".
-export function DirectionButton({
+// ReverseCheckbox is the checkbox that reverses the list's order, on while
+// the order runs against its own direction: an arrow pointing up, beside
+// what turning it on gives, the order's reversed direction in words, where
+// there is room, as in "Oldest first". Those words are its name, on or off,
+// as a checkbox's say what it turns on; whether it is on is the checkbox's
+// own state, and the box in its corner shows it, so it carries no mark
+// besides.
+export function ReverseCheckbox({
   labels,
   reverse,
   onReverse,
@@ -47,17 +73,14 @@ export function DirectionButton({
   reverse: boolean;
   onReverse: () => void;
 }) {
-  const [own, reversed] = labels;
-  const [current, other] = reverse ? [reversed, own] : [own, reversed];
+  const reversed = labels[1];
   return (
-    <button
-      type="button"
-      className="secondary direction-button"
-      aria-label={`${current}, reverse to ${other.toLowerCase()}`}
-      onClick={onReverse}
-    >
-      <Icon name={reverse ? "arrow-up" : "arrow-down"} />
-      {current}
-    </button>
+    <IconCheckbox
+      icon="arrow-up"
+      shown={reversed}
+      name={reversed}
+      checked={reverse}
+      onChange={onReverse}
+    />
   );
 }

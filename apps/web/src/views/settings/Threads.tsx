@@ -7,9 +7,9 @@ const autoAdvanceLabels: Record<AutoAdvance, string> = {
   list: "Back to the list",
 };
 
-// Settings' threads section: where archiving a thread takes the operator,
-// which Archive all and a send set to archive follow. This browser keeps the
-// choice.
+// Settings' threads section: where Archive all takes the operator. A send
+// goes where the composer's After sending says, whether or not it archives
+// the thread. This browser keeps the choice.
 export function ThreadsSection() {
   const [autoAdvance, setAutoAdvance] = useAutoAdvance();
   const id = useId();
@@ -34,10 +34,10 @@ export function ThreadsSection() {
         ))}
       </select>
       <p className="hint" id={`${id}-auto-advance-hint`}>
-        Where you go once you archive a thread, with Archive all or by sending with After sending
-        set to Archive: the thread that was just above it or just below it in the list you return
-        to, or back to that list. At the end of the list that way, you go back to the list. This
-        browser keeps the choice.
+        Where you go once you archive a thread with Archive all: the thread that was just above it
+        or just below it in the list you return to, or back to that list. At the end of the list
+        that way, you go back to the list. A message you send goes where After sending says, beside
+        Send, whether or not it archives the thread. This browser keeps the choice.
       </p>
     </>
   );

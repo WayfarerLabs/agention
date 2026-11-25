@@ -6,14 +6,15 @@ import {
   type WaitResult,
   type WriteResult,
 } from "@wayfarerlabs/agention-api";
-import type {
-  AttentionCounts,
-  GroupRef,
-  GroupsAndTags,
-  SessionState,
-  SessionsPage,
-  ThreadCounts,
-  ThreadList,
+import {
+  type AttentionCounts,
+  type GroupRef,
+  type GroupsAndTags,
+  maxActionThreads,
+  type SessionState,
+  type SessionsPage,
+  type ThreadCounts,
+  type ThreadList,
 } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openBrowserSession } from "../auth/browser-sessions.ts";
@@ -180,6 +181,112 @@ describe("marking a thread unread", () => {
   });
 });
 
+describe("acting on many threads", () => {
+  const named = { agent: "builder", session: "main", thread: 1 };
+
+  it("declines the asks open to the operator, marks read and archives, and reports what it kept", async () => {
+    await harness.agent(
+      agent,
+      "POST",
+      "/s/builder/main/threads",
+      newThread("r-2", { asks: [{ question: "Ship it?" }] }),
+    );
+    await harness.agent(
+      agent,
+      "POST",
+      "/s/builder/main/threads",
+      newThread("r-3", { asks: [{ question: "Merge it?" }] }),
+    );
+    const thread = (number: number, through: number) => ({ ...named, thread: number, through });
+    // Thread 3 moved on since the list showed it.
+    await harness.agent(agent, "POST", "/s/builder/main/threads/3/messages", {
+      request_id: "r-4",
+      seen_through: 1,
+      text: "Or not?",
+    });
+    const archived = await harness.web("POST", "/threads/actions", {
+      action: "read_and_archive",
+      threads: [thread(1, 1), thread(2, 1)],
+    });
+    expect(archived.body).toEqual({
+      acted: [named],
+      declined: [],
+      kept: [{ ...named, thread: 2, open_asks: [1] }],
+    });
+    const declined = await harness.web("POST", "/threads/actions", {
+      action: "decline_read_and_archive",
+      threads: [thread(2, 1), thread(3, 1)],
+    });
+    expect(declined.body).toEqual({
+      acted: [{ ...named, thread: 2 }],
+      declined: [{ ...named, thread: 2, asks: [1] }],
+      kept: [{ ...named, thread: 3, open_asks: [1] }],
+    });
+    // The agent reads the operator's decline.
+    const read = await harness.agent(agent, "GET", "/s/builder/main/threads/2");
+    expect((read.body as ThreadGetResult).messages.at(-1)).toMatchObject({
+      seq: 2,
+      author: { kind: "person" },
+      answers: [{ ask: 1, declined: true }],
+    });
+    expect((await harness.web("GET", "/threads")).body).toMatchObject({
+      threads: [{ number: 3 }],
+      total: 1,
+    });
+    // Each thread is named once, through a message.
+    for (const [threads, field] of [
+      [[thread(1, 1), thread(1, 1)], "threads"],
+      [[thread(1, 0)], "threads.0.through"],
+    ] as const) {
+      const refused = await harness.web("POST", "/threads/actions", { action: "read", threads });
+      expect(codeOf(refused)).toBe("invalid_input");
+      expect((refused.body as ErrorBody).error.field).toBe(field);
+    }
+  });
+
+  it("acts on the threads the list's filters keep, up to a bound, and needs the CSRF token", async () => {
+    const other = harness.fixture.registerAgent("reviewer", "main");
+    harness.fixture.createThread(other);
+    // The list with no filter on, read now: its as_of, and its total.
+    const read = async () => (await harness.web("GET", "/threads")).body as ThreadList;
+    const matching = async (filters: unknown, options = {}, expected?: number) => {
+      const { as_of, total } = await read();
+      return harness.web(
+        "POST",
+        "/threads/actions/matching",
+        { action: "read", filters, as_of, expected: expected ?? total },
+        options,
+      );
+    };
+    // Chosen from a list holding other than the threads it would act on, it
+    // is refused as stale.
+    const stale = await matching({ agent: ["reviewer"] }, {}, 2);
+    expect(codeOf(stale)).toBe("stale");
+    expect((stale.body as ErrorBody).error.field).toBe("expected");
+    expect((await matching({ agent: ["reviewer"], unread: true }, {}, 1)).body).toEqual({
+      acted: [{ ...named, agent: "reviewer" }],
+      declined: [],
+      kept: [],
+    });
+    expect((await harness.web("GET", "/threads?unread=true")).body).toMatchObject({
+      threads: [{ agent: "builder", number: 1 }],
+    });
+    expect(codeOf(await matching({}, { csrf: null }))).toBe("unauthenticated");
+    const refused = await matching({ priority: "low" });
+    expect(codeOf(refused)).toBe("invalid_input");
+    expect((refused.body as ErrorBody).error.field).toBe("filters.priority");
+    for (let count = 0; count < maxActionThreads; count++) {
+      harness.fixture.createThread(other);
+    }
+    const tooMany = await matching({});
+    expect(codeOf(tooMany)).toBe("invalid_input");
+    expect((tooMany.body as ErrorBody).error.field).toBe("filters");
+    expect((await harness.web("GET", "/threads?unread=true")).body).toMatchObject({
+      total: maxActionThreads + 1,
+    });
+  });
+});
+
 describe("the operator's views", () => {
   const named = { agent: "builder", session: "main", thread: 1 };
   const shown = { ...named, through: 1 };
@@ -189,7 +296,11 @@ describe("the operator's views", () => {
       "GET",
       "/threads?unread=true&agent=builder&session=builder/main&sort=latest&reverse=true",
     );
-    expect(list.body).toEqual({ threads: [expect.objectContaining({ number: 1 })], total: 1 });
+    expect(list.body).toEqual({
+      threads: [expect.objectContaining({ number: 1 })],
+      total: 1,
+      as_of: expect.any(String),
+    });
     // Agents and sessions repeat, one parameter for each.
     const several = await harness.web(
       "GET",
@@ -201,7 +312,7 @@ describe("the operator's views", () => {
       "GET",
       "/threads?topic=builder/main/auth&topic=reviewer/main/auth",
     );
-    expect(topics.body).toEqual({ threads: [], total: 0 });
+    expect(topics.body).toMatchObject({ threads: [], total: 0 });
     // Status and read by agent filter by the thread's roll-up and its
     // session's reading and presence.
     const none = await harness.web("GET", "/threads?status=none");
