@@ -1,5 +1,4 @@
 import {
-  type ClipboardEvent,
   type Dispatch,
   type RefObject,
   type SetStateAction,
@@ -9,23 +8,22 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApiFailure, describeFailure } from "../../api.ts";
+import { describeFailure } from "../../api.ts";
+import {
+  attachmentsOf,
+  attachPasted,
+  type DraftFiles,
+  expireRefused,
+  sendWait,
+} from "../../attach/attach.ts";
+import { AttachButton } from "../../attach/AttachButton.tsx";
+import { AttachList } from "../../attach/AttachList.tsx";
 import { ConfirmButton, Status } from "../../components.tsx";
 import { type KeptDraft, useDeviceChoice, useDeviceOption } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { useFieldShortcuts } from "../../keyboard.tsx";
-import { useDictation, useVoiceOn } from "../../voice/Dictation.tsx";
-import {
-  attachmentsOf,
-  type DraftFiles,
-  filesHold,
-  holdWords,
-  pastedImages,
-  pastedName,
-} from "./files/attach.ts";
-import { AttachButton } from "./files/AttachButton.tsx";
-import { AttachList } from "./files/AttachList.tsx";
+import { useDictationInto } from "../../voice/Dictation.tsx";
 import { useKeptDraft } from "./kept-draft.ts";
 import { type MessageContext, MessageView } from "./Messages.tsx";
 import {
@@ -48,7 +46,8 @@ import {
 // detail, folded under it until opened, the files it carries, and one Send
 // button, with Attach beside it, and dictation while voice is on. Choosing
 // files or pasting images into either box attaches them, and Send waits for
-// their uploads. What the message
+// their uploads, and for a recording, here or on an ask's card, until its
+// text is in or it is discarded. What the message
 // does besides its text comes from the thread's messages: answers written on
 // asks' cards, a change of the answers a message of the operator's carries,
 // or an edit of one of their messages. A line above the box names each answer
@@ -147,14 +146,6 @@ function sentStatus(staged: Staged | undefined): string {
   return "Message sent.";
 }
 
-// The place of the file a refusal of a write names as not uploaded, among
-// the files the write sent.
-function refusedUpload(failure: unknown): number | undefined {
-  const match =
-    failure instanceof ApiFailure ? /^attachments\.(\d+)\.upload$/.exec(failure.field ?? "") : null;
-  return match === null ? undefined : Number(match[1]);
-}
-
 // The root's property holding how tall the Send row is, which the page's
 // scroll padding keeps clear.
 const sendRowHeight = "--send-row-height";
@@ -206,6 +197,9 @@ export function Composer({
   files,
   restored,
   box,
+  recordingAnswer,
+  voiceOn,
+  draftsEnded,
 }: {
   // Writes to the thread; the page holds it, so a refusal that names an
   // answer's own words shows at their field on the ask's card.
@@ -259,6 +253,15 @@ export function Composer({
   restored: KeptDraft | undefined;
   // The message box, which the page's reply shortcut puts focus in.
   box: RefObject<HTMLTextAreaElement | null>;
+  // Whether an ask's card is recording its answer's own words, which holds
+  // the draft open as the composer's own recording does.
+  recordingAnswer: boolean;
+  // Whether to offer dictation (useVoiceOn), which the page reads once for
+  // the composer and the asks' cards.
+  voiceOn: boolean;
+  // How many drafts have ended, sent or discarded, which the composer counts
+  // and dictation, here and on the asks' cards, checks a transcript against.
+  draftsEnded: RefObject<number>;
 }) {
   // The message the draft was started from: the last one on screen when the
   // operator started typing, staging or recording, so a message that lands
@@ -273,11 +276,13 @@ export function Composer({
   );
   const empty = blank(text) && blank(detail) && files.files.length === 0;
   const [dictating, setDictating] = useState(false);
+  // A recording here or on an ask's card.
+  const recording = dictating || recordingAnswer;
   useEffect(() => {
     setBasis((current) =>
-      staged === undefined && empty && !dictating ? undefined : (current ?? shown),
+      staged === undefined && empty && !recording ? undefined : (current ?? shown),
     );
-  }, [staged, empty, dictating, shown]);
+  }, [staged, empty, recording, shown]);
   // Whether the draft the page opened with left something behind, which the
   // composer says, and the draft keeps saying, until the composer is emptied,
   // which ends the draft.
@@ -302,19 +307,14 @@ export function Composer({
       text,
       detail,
       basis: basis ?? shown,
-      leftBehind: leftBehind || staged !== undefined || files.files.length > 0 || dictating,
+      leftBehind: leftBehind || staged !== undefined || files.files.length > 0 || recording,
     },
     !(blank(text) && blank(detail)) && !asLoaded,
   );
-  const voiceOn = useVoiceOn();
-  // How many messages the composer has sent, so a transcript that arrives
-  // after its draft was sent is dropped rather than starting a new one.
-  const sends = useRef(0);
-  const sendsAtRecording = useRef(0);
-  // The box that last had focus, where a transcript goes.
-  const lastBox = useRef<"text" | "detail">("text");
-  // Where to put the caret once a transcript is in, and in which box.
-  const caret = useRef<{ box: "text" | "detail"; at: number }>(undefined);
+  // How many drafts had ended as a recording started, so a transcript that
+  // arrives after its draft was discarded is dropped rather than starting a
+  // new one.
+  const endedAtRecording = useRef(0);
   const [changed, setChanged] = useState<string>();
   // What it says beside Send: what was sent, here or, on arriving from the
   // thread a send left, there. The page takes what that thread left before
@@ -328,15 +328,20 @@ export function Composer({
   const id = useId();
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
   const draft = { text, detail, attachments };
-  const hold = filesHold(files.files);
-  const ready = sendable(draft, staged) && hold === undefined;
+  // What keeps Send waiting: the files, or a recording here or on an ask's
+  // card, whose answer this Send sends.
+  const waiting = sendWait(files.files, recording);
+  const ready = sendable(draft, staged) && waiting === undefined;
   const canSend = !writer.pending && !loading && !moving && ready;
   const attach = useRef<HTMLButtonElement>(null);
   // What the composer holds as it stands, for a write whose answer lands
-  // after the operator changed it. It is set as the page renders, not in an
-  // effect, so an answer landing between a render and its effects reads what
-  // that render shows.
-  const holds = { text, detail, staged, files: files.files, dictating };
+  // after the operator changed it. No recording starts while a write is on
+  // its way. It is set as the page renders, not in an effect, so an answer
+  // landing between a render and its effects would read what that render
+  // shows. That ordering is defensive: while a write is on its way, what this
+  // holds changes only by discrete events, whose effects run before the
+  // answer can land, now that dictation waits for writes.
+  const holds = { text, detail, staged, files: files.files };
   const latest = useRef(holds);
   latest.current = holds;
   const detailBox = useRef<HTMLTextAreaElement>(null);
@@ -378,12 +383,7 @@ export function Composer({
       return;
     }
     if ("failed" in outcome) {
-      // An upload the server no longer holds has expired, to upload again.
-      const place = refusedUpload(outcome.failed);
-      const id = place === undefined ? undefined : sentFiles[place];
-      if (id !== undefined) {
-        files.expire(id);
-      }
+      expireRefused(files, outcome.failed, sentFiles);
       return;
     }
     if ("missed" in outcome) {
@@ -398,7 +398,7 @@ export function Composer({
       return;
     }
     wrote(outcome.written);
-    sends.current += 1;
+    draftsEnded.current += 1;
     // Clear only what was sent: text typed meanwhile is a new draft, and so
     // are files added meanwhile.
     const unsent = (current: string, sent: string) => (current === sent ? "" : current);
@@ -414,16 +414,14 @@ export function Composer({
     // without a word: an answer picked again since to an ask it answered goes.
     const { left } = restage([content]);
     // What is left is a draft of its own, which leaves behind only what the
-    // composer still holds: what is still staged, files added meanwhile or a
-    // recording, not what a draft it was restored from left behind.
+    // composer still holds: what is still staged or files added meanwhile,
+    // not what a draft it was restored from left behind.
     setLeftBehind(false);
     keepNow(
       unsent(latest.current.text, sentText),
       unsent(latest.current.detail, sentDetail),
       outcome.written,
-      left !== undefined ||
-        latest.current.files.some((file) => !sentFiles.includes(file.id)) ||
-        latest.current.dictating,
+      left !== undefined || latest.current.files.some((file) => !sentFiles.includes(file.id)),
     );
     setBasis((current) => (current === undefined ? undefined : Math.max(current, outcome.written)));
     const sent = sentStatus(sentStaged);
@@ -483,6 +481,7 @@ export function Composer({
   // discard empties the composer, which forgets the draft this browser kept:
   // what is staged, with what it loaded, the text, the details and the files.
   const discard = () => {
+    draftsEnded.current += 1;
     unstage();
     setText("");
     setDetail("");
@@ -494,62 +493,22 @@ export function Composer({
     removed();
   };
 
-  // A paste holding images attaches them, named by when they were pasted,
-  // and inserts nothing; any other paste is the browser's own.
-  const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const images = pastedImages(event.clipboardData);
-    if (images.length === 0) {
-      return;
-    }
-    event.preventDefault();
-    const at = new Date();
-    files.add(images.map((file) => ({ file, name: pastedName(file.type, at) })));
-  };
+  // A paste of images into either box attaches them.
+  const paste = attachPasted(files);
 
-  // insert puts a transcript at the caret of the box that last had focus,
-  // with a space on each side where it meets other text, and moves focus
-  // there, to after it, unless the operator has put focus somewhere else
-  // meanwhile.
-  const insert = (words: string, focusFree: boolean) => {
-    if (sends.current !== sendsAtRecording.current) {
-      return;
-    }
-    const which = lastBox.current === "detail" && detailBox.current !== null ? "detail" : "text";
-    const element = which === "detail" ? detailBox.current : box.current;
-    if (element === null) {
-      return;
-    }
-    const { value } = element;
-    const start = element.selectionStart ?? value.length;
-    const before = value.slice(0, start);
-    const after = value.slice(element.selectionEnd ?? start);
-    const lead = before !== "" && !/\s$/.test(before) ? " " : "";
-    const trail = after !== "" && !/^\s/.test(after) ? " " : "";
-    const placed = `${before}${lead}${words}`;
-    (which === "detail" ? setDetail : setText)(`${placed}${trail}${after}`);
-    if (focusFree || document.activeElement === element) {
-      caret.current = { box: which, at: placed.length };
-    }
-  };
-  // The caret moves in the same commit as the text it follows, before the
-  // browser paints or handles another key, so a key typed as a transcript
-  // arrives lands after it, never at the end of the box.
-  useLayoutEffect(() => {
-    const placed = caret.current;
-    if (placed === undefined) {
-      return;
-    }
-    caret.current = undefined;
-    const element = placed.box === "detail" ? detailBox.current : box.current;
-    element?.focus();
-    element?.setSelectionRange(placed.at, placed.at);
-  });
-  const dictation = useDictation({
-    disabled: loading,
-    onText: insert,
+  // Dictation goes into the box that last had focus, unless the draft it
+  // was recorded for was discarded meanwhile.
+  const { dictation, focused } = useDictationInto({
+    boxes: { text: box, detail: detailBox },
+    first: "text",
+    set: (which, value) => (which === "detail" ? setDetail : setText)(value),
+    accepts: () => draftsEnded.current === endedAtRecording.current,
+    // A recording waits while a message is on its way, since the draft it
+    // would be for may be the one sent.
+    disabled: loading || writer.pending,
     onActive: (active) => {
       if (active) {
-        sendsAtRecording.current = sends.current;
+        endedAtRecording.current = draftsEnded.current;
       }
       setDictating(active);
     },
@@ -653,7 +612,7 @@ export function Composer({
           value={text}
           aria-invalid={textError === undefined ? undefined : true}
           aria-describedby={`${id}-hint${textError === undefined ? "" : ` ${id}-error`}`}
-          onFocus={() => (lastBox.current = "text")}
+          onFocus={() => focused("text")}
           onChange={(event) => setText(event.target.value)}
           onPaste={paste}
         />
@@ -676,7 +635,7 @@ export function Composer({
               value={detail}
               aria-invalid={detailError === undefined ? undefined : true}
               aria-describedby={`${id}-detail-hint${detailError === undefined ? "" : ` ${id}-detail-error`}`}
-              onFocus={() => (lastBox.current = "detail")}
+              onFocus={() => focused("detail")}
               onChange={(event) => setDetail(event.target.value)}
               onPaste={paste}
             />
@@ -704,7 +663,7 @@ export function Composer({
         <AttachList draft={files} attach={attach} disabled={loading} />
         {/* A recording has its own Discard, so this one waits until the
             recording is done with. */}
-        {(!empty || staged !== undefined) && !dictating && (
+        {(!empty || staged !== undefined) && !dictation.busy && (
           <ConfirmButton
             label="Discard draft"
             confirmLabel="Discard"
@@ -726,23 +685,23 @@ export function Composer({
           <button
             type="button"
             disabled={!canSend}
-            aria-describedby={hold === undefined ? undefined : `${id}-hold`}
+            aria-describedby={waiting === undefined ? undefined : `${id}-hold`}
             onClick={send}
           >
             Send
           </button>
           <AttachButton draft={files} attach={attach} disabled={loading} />
           {voiceOn && dictation.controls}
-          {!dictating && afterOption}
-          {hold !== undefined && (
+          {!dictation.busy && afterOption}
+          {waiting !== undefined && (
             <p id={`${id}-hold`} className="hint hold">
-              {holdWords(hold)}
+              {waiting}
             </p>
           )}
           {said !== "" && <Status>{said}</Status>}
           {voiceOn && dictation.said}
         </div>
-        {dictating && afterOption}
+        {dictation.busy && afterOption}
       </form>
     </section>
   );
@@ -751,7 +710,7 @@ export function Composer({
 // AfterSendingOption is After sending, a select of where Send takes the
 // operator, compact enough for the Send row at a phone's width. It sits in
 // that row, which stays at the foot of the screen, and below it while
-// dictating; no style can move a control out of that row, so moving it mounts
+// dictation shows its controls; no style can move a control out of that row, so moving it mounts
 // it afresh. The one leaving records, in its layout cleanup, whether it had
 // focus, before React removes it from the page; the one arriving takes focus
 // back in the same commit's layout effects, before dictation's own focus

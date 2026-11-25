@@ -3,6 +3,7 @@ import {
   type Dispatch,
   Fragment,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
   useEffect,
   useLayoutEffect,
@@ -26,6 +27,7 @@ import {
 } from "../../format.tsx";
 import { ExternalLink, type FileLinks, liveUrl, Markdown } from "../../markdown/Markdown.tsx";
 import { ThreadLink } from "../../router.tsx";
+import { useDictationInto } from "../../voice/Dictation.tsx";
 import {
   speak,
   speechSupported,
@@ -67,6 +69,17 @@ export interface MessageActions {
   loading: boolean;
   // Why the server refused the own words of the answer to an ask last sent.
   wordsFailure(ask: number): string | undefined;
+  // Whether to offer dictation, into an ask's own words as in the composer.
+  voiceOn: boolean;
+  // Whether the composer's message is on its way, which dictation waits for,
+  // since the draft it would be for may be the one sent.
+  writing: boolean;
+  // How many drafts the composer has ended, sent or discarded, so a
+  // transcript for a draft that ended while it was recorded goes nowhere.
+  draftsEnded(): number;
+  // Told when an ask's card starts recording its own words, and when it has
+  // none left, which holds the composer's draft open as its own does.
+  recording(ask: number, active: boolean): void;
   // changeAnswers turns every card a message of the operator's answered back
   // into choices, as a replacement of that message.
   changeAnswers(message: Message): void;
@@ -454,26 +467,20 @@ function AskCard({
   );
 
   const words = (labelledBy: string) => (
-    <>
-      <textarea
-        ref={targets.words}
-        id={`${id}-words`}
-        rows={2}
-        maxLength={4_000}
-        value={draft.words}
-        disabled={held}
-        aria-labelledby={labelledBy}
-        aria-invalid={wordsError === undefined ? undefined : true}
-        aria-describedby={wordsError === undefined ? undefined : `${id}-words-error`}
-        onChange={(event) => write({ words: event.target.value })}
-        onBlur={() => setWordsLeft(staged !== undefined && wordsMissing(staged))}
-      />
-      {wordsError !== undefined && (
-        <p id={`${id}-words-error`} className="field-error">
-          {wordsError}
-        </p>
-      )}
-    </>
+    <OwnWords
+      box={targets.words}
+      id={`${id}-words`}
+      labelledBy={labelledBy}
+      value={draft.words}
+      disabled={held}
+      error={wordsError}
+      onChange={(words) => write({ words })}
+      onBlur={() => setWordsLeft(staged !== undefined && wordsMissing(staged))}
+      voiceOn={actions?.voiceOn === true}
+      writing={actions?.writing === true}
+      draftsEnded={() => actions?.draftsEnded() ?? 0}
+      onRecording={(active) => actions?.recording(ask.number, active)}
+    />
   );
 
   // The ask's number leads the card, before its question.
@@ -614,6 +621,93 @@ function AskCard({
         </>
       )}
     </section>
+  );
+}
+
+// OwnWords is an ask card's field for the answer in the operator's own
+// words, with why they cannot be sent when they cannot, and dictation while
+// voice is on, which puts its text at the field's caret unless the
+// composer's draft was discarded since the recording started, and waits
+// while the composer's message is on its way. It
+// tells the card as a recording starts and once none is left, its going
+// away included.
+function OwnWords({
+  box,
+  id,
+  labelledBy,
+  value,
+  disabled,
+  error,
+  onChange,
+  onBlur,
+  voiceOn,
+  writing,
+  draftsEnded,
+  onRecording,
+}: {
+  box: RefObject<HTMLTextAreaElement | null>;
+  id: string;
+  labelledBy: string;
+  value: string;
+  disabled: boolean;
+  error: string | undefined;
+  onChange: (words: string) => void;
+  onBlur: () => void;
+  voiceOn: boolean;
+  writing: boolean;
+  draftsEnded: () => number;
+  onRecording: (active: boolean) => void;
+}) {
+  const tools = useRef<HTMLDivElement>(null);
+  // How many drafts had ended as a recording started.
+  const endedAtRecording = useRef(0);
+  const { dictation } = useDictationInto({
+    boxes: { words: box },
+    first: "words",
+    set: (_, words) => onChange(words),
+    accepts: () => draftsEnded() === endedAtRecording.current,
+    disabled: disabled || writing,
+    onActive: (active) => {
+      if (active) {
+        endedAtRecording.current = draftsEnded();
+      }
+      onRecording(active);
+    },
+  });
+  return (
+    <>
+      <textarea
+        ref={box}
+        id={id}
+        rows={2}
+        maxLength={4_000}
+        value={value}
+        disabled={disabled}
+        aria-labelledby={labelledBy}
+        aria-invalid={error === undefined ? undefined : true}
+        aria-describedby={error === undefined ? undefined : `${id}-error`}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => {
+          // Moving to Dictate is not leaving the field.
+          const to = event.relatedTarget;
+          if (!(to instanceof Node && tools.current?.contains(to) === true)) {
+            onBlur();
+          }
+        }}
+      />
+      {error !== undefined && (
+        <p id={`${id}-error`} className="field-error">
+          {error}
+        </p>
+      )}
+      {voiceOn && (
+        <div ref={tools} className="own-words-dictation">
+          {dictation.problem}
+          {dictation.controls}
+          {dictation.said}
+        </div>
+      )}
+    </>
   );
 }
 

@@ -605,7 +605,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     last choice, **Other**, is for your own words, instead of a pick or, where several are allowed,
     beside your picks: choosing it opens a field for them and moves you there, and clearing it keeps
     the words for when you choose it again, and sends none. An ask without suggested answers has
-    only that field. **Decline to answer**, below the choices, sets them aside and declines the ask
+    only that field. While [voice](#voice) is on, **Dictate** under the field puts what you say in
+    it, as the composer's does. Files for an answer go with the message that sends it: attach them
+    in the composer. **Decline to answer**, below the choices, sets them aside and declines the ask
     when you send, until you undo it. While the card holds an answer or a decline you have not sent,
     **Clear** there removes it as **Remove** in the line above the box does, leaving you on the card
     as it was before you chose anything. **Change answer**, in the options of a message carrying
@@ -665,23 +667,32 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     write, **Send** and its option stay at the foot of the screen, above a phone's keyboard, with
     what answers **Send** beside it: why a message failed to send above it, and what was sent after
     it. While voice is on, **Dictate** sits there too, and what it says goes in the same places: why
-    dictation failed above, and anything else after. While a recording, its transcription or its
-    **Retry** is there, **After sending** moves just below the row, so the row stays short above a
-    phone's keyboard.
+    dictation failed above, and anything else after. While dictation shows its controls there, from
+    the moment the microphone is asked for through a recording and its transcription to its
+    **Retry**, **After sending** moves just below the row, so the row stays short above a phone's
+    keyboard.
   - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
     thread you read without replying, and without scrolling back up.
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
-    records, showing how long against its limit of five minutes, until you choose **Stop**; then
-    **Transcribing**, with **Cancel**, and the text goes in where the cursor was, in the box you
-    were last in, with a space where it meets other text, for you to read and change. Nothing is
-    sent until you send it. A transcript of nothing, or a recording too short to hold any, says
-    **Nothing heard**. A transcription that fails says why and keeps your draft as it was, and the
-    recording for **Retry**, beside **Discard**. A recording also stops when it reaches 1.9 MiB, or
-    when you switch away from the page, so the microphone never runs while you are not looking, and
-    what it recorded is transcribed as usual; if you are still away from the page when the
-    microphone opens, it closes without recording, and leaving the thread discards a recording.
-    Starting a recording counts as seeing the thread then: a message the agent writes while you
-    record makes sending stale, as below.
+    asks for the microphone, with **Cancel** while it waits, since a browser may wait on its
+    permission prompt for as long as you leave it; then it records, showing how long against its
+    limit of five minutes, until you choose **Stop**; then **Transcribing**, with **Cancel**, and
+    the text goes in where the cursor was, in the box you were last in, with a space where it meets
+    other text, for you to read and change. Nothing is sent until you send it. A transcript of
+    nothing, or a recording too short to hold any, says **Nothing heard**. A transcription that
+    fails says why and keeps your draft as it was, and the recording for **Retry**, beside
+    **Discard**. A recording also stops when it reaches 1.9 MiB, or when you switch away from the
+    page, so the microphone never runs while you are not looking, and what it recorded is
+    transcribed as usual; if you are still away from the page when the microphone opens, it closes
+    without recording, and leaving the thread discards a recording. Starting a recording, here or
+    under an ask's own-words field, counts as seeing the thread then: a message the agent writes
+    while you record makes sending stale, as below. One recording runs at a time: starting another
+    stops the first, whose text goes in as if you had chosen **Stop**. While a recording is there,
+    here or on an ask's card, from the moment the microphone is asked for through recording and
+    transcribing to awaiting **Retry**, **Send** and its shortcut wait and say why, so your words
+    are never lost under a send; the new-thread sheet's **Send** waits the same way. **Dictate**
+    waits in turn while a message is on its way. Text that arrives after you discarded the draft it
+    was for goes nowhere.
 
   If the agent writes to the thread while you are writing, sending fails as stale: your draft stays,
   the messages you missed appear above it, and **Mark these read and send again** sends it, as it
@@ -758,13 +769,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
     A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
     the session has now; and **Revoke** for each of the session's credentials, which asks once more.
-    **New thread** opens a sheet for a title, the message and its details, as a thread's composer
-    takes them, and **Send** starts the thread and opens it. The session's agent reads it as your
-    words at its terminal and replies in it; the thread asks you nothing, since only agents ask.
-    When the session has stopped, is quiet or has no active credential, the sheet says it is not
-    likely to see the thread, and why: a stopped session not until it is started again, a quiet one
-    not soon, and one without a credential not until you approve a registration for it. The thread
-    is stranded until the session reads it.
+    **New thread** opens a sheet for a title, the message, its details and its files, as a thread's
+    composer takes them: **Attach** at the sheet's foot, or a pasted image, adds files, and while
+    [voice](#voice) is on, **Dictate** beside it puts what you say in the box you were last in.
+    **Send** waits for the files to upload, and for a recording until its text is in or you discard
+    it, then starts the thread and opens it; while it is on its way the sheet stays as it is.
+    **Cancel** removes the files it uploaded. The session's agent reads it as your words at its
+    terminal and replies in it; the thread asks you nothing, since only agents ask. When the session
+    has stopped, is quiet or has no active credential, the sheet says it is not likely to see the
+    thread, and why: a stopped session not until it is started again, a quiet one not soon, and one
+    without a credential not until you approve a registration for it. The thread is stranded until
+    the session reads it.
 
   - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
     page's address keeps your choice, so going back to the view or a link to it shows it the same.
@@ -907,12 +922,14 @@ the way of a screen reader, voice control or another tool, clear **Keyboard shor
 
 ## Voice
 
-Voice lets you dictate a reply in a thread instead of typing it, and is off until you set it up. A
-transcription provider turns your recording into text: you choose it in **Settings**, under
-**Voice**, and the server sends it each recording with a key it holds, and returns only the text.
-The provider receives your recordings, so turning voice on means choosing who does, under their
-terms. Agention keeps neither the recording nor the text, and agents never see either: they read
-only what you send. Reading a message aloud needs none of this: the browser speaks on your device.
+Voice lets you dictate a message instead of typing it, and is off until you set it up: wherever you
+write one, in a thread's composer, an ask's own words or a new thread, **Dictate** puts what you say
+in the box you were last in. A transcription provider turns your recording into text: you choose it
+in **Settings**, under **Voice**, and the server sends it each recording with a key it holds, and
+returns only the text. The provider receives your recordings, so turning voice on means choosing who
+does, under their terms. Agention keeps neither the recording nor the text, and agents never see
+either: they read only what you send. Reading a message aloud needs none of this: the browser speaks
+on your device.
 
 **Set up** shows the form:
 
@@ -1014,17 +1031,18 @@ You and your agents can attach files to messages: a screenshot, a log, a report,
 phone. A file belongs to the message that brought it, under its name, for good; editing that message
 carries its files to the new version unless you remove them, and the earlier version keeps them too.
 
-- **Attaching.** **Attach**, the paper clip beside **Send**, opens your device's file picker. On a
-  phone or a tablet it opens a menu instead: **Take a photo** and **Record a video** open the
-  camera, **Photos and videos** your device's photos and videos, and **Other files** documents and
-  text, such as PDFs, office files and archives. A laptop whose screen also takes touch keeps the
-  file picker. Pasting a screenshot or another image into the message box or **Details** attaches
-  it, named by when you pasted it, such as `pasted-20261122-143005.png`; a paste that carries text,
-  as from a spreadsheet, pastes the text. Each file uploads as soon as you add it, one at a time,
-  with its progress in the list above the box. **Remove** takes a file off the message, stopping its
-  upload or removing it from the server; **Retry** sends again one that failed, and **Upload again**
-  one the server no longer holds. **Send** waits until every file has uploaded, and says what it
-  waits on. A message may be files alone. A file you upload and never send is removed a day later.
+- **Attaching.** Wherever you write and send a message, a thread's composer or a new thread's sheet,
+  **Attach**, the paper clip beside **Send**, opens your device's file picker. On a phone or a
+  tablet it opens a menu instead: **Take a photo** and **Record a video** open the camera, **Photos
+  and videos** your device's photos and videos, and **Other files** documents and text, such as
+  PDFs, office files and archives. A laptop whose screen also takes touch keeps the file picker.
+  Pasting a screenshot or another image into the message box or **Details** attaches it, named by
+  when you pasted it, such as `pasted-20261122-143005.png`; a paste that carries text, as from a
+  spreadsheet, pastes the text. Each file uploads as soon as you add it, one at a time, with its
+  progress in the list above the box. **Remove** takes a file off the message, stopping its upload
+  or removing it from the server; **Retry** sends again one that failed, and **Upload again** one
+  the server no longer holds. **Send** waits until every file has uploaded, and says what it waits
+  on. A message may be files alone. A file you upload and never send is removed a day later.
 - **What shows in place.** Each file shows its name, type and size, and **Download**. An image up to
   2 MiB shows at once, and a larger one, such as a phone's photo, behind **Show image**. Video and
   audio play in the page, loading nothing until you play them. Text, code and logs show behind
