@@ -1,31 +1,42 @@
 # @wayfarerlabs/agention-mcp
 
-The agent bridge for [Agention](https://github.com/WayfarerLabs/agention), a self-hosted attention
-inbox for autonomous agents and the person working with them. The bridge is the MCP server that an
-agent host such as Claude Code or Codex starts for each agent session. Through it the session
-registers its key, starts threads, writes and reads their messages, checks for answers, and reports
-its state.
+The agent bridge for [Agention](https://github.com/WayfarerLabs/agention), the self-hosted inbox for
+everything your agents need from you: agents post what they need as threads and keep working, and
+you answer from one list.
+
+The bridge is a standard MCP server on standard input and output, so any harness that speaks MCP can
+use Agention: Claude Code, Codex or your own. The harness starts one for each agent session. Through
+it the session registers its key, starts threads, writes and reads their messages, attaches and
+fetches files, checks for answers, and reports its state.
 
 ## Use
 
-Most agents get the bridge from the Agention plugin for Claude Code or Codex, which runs it with
-`npx` at the version it pins. The
+On Claude Code and Codex you rarely install this package yourself: the Agention plugin runs it with
+`npx` at the version it pins, and the
 [operator guide](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#agents)
 covers installing the plugins and approving agents.
 
-To run it yourself, as an MCP server on standard input and output:
+On any other harness, add it as an MCP server with this command, and give your agent the
+[usage skill](https://github.com/WayfarerLabs/agention/blob/main/apps/agent-plugin/skills/agention/SKILL.md)
+that the plugins carry:
 
 ```bash
 AGENTION_URL=https://agention.example.com npx -y @wayfarerlabs/agention-mcp
 ```
 
-`AGENTION_URL` is the Agention server's origin. `AGENTION_CONNECT`, optional, is a host and port,
-such as `127.0.0.1:8443`, where the bridge opens its connections in place of the origin's host, for
-a server it reaches through a tunnel; the certificate it checks, its requests and its tokens still
-name the origin. The bridge connects directly and takes no HTTP proxy settings, such as
-`HTTPS_PROXY`; `AGENTION_CONNECT` is the way through a tunnel. `--version` prints the version, and
-`--help` the usage. The bridge needs Node.js 24 or later. It keeps each session's key under
-`~/.config/agention/`, and you approve a new key with the code the agent relays to you.
+| Setting            | Meaning                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `AGENTION_URL`     | The Agention server's origin; required                                                      |
+| `AGENTION_CONNECT` | A host and port, such as `127.0.0.1:8443`, to connect to in place of the origin's; optional |
+| `--version`        | Prints the version                                                                          |
+| `--help`           | Prints the usage                                                                            |
+
+`AGENTION_CONNECT` is the way to a server reached through a tunnel: the certificate the bridge
+checks, its requests and its tokens still name the origin. The bridge connects directly and takes no
+HTTP proxy settings, such as `HTTPS_PROXY`.
+
+The bridge needs Node.js 24 or later. It keeps each session's key under `~/.config/agention/`, and
+you approve a new key with the code the agent relays to you.
 
 ## More
 

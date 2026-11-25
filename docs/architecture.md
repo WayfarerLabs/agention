@@ -14,7 +14,7 @@ Agention is TypeScript on Node, in npm workspaces with one lockfile.
 | `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
 | `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
 | `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, and the generation of the API's OpenAPI document.                                                                                  |
+| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                        |
 
 ## Source and packages
 

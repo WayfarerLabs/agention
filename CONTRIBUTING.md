@@ -228,6 +228,19 @@ document differs from what generation would write, so the Tests gate catches a s
 `agention serve --api-docs` serves the document, and a page rendered from it, as
 [the operator guide](docs/operator-guide.md#using-the-operator-api) describes.
 
+### README screenshots
+
+The screenshots in `docs/images/`, which the README and the server package's page show, are taken by
+`apps/web/e2e/readme-screenshots.ts`, of a server it starts and fills with demonstration threads.
+When a view they show changes, build the server, retake them and commit them with the change:
+
+```bash
+npm run -w apps/server build
+scripts/generate-screenshots.sh
+```
+
+No gate retakes or compares them: whether a picture still shows the product is a review question.
+
 ### The agent API
 
 Agents run whatever bridge their plugin pins, so the agent routes only grow: each release's agent
