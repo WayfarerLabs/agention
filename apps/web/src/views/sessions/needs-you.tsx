@@ -1,4 +1,6 @@
+import { plain, plural } from "../../format.tsx";
 import { Link } from "../../router.tsx";
+import { Chips } from "../list/Chips.tsx";
 import { type SessionsView, sessionsQuery } from "./arrangement.ts";
 
 // The marks of the sessions view's one filter, Needs you, which keeps the
@@ -20,8 +22,7 @@ export interface ViewShown {
 // NeedsYouLink flags sessions that need the operator, in the warning's tone
 // as stranded threads are flagged, linking to the view with the filter on:
 // how many of a header's sessions do, such as "2 need you", or "Needs you"
-// while that is not known, as when sessions were left out. With the filter
-// on already, the flag links nowhere.
+// while that is not known, as when sessions were left out.
 export function NeedsYouLink({
   count,
   label,
@@ -39,7 +40,7 @@ export function NeedsYouLink({
       ? ["Needs you", `Sessions of ${label} need you`]
       : [
           `${count} ${count === 1 ? "needs" : "need"} you`,
-          `${count} ${count === 1 ? "session" : "sessions"} of ${label} ${count === 1 ? "needs" : "need"} you`,
+          `${plural(count, "session")} of ${label} ${count === 1 ? "needs" : "need"} you`,
         ];
   return <FilterOn shown={shown} flag={flag} spoken={spoken} />;
 }
@@ -49,39 +50,34 @@ export function NeedsYouFlag({ path, shown }: { path: string; shown: ViewShown }
   return <FilterOn shown={shown} flag="Needs you" spoken={`${path} needs you`} />;
 }
 
+// FilterOn is a flag linking to the view with the filter on. With it on
+// already, the flag is still the link, marked as leading to the page shown,
+// so focus stays on it once the filter it turned on is on.
 function FilterOn({ shown, flag, spoken }: { shown: ViewShown; flag: string; spoken: string }) {
-  const mark = <span className="flag warning">{flag}</span>;
-  if (shown.view.needsYou) {
-    return mark;
-  }
   const filtered = { ...shown.view, needsYou: true };
+  const on = shown.view.needsYou;
   return (
     <Link
-      className="needs-you-link"
       to={`/sessions${sessionsQuery(filtered)}`}
       follow={() => shown.choose(filtered)}
-      aria-label={`${spoken}: list the sessions that need you`}
+      aria-current={on ? "page" : undefined}
+      aria-label={on ? spoken : `${spoken}: list the sessions that need you`}
     >
-      {mark}
+      <span className="flag warning">{flag}</span>
     </Link>
   );
 }
 
+// The filter's one chip.
+const needsYouChip = [{ key: "needs_you", label: plain("Needs you") }];
+
 // NeedsYouChip, while the filter is on, is its chip beneath the head, which
 // removes it, as the thread list's chips do.
 export function NeedsYouChip({ shown }: { shown: ViewShown }) {
-  return !shown.view.needsYou ? null : (
-    <div className="filter-row">
-      <button
-        type="button"
-        className="chip"
-        title="Needs you"
-        aria-label="Remove filter: Needs you"
-        onClick={() => shown.choose({ ...shown.view, needsYou: false })}
-      >
-        Needs you
-        <span aria-hidden="true"> ×</span>
-      </button>
-    </div>
+  return (
+    <Chips
+      chips={shown.view.needsYou ? needsYouChip : []}
+      remove={() => shown.choose({ ...shown.view, needsYou: false })}
+    />
   );
 }

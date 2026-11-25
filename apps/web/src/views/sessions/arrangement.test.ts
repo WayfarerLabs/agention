@@ -1,4 +1,4 @@
-import type { MonitorCondition } from "@wayfarerlabs/agention-api";
+import type { MonitorCondition, SessionSummary } from "@wayfarerlabs/agention-api";
 import { describe, expect, it } from "vitest";
 import { observed, sessionSummary } from "../../test-support.tsx";
 import {
@@ -109,11 +109,11 @@ describe("the Needs you filter", () => {
   };
   const view = { group: "agent", sort: "alphabetic", reverse: false, needsYou: true } as const;
 
-  it("keeps the sessions at a prompt or stopped by something, and the agents holding any", () => {
+  it("shows the sessions at a prompt or stopped by something, and the agents holding any", () => {
     const kept = (filtered: boolean) => {
       const arranged = arrange({ ...view, needsYou: filtered }, [builder, reviewer], []);
       return arranged.kind === "agents"
-        ? arranged.agents.map((entry) => [entry.agent, entry.sessions.length])
+        ? arranged.agents.map((entry) => [entry.agent, entry.shown.length])
         : undefined;
     };
     expect(kept(true)).toEqual([["builder", 4]]);
@@ -123,8 +123,62 @@ describe("the Needs you filter", () => {
     ]);
     const arranged = arrange(view, [builder, reviewer], []);
     expect(
-      arranged.kind === "agents" && arranged.agents[0]?.sessions.map((each) => each.session),
+      arranged.kind === "agents" && arranged.agents[0]?.shown.map((each) => each.session),
     ).toEqual(["at_prompt-usage_limit", "other_prompt", "permission_prompt", "waiting-error"]);
+    // An agent's sessions are still all of them, which its header counts.
+    expect(arranged.kind === "agents" && arranged.agents[0]?.sessions).toHaveLength(10);
+  });
+
+  it("hides rows alone, a group keeping every agent and session in it for its head", () => {
+    const work = { id: 1, name: "Work" };
+    const inWork = (session: SessionSummary) => ({ ...session, group: work });
+    const agents = [
+      { ...builder, sessions: [inWork(watched("permission_prompt")), watched("running")] },
+      { ...reviewer, sessions: [inWork(watched("running"))] },
+    ];
+    const arranged = arrange({ ...view, group: "session_group", sort: "manual" }, agents, []);
+    // No group holds nothing that needs the operator, so it shows no head;
+    // Work keeps reviewer for its head's facts, though reviewer shows no row.
+    expect(
+      arranged.kind === "groups" &&
+        arranged.groups.map((fold) => [
+          fold.group?.name,
+          fold.agents.map((entry) => [entry.agent, entry.sessions.length, entry.shown.length]),
+        ]),
+    ).toEqual([
+      [
+        "Work",
+        [
+          ["builder", 1, 1],
+          ["reviewer", 1, 0],
+        ],
+      ],
+    ]);
+  });
+
+  it("orders as it would without it, by every session", () => {
+    const at = (created_at: string, monitor: MonitorCondition) => ({
+      ...watched(monitor),
+      created_at,
+    });
+    // builder's earliest session needs nothing, and its other is newer than
+    // reviewer's one, so builder would come first by its sessions shown.
+    const agents = [
+      {
+        ...builder,
+        sessions: [
+          at("2026-10-01T00:00:00.000Z", "running"),
+          { ...at("2026-10-05T00:00:00.000Z", "permission_prompt"), session: "asking" },
+        ],
+      },
+      { ...reviewer, sessions: [at("2026-10-03T00:00:00.000Z", "other_prompt")] },
+    ];
+    const order = (needsYou: boolean) => {
+      const arranged = arrange({ ...view, sort: "registered", needsYou }, agents, []);
+      return arranged.kind === "agents" && arranged.agents.map((entry) => entry.agent);
+    };
+    expect(order(true)).toEqual(["reviewer", "builder"]);
+    expect(order(false)).toEqual(["reviewer", "builder"]);
   });
 
   it("folds by group as it would without it, though it keeps no session in a group", () => {

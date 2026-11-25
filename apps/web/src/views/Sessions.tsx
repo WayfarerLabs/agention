@@ -51,13 +51,17 @@ const pastRequests = "past-requests";
 
 export function Sessions() {
   usePageTitle("Sessions");
-  // How the view arranges the sessions, which lives in the address.
-  // Choosing another arrangement replaces the address, so going back leaves
-  // the view rather than stepping through every choice.
+  // How the view arranges the sessions, and its filter, which live in the
+  // address. Choosing another arrangement replaces the address, so going
+  // back leaves the view rather than stepping through every choice; turning
+  // the filter on or off adds an entry, as following a link does, so going
+  // back returns to the view as it was.
   const location = useLocation();
   const view = sessionsViewOf(location.searchParams);
   const choose = (next: SessionsView) =>
-    navigate(`${location.pathname}${sessionsQuery(next)}`, { replace: true });
+    navigate(`${location.pathname}${sessionsQuery(next)}`, {
+      replace: next.needsYou === view.needsYou,
+    });
   const pending = usePages<Registration>(loadRegistrations("pending"));
   const sessions = useResource<AgentList>(listSessions);
   // Each decision or read the view makes reloads it, and the past requests

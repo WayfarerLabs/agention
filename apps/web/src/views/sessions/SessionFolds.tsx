@@ -41,6 +41,7 @@ import {
   sessionGroupings,
   sessionNeedsYou,
   sessionSorts,
+  shows,
   sortsOf,
 } from "./arrangement.ts";
 import { TagChip } from "./GroupsAndTags.tsx";
@@ -60,7 +61,9 @@ import { SessionRow, sessionKey } from "./SessionRow.tsx";
 // agent, the agents fold over their rows; grouped by session, the rows
 // stand alone. Each group's head and agent's header rolls up the sessions
 // beneath, and every chip that stands for threads links to them; how many of
-// those sessions need the operator links to the view's Needs you filter.
+// those sessions need the operator links to the view's Needs you filter,
+// which hides rows and nothing else, so the heads and headers count every
+// session as without it.
 
 // What the operator is organizing, in a picker open on it: a session's group,
 // or an agent's or a session's tags; and the control the picker lies beside,
@@ -218,14 +221,14 @@ export function SessionFolds({
       hush();
     }
   }, [moving, hush]);
-  const none =
-    arranged.kind === "agents"
-      ? arranged.agents.length === 0
-      : arranged.kind === "sessions"
-        ? arranged.sessions.length === 0
-        : arranged.groups.length === 0;
-  if (view.needsYou && none) {
-    return (
+  if (view.needsYou && !agents.some((entry) => entry.sessions.some(sessionNeedsYou))) {
+    // A list cut short may have left out sessions that need the operator.
+    return truncated || agents.some((entry) => entry.truncated) ? (
+      <p className="empty">
+        None of the sessions listed needs you now: none is at a permission prompt or another prompt,
+        or stopped by something. Some sessions were left out.
+      </p>
+    ) : (
       <p className="empty">
         No session needs you now: none is at a permission prompt or another prompt, or stopped by
         something.
@@ -425,8 +428,8 @@ function LoneSessions({
 // lead to the threads in that group, its tags' aside, and this
 // browser keeps its fold by the group's id and the agent's name, so an agent
 // under two groups folds under each apart; an agent in no group keeps its
-// fold by its name alone, as without groups. The rows unfolded hold only
-// while the view is open.
+// fold by its name alone, as without groups. An agent the filter leaves no
+// row of has no header. The rows unfolded hold only while the view is open.
 function AgentFolds({
   agents,
   group,
@@ -444,7 +447,7 @@ function AgentFolds({
   const [unfolded, flip] = useUnfolded();
   const inGroup = group === undefined ? undefined : group === noGroup ? noGroup : group.id;
   const level = group === undefined ? 3 : 4;
-  return agents.map((entry) => {
+  return agents.filter(shows).map((entry) => {
     const { asks, blocking, stranded, needing } = countsOf(entry);
     // The roll-up of an agent that left sessions out would be short, and so
     // would its count of stranded threads, which then shows whether any of
@@ -516,7 +519,7 @@ function AgentFolds({
         toggle={() => folds.toggle(fold)}
       >
         <ul className="session-rows">
-          {entry.sessions.map((session) => {
+          {entry.shown.map((session) => {
             const key = sessionKey(entry.agent, session.session);
             return (
               <SessionRow
@@ -562,9 +565,9 @@ function AgentMenu({
   );
 }
 
-// countsOf adds up what an agent's sessions the view lists hold beyond their
-// roll-up: their open asks, the blocking among them, stranded threads, and
-// how many of the sessions need the operator.
+// countsOf adds up what an agent's sessions hold beyond their roll-up, all of
+// them, whatever the filter shows: their open asks, the blocking among them,
+// stranded threads, and how many of the sessions need the operator.
 function countsOf(entry: Held) {
   const sum = (count: (session: SessionSummary) => number) =>
     entry.sessions.reduce((total, session) => total + count(session), 0);

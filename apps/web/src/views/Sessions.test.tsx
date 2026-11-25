@@ -540,27 +540,42 @@ describe("monitoring", () => {
     await open(
       [
         agent("builder", [
-          watched("main", observed("at_prompt")),
+          {
+            ...watched("main", observed("at_prompt")),
+            open_asks: { count: 1, blocking_count: 1 },
+            threads: { total: 2, unread: 0, stranded: 1 },
+          },
           watched("asking", observed("permission_prompt")),
         ]),
         agent("reviewer", [watched("main", observed("running"))]),
       ],
       "/sessions?group=agent&sort=registered",
     );
-    const link = needsYouLink(bar(header("builder"))) as HTMLElement;
+    const builderBar = () => bar(header("builder"));
+    const facts = () => ({
+      sessions: builderBar().querySelector(".roll-up-count")?.textContent,
+      targets: targets(header("builder")),
+    });
+    const unfiltered = facts();
+    const link = needsYouLink(builderBar()) as HTMLElement;
     expect(link.getAttribute("href")).toBe("/sessions?group=agent&sort=registered&needs_you=true");
+    expect(link.hasAttribute("aria-current")).toBe(false);
     expect(screen.queryByRole("button", { name: "Remove filter: Needs you" })).toBeNull();
+    link.focus();
     fireEvent.click(link);
     await screen.findByRole("button", { name: "Remove filter: Needs you" });
     expect(window.location.search).toBe("?group=agent&sort=registered&needs_you=true");
     // Only builder's session at the permission prompt stays, its flag and its
-    // header's count linking nowhere now.
+    // header's count leading to the view shown now. Focus stays on the count.
     expect(screen.queryByRole("button", { name: /^Agent reviewer/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Session main" })).toBeNull();
     expect(fold("asking")).toBeTruthy();
-    expect(needsYouLink(row("asking"))).toBeNull();
-    expect(row("asking").querySelector(".flag.warning")).not.toBeNull();
-    expect(needsYouLink(bar(header("builder")))).toBeNull();
+    expect(needsYouLink(row("asking"))?.getAttribute("aria-current")).toBe("page");
+    expect(needsYouLink(builderBar())?.getAttribute("aria-current")).toBe("page");
+    expect(document.activeElement).toBe(link);
+    // The header still counts every session it holds, the one hidden among
+    // them: how many, its blocked and open asks and its stranded threads.
+    expect(facts()).toEqual(unfiltered);
     // The chip removes the filter, keeping the arrangement.
     fireEvent.click(screen.getByRole("button", { name: "Remove filter: Needs you" }));
     await screen.findByRole("button", { name: /^Agent reviewer/ });
@@ -568,12 +583,57 @@ describe("monitoring", () => {
     expect(screen.queryByRole("button", { name: "Remove filter: Needs you" })).toBeNull();
   });
 
+  it("adds a history entry each time the filter turns on or off, which Back returns from", async () => {
+    await open([
+      agent("builder", [watched("asking", observed("permission_prompt"))]),
+      agent("reviewer", [watched("main", observed("running"))]),
+    ]);
+    const chip = () => screen.queryByRole("button", { name: "Remove filter: Needs you" });
+    // On from a row's flag, then off by the chip.
+    fireEvent.click(needsYouLink(row("asking")) as HTMLElement);
+    await waitFor(() => expect(chip()).not.toBeNull());
+    fireEvent.click(chip() as HTMLElement);
+    await screen.findByRole("button", { name: /^Agent reviewer/ });
+    // Back steps through each, the arrangement chosen meanwhile replacing
+    // the entry it was chosen in.
+    fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), {
+      target: { value: "registered" },
+    });
+    await waitFor(() => expect(window.location.search).toBe("?sort=registered"));
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe("?needs_you=true"));
+    expect(chip()).not.toBeNull();
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe(""));
+    await screen.findByRole("button", { name: /^Agent reviewer/ });
+    expect(chip()).toBeNull();
+  });
+
+  // What the agents' section says when it shows no agent.
+  const emptyAgents = () =>
+    within(screen.getByRole("region", { name: "Agents" })).queryByText(/needs you now/)
+      ?.textContent;
+
   it("says so when no session needs the operator", async () => {
     serve([agent("builder", [watched("main", observed("running"))])]);
     renderAt("/sessions?needs_you=true");
     await screen.findByRole("button", { name: "Remove filter: Needs you" });
     expect(screen.queryByRole("button", { name: /^Agent builder/ })).toBeNull();
-    expect(document.querySelector(".empty")).not.toBeNull();
+    expect(emptyAgents()).toMatch(/^No session needs you now/);
+  });
+
+  it("says, when sessions were left out, only that none of those listed needs the operator", async () => {
+    serve([agent("builder", [watched("main", observed("running"))], true)]);
+    renderAt("/sessions?needs_you=true");
+    await screen.findByRole("button", { name: "Remove filter: Needs you" });
+    expect(emptyAgents()).toMatch(/^None of the sessions listed needs you now/);
+  });
+
+  it("counts, on a header that left sessions out, only that some need the operator", async () => {
+    await open([agent("builder", [watched("asking", observed("permission_prompt"))], true)]);
+    const flag = needsYouLink(bar(header("builder")));
+    expect(flag?.textContent).toBe("Needs you");
+    expect(flag?.getAttribute("aria-label")).toMatch(/^Sessions of builder need you/);
   });
 
   it("counts on a group's head the sessions in it that need the operator", async () => {
