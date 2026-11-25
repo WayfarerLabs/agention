@@ -12,8 +12,13 @@ Two seams keep terminals and harnesses apart:
 
 - **`Pane`**, the terminal. `snapshot()` reads it once: the visible screen, the cursor, whether the
   harness holds the terminal, and whether the terminal server holds one pane. It rejects when the
-  pane cannot be read at all. `TmuxPane` implements it for the one pane of a tmux server, named by
-  its socket path, with one tmux client call and a read of `/proc/<pid>/stat`.
+  pane cannot be read at all, and with `PaneUnusable` where the cause is the machine or the choice
+  of pane: no `/proc`, a tmux older than 3.3, which leaves the formats it is asked for empty, or a
+  pane that is not the reader's. `TmuxPane` implements it for the one pane of a tmux server, named
+  by its socket path, with one tmux client call and reads of `/proc/<pid>/stat`. Its
+  `requireAncestorOf` option names a process, such as the reader's own, that the pane's first
+  process must be an ancestor of, so a socket that names some other pane is refused rather than
+  read.
 - **`Profile`**, the harness. `screen(snapshot)` says what one screen shows: a permission prompt,
   another prompt, the input line, or anything else, with why the harness stopped where its captured
   screens show it. A harness's profiles are a `HarnessProfiles`, which `versionTable` builds from

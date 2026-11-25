@@ -4,6 +4,7 @@ import {
   type Observation,
   type Pane,
   PaneObserver,
+  PaneUnusable,
   type Profile,
   profileNames,
   selectProfile,
@@ -71,8 +72,17 @@ export interface PaneMonitorOptions {
   // it has initialized.
   client: () => HarnessClient | undefined;
   log: Log;
-  // The pane at a socket path; a TmuxPane unless a test gives another.
+  // The pane at a socket path; a TmuxPane of this session's own unless a
+  // test gives another.
   pane?: ((socket: string) => Pane) | undefined;
+}
+
+// sessionPane is the pane at a socket path, read only while its first
+// process is an ancestor of this bridge: the harness that started it, or
+// whatever started that harness. A socket that names any other pane, such as
+// another session's, is refused rather than read.
+function sessionPane(socket: string): Pane {
+  return new TmuxPane(socket, { requireAncestorOf: process.pid });
 }
 
 // createMonitor makes the monitor the configuration asks for. Without a
@@ -96,7 +106,7 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
   if (socket === undefined) {
     return { reports: unmonitored };
   }
-  const pane = new LoggedPane((options.pane ?? ((path) => new TmuxPane(path)))(socket), log);
+  const pane = new LoggedPane((options.pane ?? sessionPane)(socket), log);
   let profile: Profile | undefined;
   return {
     async *reports(signal) {
@@ -149,11 +159,12 @@ function stoppedByOf(
 }
 
 // LoggedPane logs why the pane cannot be read, once each time that starts:
-// a failure to read it at all, a terminal server holding more than one pane,
-// or a harness that does not hold the terminal. The observer reads each as
-// unknown. A reading that finds the pane as it should be ends the stretch, so
-// a later problem is logged again.
-type PaneProblem = "unreadable" | "panes" | "terminal";
+// a failure to read it at all, a machine or a tmux monitoring cannot use, a
+// pane that is not this session's, a terminal server holding more than one
+// pane, or a harness that does not hold the terminal. The observer reads each
+// as unknown. A reading that finds the pane as it should be ends the stretch,
+// so a later problem is logged again.
+type PaneProblem = "unreadable" | PaneUnusable["reason"] | "panes" | "terminal";
 
 const unknown = "so the session's condition is unknown";
 
@@ -172,10 +183,22 @@ class LoggedPane implements Pane {
     try {
       snapshot = await this.#pane.snapshot();
     } catch (error) {
-      // TmuxPane's errors name the socket and what tmux said, never the
-      // screen.
+      // TmuxPane's errors name the socket, processes and what tmux said,
+      // never the screen.
       const { message } = error as Error;
-      this.#note("unreadable", `monitoring cannot read the tmux pane, ${unknown}: ${message}`);
+      if (!(error instanceof PaneUnusable)) {
+        this.#note("unreadable", `monitoring cannot read the tmux pane, ${unknown}: ${message}`);
+      } else if (error.reason === "no-proc") {
+        this.#note("no-proc", `monitoring finds no /proc (monitoring needs Linux), ${unknown}`);
+      } else if (error.reason === "old-tmux") {
+        this.#note("old-tmux", `monitoring needs tmux 3.3 or later, ${unknown}: ${message}`);
+      } else {
+        this.#note(
+          "not-ancestor",
+          `the tmux socket is not this session's, since its pane does not run this bridge, ` +
+            `${unknown}: ${message}`,
+        );
+      }
       throw error;
     }
     if (!snapshot.onePane) {

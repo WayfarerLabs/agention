@@ -121,6 +121,11 @@ describe("monitoring", () => {
     return server;
   }
 
+  // A test's tmux pane does not run the bridge, which runs in the test's own
+  // process, so these tests read it as any pane, without the check that it
+  // is the session's own.
+  const anyPane = { pane: (socket: string) => new TmuxPane(socket) };
+
   it("reports no pane, and logs nothing, without a socket", async () => {
     const bridge = await harness.registered();
     await eventually(() => harness.held(), "the report");
@@ -208,7 +213,7 @@ describe("monitoring", () => {
   it("reports unknown, and logs it once, for a tmux server of more than one pane", async () => {
     const server = await tmuxServer();
     await server.tmux("split-window", "-d");
-    const bridge = await harness.registered({ AGENTION_TMUX_SOCKET: server.socket });
+    const bridge = await harness.registered({ AGENTION_TMUX_SOCKET: server.socket }, anyPane);
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
@@ -217,7 +222,7 @@ describe("monitoring", () => {
 
   it("reports a real pane's condition as it changes, from approval on", async () => {
     const server = await tmuxServer();
-    const bridge = await harness.monitored({ AGENTION_TMUX_SOCKET: server.socket });
+    const bridge = await harness.monitored({ AGENTION_TMUX_SOCKET: server.socket }, anyPane);
     await bridge.ok("register");
     // Approved while the agent waits at its prompt: no tool call follows.
     await harness.approve(harness.keyOnDisk());
@@ -236,5 +241,16 @@ describe("monitoring", () => {
     // Nothing of the screen reaches the server or the log.
     expect(JSON.stringify(harness.seen.map((seen) => seen.body))).not.toContain("scripted");
     expect(bridge.logged).toEqual([]);
+  });
+
+  it("reports unknown, and logs it once, for a pane that does not run the bridge", async () => {
+    const server = await tmuxServer();
+    const bridge = await harness.registered({ AGENTION_TMUX_SOCKET: server.socket });
+    await eventually(() => harness.held(), "the report");
+    await delay(2500);
+    expect(conditions()).toEqual(["unknown"]);
+    expect(bridge.logged).toHaveLength(1);
+    // Nothing of the screen reaches the log.
+    expect(bridge.logged[0]).not.toContain("scripted");
   });
 });
