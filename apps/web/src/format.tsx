@@ -4,6 +4,7 @@ import {
   type Impact,
   type MonitorState,
   monitorCondition,
+  type NudgeState,
   type Presence,
   type Priority,
   type SessionPresence,
@@ -224,12 +225,14 @@ export function ConditionClause({ observed }: { observed: Observed }) {
 // What the operator knows of a session that says whether it is there to see
 // what they write: the state it last reported, if any, and the outcome a
 // stopped one gave; its presence, with what its bridge last observed of its
-// terminal; and whether it has an active credential.
+// terminal and its latest nudge; whether it has an active credential; and,
+// for a thread's session, whether the server finds the thread stranded.
 export interface Whereabouts {
   state?: WorkState | undefined;
   outcome?: WorkOutcome | undefined;
   presence: SessionPresence;
   credential_active: boolean;
+  stranded?: boolean | undefined;
 }
 
 // Why a session is not likely to see what the operator writes, with what its
@@ -239,18 +242,37 @@ export type Absence = (
   | { kind: "quiet"; last_seen_at: string | undefined }
   | { kind: "credential" }
   | { kind: "disconnected" }
+  | { kind: "unresponsive"; at: string }
+  | { kind: "unsent"; at: string }
+  | { kind: "no_nudge" }
 ) & { observed?: Observed | undefined };
 
 // absenceOf says why a session is not likely to see what the operator writes
-// until something starts it again, if it is not: it stopped, with its
-// outcome; or it is quiet, with when its agent last checked in; or it has no active
-// credential; or its bridge is not connected, the first of them that holds;
+// until something starts it again, if it is not. A session its bridge can
+// nudge is away only once that will not bring it: it has no active
+// credential; or its latest nudge has had no check-in since, sent, so it is
+// not responding to the nudge, or not sent; or, of a stranded thread, no
+// nudge came, as when its terminal never showed it ready. Waiting at its
+// prompt, quiet or stopped, it is not away, since the nudge will bring it.
+// Any other session is away when it stopped, with its outcome; or it is
+// quiet, with when its agent last checked in; or it has no active credential;
+// or its bridge is not connected, the first of them that holds. Each comes
 // with what its terminal shows, where its bridge observes one. A bridge from
 // before monitoring never says whether it is connected, so its session is
 // never disconnected.
 export function absenceOf(session: Whereabouts): Absence | undefined {
   const observed = observedOf(session.presence);
   const beside = observed === undefined ? {} : { observed };
+  if (observed?.nudge === true) {
+    const nudge = session.presence.last_nudge;
+    if (!session.credential_active) {
+      return { kind: "credential", ...beside };
+    }
+    if (nudge !== undefined && !nudge.answered) {
+      return { kind: nudge.sent ? "unresponsive" : "unsent", at: nudge.at, ...beside };
+    }
+    return session.stranded === true ? { kind: "no_nudge", ...beside } : undefined;
+  }
   if (session.state === "stopped") {
     return { kind: "stopped", outcome: session.outcome, ...beside };
   }
@@ -265,9 +287,10 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
 
 // absenceWords says briefly why a session is not likely to see what the
 // operator writes, as a tag says it: "stopped, completed", "last check-in
-// 14:02", "never checked in", "no active credential" or "not connected",
-// followed by what its terminal shows, where its bridge observes one, as in
-// "last check-in 14:02 · stopped at a permission prompt".
+// 14:02", "never checked in", "no active credential", "not connected", "not
+// responding to the nudge at 14:05", "nudge not sent at 14:05" or "not
+// nudged", followed by what its terminal shows, where its bridge observes
+// one, as in "last check-in 14:02 · stopped at a permission prompt".
 export function absenceWords(absence: Absence): string {
   const why = absenceWhyWords(absence);
   return absence.observed === undefined ? why : `${why} · ${conditionWords(absence.observed)}`;
@@ -283,15 +306,33 @@ function absenceWhyWords(absence: Absence): string {
       return "no active credential";
     case "disconnected":
       return "not connected";
+    case "unresponsive":
+    case "unsent":
+      return nudgeWords({ at: absence.at, sent: absence.kind === "unresponsive", answered: false });
+    case "no_nudge":
+      return "not nudged";
   }
+}
+
+// nudgeWords says briefly what came of a session's latest nudge, as a part of
+// its line says it: "not responding to the nudge at 14:05" for one sent with
+// no check-in since, "nudged 14:05" for one sent and answered, and "nudge not
+// sent at 14:05" for one that was not sent.
+export function nudgeWords(nudge: NudgeState): string {
+  const when = sinceTime(nudge.at);
+  if (!nudge.sent) {
+    return `nudge not sent at ${when}`;
+  }
+  return nudge.answered ? `nudged ${when}` : `not responding to the nudge at ${when}`;
 }
 
 // AbsenceReason says, as a clause, why a session is not likely to see what
 // the operator writes: "it stopped, completed", "it has not checked in since
-// 14:02", "it has never checked in", "it has no active credential" or "its
-// bridge is not connected", and what its terminal shows, where its bridge
-// observes one, as in "it has not checked in since 14:02, and its terminal
-// shows it stopped at a permission prompt".
+// 14:02", "it has never checked in", "it has no active credential", "its
+// bridge is not connected", "it is not responding to the nudge at 14:05",
+// "its nudge at 14:05 was not sent" or "it has not been nudged", and what its
+// terminal shows, where its bridge observes one, as in "it has not checked in
+// since 14:02, and its terminal shows it stopped at a permission prompt".
 export function AbsenceReason({ absence }: { absence: Absence }) {
   return (
     <>
@@ -321,6 +362,20 @@ function AbsenceWhy({ absence }: { absence: Absence }) {
       return <>it has no active credential</>;
     case "disconnected":
       return <>its bridge is not connected</>;
+    case "unresponsive":
+      return (
+        <>
+          it is not responding to the nudge at <Since value={absence.at} />
+        </>
+      );
+    case "unsent":
+      return (
+        <>
+          its nudge at <Since value={absence.at} /> was not sent
+        </>
+      );
+    case "no_nudge":
+      return <>it has not been nudged</>;
   }
 }
 
@@ -331,6 +386,7 @@ export function threadWhereabouts(thread: ThreadSummary): Whereabouts {
     outcome: thread.presence?.outcome,
     presence: thread.presence ?? { quiet: false },
     credential_active: thread.credential_active,
+    stranded: thread.stranded,
   };
 }
 

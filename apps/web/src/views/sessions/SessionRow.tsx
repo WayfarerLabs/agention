@@ -19,6 +19,7 @@ import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
 import {
   conditionWords,
+  nudgeWords,
   type Observed,
   observedOf,
   plural,
@@ -166,14 +167,16 @@ export function SessionRow({
 // is, as the server knows it, apart from what its agent reports: whether its
 // bridge is connected, which a bridge from before monitoring never says;
 // while it is, what its terminal shows and since when, where the bridge
-// monitors it; when its agent last checked in, or that it never did; and
-// how long ago its status was last updated, once it has one, since an agent
-// can keep checking in long after its status stopped saying what it does,
-// as in "Connected, at its prompt since 14:02 · last check-in 11:40 · status
+// monitors it; what came of its latest nudge, once its bridge tried one;
+// when its agent last checked in, or that it never did; and how long ago its
+// status was last updated, once it has one, since an agent can keep checking
+// in long after its status stopped saying what it does, as in "Connected, at
+// its prompt since 14:02 · nudged 14:05 · last check-in 14:05 · status
 // updated 3 hours ago". What needs the operator takes the warning's tone: a
 // bridge not connected and a check-in long enough ago to be quiet, unless
-// the session has stopped, which its state says already, and a terminal
-// showing a prompt or something that stopped it.
+// the session has stopped, which its state says already; a terminal showing
+// a prompt or something that stopped it; and a nudge with no check-in since,
+// not responding to it or not sent.
 function PresenceLine({ session }: { session: SessionSummary }) {
   const { presence, status } = session;
   const stopped = status?.state === "stopped";
@@ -194,6 +197,15 @@ function PresenceLine({ session }: { session: SessionSummary }) {
     parts.push(
       <span className={stopped ? "session-connection" : "session-connection warning"}>
         Not connected
+      </span>,
+    );
+  }
+  const nudge = presence.last_nudge;
+  if (nudge !== undefined) {
+    const words = nudgeWords(nudge);
+    parts.push(
+      <span className={nudge.answered ? "session-nudge" : "session-nudge warning"}>
+        {parts.length > 0 ? words : `${words.charAt(0).toUpperCase()}${words.slice(1)}`}
       </span>,
     );
   }
@@ -323,7 +335,8 @@ const stateTone = { working: "success", idle: "accent", stopped: undefined } as 
 
 // SessionDetail is what a session unfolds beneath its head: its goal whole,
 // with how far it has come, its credentials, how its connected bridge
-// monitors its terminal, once it has said, and its log.
+// monitors its terminal and whether it can nudge the agent there, once it
+// has said, and its log.
 function SessionDetail({
   agent,
   session,
@@ -378,6 +391,11 @@ function SessionDetail({
             ) : (
               "Terminal not monitored"
             )}
+          </li>
+        )}
+        {monitor?.monitored === true && (
+          <li className="session-can-nudge">
+            {monitor.nudge ? "Can be nudged" : "Cannot be nudged"}
           </li>
         )}
       </ul>

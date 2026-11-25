@@ -391,13 +391,15 @@ export function registration(overrides: Partial<Registration> = {}): Registratio
 
 // What a session's bridge observed of its terminal, as the operator API
 // shows it: the condition, since a few minutes before the fixtures' time,
-// read with the Codex profile, with what stopped it when given.
+// read with the Codex profile, with what stopped it when given, and a
+// session that cannot be nudged.
 export function observed(condition: MonitorCondition, stopped?: Observed["stopped_by"]): Observed {
   return {
     monitored: true,
     profile: "codex",
     condition,
     since: "2026-10-27T11:58:00.000Z",
+    nudge: false,
     ...(stopped === undefined ? {} : { stopped_by: stopped }),
   };
 }

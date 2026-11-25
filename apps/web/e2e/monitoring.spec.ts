@@ -8,7 +8,8 @@
 // header, whose count lists just that session, its chip removing the filter,
 // at a phone's width too; and a thread stranded on a session at a prompt,
 // whose reason names its condition on the thread list, on the thread and in
-// the new-thread sheet.
+// the new-thread sheet; and a session that can be nudged, whose nudge was not
+// sent, showing it on its line and stranding the thread written to it.
 import type { BrowserContext, Page } from "@playwright/test";
 import {
   agentApi,
@@ -105,7 +106,9 @@ async function report(name: Name, condition: MonitorReport): Promise<void> {
   expect(reported.status).toBe(200);
 }
 
-const at = (condition: "permission_prompt" | "running"): MonitorReport => ({
+const at = (
+  condition: "permission_prompt" | "running",
+): Extract<MonitorReport, { monitored: true }> => ({
   monitored: true,
   profile: "claude-code",
   condition,
@@ -214,6 +217,52 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
   await expect(page.getByRole("link", { name: /Which database\?/ })).toContainText(
     /Stranded.*stalled.*permission prompt/,
   );
+});
+
+test("a session whose nudge was not sent shows it, and strands the thread written to it", async () => {
+  const agent = agentOf("review");
+  const canBeNudged = (): MonitorReport => ({ ...at("running"), nudge: true });
+  await report("review", canBeNudged());
+  const created = await agent.send<WriteResult>("POST", "/s/builder/review/threads", {
+    request_id: "nudge-1",
+    title: "Ship it?",
+    text: "The release is ready.",
+  });
+  expect(created.status).toBe(200);
+  const thread = `/s/builder/review/threads/${created.body.number}`;
+  await page.goto(thread);
+  const reply = page.getByRole("region", { name: "Reply" });
+  await reply.getByRole("combobox", { name: "After sending" }).selectOption("Stay here");
+  await reply.getByRole("textbox", { name: "Message" }).fill("Ship it.");
+  await reply.getByRole("button", { name: "Send" }).click();
+  await expect(reply.getByRole("textbox", { name: "Message" })).toHaveValue("");
+  // Waiting for the nudge, the thread is not stranded.
+  await page.reload();
+  await expect(page.locator(".thread-header .stranded")).toHaveCount(0);
+
+  // The bridge is told a nudge is due, and reports that it was not sent.
+  const path = `/s/builder/review/monitor?bridge=${sessions.review.bridge}`;
+  const polled = await agent.send<{ nudge: boolean }>("GET", `${path}&wait=0`);
+  expect(polled.body.nudge).toBe(true);
+  const reported = await agent.send("POST", `${path}&seq=${Date.now()}`, {
+    ...canBeNudged(),
+    last_nudge: { at: new Date().toISOString(), sent: false },
+  });
+  expect(reported.status).toBe(200);
+  await page.reload();
+  await expect(page.locator(".thread-header .stranded")).toBeVisible();
+
+  // The sessions view shows the nudge in the warning's tone, its line
+  // fitting a phone's width.
+  for (const size of [wide, phone]) {
+    await resize(page, size);
+    await page.goto("/sessions");
+    await expect(row("review").locator(".session-seen .session-nudge.warning")).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+    ).toBe(false);
+  }
+  await resize(page, wide);
 });
 
 test("the pages ran without an error", () => {

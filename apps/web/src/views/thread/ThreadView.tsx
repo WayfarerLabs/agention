@@ -975,9 +975,11 @@ function BackToThreads({ origin }: { origin: ThreadsView }) {
 }
 
 // Stranded says, on a stranded thread, why its session has not read the
-// operator's latest messages: it stopped, with its outcome; it is quiet, with
-// when its agent last checked in; or its bridge is not connected. A session with no
-// active credential is explained by the notice under the head.
+// operator's latest messages, as absenceOf finds: it stopped, with its
+// outcome; it is quiet, with when its agent last checked in; its bridge is
+// not connected; or, for a session its bridge can nudge, what came of the
+// nudge. A session with no active credential is explained by the notice
+// under the head.
 function Stranded({ thread }: { thread: ThreadSummary }) {
   const absence = absenceOf(threadWhereabouts(thread));
   if (absence === undefined || absence.kind === "credential") {

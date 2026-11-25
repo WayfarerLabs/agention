@@ -682,6 +682,64 @@ describe("monitoring", () => {
     }
   });
 
+  it("says what came of the latest nudge, in the warning's tone with no check-in since", async () => {
+    const at = "2026-10-27T11:59:00.000Z";
+    const nudged = (session: string, last_nudge: { sent: boolean; answered: boolean }) =>
+      sessionSummary({
+        session,
+        presence: {
+          ...connected({ ...observed("at_prompt"), nudge: true }),
+          last_nudge: { at, ...last_nudge },
+        },
+      });
+    await open([
+      agent("builder", [
+        nudged("answered", { sent: true, answered: true }),
+        nudged("unresponsive", { sent: true, answered: false }),
+        nudged("unsent", { sent: false, answered: false }),
+        watched("main", observed("at_prompt")),
+      ]),
+    ]);
+    // It comes after what the terminal shows, before the agent's check-in.
+    const order = Array.from(line("answered").querySelectorAll("[class^='session-']")).map((each) =>
+      each.className.replace(/ warning$/, ""),
+    );
+    expect(order).toEqual([
+      "session-connection",
+      "session-condition",
+      "session-nudge",
+      "session-check-in",
+    ]);
+    const nudge = (session: string) => part(session, "nudge");
+    expect(nudge("answered")?.classList.contains("warning")).toBe(false);
+    expect(nudge("unresponsive")?.classList.contains("warning")).toBe(true);
+    expect(nudge("unsent")?.classList.contains("warning")).toBe(true);
+    expect(
+      new Set(["answered", "unresponsive", "unsent"].map((each) => nudge(each)?.textContent)).size,
+    ).toBe(3);
+    expect(nudge("main")).toBeNull();
+  });
+
+  it("says whether its bridge can nudge the agent, unfolded", async () => {
+    await open([
+      agent("builder", [
+        watched("nudged", { ...observed("at_prompt"), nudge: true }),
+        watched("main", observed("at_prompt")),
+        watched("bare", { monitored: false }),
+      ]),
+    ]);
+    const canNudge = (session: string) => {
+      serveLog([], 0, `/s/builder/${session}`);
+      fireEvent.click(fold(session));
+      return row(session).querySelector(".session-can-nudge")?.textContent;
+    };
+    const [yes, no, none] = ["nudged", "main", "bare"].map(canNudge);
+    expect(yes).toBeDefined();
+    expect(no).toBeDefined();
+    expect(yes).not.toBe(no);
+    expect(none).toBeUndefined();
+  });
+
   it("names the profile its bridge reads the terminal with, unfolded", async () => {
     await open([
       agent("builder", [

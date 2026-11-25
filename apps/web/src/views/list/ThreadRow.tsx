@@ -55,9 +55,11 @@ function askTags(ask: AskSummary, asks: OpenAsks): { label: ReactNode; tone?: st
 }
 
 // strandedTags mark a stranded thread with why its session is not there to
-// read it: it stopped, with its outcome; it is quiet, with when it was last
-// seen; or it has no active credential, which the credential's own tag says
-// of any thread, stranded or not, unless the stranded mark already does.
+// read it, as absenceOf finds: it stopped, with its outcome; it is quiet,
+// with when it last checked in; its bridge is not connected; what came of
+// the nudge of a session its bridge can nudge; or it has no active
+// credential, which the credential's own tag says of any thread, stranded or
+// not, unless the stranded mark already does.
 function strandedTags(thread: ThreadSummary): { label: ReactNode; tone?: string }[] {
   const absence = thread.stranded === true ? absenceOf(threadWhereabouts(thread)) : undefined;
   const stranded = absence === undefined ? "Stranded" : `Stranded · ${absenceWords(absence)}`;

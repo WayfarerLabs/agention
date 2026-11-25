@@ -46,12 +46,17 @@ import { blank, draftProblems, failureAt } from "../thread/writer.ts";
 // files or dictation, so nothing added is left behind.
 
 // awaited says what a session away waits on before it sees a new thread, by
-// why it is away: a quiet session may not have ended, and may yet look.
+// why it is away: a quiet session may not have ended, and may yet look; and
+// one whose latest nudge had no check-in since is not nudged again until it
+// checks in.
 const awaited: Record<Absence["kind"], string> = {
   stopped: "until it is started again",
   quiet: "soon",
   credential: "until you approve a registration for it",
   disconnected: "until its bridge connects again",
+  unresponsive: "until it checks in",
+  unsent: "until it checks in",
+  no_nudge: "soon",
 };
 
 // titleProblem says why a title cannot be sent, in the API's words for the
