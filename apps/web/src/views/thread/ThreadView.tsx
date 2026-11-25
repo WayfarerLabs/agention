@@ -207,22 +207,18 @@ interface Stop extends Place {
 const threadOrder = (a: Place, b: Place) => a.seq - b.seq || (a.ask ?? 0) - (b.ask ?? 0);
 
 // jumpStops lists the stops of the jump to unread in thread order, and counts
-// the unread messages, those the page marks unread and those it has not
-// loaded, and the open asks it goes to. Its stops are each unread message and
+// the unread messages, those the page marks unread (unreadHere) and those it
+// has not loaded, and the open asks it goes to. Its stops are each unread message and
 // each ask the thread's summary lists, the 50 most pressing open to the
 // operator, read or not, the card standing for its message.
 function jumpStops(
   data: LoadedThread,
-  fresh: ReadonlySet<number>,
+  unreadHere: ReadonlySet<number>,
 ): { stops: Stop[]; unread: number; asks: number } {
   const { thread, messages, marks } = data;
   const asks: Stop[] = thread.open_asks.asks.map((ask) => ({ seq: ask.seq, ask: ask.number }));
   const asking = new Set(asks.map((ask) => ask.seq));
-  // A message archived since the page marked it unread folds away, and is
-  // never unread.
-  const marked = messages.filter(
-    (message) => message.live && fresh.has(message.seq) && message.seq > marks.archived_through,
-  );
+  const marked = messages.filter((message) => message.live && unreadHere.has(message.seq));
   const unread: Stop[] = marked
     .filter((message) => !asking.has(message.seq))
     .map((message) => ({ seq: message.seq }));
@@ -499,6 +495,12 @@ function ThreadPage({
   // A message the operator writes while the thread is archived for them is
   // archived with the rest, but stays in view until they leave the page.
   const keptInView = [...writtenHere].filter((seq) => seq <= archivedThrough);
+  // The page marks unread the messages that were unread when it showed them,
+  // until the archive mark covers them: a message archived since folds away.
+  const unreadHere = useMemo(
+    () => new Set([...fresh].filter((seq) => seq > archivedThrough)),
+    [fresh, archivedThrough],
+  );
   // The messages archived fold into one line at the top, once the earliest
   // message loaded is one of them or follows them.
   const folding = archivedThrough > 0 && (messages[0]?.seq ?? 1) <= archivedThrough + 1;
@@ -546,7 +548,7 @@ function ThreadPage({
   // wrapping round. Reaching messages not loaded, it shows them and looks
   // again once they load; when that load fails, or would load nothing, the
   // press ends there.
-  const jump = useMemo(() => jumpStops(data, fresh), [data, fresh]);
+  const jump = useMemo(() => jumpStops(data, unreadHere), [data, unreadHere]);
   const [openedThrough] = useState(() => readThrough(data.marks));
   const jumped = useRef<Place>(undefined);
   const [seeking, setSeeking] = useState<{ failedBefore: unknown }>();
@@ -884,7 +886,7 @@ function ThreadPage({
             Show earlier messages
           </button>
         )}
-        <MessageList messages={listed} fresh={fresh} context={context} />
+        <MessageList messages={listed} unread={unreadHere} context={context} />
         <HeadFailure action="Loading that message" failure={loading.failure} />
         {data.later && (
           <button type="button" className="secondary more" onClick={loaded.later}>

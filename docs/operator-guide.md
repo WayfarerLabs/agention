@@ -508,10 +508,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   when that comes before them, and show earlier and later ones when you ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
-    shows the closed envelope if you had not read it when it appeared, until you leave the page, and
-    the open envelope otherwise; one you had not read also stands out in blue, as unread rows do,
-    with a dot before its author. Reading, like writing, counts only the messages on screen. Your
-    reading wakes no agent waiting for messages, which sees it the next time it reads the thread.
+    shows the closed envelope if you had not read it when it appeared, until you leave the page or
+    archive it, and the open envelope otherwise; one you had not read also stands out in blue, as
+    unread rows do, with a dot before its author. Reading, like writing, counts only the messages on
+    screen. Your reading wakes no agent waiting for messages, which sees it the next time it reads
+    the thread.
   - **Jump to unread** moves you to a message you have not read, whether it shows the closed
     envelope or is not shown yet, or to the card of one of the 50 most pressing asks still open to
     you, read or not. The first press goes to the first of them after what you had read when you

@@ -1209,6 +1209,20 @@ describe("archiving through a message", () => {
     expect(optionNames(3)).toEqual(["Mark unread from here", "Archive through here"]);
   });
 
+  it("marks a message it archives read, though it was unread when the page opened", async () => {
+    await page.openWith([message(1), message(2), message(3)], { unread: 3 });
+    await waitFor(() => expect(option(2, "Archive through here").disabled).toBe(false));
+    fireEvent.click(option(2, "Archive through here"));
+    await waitFor(() => expect(document.activeElement).toBe(fold()));
+    fireEvent.click(fold());
+    for (const seq of [1, 2]) {
+      expect(messageArticle(seq).classList.contains("unread")).toBe(false);
+      expect(within(messageArticle(seq)).queryByTitle("Unread")).toBeNull();
+    }
+    expect(messageArticle(3).classList.contains("unread")).toBe(true);
+    expect(within(messageArticle(3)).getByTitle("Unread")).toBeTruthy();
+  });
+
   it("archives the thread through a message followed only by the operator's reply, head and messages agreeing", async () => {
     await page.openWith([message(1), operatorMessage(2, { text: "Thanks." })]);
     const head = screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
