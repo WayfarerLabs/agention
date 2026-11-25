@@ -28,8 +28,8 @@
 - [ ] Unit tests for `speak` (its outcomes, the split and the watchdog), the choice and its
       fallback; browser tests for the controls.
 - [ ] New ADR superseding ADR 0002's read aloud line, and ADR 0002 marked; SECURITY.md's read aloud
-      paragraph; operator guide (choosing a voice and rate, the read controls, voices that send text
-      away); architecture document; live testing guide.
+      paragraph; operator guide (choosing a voice and rate, voices that send text away); web UI page
+      (the read controls); architecture document; live testing guide.
 
 **Done when:** the operator reads a thread aloud from a message in Edge on Windows and on their
 Android phone with a chosen voice or rate; gates and CI pass.
@@ -58,9 +58,9 @@ Stacks on agention#70, or follows it.
 - [ ] Unit tests for the grammar and the loop; the browser test project with a recorded fake
       microphone and the stub provider.
 - [ ] New ADR for Audio Mode; SECURITY.md's transcription promise restated; Settings and the guide
-      on what reaches the provider while Audio Mode listens; operator guide (Audio Mode, its
-      commands, how a kept reply comes back, and that Agention is not a car interface); architecture
-      document; live testing guide.
+      on what reaches the provider while Audio Mode listens; web UI page (Audio Mode, its commands,
+      how a kept reply comes back, and that Agention is not a car interface); architecture document;
+      live testing guide.
 
 **Done when:** the FRD's definition of done holds for Audio Mode on the operator's mounted Android
 phone, including a failure said when the network is cut mid-answer; gates and CI pass, and the

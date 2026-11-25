@@ -63,7 +63,7 @@ mounted and its screen on; Audio Mode keeps the screen awake. It ends by voice w
 at any time by the one large control it shows. While it is on, everything it offers is done by
 voice, and the screen shows only its state and that control: nothing to read. It needs a
 transcription provider. Audio Mode is for use where it is safe to listen and speak; Agention is not
-a car interface, which the operator guide says.
+a car interface, which the web UI page says.
 
 **M2. What it reads.** **Open (what Audio Mode reads):** the recommendation is the open asks waiting
 on the operator, in the thread list's priority order, one ask at a time: the thread's title, the
@@ -129,9 +129,9 @@ agent knows homophones and numbers may have been misheard.
 - What is read aloud is spoken by the browser; a voice the browser reports as sending text off the
   device is marked (A1).
 
-**E3. Collateral.** The operator guide, SECURITY.md, the architecture document and ADRs describe the
-read aloud controls, the voice settings, Audio Mode, its commands and confirmation, and what reaches
-the transcription provider; the live tests cover them.
+**E3. Collateral.** The operator guide, the web UI page, SECURITY.md, the architecture document and
+ADRs describe the read aloud controls, the voice settings, Audio Mode, its commands and
+confirmation, and what reaches the transcription provider; the live tests cover them.
 
 ## Out of scope
 
