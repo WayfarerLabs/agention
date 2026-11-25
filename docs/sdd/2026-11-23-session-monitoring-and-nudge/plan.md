@@ -42,6 +42,15 @@
       operator guide's configuration, `CONTRIBUTING.md` (tmux among the prerequisites), CI
       installing tmux, and the development contract. Done when the project review finds none stale.
 
+### Pull request 1c: usage limits
+
+- [ ] Usage-limit screens: a scrubbed capture of one of the operator's Claude Code sessions at a
+      limit it reached on its own, and Codex samples the operator provides, each reviewed. Done when
+      they are committed beside their profiles.
+- [ ] The Claude Code and Codex profiles report a usage limit, with its reset time where the screen
+      shows it. Done when their tests read the new captures and the observer reports the session
+      stopped by a usage limit with any prompt beside it.
+
 ### Pull request 1b: the sessions view
 
 - [ ] The sessions view shows connection, last check-in and condition, flags sessions at a prompt or

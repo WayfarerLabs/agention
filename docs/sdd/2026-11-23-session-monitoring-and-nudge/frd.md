@@ -72,22 +72,23 @@ becomes its agent's last check-in, shown beside whether it is connected, so they
 for 2 hours. The operator guide's account of `idle` changes with T1: an idle agent that can be
 nudged waits at its prompt rather than checking.
 
-**M3. The session's condition.** Where the bridge is given the pane (CF2), the operator sees the
-session's condition and since when, exactly one of, in this order of precedence:
+**M3. The session's condition.** Where the bridge is given the pane (CF2), the operator sees, with
+since when:
 
-- **unknown**: the bridge cannot read the pane, or the pane no longer runs the host;
-- **permission prompt**: a permission or approval dialog;
-- **other prompt**: any other dialog or prompt for someone at the terminal, such as trusting a
-  folder or signing in;
-- **running**: a turn in progress, retries included;
-- **at its prompt**;
-- **waiting**: at rest, but in no condition the profile recognizes.
+- whether the host is **running** a turn (retries included), **at rest**, or **unknown** (the bridge
+  cannot read the pane, or the pane no longer runs the host);
+- at rest, what its screen holds: **its prompt**, a **permission prompt** (a permission or approval
+  dialog), an **other prompt** (any other dialog or prompt for someone at the terminal, such as
+  trusting a folder or signing in), or nothing the profile recognizes (**waiting**); and
+- at rest, what **stopped** it, where the profile can tell: a **usage limit**, with when it resets
+  where the host shows it; a **block**, the host refusing an action on a safety or permission rule;
+  or an **error** from its model provider. It clears when the next turn starts.
 
-A session at rest may also show what it was **stopped by**, where its profile can tell: a **usage
-limit**, with when it resets where the host shows it; a **block**, the host refusing an action on a
-safety or permission rule; or an **error** from its model provider. It clears when the next turn
-starts. A profile reports only what it can tell reliably and has captured screens for (M5); anything
-else at rest is waiting.
+A session stopped by one of those reasons stopped for it, and any prompt on its screen is beside it,
+such as a menu the host shows at a usage limit; a session at rest with a permission or other prompt
+and no such reason stopped on that prompt. Agention's report and the harness observer's interface
+each define these, in their own terms (ruling 5). A profile reports only what it can tell reliably
+and has captured screens for (M5).
 
 **M4. What needs the operator, at a glance.** The sessions view flags each session at a permission
 or other prompt, or stopped by something, as it flags stranded threads today, and lets the operator
@@ -338,6 +339,20 @@ an account label, was dropped by ruling 4.
    SDD's structure and name, M3's prompt conditions, M4 without an account, CF3's account label
    dropped, and M10.
 
+5. (2026-11-25) Asked whether usage limit, block and error should be a "stopped by" note on a
+   session at rest rather than conditions of their own, the operator answered: "Yes, but let's just
+   make sure that both Agention and the monitoring plugin API have this well defined. And it doesn't
+   necessarily have to be the same. That said, this same concept of "whether it's running" vs "is
+   some prompt present" is probably a better model across the board. We just need to be able to
+   differentiate between "Stopped by a prompt" vs "Stopped for some other reason and there's an
+   unrelated prompt"". Asked whether Claude Code usage-limit detection is part of monitoring's
+   definition of done, from a scrubbed capture of one of their sessions the next time it hits a
+   limit on its own, they chose "Yes, capture it". Asked whether to reword the development
+   contract's Codex bound to "monitoring and the nudge", they answered: "Yes. But the work should
+   include usage limit detection for Codex, too. I can provide that sample data." Taken: M3's
+   running, screen and stopped-by model, the definition of done's usage limits on both hosts, and
+   the reworded bound.
+
 ## Definition of done
 
 Monitoring ships first and stands on its own; each delivery is done when its part holds.
@@ -350,8 +365,9 @@ Monitoring ships first and stands on its own; each delivery is done when its par
     and its condition, including running, at its prompt and a permission dialog; a session approved
     while at its prompt starts reporting; and on Codex, of several bridges for one session, only one
     reports.
-  - A usage limit is detected on Claude Code from screens captured when a limit happens on its own,
-    not brought about for the purpose.
+  - A usage limit is detected on Claude Code and on Codex from screens of limits that happened on
+    their own, never brought about for the purpose: a scrubbed capture of one of the operator's
+    Claude Code sessions, and Codex samples the operator provides (ruling 5).
 - **Nudge:**
   - N1 to N6 and T1 are implemented, tested at their boundary, and documented in permanent docs.
   - Live the same way: an agent at its prompt is nudged when the operator starts a thread with it

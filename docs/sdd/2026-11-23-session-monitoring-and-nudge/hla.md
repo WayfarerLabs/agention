@@ -99,13 +99,12 @@ interface HarnessProfiles {
 declare const profileNames: readonly string[];
 declare function selectProfile(name: string, client: HarnessClient | undefined): Profile;
 
-type Condition =
-  "unknown" | "permission_prompt" | "other_prompt" | "running" | "at_prompt" | "waiting";
-
+// Two questions and a reason (M3, ruling 5): is the host running, and what does its screen hold?
 interface Observation {
-  readonly condition: Condition;
-  readonly since: Date;
-  readonly stoppedBy?: StoppedBy;
+  readonly activity: "running" | "at_rest" | "unknown";
+  readonly screen?: Screen["kind"]; // at rest only: "input" is its prompt, "other" is waiting
+  readonly stoppedBy?: StoppedBy; // at rest only: why it stopped, beside any prompt on screen
+  readonly since: Date; // when activity or screen last changed
 }
 
 interface Observer {
@@ -116,8 +115,10 @@ interface Observer {
 
 `Pane` is the seam to the terminal and `Profile` the seam to the harness: supporting a harness, or a
 version whose screens changed, adds a `HarnessProfiles` entry and its captures and touches nothing
-else (M5). The conditions are spelled as the agent API spells them, so the bridge passes them on
-unchanged.
+else (M5). The agent API keeps its own spelling of the same facts, one condition (`unknown`,
+`running`, `at_prompt`, `permission_prompt`, `other_prompt`, `waiting`) beside `stopped_by`, and the
+bridge maps an observation onto it: a stopped-by reason beside a prompt reads as stopped for that
+reason with the prompt beside it, and a prompt with no reason as stopped on the prompt.
 
 ### Reading
 
