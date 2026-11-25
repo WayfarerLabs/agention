@@ -1,7 +1,7 @@
 import { type ChangeEvent, type RefObject, useRef, useState } from "react";
-import { MenuItem, OptionsMenu } from "../../../components.tsx";
-import { Icon, type IconName } from "../../../icons.tsx";
-import { useMedia } from "../../../media.ts";
+import { MenuItem, OptionsMenu } from "../components.tsx";
+import { Icon, type IconName } from "../icons.tsx";
+import { useMedia } from "../media.ts";
 import type { DraftFiles } from "./attach.ts";
 
 // AttachButton is Attach, its paper clip alone, and the file pickers it

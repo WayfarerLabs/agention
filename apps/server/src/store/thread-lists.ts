@@ -325,19 +325,19 @@ function ranked(sort: ThreadSort, reverse: boolean, bySession: boolean): string 
 
 // The levels each grouping groups its threads by, over ranked as th,
 // outermost first, each by what partitions its groups: by session group, the
-// session's group, no group being one of its own, then the session, then its
-// topic; by session, the session, then its topic; by agent, the agent, then
-// its session. A session sits in at most one group and belongs to one agent,
-// so it settles the levels above it.
+// session's group, no group being one of its own, then the session; by
+// session, the session; by topic, the session, then its topic; by agent, the
+// agent, then its session. A session sits in at most one group and belongs
+// to one agent, so it settles the levels above it.
 // Each level is numbered from the outermost, 0, which names its keys.
-type Level = 0 | 1 | 2;
+type Level = 0 | 1;
 const levelsOf: Record<ThreadGrouping, readonly { level: Level; partition: string }[]> = {
   session_group: [
     { level: 0, partition: "th.group_id" },
     { level: 1, partition: "th.session_id" },
-    { level: 2, partition: "th.session_id, th.topic" },
   ],
-  session: [
+  session: [{ level: 0, partition: "th.session_id" }],
+  topic: [
     { level: 0, partition: "th.session_id" },
     { level: 1, partition: "th.session_id, th.topic" },
   ],
@@ -779,18 +779,17 @@ interface GroupRow {
 }
 
 // rollUpGroups rolls up each session holding a thread the list keeps and,
-// grouped by session group or by session, each of its topics: how many
-// threads, how many with unread messages, whether any holds a blocking ask
-// open to the viewer, the highest priority of an open ask, and whether all
-// are archived for the viewer; each session also carries its presence and its
-// group. Groups come in the grouped list's order, each placed by its first
-// thread: by session group, the groups, the sessions within each, and the
-// topics within each session; by session, the sessions, and the topics
-// within each; by agent, the agents, and the sessions within each. It lists
-// the first maxListed sessions, and as many topics in all, and says when it
-// leaves any out.
+// grouped by topic, each of its topics: how many threads, how many with
+// unread messages, whether any holds a blocking ask open to the viewer, the
+// highest priority of an open ask, and whether all are archived for the
+// viewer; each session also carries its presence and its group. Groups come
+// in the grouped list's order, each placed by its first thread: by session
+// group, the groups, and the sessions within each; by session, the sessions;
+// by topic, the sessions, and the topics within each; by agent, the agents,
+// and the sessions within each. It lists the first maxListed sessions, and as
+// many topics in all, and says when it leaves any out.
 function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGrouping): ThreadGroups {
-  const byTopic = grouping !== "agent";
+  const byTopic = grouping === "topic";
   const rows = listStatement(
     reach.db,
     `${threadsSeen(reached, leadOf(query, query.sort))}, ${ranked(query.sort, query.reverse, true)}
@@ -815,10 +814,11 @@ function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGroupin
     ...parametersOf(query, reach.viewing, reach.now),
   }) as unknown as GroupRow[];
   // What holds each session: by session group, its group, no group being one
-  // of its own; by agent, its agent; by session, nothing above it.
+  // of its own; by agent, its agent; by session or by topic, nothing above it.
   const holders: Record<ThreadGrouping, (row: GroupRow) => string> = {
     session_group: (row) => `group:${row.group_id ?? ""}`,
     session: () => "",
+    topic: () => "",
     agent: (row) => `agent:${row.agent}`,
   };
   const holder = holders[grouping];

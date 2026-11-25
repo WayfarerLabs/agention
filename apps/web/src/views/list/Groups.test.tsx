@@ -31,9 +31,9 @@ const rollup = (threads: number, more: Partial<Rollup> = {}): Rollup => ({
   ...more,
 });
 
-// The threads of three sessions, in the order the list grouped by session
-// gives them: builder/main's under two topics and none, then reviewer/main's
-// and builder/side's under none.
+// The threads of three sessions, in the order the list grouped by session or
+// by topic gives them: builder/main's on two topics and none, then
+// reviewer/main's and builder/side's on none.
 const bySession: ThreadSummary[] = [
   threadSummary({ number: 1, title: "Auth one", topic: "auth" }),
   threadSummary({ number: 3, title: "Auth two", topic: "auth", unread: 0 }),
@@ -46,6 +46,7 @@ const bySession: ThreadSummary[] = [
 // was seen since, and reviewer/main never.
 const lastSeen = "2026-10-27T09:00:00.000Z";
 
+// The roll-ups of those threads, as the list grouped by topic gives them.
 const groups: ThreadGroups = {
   sessions: [
     {
@@ -75,6 +76,13 @@ const groups: ThreadGroups = {
   ],
   truncated: false,
 };
+
+// sessionsAlone is the roll-ups as a grouping that does not group by topic
+// gives them, each session's without its topics'.
+const sessionsAlone = (rolled: ThreadGroups): ThreadGroups => ({
+  ...rolled,
+  sessions: rolled.sessions.map(({ topics: _topics, ...session }) => session),
+});
 
 // serve answers the list as pages of the threads given, each carrying the
 // roll-ups, a page holding the threads before each cut.
@@ -117,13 +125,13 @@ const namesOf = (selector: string) =>
 const outerHeaders = () => namesOf(".group-head > .fold-main > h2");
 const innerHeaders = () => namesOf(".subgroup-head > .fold-main > h3");
 
-describe("grouped by session", () => {
+describe("grouped by topic", () => {
   it("asks the list for its grouping, and folds its rows under each session's header and its topics' when two or more", async () => {
     serve(bySession);
-    renderAt("/?unread=true&sort=due&group=session");
+    renderAt("/?unread=true&sort=due&group=topic");
     await screen.findByRole("heading", { level: 4, name: titled("Auth one") });
     const [asked] = api.callsTo("GET", "/threads");
-    expect(asked?.url.searchParams.get("group")).toBe("session");
+    expect(asked?.url.searchParams.get("group")).toBe("topic");
     expect(asked?.url.searchParams.get("unread")).toBe("true");
     expect(asked?.url.searchParams.get("sort")).toBe("due");
     // Sessions in the list's order, each a heading led by a disclosure
@@ -141,11 +149,11 @@ describe("grouped by session", () => {
     // link to the list as it is, the session's filter added and each mark's
     // own.
     expect(targets("Agent builder Session main")).toEqual([
-      "/?unread=true&session=builder/main&sort=due&group=session",
-      "/?unread=true&session=builder/main&sort=due&group=session",
-      "/?unread=true&session=builder/main&sort=due&group=session",
-      "/?impact=blocking&unread=true&session=builder/main&sort=due&group=session",
-      "/?priority=urgent&unread=true&session=builder/main&sort=due&group=session",
+      "/?unread=true&session=builder/main&sort=due&group=topic",
+      "/?unread=true&session=builder/main&sort=due&group=topic",
+      "/?unread=true&session=builder/main&sort=due&group=topic",
+      "/?impact=blocking&unread=true&session=builder/main&sort=due&group=topic",
+      "/?priority=urgent&unread=true&session=builder/main&sort=due&group=topic",
     ]);
     // A quiet session's header says so for the eye too, in the warning's
     // tone, as the sessions view does; when it was last seen links nowhere,
@@ -155,9 +163,9 @@ describe("grouped by session", () => {
     ).toContain(sinceTime(lastSeen));
     expect(bar("Agent builder Session main").querySelector(".last-seen")).toBeNull();
     expect(targets("Agent builder Session side")).toEqual([
-      "/?unread=true&session=builder/side&sort=due&group=session",
-      "/?unread=true&session=builder/side&sort=due&group=session",
-      "/?priority=high&unread=true&session=builder/side&sort=due&group=session",
+      "/?unread=true&session=builder/side&sort=due&group=topic",
+      "/?unread=true&session=builder/side&sort=due&group=topic",
+      "/?priority=high&unread=true&session=builder/side&sort=due&group=topic",
     ]);
     // Each part of where a session's threads are shows behind its badge.
     const [builder] = outer;
@@ -187,7 +195,7 @@ describe("grouped by session", () => {
     // A topic links to its own threads; no filter keeps those of no topic,
     // so its header links nothing.
     expect(targets("Topic auth")[0]).toBe(
-      "/?unread=true&topic=builder/main/auth&sort=due&group=session",
+      "/?unread=true&topic=builder/main/auth&sort=due&group=topic",
     );
     expect(targets("No topic")).toEqual([]);
     expect(rows(4)).toEqual(["Auth one", "Auth two", "Loose"]);
@@ -196,7 +204,7 @@ describe("grouped by session", () => {
 
   it("shows the closed envelope with a header's unread count, or the open envelope when none is", async () => {
     serve(bySession);
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Side") });
     expect(
       within(bar("Agent reviewer Session main")).getByTitle("1 unread").querySelector("svg"),
@@ -209,15 +217,15 @@ describe("grouped by session", () => {
 
   it("stands a header with its roll-up before all its rows have loaded, and shows more as the list's own pages", async () => {
     serve(bySession, [1]);
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Auth one") });
     expect(outerHeaders()).toEqual(["Agent builder Session main"]);
-    expect(targets("Agent builder Session main")[0]).toBe("/?session=builder/main&group=session");
+    expect(targets("Agent builder Session main")[0]).toBe("/?session=builder/main&group=topic");
     expect(rows(4)).toEqual(["Auth one"]);
     fireEvent.click(screen.getByRole("button", { name: "Show more" }));
     await screen.findByRole("heading", { name: titled("Side") });
     expect(rows(4)).toEqual(["Auth one", "Auth two", "Loose"]);
-    expect(api.callsTo("GET", "/threads").at(-1)?.url.searchParams.get("group")).toBe("session");
+    expect(api.callsTo("GET", "/threads").at(-1)?.url.searchParams.get("group")).toBe("topic");
   });
 
   it("folds a group's rows under one header though they arrive in two runs", async () => {
@@ -225,7 +233,7 @@ describe("grouped by session", () => {
     // next one.
     const moved = threadSummary({ number: 4, title: "Moved", topic: "auth" });
     serve([...bySession.slice(0, 4), moved, ...bySession.slice(4)], [4]);
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Review") });
     fireEvent.click(screen.getByRole("button", { name: "Show more" }));
     await screen.findByRole("heading", { name: titled("Moved") });
@@ -236,7 +244,7 @@ describe("grouped by session", () => {
 
   it("names a header without a roll-up when the list left its group out", async () => {
     serve(bySession, [], { sessions: groups.sessions.slice(0, 1), truncated: true });
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Side") });
     expect(outerHeaders()).toEqual([
       "Agent builder Session main",
@@ -245,14 +253,12 @@ describe("grouped by session", () => {
     ]);
     // Without a roll-up, a header has no marks, its label alone linking.
     expect(bar("Agent reviewer Session main").querySelector(".roll-up")).toBeNull();
-    expect(targets("Agent reviewer Session main")).toEqual([
-      "/?session=reviewer/main&group=session",
-    ]);
+    expect(targets("Agent reviewer Session main")).toEqual(["/?session=reviewer/main&group=topic"]);
   });
 
   it("collapses a header, hiding everything under it, and keeps that on this device", async () => {
     serve(bySession);
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Auth one") });
     const builder = header("Agent builder Session main");
     builder.focus();
@@ -266,12 +272,12 @@ describe("grouped by session", () => {
     cleanup();
     api = new FakeApi();
     serve(bySession);
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Review") });
     expect(header("Agent builder Session main").getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(header("Agent builder Session main"));
     expect(screen.getByRole("heading", { name: titled("Auth one") })).toBeTruthy();
-    // Grouped the other way, the headers are its own.
+    // Grouped another way, the headers are its own.
     fireEvent.click(header("Agent builder Session main"));
     cleanup();
     renderAt("/?group=agent");
@@ -281,7 +287,7 @@ describe("grouped by session", () => {
 
   it("says how many threads the list holds on the sheet's Show button", async () => {
     serve(bySession, [2]);
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Auth one") });
     fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
     const sheet = screen.getByRole("dialog", { hidden: true });
@@ -291,7 +297,7 @@ describe("grouped by session", () => {
   it("archives the read threads loaded, whatever their group", async () => {
     serve(bySession);
     api.on("POST", "/archives", { body: { archived: [], skipped: [] } });
-    renderAt("/?group=session");
+    renderAt("/?group=topic");
     fireEvent.click(await screen.findByRole("button", { name: "Archive all read" }));
     await waitFor(() => expect(api.callsTo("POST", "/archives")).toHaveLength(1));
     expect(api.callsTo("POST", "/archives")[0]?.body).toEqual({
@@ -306,9 +312,24 @@ describe("grouped by session", () => {
   });
 });
 
+describe("grouped by session", () => {
+  it("folds its rows under each session's header alone, whatever their topics", async () => {
+    serve(bySession, [], sessionsAlone(groups));
+    renderAt("/?group=session");
+    await screen.findByRole("heading", { level: 3, name: titled("Auth one") });
+    expect(api.callsTo("GET", "/threads")[0]?.url.searchParams.get("group")).toBe("session");
+    expect(outerHeaders()).toEqual([
+      "Agent builder Session main",
+      "Agent reviewer Session main",
+      "Agent builder Session side",
+    ]);
+    expect(innerHeaders()).toEqual([]);
+    expect(rows(3)).toEqual(["Auth one", "Auth two", "Loose", "Review", "Side"]);
+  });
+});
 describe("a header's links", () => {
   it("add the header's group and the mark's filter to the list on screen, folding nothing", async () => {
-    serve(bySession);
+    serve(bySession, [], sessionsAlone(groups));
     renderAt("/?unread=true&sort=due&group=session");
     await screen.findByRole("heading", { name: titled("Auth one") });
     const entries = window.history.length;
@@ -340,7 +361,7 @@ describe("a header's links", () => {
   });
 
   it("leave focus where it is when they lead to the list on screen", async () => {
-    serve(bySession);
+    serve(bySession, [], sessionsAlone(groups));
     renderAt("/?session=builder/main&group=session");
     await screen.findByRole("heading", { name: titled("Auth one") });
     const label = within(bar("Agent builder Session main")).getAllByRole("link")[0] as HTMLElement;
@@ -351,7 +372,7 @@ describe("a header's links", () => {
   });
 
   it("leave the heading going by its button's name alone", async () => {
-    serve(bySession);
+    serve(bySession, [], sessionsAlone(groups));
     renderAt("/?group=session");
     await screen.findByRole("heading", { name: titled("Auth one") });
     expect(
@@ -362,7 +383,7 @@ describe("a header's links", () => {
 
 describe("a header's marks under a filter on open asks", () => {
   it("leave Blocked on you and the priority plain, the rest linking", async () => {
-    serve(bySession);
+    serve(bySession, [], sessionsAlone(groups));
     renderAt("/?impact=assuming&group=session");
     await screen.findByRole("heading", { name: titled("Auth one") });
     expect(targets("Agent builder Session main")).toEqual([
@@ -442,7 +463,7 @@ describe("grouped by session group", () => {
     thread.agent === "builder" ? { ...thread, group: billing } : thread,
   );
   const inGroups = [authOne, authTwo, loose, side, review].filter((each) => each !== undefined);
-  const [main, reviewer, sideRollup] = groups.sessions;
+  const [main, reviewer, sideRollup] = sessionsAlone(groups).sessions;
   const grouped: ThreadGroups = {
     sessions: [main, sideRollup, reviewer].flatMap((each) =>
       each === undefined ? [] : [each.agent === "builder" ? { ...each, group: billing } : each],
@@ -454,7 +475,7 @@ describe("grouped by session group", () => {
   it("folds the sessions under their group's header, each group composed from its sessions", async () => {
     serve(inGroups, [], grouped);
     renderAt("/?group=session_group");
-    await screen.findByRole("heading", { level: 5, name: titled("Auth one") });
+    await screen.findByRole("heading", { level: 4, name: titled("Auth one") });
     expect(api.callsTo("GET", "/threads")[0]?.url.searchParams.get("group")).toBe("session_group");
     expect(outerHeaders()).toEqual(["Group Billing", "No group"]);
     // A group links to its threads by its id, and no group as none.
@@ -468,9 +489,9 @@ describe("grouped by session group", () => {
     expect(targets("Agent builder Session main")[0]).toBe(
       "/?session=builder/main&group=session_group",
     );
-    expect(innermostHeaders()).toEqual(["Topic auth", "No topic"]);
-    expect(rows(5)).toEqual(["Auth one", "Auth two", "Loose"]);
-    expect(rows(4)).toEqual(["Side", "Review"]);
+    // The sessions' threads sit beneath them, whatever their topics.
+    expect(innermostHeaders()).toEqual([]);
+    expect(rows(4)).toEqual(["Auth one", "Auth two", "Loose", "Side", "Review"]);
   });
 
   it("keeps a group's fold by its id, so it stays collapsed once renamed", async () => {
@@ -502,11 +523,11 @@ describe("grouped by session group", () => {
   it("leaves the sessions heading the list while every one is in one group", async () => {
     const allBilling = bySession.map((thread) => ({ ...thread, group: billing }));
     serve(allBilling, [], {
-      sessions: groups.sessions.map((each) => ({ ...each, group: billing })),
+      sessions: sessionsAlone(groups).sessions.map((each) => ({ ...each, group: billing })),
       truncated: false,
     });
     renderAt("/?group=session_group");
-    await screen.findByRole("heading", { level: 4, name: titled("Auth one") });
+    await screen.findByRole("heading", { level: 3, name: titled("Auth one") });
     expect(outerHeaders()).toHaveLength(3);
     expect(outerHeaders()[0]).toBe("Agent builder Session main");
   });
@@ -514,7 +535,7 @@ describe("grouped by session group", () => {
   it("leaves the groups out grouped by session, though sessions are in them", async () => {
     serve(inGroups, [], grouped);
     renderAt("/?group=session");
-    await screen.findByRole("heading", { level: 4, name: titled("Auth one") });
+    await screen.findByRole("heading", { level: 3, name: titled("Auth one") });
     expect(outerHeaders()).toEqual([
       "Agent builder Session main",
       "Agent builder Session side",

@@ -122,6 +122,29 @@ describe("files on the operator mount", () => {
     expect(answerCodeOf(sent)).toBe("ok");
   });
 
+  it("starts a thread whose first message carries a key's upload to the session", async () => {
+    const writer = await harness.createKey(["threads:write"]);
+    const { upload: ref } = json(
+      await upload(writer.secret, Buffer.from("plan"), "plan.txt"),
+    ) as UploadResult;
+    const started = await harness.operator(writer.secret, "POST", "/s/builder/main/threads", {
+      request_id: "o-start",
+      title: "The plan",
+      text: "Here it is.",
+      attachments: [{ upload: ref }],
+    });
+    expect(answerCodeOf(started)).toBe("ok");
+    const { number } = started.body as { number: number };
+    const thread = harness.fixture.thread(harness.fixture.operator, {
+      agent: "builder",
+      session: "main",
+      thread: number,
+    });
+    expect(thread.messages[0]?.attachments?.map((each) => [each.name, each.file])).toEqual([
+      ["plan.txt", ref],
+    ]);
+  });
+
   it("removes a pending upload, but never one a sent message carries, which still reads", async () => {
     const writer = await harness.createKey(["threads:write"]);
     const remove = (ref: string) =>

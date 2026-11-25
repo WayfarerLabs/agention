@@ -4,21 +4,46 @@ import {
   threadTitle,
   type WriteResult,
 } from "@wayfarerlabs/agention-api";
-import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
+import {
+  type ClipboardEvent,
+  type FormEvent,
+  type ReactNode,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { request, sessionPath } from "../../api.ts";
+import {
+  attachmentsOf,
+  attachPasted,
+  expireRefused,
+  sendWait,
+  useDraftFiles,
+} from "../../attach/attach.ts";
+import { AttachButton } from "../../attach/AttachButton.tsx";
+import { AttachList } from "../../attach/AttachList.tsx";
 import { Failure, PathParts, Sheet } from "../../components.tsx";
 import { newRequestId, useAction, useStillOpen } from "../../data.ts";
 import { type Absence, AbsenceReason, absenceOf } from "../../format.tsx";
 import { navigate, threadHref } from "../../router.tsx";
+import { useDictationInto, useVoiceOn } from "../../voice/Dictation.tsx";
 import { blank, draftProblems, failureAt } from "../thread/writer.ts";
 
 // The new-thread sheet: the operator starts a thread on a session with a
-// title and a first message, its text and optional detail, in a modal dialog
-// that rises from the bottom on a phone as the filter sheet does. The
-// session stays the thread's requester, so the sheet has no asks. When the
-// session is not likely to see the thread soon, the sheet says so, what it
-// waits on and why, following the session as the view refreshes. Send opens
-// the new thread.
+// title and a first message, its text, optional detail and the files it
+// carries, in a modal dialog that rises from the bottom on a phone as the
+// filter sheet does. Its message and Details boxes work as the composer's
+// do: Attach and a paste of images add files, each uploaded to the session
+// as it is added, which Send waits for, and while voice is on, dictation
+// puts its text in the box that last had focus; Send waits for a recording
+// too, until its text is in or it is discarded. The session stays the
+// thread's requester, so the sheet has no asks. When the session is not
+// likely to see the thread soon, the sheet says so, what it waits on and
+// why, following the session as the view refreshes. Send opens the new
+// thread; leaving the sheet without sending, by closing it or any other way
+// it goes, removes its uploads, except those of a start on its way. While a
+// start is on its way the sheet holds still: it neither closes nor takes
+// files or dictation, so nothing added is left behind.
 
 // awaited says what a session away waits on before it sees a new thread, by
 // why it is away: a quiet session may not have ended, and may yet look.
@@ -55,6 +80,10 @@ export function NewThreadSheet({
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [detail, setDetail] = useState("");
+  const files = useDraftFiles({ agent, session: session.session });
+  const attach = useRef<HTMLButtonElement>(null);
+  const textBox = useRef<HTMLTextAreaElement>(null);
+  const detailBox = useRef<HTMLTextAreaElement>(null);
   const send = useAction();
   const stillOpen = useStillOpen();
   // A retry keeps its request id while what it sends is unchanged, so a
@@ -72,7 +101,14 @@ export function NewThreadSheet({
   const drafted = { title: titleProblem(title), ...draftProblems({ text, detail }) };
   const refused = (field: string) => failureAt(send.failure, field);
   const atField = ["title", "text", "detail"].some((field) => refused(field) !== undefined);
+  const { attachments, ids: fileIds } = attachmentsOf(files.files);
+  // Whether dictation is under way: opening the microphone, recording,
+  // transcribing or awaiting Retry.
+  const [dictating, setDictating] = useState(false);
+  // What keeps Send waiting, beside what each field says.
+  const waiting = sendWait(files.files, dictating);
   const ready =
+    waiting === undefined &&
     !blank(title) &&
     !blank(text) &&
     drafted.title === undefined &&
@@ -82,7 +118,20 @@ export function NewThreadSheet({
     send.clear();
     set(value);
   };
-
+  const pasted = attachPasted(files);
+  const paste = (event: ClipboardEvent<HTMLElement>) => {
+    if (!send.pending) {
+      pasted(event);
+    }
+  };
+  const voiceOn = useVoiceOn();
+  const { dictation, focused } = useDictationInto({
+    boxes: { text: textBox, detail: detailBox },
+    first: "text",
+    set: (which, value) => edit(which === "detail" ? setDetail : setText)(value),
+    disabled: send.pending,
+    onActive: setDictating,
+  });
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!ready) {
@@ -92,17 +141,30 @@ export function NewThreadSheet({
       title,
       text,
       ...(blank(detail) ? {} : { detail }),
+      ...(attachments.length === 0 ? {} : { attachments }),
     };
     const written = JSON.stringify(content);
     if (attempt.current?.content !== written) {
       attempt.current = { content: written, requestId: newRequestId() };
     }
     const body: ThreadStartInput = { ...content, request_id: attempt.current.requestId };
-    const result = await send.run((csrf) =>
-      request<WriteResult>("POST", sessionPath(agent, session.session, "/threads"), {
-        csrf,
-        body,
-      }),
+    // Leaving the sheet keeps the files the start carries.
+    const result = await files.carry(
+      fileIds,
+      () =>
+        send.run(async (csrf) => {
+          try {
+            return await request<WriteResult>(
+              "POST",
+              sessionPath(agent, session.session, "/threads"),
+              { csrf, body },
+            );
+          } catch (failure) {
+            expireRefused(files, failure, fileIds);
+            throw failure;
+          }
+        }),
+      (result) => result !== undefined,
     );
     if (result !== undefined && stillOpen()) {
       navigate(threadHref(agent, session.session, result.number));
@@ -114,13 +176,27 @@ export function NewThreadSheet({
       sheet={sheet}
       heading="New thread"
       onClose={onClose}
+      held={send.pending}
       onSubmit={(event) => void submit(event)}
       foot={
         <>
-          <button type="button" className="secondary" onClick={() => sheet.current?.close()}>
+          <div className="sheet-tools">
+            <AttachButton draft={files} attach={attach} disabled={send.pending} />
+            {voiceOn && dictation.controls}
+          </div>
+          <button
+            type="button"
+            className="secondary"
+            disabled={send.pending}
+            onClick={() => sheet.current?.close()}
+          >
             Cancel
           </button>
-          <button type="submit" disabled={send.pending || !ready}>
+          <button
+            type="submit"
+            disabled={send.pending || !ready}
+            aria-describedby={waiting === undefined ? undefined : `${id}-hold`}
+          >
             Send
           </button>
         </>
@@ -163,9 +239,12 @@ export function NewThreadSheet({
         control={(attributes) => (
           <textarea
             {...attributes}
+            ref={textBox}
             rows={4}
             value={text}
+            onFocus={() => focused("text")}
             onChange={(event) => edit(setText)(event.target.value)}
+            onPaste={paste}
           />
         )}
       />
@@ -177,12 +256,23 @@ export function NewThreadSheet({
         control={(attributes) => (
           <textarea
             {...attributes}
+            ref={detailBox}
             rows={4}
             value={detail}
+            onFocus={() => focused("detail")}
             onChange={(event) => edit(setDetail)(event.target.value)}
+            onPaste={paste}
           />
         )}
       />
+      <AttachList draft={files} attach={attach} disabled={send.pending} />
+      {waiting !== undefined && (
+        <p id={`${id}-hold`} className="hint">
+          {waiting}
+        </p>
+      )}
+      {voiceOn && dictation.problem}
+      {voiceOn && dictation.said}
       <Failure failure={atField ? undefined : send.failure} />
     </Sheet>
   );

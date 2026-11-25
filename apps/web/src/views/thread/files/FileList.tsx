@@ -173,8 +173,8 @@ export function useMessageFiles(
 
 // ThreadFiles is the thread's files, folded under its head on every visit,
 // saying how many there are and the space they take. Unfolded, it lists
-// them, newest first, a page at a time, each with who attached it, when, and
-// a link to the message that brought it.
+// them, newest first, a page at a time, each with who attached it, when its
+// message was written, and a link to the message that carries it.
 export function ThreadFiles({
   target,
   totals,
@@ -224,8 +224,8 @@ function ThreadFileList({
   showMessage: (seq: number) => void;
 }) {
   const path = threadPath(target.agent, target.session, target.number, "/files");
-  const pages = usePages(async (cursor) => {
-    const page = await request<ThreadFilesPage>("GET", `${path}${query({ cursor })}`);
+  const pages = usePages(async (cursor, signal) => {
+    const page = await request<ThreadFilesPage>("GET", `${path}${query({ cursor })}`, { signal });
     return { rows: page.files, next: page.next };
   });
   return (

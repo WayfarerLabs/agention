@@ -1108,11 +1108,10 @@ describe("counts and groups", () => {
     );
   });
 
-  // fold groups the list's threads, in the list's order, by the session's
-  // group, then session and then topic, by session and then topic, or by
-  // agent and then session, rolling each group up from its threads: each
-  // group in the order of its first thread, and grouped by session group or
-  // by session, each topic within it.
+  // fold groups the list's threads, in the list's order, by what holds their
+  // sessions (the session's group, or the agent, or nothing), then by
+  // session, then, grouped by topic, by topic, rolling each group up from its
+  // threads: each group in the order of its first thread.
   function fold(threads: ListedThread[], grouping: ThreadGrouping) {
     const rollupOf = (held: ListedThread[]): Rollup => {
       const ranks = ["urgent", "high", "normal", "low"] as const;
@@ -1133,34 +1132,38 @@ describe("counts and groups", () => {
       return [...groups.values()];
     };
     const path = (thread: ListedThread) => `${thread.agent}/${thread.session}`;
-    const byTopic = grouping !== "agent";
-    const [outer, inner] = byTopic
-      ? [path, (thread: ListedThread) => thread.topic]
-      : [(thread: ListedThread) => thread.agent, path];
-    // Grouped by session group, the groups come first, each placed by its
-    // first thread.
-    const placed =
-      grouping === "session_group" ? gather(threads, (thread) => thread.group?.id).flat() : threads;
-    const nested = gather(placed, outer).map((group) => gather(group, inner));
-    const sessions = (byTopic ? nested : nested.flat().map((each) => [each])).map((groups) => {
-      const [first] = groups.flat();
-      return {
-        agent: first?.agent,
-        session: first?.session,
-        ...(first?.group === undefined ? {} : { group: first.group }),
-        rollup: rollupOf(groups.flat()),
-        presence: first?.presence,
-        ...(byTopic
-          ? {
-              topics: gather(groups.flat(), (thread) => thread.topic).map((held) => ({
-                ...(held[0]?.topic === undefined ? {} : { topic: held[0].topic }),
-                rollup: rollupOf(held),
-              })),
-            }
-          : {}),
-      };
-    });
-    return { threads: nested.flat(2), sessions };
+    const holders: Record<ThreadGrouping, (thread: ListedThread) => unknown> = {
+      session_group: (thread) => thread.group?.id,
+      session: () => undefined,
+      topic: () => undefined,
+      agent: (thread) => thread.agent,
+    };
+    const byTopic = grouping === "topic";
+    // Each session, as its threads' groups within it: by topic, or all one.
+    const sessions = gather(threads, holders[grouping])
+      .flatMap((held) => gather(held, path))
+      .map((held) => (byTopic ? gather(held, (thread) => thread.topic) : [held]));
+    return {
+      threads: sessions.flat(2),
+      sessions: sessions.map((groups) => {
+        const [first] = groups.flat();
+        return {
+          agent: first?.agent,
+          session: first?.session,
+          ...(first?.group === undefined ? {} : { group: first.group }),
+          rollup: rollupOf(groups.flat()),
+          presence: first?.presence,
+          ...(byTopic
+            ? {
+                topics: groups.map((held) => ({
+                  ...(held[0]?.topic === undefined ? {} : { topic: held[0].topic }),
+                  rollup: rollupOf(held),
+                })),
+              }
+            : {}),
+        };
+      }),
+    };
   }
 
   // pages reads a list a page of two at a time, letting time pass between
@@ -1203,7 +1206,7 @@ describe("counts and groups", () => {
   });
 
   it("compose a session's roll-up from its topics' as an agent's composes from its sessions'", () => {
-    const sessions = list({ include_archived: "true", group: "session" }).groups?.sessions ?? [];
+    const sessions = list({ include_archived: "true", group: "topic" }).groups?.sessions ?? [];
     expect(sessions.length).toBe(3);
     for (const session of sessions) {
       expect(composeRollup((session.topics ?? []).map((topic) => topic.rollup))).toEqual(
@@ -1249,6 +1252,8 @@ describe("counts and groups", () => {
       [{ group: "session" }, { group: "agent" }],
       [{ group: "session_group" }, { group: "session" }],
       [{ group: "session" }, { group: "session_group" }],
+      [{ group: "topic" }, { group: "session" }],
+      [{ group: "session" }, { group: "topic" }],
       [{ group: "agent", sort: "due" }, { group: "agent" }],
       [{ group: "session", reverse: "true" }, { group: "session" }],
       [{ group: "session" }, { group: "session", reverse: "true" }],
@@ -1334,17 +1339,17 @@ describe("grouped pages as the list changes", () => {
     setSessionGroup(fixture.store, fixture.operator, side.target, {
       group: createGroup(fixture.store, fixture.operator, { name: "Side" }).id,
     });
-    // The session grouping holds the session's and topic's places alone, so a
-    // session going into a group leaves its positions as they were.
+    // The session grouping holds the session's place alone, so a session
+    // going into a group leaves its positions as they were.
     const [name, ...position] = opened(firstPage().next);
-    expect([name, position.length]).toEqual(["threads.latest.own.session", 24]);
+    expect([name, position.length]).toEqual(["threads.latest.own.session", 16]);
     expect(rest(before.next)).toEqual(["s1", "r2", "r1"]);
     // Grouped by session group, the group's place joins them; with
     // builder/side in a group and the rest in none, no group is placed by
     // m2 and Side by s2.
     const byGroup = { ...grouped, group: "session_group" };
     const [nameByGroup, ...positionByGroup] = opened(list({ ...byGroup, limit: "3" }).next);
-    expect([nameByGroup, positionByGroup.length]).toEqual(["threads.latest.own.session_group", 32]);
+    expect([nameByGroup, positionByGroup.length]).toEqual(["threads.latest.own.session_group", 24]);
     expect(titles(list(byGroup))).toEqual(["m2", "m1", "r2", "r1", "s2", "s1"]);
   });
 });
@@ -1386,7 +1391,7 @@ describe("bounds", () => {
       total: 1,
     });
     expect(counts.topic.truncated).toBe(true);
-    const { groups } = list({ group: "session" });
+    const { groups } = list({ group: "topic" });
     expect(groups?.sessions[0]?.rollup.threads).toBe(maxListed + 1);
     expect(groups?.sessions[0]?.topics?.length).toBe(maxListed);
     expect(groups?.truncated).toBe(true);

@@ -26,7 +26,8 @@ export const statusByErrorCode = {
   // A name the request gives already belongs to another of its kind, as a
   // group's or a tag's can on the web mount; the error names the input.
   conflict: 409,
-  // A rate budget is exhausted.
+  // A rate budget is exhausted, or the credential holds as many waits as it
+  // may at once.
   rate_limited: 429,
   // The server's disk is too full to take an upload; the operator frees space.
   storage_full: 507,

@@ -37,17 +37,29 @@ export function usePageTitle(title: string | undefined): void {
 // focusLanding moves focus to where a navigation lands on a page: the place
 // a view marks with data-landing, on its heading or else the place itself,
 // as side by side a thread's pane or the row of the thread just left; with
-// none marked, the page's heading, or the page itself while it loads.
+// none marked, the page's heading, or the page itself. A landing with no
+// heading yet, as a thread's while it loads, stays pending until the first
+// heading to show in it takes focus from it (PageHeading).
 export function focusLanding(page: HTMLElement): void {
   const landing = page.querySelector<HTMLElement>("[data-landing]") ?? page;
-  (landing.querySelector<HTMLElement>("h1") ?? landing).focus();
+  const heading = landing.querySelector<HTMLElement>("h1");
+  (heading ?? landing).focus();
+  pendingLanding = heading === null ? landing : undefined;
 }
+
+// The landing focusLanding last moved focus to with no heading in it.
+let pendingLanding: HTMLElement | undefined;
 
 // PageHeading is the view's one level-one heading, the thread's where the
 // thread list stands beside it. The shell moves focus to it after each
-// navigation, so a screen reader announces the new page. A page whose tab in
-// the navigation names it on screen keeps its heading for assistive
-// technology alone, visuallyHidden.
+// navigation, so a screen reader announces the new page. The first one to
+// show in a landing focusLanding left pending takes focus as it shows, as a
+// thread's does once it loads, but only while focus is still on that
+// landing itself or on nothing, as when the control that had it went, never
+// from where the operator has since put it, within the landing or not: a
+// phone's landing is all of main, which the list beside the thread joins once
+// the window widens. A page whose tab in the navigation names it on screen keeps
+// its heading for assistive technology alone, visuallyHidden.
 export function PageHeading({
   visuallyHidden = false,
   children,
@@ -55,8 +67,21 @@ export function PageHeading({
   visuallyHidden?: boolean;
   children: ReactNode;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const landing = pendingLanding;
+    const shown = heading.current;
+    if (landing === undefined || shown === null || !landing.contains(shown)) {
+      return;
+    }
+    pendingLanding = undefined;
+    const focus = document.activeElement;
+    if (focus === landing || focus === null || focus === document.body) {
+      shown.focus();
+    }
+  }, []);
   return (
-    <h1 tabIndex={-1} className={visuallyHidden ? "visually-hidden" : undefined}>
+    <h1 ref={heading} tabIndex={-1} className={visuallyHidden ? "visually-hidden" : undefined}>
       {children}
     </h1>
   );
@@ -448,10 +473,14 @@ export function Sheet({
   onSubmit,
   foot,
   children,
+  held = false,
 }: {
   sheet: RefObject<HTMLDialogElement | null>;
   heading: string;
   onClose: () => void;
+  // Whether the sheet holds still, as while what it sends is on its way:
+  // Escape does not close it.
+  held?: boolean;
   onSubmit?: (event: FormEvent) => void;
   foot: ReactNode;
   children: ReactNode;
@@ -474,7 +503,24 @@ export function Sheet({
     </>
   );
   return (
-    <dialog ref={sheet} className="sheet" aria-labelledby={`${id}-heading`} onClose={onClose}>
+    <dialog
+      ref={sheet}
+      className="sheet"
+      aria-labelledby={`${id}-heading`}
+      onClose={onClose}
+      onCancel={(event) => {
+        if (held) {
+          event.preventDefault();
+        }
+      }}
+      onKeyDown={(event) => {
+        // A keydown's default is what makes Escape cancel the dialog, and
+        // the browser may not let its cancel event be refused every time.
+        if (held && event.key === "Escape") {
+          event.preventDefault();
+        }
+      }}
+    >
       {onSubmit === undefined ? (
         body
       ) : (

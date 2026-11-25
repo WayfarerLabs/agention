@@ -34,16 +34,22 @@ export interface Resource<T> {
   // Loads afresh, settling once that load's answer, or its failure, has
   // applied or been passed over for a newer one's. It settles true when the
   // data shown then is at least as new as that load, brought by it or by a
-  // newer one, and false when it is older, as when the load failed.
+  // newer one, and false when it is older, as when the load failed. Once an
+  // ending of the session has started it loads nothing and settles false.
   refresh(): Promise<boolean>;
 }
 
 // useResource loads what load returns, and refreshes it on an interval while
 // the page is visible and when it regains focus, skipping a refresh while one
-// is still under way; refresh() always loads. Answers can arrive out of order,
-// and an older request never overwrites a newer one's result. Each view loads
-// one thing for its whole life: the shell mounts a view afresh for each route.
-export function useResource<T>(load: () => Promise<T>): Resource<T> {
+// is still under way; refresh() always loads, unless an ending of the session
+// has started (Session.askSignal). Answers can arrive out of order, and an
+// older request never overwrites a newer one's result. Each view loads one
+// thing for its whole life: the shell mounts a view afresh for each route.
+//
+// load is given a signal that aborts once an ending starts, which a load that
+// asks more than once passes on, so it stops before it asks again. A load
+// stopped that way fails quietly.
+export function useResource<T>(load: (signal: AbortSignal) => Promise<T>): Resource<T> {
   const [state, setState] = useState<{ data?: T; failure?: unknown }>({});
   const [loading, setLoading] = useState(true);
   const loadRef = useRef(load);
@@ -54,13 +60,18 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
   const shown = useRef(0);
   const running = useRef(0);
   const onFailure = useUnauthenticatedCheck();
+  const { askSignal } = useSession();
 
   const refresh = useCallback(() => {
+    const signal = askSignal();
+    if (signal.aborted) {
+      return Promise.resolve(false);
+    }
     const sequence = ++started.current;
     running.current++;
     setLoading(true);
     return loadRef
-      .current()
+      .current(signal)
       .then(
         (data) => {
           if (sequence > applied.current) {
@@ -71,7 +82,7 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
           return shown.current >= sequence;
         },
         (failure: unknown) => {
-          if (sequence > applied.current) {
+          if (!signal.aborted && sequence > applied.current) {
             applied.current = sequence;
             setState((current) => ({ ...current, failure }));
             onFailure(failure);
@@ -85,7 +96,7 @@ export function useResource<T>(load: () => Promise<T>): Resource<T> {
           setLoading(false);
         }
       });
-  }, [onFailure]);
+  }, [onFailure, askSignal]);
 
   useEffect(() => {
     refresh();
@@ -158,17 +169,19 @@ export interface PagedResource<T, Extra extends object = object> extends Resourc
 // usePages loads a paged list through useResource. Each refresh reloads every
 // page shown so far, following the cursors, so the list stays whole and
 // current as it changes. The first page's other fields, such as its total, come
-// along with the rows.
+// along with the rows. A load aborted, as useResource's are, reads no further
+// page.
 export function usePages<T, Extra extends object = object>(
-  loadPage: (cursor: string | undefined) => Promise<Page<T> & Extra>,
+  loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<Page<T> & Extra>,
 ): PagedResource<T, Extra> {
   const pages = useRef(1);
-  const resource = useResource<Page<T> & Extra>(async () => {
+  const resource = useResource<Page<T> & Extra>(async (signal) => {
     const rows: T[] = [];
     let first: (Page<T> & Extra) | undefined;
     let next: string | undefined;
     for (let page = 0; page < pages.current; page++) {
-      const answer = await loadPage(next);
+      signal.throwIfAborted();
+      const answer = await loadPage(next, signal);
       first ??= answer;
       rows.push(...answer.rows);
       next = answer.next;

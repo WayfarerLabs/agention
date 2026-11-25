@@ -38,8 +38,8 @@ const sideBySideQuery = "(min-width: 64rem)";
 // pane mounts afresh for each, holding a word on how to open one while none
 // is; each pane is the area of its shortcuts and fails on its own; and the
 // list on screen is the layout's own (useKeptList). A navigation to a thread
-// lands on its pane while it loads, as on a phone it lands on the page's
-// content, and one back to the list, on the row of the thread it left.
+// lands in its pane, as on a phone in the page's content, and one back to
+// the list on the row of the thread it left (focusLanding).
 // Clicking within a pane gives it focus, so a key both bind acts where the
 // operator is.
 export function Threads({

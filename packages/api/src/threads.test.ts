@@ -251,9 +251,9 @@ describe("attachments", () => {
     });
   });
 
-  it("are no part of the operator's start of a thread", () => {
-    const start = { request_id: "r-1", title: "t", text: "Hello." };
-    expect(threadStartInput.parse({ ...start, attachments: [{ upload }] })).toEqual(start);
+  it("are taken on the operator's start of a thread, beside its text", () => {
+    const start = { request_id: "r-1", title: "t", text: "Hello.", attachments: [{ upload }] };
+    expect(threadStartInput.parse(start)).toEqual(start);
   });
 
   it.each([
