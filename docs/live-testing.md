@@ -86,8 +86,8 @@ with each other or with what the product does, the disagreement is the finding.
   the head, which it still serves, where the charter names those releases; the agent compatibility
   gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
-  it. Codex runs only basic plugin-integration prompts and live checks of presence and the nudge, an
-  operator bound.
+  it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
+  an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's

@@ -141,7 +141,7 @@ index of those docs.
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
   acceptance, and dictation with a real transcription provider, by the operator; Codex used only for
-  basic plugin-integration prompts and live checks of presence and the nudge (an operator bound);
+  basic plugin-integration prompts and live checks of monitoring and the nudge (an operator bound);
   private inventory location: none
 - Known acceptance gaps and standing issues not to re-report: the residual `fast-uri` and `katex`
   advisories recorded in `CONTRIBUTING.md` "Dependencies"; live Codex checks need an authenticated
