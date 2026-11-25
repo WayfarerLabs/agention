@@ -125,14 +125,15 @@ reason with the prompt beside it, and a prompt with no reason as stopped on the 
 - **Sampling.** One snapshot a second: one tmux client call, `capture-pane -p` chained with
   `display-message -p` for the cursor and pane formats and `list-panes -a` for the pane count, and
   `/proc/<pane_pid>/stat` for the foreground process group. The observer keeps a few seconds of
-  snapshots, and `observations` yields only when the condition or stopped-by reason changes (C2).
-- **The condition, in M3's order**, which the observer applies once for every profile: **unknown**
-  when the snapshot fails, the server holds more than one pane or the host lacks the terminal; the
-  profile's **permission prompt** or **other prompt**, from one screen; **running** when the screen
-  changed within the last two seconds; **at its prompt** when the profile finds the input line;
-  **waiting** otherwise. Dialogs come before stillness, so a dialog's animation (Claude Code's
-  blinking bullet) never reads as running. The stopped-by reason comes from the profile's screen and
-  shows at any condition but running and unknown.
+  snapshots, and `observations` yields only when the activity, the screen or the stopped-by reason
+  changes (C2).
+- **The observation, in M3's order**, which the observer applies once for every profile: **unknown**
+  when the snapshot fails, the server holds more than one pane or the host lacks the terminal; at
+  rest with the profile's **permission prompt** or **other prompt**, from one screen; **running**
+  when the screen changed within the last two seconds; otherwise at rest, with the profile's screen:
+  its **input** line, or **other**. Dialogs come before stillness, so a dialog's animation (Claude
+  Code's blinking bullet) never reads as running. The stopped-by reason comes from the profile's
+  screen and shows only at rest.
 - **Harness profiles** tell what their captures show: the permission dialogs (cursor hidden, the
   dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after the
   marker: Claude Code's `❯` and a no-break space, never its `!` shell mode; Codex's `›` and a
