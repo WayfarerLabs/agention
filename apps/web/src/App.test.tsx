@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { request } from "./api.ts";
 import { keepDraft, readDraft, signOutMark } from "./device.ts";
-import { matchRoute, safeReturnPath } from "./router.tsx";
+import { matchRoute, navigate, safeReturnPath } from "./router.tsx";
 import {
   csrf,
   FakeApi,
@@ -10,6 +10,7 @@ import {
   installPasskeys,
   message,
   renderAt,
+  type Reply,
   signedIn,
   threadAnswer,
   threadSummary,
@@ -217,6 +218,75 @@ describe("signing in", () => {
     await screen.findByRole("alert");
     expect(window.location.pathname).toBe("/settings/sign-out");
     expect(readDraft(thread)).toBeDefined();
+  });
+
+  it("reads the tabs' counts again once signing out failed", async () => {
+    api.on("POST", "/auth/signout", failure("internal", "internal error"));
+    renderAt("/settings/sign-out");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    await screen.findByRole("alert");
+    const before = api.callsTo("GET", "/attention").length;
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(api.callsTo("GET", "/attention").length).toBeGreaterThan(before));
+  });
+
+  it("asks for no further page of the sessions view once signing out starts", async () => {
+    let firstPage: (reply: Reply) => void = () => {};
+    api
+      .on("GET", "/registrations", { body: { registrations: [] } })
+      .on("GET", "/sessions", (call) =>
+        call.url.searchParams.has("cursor")
+          ? { body: { agents: [] } }
+          : new Promise<Reply>((resolve) => (firstPage = resolve)),
+      )
+      .on("POST", "/auth/signout", () => new Promise<Reply>(() => {}));
+    renderAt("/sessions");
+    await waitFor(() => expect(api.callsTo("GET", "/sessions")).toHaveLength(1));
+    act(() => navigate("/settings/sign-out"));
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(api.callsTo("POST", "/auth/signout")).toHaveLength(1));
+    // The first page answers with more to read, as past 100 agents.
+    await act(async () => {
+      firstPage({ body: { agents: [], next: "page-2" } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(api.callsTo("GET", "/sessions")).toHaveLength(1);
+  });
+
+  it("keeps asking held while signing out, though removing this browser's passkey failed first", async () => {
+    const time = "2026-10-27T12:00:00.000Z";
+    let removal: (reply: Reply) => void = () => {};
+    api
+      .on("GET", "/passkeys", {
+        body: {
+          passkeys: [
+            { id: 1, name: "Laptop", created_at: time, last_used_at: time, current: true },
+            { id: 2, name: "Phone", created_at: time, current: false },
+          ],
+          recent: true,
+        },
+      })
+      .on("POST", "/passkeys/1/remove", () => new Promise<Reply>((resolve) => (removal = resolve)))
+      .on("POST", "/auth/signout", () => new Promise<Reply>(() => {}));
+    renderAt("/settings/passkeys");
+    const laptop = await screen.findByRole("article", { name: "Passkey Laptop" });
+    fireEvent.click(within(laptop).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(laptop).getByRole("button", { name: "Remove this passkey" }));
+    await waitFor(() => expect(api.callsTo("POST", "/passkeys/1/remove")).toHaveLength(1));
+    act(() => navigate("/settings/sign-out"));
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(api.callsTo("POST", "/auth/signout")).toHaveLength(1));
+    const asked = () => api.calls.filter((call) => call.method === "GET").length;
+    const before = asked();
+    await act(async () => {
+      removal(failure("internal", "internal error"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    window.dispatchEvent(new Event("focus"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(asked()).toBe(before);
   });
 });
 
