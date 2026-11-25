@@ -285,7 +285,18 @@ sends only what its tools are given.
   such as a tunnel's, but the certificate is still checked against the origin's host name, so
   whatever listens there without the server's certificate receives nothing. The server receives the
   session's proposed names, the public key, and what the bridge's tools are given, the bytes of a
-  file `file_upload` names among it.
+  file `file_upload` names among it, and from the bridge's reporter a random id for the bridge and
+  monitoring's reports.
+- **Monitoring.** The bridge reads a terminal only where its configuration names a tmux server's
+  socket, never one it infers from `TMUX` or `TMUX_PANE`. It reads that server's one pane with the
+  `tmux` client, run directly rather than through a shell, and the pane process's
+  `/proc/<pid>/stat`, as the user it runs as, which already owns the tmux server, so it gains no
+  access it lacked. It sends no keys. The screen's text, which whatever runs in the pane draws,
+  stays in the bridge's memory: a report holds only enumerations, a boolean, times and the name of
+  the profile, and the bridge's log names a problem with the pane and what tmux said of it, never
+  the screen. The server shows a report only to the operator, never to an agent, and a report is the
+  bridge's observation, which the screen can imitate, so it informs the operator and authorizes
+  nothing.
 - **Files it reads.** `file_upload` reads only the path the agent gives it, as the user the bridge
   runs as, and refuses anything but a regular file, a file over 100 MiB, and anything whose real
   path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a

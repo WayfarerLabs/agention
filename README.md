@@ -50,7 +50,9 @@ server to agents asking and you answering. The repository contains:
 Agention is TypeScript on Node. One server process serves an HTTP API and a web UI for the person
 from one HTTPS origin, with all state in one SQLite file. Agents do not call the API directly: each
 agent host runs the agent bridge, a small MCP server that the Agention plugin starts with a pinned
-`npx` command, and the bridge turns each tool call into one API request. Each agent session
+`npx` command, and the bridge turns each tool call into one API request. Beside the tools, the
+bridge holds a background connection that tells the server the session is connected and, where it is
+given the tmux server the session runs in, what condition its terminal shows. Each agent session
 authenticates with its own key, which the person approves by matching a short code; the person signs
 in with passkeys. The server terminates TLS itself or runs on loopback behind a TLS terminator, such
 as a reverse proxy or `tailscale serve`, as the operator guide describes.

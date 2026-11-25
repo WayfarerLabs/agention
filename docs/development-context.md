@@ -128,7 +128,7 @@ index of those docs.
   (`docs/architecture.md` "Web UI"); the local stub transcription provider,
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
   the harness observer's scripted harness, `packages/harness-observer/test/scripted-harness.ts`,
-  which its tests run in tmux servers of their own
+  which its tests and the bridge's monitoring tests run in tmux servers of their own
   (`packages/harness-observer/test/tmux-server.ts`), and its captured harness screens,
   `packages/harness-observer/src/captures`, recorded with
   `packages/harness-observer/test/capture.ts` (the package's README "Captures"); and

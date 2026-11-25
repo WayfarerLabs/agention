@@ -1002,14 +1002,15 @@ finished included.
 `apps/bridge/` is a stdio MCP server on `@modelcontextprotocol/server`, connected straight to the
 SDK's stdio transport, so it serves the protocol revisions hosts open with `initialize` and answers
 `server/discover` as a method it does not have. Its entry point checks for Node 24 or later before
-loading anything else. Without options `agention-mcp` serves; `--version` and `--help` print and
-exit. It exits once the host closes its standard input. Its answer to `initialize` carries
-instructions that state the usage skill's first rule, to ask through Agention and never wait at the
-terminal for an answer, and tell the agent to load the skill, so the agent has the rule before the
-skill loads. Claude Code adds them to the agent's system prompt. Codex describes the bridge's tools
-with them and shows only their first 250 characters until the agent loads the tools, so they stay
-within that. [SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends:
-its key file, its tokens and where its requests may go.
+loading anything else. Without `--version` or `--help`, which print and exit, `agention-mcp` serves,
+taking monitoring's two options, `--tmux-socket` and `--harness-profile`. It exits once the host
+closes its standard input, ending its reporter's requests and its reading of the pane. Its answer to
+`initialize` carries instructions that state the usage skill's first rule, to ask through Agention
+and never wait at the terminal for an answer, and tell the agent to load the skill, so the agent has
+the rule before the skill loads. Claude Code adds them to the agent's system prompt. Codex describes
+the bridge's tools with them and shows only their first 250 characters until the agent loads the
+tools, so they stay within that. [SECURITY.md](../SECURITY.md#the-agent-bridge) states what the
+bridge holds and sends: its key file, its tokens and where its requests may go.
 
 - **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`, and `AGENTION_CONNECT`, when
   set and not empty, as a host and port: a host name or address, IPv6 in brackets, and a port from 1
@@ -1019,7 +1020,12 @@ its key file, its tokens and where its requests may go.
   tool answers with what the operator must change. The session's names come from the first
   `register` call that gives them, else from `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, a name
   `register` leaves out falling back to its variable. Whichever the bridge uses first fixes the
-  session for the life of the process; naming another afterwards is `invalid_input`.
+  session for the life of the process; naming another afterwards is `invalid_input`. Monitoring
+  reads `--tmux-socket`, else `AGENTION_TMUX_SOCKET`, the socket of the tmux server whose one pane
+  the agent host runs in, and `--harness-profile`, else `AGENTION_HARNESS_PROFILE`, else `auto`; an
+  empty value counts as unset, and the bridge never reads `TMUX` or `TMUX_PANE`. No setting of
+  monitoring's stops the bridge or changes a tool's answer: a profile name the harness observer's
+  registry does not know is logged once, and the strict generic profile reads the pane instead.
 - **Key file.** `apps/bridge/src/key-file.ts` keeps one key per server, agent and session, selected
   by the proposed names, and is the bridge's only state. Its operations are synchronous. Every
   request reads the file, so bridges sharing a session sign with the key now on disk. Only
@@ -1105,6 +1111,42 @@ its key file, its tokens and where its requests may go.
   session must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error
   but `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's
   start, so an agent that waits again at once does not call a server it cannot use in a tight loop.
+- **Reporter** (`apps/bridge/src/reporter.ts`). The reporter holds the session's background
+  connection and reports what monitoring observes, beside the tools, which work as without it and
+  whose answers carry nothing of it. `register` starts it, whatever it answers, and so does the
+  first tool call that finds the session's credential while it is not running, as in a bridge
+  started again. While the registration is pending it reads its state every 15 seconds with the
+  request `register` makes, marked `background`, until two minutes before it expires by the bridge's
+  clock, the clock skew tokens allow, so it never submits a key the server may have pruned and would
+  register afresh; once the operator approves, it starts with no tool call. A registration that is
+  rejected, revoked or expired, or a pending one past that margin, ends it until the next
+  `register`, or a tool call that finds the credential. Approved, it long-polls
+  `GET /api/agent/s/<agent>/<session>/monitor` with an id of 16 random bytes it drew when the bridge
+  started, one poll at a time, each waiting 25 seconds, the next starting at least a second after
+  the last began, and backing off from 1 to 60 seconds, doubling, while requests fail; a key the
+  server no longer accepts has its registration read again. Its first poll claims the session and
+  asks for no wait, so the server has taken the claim before any report follows. From then on it
+  watches the monitor and sends `POST .../monitor` with the whole report: the first on claiming,
+  then one for each observation that differs from the last, one request at a time. A report that
+  fails is sent again once a poll is answered. A poll or report answered `replaced` means another
+  bridge of the session claimed it: the reporter stops polling, watching and reporting until this
+  bridge next handles `register` or a tool call that finds the credential, when it claims the
+  session again. Its requests sign with the key on disk and act in the names granted to it, and a
+  request it makes to learn them is marked `background` too, so none marks the agent checked in.
+  Against a server older than the bridge's agent API version, its requests fail as every tool's do
+  and it backs off to a minute between them.
+- **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
+  monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
+  server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with
+  the profile the configuration names; `auto` takes the harness from the name and version of the MCP
+  client's `initialize`, each a string of at most 100 and 50 characters or none, and an unknown
+  harness gets the strict generic profile. A report carries the profile's name, the condition and
+  since when, and what stopped the harness with its reset time, the observer's kebab-case names
+  written as the API's snake case, and a reset time the API would not take left out. The bridge logs
+  to its standard error, once each time one begins, a pane it cannot read (no tmux server at the
+  socket, a path too long for a socket, no `tmux` command), a tmux server holding more than one
+  pane, and a pane whose first process does not hold its terminal, each of which the observer reads
+  as unknown; the line names the socket and what tmux said, never the screen's text.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a status update the server logged (one with a note, one whose status differs
   from the last it knew, or its first), or, until then, when a tool first answered in the session,
@@ -1180,7 +1222,9 @@ protocol, and as a process over stdio. The agent compatibility gate runs each re
 published bundle the same way against the server at HEAD
 ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API"). `AGENTION_CONNECT`'s tests
 run it at an origin whose host resolves nowhere, under `.test`, which bridges reach only at the
-address it listens on.
+address it listens on. The reporter's tests pace it in milliseconds, record the requests bridges
+make, and read monitoring from a pane they draw themselves or from the harness observer's scripted
+harness in a tmux server of their own.
 
 ## Web UI
 
@@ -1547,10 +1591,11 @@ plugin root. The definition names the bridge's package, and the generator pins i
 version: `npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the server its whole
 environment. Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those
 the server lists, so the Codex declaration lists the bridge's configuration variables:
-`AGENTION_CONNECT`, `AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and
-`NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes the Codex declaration's
-`tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
-can take longer; Claude Code's plugin format has no such setting.
+`AGENTION_CONNECT`, `AGENTION_HARNESS_PROFILE`, `AGENTION_TMUX_SOCKET`, `AGENTION_URL`,
+`AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and `NODE_EXTRA_CA_CERTS`. The definition's
+`toolTimeoutSeconds`, 600, becomes the Codex declaration's `tool_timeout_sec`, since Codex ends a
+tool call after 60 seconds by default and a file's transfer can take longer; Claude Code's plugin
+format has no such setting.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a
