@@ -1,7 +1,8 @@
 // cspell:ignore filechooser
 // The web UI in Chromium against the real server: the server's name in the
 // banner and titles, linking the first passkey, approving an agent and the
-// Sessions tab's count of registrations waiting, answering its asks, a
+// Sessions tab's count of registrations waiting, their section a line once
+// none waits, at a phone's width too, answering its asks, a
 // message's detail folded under its text and the message copied with it,
 // the composer's Details box, a stale write, a draft kept across the
 // Sessions tab and a reload until discarded,
@@ -9,8 +10,9 @@
 // the divider after messages archived and unfolded, at a phone's width too,
 // reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
-// search box, fitting beside a thread and on a phone, its order, the order's
-// direction and grouping, moving through the list, opening
+// search box, fitting beside a thread and on a phone, with its text still
+// pending dropped when a thread's link replaces the list, its order, the
+// order's direction and grouping, moving through the list, opening
 // a thread and returning from the keyboard, the list and the thread side by
 // side at a desktop's width and one at a time on a phone, the threads above
 // and below and where archiving goes, alike in both, an ask the agent withdraws and the
@@ -181,6 +183,32 @@ test("the operator approves an agent's registration by its code", async () => {
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Session main" })).toBeVisible();
   await expect(tab("Sessions")).toHaveAccessibleName("Sessions");
+  // With none waiting, the section takes one line on the narrowest phone,
+  // in whatever font the machine running the tests has for the system's,
+  // and in Arial. The widest of them is DejaVu Sans, the usual system font
+  // on Linux, which sets the limit on the line's words.
+  const wide = page.viewportSize();
+  const waiting = page.getByRole("region", { name: "Waiting for approval" });
+  await resize(page, { width: 320, height: 844 });
+  for (const font of [undefined, "Arial"]) {
+    const { height, line } = await waiting.evaluate((section, family) => {
+      const root = document.documentElement.style;
+      if (family === undefined) {
+        root.removeProperty("--font-body");
+      } else {
+        root.setProperty("--font-body", family);
+      }
+      return {
+        height: section.getBoundingClientRect().height,
+        line: parseFloat(getComputedStyle(section.querySelector("p") as Element).lineHeight),
+      };
+    }, font);
+    expect(height).toBeLessThanOrEqual(line);
+  }
+  await page.evaluate(() => document.documentElement.style.removeProperty("--font-body"));
+  if (wide !== null) {
+    await resize(page, wide);
+  }
   await page.getByRole("button", { name: "Credentials and past requests" }).click();
   await expect(card.locator(".state")).toHaveText("approved");
 
@@ -307,7 +335,7 @@ test("a write the agent overtakes keeps the draft and sends after one action", a
   const after = page
     .getByRole("region", { name: "Reply" })
     .getByRole("combobox", { name: "After sending" });
-  await after.selectOption("Stay here");
+  await after.selectOption("stay");
   await page.reload();
   await expect(after).toHaveValue("stay");
   const draft = "Thanks; holding until Monday.";
@@ -403,8 +431,10 @@ test("Send stays on a short phone's screen while the message box is at its foot,
   await page.evaluate(() => window.scrollTo(0, 0));
   const heading = await boxOf(page.getByRole("heading", { name: "Reply" }));
   expect((await boxOf(send)).y).toBeGreaterThanOrEqual(heading.y + heading.height);
-  // At the composer's end, the way back follows it, out of its row.
-  const back = page.getByRole("link", { name: "Back to threads" }).last();
+  // At the composer's end, the thread's bar follows it, out of its row.
+  const back = page
+    .getByRole("region", { name: "Thread actions" })
+    .getByRole("link", { name: "Back to threads" });
   await back.scrollIntoViewIfNeeded();
   const bar = await boxOf(row);
   expect((await boxOf(back)).y).toBeGreaterThanOrEqual(bar.y + bar.height);
@@ -589,30 +619,37 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Latest message");
   await expect(page).toHaveURL(/\?sort=latest$/);
   await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText("#2 Deep text");
-  // The button beside it reverses it, from the keyboard as from a pointer,
-  // keeping focus, and choosing another order takes that order's own
-  // direction.
-  const newest = page.getByRole("button", { name: "Newest first, reverse to oldest first" });
-  const oldest = page.getByRole("button", { name: "Oldest first, reverse to newest first" });
-  await newest.focus();
-  await page.keyboard.press("Enter");
+  // The checkbox beside it reverses it, from the keyboard as from a pointer,
+  // keeping focus, on while the order is reversed, and choosing another
+  // order takes that order's own direction.
+  const direction = page.locator(".list-head").getByRole("checkbox");
+  await expect(direction).not.toBeChecked();
+  await direction.focus();
+  await page.keyboard.press("Space");
   await expect(page).toHaveURL(/\?sort=latest&reverse=true$/);
   await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(`#1 ${title}`);
-  await expect(oldest).toBeFocused();
+  await expect(direction).toBeFocused();
+  await expect(direction).toBeChecked();
   await page.keyboard.press("Space");
   await expect(page).toHaveURL(/\?sort=latest$/);
-  await newest.click();
+  await direction.click();
   await expect(page).toHaveURL(/\?sort=latest&reverse=true$/);
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Created");
   await expect(page).toHaveURL(/\?sort=created$/);
-  await expect(newest).toBeVisible();
+  await expect(direction).not.toBeChecked();
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Latest message");
 
-  // The search box atop the list's head searches, and the sheet's box shows
-  // the same search.
+  // Search opens the search field in place of the head's row, which
+  // searches, Enter applying it and closing the field, and the sheet's box
+  // shows the same search.
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   const search = page.getByRole("searchbox", { name: "Search threads" });
+  await expect(search).toBeFocused();
+  await expect(filters).toHaveCount(0);
   await search.fill("deep");
+  await search.press("Enter");
   await expect(page).toHaveURL(/search=deep/);
+  await expect(search).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
   await filters.click();
   await expect(sheet.getByRole("searchbox")).toHaveValue("deep");
@@ -638,7 +675,7 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await expect(page).toHaveURL(/\/\?sort=latest$/);
   await expect(sheet.getByRole("searchbox")).toHaveValue("");
   await page.keyboard.press("Escape");
-  await expect(search).toHaveValue("");
+  await expect(page.getByRole("button", { name: /^Remove filter: Search/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
 
@@ -732,6 +769,175 @@ async function fitsAcross(box: Locator, area: Locator): Promise<void> {
   ).toBe(true);
 }
 
+// onOneRow checks that the controls a head holds stand on one row.
+async function onOneRow(head: Locator): Promise<void> {
+  const tops = await head
+    .locator(".icon-control")
+    .evaluateAll((controls) => controls.map((each) => each.getBoundingClientRect().top));
+  expect(tops.length).toBeGreaterThan(0);
+  expect(new Set(tops).size).toBe(1);
+}
+
+test("at a phone's width, down to the narrowest, the list's head holds its icons on one row, with nothing to scroll sideways, as the search field does, and the bar at the list's foot clears its last row", async () => {
+  const wide = page.viewportSize();
+  // Every control set, so each shows its mark, and Filters its count.
+  await page.goto("/?search=deep&unread=true&sort=latest&reverse=true&group=session");
+  const head = page.locator(".list-head");
+  for (const width of [390, 320]) {
+    await resize(page, { width, height: 844 });
+    await expect(page.getByRole("button", { name: /^Filters, 2 on$/ })).toBeVisible();
+    await fitsAcross(head, page.locator("main"));
+    await onOneRow(head);
+    await expect(head.locator(".set-mark")).toHaveCount(3);
+    // Each choice's select, unseen, takes a tap anywhere on its control, out
+    // to its corners.
+    for (const name of ["Sort", "Group"]) {
+      expect(
+        await page.getByRole("combobox", { name }).evaluate((select) => {
+          const control = select.parentElement?.getBoundingClientRect();
+          if (control === undefined) {
+            return false;
+          }
+          const inset = 3;
+          return [
+            [control.left + inset, control.top + inset],
+            [control.right - inset, control.top + inset],
+            [control.left + inset, control.bottom - inset],
+            [control.right - inset, control.bottom - inset],
+          ].every(([x, y]) => document.elementFromPoint(x ?? 0, y ?? 0) === select);
+        }),
+      ).toBe(true);
+    }
+    await page.getByRole("button", { name: 'Search, "deep"' }).click();
+    await fitsAcross(
+      page.getByRole("searchbox", { name: "Search threads" }).locator(".."),
+      page.locator("main"),
+    );
+    await page.getByRole("button", { name: "Close search" }).click();
+  }
+  // With threads listed, the bar at the list's foot acting on them follows
+  // the last row, which it never covers once scrolled to, on the narrowest
+  // phone and in the list beside a thread, with nothing to scroll sideways.
+  await page.goto("/");
+  await clearOfTheBar(page.locator("main"));
+  await fitsAcross(head, page.locator("main"));
+  await onOneRow(head);
+  // A row j moves focus to scrolls into view clear of the bar too, on a
+  // phone and beside a thread, on screens short enough for the list to
+  // scroll.
+  await focusClearOfTheBar(page.locator("main"), 390);
+  const list = page.getByRole("region", { name: "Thread list" });
+  await focusClearOfTheBar(list, 1280);
+  await clearOfTheBar(list);
+  await fitsAcross(list.locator(".list-head"), list);
+  if (wide !== null) {
+    await resize(page, wide);
+  }
+  await page.goto("/");
+});
+
+// focusClearOfTheBar sizes the window at a width so the list's last row
+// ends at the foot of the screen, under the bar at the list's foot, then
+// moves focus down the rows with j from the top, and checks that each row
+// focused stands clear of the bar.
+async function focusClearOfTheBar(area: Locator, width: number): Promise<void> {
+  const bar = area.getByRole("region", { name: "List actions" });
+  const rows = area.locator("ul.threads").getByRole("link");
+  const toTop = () =>
+    area.evaluate((element) => {
+      element.scrollTop = 0;
+      window.scrollTo(0, 0);
+    });
+  await resize(page, { width, height: 1200 });
+  await toTop();
+  const end = await rows.last().boundingBox();
+  await resize(page, { width, height: Math.ceil((end?.y ?? 0) + (end?.height ?? 0)) });
+  await expect(bar).toBeVisible();
+  await toTop();
+  // From no row, so j starts at the first.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const count = await rows.count();
+  const [last, before] = await Promise.all([rows.last().boundingBox(), bar.boundingBox()]);
+  // The last row starts out under the bar or below it, so moving to it
+  // scrolls.
+  expect((last?.y ?? 0) + (last?.height ?? 0)).toBeGreaterThan(before?.y ?? 0);
+  for (let index = 0; index < count; index += 1) {
+    await page.keyboard.press("j");
+    await expect(rows.nth(index)).toBeFocused();
+    const [row, shown] = await Promise.all([rows.nth(index).boundingBox(), bar.boundingBox()]);
+    expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual((shown?.y ?? 0) + 1);
+  }
+}
+
+// clearOfTheBar scrolls the list's area, and the page, to their ends, and
+// checks that the bar at the list's foot stands below the last row.
+async function clearOfTheBar(area: Locator): Promise<void> {
+  const bar = area.getByRole("region", { name: "List actions" });
+  await expect(bar).toBeVisible();
+  await area.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  const [row, shown] = await Promise.all([
+    area.locator("ul.threads > li").last().boundingBox(),
+    bar.boundingBox(),
+  ]);
+  expect(row).not.toBeNull();
+  expect(shown).not.toBeNull();
+  expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual((shown?.y ?? 0) + 1);
+}
+
+test("from 41rem across, and only from there, the list's head shows every control's words on one row, its widest by touch with every control set, in the system's font and in Arial", async () => {
+  const wide = page.viewportSize();
+  // Twelve filters on, for a count of two digits, and the order and
+  // grouping whose words run longest.
+  await page.goto(
+    "/?search=deep&status=open&priority=high&impact=assuming&overdue=true&effort=under_1h" +
+      "&unread=true&agent_read=stranded&agent=builder&session=builder/main" +
+      "&topic=builder/main/auth&include_archived=true&sort=latest&group=session",
+  );
+  const head = page.locator(".list-head");
+  await expect(page.getByRole("button", { name: /^Filters, 12 on$/ })).toBeVisible();
+  // By touch, as on a tablet, at the largest sizes.
+  const first = 700;
+  await resize(page, { width: first, height: 844 }, true);
+  const [width, rem] = await head.evaluate((element) => [
+    element.clientWidth,
+    parseFloat(getComputedStyle(document.documentElement).fontSize),
+  ]);
+  const tier = 41 * (rem ?? 16);
+  await resize(page, { width: first + tier - (width ?? 0), height: 844 }, true);
+  expect(await head.evaluate((element) => element.clientWidth)).toBe(tier);
+  // In whatever font the machine running the tests has for the system's,
+  // and in Arial, whose widths are the web's most common.
+  for (const font of [undefined, "Arial"]) {
+    await page.evaluate((family) => {
+      const root = document.documentElement.style;
+      if (family === undefined) {
+        root.removeProperty("--font-body");
+      } else {
+        root.setProperty("--font-body", family);
+      }
+    }, font);
+    for (const label of await head.locator(".control-label").all()) {
+      await expect(label).toBeVisible();
+    }
+    await onOneRow(head);
+    await fitsAcross(head, page.locator("main"));
+  }
+  // A pixel narrower, the buttons show their icons alone, so 41rem is the
+  // narrowest the row shows every word at.
+  await resize(page, { width: first + tier - (width ?? 0) - 1, height: 844 }, true);
+  expect(await head.evaluate((element) => element.clientWidth)).toBe(tier - 1);
+  await expect(
+    page.getByRole("button", { name: /^Filters/ }).locator(".control-label"),
+  ).toBeHidden();
+  if (wide !== null) {
+    await resize(page, wide);
+  }
+  await page.goto("/");
+});
+
 test("at a desktop's width the list stands beside the thread open, kept as chosen and marking it, each thread at its own address, and one at a time on a phone", async () => {
   await showList();
   const list = page.getByRole("region", { name: "Thread list" });
@@ -780,18 +986,36 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await expect(first).toBeFocused();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
 
-  // The list's search box, across its head, fits its pane with nothing to
-  // scroll sideways, down to the narrowest width side by side, and / puts
-  // focus in it.
+  // The list's head fits its pane with nothing to scroll sideways, down to
+  // the narrowest width side by side, its controls on one row, and so does
+  // the search field / opens in the row's place, with focus in it.
+  const head = list.locator(".list-head");
   const searchBox = list.getByRole("searchbox", { name: "Search threads" });
-  await page.keyboard.press("/");
-  await expect(searchBox).toBeFocused();
   const sideBySide = page.viewportSize();
   for (const width of [1024, sideBySide?.width ?? 1280]) {
     await resize(page, { width, height: sideBySide?.height ?? 720 });
     await expect(pane).toBeVisible();
-    await fitsAcross(searchBox, list);
+    await fitsAcross(head, list);
+    await onOneRow(head);
   }
+  await page.keyboard.press("/");
+  await expect(searchBox).toBeFocused();
+  await fitsAcross(searchBox.locator(".."), list);
+  await page.keyboard.press("Escape");
+  await expect(list.getByRole("button", { name: "Search", exact: true })).toBeFocused();
+  // f opens the filters, as Filters does, and s and b give the order and the
+  // grouping focus, whether or not the browser opens their pickers; focus
+  // then moves on to a row, as the operator would move it.
+  await page.keyboard.press("f");
+  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(list.getByRole("button", { name: "Filters", exact: true })).toBeFocused();
+  await page.keyboard.press("s");
+  await expect(sort).toBeFocused();
+  await first.focus();
+  await page.keyboard.press("b");
+  await expect(list.getByRole("combobox", { name: "Group" })).toBeFocused();
+  await first.focus();
 
   // Back keeps the list as set: an order chosen beside the second thread
   // stays on going back to the first, whose entry then returns to it, and on
@@ -845,7 +1069,7 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true);
   await page.keyboard.press("u");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
-  await fitsAcross(page.getByRole("searchbox", { name: "Search threads" }), page.locator("main"));
+  await fitsAcross(page.locator(".list-head"), page.locator("main"));
   await page.locator("ul.threads").getByRole("link").first().click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
   await expect(page.locator("ul.threads")).toHaveCount(0);
@@ -856,6 +1080,26 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   }
   await sort.selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);
+});
+
+test("at a desktop's width, a search still pending applies only to the list it was typed on, not to one a thread's link puts in its place", async () => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "Thread list" });
+  const pane = page.getByRole("region", { name: "Thread", exact: true });
+  await list.locator("ul.threads").getByRole("link").first().click();
+  await expect(pane.getByRole("heading", { level: 1 })).toBeVisible();
+  await list.getByRole("button", { name: "Search", exact: true }).click();
+  const box = list.getByRole("searchbox", { name: "Search threads" });
+  // Within the pause, the thread's agent opens the list of that agent's
+  // threads, which drops the text typed on the list it replaces.
+  await box.fill("deep");
+  await pane.locator(".where").getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/\?agent=[^&]+$/);
+  await expect(box).toHaveValue("");
+  await page.waitForTimeout(600);
+  expect(new URL(page.url()).searchParams.has("search")).toBe(false);
+  await list.getByRole("button", { name: "Close search" }).click();
+  await page.goto("/");
 });
 
 test("an ask the agent withdraws reads as withdrawn with its reason, on the list and its thread", async () => {
@@ -883,8 +1127,8 @@ test("an ask the agent withdraws reads as withdrawn with its reason, on the list
   await expect(page.getByRole("article", { name: /^Message 2 by/ }).locator(".event")).toHaveText([
     `Withdrew ask 1: ${reason}`,
   ]);
-  // The way back under the composer keeps the list's filter, as the head's does.
-  await page.getByRole("link", { name: "Back to threads" }).last().click();
+  // The way back in the thread's bar keeps the list's filter.
+  await page.getByRole("link", { name: "Back to threads" }).click();
   await page.getByRole("button", { name: "Remove filter: Status: Withdrawn" }).click();
   await expect(page).toHaveURL(/\/$/);
 });
@@ -1241,7 +1485,7 @@ test("the sessions view moves its groups in their manual order, and groups and s
   await page.getByRole("combobox", { name: "Sort" }).selectOption("alphabetic");
   await expect.poll(heads).toEqual(["Group Ops", "Group Work"]);
   await expect(page.getByRole("button", { name: /^Move / })).toHaveCount(0);
-  await page.getByRole("button", { name: "A to Z, reverse to z to a" }).click();
+  await page.locator(".list-head").getByRole("checkbox").click();
   await expect.poll(heads).toEqual(["Group Work", "Group Ops"]);
   await expect(page).toHaveURL(/\/sessions\?sort=alphabetic&reverse=true$/);
   // Grouped by session, the sessions stand alone, the sort held, through a
@@ -1441,20 +1685,18 @@ test("the threads above and below, and archiving, move the same way beside the l
       async (index) => (await rows.nth(index).getByRole("heading").textContent()) ?? "",
     ),
   );
-  const head = page.locator(".thread-bar");
+  const head = page.getByRole("region", { name: "Thread actions" });
   const above = head.getByRole("button", { name: "Thread above" });
   const below = head.getByRole("button", { name: "Thread below" });
   const archiveAll = head.getByRole("button", { name: "Archive all", exact: true });
   const entries = () => page.evaluate(() => window.history.length);
 
-  // Beside the list, ] and [ and the head's buttons open the threads below
+  // Beside the list, ] and [ and the bar's buttons open the threads below
   // and above, and the list keeps its scroll, the open thread's row marked.
   await rows.nth(1).click();
   await expect(pane.getByRole("heading", { level: 1 })).toHaveText(titles[1] ?? "");
-  // Reading the thread refreshes the list beside it, which then offers to
-  // archive the read threads above its rows; the browser keeps the rows where
-  // they were on screen by scrolling as far as that grew. Scroll once the
-  // list shows the thread read, so the scroll measured is the list's own.
+  // Reading the thread refreshes the list beside it. Scroll once the list
+  // shows the thread read, so the scroll measured is the list's own.
   await expect(list.locator("li.thread-row").nth(1)).not.toHaveClass(/\bunread\b/);
   const shown = await list.locator("ul.threads").elementHandle();
   const scrolled = await list.evaluate((element) => {
@@ -1483,7 +1725,7 @@ test("the threads above and below, and archiving, move the same way beside the l
   expect(await entries()).toBe(before);
   await expect(rows).toHaveCount(3);
 
-  // On a phone the thread's head holds the same controls within its width.
+  // On a phone the thread's bar holds the same controls within its width.
   await resize(page, { width: 390, height: 844 });
   await expect(list).toHaveCount(0);
   await expect(heading).toHaveText(titles[1] ?? "");
@@ -1508,21 +1750,24 @@ test("the threads above and below, and archiving, move the same way beside the l
   await above.click();
   await expect(heading).toHaveText(titles[1] ?? "");
 
-  // A reply sent with After sending at Archive archives the thread once it
-  // lands and goes where Auto-advance says, in its place; the choice fits
-  // the phone's width beside Send.
   const reply = page.getByRole("region", { name: "Reply" });
   const after = reply.getByRole("combobox", { name: "After sending" });
+  const archives = reply.getByRole("checkbox", { name: "Archive after sending" });
+
+  // A reply sent with After sending set to archive archives the thread once
+  // it lands, then goes where After sending says, in its place.
   const chosenBefore = await after.inputValue();
-  await after.selectOption("Archive");
-  const afterBox = await after.boundingBox();
-  expect((afterBox?.x ?? 0) + (afterBox?.width ?? 0)).toBeLessThanOrEqual(390);
+  await after.selectOption("above");
+  await archives.check();
   const sending = await entries();
   await reply.getByRole("textbox", { name: "Message" }).fill("Hopped.");
-  await reply.getByRole("button", { name: "Send" }).click();
+  await reply.getByRole("button", { name: "Send", exact: true }).click();
   await expect(heading).toHaveText(titles[0] ?? "");
   await expect(heading).toBeFocused();
   expect(await entries()).toBe(sending);
+  // This browser keeps both choices, for the thread it opened too.
+  await expect(archives).toBeChecked();
+  await archives.uncheck();
   await after.selectOption(chosenBefore);
 
   // At the top of the list, Thread above goes back to it, which says so.

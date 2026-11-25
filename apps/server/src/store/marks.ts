@@ -31,7 +31,7 @@ import {
 // session's own marks it working while idle (statusOnWrite).
 
 // checkThrough refuses a mark beyond the thread's latest message.
-function checkThrough(thread: StoredThread, through: number, field?: string): void {
+export function checkThrough(thread: StoredThread, through: number, field?: string): void {
   if (through > thread.last_seq) {
     throw invalidInput(
       field === undefined ? "through" : `${field}.through`,
@@ -74,6 +74,15 @@ export function markRead(
   });
 }
 
+// lowerReadMark lowers an actor's read cursor on a thread to just before the
+// message it starts from; it never raises it.
+export function lowerReadMark(db: Database, actor: number, threadId: number, from: number) {
+  db.prepare(
+    `UPDATE thread_marks SET read_seq = :seq
+     WHERE actor_id = :actor AND thread_id = :thread AND read_seq > :seq`,
+  ).run({ seq: from - 1, actor, thread: threadId });
+}
+
 // markUnread lowers the identity's read cursor to just before the message it
 // starts from, so that message and every later one by another actor are
 // unread again. It never raises the cursor, so it cannot claim a message the
@@ -92,10 +101,7 @@ export function markUnread(
     if (input.from > thread.last_seq) {
       throw invalidInput("from", "is beyond the thread's latest message");
     }
-    db.prepare(
-      `UPDATE thread_marks SET read_seq = :seq
-       WHERE actor_id = :actor AND thread_id = :thread AND read_seq > :seq`,
-    ).run({ seq: input.from - 1, actor: identity.actor, thread: thread.id });
+    lowerReadMark(db, identity.actor, thread.id, input.from);
     statusOnWrite(db, identity, sessionId, {}, now);
     return { cursors: partyCursors(db, thread) };
   });
@@ -103,7 +109,7 @@ export function markUnread(
 
 // openAsksThrough lists the numbers of the asks open to the identity, as the
 // thread's audience, on messages at or before through.
-function openAsksThrough(
+export function openAsksThrough(
   db: Database,
   identity: Identity,
   thread: StoredThread,
@@ -118,11 +124,9 @@ function openAsksThrough(
   return rows.map((row) => row.number);
 }
 
-// archiveThrough raises the identity's archive mark to through, carried on
-// over the identity's own messages that directly follow it, or, when an ask
-// open to it sits at or before through, archives nothing and returns those
-// asks. Carried on, archiving through the last message another party wrote
-// archives the thread though the identity replied since.
+// archiveThrough finds a thread of an authorized session and archives it
+// through a message (archiveFound). field names the thread in errors, when it
+// is one of several.
 function archiveThrough(
   db: Database,
   identity: Identity,
@@ -133,6 +137,21 @@ function archiveThrough(
 ): { marks: Marks } | { openAsks: number[] } {
   const thread = requireThread(db, sessionId, number, field);
   checkThrough(thread, through, field);
+  return archiveFound(db, identity, thread, through);
+}
+
+// archiveFound raises the identity's archive mark on a thread found already
+// to through, at most its latest message, carried on over the identity's own
+// messages that directly follow it, or, when an ask open to it sits at or
+// before through, archives nothing and returns those asks. Carried on,
+// archiving through the last message another party wrote archives the thread
+// though the identity replied since.
+export function archiveFound(
+  db: Database,
+  identity: Identity,
+  thread: StoredThread,
+  through: number,
+): { marks: Marks } | { openAsks: number[] } {
   const openAsks = openAsksThrough(db, identity, thread, through);
   if (openAsks.length > 0) {
     return { openAsks };

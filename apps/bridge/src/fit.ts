@@ -83,7 +83,8 @@ function withinCapFirst(answer: unknown): unknown {
 
 // Every field of a message and of a thread's summary that carries text, by
 // its path within it; a "*" step takes every element of a list. What else
-// they hold is bounded small, the summary's list of open asks included.
+// they hold is bounded small, the summary's list of open asks and its counts
+// of pull requests and branches included.
 const messageText = [
   ["text"],
   ["detail"],
@@ -102,7 +103,13 @@ const messageText = [
   ["answers", "*", "text"],
   ["withdrawals", "*", "reason"],
 ];
-const threadText = [["title"], ["open_asks", "lead", "question"], ["withdrawal", "reason"]];
+const threadText = [
+  ["title"],
+  ["open_asks", "lead", "question"],
+  ["withdrawal", "reason"],
+  ["links", "pull_request"],
+  ["links", "branch"],
+];
 
 // A field that carries text: where it is in the answer, the object holding
 // it, its name there, and its size as JSON.
@@ -140,7 +147,8 @@ function fieldsAt(prefix: string, value: unknown, path: string[]): TextField[] {
 // (an answer's own words included) and details, references, a message's
 // lists of pull requests, branches and files, questions (an answer's
 // included), suggested answers and the labels of those picked, fallback
-// text, and withdrawals' reasons, of its thread, messages or threads. Each
+// text, withdrawals' reasons, and the one pull request or branch a thread's
+// summary gives, of its thread, messages, or threads. Each
 // field it leaves out is named, as a dotted path, in the answer's omitted
 // list, after any it already names.
 function leaveOutText(answer: unknown): unknown {

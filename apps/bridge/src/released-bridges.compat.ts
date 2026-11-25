@@ -4,6 +4,7 @@ import {
   agentApiVersion,
   maxLinks,
   maxUrlLength,
+  summaryLinksAgentApiVersion,
 } from "@wayfarerlabs/agention-api";
 import type { SessionsPage } from "@wayfarerlabs/agention-server-api";
 import { readdirSync, realpathSync, writeFileSync } from "node:fs";
@@ -433,6 +434,40 @@ describe.each(versions)("the bridge released as %s", (version) => {
         expect(await numbers({ pull_request: "Acme/Agention#136" })).toEqual([number]);
         expect(await numbers({ pull_request: "acme/agention#135" })).toEqual([]);
         expect(await numbers({ branch: "acme/agention:feat/links" })).toEqual([number]);
+      }
+    }
+
+    // A thread's summary, which counts the pull requests and branches its
+    // live messages name and gives the one while there is only one, as a
+    // thread read, a list, and a wait carry it: whole to a release stating a
+    // version that has it, and without it to one stating an older version,
+    // as each of its requests states.
+    const statedVersions = new Set<string>();
+    harness.beforeRequest = (request) => {
+      if (new URL(request.url).pathname.startsWith("/api/agent/")) {
+        statedVersions.add(request.headers.get(agentApiHeader) ?? "1");
+      }
+    };
+    const before = await call("message_wait", { wait_seconds: 0 });
+    const only = { repo: "acme/website", number: 7, url: url("pull/7") };
+    const seq = await harness.operatorWrites(3, { text: "This one.", pull_requests: [only] });
+    const ofThree = (threads: unknown) =>
+      (threads as Record<string, unknown>[]).filter((thread) => thread.number === 3);
+    const summaries = [
+      (await call("thread_get", { thread: 3, after: seq - 1 })).thread as Record<string, unknown>,
+      ...ofThree((await call("thread_list", {})).threads),
+      ...ofThree((await call("message_wait", { since: before.since, wait_seconds: 5 })).threads),
+    ];
+    harness.beforeRequest = undefined;
+    expect(statedVersions.size).toBe(1);
+    const hasLinks = Number([...statedVersions][0]) >= summaryLinksAgentApiVersion;
+    expect(summaries).toHaveLength(3);
+    for (const summary of summaries) {
+      expect(summary).toMatchObject({ number: 3 });
+      if (hasLinks) {
+        expect(summary.links).toEqual({ pull_requests: 1, branches: 0, pull_request: only });
+      } else {
+        expect(summary).not.toHaveProperty("links");
       }
     }
 

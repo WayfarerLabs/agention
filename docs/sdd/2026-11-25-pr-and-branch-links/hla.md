@@ -140,13 +140,15 @@ short form for each, as its `topic` takes one.
   (`FilterLink` and the thread page's path): from a message or the thread head, the list with that
   filter alone, keeping its order and grouping, so threads of every session that name it show; from
   a row in the list, the filter added to the list on screen, as a grouped header's label adds its
-  session. An entry with a linkable URL keeps it as a small link beside it that opens the forge's
-  page. Until then (P1) an entry links to its URL.
+  session. On a message and in the thread head, an entry with a linkable URL keeps it as a small
+  link beside it that opens the forge's page; a row's entry links only to its filter, so rows stay
+  compact. Until then (P1) an entry links to its URL.
 - **Writing them (FRD R10):** the reply composer and the New Thread sheet gain a control beside
-  Attach and dictation, with a git branch icon rather than a forge's logo. It opens a small form
-  that takes a pasted URL (a GitHub pull request or branch URL fills in the entry) or a short form,
-  lists what the message will carry with Remove beside each, and refuses what the API would refuse,
-  saying why. A sent message shows them as any message does.
+  Attach and dictation, with Material's `merge` symbol, two lines merging into one (Material has no
+  git-branch symbol), rather than a forge's logo. It opens a small form that takes a pasted URL (a
+  GitHub pull request or branch URL fills in the entry) or a short form, lists what the message will
+  carry with Remove beside each, and refuses what the API would refuse, saying why. A sent message
+  shows them as any message does.
 
 ## Security model additions
 

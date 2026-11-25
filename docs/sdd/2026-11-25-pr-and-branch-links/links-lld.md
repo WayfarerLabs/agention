@@ -183,7 +183,8 @@ the messages' own lists still name its entries and the web UI shows it whole.
   requests, 1 branch", unfolding to the list, pull requests first.
 - **The thread head:** after Files, a fold "Pull requests and branches (n)", hidden at zero, listing
   the roll-up as the message's list does, and saying when either list was cut.
-- **Icon:** a git branch (two nodes joined by a forked line), no forge's mark.
+- **Icon:** Material's `merge` symbol, two lines merging into one, since Material has no git-branch
+  symbol; no forge's mark.
 
 ## Agent API
 
@@ -203,3 +204,93 @@ its version. Every released bridge reads an operator's message naming 20 of each
 2,048-character URLs within its cap, and one whose tools do not take the lists reads it without
 them. A message carrying only links reaches an older bridge with nothing in it, which is accepted:
 its agent could not have used them.
+
+## P2: the operator's filters, counts, and summaries
+
+**Filters.** `listFilters` gains `pull_request` and `branch`, each
+`queryList(array of short forms).min(1).max(maxNarrowed)`, after `tag` and before
+`include_archived`, so the web UI's address keeps them in that place. A list refuses two short forms
+of one key (`Acme/X#1` and `acme/x#1`) as naming an entry twice; branches differing only in case are
+two entries. The store's separate `ListFilters` type is gone: `ThreadFilters` carries both, and a
+session's list wraps its one short form in a list. `namedBy`, the roll-up, and the summary read the
+same live mentions, `liveLinks` in `store/code-links.ts`. A known bound, left as it is: 50 short
+forms at the longest branch name take about 20 KiB of a list's query, past Node's 16 KiB limit on a
+request's head, which refuses the request whole; a real list of branches is far shorter.
+
+**Counts.** `threadCounts` gains, each list at most `maxListed`:
+
+```text
+pull_request: { pull_requests: [{ repo, number, total }], truncated }
+branch:       { branches:      [{ repo, branch, total }], truncated }
+```
+
+One statement per kind, with that kind's filter off and every other on:
+
+```sql
+SELECT k.repo, k.number, k.branch, k.position AS position, count(DISTINCT th.id) AS total,
+  max(p.pos) AS latest
+FROM seen th
+JOIN message_links k JOIN live_messages l ON l.thread_id = k.thread_id AND l.seq = k.seq
+JOIN message_positions p ON p.thread_id = k.thread_id AND p.seq = k.seq
+WHERE k.thread_id = th.id AND k.kind = :kind AND <every other filter>
+GROUP BY k.link_key ORDER BY latest DESC, position LIMIT :listed
+```
+
+"Latest mention" across threads is `message_positions` order, Agention's own. The statement has one
+`max`, so SQLite takes the bare `repo`, `number`, `branch`, and `position` from that row: an entry
+is listed as its latest mention among the threads kept wrote it, and the entries one message names
+last come in its order, as the roll-up lists them. Only keys naming a kept thread appear.
+
+**Summaries.** `threadSummary` gains `links`, always present:
+
+```text
+links: { pull_requests, branches, pull_request?: pullRequestLink, branch?: branchLink }
+```
+
+`pull_request` or `branch` is present exactly when `pull_requests + branches = 1`. A summary's
+`links` ranks, filters, groups, and counts nothing, so `threadsSeen` does not compute it: a
+post-pass, `summaryLinksFor(db, threadIds)`, reads it for the rows that become summaries, in one
+statement over `liveLinks` for those threads. It takes each thread's distinct keys, each by its
+latest live mention with the latest URL given, as the roll-up does, and groups them by thread,
+counting each kind; while a thread has one key, the bare columns are that key's row. The one check
+of "exactly one" is where the counts become `links`. Every place a row becomes a summary calls it: a
+list's page, the neighbors of a thread, a thread read (`readThread`) and both waits (`summariesOf`).
+
+Measured at 1,500 threads (median of seven), against P1 and the first draft, which computed `links`
+in `threadsSeen` for every thread a list ranks:
+
+| Read          | P1     | correlated in `threadsSeen` | post-pass |
+| ------------- | ------ | --------------------------- | --------- |
+| counts        | 38.5ms | 45.9ms                      | 44.8ms    |
+| list, flat    | 7.1ms  | 14.3ms                      | 7.4ms     |
+| list, grouped | 19.3ms | 30.9ms                      | 19.5ms    |
+
+The counts' rise is their two new statements, one per kind.
+
+**Agent API.** `agentApi.version` goes to 7, and `summaryLinksAgentApiVersion = 7` beside
+`codeLinksAgentApiVersion`, since P1 ships first. `answerAsStatedVersion` keeps a list of
+`{ version, leaveOut }` and applies each whose version is above the stated one;
+`summaryLinksAgentApiVersion`'s drops `links` from a JSON answer's `thread` and from each of its
+`threads`, which covers `thread_get`, `thread_list`, and `message_wait`. The bridge's answer fitting
+counts a summary's `links.pull_request` and `links.branch` among a thread's text-bearing fields; the
+counts stay. The released-bridge suite has every release read a summary naming one pull request
+through all three, recording the version each release's requests state: `links` is exact at
+`summaryLinksAgentApiVersion` or later, and absent before it.
+
+**Web UI.** `src/views/code-links.tsx` holds what every place shares: `narrowingOf(link)`,
+`countOf`, `CodeLinkEntry`, `RowCodeLink`, and `CodeLinksMark`. On a thread page, from a message and
+the head's fold, `CodeLinkEntry` leads to `narrowedHref(origin, narrowing)`, the router's rule that
+`threadPathParts` now uses too, the origin passed down in `MessageContext`, and keeps the forge link
+beside it: an `ExternalLink` holding an external-link icon and a hidden name, followed by the host.
+A row's one entry, `RowCodeLink`, leads through `FilterLink` with the list on screen and carries no
+forge link, so rows stay compact; it is a paragraph after the row's thread link inside its `li`,
+never inside the link. A row with a checkbox, while the list selects, is a grid, the checkbox in its
+first column and the link and the entry in its second, so the entry stays beneath the link's
+content. The row itself takes a touch selection's tap and hold, so either selects the row from
+anywhere on it, the entry included, in place of following it. A row's `CodeLinksMark`, counting
+several, links nothing and sits among the row's marks inside its link, so tapping it opens the
+thread, whose head lists them. The filter sheet's two multi-selects take their options from the
+counts, each by its short form; a chosen short form is shown and kept as the counted one of the same
+key. Every multi-select offers a chosen value the counts leave out with a count of 0, named by its
+`nameOf`. A chip shows the `branch` icon and the short form, or the number chosen, cut at its front
+as a badged chip is. `listHref` leaves a branch's `:` unescaped, as it does a session's `/`.

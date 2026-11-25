@@ -175,7 +175,7 @@ test("the operator attaches a file and pastes an image, which arrive with the me
   await expect(attached.getByText("Uploaded")).toHaveCount(2);
   await box.fill("Here is what I have.");
   // The page stays open after sending, to show what was sent.
-  await composer.getByRole("combobox", { name: "After sending" }).selectOption("Stay here");
+  await composer.getByRole("combobox", { name: "After sending" }).selectOption("stay");
   await composer.getByRole("button", { name: "Send" }).click();
 
   await expect(filesOf(2).getByRole("listitem")).toHaveCount(2);

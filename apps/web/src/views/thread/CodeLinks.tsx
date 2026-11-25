@@ -6,52 +6,35 @@ import {
   maxListed,
   type PullRequestLink,
   type PullRequestRollup,
-  shortForm,
 } from "@wayfarerlabs/agention-api";
+import { type ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { useId, useState } from "react";
-import { plural } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
-import { ExternalLink, liveUrl } from "../../markdown/Markdown.tsx";
+import { CodeLinkEntry, countOf } from "../code-links.tsx";
 
 // The pull requests and branches a message names, and those its thread's
-// live messages name, shown compactly: each by its short form, a live link
-// when its URL passes the link rule, and plain text otherwise. They are what
-// their writer declared, never fetched.
-
-// CodeLinkText is one entry: its short form, as a link when it has a URL that
-// passes the link rule.
-function CodeLinkText({ link }: { link: CodeLink }) {
-  const text = shortForm(link);
-  const url = link.url === undefined ? undefined : liveUrl(link.url);
-  return url === undefined ? (
-    <span className="code-link">{text}</span>
-  ) : (
-    <ExternalLink url={url} text={text}>
-      <span className="code-link">{text}</span>
-    </ExternalLink>
-  );
-}
+// live messages name, shown compactly, each leading to the thread list
+// filtered by it alone, in the arrangement of the list the page returns to.
 
 // CodeLinkList lists entries, pull requests first, each in the order given.
-function CodeLinkList({ links, id }: { links: CodeLink[]; id?: string | undefined }) {
+function CodeLinkList({
+  links,
+  origin,
+  id,
+}: {
+  links: CodeLink[];
+  origin: ThreadsView;
+  id?: string | undefined;
+}) {
   return (
     <ul id={id} className="code-links-list">
       {links.map((link) => (
         <li key={linkKey(link)}>
-          <CodeLinkText link={link} />
+          <CodeLinkEntry link={link} origin={origin} />
         </li>
       ))}
     </ul>
   );
-}
-
-// countOf says how many of each there are, in words: "2 pull requests, 1
-// branch".
-function countOf(pullRequests: number, branches: number): string {
-  return [
-    ...(pullRequests > 0 ? [plural(pullRequests, "pull request")] : []),
-    ...(branches > 0 ? [branches === 1 ? "1 branch" : `${branches} branches`] : []),
-  ].join(", ");
 }
 
 // MessageCodeLinks is a message's pull requests and branches on one short line
@@ -60,9 +43,11 @@ function countOf(pullRequests: number, branches: number): string {
 export function MessageCodeLinks({
   pullRequests = [],
   branches = [],
+  origin,
 }: {
   pullRequests?: PullRequestLink[] | undefined;
   branches?: BranchLink[] | undefined;
+  origin: ThreadsView;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -75,7 +60,7 @@ export function MessageCodeLinks({
     return (
       <p className="code-links">
         <Icon name="branch" />
-        <CodeLinkText link={only} />
+        <CodeLinkEntry link={only} origin={origin} />
       </p>
     );
   }
@@ -92,7 +77,7 @@ export function MessageCodeLinks({
         <Icon name="branch" />
         {countOf(pullRequests.length, branches.length)}
       </button>
-      {open && <CodeLinkList links={links} id={id} />}
+      {open && <CodeLinkList links={links} origin={origin} id={id} />}
     </div>
   );
 }
@@ -104,9 +89,11 @@ export function MessageCodeLinks({
 export function ThreadCodeLinks({
   pullRequests,
   branches,
+  origin,
 }: {
   pullRequests: PullRequestRollup;
   branches: BranchRollup;
+  origin: ThreadsView;
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -129,7 +116,7 @@ export function ThreadCodeLinks({
       </button>
       {open && (
         <div id={id}>
-          <CodeLinkList links={links} />
+          <CodeLinkList links={links} origin={origin} />
           {(pullRequests.truncated || branches.truncated) && (
             <p className="hint">Only the {maxListed} most recently named of each are listed.</p>
           )}

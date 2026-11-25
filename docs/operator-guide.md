@@ -369,12 +369,23 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
   counts those holding a message you have not read, the threads the **Unread** filter keeps with no
-  other filter on, and reading or archiving them clears the count. The list's head holds a search
-  box across its top, **Search threads**, then **Sort**, the order it is in, beside a button saying
-  which way the order runs, then **Group**, how the list is grouped, and **Filters**, a funnel with
-  a badge counting the filters that are on. On a phone, **Sort** and its button take one row, with
-  **Group** and **Filters** beneath them; on the narrowest phones, or with enlarged text, the button
-  wraps beneath **Sort**.
+  other filter on, and reading or archiving them clears the count. The list's head is one row of
+  icon controls: **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the
+  filters that are on; **Sort**, the order the list is in, beside a checkbox, an arrow pointing up,
+  that reverses it; and **Group**, how the list is grouped. Holding the pointer over one names it,
+  and **Search**, **Sort**, and **Group** each carry a dot while set to anything but their default.
+  Where the list has room, as in a tablet's window or beside a thread on a wide screen, **Sort** and
+  **Group** show their choice beside their icons, and with more room every button shows its words.
+  **Sort** and **Group** are pick lists, and here as everywhere in the web UI the lower corner of
+  such a compact control says what kind it is: a small down caret marks a pick list, which opens its
+  choices and changes nothing until you choose one; a small box marks a checkbox, hollow while it is
+  off and filled, with the control tinted and outlined, while it is on; and a button, which acts
+  when pressed or opens a dialog or a menu of things to do, has nothing there.
+  - **Search** opens the search field in the row's place, holding the search on, such as
+    **"release"**, which its chip shows, with focus in it; this is where you change the search. Its
+    cross, or Escape, closes it, applying what you typed at once, and so does Enter. Text the search
+    cannot take keeps the field open on Enter, and closing the field puts back the search that was
+    on.
   - **Sort** orders the list by:
     - **Priority**, the default: the threads with asks open to you first, each by the most pressing
       of its asks: by priority, then those blocking the agent's work, then by the earliest
@@ -388,13 +399,15 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Latest message**: every thread by its latest message, newest first.
     - **Created**: every thread by when it began, newest first. Within a session that is the order
       of the threads' numbers, which start again in every session.
-  - The button beside **Sort** says which way the order runs, such as **Most pressing first**,
-    **Soonest first**, **Quickest first** or **Newest first**, and choosing it reverses the order,
-    to **Least pressing first**, **Latest first**, **Longest first** or **Oldest first**. Reversing
-    turns around the threads the order ranks: for **Priority** those with asks open to you, for
-    **Due** those whose ask has an answer-by, for **Effort** those whose ask says how long it takes,
-    and for **Latest message** and **Created** every thread. The threads it does not rank still
-    follow them, as before. Choosing another order starts it in its own direction.
+  - The checkbox beside **Sort**, an arrow pointing up, reverses the order: it is on, its corner box
+    filled, while the order is reversed. Its name, which it shows in words where there is room, is
+    what turning it on gives, on or off: **Least pressing first** for **Priority**, **Latest first**
+    for **Due**, **Longest first** for **Effort**, and **Oldest first** for **Latest message** and
+    **Created**. Reversing turns around the threads the order ranks: for **Priority** those with
+    asks open to you, for **Due** those whose ask has an answer-by, for **Effort** those whose ask
+    says how long it takes, and for **Latest message** and **Created** every thread. The threads it
+    does not rank still follow them, as before. Choosing another order starts it in its own
+    direction.
   - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
     session group's sessions under its header when the list holds two or more groups, those in none
     under **No group**, and each session as **Session** folds it; by **Session**, each session's
@@ -428,10 +441,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Search** keeps the threads whose title holds every word you type, or one of whose messages
       does in its text and details, each as the start of a word, ignoring case and accents. A
       message you or an agent replaced no longer matches; its replacement does. It applies once you
-      pause typing, or at once on Enter. The search box atop the list's head and this one are the
-      same search: typing in either shows in both. Text the search cannot take, such as a tab or an
-      invisible character, stays in the box, which says why, and the list stays as it was. An
-      agent's own search of its threads looks at titles alone.
+      pause typing, or at once on Enter or on choosing another filter, order, or grouping, which
+      keeps it. A link or Back that shows another list before then drops it. The head's search field
+      and this one are the same search: typing in either shows in both. Text the search cannot take,
+      such as a tab or an invisible character, stays in the box, which says why, and the list stays
+      as it was, until you choose another filter, order, or grouping, which drops it. An agent's own
+      search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
@@ -455,11 +470,20 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       offered, with any you already chose. Topics show as `session/topic` with their agent beside
       them: while sessions are chosen only their topics are offered, or else while agents are chosen
       only their agents' topics, with any you already chose. Each lists at most 500, and says so
-      when there are more. Escape, **Done** or a tap outside closes the list.
+      when there are more. One you chose that the list no longer holds, such as one in a shared
+      address, stays offered with no threads, so you can uncheck it. Escape, **Done** or a tap
+      outside closes the list.
     - **Group** and **Tag** open such lists too: **Group** of your session groups holding a thread,
       in your order, each beside its color, and **No group** for the sessions in none; **Tag** of
       the tags on a session holding a thread or on its agent. A thread is kept when its session is
       in a group you chose, or when its session or its agent carries a tag you chose.
+    - **Pull request** and **Branch** open such lists too, of the GitHub pull requests and branches
+      the threads' messages name, each by its short form, such as `owner/name#135` or
+      `owner/name:branch`, as it was last written. A thread is kept when one of its messages names
+      one you chose; a message you or an agent replaced no longer counts, unless its replacement
+      names it again. The owner and repository match ignoring case, the number and the branch
+      exactly. Since they gather without end, each lists only those the threads the other filters
+      keep name, the most recently named first, at most 500, and says so when there are more.
     - **Archived**: **Show** adds the threads you archived.
 
     The list behind the sheet follows each change. **Reset filters** turns every filter off, saying
@@ -471,10 +495,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     `session/topic`, or **2 agents** when you chose several. A group or a tag shows by its name now,
     such as **Group: Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed
     keeps nothing, and its chip says **Removed group**; so does a tag you have removed, whose chip
-    begins **Removed tag**. A single group's or tag's chip shows its color. A long label is cut
-    short, at its front for an agent, session or topic, so its end stays; holding the pointer over a
-    chip says it whole. Choosing a chip removes its filter. The grouping, the order and its
-    direction are no filters, so they stay when filters go.
+    begins **Removed tag**. A single group's or tag's chip shows its color. A pull request or a
+    branch shows beside an icon of two lines merging into one, by its short form, or as **2 pull
+    requests** or **2 branches**. A long label is cut short, at its front for an agent, session,
+    topic, pull request, or branch, so its end stays; holding the pointer over a chip says it whole.
+    Choosing a chip removes its filter. The grouping, the order and its direction are no filters, so
+    they stay when filters go.
   - The page's address holds the filters, the order, its direction and the grouping, so a list you
     bookmark or share opens as you left it.
   - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -495,24 +521,81 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
     seen** when, or **never seen**; or it has **no active credential**. A session with no active
-    credential also shows its own tag, unless the stranded tag already says so.
-  - **Archive all read**, while archived threads are not included and no filter keeps only threads
-    with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
-    open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
-    through the latest message shown. Both say when more remain.
-- **A thread** reads like an email. Its head starts with **Threads**, a button back to the list as
-  you left it, with its filters, order and grouping, or with none when you opened the thread
-  directly. Its heading leads with the thread's number, as a row's does. Under it, its agent,
-  session and topic say where the thread is, and each opens the list narrowed to it alone, with no
-  other filter on, showing everything there in the order and grouping you left the list in. Beneath,
-  muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
-  thread says why its session has not read your latest messages: it stopped, and how, or its agent
-  was last seen when, or never; a session with no active credential says so in a notice under the
-  head. **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread
-  below**, arrow buttons beside **Threads**, **Archive all**, and **Jump to unread** while anything
-  is unread or an ask is open to you, and shows the archive box while the thread is archived. The
-  messages open on the newest ones, or on the first one you had not read after those you archived
-  when that comes before them, and show earlier and later ones when you ask.
+    credential also shows its own tag, unless the stranded tag already says so. When the thread's
+    messages name one GitHub pull request or branch, it shows beneath, beside the same icon of two
+    lines merging into one, by its short form, which adds it to the filters on, keeping the others,
+    the order and the grouping; its link to GitHub is on the thread's page. When they name two or
+    more, that icon among the row's marks says how many, which a screen reader says in full, such as
+    **2 pull requests, 1 branch**, and the thread's head lists them.
+  - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
+    leaving out those under a folded header, as **Select all** does. It stays in view as the list
+    scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
+    view above it. While you type in the list's search field, it waits at the end of the list
+    instead. Its caption says how many threads are shown, such as **25 of 40 shown** while more
+    match, and after an action, what that action did, as the status line does. Each of its buttons
+    shows an icon over a short word and keeps its place: **Mark all read** marks read the threads
+    shown that hold anything unread, and **Archive all read**, while archived threads are not
+    included and no filter keeps only threads with open asks, archives those that hold nothing
+    unread, keeping those with an ask open to you, each through the latest message shown. Neither
+    asks first. Each is dimmed while it would act on no thread, **Archive all read** also while
+    every thread it would archive holds an ask open to you. Once its action is done, focus stays on
+    the one you pressed while it can act again, and otherwise moves to **Select all**, or, on a
+    phone or a tablet, where **Select all** shows only while anything is selected, to the page's
+    heading, without moving the list, so pressing again does nothing unasked. Both act on at most
+    500 threads at once, and say when more remain. While anything is selected, the same bar acts on
+    the threads selected instead.
+  - **Selecting threads** acts on several at once. With a mouse or a trackpad, each row has a
+    checkbox at its start; on a phone or a tablet, hold a row down, anywhere on it, its pull request
+    or branch too, to select it, and then, while anything is selected, a tap selects or unselects a
+    row rather than opening it or following its pull request or branch. `x` selects or unselects the
+    row holding focus, on its link, its checkbox, or its pull request or branch. The checkbox above
+    the list, **Select all**, selects every thread shown, leaving out those under a folded header;
+    once it has, while the list holds more, a button beside it, such as **Select all 40 threads that
+    match**, selects every thread the filters keep, up to 500 at once, and another, such as **Select
+    only the 25 shown**, goes back. While anything is selected, the bar at the foot of the list says
+    how many and offers, after **Clear**, **Read**, which marks them read; **Unread**, which marks
+    each thread unread from the agent's latest message, leaving out a thread holding none, so the
+    count it gives is of the threads now unread; **Archive**, which marks them read and archives
+    them, keeping each thread holding an ask open to you as it was and saying how many it kept; and
+    **Decline**, available while a thread selected holds an ask open to you, which first declines
+    every such ask in messages of yours, up to ten answers to a message, which the agent reads, then
+    marks the thread read and archives it. A screen reader names them in full: **Clear selection**,
+    **Mark read**, **Mark unread**, **Mark read and archive**, and **Decline, mark read and
+    archive**. With more than 500 selected, only **Clear** is available, and the bar says to select
+    fewer. Declining asks first: for the threads selected, with how many asks and threads; for every
+    thread that matches, with how many of them hold an ask open to you, as the counts of the filters
+    give it. An action on the threads selected acts on at most 500 at once, each through the latest
+    message the list showed; an action on every thread that matches asks first, with how many, and
+    acts on the threads the filters keep, each through its latest message when the list was last
+    loaded, leaving out a thread started since; when the threads that match have changed in number
+    since, as when a deadline passed, it acts on none, and the list loads again and asks again.
+    Either way a message that arrived since stays unread and brings its thread back, and declining
+    leaves as it was a thread holding such a message, since you have not seen it. The status line
+    says what the action did, and the selection clears. **Clear**, or `Esc` within the list, clears
+    it too; with the question open, `Esc` answers it with **Cancel**. Focus that was in the bar as
+    the selection clears moves to **Select all**, or on a phone or a tablet to the page's heading.
+    The selection stays as the list refreshes and loads more, and a thread that leaves the list
+    leaves it.
+- **A thread** reads like an email. Its head starts with its heading, which leads with the thread's
+  number, as a row's does, and shows the archive box beside it while the thread is archived for you.
+  Under it, its agent, session and topic say where the thread is, and each opens the list narrowed
+  to it alone, with no other filter on, showing everything there in the order and grouping you left
+  the list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row
+  does, and a stranded thread says why its session has not read your latest messages: it stopped,
+  and how, or its agent was last seen when, or never; a session with no active credential says so in
+  a notice under the head. **Threads** stays marked in the navigation. The head holds **Jump to
+  unread** while anything is unread or an ask is open to you. The messages open on the newest ones,
+  or on the first one you had not read after those you archived when that comes before them, and
+  show earlier and later ones when you ask.
+  - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it,
+    each an icon over a short word: **Threads**, back to the list as you left it, with its filters,
+    order, and grouping, or with none when you opened the thread directly; **Above** and **Below**,
+    **Thread above** and **Thread below** in full; and, at its end, **Archive all**. It comes after
+    the composer and stays at the foot of the screen as the thread scrolls, with the composer's
+    **Send** row just above it while the composer is on screen. While you type in the composer or an
+    ask's box, and on a screen too short to spare the room, the bar waits at the end of the page,
+    under the composer, so only the **Send** row holds the foot of the screen, above a phone's
+    keyboard; leaving the box brings it back.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page or
@@ -537,8 +620,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     list. It takes the archived thread's place, so **Back** does not return to it, and at the end of
     the list that way it goes back to the list, which says so. If finding that thread fails, you
     stay on the thread, archived, and the page says so. While an ask is open to you, answer or
-    decline it first. Writing to a thread you archived keeps it archived, and what you archived
-    never counts as unread.
+    decline it first: **Archive all** is dimmed, and pressing it, or `e`, says why in the bar.
+    Writing to a thread you archived keeps it archived, and what you archived never counts as
+    unread.
   - **Thread above** and **Thread below**, or `[` and `]`, open the row just above or below this
     thread in the list **Threads** returns to, as that list stands when you press them, with its
     filters, order and grouping, read or not. Change that list while they look, and they look again
@@ -552,7 +636,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     threads in folded groups too, since a phone shows no list to fold. At the top or bottom of the
     list, they go back to the list, which says so. **Back** returns to this thread. Side by side,
     the thread opens beside the list, which keeps its scroll, its row outlined; on a phone the same
-    buttons lead the thread's head.
+    buttons are in the thread's bar.
   - The messages you archived fold into one line at the top, **N archived messages**, which shows
     them, each with the archive box. The page never reads them while they are folded. A message you
     send to an archived thread is archived with the rest, but stays in view until you leave the
@@ -588,15 +672,19 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     [Attachments](#attachments) describes. While the thread's current messages carry any, its head
     holds **Files**, folded, with how many there are and the space they take.
   - The GitHub pull requests and branches a message is about show on one short line under its text,
-    beside a branch icon: one by its short form, `owner/name#135` for a pull request or
-    `owner/name:branch` for a branch, as a link when the agent gave its URL; two or more as a count,
-    such as **2 pull requests, 1 branch**, which unfolds to the list. While the thread's messages
-    name any, its head holds **Pull requests and branches**, folded, with how many there are,
-    listing each once, pull requests and then branches, each the most recently named first. A
-    replaced message keeps its own, but they leave the thread's list unless its replacement names
-    them again. They are what the writer declared: Agention never contacts GitHub, so a link says
-    nothing about whether the pull request is open, merged or still exists, which the message's text
-    says when it matters. Programs using the operator API can name them on a message too.
+    beside an icon of two lines merging into one: one by its short form, `owner/name#135` for a pull
+    request or `owner/name:branch` for a branch; two or more as a count, such as **2 pull requests,
+    1 branch**, which unfolds to the list. While the thread's messages name any, its head holds
+    **Pull requests and branches**, folded, with how many there are, listing each once, pull
+    requests and then branches, each the most recently named first. Each short form opens the thread
+    list narrowed to it alone, with no other filter on, so it shows every session's threads that
+    name it, in the order and grouping you left the list in, as the thread's agent, session, and
+    topic do. When the agent gave its URL, a small link beside it opens its page on GitHub in a new
+    tab, followed by the site's name. A replaced message keeps its own, but they leave the thread's
+    list unless its replacement names them again. They are what the writer declared: Agention never
+    contacts GitHub, so a link says nothing about whether the pull request is open, merged, or still
+    exists, which the message's text says when it matters. Programs using the operator API can name
+    them on a message too, and list and count threads by them as the filters do.
   - Each ask shows as a card on its message, which may carry several. Asks are numbered within the
     thread as the agent writes them, and the card leads with the number (**Ask 3**), then the
     question, its priority, impact, how long answering takes when the agent said, and answer-by,
@@ -651,7 +739,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     complete to send: **Other** without words is not, and its field says so once you leave it. Once
     ten cards hold answers, the other asks' choices are unavailable until you send or remove one.
     While a change or an edit is staged, nothing else can be started until you send or remove it,
-    and removing it empties both boxes. An edit needs text.
+    and removing it empties both boxes. An edit needs text. With **Enter sends** on, as
+    [Keyboard shortcuts](#keyboard-shortcuts) describes, `Enter` in either box sends and
+    `Shift+Enter` starts a new line.
   - This browser keeps your draft's text and details as you type, one draft for each thread, so
     leaving the thread or reloading the page loses nothing: the composer opens with them when you
     come back, and counts from where the draft started, so a message the agent wrote while you were
@@ -667,28 +757,38 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it, keeps the latest 50, and forgets them all when you sign out here or remove the passkey it
     signed in with. A browser that refuses storage, as a private window may, keeps none, and the
     composer works as before.
-  - Beside **Send**, **After sending** chooses where sending takes you once a message is sent:
-    **Back to the list**, as **Threads** does, where the list says what was sent; **Stay here**;
-    **Archive**, which archives this thread once the message lands and then goes where
-    **Auto-advance** says, as **Archive all** does, so a reply that answers the last ask open to you
-    can archive the thread too; or **Thread above** or **Thread below**, as their buttons do. The
-    thread it takes you to says beside its **Send** what you sent, or the list does, saying too when
-    you reached its end. If an ask is still open to you, the archive is refused and you stay on the
-    thread, and beside **Send**, after what was sent, the page says which ask to answer or decline
-    first; when the thread to open cannot be found, it says that there instead. While a message that
-    will take you somewhere is on its way, **Thread above**, **Thread below** and **Archive all**
-    wait for it, and while the page is moving to another thread or the list, **Send** and **After
-    sending** wait for it. A message that fails to send stays on the page with your draft. It is
-    **Back to the list** until you choose otherwise, and this browser keeps your choice. While you
-    write, **Send** and its option stay at the foot of the screen, above a phone's keyboard, with
-    what answers **Send** beside it: why a message failed to send above it, and what was sent after
-    it. While voice is on, **Dictate** sits there too, and what it says goes in the same places: why
-    dictation failed above, and anything else after. While dictation shows its controls there, from
-    the moment the microphone is asked for through a recording and its transcription to its
-    **Retry**, **After sending** moves just below the row, so the row stays short above a phone's
-    keyboard.
-  - Under them, **Threads** again takes you back to the list as the head's does, so you can leave a
-    thread you read without replying, and without scrolling back up.
+  - Beside **Send**, **After sending** is two compact controls for what follows once a message is
+    sent, their icons alone on a phone, and past a phone's width a word or two beside each, after
+    the words **After sending**. Holding the pointer over one names it and says what it is set to.
+    - The first is a pick list of where sending takes you, whose icon shows the choice it holds, and
+      whose choices say what each does: **After sending, go back to the list**, an arrow pointing
+      back, as **Threads** does, where the list says what was sent; **After sending, stay on this
+      thread**, a ring around a dot; or **After sending, open the thread above** or **After sending,
+      open the thread below**, an arrow pointing up or down, as their buttons do. A phone shows the
+      choices in its own picker.
+    - The second is a checkbox, an archive box named **Archive after sending**. While it is on, this
+      thread is archived once the message lands, and then you go wherever the pick list says, so a
+      reply that answers the last ask open to you can archive the thread too, whatever you do next.
+      A thread you go on to takes the archived thread's place, so **Back** does not return to it;
+      staying shows the thread archived. **Auto-advance** has no say here: it is where **Archive
+      all** goes.
+
+    The thread sending takes you to says beside its **Send** what you sent, or the list does, saying
+    too when you reached its end. If an ask is still open to you, the archive is refused and you
+    stay on the thread, and beside **Send**, after what was sent, the page says which ask to answer
+    or decline first; when the thread to open cannot be found, it says that there instead. While a
+    message that will archive the thread or take you somewhere is on its way, **Thread above**,
+    **Thread below**, and **Archive all** wait for it, and while the page is moving to another
+    thread or the list, **Send** and **After sending** wait for it. A message that fails to send
+    stays on the page with your draft. Sending goes back to the list, archiving nothing, until you
+    choose otherwise, and this browser keeps your choices. While you write, **Send** and its options
+    stay at the foot of the screen, above a phone's keyboard, with what answers **Send** beside it:
+    why a message failed to send above it, and what was sent after it. While voice is on,
+    **Dictate** sits there too, and what it says goes in the same places: why dictation failed
+    above, and anything else after. While dictation shows its controls there, from the moment the
+    microphone is asked for through a recording and its transcription to its **Retry**, **After
+    sending** moves just below the row, so the row stays short above a phone's keyboard.
+
   - While [voice](#voice) is on and the browser can record, **Dictate** sits beside **Send**. It
     asks for the microphone, with **Cancel** while it waits, since a browser may wait on its
     permission prompt for as long as you leave it; then it records, showing how long against its
@@ -725,7 +825,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes. The **Sessions** tab counts them, and approving
-    or rejecting them clears the count.
+    or rejecting them clears the count. While none is waiting the section is one short line, and
+    until some agent has a session it explains instead how a registration arrives.
   - Everything in the view that stands for threads is a link opening the thread list on those
     threads alone, with no other filter on: a group's, an agent's or a session's name, a count of
     threads, the envelope, **Blocked on you**, open asks and stranded threads, each within the
@@ -817,12 +918,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     level in order: **Alphabetic** by name; **Registration time** by when each session was first
     approved, a group or an agent by its earliest session; or **Manual**, offered only grouped by
     **Group**, which keeps your groups in your order and their agents and sessions in name order.
-    The button beside **Sort** says which way it runs, **A to Z** or **Newest first**, and choosing
-    it reverses it; **Manual** has no direction, and **No group** comes last whichever way. Choosing
-    another sort starts it in its own direction, and grouping by **Agent** or **Session** while
-    sorted **Manual** sorts **Alphabetic**. In **Manual**, each group's head ends in **Move up** and
-    **Move down**, and, with a mouse, a handle to drag it onto another group's head and put it in
-    that one's place, which changes your groups' order everywhere, as
+    The checkbox beside **Sort** reverses it, as on the thread list, named for what turning it on
+    gives, **Z to A** or **Oldest first**; **Manual** has no direction, and **No group** comes last
+    whichever way. Choosing another sort starts it in its own direction, and grouping by **Agent**
+    or **Session** while sorted **Manual** sorts **Alphabetic**. In **Manual**, each group's head
+    ends in **Move up** and **Move down**, and, with a mouse, a handle to drag it onto another
+    group's head and put it in that one's place, which changes your groups' order everywhere, as
     [Groups and tags](#groups-and-tags) does in Settings. While a move is under way, the groups take
     no other; one another browser made stale is refused, and the groups show as they are.
 
@@ -832,7 +933,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 - **Settings** is in sections, each at its own address under `/settings/`: under **Access**, your
   **Passkeys** (`/settings/passkeys`), as [Signing in](#signing-in) describes, and **API keys**
   (`/settings/api-keys`), as [API keys](#api-keys) describes; under **Features**, **Threads**
-  (`/settings/threads`), whose **Auto-advance** chooses where archiving a thread takes you, as
+  (`/settings/threads`), whose **Auto-advance** chooses where **Archive all** takes you, as
   [Using the web UI](#using-the-web-ui) describes, **Groups and tags**
   (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
   (`/settings/voice`), as [Voice](#voice) describes, **Storage** (`/settings/storage`), as
@@ -919,33 +1020,52 @@ counts as none for the punctuation it types, though Ctrl and Alt with a letter, 
 that types nothing, such as Esc, never act. On a phone without a keyboard nothing changes. Press `?`
 anywhere to list them all.
 
-| Where           | Key                         | What it does                                                                                                              |
-| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Anywhere        | `?`                         | Lists the shortcuts                                                                                                       |
-| Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone |
-| The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
-| The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
-| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
-| The thread list | `/`                         | Puts focus in the list's search box, selecting what it holds                                                              |
-| A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
-| A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
-| A thread        | `e`                         | **Archive all**, while it is available, then where **Auto-advance** says                                                  |
-| A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                     |
-| A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
-| A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
-| The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |
-| The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                    |
+| Where           | Key                         | What it does                                                                                                                                                                                |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Anywhere        | `?`                         | Lists the shortcuts                                                                                                                                                                         |
+| Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone                                                                   |
+| The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                                                                                                |
+| The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                                                                                          |
+| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                                                                                                |
+| The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                                                                                   |
+| The thread list | `I` and `U`                 | Marks read or unread the threads selected, as **Read** and **Unread** in the bar do, or with none selected, the thread                                                                      |
+| The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                                                                                      |
+| The thread list | `f`                         | Opens **Filters**                                                                                                                                                                           |
+| The thread list | `s`                         | Puts focus on the order, opening its choices where the browser can                                                                                                                          |
+| The thread list | `b`                         | Puts focus on the grouping, opening its choices where the browser can                                                                                                                       |
+| A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                                                                                  |
+| A thread        | `r`                         | Puts focus in the composer's message box                                                                                                                                                    |
+| A thread        | `e`                         | **Archive all**, then where **Auto-advance** says; while an ask is open to you, says why it waits                                                                                           |
+| A thread        | `U`                         | **Mark unread from here** on the message that has focus, or else on the first that was unread as you opened the thread, or else on the agent's latest loaded message, returning to the list |
+| A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                                                                                       |
+| A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                                                                                                 |
+| A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                                                                                         |
+| The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                                                                                   |
+| The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                                                                                      |
 
-Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does.
-Moving through the list moves focus from row to row, so a screen reader reads each row as it is
-reached. With the list and a thread side by side, the list's keys act wherever focus is, and moving
-through the list starts from the open thread's row and opens nothing until `o`; the thread's keys
-act only while focus is outside the list, as after clicking the thread; and `n`, which both use,
-acts in the list while focus is in it, and in the thread otherwise. A screen reader in its browse
-mode keeps single keys for its own navigation, so the shortcuts act only once it passes keys
-through, as in its focus mode. To turn the shortcuts listed here off in this browser, if they get in
-the way of a screen reader, voice control or another tool, clear **Keyboard shortcuts** in
-**Settings**, under **Keyboard**, which also lists them. The diagram viewer's own keys stay on.
+Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does. `U`
+on a thread looks only at the messages the page has loaded, so on a thread you have read whose agent
+last wrote before the newest 50 messages, `U` does nothing until you focus a message or show earlier
+ones. Moving through the list moves focus from row to row, so a screen reader reads each row as it
+is reached. With the list and a thread side by side, the list's keys act wherever focus is, and
+moving through the list starts from the open thread's row and opens nothing until `o`; the thread's
+keys act only while focus is outside the list, as after clicking the thread; `I` from the thread
+marks it read in the list and leaves focus in the thread; and `n` and `U`, which both use, act in
+the list while focus is in it, and in the thread otherwise. A screen reader in its browse mode keeps
+single keys for its own navigation, so the shortcuts act only once it passes keys through, as in its
+focus mode. To turn the shortcuts listed here off in this browser, if they get in the way of a
+screen reader, voice control or another tool, clear **Keyboard shortcuts** in **Settings**, under
+**Keyboard**, which also lists them. The diagram viewer's own keys stay on.
+
+**Enter sends**, also under **Keyboard**, is off until you turn it on in a browser, which keeps the
+choice. On, `Enter` in the composer's message or **Details** box sends, once there is something to
+send, and `Shift+Enter` starts a new line, as in a terminal; `Ctrl+Enter` and `Cmd+Enter` send too
+while the shortcuts are on. An `Enter` that ends an input method's composition only ends it, and
+`Enter` on the composer's buttons presses them; a held `Enter` sends once, not again as it repeats.
+While it is on, each box's hint says so. It is a choice of its own, so it holds with the shortcuts
+off. A phone's on-screen keyboard has no `Shift+Enter`, so there it leaves no way to start a new
+line: it suits a desktop browser. The new-thread sheet keeps `Enter` for a new line in its boxes
+either way.
 
 ## Voice
 

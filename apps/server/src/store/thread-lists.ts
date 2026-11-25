@@ -1,13 +1,13 @@
 import {
-  type BranchLink,
+  type CodeLink,
   formatTimestamp,
-  linkKey,
   maxListed,
   parseBranch,
   parsePullRequest,
   priority,
-  type PullRequestLink,
   type SessionThreadsQuery,
+  shortFormKey,
+  type SummaryLinks,
   type ThreadPage,
   type ThreadSummary,
   threadStatus,
@@ -26,6 +26,7 @@ import {
   noGroup,
   priorityFilter,
   type Rollup,
+  type ThreadActionInput,
   type ThreadCounts,
   type ThreadFilters,
   threadFilters,
@@ -39,6 +40,7 @@ import {
 } from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { authorizeScope, type Identity, sessionScope } from "../identity.ts";
+import { type LinkKind, liveLinks, summaryLinksFor } from "./code-links.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
 import {
@@ -72,26 +74,17 @@ const carriedTags = `(
   UNION SELECT s.id, a.name FROM agent_tags a JOIN sessions s ON s.agent_id = a.agent_id
 )`;
 
-// A list's filters as the store applies them: the operator's, and those on
-// the pull requests and branches a thread's live messages name, each a list
-// of short forms, which a session's list takes.
-type ListFilters = ThreadFilters & {
-  pull_request?: string[] | undefined;
-  branch?: string[] | undefined;
-};
-
 // A part of a list: which threads it keeps, over seen as th, and whether a
 // list's filters turn it on.
 interface Part {
   keeps: string;
-  on: (query: ListFilters) => boolean;
+  on: (query: ThreadFilters) => boolean;
 }
 
 // namedBy keeps the threads whose live messages name one of the entries of a
-// kind whose keys the parameter given binds.
-const namedBy = (kind: "pull_request" | "branch") => `th.id IN (
-  SELECT k.thread_id FROM message_links k
-  JOIN live_messages l ON l.thread_id = k.thread_id AND l.seq = k.seq
+// kind, whose keys the parameter of the kind's name binds.
+const namedBy = (kind: LinkKind) => `th.id IN (
+  SELECT k.thread_id FROM ${liveLinks}
   WHERE k.kind = '${kind}' AND k.link_key IN (SELECT value FROM json_each(:${kind}))
 )`;
 
@@ -177,7 +170,7 @@ const unfiltered = threadFilters.parse({});
 // where is the condition a query's list keeps threads by: that of every part
 // its filters turn on, of the operator's list unless the parts given are
 // another's.
-function where(query: ListFilters, parts: Parts = listParts): string {
+function where(query: ThreadFilters, parts: Parts = listParts): string {
   const on: Part[] = Object.values(parts).filter((part) => part.on(query));
   return on.length === 0 ? "1" : on.map((part) => `(${part.keeps})`).join(" AND ");
 }
@@ -225,14 +218,9 @@ type Parameters = Record<string, string | number | null>;
 // filter's schema refused any short form that does not parse.
 function linkKeysOf(
   shortForms: string[] | undefined,
-  parse: (text: string) => PullRequestLink | BranchLink | undefined,
+  parse: (text: string) => CodeLink | undefined,
 ): string {
-  return JSON.stringify(
-    (shortForms ?? []).flatMap((text) => {
-      const link = parse(text);
-      return link === undefined ? [] : [linkKey(link)];
-    }),
-  );
+  return JSON.stringify((shortForms ?? []).map((text) => shortFormKey(text, parse)));
 }
 
 // The threads a list reaches, over threads as t: those of every session the
@@ -244,7 +232,7 @@ const inSession = "t.session_id = :session_id";
 // parametersOf gives the values a query's parts and filters bind, beside the
 // viewer and the quiet cut-off, and the time, which overdue compares answer-by
 // times with.
-function parametersOf(query: ListFilters, viewing: ViewerAndCutoff, now: number): Parameters {
+function parametersOf(query: ThreadFilters, viewing: ViewerAndCutoff, now: number): Parameters {
   return {
     ...viewing,
     now,
@@ -414,7 +402,7 @@ const keysOf = (grouping: ThreadGrouping | undefined): readonly OrderKey[] =>
 // query keeps, as the list shows it: only a group holding no other thread
 // takes its place from the kept one.
 function placing(
-  query: ListFilters,
+  query: ThreadFilters,
   parts: Parts,
   grouping: ThreadGrouping | undefined,
   alsoKept?: string,
@@ -445,7 +433,7 @@ interface PageQuery<T> {
   scope: string;
   bySession: boolean;
   parameters: Parameters;
-  query: ListFilters;
+  query: ThreadFilters;
   // The parts the list keeps its threads by.
   parts: Parts;
   sort: ThreadSort;
@@ -453,8 +441,8 @@ interface PageQuery<T> {
   grouping?: ThreadGrouping | undefined;
   cursor: string | undefined;
   limit: number;
-  // What the list shows of each thread.
-  describe: (row: ThreadRow, now: number) => T;
+  // What the list shows of each thread, with its summary's links.
+  describe: (row: ThreadRow, now: number, links: SummaryLinks) => T;
 }
 
 // pageThreads reads a page of the threads a query keeps, in order. A cursor
@@ -488,8 +476,12 @@ function pageThreads<T>(
   }) as unknown as RankedRow[];
   const { rows: shown, more } = pageOf(rows, page.limit);
   const last = shown.at(-1);
+  const links = summaryLinksFor(
+    db,
+    shown.map((row) => row.id),
+  );
   return {
-    threads: shown.map((row) => page.describe(row, now)),
+    threads: shown.map((row) => page.describe(row, now, links(row.id))),
     ...(more && last !== undefined
       ? {
           next: encodeCursor(
@@ -515,7 +507,7 @@ export function listSessionThreads(
     const sessionId = authorizeSession(db, identity, "threads:read", target, now);
     // The filters a session's list does not take stay off, and its topic is
     // the session's own. It takes one pull request and one branch.
-    const filters: ListFilters = {
+    const filters: ThreadFilters = {
       ...unfiltered,
       ...query,
       topic: topic === undefined ? undefined : [`${target.agent}/${target.session}/${topic}`],
@@ -570,6 +562,60 @@ function totalOf(reach: Reach, query: ThreadFilters): number {
   return total;
 }
 
+// The list's position among every message: the latest message's position
+// in message_positions, which only grows. The operator's list answers with
+// it as as_of, and an action on every thread matching the list's filters
+// acts on nothing newer.
+const asOfList = "as_of";
+
+// asOf is where every message stands now, as the list hands it out.
+export function asOf(db: Database): string {
+  const { latest } = db
+    .prepare("SELECT COALESCE(max(pos), 0) AS latest FROM message_positions")
+    .get() as { latest: number };
+  return encodeCursor(asOfList, [latest]);
+}
+
+// readAsOf reads an as_of the list handed out, refusing anything else as
+// invalid_input on the field.
+export function readAsOf(text: string, field: string): number {
+  const [position] = decodeCursor(asOfList, text, ["number"], field) as [number];
+  return position;
+}
+
+// matchingThreads lists the threads the operator's list holds with the
+// filters given, across every session the identity reaches, by agent, session
+// and number, each through its latest message at or before the position
+// given, leaving out a thread with none: at most limit, and one more when it
+// holds more. The caller runs it in its transaction, having authorized the
+// identity.
+export function matchingThreads(
+  store: Store,
+  identity: Identity,
+  filters: ThreadFilters,
+  position: number,
+  now: number,
+  limit: number,
+): ThreadActionInput["threads"] {
+  const reach = reachOf(store, identity, now);
+  return listStatement(
+    reach.db,
+    `${threadsSeen(reached, leadOf(filters, defaultSort))}
+     SELECT * FROM (
+       SELECT th.agent_name AS agent, th.session_name AS session, th.number AS thread,
+         (SELECT max(p.seq) FROM message_positions p WHERE p.thread_id = th.id AND p.pos <= :as_of)
+           AS through
+       FROM seen th WHERE ${where(filters)}
+     ) WHERE through IS NOT NULL
+     ORDER BY agent, session, thread LIMIT :limit`,
+  ).all({
+    ...reach.scope,
+    ...parametersOf(filters, reach.viewing, now),
+    as_of: position,
+    limit: limit + 1,
+  }) as unknown as ThreadActionInput["threads"];
+}
+
 // countUnreadThreads counts the threads the operator's list holds with only
 // Unread on: those not archived for the viewer that hold an unread message.
 // The caller runs it in its transaction, having authorized the identity.
@@ -604,6 +650,7 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
     return {
       ...page,
       total,
+      as_of: asOf(db),
       ...(query.group === undefined ? {} : { groups: rollUpGroups(reach, query, query.group) }),
     };
   });
@@ -644,21 +691,29 @@ export function findThreadNeighbors(
       ...parametersOf(view, reach.viewing, now),
       thread_id: id,
     }) as unknown as (ThreadRow & { step: number })[];
+    const links = summaryLinksFor(
+      db,
+      rows.map((row) => row.id),
+    );
     const at = (step: number) => rows.find((row) => row.step === step);
     const above = at(-1);
     const below = at(1);
     return {
-      ...(above === undefined ? {} : { above: withGroup(above, now) }),
-      ...(below === undefined ? {} : { below: withGroup(below, now) }),
+      ...(above === undefined ? {} : { above: withGroup(above, now, links(above.id)) }),
+      ...(below === undefined ? {} : { below: withGroup(below, now, links(below.id)) }),
     };
   });
 }
 
 // withGroup describes a thread as the operator's list shows it, with its
 // session's group when it is in one.
-function withGroup(row: ThreadRow, now: number): ThreadSummary & { group?: GroupRef } {
+function withGroup(
+  row: ThreadRow,
+  now: number,
+  links: SummaryLinks,
+): ThreadSummary & { group?: GroupRef } {
   return {
-    ...toThreadSummary(row, now),
+    ...toThreadSummary(row, now, links),
     ...(row.group_id === null ? {} : { group: { id: row.group_id, name: row.group_name ?? "" } }),
   };
 }
@@ -676,9 +731,12 @@ function listedOf<T>(rows: T[]): { rows: T[]; truncated: boolean } {
 // counted in one statement, grouped by them, with that filter's own condition
 // off: every agent, session, topic and group holding a thread, no group
 // among them, and every tag a session holding a thread or its agent carries.
-// Each lists at most maxListed, in name order but the groups, which come in
-// the operator's order, and says when it leaves any out; there are never more
-// groups than that.
+// Pull requests and branches are counted likewise, but gather without end, so
+// each lists only the entries naming a thread the other filters keep, the most
+// recently mentioned first. Each lists at most maxListed, in name order but
+// the groups, which come in the operator's order, and the pull requests and
+// branches, and says when it leaves any out; there are never more groups than
+// that.
 export function countThreads(store: Store, identity: Identity, query: ThreadFilters): ThreadCounts {
   const { db } = store;
   return db.transaction(() => {
@@ -755,6 +813,30 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
          GROUP BY carried.name ORDER BY carried.name LIMIT :listed`,
       ).all(parameters) as { tag: string; total: number }[],
     );
+    // Each entry of a kind that a live message of a thread the other filters
+    // keep names, with how many such threads name it, as its latest such
+    // mention wrote it, the most recently mentioned first and those of one
+    // message in its order, as the roll-up lists them. A thread names a key in
+    // any number of messages, so its threads are counted distinct. The
+    // statement has one max, so the bare columns, the position among them,
+    // are those of the mention it picks.
+    const named = <K extends LinkKind>(kind: K) =>
+      listedOf(
+        listStatement(
+          db,
+          `${threadsSeen(reached, leadOf(query, defaultSort))}
+           SELECT k.repo, k.number, k.branch, k.position AS position, count(DISTINCT th.id) AS total,
+             max(p.pos) AS latest
+           FROM seen th
+           JOIN ${liveLinks}
+           JOIN message_positions p ON p.thread_id = k.thread_id AND p.seq = k.seq
+           WHERE k.thread_id = th.id AND k.kind = '${kind}'
+             AND ${where({ ...query, [kind]: undefined })}
+           GROUP BY k.link_key ORDER BY latest DESC, position LIMIT :listed`,
+        ).all(parameters) as unknown as NamedCount<K>[],
+      );
+    const pullRequests = named("pull_request");
+    const branches = named("branch");
 
     // Choosing a status other than open turns the filters on open asks off,
     // and choosing a value of one of them chooses open.
@@ -801,10 +883,28 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
         none: groups.find((group) => group.id === null)?.total ?? 0,
       },
       tag: { tags: tags.rows, truncated: tags.truncated },
+      pull_request: {
+        pull_requests: pullRequests.rows.map(({ repo, number, total }) => ({
+          repo,
+          number,
+          total,
+        })),
+        truncated: pullRequests.truncated,
+      },
+      branch: {
+        branches: branches.rows.map(({ repo, branch, total }) => ({ repo, branch, total })),
+        truncated: branches.truncated,
+      },
       reset: totalOf(reach, unfiltered),
     };
   });
 }
+
+// The count of an entry of a kind, as countThreads reads it.
+type NamedCount<K extends LinkKind> = { repo: string; total: number } & {
+  pull_request: { number: number };
+  branch: { branch: string };
+}[K];
 
 interface GroupRow {
   agent: string;
