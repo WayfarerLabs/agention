@@ -60,7 +60,7 @@
       thread's reason (M4, M6). Done when the browser tests show each.
 - [x] The operator guide describes monitoring as the operator sees it. Done when the project review
       finds none stale.
-- [ ] Live on a bed shaped like an Agentworks session (FRD ruling 7), configured by hand as
+- [x] Live on a bed shaped like an Agentworks session (FRD ruling 7), configured by hand as
       Agentworks will configure it, on Claude Code and Codex: connection, activity and the
       conditions of the definition of done, a session approved at its prompt starting to report, and
       one of several Codex bridges reporting. Done when the pull request records the live evidence
