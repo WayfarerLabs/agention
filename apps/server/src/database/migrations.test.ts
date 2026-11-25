@@ -27,6 +27,8 @@ const frozen = [
   "25c3c21b1c1e7aca5a5c42c10e97df84fb6bef573e74bd09bc1e02afe90ba754",
   // 9, group colors and order, and tags of their own.
   "c2f5bcfd9cacfcbbb7f23688a119ed71244d4071fd77f4dcddb836329465be63",
+  // 10, monitoring: check-in versions, background requests and monitor reports.
+  "717281048d86dcb4e37cdf85c63d32ad0c693fa8747c97626e712ba4af2b99ec",
 ];
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
