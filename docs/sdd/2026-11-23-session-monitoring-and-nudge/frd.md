@@ -1,7 +1,6 @@
 # Session monitoring and nudge: Functional Requirements
 
-- Status: Draft, for the operator's acceptance; drafted on the effort lead's proposal in ruling 3
-  while its three questions are open
+- Status: Draft, for the operator's acceptance
 - Date: 2026-11-23, restructured 2026-11-24
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -36,7 +35,6 @@ submit it, become the only exception.
   agent see what they wrote without going to its terminal.
 - **Agents**, which should be woken to check in rather than keep a waiter running.
 - **Agentworks**, which runs every session in a tmux server it owns and can tell the bridge where,
-  and which account the session uses.
 - **Maintainers**, who ship one bridge for harnesses that differ in what their screens show and what
   a plugin can do, and change from version to version.
 
@@ -78,8 +76,8 @@ nudged waits at its prompt rather than checking.
 session's condition and since when, exactly one of, in this order of precedence:
 
 - **unknown**: the bridge cannot read the pane, or the pane no longer runs the host;
-- **needs you, permission**: a permission or approval dialog;
-- **needs you, other**: any other dialog or prompt for someone at the terminal, such as trusting a
+- **permission prompt**: a permission or approval dialog;
+- **other prompt**: any other dialog or prompt for someone at the terminal, such as trusting a
   folder or signing in;
 - **running**: a turn in progress, retries included;
 - **at its prompt**;
@@ -91,9 +89,10 @@ safety or permission rule; or an **error** from its model provider. It clears wh
 starts. A profile reports only what it can tell reliably and has captured screens for (M5); anything
 else at rest is waiting.
 
-**M4. What needs the operator, at a glance.** The sessions view flags each session whose condition
-needs the operator, or that was stopped by something, as it flags stranded threads today, and lets
-the operator list just those sessions; each shows its account where known (CF3).
+**M4. What needs the operator, at a glance.** The sessions view flags each session at a permission
+or other prompt, or stopped by something, as it flags stranded threads today, and lets the operator
+list just those sessions. Conditions show per session: a session's account can change, so no account
+label is kept (ruling 4).
 
 **M5. Profiles by harness.** Each harness Agention supports has one profile, which records where the
 harness's screens changed between versions, and applies to its later versions until one is found to
@@ -103,6 +102,12 @@ the configuration names it. A profile claims a condition, or a stopped-by reason
 of it have been captured from that harness, and its tests read those screens. Captures come from
 clean scratch environments or are scrubbed of anything personal, and review checks them. Supporting
 a new harness, or a version whose screens changed, is a change to the profiles alone.
+
+**M10. The harness observer stands on its own.** Reading a harness's terminal (the profiles, and
+what turns a pane into a condition) sits behind one well-defined interface that knows nothing of
+Agention's server, sessions or threads, so it can be reused by other projects and moved into a
+package of its own later. It ships inside the bridge for now; releasing it separately is a later
+effort, after the server and the bridge and plugins are split (ruling 4).
 
 **M6. Stranded tells the truth.** A thread is stranded when the agent has not read the operator's
 latest message and nothing will bring it to the agent soon:
@@ -191,16 +196,12 @@ never nudged, and the configuration leaves room for naming a pane later. Monitor
 the nudge needs this and CF1. The profile (M5) is one more setting, naming a harness's profile or a
 generic one.
 
-**CF3. The account, where known.** The configuration may give a label for the account the session's
-host uses, shown beside the session's condition, so a usage limit says which account hit it. Without
-one, conditions show per session.
-
-**CF4. Agentworks supplies it.** The plugins forward the environment variables of CF1 to CF3 to the
+**CF3. Agentworks supplies it.** The plugins forward the environment variables of CF1 and CF2 to the
 bridge, which is the route a host's plugin configuration allows, and Agentworks sets them through
 its templating, so every Agentworks session is monitored, and nudged where turned on, without setup.
 That change is Agentworks's; this effort states what it needs and tests against it.
 
-**CF5. Misconfiguration is visible, never fatal.** A pane the bridge cannot reach, a profile or
+**CF4. Misconfiguration is visible, never fatal.** A pane the bridge cannot reach, a profile or
 nudge type it does not know, or a nudge type without a socket, shows in the bridge's log and in the
 `register` answer (T1), and an unreachable pane also as unknown (M3); Agention's tools work as
 without it.
@@ -258,8 +259,8 @@ cases of C1 as the release lines require.
 ## Operator rulings, 2026-11-23 onward
 
 Rulings 1 and 2 name requirements as they were numbered before ruling 3: P1 to P6 are now M1, M2,
-M3, M6, M7 and M8; CF3 and CF4 are now CF4 and CF5; N1's start on approval is now M9; and N4's
-profiles are now M5.
+M3, M6, M7 and M8; N1's start on approval is now M9; and N4's profiles are now M5. Ruling 3's CF3,
+an account label, was dropped by ruling 4.
 
 1. (2026-11-23) After the effort lead found that the bridge can type into its session's tmux pane
    and proposed it only for hosts without a wake hook, the operator answered at the terminal: "So
@@ -324,12 +325,24 @@ profiles are now M5.
    proposal while the questions are open: this FRD's structure, M1 to M5, M8, N4, N6's nudge
    outcome, CF3, and the language model as out of scope.
 
+4. (2026-11-25) Asked whether to restructure this SDD as monitoring then the nudge and rename it,
+   the operator chose "Yes". Asked whether the conditions list was right, they answered: ""needs
+   you: permission or other dialog" is a mouthful. I think those are just "permission prompt" and
+   then a catch-all "other prompt"." Asked where a session's account should come from, they
+   answered: "Per session for now. Sessions can change their accounts so an Agentworks label is
+   insufficient." They added: "I'd also like to structure the harness-specific monitoring pieces to
+   make them highly pluggable and possibly reusable across other projects. Don't break them out into
+   separate releases yet but we probably will in a follow up effort after we split the server and
+   bridge/plugin. So step 1 is a very good interface for the harness terminal observer." Taken: this
+   SDD's structure and name, M3's prompt conditions, M4 without an account, CF3's account label
+   dropped, and M10.
+
 ## Definition of done
 
 Monitoring ships first and stands on its own; each delivery is done when its part holds.
 
 - **Monitoring:**
-  - M1 to M9, the configuration and C1 and C2 are implemented, tested at their boundary, and
+  - M1 to M10, the configuration and C1 and C2 are implemented, tested at their boundary, and
     documented in permanent docs.
   - Live under Agentworks on Claude Code and on Codex, with the configuration set by Agentworks or,
     until Agentworks ships it, by hand: the operator sees a session connected, its agent's activity,
