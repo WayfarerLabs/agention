@@ -74,11 +74,11 @@ counting as one version below every other (FRD C5, ruling 4):
    reachable, fails, asking for `git fetch --tags`: this repository's history always has one, so its
    absence means tags are missing.
 
-With the seed tags in place and the agent API at 6 since agention#148
+With the seed tags in place and the agent API at 7 since agention#153
 (`packages/api/src/agent-api.ts:12`), that is 0.2.1 (none: 0.1.0, 0.2.0 and 0.2.1), 0.4.0 (version
 2: 0.3.0 and 0.4.0) and 0.6.0 (version 3: 0.5.0 and 0.6.0) (`git show <tag>:` at each tag). Versions
-4, from agention#71, and 5, from agention#143, shipped in no release, so no server stands for them.
-At 2bd3ed3, with the agent API at 3, it was the first two.
+4, from agention#71, 5, from agention#143, and 6, from agention#148, shipped in no release, so no
+server stands for them. At 2bd3ed3, with the agent API at 3, it was the first two.
 
 **A fixed list instead.** `servers=(0.2.1 0.4.0 0.6.0)` in the script needs no tag reading and no
 fixture test. Its cost is the case the gate exists for: the pull request that bumps
