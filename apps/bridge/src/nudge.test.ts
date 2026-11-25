@@ -1,16 +1,22 @@
-import { type Pane, PaneObserver, type Profile } from "@wayfarerlabs/agention-harness-observer";
+import {
+  genericStrict,
+  type NudgeOutcome,
+  type NudgeTexts,
+  type Pane,
+  PaneObserver,
+  type Profile,
+  TmuxPane,
+} from "@wayfarerlabs/agention-harness-observer";
+import {
+  scriptedHarness,
+  TmuxServer,
+} from "@wayfarerlabs/agention-harness-observer/test/tmux-server.ts";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { DrawnPane, eventually, MonitorHarness } from "./monitoring-test-support.ts";
 import type { NudgingObserver } from "./monitoring.ts";
-import {
-  notReady,
-  type NudgeOutcome,
-  nudgeTextLimit,
-  nudgeTexts,
-  type NudgeTexts,
-} from "./nudge.ts";
+import { notReady, nudgeTextLimit, nudgeTexts } from "./nudge.ts";
 
 // The bridge's nudge against its real test server, with an observer that
 // reads a drawn pane as the harness observer does and answers each nudge as
@@ -80,6 +86,42 @@ describe("the nudge's texts", () => {
     expect(second.warning).not.toBe(first.warning);
     expect(second.message).toBe(first.message);
   });
+
+  it("are texts the harness observer takes, which refuses any it cannot put in a pane", async () => {
+    // With no observations running it is never ready, so it sends nothing.
+    const observer = new PaneObserver(new DrawnPane(), genericStrict);
+    await expect(observer.nudge(nudgeTexts())).resolves.toEqual(notReady);
+  });
+});
+
+describe("the nudge on a real tmux pane", () => {
+  // The observer's own waits are real: ten seconds with no one typing, which
+  // a fresh server has, five with the warning shown and up to five for the
+  // harness to take the message.
+  it("submits the message at the scripted harness's prompt, which runs a turn", async () => {
+    const server = await TmuxServer.start(scriptedHarness);
+    onTestFinished(() => server.kill());
+    const bridge = await harness.registered(
+      { AGENTION_TMUX_SOCKET: server.socket, AGENTION_NUDGE: "tmux" },
+      { pane: (socket) => new TmuxPane(socket) },
+    );
+    await eventually(
+      () => (harness.held()?.condition === "at_prompt" ? true : undefined),
+      "at_prompt",
+    );
+    await harness.operatorStarts(operatorText);
+    await eventually(() => harness.nudged(), "the nudge's outcome", 1600);
+    expect(harness.nudged()).toMatchObject({ nudge_sent: 1 });
+    // The harness ran the turn, and is back at its prompt.
+    let screen = "";
+    for (let tries = 0; tries < 100 && !screen.includes("turns 1"); tries++) {
+      screen = await server.tmux("capture-pane", "-p");
+      await delay(50);
+    }
+    expect(screen).toContain("turns 1");
+    expect(bridge.logged).toHaveLength(1);
+    expect(JSON.stringify(harness.seen.map((seen) => seen.body))).not.toContain("turns");
+  }, 45_000);
 });
 
 describe("the bridge's nudge", () => {

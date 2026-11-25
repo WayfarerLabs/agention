@@ -1,6 +1,9 @@
 import {
   genericStrict,
   type HarnessClient,
+  type Key,
+  type NudgeOutcome,
+  type NudgeTexts,
   type Observation,
   type Pane,
   PaneObserver,
@@ -19,7 +22,7 @@ import {
   quoted,
   timestamp,
 } from "@wayfarerlabs/agention-api";
-import { notReady, type NudgeOutcome, type Nudger, type NudgeTexts } from "./nudge.ts";
+import { notReady } from "./nudge.ts";
 
 // Monitoring's side in the bridge: what its configuration names, the reports
 // the reporter sends of what the harness observer reads from the session's
@@ -95,7 +98,7 @@ export interface Monitor {
 
 // What reads a pane through a profile and nudges at it: the harness
 // observer.
-export type NudgingObserver = Pick<PaneObserver, "observations"> & Nudger;
+export type NudgingObserver = Pick<PaneObserver, "observations" | "nudge">;
 
 export interface PaneMonitorOptions {
   settings: MonitoringSettings;
@@ -117,12 +120,6 @@ export interface PaneMonitorOptions {
 // another session's, is refused rather than read.
 function sessionPane(socket: string): Pane {
   return new TmuxPane(socket, { requireAncestorOf: process.pid });
-}
-
-// paneObserver is the harness observer of a pane, whose nudge carries out
-// every check of the session's readiness and of each text it puts there.
-function paneObserver(pane: Pane, profile: Profile): NudgingObserver {
-  return new PaneObserver(pane, profile) as PaneObserver & Nudger;
 }
 
 // createMonitor makes the monitor the configuration asks for. Without a
@@ -154,7 +151,9 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
     };
   }
   const pane = new LoggedPane((options.pane ?? sessionPane)(socket), log);
-  const observe = options.observer ?? paneObserver;
+  // The harness observer's nudge carries out every check of the session's
+  // readiness and of each text it puts in the pane.
+  const observe = options.observer ?? ((watched, read) => new PaneObserver(watched, read));
   let profile: Profile | undefined;
   // The observer while the reports are being read, which nudges.
   let observer: NudgingObserver | undefined;
@@ -331,6 +330,16 @@ class LoggedPane implements Pane {
       this.#problem = undefined;
     }
     return snapshot;
+  }
+
+  // paste and key pass to the pane, logging nothing: the nudge's observer
+  // reports how a nudge ended, and its texts never reach the log.
+  paste(line: string): Promise<void> {
+    return this.#pane.paste(line);
+  }
+
+  key(key: Key): Promise<void> {
+    return this.#pane.key(key);
   }
 
   #note(problem: PaneProblem, line: string): void {

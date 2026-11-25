@@ -3,7 +3,7 @@
 // is down, and starts bridges with a reporter paced for tests; and a pane a
 // test draws itself.
 import type { MonitorReport } from "@wayfarerlabs/agention-api";
-import type { Pane, Snapshot } from "@wayfarerlabs/agention-harness-observer";
+import type { Key, Pane, Snapshot } from "@wayfarerlabs/agention-harness-observer";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import type { ReporterTiming } from "./reporter.ts";
@@ -23,8 +23,14 @@ export const timing: ReporterTiming = {
   retryMost: 100,
 };
 
-export async function eventually<T>(read: () => T | undefined, what: string): Promise<T> {
-  for (let tries = 0; tries < 400; tries++) {
+// eventually reads until read gives something, every 25 milliseconds, up to
+// tries times.
+export async function eventually<T>(
+  read: () => T | undefined,
+  what: string,
+  tries = 400,
+): Promise<T> {
+  for (let tried = 0; tried < tries; tried++) {
     const value = read();
     if (value !== undefined) {
       return value;
@@ -166,9 +172,22 @@ export class DrawnPane implements Pane {
     cursor: { x: 2, y: 0, visible: true },
     hostHasTerminal: true,
     onePane: true,
+    keysBlocked: false,
+    lastTyped: undefined,
   };
+
+  // What the pane was sent, which changes nothing on its screen.
+  readonly sent: (string | Key)[] = [];
 
   async snapshot(): Promise<Snapshot> {
     return { ...this.screen, at: Date.now() };
+  }
+
+  async paste(line: string): Promise<void> {
+    this.sent.push(line);
+  }
+
+  async key(key: Key): Promise<void> {
+    this.sent.push(key);
   }
 }
