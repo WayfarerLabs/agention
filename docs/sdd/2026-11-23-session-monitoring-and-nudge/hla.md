@@ -170,13 +170,13 @@ package's tests cover the sequence:
    change; otherwise `submitted`, the one failure after the message went in.
 
 Only Backspace and Enter are ever sent, never an ordinary character or Escape (the spike), and each
-only right after a confirmation, and none once the caller's `signal` aborts. An error after a paste
-removes the observer's own text where a fresh reading still shows exactly it. Every confirmation
-also requires one pane, the host holding the terminal, keys not blocked and no key typed since the
-nudge began; the one before Enter, and the one after the warning's wait, require the whole screen
-unchanged as well. `paste` refuses control characters, so no text can end the bracketed paste early,
-and `nudge()` throws for a text that is empty or not printable ASCII, whose width it could never
-confirm: a caller's mistake, not a moment to wait out.
+only right after a confirmation, and none once the caller's `signal` aborts. An error ends the nudge
+as a failed check at its step does: the warning stays, and the message is removed where it is still
+exactly there. Every confirmation also requires one pane, the host holding the terminal, keys not
+blocked and no key typed since the nudge began; the one before Enter, and the one after the
+warning's wait, require the whole screen unchanged as well. `paste` refuses control characters, so
+no text can end the bracketed paste early, and `nudge()` throws for a text that is empty or not
+printable ASCII, whose width it could never confirm: a caller's mistake, not a moment to wait out.
 
 ### Captures
 
@@ -273,11 +273,12 @@ Delivery 2 bumps the agent API to version 7:
   agent's last check-in; and no nudge has been claimed since that check-in (N1, N3, N4). The answer
   is level-triggered: a bridge that already knows one is due says so, and its poll is held until
   that changes, so a nudge waiting for a still prompt costs no requests (C2). A report that finds
-  the session nudgeable at its prompt, a message, the agent's read marks, a check-in and a claim
-  wake the poll; working it out writes nothing, and a replaced bridge is never told. The server
-  works this out from the session's own rows, so it holds across bridge restarts, takeovers and
-  Codex's several bridges, and the bridge learns only that one is due, never why: nothing about
-  threads or presence reaches the agent through it.
+  the session nudgeable at its prompt and a message wake the poll, since those make a nudge due;
+  what ends one wakes nothing, because a claim checks again that one is due; working it out writes
+  nothing, and a replaced bridge is never told. The server works this out from the session's own
+  rows, so it holds across bridge restarts, takeovers and Codex's several bridges, and the bridge
+  learns only that one is due, never why: nothing about threads or presence reaches the agent
+  through it.
 - **The claim and the outcome.** `POST .../monitor/nudge` starts a nudge, in one transaction: the
   server checks that the bridge acts for the session and that one is due, records the nudge at its
   own clock with no outcome yet, and answers whether to go. The bridge types nothing until it does.
