@@ -32,16 +32,22 @@ describe("agention-mcp", () => {
       code: 0,
       stdout: "",
       stderr: "",
-      served: { tmuxSocket: undefined, harnessProfile: undefined },
+      served: { tmuxSocket: undefined, harnessProfile: undefined, nudge: undefined },
     });
   });
 
   it("serves with the monitoring options given", async () => {
     expect(
-      await runCaptured(["--tmux-socket", "/run/tmux.sock", "--harness-profile=codex"]),
+      await runCaptured([
+        "--tmux-socket",
+        "/run/tmux.sock",
+        "--harness-profile=codex",
+        "--nudge",
+        "tmux",
+      ]),
     ).toMatchObject({
       code: 0,
-      served: { tmuxSocket: "/run/tmux.sock", harnessProfile: "codex" },
+      served: { tmuxSocket: "/run/tmux.sock", harnessProfile: "codex", nudge: "tmux" },
     });
   });
 

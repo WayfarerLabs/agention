@@ -7,7 +7,13 @@ import type { Pane, Snapshot } from "@wayfarerlabs/agention-harness-observer";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import type { ReporterTiming } from "./reporter.ts";
-import { BridgeHarness, type BridgeTestOptions, type TestBridge } from "./test-harness.ts";
+import {
+  agent,
+  BridgeHarness,
+  type BridgeTestOptions,
+  session,
+  type TestBridge,
+} from "./test-harness.ts";
 
 // Fast enough for tests, and a poll that ends within a second.
 export const timing: ReporterTiming = {
@@ -86,8 +92,33 @@ export class MonitorHarness extends BridgeHarness {
   // The report the server holds for the session, as its row has it.
   held(): Record<string, unknown> | undefined {
     return this.server.fixture.db
-      .prepare("SELECT monitored, profile, condition, stopped_by FROM monitor_reports")
+      .prepare("SELECT monitored, profile, condition, stopped_by, nudge FROM monitor_reports")
       .get() as Record<string, unknown> | undefined;
+  }
+
+  // The session's latest nudge, as its row has it: when, by the server's
+  // clock, and whether it was sent, or undefined before any.
+  nudged(): { nudged_at: number; nudge_sent: number } | undefined {
+    const row = this.server.fixture.db
+      .prepare("SELECT nudged_at, nudge_sent FROM sessions")
+      .get() as { nudged_at: number | null; nudge_sent: number | null } | undefined;
+    return row?.nudged_at === null || row?.nudge_sent === null || row === undefined
+      ? undefined
+      : { nudged_at: row.nudged_at, nudge_sent: row.nudge_sent };
+  }
+
+  // operatorStarts starts a thread with the session as the operator, through
+  // the web API, with the text given, and returns its number.
+  async operatorStarts(text: string): Promise<number> {
+    const response = await this.server.web("POST", `/s/${agent}/${session}/threads`, {
+      request_id: `operator-start-${this.seen.length}`,
+      title: text,
+      text,
+    });
+    if (response.status !== 200) {
+      throw new Error(`the operator's thread failed: ${JSON.stringify(response.body)}`);
+    }
+    return (response.body as { number: number }).number;
   }
 
   // When the session's bridge last made a background request, and its agent

@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import packageJson from "../package.json" with { type: "json" };
 import type { MonitoringOptions } from "./monitoring.ts";
 
-const usage = `Usage: agention-mcp [--tmux-socket PATH] [--harness-profile NAME]
+const usage = `Usage: agention-mcp [--tmux-socket PATH] [--harness-profile NAME] [--nudge TYPE]
        agention-mcp --version | --help
 
 Without --version or --help, runs the Agention agent bridge: an MCP server on
@@ -19,7 +19,11 @@ Once the session is approved, the bridge reports to the server that it is
 connected, and monitors the session's terminal when it is given the socket of
 the tmux server the agent host runs in, whose one pane it reads, on Linux with
 tmux 3.3 or later: what it reports is the session's condition, such as running
-or at its prompt, never the screen's text. An option wins over its variable.
+or at its prompt, never the screen's text. With the nudge on, it also nudges
+the agent at its prompt when the operator writes and the agent has not
+checked in since: it shows a warning the operator can type over to stop it,
+then submits one fixed message telling the agent to check in. An option wins
+over its variable.
 
 Options:
   --tmux-socket PATH      The tmux server's socket; by default
@@ -29,6 +33,9 @@ Options:
                           the agent host the bridge runs under, or one of
                           ${profileNames.join(", ")};
                           by default AGENTION_HARNESS_PROFILE
+  --nudge TYPE            Turn the nudge on: tmux, the one type, which types
+                          into the pane --tmux-socket names; by default
+                          AGENTION_NUDGE, and without either the nudge is off
   --version               Print the version
   -h, --help              Print this help
 `;
@@ -61,6 +68,7 @@ export async function run(args: readonly string[], io: Io): Promise<number> {
         help: { type: "boolean", short: "h" },
         "tmux-socket": { type: "string" },
         "harness-profile": { type: "string" },
+        nudge: { type: "string" },
       },
     }));
   } catch (error) {
@@ -78,6 +86,7 @@ export async function run(args: readonly string[], io: Io): Promise<number> {
   await io.serve({
     tmuxSocket: values["tmux-socket"],
     harnessProfile: values["harness-profile"],
+    nudge: values.nudge,
   });
   return exitOK;
 }

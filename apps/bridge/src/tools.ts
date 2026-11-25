@@ -36,14 +36,16 @@ import { registerFileTools } from "./file-tools.ts";
 import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
 import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
+import type { Monitor } from "./monitoring.ts";
 import type { Reporter } from "./reporter.ts";
 import type { Session } from "./session.ts";
 import { maxReminderBytes, type StatusReminder } from "./status-reminder.ts";
 
 // What the tools act through: the server's API, the session, the home
 // directory the bridge keeps its files under, what reminds the agent to
-// report the session's status and the reporter that monitors it in the
-// background, or why the bridge cannot reach them.
+// report the session's status, the reporter that monitors it in the
+// background and the monitor, which says whether it can be nudged, or why
+// the bridge cannot reach them.
 export type Connection =
   | {
       api: AgentApi;
@@ -51,6 +53,7 @@ export type Connection =
       home: string;
       statusReminder: StatusReminder;
       reporter: Reporter;
+      monitor: Monitor;
     }
   | { problem: BridgeError };
 export type Connected = Exclude<Connection, { problem: BridgeError }>;
@@ -256,13 +259,15 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "because the operator rejected or revoked the session's key or the registration expired " +
       "before approval, register makes a new key and registers it, and replaced says why. " +
       "message says what to do next, including the names to pass when you come back and, " +
-      "once approved, how answers reach you.",
+      "once approved, how answers reach you, which answers names: nudge when the bridge " +
+      "nudges you to check in once the operator writes, so you can end your turn when your " +
+      "work is done, and check when they reach you only as you check.",
     registerInput,
     // register starts the reporter, which monitors the session once the
     // operator approves it, with no further tool call.
     async (input, signal) => {
-      const { session, reporter } = connected();
-      const answer = await session.register(input, signal);
+      const { session, reporter, monitor } = connected();
+      const answer = await session.register(input, signal, () => monitor.canNudge());
       reporter.start();
       return answer;
     },
@@ -432,9 +437,11 @@ export function registerTools(server: McpServer, connection: Connection): void {
     "Check for messages you have not read in this session's threads, waiting up to " +
       "wait_seconds for one, and answer with those threads, oldest activity first, and since. " +
       "With wait_seconds 0, the default, it answers at once, which is how you check for " +
-      "answers as you work, carrying on with other work. Once that work is done, wait longer " +
-      "while you have open asks or unread messages, or have a waiter of your own, such as a " +
-      "subagent, do the waiting. Pass since back to check only for messages newer than this " +
+      "answers as you work, carrying on with other work. Once that work is done, while you " +
+      "have open asks or unread messages: if register's answers is nudge, report idle and " +
+      "end your turn, with no waiter of your own, and check in when a nudge comes; otherwise " +
+      "wait longer, or have a waiter of your own, such as a subagent, do the waiting. Pass " +
+      "since back to check only for messages newer than this " +
       "answer covered, so a thread you leave unread does not come back. Answers at once if " +
       "there is something to report, else when a message lands or wait_seconds pass, and " +
       "with an error other than invalid_input only once wait_seconds pass. The operator " +

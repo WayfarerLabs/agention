@@ -27,15 +27,17 @@ export type Presence = z.infer<typeof presence>;
 
 // A session's state, which says what it is doing and what the operator can
 // expect of it: working while it does something now and idle while it has
-// nothing left to do but wait, both while it checks Agention, and stopped
-// once it no longer does, until something starts it again. Whether it waits
-// on the operator is no state: its open asks say so.
+// nothing left to do but wait, both while it checks Agention, or, idle, while
+// it waits at its prompt for the bridge's nudge, and stopped once it no
+// longer does either, until something starts it again. Whether it waits on
+// the operator is no state: its open asks say so.
 export const workState = z
   .enum(["working", "idle", "stopped"])
   .describe(
     "working while you are doing something now, checking Agention as you go; idle while you " +
       "have nothing left to do but wait, for the operator's answers, CI or a review, and you " +
-      "still check Agention; stopped once you stop checking Agention, so you will not see new " +
+      "still check Agention, or, where register's answers is nudge, wait at your prompt for " +
+      "the bridge's nudge; stopped once you stop checking Agention, so you will not see new " +
       "messages until something starts you again. stopped needs an outcome.",
   );
 export type WorkState = z.infer<typeof workState>;

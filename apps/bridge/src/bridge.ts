@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
-import type { HarnessClient, Pane } from "@wayfarerlabs/agention-harness-observer";
+import type { HarnessClient, Pane, Profile } from "@wayfarerlabs/agention-harness-observer";
 import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
 import {
@@ -15,6 +15,7 @@ import {
   type MonitoringEnvironment,
   type MonitoringOptions,
   monitoringSettings,
+  type NudgingObserver,
 } from "./monitoring.ts";
 import { Reporter, type ReporterTiming, reporterTiming } from "./reporter.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
@@ -23,9 +24,9 @@ import { type Connection, registerTools } from "./tools.ts";
 
 // The variables the bridge reads: the server's origin and where to open
 // connections to it, the names of the session an agent host runs, which
-// register's arguments override, monitoring's tmux socket and profile, which
-// the command line's options override, and Node's switch for skipping
-// certificate checks, which the bridge refuses.
+// register's arguments override, monitoring's tmux socket and profile and
+// the nudge's type, which the command line's options override, and Node's
+// switch for skipping certificate checks, which the bridge refuses.
 export interface BridgeEnvironment extends SessionEnvironment, MonitoringEnvironment {
   AGENTION_URL?: string | undefined;
   AGENTION_CONNECT?: string | undefined;
@@ -47,6 +48,8 @@ export interface BridgeOptions {
   reporterTiming?: ReporterTiming;
   // The pane at a tmux socket path; by default a TmuxPane.
   pane?: (socket: string) => Pane;
+  // The observer of a pane through a profile; by default a PaneObserver.
+  observer?: (pane: Pane, profile: Profile) => NudgingObserver;
 }
 
 // The skill's first rule, which the bridge gives every agent host when it
@@ -162,11 +165,13 @@ function connect(
     client,
     log,
     pane: options.pane,
+    observer: options.observer,
   });
   return {
     api,
     session,
     home,
+    monitor,
     statusReminder: new StatusReminder(clock),
     reporter: new Reporter({
       api,

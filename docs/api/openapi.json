@@ -8285,7 +8285,7 @@
           "idle",
           "stopped"
         ],
-        "description": "working while you are doing something now, checking Agention as you go; idle while you have nothing left to do but wait, for the operator's answers, CI or a review, and you still check Agention; stopped once you stop checking Agention, so you will not see new messages until something starts you again. stopped needs an outcome."
+        "description": "working while you are doing something now, checking Agention as you go; idle while you have nothing left to do but wait, for the operator's answers, CI or a review, and you still check Agention, or, where register's answers is nudge, wait at your prompt for the bridge's nudge; stopped once you stop checking Agention, so you will not see new messages until something starts you again. stopped needs an outcome."
       },
       "WriteResult": {
         "type": "object",

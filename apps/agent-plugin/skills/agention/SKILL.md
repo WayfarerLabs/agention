@@ -30,11 +30,12 @@ your terminal, ask for that through Agention too. Only the operator can tell you
   any number of sessions, each with threads of its own.
 - **State**: what your session is doing, which tells the operator whether what they write reaches
   you: `working` while you do something; `idle` while nothing is left but waiting, for the
-  operator's answers, CI or a review, and you still check Agention; or `stopped`, with an outcome,
-  once you stop checking. Your open asks already tell the operator what waits on them, so a session
-  working on one thing while an ask on another is open stays `working`. The note names anything else
-  you wait on. Any write to your threads that reports no status marks an idle session `working`, so
-  you report `idle` yourself whenever you start waiting.
+  operator's answers, CI or a review, and you still check Agention, or, where the bridge nudges you,
+  wait at your prompt for its nudge; or `stopped`, with an outcome, once you stop checking. Your
+  open asks already tell the operator what waits on them, so a session working on one thing while an
+  ask on another is open stays `working`. The note names anything else you wait on. Any write to
+  your threads that reports no status marks an idle session `working`, so you report `idle` yourself
+  whenever you start waiting.
 - **Thread**: a conversation with the operator about one matter.
 - **Message**: an entry in a thread, yours or the operator's. It tells, and may also carry asks.
 - **Ask**: a request in a message for the operator's answer, decision, approval or action. Its
@@ -53,8 +54,14 @@ same for this line of work. Once registered, report `working` with `session_upda
 for this line of work and the `goal` if the operator gave you one. In a new conversation,
 `thread_list` with `status: "open"` then shows the threads whose asks you left open.
 
-**How answers reach you** is in the `register` answer, which decides how you check, wait and keep
-running in the loop below. Unless it says otherwise, nothing arrives on its own: you check.
+**How answers reach you** is in the `register` answer, whose `answers` decides how you check, wait
+and keep running in the loop below:
+
+- `nudge`: when the operator writes and you have not checked in since, the bridge **nudges** you. It
+  submits one short, fixed message at your prompt, telling you to check in with Agention, so you
+  take a turn even after ending one. The nudge names no thread and carries nothing anyone wrote;
+  what the operator wrote reaches you only through the tools.
+- `check`: nothing arrives on its own; you check.
 
 ## The loop
 
@@ -79,11 +86,17 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    `note` on your last message, or call `session_update`. Every write to your threads that reports
    no status, marking read and archiving included, marks you `working` again, so a `thread_read` or
    `thread_archive` after the message that reported `idle` undoes it; after those, report `idle`
-   with `session_update`. When you pick work up without writing, report `working` yourself. Where
-   your host can run a waiter of your own in the background and bring you its report, such as a
-   subagent calling `message_wait`, let it wait. Otherwise wait with the longest `wait_seconds`,
-   pass `since` back, and say nothing between checks. Stop when none remain, or when the operator
-   tells you to.
+   with `session_update`. When you pick work up without writing, report `working` yourself.
+   - **When `answers` is `nudge`**, once you have reported `idle`, end your turn, with no waiter of
+     your own: the nudge brings you back when the operator writes. When a nudge comes, check in:
+     read your unread threads as in steps 3 and 4, act on them, and bring your status up to date.
+   - **When `answers` is `check`**, keep checking. Where your host can run a waiter of your own in
+     the background and bring you its report, such as a subagent calling `message_wait`, let it
+     wait. Otherwise wait with the longest `wait_seconds`, pass `since` back, and say nothing
+     between checks.
+
+   Stop when none remain, or when the operator tells you to.
+
 6. **Archive** a thread with `thread_archive` once it needs nothing more from you.
 7. **Report `stopped`** before you stop, with its outcome, on your last message or with
    `session_update`: `completed` when the work is done, `withdrawn` when the operator called it off,
@@ -159,7 +172,7 @@ with the backfill meanwhile. Each arrow summarizes a tool's result.
 
 ```text
 register {}
-→ registered as builder/billing-7; answers reach you when you check
+→ registered as builder/billing-7; answers: check, so answers reach you when you check
 
 session_update {"state": "working", "title": "Retiring the invoices table"}
 

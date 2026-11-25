@@ -27,7 +27,9 @@ name the origin. The bridge connects directly and takes no HTTP proxy settings, 
 `--help` the usage. The bridge needs Node.js 24 or later. It keeps each session's key under
 `~/.config/agention/`, and you approve a new key with the code the agent relays to you. To monitor
 the session's terminal, see `--tmux-socket` and `--harness-profile` in `--help` and the
-[operator guide](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#monitoring-a-sessions-terminal).
+[operator guide](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#monitoring-a-sessions-terminal),
+and to have the bridge nudge the agent at its prompt when you write to it, `--nudge` and
+[the nudge](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#the-nudge).
 
 ## More
 

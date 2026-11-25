@@ -1,7 +1,11 @@
 import {
   type ErrorCode,
+  formatTimestamp,
+  type LastNudge,
   monitorAnswer,
   type MonitorAnswer,
+  monitorPollAnswer,
+  type MonitorPollAnswer,
   type MonitorReport,
   type PublicKey,
   type RegistrationState,
@@ -13,11 +17,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import { type AgentApi, type ApiRequest, tokenLifetimeSeconds } from "./agent-api.ts";
 import { ApiFailure, BridgeError } from "./errors.ts";
 import type { Log, Monitor } from "./monitoring.ts";
+import { nudgeTexts } from "./nudge.ts";
 import type { Session } from "./session.ts";
 
-// The reporter holds a session's background connection to the server and
-// reports what monitoring observes of it. It runs beside the agent's tools,
-// which work as without it: nothing it does reaches a tool's answer.
+// The reporter holds a session's background connection to the server,
+// reports what monitoring observes of it, and nudges the agent when the
+// server says a nudge is due. It runs beside the agent's tools, which work
+// as without it: nothing it does reaches a tool's answer.
 //
 // Several bridges may run for one session, as Codex starts new ones without
 // ending the old, and one of them acts for it: the latest to claim it. A
@@ -100,6 +106,15 @@ export class Reporter {
   // The code the server last refused a report with, until it takes one, so
   // a run of refusals for the same reason is logged once.
   #refused: ErrorCode | undefined;
+  // The number of the latest report the server answered, and whether it
+  // refused it, and what waits for that to change.
+  #answered = { seq: 0, refused: false };
+  #answerWaiters = new Set<() => void>();
+  // The latest nudge the bridge tried, which every report after it carries,
+  // and whether nudging has stopped for good, the server having refused a
+  // report of one.
+  #lastNudge: LastNudge | undefined;
+  #nudgeOff = false;
   // The number of the latest report the bridge made, which counts up with
   // each for the life of the process, so the server ignores a report that
   // arrives after a later one.
@@ -220,6 +235,9 @@ export class Reporter {
           // rather than at the end of its pause.
           this.#retryWake?.abort();
         }
+        if (answer.nudge) {
+          await this.#nudge(signal);
+        }
         await this.#pause(started + pollFloor - performance.now(), signal);
       } catch (error) {
         if (signal.aborted) {
@@ -282,30 +300,132 @@ export class Reporter {
   // poll makes one long poll on the session's background connection. A
   // claim answers at once, so the reports that follow it come only once the
   // server has taken it.
-  async #poll(claim: boolean, signal: AbortSignal): Promise<MonitorAnswer> {
+  async #poll(claim: boolean, signal: AbortSignal): Promise<MonitorPollAnswer> {
     const wait = claim ? 0 : this.#timing.waitSeconds;
-    return this.#monitorRequest(signal, (path) => ({
-      method: "GET",
-      path,
-      query: { bridge: this.#id, ...(claim && { claim }), wait },
-      wait: wait * 1000,
-    }));
+    return this.#monitorRequest(
+      signal,
+      (path) => ({
+        method: "GET",
+        path,
+        query: { bridge: this.#id, ...(claim && { claim }), wait },
+        wait: wait * 1000,
+      }),
+      monitorPollAnswer,
+    );
   }
 
-  async #monitorRequest(
+  async #monitorRequest<A extends MonitorAnswer>(
     signal: AbortSignal,
     request: (path: string) => Omit<ApiRequest, "signal">,
-  ): Promise<MonitorAnswer> {
+    schema: { safeParse(value: unknown): { success: true; data: A } | { success: false } },
+  ): Promise<A> {
     const { key, granted } = await this.#session.credential(signal, true);
     const answer = await this.#api.request(key, {
       ...request(`/s/${granted.agent}/${granted.session}/monitor`),
       signal,
     });
-    const parsed = monitorAnswer.safeParse(answer);
+    const parsed = schema.safeParse(answer);
     if (!parsed.success) {
       throw new BridgeError("The server's monitoring answered with something other than its JSON.");
     }
     return parsed.data;
+  }
+
+  // nudge tries the nudge the server says is due, while the bridge acts for
+  // the session and its latest report says the session can be nudged, with
+  // texts of its own that nothing from the server or the screen reaches. A
+  // nudge the observer finds the session not ready for put nothing in the
+  // pane, so it is no nudge: it is neither logged nor reported, and the poll
+  // that follows, at least a second after the last, offers it again while it
+  // is still due. Any other outcome is logged by its step alone, and sent in
+  // a report, which the next poll waits for, so it never offers the nudge
+  // again before the server has recorded it. A report of one that the server
+  // refuses, which sending again would not change, stops nudging for good,
+  // since the server would go on offering it.
+  async #nudge(signal: AbortSignal): Promise<void> {
+    const latest = this.#latest?.report;
+    if (this.#nudgeOff || latest?.monitored !== true || latest.nudge !== true) {
+      return;
+    }
+    const outcome = await this.#monitor.nudge(nudgeTexts());
+    if (!outcome.sent && outcome.step === "not-ready") {
+      return;
+    }
+    this.#log(
+      outcome.sent
+        ? "the bridge nudged the agent"
+        : `a nudge was not sent: it stopped at the ${outcome.step} step`,
+    );
+    // The time is the bridge's own, and only tells this nudge from the one
+    // before, so it always moves forward.
+    const previous = this.#lastNudge === undefined ? -Infinity : Date.parse(this.#lastNudge.at);
+    const at = Math.max(this.#clock(), previous + 1);
+    this.#lastNudge = { at: formatTimestamp(at), sent: outcome.sent };
+    const current = this.#latest;
+    if (current === undefined || signal.aborted) {
+      return;
+    }
+    const seq = this.#queue(current.report);
+    if ((await this.#answer(seq, signal)) === "refused") {
+      this.#nudgeOff = true;
+      this.#log("the server refused the report of a nudge, so the bridge nudges no more");
+    }
+  }
+
+  // withNudge is a report with the latest nudge the bridge tried, if any,
+  // in place of any it carried.
+  #withNudge(report: MonitorReport): MonitorReport {
+    return report.monitored && this.#lastNudge !== undefined
+      ? { ...report, last_nudge: this.#lastNudge }
+      : report;
+  }
+
+  // queue makes a report the latest, numbered after the one before, and sends
+  // it, giving its number.
+  #queue(report: MonitorReport): number {
+    const seq = ++this.#seq;
+    this.#latest = { report: this.#withNudge(report), seq };
+    this.#unsent = true;
+    this.#send();
+    return seq;
+  }
+
+  // answer resolves once the server has answered the report numbered seq or
+  // a later one, which carries all it does, saying whether it refused it; or
+  // with undefined once the bridge stops acting for the session, or the
+  // signal aborts, first.
+  async #answer(seq: number, signal: AbortSignal): Promise<"accepted" | "refused" | undefined> {
+    const acting = this.#acting;
+    while (this.#answered.seq < seq) {
+      if (signal.aborted || acting === undefined || this.#acting !== acting) {
+        return undefined;
+      }
+      await new Promise<void>((resolve) => {
+        const done = (): void => {
+          signal.removeEventListener("abort", done);
+          this.#answerWaiters.delete(done);
+          resolve();
+        };
+        this.#answerWaiters.add(done);
+        signal.addEventListener("abort", done, { once: true });
+      });
+    }
+    return this.#answered.refused ? "refused" : "accepted";
+  }
+
+  // answeredThrough records the server's answer to the report numbered seq,
+  // and wakes what waits for it.
+  #answeredThrough(seq: number, refused: boolean): void {
+    if (seq > this.#answered.seq) {
+      this.#answered = { seq, refused };
+    }
+    this.#wakeAnswerWaiters();
+  }
+
+  #wakeAnswerWaiters(): void {
+    for (const wake of [...this.#answerWaiters]) {
+      wake();
+    }
   }
 
   // startActing watches the monitor while the bridge acts for its session,
@@ -320,9 +440,7 @@ export class Reporter {
         if (signal.aborted) {
           return;
         }
-        this.#latest = { report, seq: ++this.#seq };
-        this.#unsent = true;
-        this.#send();
+        this.#queue(report);
       }
     })().catch(() => undefined);
   }
@@ -332,6 +450,7 @@ export class Reporter {
     this.#acting = undefined;
     this.#latest = undefined;
     this.#unsent = false;
+    this.#wakeAnswerWaiters();
   }
 
   // send sends the latest report, one request at a time, and each report
@@ -356,14 +475,19 @@ export class Reporter {
         const { report, seq } = this.#latest;
         this.#unsent = false;
         try {
-          const answer = await this.#monitorRequest(signal, (path) => ({
-            method: "POST",
-            path,
-            query: { bridge: this.#id, seq },
-            body: report,
-          }));
+          const answer = await this.#monitorRequest(
+            signal,
+            (path) => ({
+              method: "POST",
+              path,
+              query: { bridge: this.#id, seq },
+              body: report,
+            }),
+            monitorAnswer,
+          );
           retry = this.#timing.retryFirst;
           this.#refused = undefined;
+          this.#answeredThrough(seq, false);
           if (answer.replaced) {
             this.#stopActing();
             return;
@@ -375,6 +499,7 @@ export class Reporter {
           const refused = refusalOf(error);
           if (refused !== undefined) {
             this.#noteRefusal(refused);
+            this.#answeredThrough(seq, true);
             continue;
           }
           this.#unsent = true;
