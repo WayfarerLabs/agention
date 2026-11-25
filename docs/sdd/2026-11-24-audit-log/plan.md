@@ -122,9 +122,9 @@ and name; gates and CI pass, and P1 ships in a release.
 - [ ] An API key's detail in Settings lists its recent events.
 - [ ] Tests: the scope refused as `not_found` without it; filters and paging; browser tests of the
       page and a key's activity.
-- [ ] Collateral: the regenerated `docs/api/openapi.json`; the operator guide's "Reading the audit
-      log" and "API keys"; the ADR's scope list; the architecture document; the review checklist's
-      operations and scopes (A18).
+- [ ] Collateral: the regenerated `docs/api/openapi.json`; the web UI page's "Reading the audit log"
+      and the operator guide's "API keys"; the ADR's scope list; the architecture document; the
+      review checklist's operations and scopes (A18).
 
 **Done when:** the operator filters the log by an API key in Settings and sees its writes, and a
 script with `audit:read` reads them while one without it is refused; gates and CI pass, and P2 ships

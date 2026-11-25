@@ -373,7 +373,7 @@ Each kind is configured at most once, by options like every other `serve` settin
 (`S/cli.ts:38-65`). Options take no secrets, and the URL rule keeps a credential out of the usual
 places in a URL; a token embedded in a URL's path cannot be told apart, so no stderr line or
 Settings page shows a sink's URL, only its kind. Sinks change only on restart. The usage text in
-`S/cli.ts` and the operator guide's options table (`docs/operator-guide.md:116-127`) list the
+`S/cli.ts` and the operator guide's options table (`docs/operator-guide.md:110-120`) list the
 options.
 
 ### Forgetting a sink
