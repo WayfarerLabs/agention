@@ -364,14 +364,11 @@ function ThreadPage({
   const [after, setAfter] = useAfterSending();
   // The messages the page shows as they stand, which a change judges once its
   // asks load, with those a stale write missed, which the writer gives exactly
-  // (missedNow). Unlike the composer's refs, this one is set in a layout
-  // effect, as each refresh commits, not after the browser paints, since the
-  // change reads it after a wait that a refresh can end; a refresh can still
-  // land one commit too late to count.
+  // (missedNow). It is set as the page renders, as the composer's own is,
+  // since the change reads it after a wait that a refresh can end; a refresh
+  // can still land one render too late to count.
   const shownNow = useRef(messages);
-  useLayoutEffect(() => {
-    shownNow.current = messages;
-  }, [messages]);
+  shownNow.current = messages;
   const unread = useAction();
   const archive = useAction();
   // The draft this browser kept for the thread, which the composer opens
