@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { maxListed } from "./bounds.ts";
+import { maxListed, sequence } from "./bounds.ts";
 import { linkableUrl } from "./references.ts";
 import { singleLineText } from "./text.ts";
 
@@ -168,6 +168,13 @@ export function parseBranch(text: string): BranchLink | undefined {
   return branchLink.safeParse(splitBranch(text)).data;
 }
 
+// shortFormKey gives the key of the entry a short form names, as parse reads
+// it, or the text itself when it names none.
+export function shortFormKey(text: string, parse: (text: string) => CodeLink | undefined): string {
+  const link = parse(text);
+  return link === undefined ? text : linkKey(link);
+}
+
 // shortFormOf is a short form's schema: text of the form split reads, whose
 // fields the entry's schema takes, refused with the reason of the first rule
 // it breaks.
@@ -220,3 +227,21 @@ export const branchRollup = z
       "least recent were left out.",
   );
 export type BranchRollup = z.infer<typeof branchRollup>;
+
+// What a thread's summary says of its roll-up, which a list row shows: how
+// many distinct pull requests and branches its live messages name, and, when
+// they name exactly one entry of either kind, that entry, as the roll-up
+// lists it.
+export const summaryLinks = z
+  .object({
+    pull_requests: sequence,
+    branches: sequence,
+    pull_request: pullRequestLink.optional(),
+    branch: branchLink.optional(),
+  })
+  .describe(
+    "How many distinct pull requests and branches the thread's live messages name; when they " +
+      "name exactly one in all, pull_request or branch is that one, as its latest mention " +
+      "wrote it with the latest URL given.",
+  );
+export type SummaryLinks = z.infer<typeof summaryLinks>;

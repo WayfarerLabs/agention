@@ -213,6 +213,31 @@ describe("a result over the cap", () => {
     }
   });
 
+  it("leaves out the one entry threads name, when a server ignores the page size", async () => {
+    await startThread("r1");
+    const path = "/api/agent/s/builder/main/threads";
+    harness.beforeRequest = (request) => {
+      if (request.method !== "GET" || new URL(request.url).pathname !== path) {
+        return undefined;
+      }
+      // Twenty threads, each naming one branch whose URL takes 2,048 bytes.
+      const threads = Array.from({ length: 20 }, (_, i) => ({
+        number: i + 1,
+        links: { pull_requests: 0, branches: 1, branch: branches(1, i, 2_048)[0] },
+      }));
+      return serverJson({ threads });
+    };
+    const answer = await bridge.call("thread_list", {});
+    withinCap(answer);
+    const result = answer.json as { threads: { links: object }[]; omitted: string[] };
+    expect(result.omitted.length).toBeGreaterThan(0);
+    for (const omitted of result.omitted) {
+      expect(omitted).toMatch(/^threads\.\d+\.links\.branch$/);
+      const index = Number(omitted.split(".")[1]);
+      expect(result.threads[index]?.links).toEqual({ pull_requests: 0, branches: 1 });
+    }
+  });
+
   it("fits a message's text and detail each at its bound whole, the detail in ASCII", async () => {
     // A summary of four-byte characters, and Markdown lines of ASCII.
     const text = astral(1_000);

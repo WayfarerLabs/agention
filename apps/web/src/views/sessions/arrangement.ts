@@ -34,7 +34,7 @@ export interface SessionsView {
 // and the one it takes by default.
 export const sortsOf = (group: SessionGrouping): readonly SessionSort[] =>
   group === "session_group" ? sessionSorts : sessionSorts.filter((each) => each !== "manual");
-const defaultSortOf = (group: SessionGrouping): SessionSort =>
+export const defaultSortOf = (group: SessionGrouping): SessionSort =>
   group === "session_group" ? "manual" : "alphabetic";
 
 // sessionsViewOf reads the arrangement an address names, each part given

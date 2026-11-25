@@ -79,6 +79,12 @@ const webRoutes: [string, string, unknown][] = [
     "/archives",
     { threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
   ],
+  [
+    "POST",
+    "/threads/actions",
+    { action: "read", threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
+  ],
+  ["POST", "/threads/actions/matching", { action: "read", filters: {}, as_of: "a", expected: 0 }],
   ["GET", "/registrations", undefined],
   ["POST", "/registrations/1/approve", undefined],
   ["POST", "/registrations/1/reject", undefined],

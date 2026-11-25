@@ -296,6 +296,105 @@ describe("side by side", () => {
     expect(document.activeElement).toBe(screen.getByRole("link", { name: "Agention" }));
   });
 
+  it("gives U to the pane that holds focus, marking unread the list's row or the thread", async () => {
+    await openList();
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    api.on("POST", `${threadPath(1)}/unread`, { body: { cursors: { requester: 1, audience: 0 } } });
+    await openFromList("First");
+    // In the list, the row's thread, through the list's actions.
+    rowLink("Second").focus();
+    press("U");
+    await waitFor(() => expect(api.callsTo("POST", "/threads/actions")).toHaveLength(1));
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "unread",
+      threads: [{ agent: "builder", session: "main", thread: 2, through: rows[1].last_seq }],
+    });
+    expect(api.callsTo("POST", `${threadPath(1)}/unread`)).toEqual([]);
+    // In the thread, the thread open, as Mark unread from here does.
+    threadHeading().focus();
+    press("U");
+    await waitFor(() =>
+      expect(api.callsTo("POST", `${threadPath(1)}/unread`).map((call) => call.body)).toEqual([
+        { from: 1 },
+      ]),
+    );
+    expect(api.callsTo("POST", "/threads/actions")).toHaveLength(1);
+  });
+
+  it("moves focus to the row in its place, or the last, once I takes a row out of a filtered list beside a thread", async () => {
+    let listed: ThreadSummary[] = [...rows];
+    serve();
+    api.on("GET", "/threads", () => ({ body: { threads: listed, total: listed.length } }));
+    api.on("POST", "/threads/actions", (call) => {
+      const { threads: marked } = call.body as { threads: { thread: number }[] };
+      listed = listed.filter((each) => !marked.some((one) => one.thread === each.number));
+      return { body: { acted: [], declined: [], kept: [] } };
+    });
+    renderAt("/?unread=true");
+    const list = await screen.findByRole("region", { name: "Thread list" });
+    await within(list).findByRole("heading", { level: 2, name: /First/ });
+    await openFromList("First");
+    const gone = (title: string) =>
+      within(listPane()).queryByRole("link", { name: new RegExp(`^#\\d+ ${title}`) }) === null;
+    rowLink("Second").focus();
+    press("I");
+    await waitFor(() => expect(gone("Second")).toBe(true));
+    await waitFor(() => expect(document.activeElement).toBe(rowLink("Third")));
+    press("I");
+    await waitFor(() => expect(gone("Third")).toBe(true));
+    await waitFor(() => expect(document.activeElement).toBe(rowLink("First")));
+  });
+
+  it("moves focus to the row in its place though the list loads afresh, without the row, before the mark is done", async () => {
+    let listed: ThreadSummary[] = [...rows];
+    // What each load of the list waits for before it answers, in turn.
+    const waits: Promise<void>[] = [];
+    serve();
+    api.on("GET", "/threads", async () => {
+      await waits.shift();
+      return { body: { threads: listed, total: listed.length } };
+    });
+    api.on("POST", "/threads/actions", (call) => {
+      const { threads: marked } = call.body as { threads: { thread: number }[] };
+      listed = listed.filter((each) => !marked.some((one) => one.thread === each.number));
+      return { body: { acted: [], declined: [], kept: [] } };
+    });
+    renderAt("/?unread=true");
+    const list = await screen.findByRole("region", { name: "Thread list" });
+    await within(list).findByRole("heading", { level: 2, name: /First/ });
+    await openFromList("First");
+    // The load that the change landing starts answers at once, and the one
+    // the mark waits for only once released.
+    let release = () => {};
+    waits.push(Promise.resolve(), new Promise<void>((resolve) => (release = resolve)));
+    const loads = listLoads().length;
+    rowLink("Second").focus();
+    press("I");
+    await waitFor(() => expect(listLoads().length).toBe(loads + 2));
+    await waitFor(() =>
+      expect(within(listPane()).queryByRole("link", { name: /^#\d+ Second/ })).toBeNull(),
+    );
+    expect(document.activeElement).not.toBe(threadHeading());
+    release();
+    await waitFor(() => expect(document.activeElement).toBe(rowLink("Third")));
+  });
+
+  it("marks the open thread's row with I from the thread, leaving focus in the thread", async () => {
+    await openList();
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    await openFromList("First");
+    threadHeading().focus();
+    const loads = listLoads().length;
+    press("I");
+    await waitFor(() => expect(listLoads().length).toBeGreaterThan(loads));
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
+      threads: [{ agent: "builder", session: "main", thread: 1, through: rows[0].last_seq }],
+    });
+    await act(() => Promise.resolve());
+    expect(document.activeElement).toBe(threadHeading());
+  });
+
   it("narrows the list beside the thread by a grouped header's link, keeping the thread open", async () => {
     serve();
     const groups: ThreadGroups = {

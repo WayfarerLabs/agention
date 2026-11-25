@@ -172,6 +172,19 @@ another landed first, the write fails as stale and returns the missed messages. 
 carries a client request identifier, so retries are safe and a reused identifier with different
 content is rejected. Marking never conflicts with a write.
 
+One write is the exception: the operator's action on many threads that declines their asks before
+archiving them writes the declines from the server, at most as many to a message as any message
+answers, which state no latest message of their own and carry request identifiers the server makes.
+The request stands in for both, as the operator confirmed it in the web UI or as a program holding
+an API key sent it, bounded by what it names: each thread is acted on through the message the list
+showed it at, or, for every thread matching the list's filters, through its latest message at or
+before the list's position among all messages (`as_of`). Which threads match is decided as the
+action runs, since a thread can come to match without a new message, and the action is refused as
+stale when they number other than the count the request expected. A thread holding an ask to decline
+and a newer message is left as it was, since writing would answer what was not seen and read it;
+every other thread is marked, or marked and archived, through the older message, leaving the newer
+unread. A retry declines nothing twice, since a declined ask is open no more.
+
 ### Sessions report what they are doing; presence is observed
 
 A session reports its status through its status call, or beside a message it writes, so one call can
