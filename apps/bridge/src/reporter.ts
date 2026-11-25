@@ -111,9 +111,10 @@ export class Reporter {
   // a run of refusals for the same reason is logged once.
   #refused: ErrorCode | undefined;
   // Whether the server last said a nudge is due, which the next poll tells
-  // it the bridge knows; whether a nudge's tries are running; and whether
-  // nudging has stopped for the life of the process, the server having
-  // refused a claim or an outcome as invalid (turnNudgingOff).
+  // it the bridge knows, until the nudge's tries clear it once a claim is
+  // answered; whether a nudge's tries are running; and whether nudging has
+  // stopped for the life of the process, the server having refused a claim
+  // or an outcome as invalid (turnNudgingOff).
   #due = false;
   #nudging = false;
   #nudgeOff = false;
@@ -337,31 +338,23 @@ export class Reporter {
 
   // startNudging tries the nudge the server says is due, while the bridge
   // acts for its session, unless its tries run already or nudging is off.
-  // Tries that end while a poll says one is due again, as one can while an
-  // outcome is sent again, start anew, since that poll could not.
   #startNudging(): void {
     const acting = this.#acting;
     if (this.#nudging || this.#nudgeOff || acting === undefined) {
       return;
     }
     this.#nudging = true;
-    let ended = false;
-    void this.#nudgeWhileDue(AbortSignal.any([acting.signal, this.#closed.signal]))
-      .then(() => (ended = true))
-      .finally(() => {
-        this.#nudging = false;
-        if (ended && this.#due) {
-          this.#startNudging();
-        }
-      })
-      .catch(() => undefined);
+    void this.#nudgeWhileDue(AbortSignal.any([acting.signal, this.#closed.signal])).catch(
+      () => undefined,
+    );
   }
 
   // nudgeWhileDue asks the observer to nudge with texts of its own, that
-  // nothing from the server or the screen reaches, until a nudge starts or
-  // the server no longer says one is due. While the session is not ready,
-  // the observer reads only the pane, so the tries cost the server nothing.
-  // Once it is, the observer asks begin, which claims the nudge, sending the
+  // nothing from the server or the screen reaches, while the server says one
+  // is due, so a poll that says the next is due while the last one's outcome
+  // is still being sent has it tried once that ends. While the session is
+  // not ready, the observer reads only the pane, so the tries cost the server
+  // nothing. Once it is, the observer asks begin, which claims the nudge, sending the
   // claim again while it fails in a way that may pass, and reads the pane
   // again once the claim is answered. A nudge the server does not let go
   // ahead is not tried, and one it claimed is logged by its step alone,
@@ -371,29 +364,32 @@ export class Reporter {
   // stops a nudge under way without another key, since another bridge may
   // be nudging the session now.
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
-    while (this.#due && !signal.aborted && !this.#nudgeOff) {
-      // The observer calls begin, if at all, before it resolves.
-      let claim = undefined as NudgeAnswer | undefined;
-      const outcome = await this.#monitor.nudge(nudgeTexts(), {
-        begin: async () => (claim = await this.#nudgeRequest({ phase: "start" }, signal)).go,
-        signal,
-      });
-      if (claim === undefined) {
-        await pause(this.#timing.nudgeEvery, signal);
-        continue;
+    try {
+      while (this.#due && !signal.aborted && !this.#nudgeOff) {
+        // The observer calls begin, if at all, before it resolves.
+        let claim = undefined as NudgeAnswer | undefined;
+        const outcome = await this.#monitor.nudge(nudgeTexts(), {
+          begin: async () => (claim = await this.#nudgeRequest({ phase: "start" }, signal)).go,
+          signal,
+        });
+        if (claim === undefined) {
+          await pause(this.#timing.nudgeEvery, signal);
+          continue;
+        }
+        this.#due = false;
+        if (claim.go) {
+          this.#log(
+            outcome.sent
+              ? "the bridge nudged the agent"
+              : `a nudge was not sent: it stopped at the ${outcome.step} step`,
+          );
+          await this.#nudgeRequest({ phase: "done", sent: outcome.sent }, signal);
+        } else if (claim.maybeTaken) {
+          await this.#nudgeRequest({ phase: "done", sent: false }, signal);
+        }
       }
-      this.#due = false;
-      if (claim.go) {
-        this.#log(
-          outcome.sent
-            ? "the bridge nudged the agent"
-            : `a nudge was not sent: it stopped at the ${outcome.step} step`,
-        );
-        await this.#nudgeRequest({ phase: "done", sent: outcome.sent }, signal);
-      } else if (claim.maybeTaken) {
-        await this.#nudgeRequest({ phase: "done", sent: false }, signal);
-      }
-      return;
+    } finally {
+      this.#nudging = false;
     }
   }
 
