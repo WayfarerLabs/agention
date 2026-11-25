@@ -1336,8 +1336,10 @@ a tmux that leaves the pane's formats empty, a pane that does not run the bridge
 one pane, or a pane whose first process no longer holds the terminal. A profile name it doesn't know
 is logged once, and the strict generic profile reads the terminal instead.
 
-Several bridges can run for one session, as Codex starts a new one without ending the old; only the
-one the agent called last reports.
+A bridge started for the session that `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` name, with its key
+already on disk, as when an Agentworks session restarts, reports as it starts; any other reports
+once its agent registers or calls a tool. Several bridges can run for one session, as Codex starts a
+new one without ending the old; only the one started or called last reports.
 
 ### Reaching the server through a tunnel
 

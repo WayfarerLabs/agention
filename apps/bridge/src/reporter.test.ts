@@ -5,7 +5,7 @@ import type { Monitor } from "./monitoring.ts";
 import { DrawnPane, eventually, MonitorHarness, timing } from "./monitoring-test-support.ts";
 import { Reporter } from "./reporter.ts";
 import { Session } from "./session.ts";
-import { agent, serverJson, session } from "./test-harness.ts";
+import { agent, serverJson, session, type TestBridge } from "./test-harness.ts";
 
 // The reporter against the bridge's real test server: when it starts, how it
 // paces its requests, how it recovers, and which of a session's bridges acts
@@ -53,15 +53,18 @@ describe("the reporter", () => {
     expect(bodies.slice(1).every((background) => background === true)).toBe(true);
   });
 
-  it("starts in a bridge started again at its first tool call, without register", async () => {
-    const first = await harness.registered();
-    await first.close();
-    const polls = harness.polls().length;
-    const restarted = await harness.monitored();
+  it("starts at its first tool call in a bridge started before its key was on disk", async () => {
+    const early = await harness.monitored();
     await delay(300);
-    expect(harness.polls()).toHaveLength(polls);
-    await restarted.ok("thread_list");
-    await eventually(() => (harness.claims().length > 1 ? true : undefined), "the claim");
+    expect(harness.seen).toHaveLength(0);
+    // Another bridge of the session makes the key and has it approved.
+    await harness.registered();
+    const claims = harness.claims().length;
+    await early.ok("thread_list");
+    await eventually(
+      () => (harness.claims().length > claims ? true : undefined),
+      "the early bridge's claim",
+    );
   });
 
   it("recovers on its own once the server answers again, sending what it could not", async () => {
@@ -281,7 +284,7 @@ describe("the reporter", () => {
     expect(harness.seen).toHaveLength(before);
   });
 
-  it("lets one bridge of a session act, the latest to handle a tool call", async () => {
+  it("lets one bridge of a session act, the latest to start or handle a tool call", async () => {
     const first = await harness.registered();
     const firstId = harness.claims()[0]?.query.get("bridge");
     const pollsOf = (id: string | null | undefined) =>
@@ -295,10 +298,9 @@ describe("the reporter", () => {
       await delay(1500);
       expect(pollsOf(id)).toHaveLength(polls);
     };
-    // A second bridge for the session, as Codex starts, takes over at its
-    // first tool call, and the first stands down.
-    const second = await harness.monitored();
-    await second.ok("thread_list");
+    // A second bridge for the session, as Codex starts, takes over as it
+    // starts, its key on disk, and the first stands down.
+    await harness.monitored();
     const secondClaim = await eventually(
       () => harness.claims().find((seen) => seen.query.get("bridge") !== firstId),
       "the second bridge's claim",
@@ -334,5 +336,92 @@ describe("the reporter", () => {
       expect(answer.isError).toBe(false);
       expect(answer.text).not.toMatch(/monitor|condition|at_prompt|profile/);
     }
+  });
+});
+
+describe("the reporter at bridge start", () => {
+  // restart closes a registered bridge and clears its session's presence,
+  // so what the bridge started after it does shows on its own.
+  const restart = async (bridge: TestBridge): Promise<number> => {
+    await bridge.close();
+    harness.server.fixture.db
+      .prepare("UPDATE sessions SET background_at = NULL, last_seen_at = NULL")
+      .run();
+    return harness.seen.length;
+  };
+
+  it("reports the default session connected with no tool call, its key approved", async () => {
+    const pane = new DrawnPane();
+    const client = { name: "claude-code", version: "2.1.332" };
+    const first = await harness.registered();
+    const before = await restart(first);
+    await harness.monitored({ AGENTION_TMUX_SOCKET: "/drawn" }, { pane: () => pane, client });
+    await eventually(() => harness.held()?.profile ?? undefined, "the report");
+    // The profile is the one the MCP client's initialize names.
+    expect(harness.held()?.profile).toBe("claude-code");
+    expect(harness.presence()).toMatchObject({ background_at: expect.any(Number) });
+    // Every request the bridge made is its background one, so none checked
+    // the agent in.
+    expect(harness.presence()?.last_seen_at).toBeNull();
+    const reads = harness.seen.slice(before).filter((seen) => seen.path.endsWith("/registrations"));
+    expect(reads.every((seen) => (seen.body as { background?: boolean }).background)).toBe(true);
+  });
+
+  it("starts on approval for a pending key, with no tool call", async () => {
+    const first = await harness.monitored();
+    expect(await first.ok("register")).toMatchObject({ status: "pending" });
+    const key = harness.keyOnDisk();
+    const before = await restart(first);
+    await harness.monitored();
+    await eventually(
+      () =>
+        harness.seen
+          .slice(before)
+          .find(
+            (seen) =>
+              seen.path.endsWith("/registrations") &&
+              (seen.body as { background?: boolean }).background === true,
+          ),
+      "the pending read",
+    );
+    await harness.approve(key);
+    await eventually(() => harness.held(), "the report");
+    expect(harness.keyOnDisk()).toBe(key);
+    expect(harness.registrations()).toHaveLength(1);
+  });
+
+  it("does nothing without the session's key until register", async () => {
+    const bridge = await harness.monitored();
+    await delay(300);
+    expect(harness.seen).toHaveLength(0);
+    await bridge.ok("register");
+    await harness.approve(harness.keyOnDisk());
+    await eventually(() => harness.held(), "the report");
+  });
+
+  it("does nothing for a key the operator revoked", async () => {
+    const first = await harness.registered();
+    await harness.revoke(harness.keyOnDisk());
+    const before = await restart(first);
+    const bridge = await harness.monitored();
+    await eventually(
+      () => (harness.seen.length > before ? true : undefined),
+      "the reporter reading the revocation",
+    );
+    await delay(300);
+    // That one read, and no poll.
+    expect(harness.seen).toHaveLength(before + 1);
+    expect(bridge.logged).toEqual([]);
+  });
+
+  it("does nothing unless both variables name the session, until register", async () => {
+    const first = await harness.registered();
+    const before = await restart(first);
+    // The agent alone names no session.
+    const bridge = await harness.monitored({ AGENTWORKS_SESSION: "" });
+    await delay(300);
+    expect(harness.seen).toHaveLength(before);
+    await bridge.ok("register", { agent, session });
+    await eventually(() => harness.presence()?.background_at ?? undefined, "connected");
   });
 });

@@ -1131,33 +1131,38 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   start, so an agent that waits again at once does not call a server it cannot use in a tight loop.
 - **Reporter** (`apps/bridge/src/reporter.ts`). The reporter holds the session's background
   connection and reports what monitoring observes, beside the tools, which work as without it and
-  whose answers carry nothing of it. `register` starts it, whatever it answers, and so does the
-  first tool call that finds the session's credential while it is not running, as in a bridge
-  started again. While the registration is pending it reads its state every 15 seconds with the
-  request `register` makes, marked `background`, until two minutes before it expires by the bridge's
-  clock, the clock skew tokens allow, so it never submits a key the server may have pruned and would
-  register afresh; once the operator approves, it starts with no tool call. A registration that is
-  rejected, revoked or expired, or a pending one past that margin, ends it until the next
-  `register`, or a tool call that finds the credential. Approved, it long-polls
-  `GET /api/agent/s/<agent>/<session>/monitor` with an id of 16 random bytes it drew when the bridge
-  started, one poll at a time, each waiting 25 seconds, the next starting at least a second after
-  the last began, and backing off from 1 to 60 seconds, doubling, while requests fail; a key the
-  server no longer accepts has its registration read again. Its first poll claims the session and
-  asks for no wait, so the server has taken the claim before any report follows. From then on it
-  watches the monitor and sends `POST .../monitor` with the whole report and its number, counting up
-  from 1 for the life of the process: the first on claiming, then one for each observation that
-  differs from the last, one request at a time. A report that fails to reach the server, or that the
-  server fails on or answers `rate_limited`, is sent again, or the one that replaced it, after a
-  pause that backs off from 1 to 60 seconds, doubling, or as soon as a poll is answered. One the
-  server refuses with any other error of the 4xx range, such as `invalid_input`, which sending again
-  would not change, is dropped, and the bridge logs the error's code, once for a run of the same
-  refusal, never the report or the server's message. A poll or report answered `replaced` means
-  another bridge of the session claimed it: the reporter stops polling, watching and reporting until
-  this bridge next handles `register` or a tool call that finds the credential, when it claims the
-  session again. Its requests sign with the key on disk and act in the names granted to it, and a
-  request it makes to learn them is marked `background` too, so none marks the agent checked in.
-  Against a server older than the bridge's agent API version, its requests fail as every tool's do
-  and it backs off to a minute between them.
+  whose answers carry nothing of it. It starts with the bridge when the default session, the one
+  `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` name, has its key on disk, once the host has
+  initialized, so the `auto` profile is chosen from the client's name: a bridge started again under
+  Agentworks shows its session connected with no tool call. That start fixes the session's names,
+  creates no key and logs nothing; with no key, or a key file it cannot read, the reporter does not
+  start, and a key that is not approved is read as below. `register` starts it too, whatever it
+  answers, and so does the first tool call that finds the session's credential while it is not
+  running, as in a bridge started before the key was on disk. While the registration is pending it
+  reads its state every 15 seconds with the request `register` makes, marked `background`, until two
+  minutes before it expires by the bridge's clock, the clock skew tokens allow, so it never submits
+  a key the server may have pruned and would register afresh; once the operator approves, it starts
+  with no tool call. A registration that is rejected, revoked or expired, or a pending one past that
+  margin, ends it until the next `register`, or a tool call that finds the credential. Approved, it
+  long-polls `GET /api/agent/s/<agent>/<session>/monitor` with an id of 16 random bytes it drew when
+  the bridge started, one poll at a time, each waiting 25 seconds, the next starting at least a
+  second after the last began, and backing off from 1 to 60 seconds, doubling, while requests fail;
+  a key the server no longer accepts has its registration read again. Its first poll claims the
+  session and asks for no wait, so the server has taken the claim before any report follows. From
+  then on it watches the monitor and sends `POST .../monitor` with the whole report and its number,
+  counting up from 1 for the life of the process: the first on claiming, then one for each
+  observation that differs from the last, one request at a time. A report that fails to reach the
+  server, or that the server fails on or answers `rate_limited`, is sent again, or the one that
+  replaced it, after a pause that backs off from 1 to 60 seconds, doubling, or as soon as a poll is
+  answered. One the server refuses with any other error of the 4xx range, such as `invalid_input`,
+  which sending again would not change, is dropped, and the bridge logs the error's code, once for a
+  run of the same refusal, never the report or the server's message. A poll or report answered
+  `replaced` means another bridge of the session claimed it: the reporter stops polling, watching
+  and reporting until this bridge next handles `register` or a tool call that finds the credential,
+  when it claims the session again. Its requests sign with the key on disk and act in the names
+  granted to it, and a request it makes to learn them is marked `background` too, so none marks the
+  agent checked in. Against a server older than the bridge's agent API version, its requests fail as
+  every tool's do and it backs off to a minute between them.
 - **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
   monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
   server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with

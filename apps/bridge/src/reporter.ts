@@ -116,7 +116,8 @@ export class Reporter {
   // start runs the reporter, which reads the registration until it is
   // approved and then claims the session, or has it read the registration at
   // once if it runs already, as it is, without the expiry of a pending one it
-  // read before. register calls it, whatever its answer.
+  // read before. register calls it, whatever its answer, and so does a bridge
+  // that starts with its default session's key on disk.
   start(): void {
     if (this.#closed.signal.aborted) {
       return;
@@ -131,8 +132,9 @@ export class Reporter {
   }
 
   // resume starts the reporter when a tool call finds the session's
-  // credential and it is not running: in a bridge started again without
-  // register, or one another bridge replaced, which claims the session again.
+  // credential and it is not running: in a bridge started before the
+  // session's key was on disk, or one another bridge replaced, which claims
+  // the session again.
   resume(): void {
     if (!this.#running) {
       this.start();

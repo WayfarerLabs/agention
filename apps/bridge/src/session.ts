@@ -109,6 +109,38 @@ export class Session {
     };
   }
 
+  // fixStoredDefault fixes the session's names to the default session's, the
+  // one the environment names, when its key is on disk, and says whether it
+  // did, so a bridge started again for that session can report before any
+  // tool call. It makes no request and never creates a key. Otherwise it
+  // leaves the names unfixed, for register to give: when the names are fixed
+  // already, the variables name no session, there is no key, or the key file
+  // cannot be read, which the next tool call reports to the agent.
+  fixStoredDefault(): boolean {
+    if (this.#proposed !== undefined) {
+      return false;
+    }
+    try {
+      const agent = this.#fromEnvironment("AGENTWORKS_AGENT");
+      const session = this.#fromEnvironment("AGENTWORKS_SESSION");
+      if (agent === undefined || session === undefined) {
+        return false;
+      }
+      const names = { agent, session };
+      const keyFile = new KeyFile(this.#home, this.#api.origin, names);
+      if (keyFile.read() === undefined) {
+        return false;
+      }
+      this.#proposed = { names, keyFile };
+      return true;
+    } catch (error) {
+      if (error instanceof BridgeError) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   // storedKey returns the key on disk once the session's names are fixed, or
   // undefined before then or while there is none. It never creates one.
   storedKey(): SessionKey | undefined {

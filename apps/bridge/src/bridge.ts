@@ -69,6 +69,16 @@ export function createBridge(options: BridgeOptions): McpServer {
   const log = options.log ?? ((line) => process.stderr.write(`agention-mcp: ${line}\n`));
   const connection = connect(options, log, () => harnessClient(server.server.getClientVersion()));
   registerTools(server, connection);
+  // A bridge started again for the default session, its key on disk, starts
+  // the reporter without waiting for a tool call, so the session shows
+  // connected as the host starts it. It waits for the host to initialize, so
+  // the "auto" profile is chosen from the client's name; the handshake does
+  // not wait on it.
+  server.server.oninitialized = () => {
+    if (!("problem" in connection) && connection.session.fixStoredDefault()) {
+      connection.reporter.start();
+    }
+  };
   // A bridge whose host has gone leaves nothing running in the background.
   server.server.onclose = () => {
     if (!("problem" in connection)) {

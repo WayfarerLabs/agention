@@ -199,7 +199,7 @@ export function registerTools(server: McpServer, connection: Connection): void {
   // inSession gives what a request in the session needs: the names the
   // operator granted, and the key now on disk to sign it. A call that finds
   // them starts the reporter where it is not running, as in a bridge started
-  // again without register, or one another bridge replaced.
+  // before the session's key was on disk, or one another bridge replaced.
   const inSession = async (signal: AbortSignal): Promise<InSession> => {
     const { api, session, reporter } = connected();
     const { key, granted } = await session.credential(signal);

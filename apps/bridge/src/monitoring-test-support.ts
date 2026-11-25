@@ -90,6 +90,14 @@ export class MonitorHarness extends BridgeHarness {
       .get() as Record<string, unknown> | undefined;
   }
 
+  // When the session's bridge last made a background request, and its agent
+  // last checked in, as the session's row has them.
+  presence(): { background_at: number | null; last_seen_at: number | null } | undefined {
+    return this.server.fixture.db
+      .prepare("SELECT background_at, last_seen_at FROM sessions")
+      .get() as { background_at: number | null; last_seen_at: number | null } | undefined;
+  }
+
   // monitored starts a bridge whose reporter is paced for tests.
   monitored(environment: Record<string, string> = {}, options: BridgeTestOptions = {}) {
     return this.bridge(environment, this.home, { reporterTiming: timing, ...options });
