@@ -19,13 +19,13 @@ import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
 import {
   conditionWords,
-  needsYou,
   type Observed,
   observedOf,
   plural,
   Since,
   Spoken,
   Time,
+  terminalNeedsYou,
   workStateWords,
 } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
@@ -198,9 +198,10 @@ function PresenceLine({ session }: { session: SessionSummary }) {
     );
   }
   const quiet = presence.quiet && !stopped;
-  const words = presence.last_seen_at === undefined ? "never checked in" : "last check-in";
+  const never = presence.last_seen_at === undefined;
+  const words = never ? "never checked in" : "last check-in";
   // The line's first part starts it, as a sentence starts.
-  const checkIn = parts.length === 0 ? `${words[0]?.toUpperCase()}${words.slice(1)}` : words;
+  const checkIn = parts.length > 0 ? words : never ? "Never checked in" : "Last check-in";
   parts.push(
     <span className={quiet ? "session-check-in warning" : "session-check-in"}>
       {quiet ? <Spoken shown={checkIn} spoken={`Quiet, ${words}`} /> : checkIn}
@@ -236,7 +237,9 @@ function PresenceLine({ session }: { session: SessionSummary }) {
 function Condition({ observed }: { observed: Observed }) {
   return (
     <span className="session-condition">
-      <span className={needsYou(observed) ? "warning" : undefined}>{conditionWords(observed)}</span>{" "}
+      <span className={terminalNeedsYou(observed) ? "warning" : undefined}>
+        {conditionWords(observed)}
+      </span>{" "}
       since <Since value={observed.since} />
     </span>
   );

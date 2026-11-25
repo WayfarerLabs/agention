@@ -1,15 +1,16 @@
-import type {
-  Author,
-  Effort,
-  Impact,
-  MonitorState,
-  Presence,
-  Priority,
-  SessionPresence,
-  ThreadStatus,
-  ThreadSummary,
-  WorkOutcome,
-  WorkState,
+import {
+  type Author,
+  type Effort,
+  type Impact,
+  type MonitorState,
+  monitorCondition,
+  type Presence,
+  type Priority,
+  type SessionPresence,
+  type ThreadStatus,
+  type ThreadSummary,
+  type WorkOutcome,
+  type WorkState,
 } from "@wayfarerlabs/agention-api";
 
 // Words and times for the views.
@@ -143,31 +144,44 @@ const promptWords: Partial<Record<Observed["condition"], string>> = {
 };
 
 // stoppedByWords says what stopped a session: "a usage limit (resets
-// 15:00)", with the reset time when the host showed one, "a block" or "an
-// error".
-function stoppedByWords(stopped: NonNullable<Observed["stopped_by"]>): string {
+// 15:00)", with the reset time when the host showed one, or "(reset due
+// 15:00)" once that time has passed, "a block", "an error", or "something"
+// for a reason a newer server gives that this page does not know.
+function stoppedByWords(stopped: NonNullable<Observed["stopped_by"]>, now: number): string {
   switch (stopped.reason) {
-    case "usage_limit":
-      return stopped.resets_at === undefined
-        ? "a usage limit"
-        : `a usage limit (resets ${dueTime(stopped.resets_at)})`;
+    case "usage_limit": {
+      const { resets_at: resets } = stopped;
+      if (resets === undefined) {
+        return "a usage limit";
+      }
+      const when = dueTime(resets, now);
+      return Date.parse(resets) <= now
+        ? `a usage limit (reset due ${when})`
+        : `a usage limit (resets ${when})`;
+    }
     case "block":
       return "a block";
     case "error":
       return "an error";
+    default:
+      return "something";
   }
 }
+
+// The conditions this page knows; a newer server may report others.
+const knownConditions: ReadonlySet<string> = new Set(monitorCondition.options);
 
 // conditionWords says briefly what a session's terminal shows, as a tag says
 // it. What stopped it comes first, with any prompt beside it, as in "stopped
 // by a usage limit (resets 15:00), at its prompt"; a dialog with nothing
 // else to say why stopped it there, as in "stopped at a permission prompt";
-// otherwise "running", "at its prompt", "waiting" or "condition unknown".
-export function conditionWords(observed: Observed): string {
+// otherwise "running", "at its prompt", "waiting" or "condition unknown",
+// which a condition this page does not know reads as too.
+export function conditionWords(observed: Observed, now = Date.now()): string {
   const { condition, stopped_by: stopped } = observed;
   const prompt = promptWords[condition];
   if (stopped !== undefined) {
-    return `stopped by ${stoppedByWords(stopped)}${prompt === undefined ? "" : `, at ${prompt}`}`;
+    return `stopped by ${stoppedByWords(stopped, now)}${prompt === undefined ? "" : `, at ${prompt}`}`;
   }
   switch (condition) {
     case "permission_prompt":
@@ -180,14 +194,16 @@ export function conditionWords(observed: Observed): string {
     case "waiting":
       return "waiting";
     case "unknown":
+    default:
       return "condition unknown";
   }
 }
 
-// needsYou says whether a session's terminal shows something for the
+// terminalNeedsYou says whether a session's terminal shows something for the
 // operator to look at: a permission prompt or another prompt, or something
-// that stopped it.
-export const needsYou = (observed: Observed | undefined): boolean =>
+// that stopped it, whatever the reason, one this page does not know among
+// them. A condition this page does not know needs nothing, as unknown does.
+export const terminalNeedsYou = (observed: Observed | undefined): boolean =>
   observed !== undefined &&
   (observed.stopped_by !== undefined ||
     observed.condition === "permission_prompt" ||
@@ -195,9 +211,10 @@ export const needsYou = (observed: Observed | undefined): boolean =>
 
 // ConditionClause says, as a clause, what a session's terminal shows: "its
 // terminal shows it stopped at a permission prompt", or "its condition is
-// unknown".
+// unknown", as for a condition this page does not know.
 export function ConditionClause({ observed }: { observed: Observed }) {
-  return observed.condition === "unknown" && observed.stopped_by === undefined ? (
+  const unknown = observed.condition === "unknown" || !knownConditions.has(observed.condition);
+  return unknown && observed.stopped_by === undefined ? (
     <>its condition is unknown</>
   ) : (
     <>its terminal shows it {conditionWords(observed)}</>
@@ -252,19 +269,21 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
 // its terminal shows, where its bridge observes one, as in "last seen 14:02
 // · stopped at a permission prompt".
 export function absenceWords(absence: Absence): string {
-  const why = (() => {
-    switch (absence.kind) {
-      case "stopped":
-        return absence.outcome === undefined ? "stopped" : `stopped, ${absence.outcome}`;
-      case "quiet":
-        return lastSeenWords({ quiet: true, last_seen_at: absence.last_seen_at });
-      case "credential":
-        return "no active credential";
-      case "disconnected":
-        return "not connected";
-    }
-  })();
+  const why = absenceWhyWords(absence);
   return absence.observed === undefined ? why : `${why} · ${conditionWords(absence.observed)}`;
+}
+
+function absenceWhyWords(absence: Absence): string {
+  switch (absence.kind) {
+    case "stopped":
+      return absence.outcome === undefined ? "stopped" : `stopped, ${absence.outcome}`;
+    case "quiet":
+      return lastSeenWords({ quiet: true, last_seen_at: absence.last_seen_at });
+    case "credential":
+      return "no active credential";
+    case "disconnected":
+      return "not connected";
+  }
 }
 
 // AbsenceReason says, as a clause, why a session is not likely to see what

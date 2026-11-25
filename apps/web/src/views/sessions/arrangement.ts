@@ -1,6 +1,6 @@
 import { type GroupRef, noGroup, type SessionSummary } from "@wayfarerlabs/agention-api";
 import type { Agents } from "../../api.ts";
-import { needsYou, observedOf } from "../../format.tsx";
+import { observedOf, terminalNeedsYou } from "../../format.tsx";
 import { nameKey } from "../../organizing.tsx";
 
 // How the sessions view arranges its sessions, as the thread list arranges
@@ -94,7 +94,7 @@ export function regrouped(view: SessionsView, group: SessionGrouping): SessionsV
 // as its bridge last observed it, shows a permission prompt or another
 // prompt, or something that stopped it.
 export const sessionNeedsYou = (session: SessionSummary): boolean =>
-  needsYou(observedOf(session.presence));
+  terminalNeedsYou(observedOf(session.presence));
 
 // keepNeedingYou keeps, of each agent, the sessions that need the operator,
 // and the agents left holding any.
