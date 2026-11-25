@@ -1578,21 +1578,23 @@ describe("bulk marks", () => {
           total,
         },
       }))
-      .on("POST", "/archives", () => {
+      .on("POST", "/threads/actions", () => {
         archived = true;
         return {
           body: {
-            archived: [{ agent: "builder", session: "main", thread: 2, marks: {} }],
-            skipped: [{ agent: "builder", session: "main", thread: 3, open_asks: [2] }],
+            acted: [{ agent: "builder", session: "main", thread: 2 }],
+            declined: [],
+            kept: [{ agent: "builder", session: "main", thread: 3, open_asks: [2] }],
           },
         };
       });
     renderAt("/");
     fireEvent.click(await screen.findByRole("button", { name: "Archive all read" }));
     await said();
-    const [call] = api.callsTo("POST", "/archives");
+    const [call] = api.callsTo("POST", "/threads/actions");
     expect(call?.headers["x-csrf-token"]).toBe(csrf);
     expect(call?.body).toEqual({
+      action: "read_and_archive",
       threads: [
         { agent: "builder", session: "main", thread: 2, through: 4 },
         { agent: "builder", session: "main", thread: 3, through: 2 },
@@ -1620,11 +1622,12 @@ describe("bulk marks", () => {
 
   it("mark every unread thread read through its latest message", async () => {
     serve([asking, threadSummary({ number: 2, title: "Notes", last_seq: 6 })]);
-    api.on("POST", "/reads", { body: { threads: [] } });
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
     renderAt("/?unread=true");
     fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
     await said();
-    expect(api.callsTo("POST", "/reads")[0]?.body).toEqual({
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
       threads: [
         { agent: "builder", session: "main", thread: 4, through: 1 },
         { agent: "builder", session: "main", thread: 2, through: 6 },
@@ -1637,11 +1640,12 @@ describe("bulk marks", () => {
       .on("GET", "/threads", {
         body: { threads: [threadSummary({ number: 2, last_seq: 6 })], next: "page-2", total },
       })
-      .on("POST", "/reads", { body: { threads: [] } });
+      .on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
     renderAt("/?unread=true");
     fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
     await said();
-    expect(api.callsTo("POST", "/reads")[0]?.body).toEqual({
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
       threads: [{ agent: "builder", session: "main", thread: 2, through: 6 }],
     });
   });

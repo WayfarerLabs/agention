@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey } from "../auth/api-keys.ts";
 import { listThreads } from "../store/index.ts";
+import { asOf } from "../store/thread-lists.ts";
 import { hour } from "../store/test-fixture.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { uploaded } from "./file-test-support.ts";
@@ -92,6 +93,26 @@ async function requests(): Promise<Record<string, Call>> {
       "POST",
       "/archives",
       { threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }] },
+    ],
+    actOnThreads: [
+      "POST",
+      "/threads/actions",
+      {
+        action: "read",
+        threads: [{ agent: "builder", session: "main", thread: 1, through: 1 }],
+      },
+    ],
+    actOnMatchingThreads: [
+      "POST",
+      "/threads/actions/matching",
+      // A search nothing matches, so the other calls' threads leave the set as
+      // expected.
+      {
+        action: "read",
+        filters: { search: "unmatched" },
+        as_of: asOf(harness.fixture.db),
+        expected: 0,
+      },
     ],
     listSessions: ["GET", "/sessions", undefined],
     readSessionLog: ["GET", "/s/builder/main/updates", undefined],

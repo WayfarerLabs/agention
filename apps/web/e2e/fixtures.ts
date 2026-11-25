@@ -2,7 +2,8 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram, voice, API key and attachment tests' own.
+// and so do servers of the diagram, voice, API key, attachment and selection
+// tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -46,6 +47,8 @@ export const filesServerName = "Files";
 // The name of the server the pull request and branch tests start for
 // themselves.
 export const linksServerName = "Links";
+// The name of the server the selection tests start for themselves.
+export const selectionServerName = "Selection";
 
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
@@ -205,6 +208,7 @@ export const test = base.extend<
     keysServer: Agention;
     filesServer: Agention;
     linksServer: Agention;
+    selectionServer: Agention;
   }
 >({
   certificate: [
@@ -220,6 +224,7 @@ export const test = base.extend<
   keysServer: [serving(keysServerName), { scope: "worker" }],
   filesServer: [serving(filesServerName), { scope: "worker" }],
   linksServer: [serving(linksServerName), { scope: "worker" }],
+  selectionServer: [serving(selectionServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({

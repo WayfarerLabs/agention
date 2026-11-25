@@ -1,5 +1,14 @@
 import type { AskSummary, OpenAsks, ThreadSummary } from "@wayfarerlabs/agention-api";
-import { type ReactNode, useContext, useLayoutEffect, useRef } from "react";
+import {
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import {
   type FoldLevel,
   focusLanding,
@@ -25,6 +34,7 @@ import { Mark } from "../../icons.tsx";
 import { readDraft } from "../../device.ts";
 import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
 import { ListBeside } from "./beside.ts";
+import { ListSelection, longPress, threadKey } from "./selection.tsx";
 
 // What stands out about the asks open to the operator: the one the thread
 // leads with; the earliest answer-by among them all, whichever ask carries
@@ -107,6 +117,12 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // lands; and a row that goes while its link has focus, as the row of a thread
 // archived beside the list does once the list follows, gives focus to the
 // page's heading, so it is not lost.
+//
+// Within a list that selects (ListSelection), the row carries a checkbox
+// named by its heading, with a mouse or a trackpad, and on a touch screen
+// while anything is selected; there a finger held on the row selects it, and
+// while anything is selected a tap selects or unselects it in place of
+// opening it.
 export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: FoldLevel }) {
   const href = threadHref(thread.agent, thread.session, thread.number);
   const beside = useContext(ListBeside);
@@ -133,13 +149,37 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
       focusLanding(page);
     }
   };
+  const selection = useContext(ListSelection);
+  const key = threadKey(thread);
+  const selected = selection?.isSelected(key) === true;
+  const press = usePress(selection === undefined ? undefined : () => selection.toggle(key));
+  // On a touch screen, while anything is selected, a tap selects.
+  const tapSelects = selection?.touch === true && selection.selecting;
+  const onClickCapture = (event: MouseEvent) => {
+    if (tapSelects) {
+      event.preventDefault();
+      event.stopPropagation();
+      selection.toggle(key);
+    }
+  };
+  const headingId = useId();
   const { open_asks: asks } = thread;
   const ask = asks.lead;
   const Heading = headings[level];
   const status = ask === undefined ? settledWords(thread) : undefined;
   const notes = strandedTags(thread);
+  const classes = ["thread-row", thread.unread > 0 ? "unread" : "", selected ? "selected" : ""];
   return (
-    <li className={thread.unread > 0 ? "thread-row unread" : "thread-row"}>
+    <li className={classes.filter(Boolean).join(" ")}>
+      {selection !== undefined && (!selection.touch || selection.selecting) && (
+        <input
+          type="checkbox"
+          className="row-select"
+          aria-labelledby={headingId}
+          checked={selected}
+          onChange={() => selection.toggle(key)}
+        />
+      )}
       <Link
         ref={link}
         to={href}
@@ -149,9 +189,12 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
         aria-current={current ? "page" : undefined}
         data-landing={left ? "" : undefined}
         data-needs-you={thread.unread > 0 || asks.blocking ? "" : undefined}
+        data-thread={key}
+        onClickCapture={onClickCapture}
+        {...press.handlers}
       >
         <div className="row-title">
-          <Heading>
+          <Heading id={headingId}>
             <ThreadTitle thread={thread} />
           </Heading>
           <span className="marks">
@@ -181,6 +224,93 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
       </Link>
     </li>
   );
+}
+
+// How far a finger may move while held before it is taken for a scroll, in
+// pixels.
+const pressSlop = 10;
+
+// How long after the finger lifts the click that may follow a press comes,
+// in milliseconds; past it, no such click is coming.
+const clickAfterLift = 300;
+
+// swallowNextClick keeps the click that may follow a press that selected
+// from reaching the page: the row it selected, or whichever row the list,
+// changing as the selection begins, has moved under the finger, so it
+// listens on the whole page. It stops listening once that click comes, a
+// key is pressed or another touch starts, which mean none is coming, or
+// shortly after the finger lifts.
+function swallowNextClick(): void {
+  let timer: number | undefined;
+  const swallow = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    stop();
+  };
+  const lifted = () => {
+    timer = window.setTimeout(stop, clickAfterLift);
+  };
+  const stop = () => {
+    window.clearTimeout(timer);
+    window.removeEventListener("click", swallow, true);
+    window.removeEventListener("pointerdown", stop, true);
+    window.removeEventListener("keydown", stop, true);
+    window.removeEventListener("pointerup", lifted, true);
+  };
+  window.addEventListener("click", swallow, true);
+  window.addEventListener("pointerdown", stop, true);
+  window.addEventListener("keydown", stop, true);
+  window.addEventListener("pointerup", lifted, true);
+}
+
+// usePress selects a row when a finger is held on it (longPress), as a phone
+// selects, and the browser's own menu for the link, which a held finger
+// opens, stays shut.
+function usePress(select: (() => void) | undefined) {
+  const held = useRef<{ timer: number; x: number; y: number }>(undefined);
+  const fired = useRef(false);
+  const cancel = () => {
+    window.clearTimeout(held.current?.timer);
+    held.current = undefined;
+  };
+  // A row that goes, as one archived does, selects nothing after.
+  useEffect(() => cancel, []);
+  const handlers =
+    select === undefined
+      ? {}
+      : {
+          onPointerDown: (event: PointerEvent) => {
+            cancel();
+            fired.current = false;
+            if (event.pointerType !== "touch" || !event.isPrimary) {
+              return;
+            }
+            const timer = window.setTimeout(() => {
+              held.current = undefined;
+              fired.current = true;
+              swallowNextClick();
+              select();
+            }, longPress);
+            held.current = { timer, x: event.clientX, y: event.clientY };
+          },
+          onPointerMove: (event: PointerEvent) => {
+            const start = held.current;
+            if (
+              start !== undefined &&
+              Math.hypot(event.clientX - start.x, event.clientY - start.y) > pressSlop
+            ) {
+              cancel();
+            }
+          },
+          onPointerUp: cancel,
+          onPointerCancel: cancel,
+          onContextMenu: (event: MouseEvent) => {
+            if (held.current !== undefined || fired.current) {
+              event.preventDefault();
+            }
+          },
+        };
+  return { handlers };
 }
 
 // The links of the rows on the page, in order: a row under a folded header is

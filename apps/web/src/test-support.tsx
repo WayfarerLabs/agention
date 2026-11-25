@@ -52,7 +52,7 @@ export const titled = (title: string) => (name: string) =>
 // titleOf reads a thread's title from its heading, without its number.
 export const titleOf = (heading: Element) => untitled(heading.textContent ?? "");
 
-export const emptyList: ThreadList = { threads: [], total: 0 };
+export const emptyList: ThreadList = { threads: [], total: 0, as_of: "as-of-0" };
 
 // The counts of a list that holds nothing.
 export const noCounts: ThreadCounts = {
