@@ -46,6 +46,11 @@ export interface ReporterTiming {
   // How often a nudge that is due is tried again while the session is not
   // ready for it, which reads only the pane.
   nudgeEvery: number;
+  // How long, in all, a nudge's claim is sent again before the bridge gives
+  // it up as not claimed: the longer a claim takes, the likelier the pane
+  // has changed once the server takes it, which spends the nudge with
+  // nothing typed.
+  claimWithin: number;
 }
 
 export const reporterTiming: ReporterTiming = {
@@ -54,6 +59,7 @@ export const reporterTiming: ReporterTiming = {
   retryFirst: 1_000,
   retryMost: 60_000,
   nudgeEvery: 1_000,
+  claimWithin: 10_000,
 };
 
 // The least time from one poll's start to the next, in milliseconds, so a
@@ -354,15 +360,16 @@ export class Reporter {
   // is due, so a poll that says the next is due while the last one's outcome
   // is still being sent has it tried once that ends. While the session is
   // not ready, the observer reads only the pane, so the tries cost the server
-  // nothing. Once it is, the observer asks begin, which claims the nudge, sending the
-  // claim again while it fails in a way that may pass, and reads the pane
-  // again once the claim is answered. A nudge the server does not let go
-  // ahead is not tried, and one it claimed is logged by its step alone,
-  // never its text, and its outcome sent. Where a claim was sent again,
-  // since one that failed may have reached the server, and is answered no,
-  // that claim's nudge is sent as not sent, since nothing was typed for it.
-  // The signal ends the tries, and stops a nudge under way without another
-  // key, since another bridge may be nudging the session now.
+  // nothing. Once it is, the observer asks begin, which claims the nudge,
+  // sending the claim again while it fails in a way that may pass, for
+  // claimWithin at most, and reads the pane again once the claim is
+  // answered. A nudge the server does not let go ahead is not tried, and one
+  // it claimed is logged by its step alone, never its text, and its outcome
+  // sent. Where a claim was sent again, since one that failed may have
+  // reached the server, and is answered no or given up, that claim's nudge
+  // is sent as not sent, since nothing was typed for it. The signal ends the
+  // tries, and stops a nudge under way without another key, since another
+  // bridge may be nudging the session now.
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
     try {
       while (this.#due && !signal.aborted && !this.#nudgeOff) {
@@ -396,19 +403,25 @@ export class Reporter {
   // nudgeRequest sends a nudge's claim or outcome, and again after a pause
   // that doubles while it fails to reach the server or the server fails on
   // or rate limits it, until the server answers or refuses it or the signal
-  // aborts. It says whether the server answered go, and whether a request
-  // before the answer failed, which the server may have taken. One the
-  // server answers as replaced stops this bridge acting, as a report does.
-  // A refusal as invalid input turns nudging off; any other refusal, such as
-  // a credential no longer approved, is the poll's to deal with.
+  // aborts, or for a claim until claimWithin has passed, when it gives the
+  // claim up. It says whether the server answered go, and whether a request
+  // before the answer failed or was given up, which the server may have
+  // taken. One the server answers as replaced stops this bridge acting, as a
+  // report does. A refusal as invalid input turns nudging off; any other
+  // refusal, such as a credential no longer approved, is the poll's to deal
+  // with.
   async #nudgeRequest(body: MonitorNudge, signal: AbortSignal): Promise<NudgeAnswer> {
     const backoff = new Backoff(this.#timing);
     let maybeTaken = false;
+    const tries =
+      body.phase === "start"
+        ? AbortSignal.any([signal, AbortSignal.timeout(this.#timing.claimWithin)])
+        : signal;
     for (;;) {
       try {
-        signal.throwIfAborted();
+        tries.throwIfAborted();
         const answer = await this.#monitorRequest(
-          signal,
+          tries,
           (path) => ({ method: "POST", path: `${path}/nudge`, query: { bridge: this.#id }, body }),
           monitorNudgeAnswer,
         );
@@ -425,7 +438,10 @@ export class Reporter {
           return { go: false, maybeTaken };
         }
         maybeTaken = true;
-        await pause(backoff.next(), signal);
+        if (tries.aborted) {
+          return { go: false, maybeTaken };
+        }
+        await pause(backoff.next(), tries);
       }
     }
   }

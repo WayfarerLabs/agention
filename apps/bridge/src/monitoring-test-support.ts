@@ -22,6 +22,7 @@ export const timing: ReporterTiming = {
   retryFirst: 20,
   retryMost: 100,
   nudgeEvery: 200,
+  claimWithin: 1000,
 };
 
 // eventually reads until read gives something, every 25 milliseconds, up to

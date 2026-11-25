@@ -348,6 +348,43 @@ describe("the bridge's nudge", () => {
     expect(bridge.logged).toEqual([]);
   });
 
+  it("gives a claim up once it has failed for claimWithin, sending it as not sent", async () => {
+    const nudges = new FakeNudges({ sent: true }, { sent: true });
+    let failing = true;
+    harness.answer = (seen) =>
+      seen.path.endsWith("/monitor/nudge") &&
+      (seen.body as { phase?: string }).phase === "start" &&
+      failing
+        ? new Response("Bad gateway", { status: 502 })
+        : undefined;
+    const bridge = await nudgedBridge(nudges);
+    await harness.operatorStarts("Over to you.");
+    const requests = await eventually(() => {
+      const seen = harness.nudgeRequests();
+      return seen.some((request) => (request.body as { phase: string }).phase === "done")
+        ? seen
+        : undefined;
+    }, "the claim to be given up");
+    failing = false;
+    const given = requests.findIndex(
+      (request) => (request.body as { phase: string }).phase === "done",
+    );
+    const claims = requests.slice(0, given);
+    const first = claims[0]?.at ?? 0;
+    expect(claims.length).toBeGreaterThan(1);
+    expect(claims.map((claim) => claim.body)).toEqual(claims.map(() => ({ phase: "start" })));
+    expect((claims.at(-1)?.at ?? Infinity) - first).toBeLessThan(timing.claimWithin);
+    const gaveUp = (requests[given]?.at ?? 0) - first;
+    expect(gaveUp).toBeGreaterThanOrEqual(timing.claimWithin - 100);
+    expect(gaveUp).toBeLessThan(timing.claimWithin + 500);
+    expect(requests[given]?.body).toEqual({ phase: "done", sent: false });
+    expect(nudges.calls[0]?.began).toBe(false);
+    // Once claims reach the server again, a later try nudges.
+    await eventually(outcome, "the nudge's outcome");
+    expect(outcome()).toBe(1);
+    expect(bridge.logged).toEqual(["the bridge nudged the agent"]);
+  });
+
   it.each(["unauthenticated", "not_found"] as const)(
     "claims and sends a later nudge after a claim refused as %s, which the poll deals with",
     async (code) => {
