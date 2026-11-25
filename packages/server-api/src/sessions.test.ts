@@ -34,8 +34,8 @@ describe("threadStartInput", () => {
     expect(parsed).toEqual(start);
   });
 
-  it("carries no attachments", () => {
-    const attachments = [{ upload: "AbCdEfGhIjKlMnOpQr_-09" }];
-    expect(threadStartInput.parse({ ...start, attachments })).toEqual(start);
+  it("takes attachments, beside its text", () => {
+    const full = { ...start, attachments: [{ upload: "AbCdEfGhIjKlMnOpQr_-09" }] };
+    expect(threadStartInput.parse(full)).toEqual(full);
   });
 });

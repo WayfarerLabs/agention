@@ -12,8 +12,14 @@ import {
   operatorMessage,
   type Reply,
   uploadAnswer,
-} from "../../../test-support.tsx";
-import { option, path, textBox, ThreadPageTest, written } from "../thread-test-support.tsx";
+} from "../test-support.tsx";
+import {
+  option,
+  path,
+  textBox,
+  ThreadPageTest,
+  written,
+} from "../views/thread/thread-test-support.tsx";
 
 let page: ThreadPageTest;
 let uploads: FakeUpload[];
@@ -63,12 +69,24 @@ function choose(...files: File[]) {
   fireEvent.change(picker(), { target: { files } });
 }
 
-// uploaded answers the upload under way, which uploads[index] is, as landed.
+// The path that removes the upload ref(n).
+const removal = (n: number) => `/s/builder/main/uploads/${ref(n)}/remove`;
+
+// uploaded answers the upload under way, which uploads[index] is, as landed
+// as ref(n), which the server then removes when asked.
 function uploaded(index: number, n: number) {
   const upload = uploads[index]!;
   const name = upload.query.get("name") ?? "";
+  page.api.on("POST", removal(n), { body: {} });
   upload.respond(uploadAnswer(ref(n), name, 1000));
 }
+
+// removals gives the paths of the uploads the page asked the server to
+// remove, in order.
+const removals = () =>
+  page.api.calls
+    .filter((call) => /\/uploads\/[^/]+\/remove$/.test(call.url.pathname))
+    .map((call) => call.path);
 
 async function opened() {
   await page.openWith([message(1, { text: "Hello" })]);
@@ -227,15 +245,153 @@ describe("attaching", () => {
   });
 });
 
-describe("an upload under way", () => {
-  it("stops when the page is left", async () => {
+describe("leaving the page", () => {
+  it("removes the uploads never sent and stops the one under way", async () => {
     await opened();
-    choose(file("one.png"));
+    choose(file("a.png"), file("b.png"));
     await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    await waitFor(() => expect(uploads).toHaveLength(2));
+    uploads[1]?.progress(999);
+    await within(entry("b.png")).findByRole("progressbar");
     cleanup();
-    expect(uploads[0]?.aborted).toBe(true);
+    expect(uploads[1]?.aborted).toBe(true);
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
   });
 
+  it("removes an upload whose answer arrives in the same tick as the page is left", async () => {
+    await opened();
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    cleanup();
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
+  });
+
+  it("removes an upload whose answer the page handled, but the list does not show yet, as it is left", async () => {
+    await opened();
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(entry("a.png").textContent).not.toContain("Uploaded");
+    cleanup();
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
+  });
+
+  it("lets an upload whose every byte has gone finish, then removes it", async () => {
+    await opened();
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploads[0]?.progress(1000);
+    const bar = await within(entry("a.png")).findByRole<HTMLProgressElement>("progressbar");
+    await waitFor(() => expect(bar.value).toBe(1000));
+    cleanup();
+    expect(uploads[0]?.aborted).toBe(false);
+    uploaded(0, 1);
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
+  });
+
+  it("lets an upload whose last byte went in the same tick as the page is left finish, then removes it", async () => {
+    await opened();
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploads[0]?.progress(1000);
+    cleanup();
+    expect(uploads[0]?.aborted).toBe(false);
+    uploaded(0, 1);
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
+  });
+
+  it("leaves a write's uploads alone while it is on its way, and once it lands", async () => {
+    await page.openWith([message(1, { text: "Hello" })]);
+    let land: (() => void) | undefined;
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise((resolve) => (land = () => resolve(written(2)))),
+    );
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    await waitFor(() => expect(sendButton().disabled).toBe(false));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(land).toBeDefined());
+    // A file added while the write is on its way is not the write's.
+    choose(file("b.png"));
+    await waitFor(() => expect(uploads).toHaveLength(2));
+    uploaded(1, 2);
+    await within(entry("b.png")).findByText("Uploaded");
+    cleanup();
+    await waitFor(() => expect(removals()).toEqual([removal(2)]));
+    land?.();
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(removals()).toEqual([removal(2)]);
+  });
+
+  it("holds Remove for a file a write on its way carries, but not for one added since", async () => {
+    await page.openWith([message(1, { text: "Hello" })]);
+    let land: (() => void) | undefined;
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise((resolve) => (land = () => resolve(written(2)))),
+    );
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    await waitFor(() => expect(sendButton().disabled).toBe(false));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(control("Remove a.png").disabled).toBe(true));
+    choose(file("b.png"));
+    expect(control("Remove b.png").disabled).toBe(false);
+    fireEvent.click(control("Remove a.png"));
+    expect(listed()).toEqual(["a.png", "b.png"]);
+    land?.();
+    await waitFor(() => expect(listed()).toEqual(["b.png"]));
+    expect(removals()).toEqual([]);
+  });
+
+  it("removes a write's uploads once it fails after the page was left", async () => {
+    await page.openWith([message(1, { text: "Hello" })]);
+    let refuse: (() => void) | undefined;
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () =>
+        new Promise((resolve) => (refuse = () => resolve(failure("internal", "internal error")))),
+    );
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    await waitFor(() => expect(sendButton().disabled).toBe(false));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(refuse).toBeDefined());
+    cleanup();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(removals()).toEqual([]);
+    refuse?.();
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
+  });
+
+  it("leaves an upload whose removal is refused to expire, without troubling the page", async () => {
+    await opened();
+    const checks = page.api.callsTo("GET", "/session").length;
+    choose(file("a.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 1);
+    page.api.on("POST", removal(1), failure("not_found", "no such upload"));
+    await within(entry("a.png")).findByText("Uploaded");
+    cleanup();
+    await waitFor(() => expect(removals()).toEqual([removal(1)]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(page.api.callsTo("GET", "/session")).toHaveLength(checks);
+  });
+});
+
+describe("an upload under way", () => {
   it("sends a lost sign-in to be checked when it fails for one", async () => {
     await opened();
     const checks = page.api.callsTo("GET", "/session").length;
@@ -249,16 +405,14 @@ describe("an upload under way", () => {
 describe("Remove", () => {
   it("drops a file in each state, stopping the one under way, and the next upload starts", async () => {
     await opened();
-    const removal = `/s/builder/main/uploads/${ref(1)}/remove`;
-    page.api.on("POST", removal, { body: {} });
     choose(file("a.png"), file("b.png"), file("c.png"), file("d.png"));
     await waitFor(() => expect(uploads).toHaveLength(1));
     uploaded(0, 1);
     await waitFor(() => expect(uploads).toHaveLength(2));
     // Uploaded: dropped, and removed from the server.
     fireEvent.click(control("Remove a.png"));
-    await waitFor(() => expect(page.api.callsTo("POST", removal)).toHaveLength(1));
-    expect(page.api.callsTo("POST", removal)[0]?.headers["x-csrf-token"]).toBe(csrf);
+    await waitFor(() => expect(page.api.callsTo("POST", removal(1))).toHaveLength(1));
+    expect(page.api.callsTo("POST", removal(1))[0]?.headers["x-csrf-token"]).toBe(csrf);
     // Waiting: never sent.
     fireEvent.click(control("Remove c.png"));
     // Under way: stopped.
@@ -273,15 +427,11 @@ describe("Remove", () => {
     expect(uploads).toHaveLength(3);
     expect(page.writes()).toEqual([]);
     // Only the finished upload was removed from the server.
-    expect(
-      page.api.calls.filter((call) => /\/uploads\/[^/]+\/remove$/.test(call.url.pathname)),
-    ).toHaveLength(1);
+    expect(removals()).toEqual([removal(1)]);
   });
 
   it("lets an upload whose every byte has gone finish, then removes it from the server", async () => {
     await opened();
-    const removal = `/s/builder/main/uploads/${ref(1)}/remove`;
-    page.api.on("POST", removal, { body: {} });
     choose(file("a.png"), file("b.png"));
     await waitFor(() => expect(uploads).toHaveLength(1));
     uploads[0]?.progress(1000);
@@ -293,8 +443,8 @@ describe("Remove", () => {
     // The next upload need not wait for the answer.
     await waitFor(() => expect(uploads).toHaveLength(2));
     uploaded(0, 1);
-    await waitFor(() => expect(page.api.callsTo("POST", removal)).toHaveLength(1));
-    expect(page.api.callsTo("POST", removal)[0]?.headers["x-csrf-token"]).toBe(csrf);
+    await waitFor(() => expect(page.api.callsTo("POST", removal(1))).toHaveLength(1));
+    expect(page.api.callsTo("POST", removal(1))[0]?.headers["x-csrf-token"]).toBe(csrf);
     expect(listed()).toEqual(["b.png"]);
   });
 
@@ -308,9 +458,7 @@ describe("Remove", () => {
     fireEvent.click(control("Remove a.png"));
     expect(uploads[0]?.aborted).toBe(true);
     expect(fileList()).toBeNull();
-    expect(
-      page.api.calls.filter((call) => /\/uploads\/[^/]+\/remove$/.test(call.url.pathname)),
-    ).toEqual([]);
+    expect(removals()).toEqual([]);
   });
 
   it("moves focus to the next file's Remove, else the previous one's, else Attach", async () => {
@@ -463,6 +611,18 @@ describe("editing", () => {
       replaces: 2,
       attachments: [{ keep: "b.png" }, { upload: ref(3), name: "c.png" }],
     });
+  });
+
+  it("leaves the kept files alone when the page is left, removing only new uploads", async () => {
+    await withFiles();
+    fireEvent.click(option(2, "Edit"));
+    await waitFor(() => expect(listed()).toEqual(["a.log", "b.png"]));
+    choose(file("c.png"));
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    uploaded(0, 3);
+    await within(entry("c.png")).findByText("Uploaded");
+    cleanup();
+    await waitFor(() => expect(removals()).toEqual([removal(3)]));
   });
 
   it("drops the kept files with what is staged, keeping new uploads", async () => {

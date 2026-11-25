@@ -42,7 +42,9 @@ export function useKeptDraft(
   const refused = useRef<{ text: string; detail: string } | undefined>(undefined);
   // Kept as the page commits, in a layout effect, so a write that lands later
   // is always the last to keep: a passive effect could run after it and keep
-  // a draft from before it.
+  // a draft from before it. That ordering is defensive: while a write is on
+  // its way, the draft changes only by discrete events, whose effects run
+  // before the write can land, now that dictation waits for writes.
   useLayoutEffect(() => {
     if (keep) {
       const held = { text, detail, basis, leftBehind };

@@ -358,6 +358,7 @@ describe("answers", () => {
   it.each([
     ["one suggested answer", choice, { picks: [1] }],
     ["its own words instead of a pick", choice, { text: "Neither.\nBoth are too slow." }],
+    ["one suggested answer with notes beside it", choice, { picks: [1], text: "Before noon." }],
     ["several suggested answers", several, { picks: [2, 0] }],
     [
       "picks and its own words where several are allowed",
@@ -441,12 +442,6 @@ describe("answers", () => {
 
   it.each([
     ["several picks on a single-answer ask", choice, { picks: [0, 1] }, "picks"],
-    [
-      "a pick and its own words on a single-answer ask",
-      choice,
-      { picks: [0], text: "Or not." },
-      "text",
-    ],
     ["the same pick twice", several, { picks: [0, 0] }, "picks"],
     ["a pick out of range", choice, { picks: [3] }, "picks"],
     ["a pick on an ask that suggests none", open, { picks: [0] }, "picks"],

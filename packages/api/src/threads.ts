@@ -112,8 +112,8 @@ export const ask = z
         "suggested answers must be distinct",
       )
       .describe(
-        "Suggested answers the audience may pick; it may always answer in its own words " +
-          "instead, or beside its picks where several are allowed.",
+        "Suggested answers the audience may pick; it may add its own words beside its picks " +
+          "as notes, or answer in its own words alone instead.",
       ),
     multiple: z
       .boolean()
@@ -154,13 +154,14 @@ export const askList = z
   );
 
 export const answerText = multilineText({ min: 1, max: 4_000 }).describe(
-  "Plain text: the audience's own words on the ask, instead of a pick or, where several are " +
-    "allowed, beside its picks; the whole answer to an ask without suggested answers.",
+  "Plain text: the audience's own words on the ask, part of the answer: notes beside its picks, " +
+    "or the whole answer when nothing is picked.",
 );
 
 // An answer, the audience's reply written on an ask and sent on a message:
 // a decline, or the picked suggested answers and the audience's own words, at
-// least one of them. The message's text beside it is any additional
+// least one of them. The words are notes beside the picks, or the whole
+// answer without them. The message's text beside it is any additional
 // information.
 export const answer = z
   .object({
@@ -550,8 +551,8 @@ export type MarksResult = z.infer<typeof marksResult>;
 
 // The thread, a page of its messages after the requested sequence (more
 // follow while the last is below the thread's last_seq), both read cursors,
-// the caller's marks, and the distinct files its messages carry, replaced
-// ones included.
+// the caller's marks, and the distinct files its live messages carry; a
+// replaced message still reads back with its own.
 export const threadGetResult = z.object({
   thread: threadSummary,
   messages: z.array(message),
@@ -567,9 +568,9 @@ export const threadFilesQuery = z.object({
 });
 export type ThreadFilesQuery = z.infer<typeof threadFilesQuery>;
 
-// A file of a thread as its file list gives it, with the first message that
-// carried it, which brought it: that message's sequence, author and time,
-// and the name it carries the file under.
+// A file of a thread as its file list gives it, with the live message that
+// carries it: that message's sequence, author and time, and the name it
+// carries the file under.
 export const threadFile = attachmentRead.extend({
   seq: sequence,
   author,
@@ -577,9 +578,9 @@ export const threadFile = attachmentRead.extend({
 });
 export type ThreadFile = z.infer<typeof threadFile>;
 
-// A page of a thread's files, each listed once, newest first by the message
-// that brought it and then that message's order; next, when present,
-// continues the list.
+// A page of the files a thread's live messages carry, each listed once,
+// newest first by the message that carries it and then that message's order;
+// next, when present, continues the list.
 export const threadFilesPage = z.object({
   files: z.array(threadFile),
   next: cursor.optional(),

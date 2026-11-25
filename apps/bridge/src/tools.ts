@@ -258,9 +258,9 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "suggested answers, each a short label with a description, and is numbered within the " +
       "thread as it is written, in the order given. Put asks that belong together in one " +
       "message; the operator may answer them together or apart, each by its number. The " +
-      "operator answers an ask with one suggested answer, or several where multiple allows; " +
-      "their own words instead, or beside their picks where several are allowed; or, on an ask " +
-      "without suggested answers, their own words alone. They may also decline it. The title, " +
+      "operator answers an ask with one suggested answer, or several where multiple allows, " +
+      "with notes in their own words beside them or not; their own words instead; or, on an " +
+      "ask without suggested answers, their own words alone. They may also decline it. The title, " +
       "questions, suggested answers, fallbacks and references are plain text. " +
       `${attachingText} ${priorityText} ${writeStatusText} ${requestIdText} Answers with the ` +
       "thread's number and its first message's sequence.",
@@ -315,7 +315,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "withdrawal; each of its answers the number and question of the ask it answers, and " +
       "whether that ask is still live; each of its withdrawals the ask it withdrew and why. An " +
       "answer says whether the operator declined, which suggested answers they picked, with " +
-      "their labels, and in text their own words on the ask; the text and detail of the " +
+      "their labels, and in text their own words on the ask, part of the answer: notes beside " +
+      "the picks, or the whole answer when nothing is picked; the text and detail of the " +
       "message carrying it are any additional information. A message lists the files it " +
       "carries in attachments, which file_get fetches. " +
       "More messages follow while the last one's seq is below the thread's " +
