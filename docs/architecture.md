@@ -1738,9 +1738,11 @@ published bundle the same way against the server at HEAD
 ## Web UI
 
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
-package's `web/` directory. This section covers its code: its paths, constants and limits, and the
-reasons for them. [The web UI](web-ui.md) describes what each view shows and does, control by
-control, and the [operator guide](operator-guide.md) the settings each feature needs.
+package's `web/` directory. This section holds what binds the UI to the server and the API, what
+binds its files to each other, and the security and accessibility rules a reviewer checks.
+[The web UI](web-ui.md) describes what each view shows and does, control by control, the
+[operator guide](operator-guide.md) the settings each feature needs, and each file's comments what
+that file does and why.
 
 | Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1770,101 +1772,55 @@ to work with the new server.
 ### The thread list
 
 The thread list's page address is the API's own list query without its page, read part by part with
-the API's schemas, and the web UI and the server share one rule, from `packages/api`, for the
-filters on open asks and the status they keep. A session group is named in the address by its id, so
-the list loads the operator's groups and tags while the sheet is open, a group or tag filter is on
-or the list is grouped by session group, to name the groups chosen, to say which group or tag was
-removed, and to color them. A tag the operator's groups and tags do not list was removed, since they
-list every tag, those nothing carries among them.
+the API's schemas (`listViewOf` in `src/router.tsx`), and the web UI and the server share one rule,
+from `packages/api`, for the filters on open asks and the status they keep.
+[The thread list](web-ui.md#the-thread-list) describes its head, filters, rows, selection and bar,
+which the files of `src/views/list/` implement.
 
-Grouped by session group, the list folds the sessions under their groups only while the roll-ups or
-the rows loaded hold two or more, no group among them, and composes a group's roll-up from its
-sessions', as it does an agent's; this browser keeps a group's fold by the group's id.
+- **Groups and tags.** A session group is named in the address by its id, so the list loads the
+  operator's groups and tags while the sheet is open, a group or tag filter is on or the list is
+  grouped by session group, to name the groups chosen, to say which group or tag was removed, and to
+  color them. A tag the operator's groups and tags do not list was removed, since they list every
+  tag, those nothing carries among them.
+- **Header links.** A grouped header's links and the sessions view's are one component
+  (`src/views/filter-links.tsx`): the sessions view's start from no filters, and the list's add to
+  the list on screen. A plain click on one of the list's chooses that view in place, as the filters
+  do, replacing the address and, when the view changes, moving focus to **Filters**, or to the
+  search field while it stands in the head's row.
+- **The head** (`ListHead.tsx`) is built from the buttons the sessions view's head shares
+  (`src/views/list-head.tsx`) and the compact controls the composer's After sending shares too
+  (`src/icon-controls.tsx`), whose header comment gives the one convention that tells a pick list, a
+  checkbox and a button apart wherever they appear. The search text is one filter, which the head's
+  field and the filter sheet's both edit (`search.tsx`).
+- **Pull requests and branches**, wherever they show (`src/views/code-links.tsx`), link to the list
+  filtered by their short form: on a thread page to the list with that filter alone
+  (`narrowedHref`), as the thread's agent, session and topic link, and on a row through the header
+  links' `FilterLink`, which adds it to the list on screen. A row's one entry sits beside the row's
+  thread link, never in it, so no link holds another. The filter sheet's options come from the
+  counts, each by its short form as last written; one the address names in another case is checked
+  as the counted one it matches by key.
+- **Selection and the bar.** The list selects threads to act on together (`selection.tsx`, whose
+  header comment says what the selection holds and how long it lasts), and its body ends, while it
+  has rows, in one bar (`ListBar.tsx`), whose element stays as its two states give way to each
+  other: the actions on every thread shown, and the selection's (`SelectionControls.tsx`). Both
+  states run one action, which `ListBar` holds, so neither starts another while one is under way,
+  and `ListBar` sends focus on once it is done.
 
-[The thread list](web-ui.md#the-thread-list) says what a header's name and the marks of its roll-up
-link to, and which link nowhere. While a filter on open asks is on, Blocked on you and the priority
-stay plain: a roll-up counts every open ask of the threads kept, while those filters keep a thread
-for one ask meeting them all, so the mark's filter could replace the one on or keep nothing. A plain
-click on a header's link chooses that view in place, as the filters do, replacing the address and,
-when the view changes, moving focus to **Filters**, or to the search field while it stands in the
-head's row. A header of no topic, which no filter names, links nothing. The sessions view's header
-links are these same links (`src/views/filter-links.tsx`), starting from no filters instead of the
-list on screen.
-
-### The list's head
-
-The list's head (`src/views/list/ListHead.tsx`) is one row of icon controls: Search, Filters, the
-order, its direction and the grouping. The direction is a native checkbox drawn as the other
-controls are, on while the order is reversed, and named, on or off, for what turning it on gives,
-the order's reversed direction. It is built from the buttons the sessions view's head shares
-(`src/views/list-head.tsx`) and the compact controls the composer's After sending shares too
-(`src/icon-controls.tsx`), whose header comment gives the one convention that tells a pick list, a
-checkbox and a button apart wherever they appear, by the control's lower corner. A control's words
-show beside its icon only where the head has room for them, which the head measures as a CSS size
-container rather than by the window, since the list beside a thread is as narrow as a phone.
-
-**Search** opens the search field in the row's place until it closes. Its text is one filter, which
-the head's field and the filter sheet's both edit (`src/views/list/search.tsx`), applied once typing
-pauses and only to the view it was typed on.
-
-### Pull requests and branches in the list and a thread
-
-A pull request or branch, wherever it shows (`src/views/code-links.tsx`), links to the list filtered
-by its short form.
-
-- **On a thread page**, from a message or the head's fold, that is the list with that filter alone,
-  in the order, direction and grouping of the list the page returns to, as the thread's agent,
-  session and topic link (`narrowedHref`). An entry whose URL passes the link rule keeps it as a
-  small link beside the short form, opening in a new tab with no referrer and its host after it, as
-  every external link does.
-- **On a row**, it is added to the list on screen through the header links' `FilterLink`, whose
-  plain click chooses it in place. A row's one entry sits beside the row's thread link, never in it,
-  so no link holds another, while a row's mark counting several entries, which links nothing, sits
-  among the row's marks inside its link. A row's entry carries no URL, so rows stay compact.
-- **In the filter sheet**, the pull request and branch options come from the counts, each by its
-  short form as last written; one the address names in another case is checked as the counted one it
-  matches by key. As in each of the sheet's multi-selects, a value chosen that the counts leave out
-  is offered with no threads, so it can still be unchecked.
-
-### Selecting threads and the list's bar
-
-The thread list selects threads to act on together (`src/views/list/selection.tsx`, whose header
-comment says what the selection holds and how long it lasts).
-
-The header checkbox selects the threads shown, which the list body reads from the rows on the page,
-with a `MutationObserver`, since a header folds by its own state and renders no rows under it.
-Whether a row carries its checkbox always or only while anything is selected follows the primary
-pointer (`pointer: coarse`), as Attach's menu does. On a touch screen a finger held still on a row
-for `longPress` selects it (`src/views/list/ThreadRow.tsx`). The row itself takes the tap and the
-hold, so either selects from anywhere on it, its pull request or branch included, in place of
-following that, while a tap on its checkbox is left to the checkbox; a row with a checkbox is a
-grid, so that entry stays beneath the link past the checkbox.
-
-The list body ends, while it has rows, in one bar (`ListBar`, `src/views/list/ListBar.tsx`), whose
-element stays as its two states give way to each other: the actions on every thread shown
-(`ShownActions`), as the header checkbox takes them, while nothing is selected, and the selection's
-actions (`SelectionActions`, `src/views/list/SelectionControls.tsx`) while anything is; two
-components in one bar, since the selection's questions and its acting on every thread that matches
-are the selection's alone. Both states run one action, which `ListBar` holds, so neither starts
-another while one is under way, and `ListBar` sends focus on once it is done. The comments of the
-three say when each button can act, what the caption says and where focus goes.
-
-The list's actions act through the actions on many threads, in one request
-(`src/views/list/actions.ts`): on the threads loaded, at most `maxActionThreads`, each through the
-latest message the list showed; or, once every thread that matches is selected, through the matching
-action with the list's filters, its `as_of` and its total as `expected`. What a confirmed action
-sends is taken as it asks, so it is what was on screen; refused as stale, the list loads again and
-asks again with what it then shows.
+The list's actions act through the [actions on many threads](#actions-on-many-threads), in one
+request (`actions.ts`): on the threads loaded, at most `maxActionThreads`, each through the latest
+message the list showed; or, once every thread that matches is selected, through the matching action
+with the list's filters, its `as_of` and its total as `expected`. What a confirmed action sends is
+taken as it asks, so it is what was on screen; refused as stale, the list loads again and asks again
+with what it then shows.
 
 ### The list and a thread side by side
 
 At a desktop's width, `64rem` and up, the Threads tab shows the list and the thread open side by
-side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. Side by
-side, the page takes the window's whole width, the list's pane 30% of it, from `20rem` to `36rem`,
-and the thread's the rest, while rendered Markdown keeps a readable line length (`90ch`). The shell
-mounts both routes as one view, `src/views/Threads.tsx`: the list's pane, then the thread's, the
-thread's in the same place at every width, so crossing the breakpoint keeps the thread mounted, with
-its draft files, staged answers, folds and focus.
+side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. The shell
+mounts both routes as one view, `src/views/Threads.tsx`, whose comments, with `src/styles.css`, give
+the sizes and the reasons for them: the list's pane, then the thread's, the thread's in the same
+place at every width, so crossing the breakpoint keeps the thread mounted, with its draft files,
+staged answers, folds and focus.
 
 The width is read in the script, with a media query, since it decides what is mounted: one at a
 time, the list is not mounted while a thread is open. Side by side, the list stays mounted with its
@@ -1887,84 +1843,62 @@ title and one level-one heading, the thread's while one is open, and a change th
 such as Archive all or a send that goes back to the list, returns to the list as it stands once the
 change lands.
 
-After a navigation the shell moves focus to where it lands (`focusLanding` in `src/components.tsx`),
-the place a view marks with `data-landing`, its heading or else the place itself: side by side the
-thread's pane, on a phone the page's content, or on returning to the list, the row of the thread
-just left (`src/views/list/beside.ts`).
+Both bars at the foot of a pane, the list's and the thread page's
+(`src/views/thread/ThreadBar.tsx`), are one component (`src/action-bar.tsx`, whose header comment
+describes it). Each gives the root its height (`useScrollClearOf`, as the composer's Send row does),
+which the page's and the list pane's `scroll-padding-bottom` keep clear, and where a bar rests
+instead of floating is the stylesheet's to decide (`:has(:focus)`), with no script. A button that
+waits on something the operator must do first, as Archive all does while an ask is open to the
+operator, is `aria-disabled` rather than disabled, so it keeps focus and a press, or `e`, shows why.
 
-A landing with no heading yet, as a thread's while it loads, is pending: the first heading to show
-in it (`PageHeading`) takes focus as it shows, while focus is still on the landing itself or on
-nothing, as when the control that had it went, never from where the operator has put it meanwhile,
-within the landing or not. So a thread opened from the list, by Thread above or below, by archiving
-or after sending lands on its heading at every width.
+### Leaving a thread
 
-A row that goes while it holds focus passes it to the page's heading, unless the list's bar owes the
-rows focus (`RowFocusOwed`, `src/views/list/focus-owed.ts`), as it does from a mark key pressed on a
-row until its action is done: the list can load afresh without the row before then, as on the change
-landing, and the bar then returns focus to the row in its place itself. Crossing the breakpoint, if
-it took away what held focus, moves focus to where a navigation lands. The thread keeps the page's
-own scroll, and the list's pane is sticky and scrolls on its own; until the page scrolls the banner
-away, the pane starts below it, so its height leaves out how far below the top of the screen it
-starts, which the layout measures as the page scrolls, as the window resizes and as the banner
-changes in height (`usePaneTop`), so the bar at the pane's foot stays on screen.
+A thread page's ways on are Thread above and Thread below, Archive all as Auto-advance says, and a
+send as After sending says. They are in `src/views/thread/leaving.ts`, whose comments follow each
+step by step and give the one rule that keeps them from crossing; [A thread](web-ui.md#a-thread)
+describes them for the operator.
 
-### The bars at a pane's foot
-
-Both bars at the foot of a pane, the list's and the thread page's, are one component
-(`src/action-bar.tsx`, whose header comment describes it): a labelled region, last in its pane,
-sticky at the foot of the screen, or of the list's pane beside a thread. Each gives the root its
-height (`useScrollClearOf`, as the composer's Send row does), which the page's and the list pane's
-`scroll-padding-bottom` keep clear.
-
-While a text field in its pane has focus, and for the thread's bar on a screen under 30rem tall, the
-stylesheet rests it at the end of its pane instead (`:has(:focus)`), so a phone's keyboard leaves
-room for the field and the Send row alone, with no script; the list's bar keeps floating on a short
-screen, since the list's actions are reachable only from it.
-
-The thread page's bar (`src/views/thread/ThreadBar.tsx`) holds the ways off the page, Back to
-threads, Thread above and Thread below, and Archive all, which while an ask is open to the operator
-is `aria-disabled` rather than disabled, so it keeps focus and a press, or `e`, shows why.
-
-### Thread above and below
-
-A thread page's **Thread above** and **Thread below**, and Archive all as Auto-advance says, go to
-the row just above or below the thread in the list it returns to, as that list stands when the
-operator asks: the list Back to threads goes to, which its history entry names, or the list with no
-filters for a thread opened from a link. Side by side it is the list on screen, and a phone, showing
-no list, gets the same answer.
-
-The server answers it (`GET /s/:agent/:session/threads/:thread/neighbors`, `findThreadNeighbors` in
-`src/store/thread-lists.ts`), ranking the list once, as the list's pages rank it, grouping included,
-with the thread kept at its own place though the filters would leave it out, as they do a thread
-just archived or read out of a list kept to the unread, and answering the rows on either side. A
-kept thread stands within its own group, and the groups stay where the list shows them, so it never
-moves one; only a group it alone would hold takes its place from it. The request costs about what
-one page of the list does.
-
-The page (`src/views/thread/leaving.ts`, whose comments follow each way on step by step) asks on
-each press, and Archive all asks once the archive has landed, so archiving never waits on the list.
-Should the operator change the list while the server answers, the page asks again in the list as it
-then stands; should the list change three times running, it stays and says so.
-
-The buttons push the thread found as a new history entry, carrying on the list it was found in;
-Archive all replaces the archived thread's entry, so Back does not return to it. At the end of the
-list that way each goes back to the list, leaving it a notice to say so; nothing goes round.
-Auto-advance is a choice the browser keeps (`useAutoAdvance`), the thread above unless the operator
-chooses otherwise in Settings' Threads section. One rule keeps the ways on from crossing
-([After sending](#after-sending)).
+- **The neighbor** is the row just above or below the thread in the list it returns to, as that list
+  stands when the operator asks: the list its history entry names, or the list with no filters for a
+  thread opened from a link. Side by side it is the list on screen, and a phone, showing no list,
+  gets the same answer.
+- **The server answers it** (`GET /s/:agent/:session/threads/:thread/neighbors`,
+  `findThreadNeighbors` in `src/store/thread-lists.ts`), ranking the list once, as the list's pages
+  rank it, grouping included, with the thread kept at its own place though the filters would leave
+  it out, as they do a thread just archived or read out of a list kept to the unread, and answering
+  the rows on either side. A kept thread stands within its own group, and the groups stay where the
+  list shows them, so it never moves one; only a group it alone would hold takes its place from it.
+  The request costs about what one page of the list does.
+- **Asking.** The page asks on each press, and Archive all asks once the archive has landed, so
+  archiving never waits on the list. Should the operator change the list while the server answers,
+  the page asks again in the list as it then stands; should the list change three times running, it
+  stays and says so.
+- **History.** The buttons push the thread found as a new history entry, carrying on the list it was
+  found in; Archive all replaces the archived thread's entry, so Back does not return to it.
+- **A send that archives** goes by Archive all's own path first, without the page's check for asks
+  open to the operator, since the message may have answered them, so the server's refusal, naming
+  the ask, shows instead and the page stays.
 
 ### Folds and focus
 
 Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
 button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
 in a button; a header's heading takes the button's name alone, so a linked label does not repeat it.
-A header's roll-up and its links sit at the end of its heading's row, wrapping beneath it where the
-width ends, each wrapped row a touch's height from the next, and an options menu keeps the bar's
-right end.
-
 The button's box stretches under the whole header or row, beneath its links and controls, so a
 pointer anywhere else on it folds or unfolds it while keyboards and assistive technology use the
-button; the links reach across the bar's height, so a tap near one lands on it.
+button.
+
+After a navigation the shell moves focus to where it lands (`focusLanding` in `src/components.tsx`),
+the place a view marks with `data-landing`, its heading or else the place itself: side by side the
+thread's pane, on a phone the page's content, or on returning to the list, the row of the thread
+just left (`src/views/list/beside.ts`). A landing with no heading yet, as a thread's while it loads,
+is pending: the first heading to show in it (`PageHeading`) takes focus as it shows, while focus is
+still on the landing itself or on nothing, as when the control that had it went, never from where
+the operator has put it meanwhile. Crossing the breakpoint, if it took away what held focus, moves
+focus to where a navigation lands.
+
+A row that goes while it holds focus passes it to the page's heading, unless the list's bar owes the
+rows focus (`RowFocusOwed`, `src/views/list/focus-owed.ts`, whose comment says when).
 
 A component that moves focus does it in a layout effect, never a passive one. A passive effect runs
 after the browser paints, so when the change that calls for the move came from an awaited request,
@@ -1975,78 +1909,48 @@ run by the time `waitFor` resolves.
 ### The sessions view
 
 The sessions view answers `/sessions`, and `/registrations`, the path released bridges send the
-operator to. [The sessions view](web-ui.md#the-sessions-view) describes its rows, headers and links.
+operator to. [The sessions view](web-ui.md#the-sessions-view) describes its rows, headers and links,
+and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists; the files of
+`src/views/sessions/` implement the pickers, and those of `src/views/settings/` Settings' lists.
 
 - **Loading.** It loads the agents whole, at most 500 in pages of 100, since the approval form
   chooses among them, and a session's log only while its row is unfolded under an unfolded agent,
   since what a fold hides is not rendered: one entry more than it shows, so what the oldest entry
   shown changed can be read against the one before it.
-- **The log.** It reads each entry against the one before and shows consecutive entries that changed
-  only the percent, with no note, as one line. While the page is visible, an unfolded log marks the
-  operator's read through its newest entry whenever that is beyond their mark, with the read marking
-  the thread page uses for its messages.
-- **Folds.** The agents a browser folds, and whether it shows the past requests, are kept in its
-  local storage, as the thread list's groups are.
-- **Arrangement.** The view arranges what it loaded in the browser
-  (`views/sessions/arrangement.ts`), grouped by session group, by agent or by session, and sorted at
-  every level alphabetically, A to Z, by registration time, newest first, as the thread list's
-  `created`, a session's `created_at`, which its first approval sets, and an agent's or a group's
-  its earliest session's, or, grouped by session group only, manually, no group last under every
-  sort. The arrangement lives in the address, as
-  `/sessions?group=agent&sort=registered&reverse=true`, each part left out at its default (by
-  session group, manual, or alphabetic grouped otherwise, in the sort's own direction), and a part
-  the view cannot take, such as manual grouped by agent, reads as its default. Choosing replaces the
-  address, as the thread list's head does, sharing its controls (`views/list-head.tsx`), so going
-  back leaves the view and returns to it as it was.
-- **Groups.** Grouped by session group, once any session carries a group, the view folds the agents
-  under their groups, splitting each agent's sessions by the group each carries; sorted manually,
-  groups go in the operator's order as `GET /groups-and-tags` lists them, which the view loads
-  beside its sessions, a group it does not list yet after those in name order, so until they load
-  the groups show by name and then move into the operator's order, and their agents and sessions in
-  name order. Grouped by agent, each agent folds over its sessions; grouped by session, the rows
-  stand alone, each naming its agent. This browser keeps a group's fold by its id, and an agent's
-  under a group by the group's id and the agent's name, and by its name alone otherwise. Each
-  heading sits a level below the one it folds under.
-- **Moving groups.** Sorted manually, each group's head moves it as Settings' list of groups does,
-  sharing its order (`views/group-order.tsx`): its buttons and a drag handle put it in the place of
-  the group shown before or after it, or the one whose head it is dropped on, sending the whole
-  order, groups holding no session among it. Only groups the loaded order holds move, so none move
-  before the groups load, and a drop takes only a group's own drag, by a type of its own. Once a
-  move is taken, the order sent shows until the reload it then starts has brought the groups, the
-  resource's `refresh` settling once its own answer has and saying whether the data shown is at
-  least as new as that load, so a refresh that started before the move cannot undo it meanwhile.
-  When that reload fails, the order sent, if no later move sent another, shows until a later load
-  succeeds and clears the failure, which renders with the data it kept, so a poll from before the
-  move landing beside the failure cannot undo it either, and the view says its groups and tags could
-  not load, with a retry, as Settings does. A group the order sent lacks, as one another client
-  created, shows after those it holds.
-- **Roll-ups.** Each session's row shows its threads' roll-up from its summary, and an agent's
+- **The log.** While the page is visible, an unfolded log marks the operator's read through its
+  newest entry whenever that is beyond their mark, with the read marking the thread page uses for
+  its messages (`useReading` in `src/data.ts`).
+- **Arrangement.** The view arranges what it loaded in the browser (`arrangement.ts`, whose header
+  comment gives the groupings and the sorts). The arrangement lives in the address, as
+  `/sessions?group=agent&sort=registered&reverse=true`, each part left out at its default, and a
+  part the view cannot take, such as manual grouped by agent, reads as its default. Choosing
+  replaces the address, as the thread list's head does, sharing its controls
+  (`src/views/list-head.tsx`).
+- **Sources.** A row's last seen comes from the session's presence, how long ago its status was
+  updated from the status's `updated_at`, and its threads' roll-up from its summary; an agent's
   header and a group's head compose theirs from the sessions they show, none when the view or the
-  agent left sessions out. An agent that left sessions out flags its stranded threads with no count.
-  Blocked on you is in the danger tone, as in the thread list, and a row's and an agent's open asks
-  in the attention tone; a group's head shows no open asks.
-- **Sources.** A row's last seen comes from the session's presence, and how long ago its status was
-  updated from the status's `updated_at`. Each session's group and tags, and each agent's tags, come
-  from the sessions view's page, in the colors the operator's groups and tags give them, which views
-  that show groups and tags pass down through a palette (`src/organizing.tsx`); the stylesheet draws
-  each of the API's named colors as a tone and a background for each color scheme, at AA contrast.
-- **Pickers.** A session's group and an agent's or a session's tags are set in pickers
-  (`views/sessions/Picker.tsx`), modal dialogs placed beside the control that opened them on a wide
-  screen and rising as a sheet on a phone, whose search box is a combobox owning a listbox of the
-  groups or tags, the item the arrow keys are on its active descendant. Each pick applies at once, a
-  picker taking one at a time, its items unavailable until the change settles, so tags picked fast
-  never land out of order; a failed change shows the tags as last applied, and the view reloads with
-  the groups and tags once a change lands.
-- **Pickers in an approval.** The same pickers, in a registration's approval
-  (`views/sessions/Organize.tsx`), keep their picks for the approval request, starting from an
-  existing session's own group and tags and over for another agent or session, a new session keeping
-  them as it is named, dropping a pick that lands after they changed, and create a group picked new
-  at once since the approval names its group by id.
-- **Settings' groups and tags** (`views/settings/`) list them to create, rename, recolor, remove
-  and, for groups, order, each move sending the whole order to `POST /groups/order`, which refuses
-  one that does not name every group, so a stale order reloads the list, as it does the sessions
-  view's groups. A move or a color under way marks its controls `aria-disabled` rather than
-  disabling them, so keyboard focus stays where it was.
+  agent left sessions out. Each session's group and tags, and each agent's tags, come from the
+  sessions view's page.
+- **Groups and tags.** The view loads `GET /groups-and-tags` beside its sessions, for the groups'
+  order and the colors, which views that show groups and tags pass down through a palette
+  (`src/organizing.tsx`); the stylesheet draws each of the API's named colors as a tone and a
+  background for each color scheme, at AA contrast. Sorted manually, a group the order does not list
+  yet goes after those it lists, in name order, so until they load the groups show by name and then
+  move into the operator's order.
+- **Moving groups.** Sorted manually, each group's head moves it as Settings' list of groups does,
+  sharing its order (`src/views/group-order.tsx`): each move sends the whole order, groups holding
+  no session among it, to `POST /groups/order`, which refuses one that does not name every group, so
+  a stale order reloads the list. Once a move is taken, the order sent shows until the reload it
+  then starts has brought the groups, so a refresh that started before the move cannot undo it
+  meanwhile. When that reload fails, the view says its groups and tags could not load, with a retry,
+  as Settings does, and the file's comments give what shows until a later load succeeds. A move or a
+  color under way marks its controls `aria-disabled` rather than disabling them, so keyboard focus
+  stays where it was.
+- **Pickers** (`Picker.tsx`) are modal dialogs whose search box is a combobox owning a listbox of
+  the groups or tags, the item the arrow keys are on its active descendant. A picker takes one pick
+  at a time, its items unavailable until the change settles, so tags picked fast never land out of
+  order. In a registration's approval (`Organize.tsx`) the same pickers keep their picks for the
+  approval request, and create a group picked new at once, since the approval names its group by id.
 
 Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
 summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
@@ -2099,125 +2003,69 @@ no frame, SVG or image: the frame belongs to the page.
 The keyboard shortcuts are declared once, each with where it acts, its keys and what it does, in
 `shortcuts` in `src/keyboard.tsx`, and the help overlay, a `Sheet` that `?` opens, lists that
 declaration whole, so it cannot drift from the keys.
-[Keyboard shortcuts](web-ui.md#keyboard-shortcuts) lists them.
+[Keyboard shortcuts](web-ui.md#keyboard-shortcuts) lists them and says when they act, and the file's
+comments give the document's handler and its rules, among them `modified`, for AltGr, and
+`composing`, for an input method.
 
 - **Binding.** While it is mounted, each place's view gives every shortcut of its place its action,
   through a hook typed by the place (`useShortcuts` for the thread list and a thread,
-  `useFieldShortcuts` for the composer, and the provider for those that act anywhere), so a place
-  binds exactly its declared shortcuts, and no shortcut listed goes without an action. Only one
-  component holds a shortcut's action at a time; a second registering one throws. Each action does
-  what a control on the page does, only while that control could, and otherwise nothing.
+  `useFieldShortcuts` for the composer, whose keys act within its fields from its form's key
+  handler, and the provider for those that act anywhere), so a place binds exactly its declared
+  shortcuts, and no shortcut listed goes without an action. Only one component holds a shortcut's
+  action at a time; a second registering one throws. Each action does what a control on the page
+  does, only while that control could, and otherwise nothing.
 - **The browser's keys.** A matching key is always taken from the browser: no key bound does
   anything of the browser's own where it acts, apart from `/` on the thread list, which takes
   Firefox's Quick Find, deliberately; `Enter` on a row is left out, since the row is a link the
   browser follows.
-- **The handler.** One handler on the document, added after the page's own, acts on a key only when
-  nothing handled it first, it was not typed into a text field, a select or editable content, no
-  dialog or options menu is open, and Ctrl, Alt and Meta are up, AltGr counting as none of them for
-  the punctuation it types (`modified`, whose comment gives the rule); the first key of two, `g`,
-  waits 1.5 seconds for the second.
-- **The composer's own keys,** Send and leaving it, act within its fields from its form's key
-  handler (`useFieldShortcuts`), and likewise not while a dialog or options menu is open, such as
-  Attach's within the form.
 - **Side by side.** The list's shortcuts and the thread's act together, each pane naming the area of
   its view's (`ShortcutArea`), which clicking within a pane gives focus. The list's keys reach
   across from the thread beside it, and the thread's do not (`reachesAcross`). A key both bind, `n`
   or `U`, acts in the place whose area holds focus, or else in the later place declared, the thread.
-- **Selection.** The thread list's selection is the row whose link has focus
-  (`src/views/list/shortcuts.ts`), or, side by side with focus on no row, the open thread's, so
-  moving it moves focus, which the focus ring shows; the number keys choose a suggestion by pressing
-  its control.
-- **Marking.** The list's `I` and `U` act through the bar at its foot, whose state gives them its
-  action (`useMarkKeys` in `src/views/list/ListBar.tsx`): on the threads selected, as Read and
-  Unread do, or with none selected, on the current row's thread alone; pressed with focus on that
-  row, focus goes back to it, or, should the mark take it out of the list, to the row in its place,
-  and pressed with focus elsewhere, as in the thread beside the list, it stays there. A thread's `U`
-  is Mark unread from here, on the message that holds focus, or else the first live one the page
-  marks unread, or else the agent's latest loaded message, once every read mark the page started has
-  settled (`useReading` counts them), so no read can undo it. It looks only at the messages loaded,
-  so on a thread read already whose agent last wrote before the newest 50, `U` with no message
-  focused does nothing.
-- **The list's controls.** `f` presses Filters, and `s` and `b` give focus to the order's select and
-  the grouping's, opening their pickers with `showPicker` where the browser allows it (`openPicker`
-  in `src/icon-controls.tsx`); `s` alone is a key of its own, though `g` then `s` goes to Sessions.
+- **The list's keys** act through what a pointer would use (`src/views/list/shortcuts.ts`): the
+  current row is the row whose link has focus, or, side by side with focus on no row, the open
+  thread's; `I` and `U` act through the bar at the list's foot, whose state gives them its action
+  (`useMarkKeys` in `ListBar.tsx`); and `s` and `b` open the head's pick lists with `showPicker`
+  where the browser allows it (`openPicker` in `src/icon-controls.tsx`).
+- **A thread's `U`** marks unread only once every read mark the page started has settled
+  (`useReading` counts them), so no read can undo it.
 
-The shortcuts are on unless the operator turns them off in Settings' Keyboard section, which this
-browser keeps in its local storage (`src/device.ts`).
+### The composer
 
-Enter sends, in the same section, is a choice of its own, off until the operator turns it on and
-kept the same way, and not a shortcut, so it holds with the shortcuts off: on, the composer's form
-handler takes `Enter` alone in its Message or Details box and gives it its Send shortcut's action,
-but not its repeats, which type nothing, and leaves `Shift+Enter` and `Enter` on its buttons to the
-browser; the boxes' hints say so. No key in the composer acts while an input method composes, by
-`isComposing` or WebKit's key code 229 (`composing`).
-
-### The thread page and its composer
-
-The thread page parses a message's detail only once its fold is opened, and the message list keeps
-each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
-button (`src/views/thread/copy.ts`) writes its text, and its detail while that fold is open, to the
-clipboard as Markdown, through `navigator.clipboard`, and says under the message when the browser
-refuses. A change of answers or an edit sends a whole message, so it carries again, unchanged, the
+A change of answers or an edit sends a whole message, so it carries again, unchanged, the
 references, pull requests and branches of the message it replaces, which the composer has no box for
 (`src/views/thread/writer.ts`).
 
 The composer checks its boxes against the API's bounds of a message's text and detail, counted with
 the API's `codePointLength` as the server counts them, and never cuts what is typed into them.
 
-Its Send row, which holds what answers Send, sticks within the composer just above the thread's bar,
-or to the foot of the screen while the bar rests, and the page's viewport asks a phone to shrink the
-layout for its keyboard (`interactive-widget=resizes-content`), so the keyboard does not hide Send.
-The composer measures the row as it changes and the page's scroll padding keeps that much clear,
-with the bar's height while it floats, so the caret and a control focused from the keyboard scroll
-into view above them.
+The page's viewport asks a phone to shrink the layout for its keyboard
+(`interactive-widget=resizes-content`, in `index.html`), so the keyboard does not hide the
+composer's Send row, which sticks just above the thread's bar.
 
-### After sending
+[A thread](web-ui.md#a-thread) describes the rest of the page, the composer and After sending, and
+the comments of the files in `src/views/thread/` how each part does it.
 
-The composer's After sending is what follows a message the server accepts, two choices the browser
-keeps apart (`useAfterSending` in `src/views/thread/Composer.tsx`): where the operator goes, a pick
-list, and whether the thread is archived first, a checkbox, which goes with any destination. Without
-a destination kept, the choice an earlier release kept, going back or staying, stands in its place,
-as it does for a value After sending does not know.
+### What the browser keeps
 
-A message that lands while the page is still open goes by the choices as they stand then: back to
-the list, or to the thread above or below, as their buttons go; and when it archives, by Archive
-all's own path first (`src/views/thread/leaving.ts`). That path runs without the page's check for
-asks open to the operator, since the message may have answered them, so the server's refusal, naming
-the ask, shows instead and the page stays. Auto-advance is Archive all's alone: a send goes where
-After sending says, archiving or not.
+What the operator keeps on one device is in the browser's local storage, through `src/device.ts`,
+the origin separating servers.
 
-What was sent goes with the operator: the thread opened says it beside Send (`leaveNotice` for the
-thread, in `src/notice.ts`), and a list gone back to says it, before saying it reached its end when
-it did. When a send's way on fails, its composer says so beside Send, after what was sent, in the
-head's own words, which a phone's keyboard can hide.
-
-One rule holds for leaving the page: while a way on is under way, or a message that will archive the
-thread or take the page somewhere is on its way, no other way on starts, the buttons', Archive all's
-or a send's; a send's own way on, once it lands, waits only for the others. The buttons are disabled
-meanwhile, as Archive all is.
-
-### Drafts
-
-The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
-`src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
-separating servers. The thread list marks a thread with a kept draft from the same storage.
-
-- **What is kept:** the text and details, and the message the draft was started from, which the
-  stale-write check counts from. What the composer held besides, staged, attached or being recorded,
-  is left behind, since a replacement's message may be replaced and an upload expire meanwhile, and
-  the draft says it left something behind.
-- **When:** as it changes, except the text and details a replacement loaded while they are as
-  loaded, which would come back as a new message the operator never wrote.
-- **Forgetting:** once there is nothing to keep, a page forgets the draft, and a write that lands
-  keeps what is left, only while the stored record is still the one the page kept, or there is none,
-  so a draft kept since, in another tab or by opening the thread again, stays. The comments of
-  `kept-draft.ts` and of `device.ts` give the other cases.
-- **Limits:** a draft kept more than 30 days ago, or after now, is none, opening its thread keeps it
-  again, and a new draft forgets those that are none and the oldest past 50, which caps the storage
-  drafts take.
-- **Signing out**, from Settings or by removing the passkey this browser signed in with, forgets
-  every draft, then writes a fresh random mark, which a page reads as it opens: a page whose mark
-  has changed since keeps none again.
+- **Choices:** whether the shortcuts are on and whether Enter sends (`src/keyboard.tsx`);
+  Auto-advance (`useAutoAdvance` in `src/views/thread/neighbor-thread.ts`); and After sending's two
+  choices (`useAfterSending` in `src/views/thread/Composer.tsx`), where, without a destination kept,
+  the choice an earlier release kept, going back or staying, stands in its place.
+- **Folds:** the thread list's headers and the sessions view's groups and agents, and whether it
+  shows the past requests. A group's fold is kept by the group's id, and an agent's under a group by
+  the group's id and the agent's name, and by its name alone otherwise.
+- **Drafts:** a thread's draft (`src/views/thread/kept-draft.ts`), under the thread's agent, session
+  and number: its text and details, and the message the draft was started from, which the
+  stale-write check counts from. The thread list marks a thread with a kept draft from the same
+  storage. A draft is kept for 30 days, and the latest 50, which caps the storage drafts take.
+  Signing out, from Settings or by removing the passkey this browser signed in with, forgets every
+  draft, then writes a fresh random mark, which a page reads as it opens: a page whose mark has
+  changed since keeps none again. [A thread](web-ui.md#a-thread) says what the operator sees of a
+  draft, and the comments of the two files give each case.
 
 ### Settings
 
@@ -2225,10 +2073,8 @@ Settings is a list of sections, declared once in `src/views/settings/sections.ts
 a title, the group it is listed under and its component; [Settings](web-ui.md#settings) lists them.
 The navigation and `/settings/<slug>` are built from that list, so a new section is one entry and
 one component, and a slug no section has is Not found. `/passkeys`, where passkeys had a page of
-their own, redirects to `/settings/passkeys`, replacing the history entry.
-
-The layout is decided in CSS alone, at the layout's `40rem` breakpoint: above it `/settings` opens
-the first section, which it mounts, and so loads, on every width, hidden below the breakpoint.
+their own, redirects to `/settings/passkeys`, replacing the history entry. The layout is decided in
+CSS alone, so `/settings` mounts the first section, and so loads it, on every width.
 
 Each section loads only its own data, and a section that changes a secret, Passkeys, API keys and
 Voice, offers to sign in again while the sign-in is not recent (`RecentSignIn.tsx`): API keys reads
@@ -2239,163 +2085,98 @@ focus to the open section's heading.
   normalizes a base URL with the API's own reader; which hosts it may reach is the server's to
   judge, when it is saved. After a save or a clear, focus waits for the settings the server then
   holds before moving to the control that shows them, and moves only from the control pressed.
-- **API keys.** The section (`src/views/settings/ApiKeys.tsx`) lists the keys as the server does,
-  each with its scopes and when it was created, expires and was last used, flagged while it is live
-  with no expiry, and marked revoked or expired while the server still lists it. Its form
-  (`ApiKeyForm.tsx`) takes what [API keys](operator-guide.md#api-keys) describes. A scope that a
-  chosen one includes, by the API's own `holdsScope`, shows chosen with it and unavailable, and is
-  not sent. Choosing no expiry shows a warning, and a date is the operator's local date, through
-  whose end the key works.
-- **A new key's secret** shows alone, with Copy, which selects the secret instead where the browser
-  will not copy it. It lives only in the page's memory, never in storage, the address or a log,
-  until Done dismisses it, and focus then moves to the new key. Create an API key is unavailable
-  while the keys are at their limit (Authentication's [API keys](#api-keys)), and creating and
-  revoking while the sign-in is not recent, each saying why.
-- **Storage.** The section (`src/views/settings/Storage.tsx`) reads the settings' `storage` and
-  changes nothing; [Attachments](operator-guide.md#attachments) says what it shows.
+- **API keys** (`ApiKeys.tsx`, with its form in `ApiKeyForm.tsx`) lists the keys as the server does
+  and takes what [API keys](operator-guide.md#api-keys) describes. A scope that a chosen one
+  includes, by the API's own `holdsScope`, shows chosen with it and unavailable, and is not sent. A
+  new key's secret lives only in the page's memory, never in storage, the address or a log, until
+  Done dismisses it. Create an API key is unavailable while the keys are at their limit
+  (Authentication's [API keys](#api-keys)), and creating and revoking while the sign-in is not
+  recent, each saying why.
+- **Storage** (`Storage.tsx`) reads the settings' `storage` and changes nothing;
+  [Attachments](operator-guide.md#attachments) says what it shows.
 
 ### Attaching files
 
-Writing a message is alike wherever the operator does it. Every box whose words become part of a
-message takes dictation while voice is on, and every place that writes and sends a message, a
-thread's composer and the new-thread sheet, offers Attach and attaches images pasted into its
-message and Details boxes. An ask's own-words field takes dictation on its card; its answer goes
-with the composer's message, which carries the files.
+A message's files come in two halves: attaching them, in `src/attach/`, which a thread's composer
+and the new-thread sheet share, and showing them, in `src/views/thread/files/`.
+[Attachments](operator-guide.md#attachments) describes both for the operator, and the comments of
+`src/attach/attach.ts` and `AttachButton.tsx` give Attach's pickers, pasting and each case of a
+file's upload.
 
-Send waits, wherever it is, until the message's files have uploaded and while a recording for it
-opens the microphone, records, transcribes or awaits Retry, saying why on Send's `aria-describedby`
-(`sendWait` in `src/attach/attach.ts`); a recording on an ask's card counts for the composer's Send,
-which sends that answer, and the composer's Ctrl or Cmd+Enter, and its Enter while Enter sends, wait
-as its Send does. A thread's title, search boxes and names are not message text, and take neither.
-
-A message's files come in two halves: attaching them, in `src/attach/`, which the composer and the
-new-thread sheet share, and showing them, in `src/views/thread/files/`.
-[Attachments](operator-guide.md#attachments) describes both for the operator.
-
-Wherever the operator writes a message, **Attach**, an icon beside Send, opens a hidden file input
-that takes several files, with no `accept` and no `capture`. Where the primary pointer is coarse
-(`(pointer: coarse)`), the browser would hand that input to the system's chooser, so Attach is an
-options menu of its own instead, each of its four items opening its own hidden input:
-
-| Item                  | Input                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Take a photo**      | `accept="image/*"`, `capture="environment"`                                                                                                                                          |
-| **Record a video**    | `video/*`, likewise                                                                                                                                                                  |
-| **Photos and videos** | `image/*,video/*`, several, which recent Android shows in its photo picker                                                                                                           |
-| **Other files**       | `application/*,text/*`, several: a picker that could take images, video or audio is one Android hands to its chooser of camera, video camera and files, which the menu stands in for |
-
-A touchscreen laptop's primary pointer is its trackpad or mouse, so it keeps the one input, which
-`(any-pointer: coarse)` would not. The page's sizes follow the primary pointer the same way: where
-it is fine (`(pointer: fine)`), a mouse or a trackpad, the size tokens shrink, `--touch` from 44 to
-32 pixels and the spacing scale by about a quarter, and a touch screen keeps the sizes for a
-fingertip.
-
-The browser tests' Chromium has a mouse, so `resize` in `e2e/fixtures.ts` turns on touch emulation
-below a phone's width, and the phone's checks see a phone's sizes. Focus stays on Attach as the menu
-opens, as in every options menu, and Escape or a tap elsewhere closes it with focus back on Attach;
-whatever an input gives is added alike. `useMedia` in `src/media.ts` follows a media query, this one
-and the color scheme diagrams are drawn in; the component tests run on a `matchMedia` that matches
-nothing, from `src/test-setup.ts`, unless a test stubs it.
-
-- **Pasting.** A paste into the message or Details box whose clipboard holds only image files, PNG,
-  JPEG, GIF or WebP, attaches them, named `pasted-YYYYMMDD-HHMMSS` in local time with their type's
-  extension, and inserts nothing; a paste that carries `text/plain` stays text, since some programs
-  put a picture of what was copied beside its text.
-- **Names and refusals.** A name another file of the draft has gets `-2`, `-3` and so on before its
-  extension. A file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh, is
-  refused in the list, saying why, without uploading.
+- **Send waits**, wherever it is, until the message's files have uploaded and while a recording for
+  it opens the microphone, records, transcribes or awaits Retry, saying why on Send's
+  `aria-describedby` (`sendWait` in `src/attach/attach.ts`); a recording on an ask's card counts for
+  the composer's Send, which sends that answer, and the composer's Ctrl or Cmd+Enter, and its Enter
+  while Enter sends, wait as its Send does.
+- **Refusals.** A file whose name cannot be a file's (`fileName`), one over 100 MiB, or an eleventh,
+  is refused in the list, saying why, without uploading.
 - **Uploading.** The others upload one at a time, in the order added. `uploadFile` in `src/api.ts`
   sends each with `XMLHttpRequest`, which reports upload progress, as the `File` itself, so the
   browser states its length, declaring `File.type`, else `typeOfName`. No progress for 60 seconds
   aborts it, longer than the server's own idle limit so the server's answer comes first, and there
   is no total deadline. `request` announces each change that lands, but an upload alone changes none
   of the navigation's counts, so it announces none.
-- **The list** shows each file's name, size and state, with a progress bar while it uploads. Its
-  **Remove** stops an upload under way while bytes remain, lets one whose every byte has gone answer
+- **Remove** stops an upload under way while bytes remain, lets one whose every byte has gone answer
   and then removes it from the server, and removes a finished one from the server, so it stops
   counting against the operator's pending uploads at once. It decides by the bytes the upload last
   reported and the answer as it arrives, not by what the list shows, so only a Remove in the instant
   after the last bytes leave and before the browser reports them, or a removal the connection loses,
   leaves the upload counting until it expires.
-- **Sending.** Send waits until every file has uploaded, saying what it waits on, and sends kept
-  files as `{keep}`, then uploads as `{upload, name}`; a refusal naming an upload marks that file
-  expired. Editing a message, or changing its answers, loads its files as kept, which **Remove**
-  drops from the replacement. A stale write keeps the files with the draft, except the kept files of
-  a replacement its missed messages drop.
+- **Sending.** A message sends kept files as `{keep}`, then uploads as `{upload, name}`; a refusal
+  naming an upload marks that file expired. Editing a message, or changing its answers, loads its
+  files as kept, which **Remove** drops from the replacement. A stale write keeps the files with the
+  draft, except the kept files of a replacement its missed messages drop.
 - **The new-thread sheet.** Its files upload to the session before the thread exists, since an
   upload belongs to a session and not to a thread, and go with the start; a refusal naming an upload
-  marks that file expired there too. While a start is on its way the sheet holds still: Cancel
-  waits, it refuses Escape's `cancel` and the keydown that would raise it, Attach and Dictate wait,
-  and a paste attaches nothing, so nothing added meanwhile is left behind.
+  marks that file expired there too. While a start is on its way the sheet holds still, so nothing
+  added meanwhile is left behind.
 - **Leaving without sending.** A writer that goes without sending, the thread page left or the sheet
-  closed, by Cancel, Escape, a link, Back or its session leaving the list, removes its uploads from
-  the server as it unmounts, in `useDraftFiles` (`src/attach/attach.ts`, whose comments give each
-  case), so they stop counting against the operator's pending uploads. A write or start carries its
-  files from when it is sent, since the server may yet attach them. Kept files are a sent message's,
-  and a kept draft keeps no files, so leaving touches neither. A tab closed or reloaded unmounts
-  nothing, so its uploads expire, as does an upload whose removal fails or the connection loses.
+  closed, removes its uploads from the server as it unmounts, in `useDraftFiles`
+  (`src/attach/attach.ts`, whose comments give each case), so they stop counting against the
+  operator's pending uploads. A write or start carries its files from when it is sent, since the
+  server may yet attach them. A tab closed or reloaded unmounts nothing, so its uploads expire, as
+  does an upload whose removal fails or the connection loses.
 
 ### Showing files
 
-A message lists its files under its text, detail and references, each with its name, type and size,
-and **Download**, an `<a download>`, while its bytes are present. Every element and link loads the
-file's own URL, with its reference, so the server's headers always apply: no file becomes a `blob:`
-or `data:` URL, and none shows in a frame. Sizes are written in binary units, KiB, MiB and GiB.
-
-Beyond Download, a file shows by its served type, `servedTypeOf`, as
-[Attachments](operator-guide.md#attachments) describes: an image of up to 2 MiB loads at once, as a
-lazily loaded `<img>`; video and audio players have `preload="none"`; **Show text** reads at most
-the first 256 KiB with a `Range` request and decodes it as UTF-8 with replacement, saying when there
-is more; and a PDF's **Open** is a link to a new tab, since Chromium shows no PDF in a frame.
+Every element and link that shows a file loads the file's own URL, with its reference, so the
+server's headers always apply: no file becomes a `blob:` or `data:` URL, and none shows in a frame
+(`src/views/thread/files/FileView.tsx`). A file shows by its served type, `servedTypeOf`, as
+[Attachments](operator-guide.md#attachments) describes: **Download** is an `<a download>`, while the
+file's bytes are present; an image is a lazily loaded `<img>`; video and audio players have
+`preload="none"`; **Show text** reads at most the first 256 KiB with a `Range` request and decodes
+it as UTF-8 with replacement, saying when there is more; and a PDF's **Open** is a link to a new
+tab, since Chromium shows no PDF in a frame.
 
 A Markdown link whose destination is `attachment:` and a name, percent-encoded or in angle brackets,
 is live when the name, decoded and NFC-normalized, is one of that message's own files, and opens it
 as its entry in the list does; any other is its text, and an image written with one still never
 loads.
 
-The **Files** fold in the thread's head, there while the thread's live messages carry any file,
-reads the thread's file list a page at a time while it is open, each entry with who attached it,
-when its message was written, and a link to that message.
+The **Files** fold in the thread's head reads the thread's file list a page at a time while it is
+open.
 
 ### Dictation
 
 Dictation (`src/voice/Dictation.tsx`) shows in the composer, the new-thread sheet and an ask's card,
 and in Settings' Try it, while the settings the page read when it opened say voice is on and the
 browser has a `MediaRecorder` for `audio/webm;codecs=opus`, `audio/mp4` or `audio/ogg;codecs=opus`,
-tried in that order.
+tried in that order. [A thread](web-ui.md#a-thread) describes it for the operator, and the file's
+comments its controls and where focus goes, and its callers' what each shows of them.
 
 - **Recording.** It records at 32 kbit/s with a one-second timeslice, so it can count the data, and
   stops at five minutes by the clock or 1.9 MiB of data, which keeps a recording within the API's
-  body cap. A recording stops when its page is hidden, and none starts on a hidden page, as
-  [A thread](web-ui.md#a-thread) says.
+  body cap.
 - **Sending.** A recording under the API's 1,000 bytes is not sent, and reads as nothing heard. The
   upload declares the type the recorder was asked for and waits up to two minutes.
 - **The draft.** A recording counts from the moment the microphone is asked for until it is done
   with, refused or failed: one opening, recording, or awaiting a transcription or a retry, in the
   composer or on an ask's card, holds the composer's draft open, so its stale-write check counts
-  from when the recording started, and a microphone that opens once its caller has held dictation
-  back closes unused.
-- **Opening the microphone.** While the microphone opens, Cancel stands in for Dictate; Cancel ends
-  the attempt, and a microphone that opens after it closes unused.
+  from when the recording started.
 - **The text.** `useDictationInto` puts the text in at the caret of the caller's box that last had
   focus, unless the draft was discarded meanwhile: the thread page counts the drafts its composer
   ends, which the composer's and the cards' dictation check a transcript against. Dictate waits
-  while a message is on its way, in the composer and on the cards as in the new-thread sheet, since
-  the draft a recording would be for may be the one sent. A failure keeps the recording for Retry
-  until it is discarded.
-- **One at a time.** The page records one dictation at a time: one starting stops any other under
-  way, which then transcribes what it recorded as its Stop would.
-- **The Send row.** `useDictation` gives its caller the controls, what went wrong and what it says
-  otherwise apart. The composer puts all three in its Send row, a failure before Send and anything
-  else after it; the new-thread sheet puts the controls in its foot beside Attach and the rest under
-  its boxes; and an ask's card puts all three under its own-words field. The composer's row and the
-  sheet's foot stay short on a phone whatever their fonts: the microphone is its icon alone, the
-  recording's time and a failure drop the words the rest says, After sending's two controls are
-  their icons alone, sharing one line with Send, Attach, and Dictate, and they move below the row,
-  and Discard draft hides, while dictation shows more than Dictate (`busy`), keeping focus as it
-  moves.
-- **Focus.** Each control that replaces another moves focus to the next state's own control, unless
-  the operator has put focus somewhere else meanwhile, and starting a recording is announced once.
+  while a message is on its way, since the draft a recording would be for may be the one sent.
 
 ### Read aloud
 
