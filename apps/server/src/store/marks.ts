@@ -24,9 +24,29 @@ import {
 } from "./threads.ts";
 
 // Marking read, marking unread and archiving move only the caller's own marks
-// on a thread. They write no message, so none of them conflicts with a write,
-// and they wake no one. Each is a write to the thread all the same, so a
-// session's own marks it working while idle (statusOnWrite).
+// on a thread. They write no message, so none of them conflicts with a write.
+// A session's own mark wakes the long polls on its session once it commits,
+// since it can end a nudge being due (pollMonitor), and a poll it changes
+// nothing for waits on; anyone else's wakes no one. Each is a write to the
+// thread all the same, so a session's own marks it working while idle
+// (statusOnWrite).
+
+// ownMark says whether the identity marking a thread of a session is that
+// session's own agent.
+function ownMark(db: Database, identity: Identity, sessionId: number): boolean {
+  return (
+    db
+      .prepare("SELECT 1 FROM actors WHERE id = ? AND session_id = ?")
+      .get(identity.actor, sessionId) !== undefined
+  );
+}
+
+// wake wakes the long polls on each session given.
+function wake(store: Store, sessions: Iterable<number>): void {
+  for (const sessionId of sessions) {
+    store.notifier.notify(sessionId);
+  }
+}
 
 // checkThrough refuses a mark beyond the thread's latest message.
 function checkThrough(thread: StoredThread, through: number, field?: string): void {
@@ -63,13 +83,15 @@ export function markRead(
   input: MarkInput,
 ): CursorsResult {
   const { db } = store;
-  return db.transaction(() => {
+  const { woken, result } = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const cursors = readThrough(db, identity, sessionId, target.thread, input.through);
     statusOnWrite(db, identity, sessionId, {}, now);
-    return { cursors };
+    return { woken: ownMark(db, identity, sessionId) ? [sessionId] : [], result: { cursors } };
   });
+  wake(store, woken);
+  return result;
 }
 
 // markUnread lowers the identity's read cursor to just before the message it
@@ -83,7 +105,7 @@ export function markUnread(
   input: UnreadInput,
 ): CursorsResult {
   const { db } = store;
-  return db.transaction(() => {
+  const { woken, result } = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const thread = requireThread(db, sessionId, target.thread);
@@ -95,8 +117,13 @@ export function markUnread(
        WHERE actor_id = :actor AND thread_id = :thread AND read_seq > :seq`,
     ).run({ seq: input.from - 1, actor: identity.actor, thread: thread.id });
     statusOnWrite(db, identity, sessionId, {}, now);
-    return { cursors: partyCursors(db, thread) };
+    return {
+      woken: ownMark(db, identity, sessionId) ? [sessionId] : [],
+      result: { cursors: partyCursors(db, thread) },
+    };
   });
+  wake(store, woken);
+  return result;
 }
 
 // openAsksThrough lists the numbers of the asks open to the identity, as the
@@ -166,7 +193,7 @@ export function archiveThread(
   input: MarkInput,
 ): MarksResult {
   const { db } = store;
-  return db.transaction(() => {
+  const { woken, result } = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const outcome = archiveThrough(db, identity, sessionId, target.thread, input.through);
@@ -178,15 +205,18 @@ export function archiveThread(
       );
     }
     statusOnWrite(db, identity, sessionId, {}, now);
-    return outcome;
+    return { woken: ownMark(db, identity, sessionId) ? [sessionId] : [], result: outcome };
   });
+  wake(store, woken);
+  return result;
 }
 
 // bulkRead marks several threads read in one transaction, each through the
 // message given: every one or, when any fails, none.
 export function bulkRead(store: Store, identity: Identity, input: BulkMarkInput): BulkReadResult {
   const { db } = store;
-  return db.transaction(() => {
+  const sessions = new Set<number>();
+  const result = db.transaction(() => {
     const now = store.clock();
     authorizeScope(db, identity, "threads:write", now);
     return {
@@ -194,10 +224,15 @@ export function bulkRead(store: Store, identity: Identity, input: BulkMarkInput)
         const field = `threads.${index}`;
         const sessionId = authorizeSession(db, identity, "threads:write", target, now, field);
         const cursors = readThrough(db, identity, sessionId, target.thread, target.through, field);
+        if (ownMark(db, identity, sessionId)) {
+          sessions.add(sessionId);
+        }
         return { agent: target.agent, session: target.session, thread: target.thread, cursors };
       }),
     };
   });
+  wake(store, sessions);
+  return result;
 }
 
 // bulkArchive archives several threads in one transaction, each through the
@@ -209,7 +244,8 @@ export function bulkArchive(
   input: BulkMarkInput,
 ): BulkArchiveResult {
   const { db } = store;
-  return db.transaction(() => {
+  const sessions = new Set<number>();
+  const result = db.transaction(() => {
     const now = store.clock();
     authorizeScope(db, identity, "threads:write", now);
     const result: BulkArchiveResult = { archived: [], skipped: [] };
@@ -222,8 +258,13 @@ export function bulkArchive(
         result.skipped.push({ ...named, open_asks: outcome.openAsks });
       } else {
         result.archived.push({ ...named, marks: outcome.marks });
+        if (ownMark(db, identity, sessionId)) {
+          sessions.add(sessionId);
+        }
       }
     });
     return result;
   });
+  wake(store, sessions);
+  return result;
 }

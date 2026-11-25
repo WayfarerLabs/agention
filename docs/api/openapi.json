@@ -6677,6 +6677,15 @@
             }
           },
           {
+            "name": "nudge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
             "name": "wait",
             "in": "query",
             "required": false,
@@ -6723,7 +6732,7 @@
       },
       "post": {
         "operationId": "agentReportMonitor",
-        "summary": "Report what the bridge observes of the session and its latest nudge, replacing its latest report",
+        "summary": "Report what the bridge observes of the session, replacing its latest report",
         "tags": [
           "agent"
         ],
@@ -6803,6 +6812,123 @@
                   },
                   "required": [
                     "replaced"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/agent/s/{agent}/{session}/monitor/nudge": {
+      "post": {
+        "operationId": "agentClaimNudge",
+        "summary": "Claim the nudge that is due for the session before trying it, or report how a claimed one ended",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "bridge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "const": "start"
+                      }
+                    },
+                    "required": [
+                      "phase"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "const": "done"
+                      },
+                      "sent": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "sent"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replaced": {
+                      "type": "boolean"
+                    },
+                    "go": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "replaced",
+                    "go"
                   ]
                 }
               }
@@ -7294,23 +7420,6 @@
         ],
         "description": "How the ask affects the requester's work while it is open: blocking (the work the ask is for stops until it is answered, while the requester carries on with other work), assuming (that work goes on under an assumption the message states) or none."
       },
-      "LastNudge": {
-        "type": "object",
-        "properties": {
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "sent": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "at",
-          "sent"
-        ]
-      },
       "Marks": {
         "type": "object",
         "properties": {
@@ -7527,9 +7636,6 @@
               },
               "nudge": {
                 "type": "boolean"
-              },
-              "last_nudge": {
-                "$ref": "#/components/schemas/LastNudge"
               }
             },
             "required": [

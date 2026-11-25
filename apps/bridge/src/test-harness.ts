@@ -63,7 +63,7 @@ export interface Answer {
 // version its MCP client gives, and the bridge's own options for monitoring.
 export type BridgeTestOptions = { client?: { name: string; version: string } } & Pick<
   BridgeOptions,
-  "clock" | "options" | "reporterTiming" | "pane" | "observer"
+  "clock" | "options" | "reporterTiming" | "pane" | "observer" | "profile"
 >;
 
 export class TestBridge {

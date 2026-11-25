@@ -2,7 +2,6 @@ import { z } from "zod";
 import { errorBody } from "./errors.ts";
 import { groupRef } from "./groups-and-tags.ts";
 import {
-  lastNudge,
   monitorCondition,
   monitorProfile,
   monitorReport,
@@ -69,7 +68,6 @@ const named: Record<string, ApiSchema> = {
   errorBody,
   groupRef,
   impact,
-  lastNudge,
   marks,
   message,
   monitorCondition,

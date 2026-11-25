@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   type LatestReading,
   Nudge,
+  type NudgeOptions,
   type NudgeOutcome,
   type NudgeTexts,
   refuseNudgeText,
@@ -34,10 +35,14 @@ export interface Observer {
   // nudge puts a warning and then a message in the harness's input line and
   // submits the message, with every check before each key that the package's
   // README lists, and says how it ended. It starts from the latest
-  // observation, so it is never ready while observations is not running.
-  // It throws a RangeError for a text it cannot use, an empty one or one
-  // that is not all printable ASCII, before anything reaches the pane.
-  nudge(texts: NudgeTexts): Promise<NudgeOutcome>;
+  // observation, so it is never ready while observations is not running, and
+  // asks options.begin before it writes anything; options.signal stops it.
+  // It throws, before anything reaches the pane, a RangeError for a text it
+  // cannot use, an empty one or one that is not all printable ASCII, and an
+  // Error where the observer's profile does not know its harness's prompt
+  // marker, since such a profile cannot tell a draft someone left at the
+  // prompt from an empty one.
+  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeOutcome>;
 }
 
 // The time source an observer samples by; tests pass one that needs no
@@ -137,15 +142,22 @@ export class PaneObserver implements Observer {
     }
   }
 
-  async nudge(texts: NudgeTexts): Promise<NudgeOutcome> {
+  async nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeOutcome> {
     refuseNudgeText(texts.warning);
     refuseNudgeText(texts.message);
+    if (!this.#profile.knowsMarker) {
+      throw new Error(`the ${this.#profile.name} profile cannot tell when a harness may be nudged`);
+    }
     if (this.#nudging) {
       return { sent: false, step: "not-ready" };
     }
     this.#nudging = true;
     try {
-      return await new Nudge(this.#pane, this.#profile, this.#clock).run(this.#latest, texts);
+      return await new Nudge(this.#pane, this.#profile, this.#clock, options.signal).run(
+        this.#latest,
+        texts,
+        options.begin,
+      );
     } finally {
       this.#nudging = false;
     }

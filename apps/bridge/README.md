@@ -28,7 +28,8 @@ name the origin. The bridge connects directly and takes no HTTP proxy settings, 
 `~/.config/agention/`, and you approve a new key with the code the agent relays to you. To monitor
 the session's terminal, see `--tmux-socket` and `--harness-profile` in `--help` and the
 [operator guide](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#monitoring-a-sessions-terminal),
-and to have the bridge nudge the agent at its prompt when you write to it, `--nudge` and
+and to have the bridge nudge the agent at its prompt when you write to it, on a host with a profile
+of its own, `--nudge` and
 [the nudge](https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#the-nudge).
 
 ## More

@@ -8,8 +8,8 @@ export interface Profile {
   readonly name: string;
   // Whether the profile knows its harness's prompt marker, so that an input
   // line's text is what was typed after it, and empty at an empty prompt. A
-  // profile that does not, a generic one, gives the cursor's whole row, whose
-  // text a nudge can only compare before and after it pastes.
+  // profile that does not, a generic one, gives the cursor's whole row, which
+  // cannot tell a draft from the prompt, so a nudge refuses it.
   readonly knowsMarker: boolean;
   screen(snapshot: Snapshot): Screen;
 }

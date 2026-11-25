@@ -1,6 +1,9 @@
 import {
   agentMessageSendInput,
   monitorAnswer,
+  monitorNudge,
+  monitorNudgeAnswer,
+  monitorNudgeQuery,
   monitorPollAnswer,
   monitorPollQuery,
   monitorReport,
@@ -18,6 +21,7 @@ import {
   writeResult,
 } from "@wayfarerlabs/agention-api";
 import {
+  claimNudge,
   createThread,
   listSessionThreads,
   pollMonitor,
@@ -82,8 +86,9 @@ export const agentOperations = [
       waitForThreads(store, identity, params, query, signal),
   }),
   ...threadOperations(agentMessageSendInput),
-  // The bridge's background connection and its report of what it observes,
-  // which never mark the agent checked in (backgroundOperations).
+  // The bridge's background connection, its report of what it observes and
+  // its nudges' claims and outcomes, which never mark the agent checked in
+  // (backgroundOperations).
   operation({
     name: "pollMonitor",
     method: "GET",
@@ -101,8 +106,7 @@ export const agentOperations = [
     name: "reportMonitor",
     method: "POST",
     path: "/s/:agent/:session/monitor",
-    summary:
-      "Report what the bridge observes of the session and its latest nudge, replacing its latest report",
+    summary: "Report what the bridge observes of the session, replacing its latest report",
     scope: "threads:write",
     params: sessionParams,
     query: monitorReportQuery,
@@ -111,12 +115,30 @@ export const agentOperations = [
     handler: ({ store, identity, params, query, body }) =>
       reportMonitor(store, identity, params, query, body),
   }),
+  operation({
+    name: "claimNudge",
+    method: "POST",
+    path: "/s/:agent/:session/monitor/nudge",
+    summary:
+      "Claim the nudge that is due for the session before trying it, or report how a claimed one ended",
+    scope: "threads:write",
+    params: sessionParams,
+    query: monitorNudgeQuery,
+    body: monitorNudge,
+    response: monitorNudgeAnswer,
+    handler: ({ store, identity, params, query, body }) =>
+      claimNudge(store, identity, params, query, body),
+  }),
 ];
 
 // The operations a session's bridge calls in the background, on its own: each
 // marks the session connected, and none marks its agent checked in, which
 // every other call by an approved key does.
-export const backgroundOperations: ReadonlySet<string> = new Set(["pollMonitor", "reportMonitor"]);
+export const backgroundOperations: ReadonlySet<string> = new Set([
+  "pollMonitor",
+  "reportMonitor",
+  "claimNudge",
+]);
 
 // Registration is the one agent route a key the operator has not approved may
 // call, so it authenticates in its own way, against the key its token

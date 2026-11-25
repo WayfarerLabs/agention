@@ -683,18 +683,12 @@ export const migrations: readonly string[] = [
   ALTER TABLE monitor_reports ADD COLUMN nudge INTEGER NOT NULL DEFAULT 0
     CHECK (nudge IN (0, 1) AND (nudge = 0 OR monitored = 1));
 
-  -- nudge_offered_at is when the server last told the session's bridge that
-  -- a nudge is due, null until it first does. The latest nudge its bridge
-  -- tried is nudged_at, the offer that led to it, by the server's clock;
-  -- nudge_sent, whether it was sent; and nudge_bridge_at, when the bridge
-  -- says it tried it, by its own clock, which tells a nudge the server has
-  -- not recorded from one a later report repeats. All three are null until
-  -- a bridge first reports a nudge.
-  ALTER TABLE sessions ADD COLUMN nudge_offered_at INTEGER;
+  -- The session's latest nudge: nudged_at is when its bridge claimed it, by
+  -- the server's clock, null until a bridge first does; nudge_sent, whether
+  -- it was sent, null while it is under way or where its outcome never
+  -- arrived.
   ALTER TABLE sessions ADD COLUMN nudged_at INTEGER;
   ALTER TABLE sessions ADD COLUMN nudge_sent INTEGER
-    CHECK (nudge_sent IN (0, 1) AND (nudge_sent IS NULL) = (nudged_at IS NULL));
-  ALTER TABLE sessions ADD COLUMN nudge_bridge_at INTEGER
-    CHECK ((nudge_bridge_at IS NULL) = (nudged_at IS NULL));
+    CHECK (nudge_sent IS NULL OR (nudge_sent IN (0, 1) AND nudged_at IS NOT NULL));
   `,
 ];

@@ -133,9 +133,9 @@ export function connectedOf(sessions: string): string {
 // session has no active credential or is not connected; while it cannot be
 // nudged, which takes a connected bridge whose report says it can, and it is
 // quiet or has stopped; and while it can be, once the latest nudge since the
-// earliest such message was not sent, or was sent before the quiet cut-off
-// with no check-in since, or, with none tried since, that message was
-// written before the quiet cut-off. Last comes the operator's group for its
+// earliest such message was not sent, or was sent, or its outcome is not
+// known, before the quiet cut-off with no check-in since, or, with none
+// claimed since, that message was written before the quiet cut-off. Last comes the operator's group for its
 // session, which only the operator's list shows.
 //
 // scope reads the threads as t, their sessions as s and their agents as g.
@@ -279,7 +279,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
             joined.connected IS 1 AND joined.nudge IS 1,
             IIF(
               joined.nudged_at >= joined.unread_by_other_since,
-              joined.nudge_sent = 0 OR (
+              joined.nudge_sent IS 0 OR (
                 COALESCE(joined.last_seen_at >= joined.nudged_at, 0) = 0
                 AND joined.nudged_at < :quiet_before
               ),

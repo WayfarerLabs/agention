@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { invalidInputBody } from "./errors.ts";
-import { monitorPollQuery, monitorReport, monitorReportQuery } from "./monitoring.ts";
+import { monitorNudge, monitorPollQuery, monitorReport, monitorReportQuery } from "./monitoring.ts";
 
 function fieldOf(result: { error?: Parameters<typeof invalidInputBody>[0] | undefined }) {
   return result.error === undefined ? undefined : invalidInputBody(result.error).error.field;
@@ -33,15 +33,8 @@ describe("monitorReport", () => {
       },
     ],
     [
-      "a session that can be nudged, and its latest nudge",
-      {
-        monitored: true,
-        profile: "codex",
-        condition: "at_prompt",
-        since,
-        nudge: true,
-        last_nudge: { at: since, sent: false },
-      },
+      "a session that can be nudged",
+      { monitored: true, profile: "codex", condition: "at_prompt", since, nudge: true },
     ],
   ])("takes %s", (_, report) => {
     expect(monitorReport.parse(report)).toEqual(report);
@@ -81,7 +74,6 @@ describe("monitorReport", () => {
         condition: "waiting",
         since,
         stopped_by: { reason: "error", resets_at: since, message: "Overloaded" },
-        last_nudge: { at: since, sent: true, step: "submitted", screen: "> hi" },
       }),
     ).toEqual({
       monitored: true,
@@ -89,7 +81,6 @@ describe("monitorReport", () => {
       condition: "waiting",
       since,
       stopped_by: { reason: "error" },
-      last_nudge: { at: since, sent: true },
     });
   });
 
@@ -156,45 +147,22 @@ describe("monitorReport", () => {
       { monitored: true, profile: "codex", condition: "at_prompt", since, nudge: "tmux" },
       "nudge",
     ],
-    [
-      "a latest nudge with no outcome",
-      {
-        monitored: true,
-        profile: "codex",
-        condition: "at_prompt",
-        since,
-        last_nudge: { at: since },
-      },
-      "last_nudge.sent",
-    ],
-    [
-      "a latest nudge whose time is no time",
-      {
-        monitored: true,
-        profile: "codex",
-        condition: "at_prompt",
-        since,
-        last_nudge: { at: "just now", sent: true },
-      },
-      "last_nudge.at",
-    ],
   ])("refuses %s", (_, report, field) => {
     expect(fieldOf(monitorReport.safeParse(report))).toBe(field);
   });
 });
 
 describe("monitorPollQuery", () => {
-  it("reads the claim and the wait from query text, waiting 25 seconds unclaimed by default", () => {
+  it("reads the claim, the nudge known and the wait from query text, waiting 25 seconds unclaimed by default", () => {
     expect(monitorPollQuery.parse({ bridge: "b".repeat(16) })).toEqual({
       bridge: "b".repeat(16),
       claim: false,
+      nudge: false,
       wait: 25,
     });
-    expect(monitorPollQuery.parse({ bridge: "b".repeat(64), claim: "true", wait: "0" })).toEqual({
-      bridge: "b".repeat(64),
-      claim: true,
-      wait: 0,
-    });
+    expect(
+      monitorPollQuery.parse({ bridge: "b".repeat(64), claim: "true", nudge: "true", wait: "0" }),
+    ).toEqual({ bridge: "b".repeat(64), claim: true, nudge: true, wait: 0 });
   });
 
   it.each([
@@ -202,6 +170,7 @@ describe("monitorPollQuery", () => {
     [{ bridge: "b".repeat(65) }, "bridge"],
     [{ bridge: "bridge id with spaces" }, "bridge"],
     [{ bridge: "b".repeat(16), claim: "yes" }, "claim"],
+    [{ bridge: "b".repeat(16), nudge: "1" }, "nudge"],
     [{ bridge: "b".repeat(16), wait: "26" }, "wait"],
   ])("refuses %j", (query, field) => {
     expect(fieldOf(monitorPollQuery.safeParse(query))).toBe(field);
@@ -228,5 +197,24 @@ describe("monitorReportQuery", () => {
     [{ seq: "1" }, "bridge"],
   ])("refuses %j", (query, field) => {
     expect(fieldOf(monitorReportQuery.safeParse(query))).toBe(field);
+  });
+});
+
+describe("monitorNudge", () => {
+  it("takes a claim, and an outcome with whether it was sent, keeping nothing else", () => {
+    expect(monitorNudge.parse({ phase: "start" })).toEqual({ phase: "start" });
+    expect(monitorNudge.parse({ phase: "done", sent: false, step: "warning" })).toEqual({
+      phase: "done",
+      sent: false,
+    });
+  });
+
+  it.each([
+    [{}, "phase"],
+    [{ phase: "begin" }, "phase"],
+    [{ phase: "done" }, "sent"],
+    [{ phase: "done", sent: "yes" }, "sent"],
+  ])("refuses %j", (body, field) => {
+    expect(fieldOf(monitorNudge.safeParse(body))).toBe(field);
   });
 });

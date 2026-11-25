@@ -2,9 +2,11 @@ import {
   genericStrict,
   type HarnessClient,
   type Key,
+  type NudgeOptions,
   type NudgeOutcome,
   type NudgeTexts,
   type Observation,
+  type Observer,
   type Pane,
   PaneObserver,
   PaneUnusable,
@@ -87,18 +89,14 @@ export interface Monitor {
   reports(signal: AbortSignal): AsyncIterable<MonitorReport>;
   // canNudge says whether the session can be nudged now: the nudge is on,
   // the pane can be read and runs the harness, and the profile can tell when
-  // it is at its prompt, as every profile the observer has can, the generic
-  // ones included.
+  // it is at its prompt, as a harness's own profile can and a generic one
+  // cannot.
   canNudge(): Promise<boolean>;
   // nudge has the observer nudge the agent with the texts given, while the
-  // reports are being read; otherwise, or with the nudge off, it puts
-  // nothing in the pane and answers not-ready.
-  nudge(texts: NudgeTexts): Promise<NudgeOutcome>;
+  // reports are being read and the session can be nudged; otherwise it puts
+  // nothing in the pane, never asks options.begin, and answers not-ready.
+  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeOutcome>;
 }
-
-// What reads a pane through a profile and nudges at it: the harness
-// observer.
-export type NudgingObserver = Pick<PaneObserver, "observations" | "nudge">;
 
 export interface PaneMonitorOptions {
   settings: MonitoringSettings;
@@ -111,7 +109,10 @@ export interface PaneMonitorOptions {
   pane?: ((socket: string) => Pane) | undefined;
   // The observer of a pane through a profile; a PaneObserver unless a test
   // gives another.
-  observer?: ((pane: Pane, profile: Profile) => NudgingObserver) | undefined;
+  observer?: ((pane: Pane, profile: Profile) => Observer) | undefined;
+  // The profile the pane is read with; the one the configuration chooses
+  // unless a test gives another.
+  profile?: Profile | undefined;
 }
 
 // sessionPane is the pane at a socket path, read only while its first
@@ -130,7 +131,10 @@ function sessionPane(socket: string): Pane {
 // once, and the strict generic profile reads the pane instead, as
 // selectProfile chooses for such a name. The nudge is on only with a nudge
 // type the bridge knows and a socket; a type it does not know, or the tmux
-// type without a socket, is logged now, once, and leaves the nudge off.
+// type without a socket, is logged now, once, and leaves the nudge off. Even
+// on, it nudges only through a profile that knows its harness's prompt
+// marker, so never through a generic one, which cannot tell a draft at the
+// prompt from an empty one.
 export function createMonitor(options: PaneMonitorOptions): Monitor {
   const { settings, log } = options;
   const name = settings.harnessProfile;
@@ -154,17 +158,19 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
   // The harness observer's nudge carries out every check of the session's
   // readiness and of each text it puts in the pane.
   const observe = options.observer ?? ((watched, read) => new PaneObserver(watched, read));
-  let profile: Profile | undefined;
+  let chosen = options.profile;
+  const profileOf = (): Profile => (chosen ??= selectProfile(name, options.client()));
+  const nudges = () => nudgeOn && profileOf().knowsMarker;
   // The observer while the reports are being read, which nudges.
-  let observer: NudgingObserver | undefined;
+  let observer: Observer | undefined;
   return {
     async *reports(signal) {
-      profile ??= selectProfile(name, options.client());
+      const profile = profileOf();
       const watching = observe(pane, profile);
       observer = watching;
       try {
         for await (const observation of watching.observations(signal)) {
-          yield reportOf(profile.name, observation, nudgeOn);
+          yield reportOf(profile.name, observation, nudges());
         }
       } finally {
         if (observer === watching) {
@@ -173,7 +179,7 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
       }
     },
     async canNudge() {
-      if (!nudgeOn) {
+      if (!nudges()) {
         return false;
       }
       try {
@@ -183,8 +189,10 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
         return false;
       }
     },
-    nudge(texts) {
-      return nudgeOn && observer !== undefined ? observer.nudge(texts) : Promise.resolve(notReady);
+    nudge(texts, nudgeOptions) {
+      return nudges() && observer !== undefined
+        ? observer.nudge(texts, nudgeOptions)
+        : Promise.resolve(notReady);
     },
   };
 }
@@ -222,13 +230,13 @@ async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
 
 // reportOf is the report of an observation: the profile's name, the
 // condition, since when, what stopped the harness, and whether the session
-// can be nudged: with the nudge on, whenever the pane reads as anything but
-// unknown. A reset time the agent API would not take, which a profile reads
+// can be nudged: where the bridge nudges through the profile, whenever the
+// pane reads as anything but unknown. A reset time the agent API would not take, which a profile reads
 // from the screen, is left out rather than failing the report.
 export function reportOf(
   profile: string,
   observation: Observation,
-  nudgeOn: boolean,
+  nudges: boolean,
 ): MonitorReport {
   const { stoppedBy } = observation;
   const condition = conditionOf(observation);
@@ -238,7 +246,7 @@ export function reportOf(
     condition,
     since: formatTimestamp(observation.since.getTime()),
     ...(stoppedBy && { stopped_by: stoppedByOf(stoppedBy) }),
-    nudge: nudgeOn && condition !== "unknown",
+    nudge: nudges && condition !== "unknown",
   };
 }
 

@@ -705,17 +705,16 @@ describe("a session's latest nudge", () => {
       )
       .run(...Object.values(columns));
 
-  it("holds its time, its outcome and the bridge's time together", () => {
-    nudged({ nudged_at: 2, nudge_sent: 1, nudge_bridge_at: 3 });
-    nudged({ nudged_at: 4, nudge_sent: 0, nudge_bridge_at: 5 });
+  it("holds its time, with its outcome or none while it is under way", () => {
+    nudged({ nudged_at: 2, nudge_sent: null });
+    nudged({ nudge_sent: 1 });
+    nudged({ nudged_at: 4, nudge_sent: 0 });
     expect(database.prepare("SELECT nudge_sent FROM sessions").get()).toEqual({ nudge_sent: 0 });
   });
 
   it.each([
-    ["a time without an outcome", { nudged_at: 2, nudge_bridge_at: 3 }],
-    ["an outcome without a time", { nudge_sent: 1, nudge_bridge_at: 3 }],
-    ["no bridge's time", { nudged_at: 2, nudge_sent: 1 }],
-    ["an outcome as neither", { nudged_at: 2, nudge_sent: 2, nudge_bridge_at: 3 }],
+    ["an outcome without a time", { nudge_sent: 1 }],
+    ["an outcome as neither", { nudged_at: 2, nudge_sent: 2 }],
   ])("refuses %s", (_, columns) => {
     expect(() => nudged(columns)).toThrow();
   });
@@ -770,10 +769,8 @@ describe("a database an earlier release wrote", () => {
           ...(JSON.parse(row) as object),
           last_seen_version: null,
           background_at: null,
-          nudge_offered_at: null,
           nudged_at: null,
           nudge_sent: null,
-          nudge_bridge_at: null,
         }),
       ),
     };

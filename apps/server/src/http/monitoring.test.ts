@@ -263,13 +263,14 @@ describe("what the operator sees", () => {
 
 describe("the nudge", () => {
   const nudging = speaking(agentApi.version);
-  const canBeNudged = { ...atPrompt, nudge: true };
+  const { stopped_by: _, ...unlimited } = atPrompt;
+  const canBeNudged = { ...unlimited, nudge: true };
 
-  const nudgePoll = () =>
+  const nudgePoll = (query = "wait=0") =>
     harness.agent(
       approved,
       "GET",
-      `/s/builder/main/monitor?bridge=${first}&wait=0`,
+      `/s/builder/main/monitor?bridge=${first}&${query}`,
       undefined,
       nudging,
     );
@@ -278,6 +279,14 @@ describe("the nudge", () => {
       approved,
       "POST",
       `/s/builder/main/monitor?bridge=${first}&seq=${++sent}`,
+      body,
+      nudging,
+    );
+  const nudgeClaim = (body: unknown, bridge = first) =>
+    harness.agent(
+      approved,
+      "POST",
+      `/s/builder/main/monitor/nudge?bridge=${bridge}`,
       body,
       nudging,
     );
@@ -296,18 +305,23 @@ describe("the nudge", () => {
     });
   });
 
-  it("is due to the bridge, which reports the outcome the operator then sees", async () => {
+  it("is due to the bridge, which claims it and reports the outcome the operator then sees", async () => {
     expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: true });
-    const offered = harness.fixture.now;
-    harness.fixture.advance(6_000);
-    const outcome = { ...canBeNudged, last_nudge: { at: formatTimestamp(Date.now()), sent: true } };
-    expect((await nudgeReport(outcome)).body).toEqual({ replaced: false });
+    // A poll that knows it is due waits while it still is.
+    expect((await nudgePoll("nudge=true&wait=0")).body).toEqual({ replaced: false, nudge: true });
+    const claimed = harness.fixture.now;
+    expect((await nudgeClaim({ phase: "start" })).body).toEqual({ replaced: false, go: true });
     expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
+    harness.fixture.advance(6_000);
+    expect((await nudgeClaim({ phase: "done", sent: true })).body).toEqual({
+      replaced: false,
+      go: false,
+    });
     const { secret } = await harness.createKey(["sessions:read", "threads:read"]);
     const page = (await harness.operator(secret, "GET", "/sessions")).body as SessionsPage;
-    const shown = { at: formatTimestamp(offered), sent: true, answered: false };
+    const shown = { at: formatTimestamp(claimed), sent: true, answered: false };
     expect(page.agents[0]?.sessions[0]?.presence).toMatchObject({
-      monitor: { ...shownAtPrompt, nudge: true },
+      monitor: canBeNudged,
       last_nudge: shown,
     });
     const listed = (await harness.operator(secret, "GET", "/threads")).body as ThreadPage;
@@ -317,16 +331,32 @@ describe("the nudge", () => {
     expect((await presence())?.last_nudge).toMatchObject({ answered: true });
   });
 
-  it("refuses a latest nudge it cannot read, keeping the report before it", async () => {
-    const refused = await nudgeReport({ ...canBeNudged, last_nudge: { at: "now", sent: true } });
-    expect(codeOf(refused)).toBe("invalid_input");
-    expect((await presence())?.monitor).toEqual({ ...shownAtPrompt, nudge: true });
+  it("is claimed as a background request, never a check-in", async () => {
+    const before = stamps();
+    harness.fixture.advance(1_000);
+    await nudgeClaim({ phase: "start" });
+    expect(stamps()).toEqual({ ...before, background_at: harness.fixture.now });
+  });
+
+  it("is refused to a replaced bridge, and a claim or outcome it cannot read", async () => {
+    await harness.agent(
+      approved,
+      "GET",
+      `/s/builder/main/monitor?bridge=${second}&claim=true&wait=0`,
+      undefined,
+      nudging,
+    );
+    expect((await nudgeClaim({ phase: "start" })).body).toEqual({ replaced: true, go: false });
+    for (const body of [{}, { phase: "later" }, { phase: "done" }]) {
+      expect(codeOf(await nudgeClaim(body, second))).toBe("invalid_input");
+    }
+    expect(codeOf(await nudgeClaim({ phase: "start" }, "short"))).toBe("invalid_input");
     expect(await presence()).not.toHaveProperty("last_nudge");
   });
 
-  it("never reaches the agent, but for the due answer itself", async () => {
-    await nudgePoll();
-    await nudgeReport({ ...canBeNudged, last_nudge: { at: since, sent: false } });
+  it("never reaches the agent, but for the due answer and the claim's own", async () => {
+    await nudgeClaim({ phase: "start" });
+    await nudgeClaim({ phase: "done", sent: false });
     const answers: Response[] = [
       await list(agentApi.version),
       await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, nudging),
@@ -348,6 +378,10 @@ describe("the nudge", () => {
       }
     }
     expect(Object.keys((await nudgePoll()).body as object).sort()).toEqual(["nudge", "replaced"]);
+    expect(Object.keys((await nudgeClaim({ phase: "start" })).body as object).sort()).toEqual([
+      "go",
+      "replaced",
+    ]);
   });
 });
 

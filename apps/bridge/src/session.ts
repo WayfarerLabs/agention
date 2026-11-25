@@ -82,8 +82,8 @@ export class Session {
   // key.
   async register(
     given: GivenNames,
-    signal?: AbortSignal,
-    canNudge: () => Promise<boolean> = () => Promise.resolve(false),
+    signal: AbortSignal | undefined,
+    canNudge: () => Promise<boolean>,
   ): Promise<object> {
     const { names, keyFile } = this.#fix(given);
     let key = keyFile.read() ?? keyFile.create();

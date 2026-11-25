@@ -63,18 +63,12 @@ export const stoppedBy = z.discriminatedUnion("reason", [
 ]);
 export type StoppedBy = z.infer<typeof stoppedBy>;
 
-// The latest nudge a bridge tried: when, by its clock, and whether it was
-// sent, the message submitted at the agent's prompt, or abandoned at a step
-// before or after that.
-export const lastNudge = z.object({ at: timestamp, sent: z.boolean() });
-export type LastNudge = z.infer<typeof lastNudge>;
-
 // A bridge's report: whether it monitors a terminal pane at all, and while it
 // does, the profile it reads it with, the session's condition and since when,
-// and what stopped it, which only a condition at rest may carry; whether the
-// session can be nudged, its nudge on and its pane read, absent from a bridge
-// older than the nudge, which never nudges; and the latest nudge it tried, if
-// any. A report replaces the one before it.
+// and what stopped it, which only a condition at rest may carry; and whether
+// the session can be nudged: its nudge on, its pane read, and a profile that
+// can tell when the session is at its prompt, absent from a bridge older than
+// the nudge, which never nudges. A report replaces the one before it.
 export const monitorReport = z.discriminatedUnion("monitored", [
   z.object({ monitored: z.literal(false) }),
   z
@@ -85,7 +79,6 @@ export const monitorReport = z.discriminatedUnion("monitored", [
       since: timestamp,
       stopped_by: stoppedBy.optional(),
       nudge: z.boolean().optional(),
-      last_nudge: lastNudge.optional(),
     })
     .superRefine((value, context) => {
       if (value.stopped_by !== undefined && !atRest.includes(value.condition)) {
@@ -112,10 +105,12 @@ export type MonitorReportQuery = z.infer<typeof monitorReportQuery>;
 
 // The background long poll: the bridge's id; whether it claims the session,
 // taking over from any other bridge, as a bridge does when it starts and
-// whenever it handles a tool call after being replaced; and how long to wait,
-// 25 seconds unless it says less.
+// whenever it handles a tool call after being replaced; whether the bridge
+// knows already that a nudge is due, as the poll before last told it; and how
+// long to wait, 25 seconds unless it says less.
 export const monitorPollQuery = monitorQuery.extend({
   claim: queryBoolean(z.boolean().default(false)),
+  nudge: queryBoolean(z.boolean().default(false)),
   wait: queryNumber(z.number().int().min(0).max(25).default(25)),
 });
 export type MonitorPollQuery = z.infer<typeof monitorPollQuery>;
@@ -128,10 +123,33 @@ export type MonitorAnswer = z.infer<typeof monitorAnswer>;
 
 // The answer of a poll, which also says whether a nudge is due: the bridge
 // should nudge its agent, and nothing more, since the reason, the threads and
-// the session's presence are the operator's. A poll answers at once while one
-// is due, and a replaced bridge is never told one is.
+// the session's presence are the operator's. A poll answers at once when
+// whether one is due differs from what its query says the bridge knows, and
+// a replaced bridge is never told one is.
 export const monitorPollAnswer = monitorAnswer.extend({ nudge: z.boolean() });
 export type MonitorPollAnswer = z.infer<typeof monitorPollAnswer>;
+
+// The query of a nudge's claim or outcome: the bridge's id.
+export const monitorNudgeQuery = monitorQuery;
+export type MonitorNudgeQuery = z.infer<typeof monitorNudgeQuery>;
+
+// A nudge's claim and its outcome, which the bridge sends for the nudge it
+// tries: start, once the session is ready for it and before anything reaches
+// the pane, which claims the nudge that is due; and done, once a nudge it
+// claimed ends, saying whether it was sent, the message submitted at the
+// agent's prompt, or abandoned at a step before or after that.
+export const monitorNudge = z.discriminatedUnion("phase", [
+  z.object({ phase: z.literal("start") }),
+  z.object({ phase: z.literal("done"), sent: z.boolean() }),
+]);
+export type MonitorNudge = z.infer<typeof monitorNudge>;
+
+// The answer of a nudge's claim or outcome: whether another bridge acts for
+// the session now, and, for a claim, whether the bridge may go ahead, a nudge
+// being due and now claimed. A replaced bridge never may, and an outcome
+// never says it may.
+export const monitorNudgeAnswer = monitorAnswer.extend({ go: z.boolean() });
+export type MonitorNudgeAnswer = z.infer<typeof monitorNudgeAnswer>;
 
 // A session's latest report as the operator sees it, its times as the server
 // writes them, with whether the session can be nudged, false for a bridge
@@ -155,10 +173,11 @@ export const monitorState = z.discriminatedUnion("monitored", [
 ]);
 export type MonitorState = z.infer<typeof monitorState>;
 
-// A session's latest nudge as the operator sees it: when the server told its
-// bridge one was due, by the server's clock; whether it was sent; and whether
-// the agent has checked in since. A nudge sent with no check-in since is one
-// the agent is not responding to.
+// A session's latest nudge as the operator sees it: when its bridge claimed
+// it, by the server's clock; whether it was sent, true too while it is under
+// way or where its outcome never arrived; and whether the agent has checked
+// in since. A nudge sent with no check-in since is one the agent is not
+// responding to.
 export const nudgeState = z.object({
   at: z.string(),
   sent: z.boolean(),

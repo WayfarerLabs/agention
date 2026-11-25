@@ -5,7 +5,12 @@ import { homedir } from "node:os";
 import path from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import { AgentApi } from "./agent-api.ts";
-import type { HarnessClient, Pane, Profile } from "@wayfarerlabs/agention-harness-observer";
+import type {
+  HarnessClient,
+  Observer,
+  Pane,
+  Profile,
+} from "@wayfarerlabs/agention-harness-observer";
 import { type ConnectAddress, parseConnectAddress } from "./connect-address.ts";
 import { settingProblem } from "./errors.ts";
 import {
@@ -15,7 +20,6 @@ import {
   type MonitoringEnvironment,
   type MonitoringOptions,
   monitoringSettings,
-  type NudgingObserver,
 } from "./monitoring.ts";
 import { Reporter, type ReporterTiming, reporterTiming } from "./reporter.ts";
 import { Session, type SessionEnvironment } from "./session.ts";
@@ -49,7 +53,10 @@ export interface BridgeOptions {
   // The pane at a tmux socket path; by default a TmuxPane.
   pane?: (socket: string) => Pane;
   // The observer of a pane through a profile; by default a PaneObserver.
-  observer?: (pane: Pane, profile: Profile) => NudgingObserver;
+  observer?: (pane: Pane, profile: Profile) => Observer;
+  // The profile monitoring reads the pane with; by default the one the
+  // configuration chooses.
+  profile?: Profile;
 }
 
 // The skill's first rule, which the bridge gives every agent host when it
@@ -166,12 +173,12 @@ function connect(
     log,
     pane: options.pane,
     observer: options.observer,
+    profile: options.profile,
   });
   return {
     api,
     session,
     home,
-    monitor,
     statusReminder: new StatusReminder(clock),
     reporter: new Reporter({
       api,

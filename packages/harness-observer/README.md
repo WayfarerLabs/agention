@@ -36,17 +36,17 @@ Two seams keep terminals and harnesses apart:
   many more characters fit on its row; text that is not all printable ASCII, whose width terminals
   disagree on, has no end the cursor is known to be at and no room. A harness's own profile knows
   its prompt marker, so the text is what follows it, and reads the hints its captures show in an
-  empty input as empty; a generic profile gives the cursor's whole row. Claude Code's and Codex's
-  profiles are this package's (see [Harness profiles](#harness-profiles)). Adding a harness, or a
-  version whose screens changed, is a change inside the package, never through its interface:
-  internally, a harness's profiles are a `HarnessProfiles` (`src/profile.ts`), which `versionTable`
-  (`src/version-table.ts`) builds from the versions where its screens changed, and the registry
-  (`src/registry.ts`) lists them; none of these is exported. The generic profiles, `generic-strict`
-  and `generic-lenient`, serve a harness with no profile of its own, and never name a prompt or a
-  reason. `selectProfile(name, client)` chooses one, by a name in `profileNames` (`generic-strict`,
-  `generic-lenient`, `claude-code` or `codex`) or `auto` for the MCP client's harness and version,
-  with the strict generic profile where none applies; a caller checks a configured name against
-  `profileNames` itself.
+  empty input as empty; a generic profile gives the cursor's whole row, so it is never nudged
+  through. Claude Code's and Codex's profiles are this package's (see
+  [Harness profiles](#harness-profiles)). Adding a harness, or a version whose screens changed, is a
+  change inside the package, never through its interface: internally, a harness's profiles are a
+  `HarnessProfiles` (`src/profile.ts`), which `versionTable` (`src/version-table.ts`) builds from
+  the versions where its screens changed, and the registry (`src/registry.ts`) lists them; none of
+  these is exported. The generic profiles, `generic-strict` and `generic-lenient`, serve a harness
+  with no profile of its own, and never name a prompt or a reason. `selectProfile(name, client)`
+  chooses one, by a name in `profileNames` (`generic-strict`, `generic-lenient`, `claude-code` or
+  `codex`) or `auto` for the MCP client's harness and version, with the strict generic profile where
+  none applies; a caller checks a configured name against `profileNames` itself.
 
 `PaneObserver` joins them. `observations(signal)` reads the pane once a second until the signal
 aborts and yields an `Observation` whenever its activity, screen or stopped-by reason changes:
@@ -81,29 +81,40 @@ observations carry only fixed kinds, times and fixed reasons.
 
 ## Nudging
 
-`nudge({ warning, message })` puts two texts in the harness's input line, both the caller's, and
-submits only the second: a warning that a nudge is coming, which anyone at the terminal can stop by
-typing over it, and then the message. It starts from the latest observation of a running
-`observations`, so it is never ready without one, and runs one nudge at a time. It resolves to
-`{ sent: true }`, or `{ sent: false, step }` with the step it stopped at, in this order:
+`nudge({ warning, message }, { begin, signal })` puts two texts in the harness's input line, both
+the caller's, and submits only the second: a warning that a nudge is coming, which anyone at the
+terminal can stop by typing over it, and then the message. It starts from the latest observation of
+a running `observations`, so it is never ready without one, and runs one nudge at a time. It nudges
+only through a profile that knows its harness's prompt marker, a harness's own: a generic profile
+reads the cursor's whole row as the input line, so it cannot tell a draft someone left at the prompt
+from an empty prompt, and `nudge` throws, before anything reaches the pane, for an observer with
+one. It resolves to `{ sent: true }`, or `{ sent: false, step }` with the step it stopped at, in
+this order:
 
 1. **`not-ready`**: nothing is sent unless the latest observation is at rest at the input line, with
    no usage limit before its reset, and a fresh reading shows the same screen, with one pane, the
    harness holding the terminal, keys reaching it, no key from any client for 10 seconds, and an
-   input line with the cursor at its end and room for the longer text; with a harness's own profile,
-   the line must also be empty.
+   empty input line with the cursor at its end and room for the longer text. Then it calls `begin`,
+   once, as when its caller claims the nudge, and goes on only where that answers true and a reading
+   after it still shows the same screen with no key typed meanwhile.
 2. **`warning`**: it pastes the warning and confirms the line holds exactly it, cursor at its end;
    waits 5 seconds; and confirms again, with nothing else on the screen changed and no client having
    typed. A failure leaves the warning where it is.
 3. **`cleared`**: it removes the warning one Backspace at a time, confirming before each next one
-   that the last removed one character, until the line is as it was. A failure, such as in vim's
-   normal mode, where Backspace moves the cursor, leaves what is left.
+   that the last removed one character, until the line is empty. A failure, such as in vim's normal
+   mode, where Backspace moves the cursor, leaves what is left.
 4. **`message`**: it pastes the message and confirms it as it did the warning. A failure removes the
    message where the line still holds exactly it, and otherwise leaves the line.
 5. **`submitted`**: it confirms the message once more, presses Enter, and within 5 seconds sees the
-   line as it was before the nudge and another row of the screen changed, as a turn starting shows.
-   A failure before Enter removes the message as step 4 does; after Enter, the message is the
-   harness's.
+   line empty again and another row of the screen changed, as a turn starting shows. A failure
+   before Enter removes the message as step 4 does; after Enter, the message is the harness's.
+
+`signal` stops it: once it aborts, nothing more reaches the pane, not even a key that would remove
+the nudge's own text, as suits a caller that another has taken over from. Where reading or writing
+the pane fails, or the profile fails on a screen, the nudge stops at the step it reached and makes
+one try at removing its own text: only where a fresh reading shows the line holding exactly it, in a
+pane that takes keys, with no key typed since the nudge began. A failure of that try changes nothing
+of the outcome.
 
 Its guarantees:
 
@@ -113,10 +124,8 @@ Its guarantees:
   which a dialog may take as a choice, and never Escape, which harnesses bind to leaving modes,
   clearing input and rewinding.
 - Text reaches the pane only as pastes, which dialogs drop, and only the caller's two texts.
-- It confirms against what the profile reads: with a harness's own profile, the line holds the text
-  alone; with a generic one, which cannot tell a prompt marker from typed text, the cursor's row is
-  the row before the nudge with the text appended at the cursor. A generic profile cannot see a
-  draft already in the input, which the 10 seconds without a key guard against.
+- It confirms against what the profile reads: the line, after the harness's prompt marker, holds the
+  text alone.
 - It never puts a text in a line it cannot be shown to fit: it throws a `RangeError`, before
   anything reaches the pane, for an empty text or one that is not all printable ASCII, and is not
   ready where the line has too little room.
@@ -159,7 +168,7 @@ Where a harness has no profile, the strict generic profile finds the input line 
 showing at the end of its row. Terminals disagree on how many columns a wide character, such as a
 CJK ideograph or an emoji, or a combining mark takes, so it tells the end of a row only where the
 row is all printable ASCII, and reads any other row as no input line; the lenient one finds the
-input line wherever the cursor shows.
+input line wherever the cursor shows. Neither is nudged through.
 
 No profile names a stopped-by reason yet: usage limits, blocks and errors have no captures.
 

@@ -36,16 +36,15 @@ import { registerFileTools } from "./file-tools.ts";
 import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
 import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
-import type { Monitor } from "./monitoring.ts";
 import type { Reporter } from "./reporter.ts";
 import type { Session } from "./session.ts";
 import { maxReminderBytes, type StatusReminder } from "./status-reminder.ts";
 
 // What the tools act through: the server's API, the session, the home
 // directory the bridge keeps its files under, what reminds the agent to
-// report the session's status, the reporter that monitors it in the
-// background and the monitor, which says whether it can be nudged, or why
-// the bridge cannot reach them.
+// report the session's status and the reporter that monitors it in the
+// background, which also says whether it can be nudged, or why the bridge
+// cannot reach them.
 export type Connection =
   | {
       api: AgentApi;
@@ -53,7 +52,6 @@ export type Connection =
       home: string;
       statusReminder: StatusReminder;
       reporter: Reporter;
-      monitor: Monitor;
     }
   | { problem: BridgeError };
 export type Connected = Exclude<Connection, { problem: BridgeError }>;
@@ -266,8 +264,8 @@ export function registerTools(server: McpServer, connection: Connection): void {
     // register starts the reporter, which monitors the session once the
     // operator approves it, with no further tool call.
     async (input, signal) => {
-      const { session, reporter, monitor } = connected();
-      const answer = await session.register(input, signal, () => monitor.canNudge());
+      const { session, reporter } = connected();
+      const answer = await session.register(input, signal, () => reporter.canNudge());
       reporter.start();
       return answer;
     },

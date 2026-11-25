@@ -34,26 +34,36 @@ export const monitoringVersion = 6;
 // its last check-in a minute or more, when its last check-in is after now,
 // so a clock stepped back never holds it still, when the version differs
 // from the last one's, so a session pinned to an older bridge is read by its
-// rule at once, or when its last check-in is before the latest offer of a
-// nudge (offerNudge), so a check-in during a nudge, or in reply to one,
-// always shows, at the cost of one stamp more for each offer. The agent
-// mount calls it on every call by an approved key but its bridge's
+// rule at once, or when its last check-in is before the latest claim of a
+// nudge (claimNudge), so a check-in during a nudge, or in reply to one,
+// always shows, at the cost of one stamp more for each claim. A stamp that
+// moves wakes the session's channel, since it can end a nudge being due. The
+// agent mount calls it on every call by an approved key but its bridge's
 // background ones, before the call's own work, in a transaction of its own,
 // so a call refused later still counts. A registration that is not approved
 // as it runs, pending or revoked since its token was verified, stamps
 // nothing.
 export function markCheckedIn(store: Store, registrationId: number, version: number): void {
   const { db } = store;
-  db.transaction(() => {
-    db.prepare(
-      `UPDATE sessions SET last_seen_at = :now, last_seen_version = :version
-       WHERE id = (
-           SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
-         )
-         AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-           OR last_seen_version IS NOT :version OR last_seen_at < nudge_offered_at)`,
-    ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
-  });
+  const stamped = db.transaction(
+    () =>
+      db
+        .prepare(
+          `UPDATE sessions SET last_seen_at = :now, last_seen_version = :version
+           WHERE id = (
+               SELECT session_id FROM registrations
+               WHERE id = :registration AND status = 'approved'
+             )
+             AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
+               OR last_seen_version IS NOT :version OR last_seen_at < nudged_at)
+           RETURNING id`,
+        )
+        .get({ now: store.clock(), registration: registrationId, step: seenStep, version }) as
+        { id: number } | undefined,
+  );
+  if (stamped !== undefined) {
+    store.notifier.notify(stamped.id);
+  }
 }
 
 // markBackground stamps the session a registration acts for as connected
@@ -113,7 +123,8 @@ export function monitorStateOf(row: MonitorRow): MonitorState {
 // The columns of a session's presence, as a read selects them: when its
 // agent last checked in, whether it is quiet and connected, as quietOf and
 // connectedOf say, its bridge's latest report, and its latest nudge, its
-// columns null until its bridge first reports one.
+// time null until its bridge first claims one and its outcome null while
+// none is known.
 export interface PresenceRow extends MonitorRow {
   last_seen_at: number | null;
   quiet: number;
@@ -125,20 +136,22 @@ export interface PresenceRow extends MonitorRow {
 // presenceOf describes a session's presence as the operator sees it. A
 // report shows only while its bridge is connected, so a bridge that ended
 // never leaves its last one standing as current. The latest nudge shows
-// whether its bridge is connected or not, with whether the agent has checked
-// in since: the check-in stamp that markCheckedIn always moves past it.
+// whether its bridge is connected or not, as sent unless its bridge said it
+// was not, so one under way or whose outcome never arrived counts as sent,
+// with whether the agent has checked in since: the check-in stamp that
+// markCheckedIn always moves past it.
 export function presenceOf(row: PresenceRow): SessionPresence {
   return {
     ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
     quiet: row.quiet === 1,
     ...(row.connected === null ? {} : { connected: row.connected === 1 }),
     ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
-    ...(row.nudged_at === null || row.nudge_sent === null
+    ...(row.nudged_at === null
       ? {}
       : {
           last_nudge: {
             at: formatTimestamp(row.nudged_at),
-            sent: row.nudge_sent === 1,
+            sent: row.nudge_sent !== 0,
             answered: row.last_seen_at !== null && row.last_seen_at >= row.nudged_at,
           },
         }),

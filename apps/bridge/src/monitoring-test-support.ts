@@ -21,6 +21,7 @@ export const timing: ReporterTiming = {
   stateEvery: 50,
   retryFirst: 20,
   retryMost: 100,
+  nudgeEvery: 200,
 };
 
 // eventually reads until read gives something, every 25 milliseconds, up to
@@ -102,15 +103,23 @@ export class MonitorHarness extends BridgeHarness {
       .get() as Record<string, unknown> | undefined;
   }
 
-  // The session's latest nudge, as its row has it: when, by the server's
-  // clock, and whether it was sent, or undefined before any.
-  nudged(): { nudged_at: number; nudge_sent: number } | undefined {
+  // The session's latest nudge, as its row has it: when it was claimed, by
+  // the server's clock, and whether it was sent, null while that is not
+  // known; or undefined before any claim.
+  nudged(): { nudged_at: number; nudge_sent: number | null } | undefined {
     const row = this.server.fixture.db
       .prepare("SELECT nudged_at, nudge_sent FROM sessions")
       .get() as { nudged_at: number | null; nudge_sent: number | null } | undefined;
-    return row?.nudged_at === null || row?.nudge_sent === null || row === undefined
+    return row === undefined || row.nudged_at === null
       ? undefined
       : { nudged_at: row.nudged_at, nudge_sent: row.nudge_sent };
+  }
+
+  // The nudges' claims and outcomes bridges sent.
+  nudgeRequests(): Seen[] {
+    return this.seen.filter(
+      (seen) => seen.method === "POST" && seen.path.endsWith("/monitor/nudge"),
+    );
   }
 
   // operatorStarts starts a thread with the session as the operator, through

@@ -19,7 +19,8 @@ Once the session is approved, the bridge reports to the server that it is
 connected, and monitors the session's terminal when it is given the socket of
 the tmux server the agent host runs in, whose one pane it reads, on Linux with
 tmux 3.3 or later: what it reports is the session's condition, such as running
-or at its prompt, never the screen's text. With the nudge on, it also nudges
+or at its prompt, never the screen's text. With the nudge on, and the terminal
+read with the agent host's own profile, never a generic one, it also nudges
 the agent at its prompt when the operator writes and the agent has not
 checked in since: it shows a warning the operator can type over to stop it,
 then submits one fixed message telling the agent to check in. An option wins
