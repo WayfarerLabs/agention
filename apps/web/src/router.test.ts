@@ -35,7 +35,7 @@ describe("a list's address", () => {
 
   const agents = Array.from({ length: 51 }, (_, i) => `agent=agent-${i}`).join("&");
   it.each([
-    ["an unknown value", "/?priority=low&sort=oldest&group=topic&unread=true", "/?unread=true"],
+    ["an unknown value", "/?priority=low&sort=oldest&group=tag&unread=true", "/?unread=true"],
     ["a malformed name", "/?agent=Builder&unread=true", "/?unread=true"],
     ["a name given twice", "/?agent=builder&agent=builder&unread=true", "/?unread=true"],
     ["more names than the list takes", `/?${agents}&unread=true`, "/?unread=true"],

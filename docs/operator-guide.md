@@ -394,27 +394,27 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - **Group** shows the list **Flat**, the default, or folded under headers: by **Group**, each
     session group's sessions under its header when the list holds two or more groups, those in none
     under **No group**, and each session as **Session** folds it; by **Session**, each session's
-    threads under its header, and under their topics' when they carry two or more, those without one
-    under **No topic**; or by **Agent**, each agent's threads under its header, and under their
-    sessions' when it has two or more. Groups, sessions, topics and agents come in the order of
-    their first thread, and the list loads a page at a time, its threads arriving group by group.
-    Each header shows all its group holds, collapsed or not, and before all of it has loaded: how
-    many threads, the closed envelope with how many are unread or the open envelope when none is,
-    **Blocked on you** when an agent's ask blocks its work on your answer, the highest priority of
-    an open ask, the archive box when all are archived, and, in the warning's color on a session's
-    or an agent's header while it is quiet, **last seen** and when, or **never seen** (an agent is
-    quiet while every session it shows is). A session group's header adds up its sessions'. A
-    header's name, and each of those marks a filter matches, is a link that adds what the header
-    heads (its group, session, topic or agent) and the mark's own filter to the filters on, keeping
-    the others, the order and the grouping: the name and the count keep all its threads, the
-    envelope its unread ones, **Blocked on you** those blocking an agent on your answer, and the
-    priority those with an ask at that priority or higher. While a filter on open asks is on,
-    **Blocked on you** and the priority link nowhere, since they count every open ask of the threads
-    shown while those filters keep a thread for one ask meeting them all. **No topic**, which no
-    filter names, the archive box and **last seen** link nowhere. The chevron before a header's name
-    collapses everything under it or expands it again, as a click anywhere else on the header does
-    but on a link. Every header starts expanded, and this browser keeps the ones you collapse, for
-    each way of grouping, a session group's however you rename it.
+    threads under its header; by **Topic**, each session's threads under its header, and under their
+    topics' when they carry two or more, those without one under **No topic**; or by **Agent**, each
+    agent's threads under its header, and under their sessions' when it has two or more. Groups,
+    sessions, topics and agents come in the order of their first thread, and the list loads a page
+    at a time, its threads arriving group by group. Each header shows all its group holds, collapsed
+    or not, and before all of it has loaded: how many threads, the closed envelope with how many are
+    unread or the open envelope when none is, **Blocked on you** when an agent's ask blocks its work
+    on your answer, the highest priority of an open ask, the archive box when all are archived, and,
+    in the warning's color on a session's or an agent's header while it is quiet, **last seen** and
+    when, or **never seen** (an agent is quiet while every session it shows is). A session group's
+    header adds up its sessions'. A header's name, and each of those marks a filter matches, is a
+    link that adds what the header heads (its group, session, topic or agent) and the mark's own
+    filter to the filters on, keeping the others, the order and the grouping: the name and the count
+    keep all its threads, the envelope its unread ones, **Blocked on you** those blocking an agent
+    on your answer, and the priority those with an ask at that priority or higher. While a filter on
+    open asks is on, **Blocked on you** and the priority link nowhere, since they count every open
+    ask of the threads shown while those filters keep a thread for one ask meeting them all. **No
+    topic**, which no filter names, the archive box and **last seen** link nowhere. The chevron
+    before a header's name collapses everything under it or expands it again, as a click anywhere
+    else on the header does but on a link. Every header starts expanded, and this browser keeps the
+    ones you collapse, for each way of grouping, a session group's however you rename it.
   - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
     others keep; several values chosen in one filter, such as two agents, each keep their own
     threads. **Filters** opens a sheet holding them all, each a row of choices whose first turns it

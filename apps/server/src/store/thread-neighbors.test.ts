@@ -60,7 +60,8 @@ describe("the threads above and below", () => {
   it("are the rows around each thread in the list, under every order, direction and grouping", () => {
     // Three sessions, two in groups, with threads of each kind of lead ask,
     // some started at the same moment in different sessions, so ties break
-    // on the session as the list breaks them.
+    // on the session as the list breaks them, and some on a topic, so
+    // grouping by topic splits a session.
     const side = fixture.registerAgent("builder", "side");
     const reviewer = fixture.registerAgent("reviewer", "main");
     for (const [name, session] of [
@@ -71,8 +72,11 @@ describe("the threads above and below", () => {
       setSessionGroup(fixture.store, fixture.operator, session.target, { group: id });
     }
     const at = (hours: number) => new Date(fixture.now + hours * hour).toISOString();
-    start("m1", agent, { asks: [{ question: "q", priority: "high" }] });
-    start("s1", side, { asks: [{ question: "q", answer_by: at(3), effort: "quick" }] });
+    start("m1", agent, { topic: "auth", asks: [{ question: "q", priority: "high" }] });
+    start("s1", side, {
+      topic: "auth",
+      asks: [{ question: "q", answer_by: at(3), effort: "quick" }],
+    });
     start("r1", reviewer, { asks: [{ question: "q", impact: "blocking" }] });
     fixture.advance(1);
     for (const session of [agent, side, reviewer]) {
@@ -82,7 +86,7 @@ describe("the threads above and below", () => {
         asks: [{ question: "q", effort: "longer" }],
       });
     }
-    start("m4");
+    start("m4", agent, { topic: "auth" });
     start("s4", side, { asks: [{ question: "q", answer_by: at(1), priority: "low" }] });
     markRead(fixture.store, fixture.operator, threadTarget(side, 1), { through: 1 });
     const groupings: (ThreadGrouping | undefined)[] = [undefined, ...threadGrouping.options];

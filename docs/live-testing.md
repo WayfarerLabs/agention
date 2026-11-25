@@ -92,19 +92,19 @@ with each other or with what the product does, the disagreement is the finding.
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
   filters with their counts, the session group and tag filters among them, with a removed group's
   and an unused tag's chips, its search reaching what live messages say and not what a replaced one
-  said, its sorts and their direction, and grouping with roll-ups, by session group, by session and
-  by agent, each header's label and marks adding their filters to the list and its bar folding but
-  on a link; the thread page's numbered asks answered several at once, a message's details,
-  replacements, mark unread from a message, archive through a message, with the divider after what
-  it archived once unfolded, and archive all, going where Auto-advance says, the thread that was
-  above it, the one below or the list, and Thread above and Thread below, with `[` and `]`, through
-  the list the thread returns to, alike beside the list and on a phone, from the list, from a link
-  and after a reload, following the thread when its own answers and replies move it in the list, a
-  thread read out of a list kept to the unread, grouped or not, keeping its place there, a held key
-  acting once, Send held while the page moves, and back to the list, which says so, at its end; Send
-  and what answers it kept on a short screen while writing, After sending's choices, back to the
-  list, staying, archiving, refused while an ask stays open, and the threads above and below, and
-  the way back under the composer; the compact sizes with a mouse and the full ones by touch, a
+  said, its sorts and their direction, and grouping with roll-ups, by session group, by session, by
+  topic and by agent, each header's label and marks adding their filters to the list and its bar
+  folding but on a link; the thread page's numbered asks answered several at once, a message's
+  details, replacements, mark unread from a message, archive through a message, with the divider
+  after what it archived once unfolded, and archive all, going where Auto-advance says, the thread
+  that was above it, the one below or the list, and Thread above and Thread below, with `[` and `]`,
+  through the list the thread returns to, alike beside the list and on a phone, from the list, from
+  a link and after a reload, following the thread when its own answers and replies move it in the
+  list, a thread read out of a list kept to the unread, grouped or not, keeping its place there, a
+  held key acting once, Send held while the page moves, and back to the list, which says so, at its
+  end; Send and what answers it kept on a short screen while writing, After sending's choices, back
+  to the list, staying, archiving, refused while an ask stays open, and the threads above and below,
+  and the way back under the composer; the compact sizes with a mouse and the full ones by touch, a
   touchscreen laptop among them; the Threads tab side by side at a desktop's width, filling it, the
   list kept as chosen beside each thread opened, the open thread's row marked, Back from thread to
   thread, focus back on the row left, and one at a time below that width; stranded's reasons, in the

@@ -664,6 +664,10 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Remove filter: Session builder/main" }).click();
   await expect(page).toHaveURL(/\/\?sort=latest&group=session$/);
+  // Grouped by topic, the sessions head the list as they do by session.
+  await page.getByRole("combobox", { name: "Group" }).selectOption("Topic");
+  await expect(page).toHaveURL(/\/\?sort=latest&group=topic$/);
+  await expect(page.getByRole("button", { name: "Agent builder Session main" })).toBeVisible();
   await page.getByRole("combobox", { name: "Group" }).selectOption("Flat");
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Priority");
   await expect(page).toHaveURL(/\/$/);

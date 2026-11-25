@@ -368,6 +368,7 @@ describe("the thread list", () => {
       "",
       "session_group",
       "session",
+      "topic",
       "agent",
     ]);
     expect(groupSelect().value).toBe("");

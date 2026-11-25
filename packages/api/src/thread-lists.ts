@@ -196,10 +196,16 @@ const listFilters = {
 };
 
 // How the operator's list may be grouped, in the order the operator is
-// offered them: by session group, no group being one of its own, within each
-// by session, and within each session by topic; by session, and within each
-// by topic; or by agent, and within each by session.
-export const threadGrouping = z.enum(["session_group", "session", "agent"]);
+// offered them: by session group, no group being one of its own, and within
+// each by session; by session; by session, and within each by topic, threads
+// without one under none; or by agent, and within each by session.
+export const threadGrouping = z
+  .enum(["session_group", "session", "topic", "agent"])
+  .describe(
+    "Group the list, each group's threads together: session_group by session group, then " +
+      "session; session by session; topic by session, then topic; agent by agent, then " +
+      "session. Only topic carries each session's topics in the roll-ups.",
+  );
 export type ThreadGrouping = z.infer<typeof threadGrouping>;
 
 // The list's filters, which every query of the operator's list takes, and
@@ -377,8 +383,8 @@ export function composePresence(parts: readonly Presence[]): Presence {
 
 // The roll-ups of a grouped list: each session holding a thread the list
 // keeps, with its group when it is in one, its roll-up, its presence and,
-// grouped by session group or by session, its topics' roll-ups, the threads
-// without a topic under none, in the order of the groups. An agent's roll-up and presence compose
+// grouped by topic, its topics' roll-ups, the threads without a topic under
+// none, in the order of the groups. An agent's roll-up and presence compose
 // from its sessions', and a group's roll-up from its sessions'. It lists at
 // most maxListed sessions, and as many topics in all, the first in order,
 // and says when it leaves any out.
@@ -406,9 +412,9 @@ export const listedThread = threadSummary.extend({ group: groupRef.optional() })
 // roll-ups of its groups. A grouped list orders its threads by their group,
 // then by the sort, so a group's threads arrive together, each group placed
 // by its first thread under the sort: by session group, each session's
-// group, no group being one of its own, each session within it, and each
-// topic within that; by session, each session, and each topic within it; by
-// agent, each agent, and each session within it.
+// group, no group being one of its own, and each session within it; by
+// session, each session; by topic, each session, and each topic within it;
+// by agent, each agent, and each session within it.
 export const threadList = threadPage.extend({
   threads: z.array(listedThread),
   total: sequence,
