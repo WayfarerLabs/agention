@@ -104,12 +104,12 @@ export function DueTime({ value }: { value: string }) {
   );
 }
 
-// lastSeenWords says when a session was last seen: "last seen 14:02", or
-// "never seen".
-function lastSeenWords(presence: Presence): string {
+// checkInWords says when a session's agent last checked in: "last check-in
+// 14:02", or "never checked in".
+function checkInWords(presence: Presence): string {
   return presence.last_seen_at === undefined
-    ? "never seen"
-    : `last seen ${sinceTime(presence.last_seen_at)}`;
+    ? "never checked in"
+    : `last check-in ${sinceTime(presence.last_seen_at)}`;
 }
 
 // What a session reports it is doing, in a word.
@@ -243,7 +243,7 @@ export type Absence = (
 
 // absenceOf says why a session is not likely to see what the operator writes
 // until something starts it again, if it is not: it stopped, with its
-// outcome; or it is quiet, with when it was last seen; or it has no active
+// outcome; or it is quiet, with when its agent last checked in; or it has no active
 // credential; or its bridge is not connected, the first of them that holds;
 // with what its terminal shows, where its bridge observes one. A bridge from
 // before monitoring never says whether it is connected, so its session is
@@ -264,10 +264,10 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
 }
 
 // absenceWords says briefly why a session is not likely to see what the
-// operator writes, as a tag says it: "stopped, completed", "last seen 14:02",
-// "never seen", "no active credential" or "not connected", followed by what
-// its terminal shows, where its bridge observes one, as in "last seen 14:02
-// · stopped at a permission prompt".
+// operator writes, as a tag says it: "stopped, completed", "last check-in
+// 14:02", "never checked in", "no active credential" or "not connected",
+// followed by what its terminal shows, where its bridge observes one, as in
+// "last check-in 14:02 · stopped at a permission prompt".
 export function absenceWords(absence: Absence): string {
   const why = absenceWhyWords(absence);
   return absence.observed === undefined ? why : `${why} · ${conditionWords(absence.observed)}`;
@@ -278,7 +278,7 @@ function absenceWhyWords(absence: Absence): string {
     case "stopped":
       return absence.outcome === undefined ? "stopped" : `stopped, ${absence.outcome}`;
     case "quiet":
-      return lastSeenWords({ quiet: true, last_seen_at: absence.last_seen_at });
+      return checkInWords({ quiet: true, last_seen_at: absence.last_seen_at });
     case "credential":
       return "no active credential";
     case "disconnected":
@@ -287,10 +287,10 @@ function absenceWhyWords(absence: Absence): string {
 }
 
 // AbsenceReason says, as a clause, why a session is not likely to see what
-// the operator writes: "it stopped, completed", "it has not been seen since
-// 14:02", "it has never been seen", "it has no active credential" or "its
+// the operator writes: "it stopped, completed", "it has not checked in since
+// 14:02", "it has never checked in", "it has no active credential" or "its
 // bridge is not connected", and what its terminal shows, where its bridge
-// observes one, as in "it has not been seen since 14:02, and its terminal
+// observes one, as in "it has not checked in since 14:02, and its terminal
 // shows it stopped at a permission prompt".
 export function AbsenceReason({ absence }: { absence: Absence }) {
   return (
@@ -311,10 +311,10 @@ function AbsenceWhy({ absence }: { absence: Absence }) {
       return <>it stopped{absence.outcome === undefined ? "" : `, ${absence.outcome}`}</>;
     case "quiet":
       return absence.last_seen_at === undefined ? (
-        <>it has never been seen</>
+        <>it has never checked in</>
       ) : (
         <>
-          it has not been seen since <Since value={absence.last_seen_at} />
+          it has not checked in since <Since value={absence.last_seen_at} />
         </>
       );
     case "credential":

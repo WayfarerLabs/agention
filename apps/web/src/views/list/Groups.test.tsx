@@ -159,9 +159,9 @@ describe("grouped by topic", () => {
     // tone, as the sessions view does; when it was last seen links nowhere,
     // nor does the archive box.
     expect(
-      bar("Agent builder Session side").querySelector(".last-seen.warning")?.textContent,
+      bar("Agent builder Session side").querySelector(".last-check-in.warning")?.textContent,
     ).toContain(sinceTime(lastSeen));
-    expect(bar("Agent builder Session main").querySelector(".last-seen")).toBeNull();
+    expect(bar("Agent builder Session main").querySelector(".last-check-in")).toBeNull();
     expect(targets("Agent builder Session side")).toEqual([
       "/?unread=true&session=builder/side&sort=due&group=topic",
       "/?unread=true&session=builder/side&sort=due&group=topic",
@@ -409,13 +409,13 @@ describe("grouped by agent", () => {
     // An agent is quiet only while all its sessions are.
     expect(outerHeaders()).toEqual(["Agent builder", "Agent reviewer"]);
     expect(targets("Agent builder")[0]).toBe("/?agent=builder&group=agent");
-    expect(bar("Agent builder").querySelector(".last-seen")).toBeNull();
-    expect(bar("Agent reviewer").querySelector(".last-seen.warning")).not.toBeNull();
+    expect(bar("Agent builder").querySelector(".last-check-in")).toBeNull();
+    expect(bar("Agent reviewer").querySelector(".last-check-in.warning")).not.toBeNull();
     // builder has two sessions, each an inner header over its threads;
     // reviewer has one, whose level is skipped.
     expect(innerHeaders()).toEqual(["Session main", "Session side"]);
     expect(targets("Session side")[0]).toBe("/?session=builder/side&group=agent");
-    expect(bar("Session side").querySelector(".last-seen.warning")).not.toBeNull();
+    expect(bar("Session side").querySelector(".last-check-in.warning")).not.toBeNull();
     // An agent's header shows its badge, and a session's within it its own.
     const badges = (selector: string) =>
       Array.from(document.querySelectorAll(`${selector} .path-badge`)).map(
@@ -436,7 +436,7 @@ describe("grouped by agent", () => {
     renderAt("/?group=agent");
     await screen.findByRole("heading", { name: titled("Side") });
     expect(
-      bar("Agent builder").querySelector(".last-seen.warning time")?.getAttribute("dateTime"),
+      bar("Agent builder").querySelector(".last-check-in.warning time")?.getAttribute("dateTime"),
     ).toBe(later);
   });
 

@@ -46,7 +46,7 @@ import { ThreadRow } from "./ThreadRow.tsx";
 // Depth shows through the headers' styles, the outer a sticky, tinted bar and
 // the inner a light subheader, rather than through indentation. Every header
 // rolls up its whole group, loaded or not, from the roll-ups the list
-// carries, a session's and an agent's saying when it was last seen while it
+// carries, a session's and an agent's saying when it last checked in while it
 // is quiet, and starts expanded; the headers the operator collapses are kept
 // on this device for each grouping. A header's label, and each mark of its
 // roll-up that a filter matches, links to the list as it is with that
@@ -108,7 +108,7 @@ const filtered = (level: Priority): level is (typeof priorityFilter.options)[num
 // many are unread or the open envelope when none is, whether any is blocked
 // on the operator, the highest priority open, the archive box when all are
 // archived, and, in the warning's tone while a session or an agent is quiet,
-// when it was last seen. With a header's filter, each mark a filter matches
+// when it last checked in. With a header's filter, each mark a filter matches
 // links to its threads, named with what it shows and what the header heads,
 // as in "Blocked on you: threads of Agent reviewer". While a filter on open
 // asks is on, Blocked on you and the priority stay plain: they count every
@@ -158,13 +158,13 @@ function RollupMarks({
           : priorityMark)}
       {rollup.archived && <Mark icon="archive" label="Archived" />}
       {presence?.quiet === true && (
-        <span className="last-seen warning">
+        <span className="last-check-in warning">
           <span className="visually-hidden">Quiet, </span>
           {presence.last_seen_at === undefined ? (
-            "never seen"
+            "never checked in"
           ) : (
             <>
-              last seen <Since value={presence.last_seen_at} />
+              last check-in <Since value={presence.last_seen_at} />
             </>
           )}
         </span>

@@ -1384,10 +1384,10 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   color: var(--color-muted);
 }
 
-/* When a quiet session or agent was last seen, in the warning's tone, on a
-   session's or an agent's header in the thread list; and what needs the
+/* When a quiet session or agent last checked in, in the warning's tone, on
+   a session's or an agent's header in the thread list; and what needs the
    operator on the line under a session's head in the sessions view. */
-.last-seen.warning,
+.last-check-in.warning,
 .session-seen .warning {
   color: var(--color-warning);
   font-weight: 600;
@@ -2160,12 +2160,12 @@ ul.staged li {
 }
 
 /* A folded row: the session's name, title and percent on a line beside its
-   options, when it was last seen beneath, then what stands out about it,
-   wrapping where the width ends. The fold's button, its chevron, stretches
-   over all three, so a tap anywhere on them folds or unfolds the row, while
-   the links and the controls among them sit above it and take their own
-   taps. Names and titles are cut to fit, but for an unfolded row's title,
-   which wraps whole. */
+   options, where it is as the server knows it beneath, then what stands out
+   about it, wrapping where the width ends. The fold's button, its chevron,
+   stretches over all three, so a tap anywhere on them folds or unfolds the
+   row, while the links and the controls among them sit above it and take
+   their own taps. Names and titles are cut to fit, but for an unfolded
+   row's title, which wraps whole. */
 .session-summary {
   position: relative;
   padding: 0 var(--space-1) var(--space-1) var(--space-3);
