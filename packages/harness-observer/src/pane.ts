@@ -5,7 +5,20 @@ export interface Pane {
   // all, such as when its terminal server is gone, which an observer reads as
   // the harness's activity being unknown.
   snapshot(): Promise<Snapshot>;
+  // paste puts one line of text in the pane as a paste, which the harness
+  // receives as one paste event where it asked for bracketed paste. It
+  // rejects with a RangeError, before anything reaches the pane, for a line
+  // that refusePaste refuses, so no text can end the paste early or reach the
+  // harness as a key.
+  paste(line: string): Promise<void>;
+  // key presses one key in the pane. These two are the only keys a pane
+  // sends: never an ordinary character, which a dialog may take as a
+  // choice, and never Escape, which harnesses bind to leaving modes,
+  // clearing input and rewinding.
+  key(key: Key): Promise<void>;
 }
+
+export type Key = "Backspace" | "Enter";
 
 // What one reading of a pane found. Every field comes from the terminal or
 // the operating system; the screen's text is untrusted, since whatever runs
@@ -23,6 +36,13 @@ export interface Snapshot {
   readonly hostHasTerminal: boolean;
   // The terminal server holds exactly one pane.
   readonly onePane: boolean;
+  // Keys sent to the pane do not reach the harness: the pane is in a mode,
+  // such as tmux's copy mode, or its input is off.
+  readonly keysBlocked: boolean;
+  // When any client attached to the terminal server last sent it a key, in
+  // ms since the epoch, at the latest; undefined with no client attached.
+  // Keys a pane's own paste and key send are not a client's.
+  readonly lastTyped: number | undefined;
   // When the snapshot was taken, in ms since the epoch.
   readonly at: number;
 }
@@ -43,4 +63,29 @@ export class PaneUnusable extends Error {
     this.name = "PaneUnusable";
     this.reason = reason;
   }
+}
+
+// refusePaste throws a RangeError for a line a pane must not paste: one that
+// holds a line break or a control character, C0, DEL or C1, any of which
+// could end a bracketed paste early, submit it, or reach the harness as a
+// key.
+export function refusePaste(line: string): void {
+  if (lineBreakOrControl.test(line)) {
+    throw new RangeError("a pasted line cannot hold a line break or a control character");
+  }
+}
+
+const lineBreakOrControl = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+
+// sameScreen says whether two snapshots show the same screen: the same rows,
+// width and cursor.
+export function sameScreen(a: Snapshot, b: Snapshot): boolean {
+  return (
+    a.width === b.width &&
+    a.cursor.x === b.cursor.x &&
+    a.cursor.y === b.cursor.y &&
+    a.cursor.visible === b.cursor.visible &&
+    a.lines.length === b.lines.length &&
+    a.lines.every((line, i) => line === b.lines[i])
+  );
 }

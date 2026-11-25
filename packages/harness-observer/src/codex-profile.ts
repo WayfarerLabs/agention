@@ -1,4 +1,4 @@
-import { atMarkedInput } from "./input-row.ts";
+import { markedInput } from "./input-row.ts";
 import type { Profile } from "./profile.ts";
 import { versionTable } from "./version-table.ts";
 
@@ -13,9 +13,14 @@ import { versionTable } from "./version-table.ts";
 //   other prompts.
 //
 // The input line is the cursor's row while the cursor shows after the
-// marker, "›" and a space.
+// marker, "›" and a space. An empty input shows the hint "Ask Codex to do
+// anything" with the cursor right after the marker; captures carry no
+// color, so only that text tells it from typed text.
+const hints = [/^Ask Codex to do anything$/];
+
 const codex0_171_0: Profile = {
   name: "codex",
+  knowsMarker: true,
   screen(snapshot) {
     const rows = snapshot.lines.map((line) => line.trim());
     if (!snapshot.cursor.visible) {
@@ -35,7 +40,8 @@ const codex0_171_0: Profile = {
       }
       return { kind: "other" };
     }
-    return { kind: atMarkedInput(snapshot, "› ") ? "input" : "other" };
+    const input = markedInput(snapshot, "› ", hints);
+    return input === undefined ? { kind: "other" } : { kind: "input", input };
   },
 };
 

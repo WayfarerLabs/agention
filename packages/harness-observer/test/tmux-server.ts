@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -23,6 +23,7 @@ const longestSocketPath = 107;
 export class TmuxServer {
   readonly directory: string;
   readonly socket: string;
+  readonly #clients: ChildProcess[] = [];
 
   private constructor(directory: string) {
     this.directory = directory;
@@ -72,8 +73,34 @@ export class TmuxServer {
     await this.tmux("send-keys", ...keys);
   }
 
-  // kill ends the server, if it still runs, and removes its directory.
+  // attach attaches a client to the server through a terminal of its own,
+  // as an operator's terminal does, using util-linux's script for the
+  // terminal, and returns a function that types into it. The client is
+  // killed with the server.
+  async attach(): Promise<(keys: string) => void> {
+    const { TMUX: _tmux, TMUX_PANE: _pane, ...env } = process.env;
+    const command = `tmux -S '${this.socket}' attach`;
+    const client = spawn("script", ["--quiet", "--flush", "--command", command, "/dev/null"], {
+      env: { ...env, TERM: "xterm" },
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+    this.#clients.push(client);
+    const deadline = Date.now() + 5000;
+    while ((await this.tmux("list-clients")).trim() === "") {
+      if (Date.now() > deadline) {
+        throw new Error("the client never attached");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return (keys) => client.stdin!.write(keys);
+  }
+
+  // kill ends the server, if it still runs, and its clients, and removes its
+  // directory.
   async kill(): Promise<void> {
+    for (const client of this.#clients) {
+      client.kill();
+    }
     try {
       await this.tmux("kill-server");
     } catch {
