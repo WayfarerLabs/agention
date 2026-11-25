@@ -549,7 +549,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   - The messages you archived fold into one line at the top, **N archived messages**, which shows
     them, each with the archive box. The page never reads them while they are folded. A message you
     send to an archived thread is archived with the rest, but stays in view until you leave the
-    page.
+    page. Once you show them, a thin rule, **Archived through here**, sets apart the messages you
+    have not archived after them. It moves as you archive further, and appears when the agent writes
+    to a thread you archived.
   - The **⋯** button on a message opens its options: **Mark unread from here** and **Archive through
     here**, until you have archived that message; **Change answer** on a message carrying your
     answers while an ask it answered is still live; **Edit** on your other messages; and **Read

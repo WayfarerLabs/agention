@@ -4,6 +4,7 @@
 // message's detail folded under its text and the composer's Details box, a
 // stale write, a draft kept across the Sessions tab and a reload until discarded,
 // Send kept on a short phone's screen, text written to take the page down,
+// the divider after messages archived and unfolded, at a phone's width too,
 // reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
 // order, the order's direction and grouping, moving through the list, opening
@@ -421,6 +422,54 @@ test("text written to take the page down shows as text, and the page stays up", 
   await expect(page.getByText("emphasized too deep")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Reply" })).toBeVisible();
   await expect(tab("Threads")).toBeVisible();
+});
+
+test("archiving through a message sets the later ones apart by a divider once unfolded, at a phone's width too", async () => {
+  // Deep text, open from the step before, archived through its first message.
+  await page.getByRole("button", { name: "Options for message 1" }).click();
+  await page.getByRole("button", { name: "Archive through here" }).click();
+  const fold = page.getByRole("button", { name: /archived message/ });
+  await expect(fold).toBeFocused();
+  const divider = page.getByRole("region", { name: "Messages" }).getByRole("separator");
+  const first = page.getByRole("article", { name: "Message 1 by builder/main" });
+  const second = page.getByRole("article", { name: "Message 2 by builder/main" });
+  // between checks that the one divider, named, lies between the archived
+  // message and the next, within the screen's width. It measures all three at
+  // once, and again until they agree, since a change of width moves the page
+  // as it settles.
+  const between = async () => {
+    await expect(divider).toHaveCount(1);
+    await expect(divider).toHaveAccessibleName(/\S/);
+    const width = page.viewportSize()?.width ?? 0;
+    await expect
+      .poll(async () => {
+        const rect = (what: Locator) =>
+          what.evaluate((element) => {
+            const { x, y, width: across, height } = element.getBoundingClientRect();
+            return { x, y, across, height };
+          });
+        const [line, above, below] = await Promise.all([rect(divider), rect(first), rect(second)]);
+        return (
+          line.y >= above.y + above.height &&
+          line.y + line.height <= below.y &&
+          line.x >= 0 &&
+          line.x + line.across <= width
+        );
+      })
+      .toBe(true);
+  };
+  // Folded, the fold alone marks where the archived messages end.
+  await expect(divider).toHaveCount(0);
+  await fold.click();
+  await between();
+  const wide = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await between();
+  await fold.click();
+  await expect(divider).toHaveCount(0);
+  if (wide !== null) {
+    await page.setViewportSize(wide);
+  }
 });
 
 test("opening a thread reads it, and marking it unread from a message returns it to the list", async () => {

@@ -1605,6 +1605,23 @@ button.fold[aria-expanded="false"] > .icon:last-child {
   transform: rotate(-90deg);
 }
 
+/* The divider after the last message the operator archived: small muted
+   words, then a thin rule to the end of the line. */
+.archived-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.archived-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--color-border);
+}
+
 /* A message's detail, folded into one Details line under its text that opens
    it in place, set off from the text by a rule at its side; the composer's
    Details box folds under the message box the same way until opened. The
