@@ -390,8 +390,10 @@ function fetchedDirectory(home: string): string {
 }
 
 // prune removes what was fetched, or left half fetched, more than
-// fetchedFileLifetime ago, by when it was last written. Another bridge may be
-// pruning the same directory, so an entry already gone is no failure.
+// fetchedFileLifetime ago, by when it was last written, leaving directories
+// alone. file_get calls it once it has read the message and before it fetches
+// the file. Another bridge may be pruning the same directory, so an entry
+// already gone is no failure.
 function prune(directory: string, now: number): void {
   for (const entry of readdirSync(directory)) {
     const at = path.join(directory, entry);
