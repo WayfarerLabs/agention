@@ -202,17 +202,17 @@ replaced.
 
 ## Changing the promise
 
-| Where                                                                                           | Today                                               |
-| ----------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `apps/agent-plugin/skills/agention/SKILL.md:111-112`, `:133-135`                                | Files and messages kept for good, never deleted     |
-| `packages/api/src/threads.ts:72-73` (`messageDetail`), regenerated into `docs/api/openapi.json` | "Messages are never deleted"                        |
-| `apps/bridge/src/file-tools.ts:122`                                                             | "the message carries it for good"                   |
-| `SECURITY.md:22`, `:193-194`                                                                    | "Nothing is edited or erased"; a file is "for good" |
-| ADR 0001 (`:48`, `:66`, `:110-123`, `:473-474`); ADR 0004 (`:15`, `:105`)                       | History kept for good; the foreseen purge           |
-| `docs/architecture.md` "Database" (`:136-140`, `:176`, `:186-191`)                              | Append-only messages and files; the purge as future |
-| `docs/review-checklist.md` A3, A8 (`:132-140`), A12, A13 (`:217`), A17 (`:265`)                 | No deletes on log rows; history retained; error set |
-| `apps/server/src/store/attachments.ts:16-20`; `apps/web/e2e/files.ts:171-174`                   | "A future purge"                                    |
-| `docs/operator-guide.md:1014`, `:1167`, "Backing up" (`:1542`)                                  | Files for good; backups say nothing of deleted data |
+| Where                                                                                                | Today                                               |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `apps/agent-plugin/skills/agention/SKILL.md:111-112`, `:133-135`                                     | Files and messages kept for good, never deleted     |
+| `packages/api/src/threads.ts:72-73` (`messageDetail`), regenerated into `docs/api/openapi.json`      | "Messages are never deleted"                        |
+| `apps/bridge/src/file-tools.ts:122`                                                                  | "the message carries it for good"                   |
+| `SECURITY.md:22`, `:193-194`                                                                         | "Nothing is edited or erased"; a file is "for good" |
+| ADR 0001 (`:48`, `:66`, `:110-123`, `:473-474`); ADR 0004 (`:15`, `:105`)                            | History kept for good; the foreseen purge           |
+| `docs/architecture.md` "Database" (`:136-140`, `:176`, `:186-191`)                                   | Append-only messages and files; the purge as future |
+| `docs/review-checklist.md` A3, A8 (`:132-140`), A12, A13 (`:217`), A17 (`:265`)                      | No deletes on log rows; history retained; error set |
+| `apps/server/src/store/attachments.ts:16-20`; `apps/web/e2e/files.ts:171-174`                        | "A future purge"                                    |
+| `docs/operator-guide.md:499`, `docs/operator-api.md:81`, "Backing up" (`docs/operator-guide.md:806`) | Files for good; backups say nothing of deleted data |
 
 The new ADR records the decision: history is append-only and attributed while a thread lives, and
 the operator alone may delete a thread whole, leaving a tombstone. The skill keeps telling agents to

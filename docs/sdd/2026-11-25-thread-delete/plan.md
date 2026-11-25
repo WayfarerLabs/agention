@@ -50,9 +50,9 @@
 - [ ] Docs: the new ADR (numbered when written), stating the tombstone-gated rule for every
       thread-keyed table; ADR 0001 and ADR 0004 marked superseded where they promise permanence;
       review checks A3, A5, A8 (the same rule), A12, A13, A17 and A18; architecture ("Database",
-      "Store", "HTTP API"), `SECURITY.md`, the operator guide ("API keys", "Attachments", "Using the
-      web UI", "Using the operator API", "Backing up" with what a delete does not reach and the
-      free-space note until the rewrite), and every other place the HLA's table lists.
+      "Store", "HTTP API"), `SECURITY.md`, the operator guide ("API keys", "Attachments", "Backing
+      up" with what a delete does not reach and the free-space note until the rewrite), the web UI
+      page ("The thread list"), the operator API page, and every other place the HLA's table lists.
 - [ ] Tests as the HLA's "Testing" lists, but for the multi-select.
 - Done when:
   - on a database holding content from before the change, the open's rewrite succeeds; then a
@@ -71,7 +71,7 @@
 - [ ] Selection mode: Delete last in its options menu, in red, acting on the selection or every
       matching thread, in batches of 100 with the list's `as_of`, with progress and the threads left
       out.
-- [ ] Docs: the operator guide's selection mode.
+- [ ] Docs: the web UI page's selection mode.
 - [ ] Web unit tests and browser tests, at a phone's width too.
 - Done when: the operator selects three threads, sees the warning naming three, cancels and nothing
   changes; confirms and the three leave the list; deleting every matching thread leaves out one
@@ -79,6 +79,7 @@
 
 ## Closeout
 
-- [ ] Load-bearing content promoted to the new ADR, architecture, the operator guide, the security
-      model, the review checklist and the skill; no permanent doc points into this directory.
+- [ ] Load-bearing content promoted to the new ADR, architecture, the operator guide, the web UI
+      page, the operator API page, the security model, the review checklist and the skill; no
+      permanent doc points into this directory.
 - [ ] `locked.md` written.
