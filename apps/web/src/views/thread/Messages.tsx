@@ -1,4 +1,4 @@
-import { type Message, maxAnswers, type Reference } from "@wayfarerlabs/agention-api";
+import { carriesAPart, type Message, maxAnswers, type Reference } from "@wayfarerlabs/agention-api";
 import {
   type Dispatch,
   Fragment,
@@ -202,22 +202,6 @@ export function References({
         );
       })}
     </ul>
-  );
-}
-
-// carriesNothing says whether a message carries no part of its own, so that,
-// replacing another, it retracts it.
-function carriesNothing(message: Message): boolean {
-  return (
-    message.text === undefined &&
-    message.references === undefined &&
-    message.pull_requests === undefined &&
-    message.branches === undefined &&
-    message.attachments === undefined &&
-    message.asks === undefined &&
-    message.answers === undefined &&
-    message.withdrawals === undefined &&
-    message.topic === undefined
   );
 }
 
@@ -436,7 +420,7 @@ function AskCard({
       : !message.live
         ? replacement?.asks !== undefined
           ? `Revised in #${message.replaced_by}.`
-          : replacement !== undefined && carriesNothing(replacement)
+          : replacement !== undefined && !carriesAPart(replacement)
             ? `Retracted in #${message.replaced_by}.`
             : `Replaced by #${message.replaced_by}.`
         : ask.open
@@ -769,7 +753,7 @@ function Events({
     <>
       {message.replaces !== undefined && (
         <p className="event">
-          {carriesNothing(message)
+          {!carriesAPart(message)
             ? `Retracted #${message.replaces}.`
             : `Replaces #${message.replaces}.`}
         </p>
@@ -1115,7 +1099,7 @@ export function MessageView({
     // A replacement carrying nothing retracts the message.
     const replacement =
       message.replaced_by === undefined ? undefined : context.find(message.replaced_by);
-    const retracted = replacement !== undefined && carriesNothing(replacement);
+    const retracted = replacement !== undefined && !carriesAPart(replacement);
     return (
       <article id={`message-${message.seq}`} className="message replaced" aria-label={label}>
         <details>
