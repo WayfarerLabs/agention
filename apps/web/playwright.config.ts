@@ -10,6 +10,10 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   timeout: 60_000,
+  // Web-first assertions wait up to 15 seconds rather than Playwright's
+  // default 5: under machine load a page can take longer than 5 seconds to
+  // settle. An assertion still passes the moment its condition holds.
+  expect: { timeout: 15_000 },
   use: {
     browserName: "chromium",
     trace: "retain-on-failure",
