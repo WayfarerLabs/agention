@@ -160,12 +160,15 @@ export function actOnThreads(
 
 // actOnMatchingThreads does one action to every thread the operator's list
 // keeps with the filters given, each through its latest message at or before
-// the list's as_of, leaving out a thread with none, so a retry reaches the
-// same messages. Which threads the filters keep is decided as it runs: a
-// thread can come to match without a new message, as when a deadline passes
-// or a tag changes, so it is refused as stale, acting on none, when they
-// number other than the caller expected, and as invalid_input when they
-// number more than maxActionThreads.
+// the list's as_of, leaving out a thread with none, so a retry reaches the same
+// messages. Which threads the filters keep is decided as it runs: a thread can
+// come to match without a new message, as when a deadline passes or a tag
+// changes, so it is refused as stale, acting on none, when they number other
+// than the caller expected, and as invalid_input when they number more than
+// maxActionThreads. The deadline, tag, pull request, and branch filters read
+// state as it is, not as of as_of (the links of a message sent or replaced
+// since then count as they are now), so the expected count catches a change in
+// how many threads match, but not one thread trading places with another.
 export function actOnMatchingThreads(
   store: Store,
   identity: Identity,

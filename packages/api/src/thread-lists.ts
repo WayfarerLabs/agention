@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { branchShortForm, pullRequestShortForm } from "./code-links.ts";
+import {
+  branchLink,
+  branchShortForm,
+  type CodeLink,
+  parseBranch,
+  parsePullRequest,
+  pullRequestLink,
+  pullRequestShortForm,
+  shortFormKey,
+} from "./code-links.ts";
 import {
   askNumber,
   cursor,
@@ -186,13 +195,43 @@ export const tagsFilter = distinctValues(z.array(tagName).min(1).max(maxNarrowed
   "Only threads whose session or agent carries one of these tags.",
 );
 
+// A filter of several pull requests or branches names each entry once, two
+// short forms naming the same entry when their keys match.
+function distinctEntries<T extends z.ZodType<string[]>>(
+  values: T,
+  parse: (text: string) => CodeLink | undefined,
+) {
+  return values.refine(
+    (list) => new Set(list.map((text) => shortFormKey(text, parse))).size === list.length,
+    "names an entry twice",
+  );
+}
+
+// The pull requests and branches the operator's list narrows to, several of
+// each, as the session's list takes one.
+export const pullRequestsFilter = distinctEntries(
+  z.array(pullRequestShortForm).min(1).max(maxNarrowed),
+  parsePullRequest,
+).describe(
+  "Only threads whose live messages name one of these pull requests, each written " +
+    "owner/name#number, its repository matched ignoring case.",
+);
+export const branchesFilter = distinctEntries(
+  z.array(branchShortForm).min(1).max(maxNarrowed),
+  parseBranch,
+).describe(
+  "Only threads whose live messages name one of these branches, each written " +
+    "owner/name:branch, its repository matched ignoring case.",
+);
+
 // The operator's filters, across sessions: search, which reaches what
 // messages say; status, unread and archived, as a session's list takes them;
 // the properties of open asks, which one open ask must meet together; read
 // by the session, unread or stranded; agents, sessions and topics, several
-// of each, a topic named with its session; and the operator's session groups
-// and tags, several of each. They come in the order the operator is offered
-// them, which a list's address in the web UI keeps.
+// of each, a topic named with its session; the operator's session groups
+// and tags, several of each; and the pull requests and branches the threads'
+// live messages name, several of each. They come in the order the operator
+// is offered them, which a list's address in the web UI keeps.
 const listFilters = {
   search: messageSearchFilter.optional(),
   status: statusFilter.optional(),
@@ -207,6 +246,8 @@ const listFilters = {
   topic: queryList(topicsFilter).optional(),
   session_group: queryList(sessionGroupsFilter).optional(),
   tag: queryList(tagsFilter).optional(),
+  pull_request: queryList(pullRequestsFilter).optional(),
+  branch: queryList(branchesFilter).optional(),
   include_archived: queryBoolean(includeArchivedFilter),
 };
 
@@ -316,8 +357,12 @@ function valueCounts<T extends string>(values: readonly T[]) {
 // session_group lists each group holding a thread, in the operator's order, each with
 // its own count whatever the group filter's choices are, and none counts the
 // threads of sessions in no group likewise; tag lists each tag carried by a
-// session holding a thread, or by its agent, in name order, likewise. reset
-// is what the list holds with no filter on.
+// session holding a thread, or by its agent, in name order, likewise.
+// pull_request and branch list each entry a live message of a thread names,
+// with how many threads name it whatever that filter's own choices are, as
+// its latest mention wrote it; since they gather without end, only those
+// naming a thread the other filters keep, the most recently mentioned first.
+// reset is what the list holds with no filter on.
 export const threadCounts = z.object({
   status: valueCounts(threadStatus.options),
   priority: valueCounts(priorityFilter.options),
@@ -345,6 +390,14 @@ export const threadCounts = z.object({
   }),
   tag: z.object({
     tags: listed(z.object({ tag: tagName, total: sequence })),
+    truncated: z.boolean(),
+  }),
+  pull_request: z.object({
+    pull_requests: listed(pullRequestLink.omit({ url: true }).extend({ total: sequence })),
+    truncated: z.boolean(),
+  }),
+  branch: z.object({
+    branches: listed(branchLink.omit({ url: true }).extend({ total: sequence })),
     truncated: z.boolean(),
   }),
   reset: sequence,

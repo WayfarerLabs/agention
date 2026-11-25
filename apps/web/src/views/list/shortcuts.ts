@@ -2,18 +2,19 @@ import { useShortcuts } from "../../keyboard.tsx";
 import type { MarkKey } from "./ListBar.tsx";
 import { needsYou, rowLinks } from "./ThreadRow.tsx";
 
-// The thread list's keyboard shortcuts. The current row is the row whose
-// link has focus, so moving from row to row moves focus, which a screen
-// reader follows, and the focus ring shows it. With focus on no row, side by
-// side, the row of the thread open beside the list is current, so moving
-// starts from it and opens nothing; with none current, moving goes to the
-// first row there is to move to. Selecting threads to act on together
-// (selection.tsx) is apart from this: x selects the current row's thread,
-// and I and U mark read or unread the threads selected, or with none, the
-// current row's.
+// The thread list's keyboard shortcuts. The current row is the row holding
+// focus, on its link, its checkbox, or its pull request or branch, so moving
+// from row to row moves focus, which a screen reader follows, and the focus
+// ring shows it. With focus on no row, side by side, the row of the thread
+// open beside the list is current, so moving starts from it and opens
+// nothing; with none current, moving goes to the first row there is to move
+// to. Selecting threads to act on together (selection.tsx) is apart from
+// this: x selects the current row's thread, and I and U mark read or unread
+// the threads selected, or with none, the current row's.
 
 function current(links: HTMLAnchorElement[]): number {
-  const focused = links.findIndex((link) => link === document.activeElement);
+  const row = document.activeElement?.closest(".thread-row") ?? null;
+  const focused = row === null ? -1 : links.findIndex((link) => row.contains(link));
   return focused !== -1
     ? focused
     : links.findIndex((link) => link.getAttribute("aria-current") === "page");

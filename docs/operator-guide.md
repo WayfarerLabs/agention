@@ -470,11 +470,20 @@ beside its session it shows alone, and elsewhere as `session/topic`.
       offered, with any you already chose. Topics show as `session/topic` with their agent beside
       them: while sessions are chosen only their topics are offered, or else while agents are chosen
       only their agents' topics, with any you already chose. Each lists at most 500, and says so
-      when there are more. Escape, **Done** or a tap outside closes the list.
+      when there are more. One you chose that the list no longer holds, such as one in a shared
+      address, stays offered with no threads, so you can uncheck it. Escape, **Done** or a tap
+      outside closes the list.
     - **Group** and **Tag** open such lists too: **Group** of your session groups holding a thread,
       in your order, each beside its color, and **No group** for the sessions in none; **Tag** of
       the tags on a session holding a thread or on its agent. A thread is kept when its session is
       in a group you chose, or when its session or its agent carries a tag you chose.
+    - **Pull request** and **Branch** open such lists too, of the GitHub pull requests and branches
+      the threads' messages name, each by its short form, such as `owner/name#135` or
+      `owner/name:branch`, as it was last written. A thread is kept when one of its messages names
+      one you chose; a message you or an agent replaced no longer counts, unless its replacement
+      names it again. The owner and repository match ignoring case, the number and the branch
+      exactly. Since they gather without end, each lists only those the threads the other filters
+      keep name, the most recently named first, at most 500, and says so when there are more.
     - **Archived**: **Show** adds the threads you archived.
 
     The list behind the sheet follows each change. **Reset filters** turns every filter off, saying
@@ -486,10 +495,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     `session/topic`, or **2 agents** when you chose several. A group or a tag shows by its name now,
     such as **Group: Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed
     keeps nothing, and its chip says **Removed group**; so does a tag you have removed, whose chip
-    begins **Removed tag**. A single group's or tag's chip shows its color. A long label is cut
-    short, at its front for an agent, session or topic, so its end stays; holding the pointer over a
-    chip says it whole. Choosing a chip removes its filter. The grouping, the order and its
-    direction are no filters, so they stay when filters go.
+    begins **Removed tag**. A single group's or tag's chip shows its color. A pull request or a
+    branch shows beside an icon of two lines merging into one, by its short form, or as **2 pull
+    requests** or **2 branches**. A long label is cut short, at its front for an agent, session,
+    topic, pull request, or branch, so its end stays; holding the pointer over a chip says it whole.
+    Choosing a chip removes its filter. The grouping, the order and its direction are no filters, so
+    they stay when filters go.
   - The page's address holds the filters, the order, its direction and the grouping, so a list you
     bookmark or share opens as you left it.
   - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -510,7 +521,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
     seen** when, or **never seen**; or it has **no active credential**. A session with no active
-    credential also shows its own tag, unless the stranded tag already says so.
+    credential also shows its own tag, unless the stranded tag already says so. When the thread's
+    messages name one GitHub pull request or branch, it shows beneath, beside the same icon of two
+    lines merging into one, by its short form, which adds it to the filters on, keeping the others,
+    the order and the grouping; its link to GitHub is on the thread's page. When they name two or
+    more, that icon among the row's marks says how many, which a screen reader says in full, such as
+    **2 pull requests, 1 branch**, and the thread's head lists them.
   - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
     leaving out those under a folded header, as **Select all** does. It stays in view as the list
     scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
@@ -529,35 +545,37 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     500 threads at once, and say when more remain. While anything is selected, the same bar acts on
     the threads selected instead.
   - **Selecting threads** acts on several at once. With a mouse or a trackpad, each row has a
-    checkbox at its start; on a phone or a tablet, hold a row down to select it, and then, while
-    anything is selected, a tap selects or unselects a row rather than opening it. `x` selects or
-    unselects the row that has focus. The checkbox above the list, **Select all**, selects every
-    thread shown, leaving out those under a folded header; once it has, while the list holds more, a
-    button beside it, such as **Select all 40 threads that match**, selects every thread the filters
-    keep, up to 500 at once, and another, such as **Select only the 25 shown**, goes back. While
-    anything is selected, the bar at the foot of the list says how many and offers, after **Clear**,
-    **Read**, which marks them read; **Unread**, which marks each thread unread from the agent's
-    latest message, leaving out a thread holding none, so the count it gives is of the threads now
-    unread; **Archive**, which marks them read and archives them, keeping each thread holding an ask
-    open to you as it was and saying how many it kept; and **Decline**, available while a thread
-    selected holds an ask open to you, which first declines every such ask in messages of yours, up
-    to ten answers to a message, which the agent reads, then marks the thread read and archives it.
-    A screen reader names them in full: **Clear selection**, **Mark read**, **Mark unread**, **Mark
-    read and archive**, and **Decline, mark read and archive**. With more than 500 selected, only
-    **Clear** is available, and the bar says to select fewer. Declining asks first: for the threads
-    selected, with how many asks and threads; for every thread that matches, with how many of them
-    hold an ask open to you, as the counts of the filters give it. An action on the threads selected
-    acts on at most 500 at once, each through the latest message the list showed; an action on every
-    thread that matches asks first, with how many, and acts on the threads the filters keep, each
-    through its latest message when the list was last loaded, leaving out a thread started since;
-    when the threads that match have changed in number since, as when a deadline passed, it acts on
-    none, and the list loads again and asks again. Either way a message that arrived since stays
-    unread and brings its thread back, and declining leaves as it was a thread holding such a
-    message, since you have not seen it. The status line says what the action did, and the selection
-    clears. **Clear**, or `Esc` within the list, clears it too; with the question open, `Esc`
-    answers it with **Cancel**. Focus that was in the bar as the selection clears moves to **Select
-    all**, or on a phone or a tablet to the page's heading. The selection stays as the list
-    refreshes and loads more, and a thread that leaves the list leaves it.
+    checkbox at its start; on a phone or a tablet, hold a row down, anywhere on it, its pull request
+    or branch too, to select it, and then, while anything is selected, a tap selects or unselects a
+    row rather than opening it or following its pull request or branch. `x` selects or unselects the
+    row holding focus, on its link, its checkbox, or its pull request or branch. The checkbox above
+    the list, **Select all**, selects every thread shown, leaving out those under a folded header;
+    once it has, while the list holds more, a button beside it, such as **Select all 40 threads that
+    match**, selects every thread the filters keep, up to 500 at once, and another, such as **Select
+    only the 25 shown**, goes back. While anything is selected, the bar at the foot of the list says
+    how many and offers, after **Clear**, **Read**, which marks them read; **Unread**, which marks
+    each thread unread from the agent's latest message, leaving out a thread holding none, so the
+    count it gives is of the threads now unread; **Archive**, which marks them read and archives
+    them, keeping each thread holding an ask open to you as it was and saying how many it kept; and
+    **Decline**, available while a thread selected holds an ask open to you, which first declines
+    every such ask in messages of yours, up to ten answers to a message, which the agent reads, then
+    marks the thread read and archives it. A screen reader names them in full: **Clear selection**,
+    **Mark read**, **Mark unread**, **Mark read and archive**, and **Decline, mark read and
+    archive**. With more than 500 selected, only **Clear** is available, and the bar says to select
+    fewer. Declining asks first: for the threads selected, with how many asks and threads; for every
+    thread that matches, with how many of them hold an ask open to you, as the counts of the filters
+    give it. An action on the threads selected acts on at most 500 at once, each through the latest
+    message the list showed; an action on every thread that matches asks first, with how many, and
+    acts on the threads the filters keep, each through its latest message when the list was last
+    loaded, leaving out a thread started since; when the threads that match have changed in number
+    since, as when a deadline passed, it acts on none, and the list loads again and asks again.
+    Either way a message that arrived since stays unread and brings its thread back, and declining
+    leaves as it was a thread holding such a message, since you have not seen it. The status line
+    says what the action did, and the selection clears. **Clear**, or `Esc` within the list, clears
+    it too; with the question open, `Esc` answers it with **Cancel**. Focus that was in the bar as
+    the selection clears moves to **Select all**, or on a phone or a tablet to the page's heading.
+    The selection stays as the list refreshes and loads more, and a thread that leaves the list
+    leaves it.
 - **A thread** reads like an email. Its head starts with its heading, which leads with the thread's
   number, as a row's does, and shows the archive box beside it while the thread is archived for you.
   Under it, its agent, session and topic say where the thread is, and each opens the list narrowed
@@ -655,14 +673,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     holds **Files**, folded, with how many there are and the space they take.
   - The GitHub pull requests and branches a message is about show on one short line under its text,
     beside an icon of two lines merging into one: one by its short form, `owner/name#135` for a pull
-    request or `owner/name:branch` for a branch, as a link when the agent gave its URL; two or more
-    as a count, such as **2 pull requests, 1 branch**, which unfolds to the list. While the thread's
-    messages name any, its head holds **Pull requests and branches**, folded, with how many there
-    are, listing each once, pull requests and then branches, each the most recently named first. A
-    replaced message keeps its own, but they leave the thread's list unless its replacement names
-    them again. They are what the writer declared: Agention never contacts GitHub, so a link says
-    nothing about whether the pull request is open, merged or still exists, which the message's text
-    says when it matters. Programs using the operator API can name them on a message too.
+    request or `owner/name:branch` for a branch; two or more as a count, such as **2 pull requests,
+    1 branch**, which unfolds to the list. While the thread's messages name any, its head holds
+    **Pull requests and branches**, folded, with how many there are, listing each once, pull
+    requests and then branches, each the most recently named first. Each short form opens the thread
+    list narrowed to it alone, with no other filter on, so it shows every session's threads that
+    name it, in the order and grouping you left the list in, as the thread's agent, session, and
+    topic do. When the agent gave its URL, a small link beside it opens its page on GitHub in a new
+    tab, followed by the site's name. A replaced message keeps its own, but they leave the thread's
+    list unless its replacement names them again. They are what the writer declared: Agention never
+    contacts GitHub, so a link says nothing about whether the pull request is open, merged, or still
+    exists, which the message's text says when it matters. Programs using the operator API can name
+    them on a message too, and list and count threads by them as the filters do.
   - Each ask shows as a card on its message, which may carry several. Asks are numbered within the
     thread as the agent writes them, and the card leads with the number (**Ask 3**), then the
     question, its priority, impact, how long answering takes when the agent said, and answer-by,

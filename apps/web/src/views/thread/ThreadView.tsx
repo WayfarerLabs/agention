@@ -794,6 +794,7 @@ function ThreadPage({
   };
   const context: MessageContext = {
     target,
+    origin,
     find,
     actions: {
       staged,
@@ -916,7 +917,7 @@ function ThreadPage({
       </header>
 
       <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
-      <ThreadCodeLinks pullRequests={data.pull_requests} branches={data.branches} />
+      <ThreadCodeLinks pullRequests={data.pull_requests} branches={data.branches} origin={origin} />
 
       {!thread.credential_active && (
         <p className="notice">
@@ -981,7 +982,7 @@ function ThreadPage({
         stage={setStaged}
         unstage={unstage}
         loading={loading.pending}
-        context={{ target, find }}
+        context={{ target, origin, find }}
         files={files}
         restored={restored}
         box={composerBox}

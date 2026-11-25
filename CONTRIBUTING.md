@@ -251,10 +251,12 @@ Every release also reads messages carrying files: the operator's, which wakes it
 its own it replaces without keeping the file, with the messages' `attachments` and the thread's file
 totals passing through; a release that has the file tools drives `file_get` and `file_upload` too,
 and one whose writes take pull requests and branches names them, replaces them and lists its threads
-by them. Any refusal of valid input fails it, and so does any answer the release cannot read. A tag
-whose version npm does not have yet, as for a minute after a release, fails it too, named with npm's
-own error, and so does a clone without tags. A new tool or field joins the suite.
-`scripts/check.sh --fast` skips the gate, which needs the network.
+by them. Every release reads the summary of a thread naming one pull request from a thread read, a
+list, and a wait, with its `links` exactly when the version its requests state has them. Any refusal
+of valid input fails it, and so does any answer the release cannot read. A tag whose version npm
+does not have yet, as for a minute after a release, fails it too, named with npm's own error, and so
+does a clone without tags. A new tool or field joins the suite. `scripts/check.sh --fast` skips the
+gate, which needs the network.
 
 ## Dependencies
 

@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v6",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 6."
+    "version": "operator v1, agent v7",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 7."
   },
   "tags": [
     {
@@ -258,6 +258,42 @@
             "explode": true
           },
           {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 157,
+                "description": "A pull request as owner/name#number."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 396,
+                "description": "A branch as owner/name:branch."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -425,6 +461,32 @@
                               "seq"
                             ]
                           },
+                          "links": {
+                            "type": "object",
+                            "properties": {
+                              "pull_requests": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "branches": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "pull_request": {
+                                "$ref": "#/components/schemas/PullRequestLink"
+                              },
+                              "branch": {
+                                "$ref": "#/components/schemas/BranchLink"
+                              }
+                            },
+                            "required": [
+                              "pull_requests",
+                              "branches"
+                            ],
+                            "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                          },
                           "credential_active": {
                             "type": "boolean"
                           },
@@ -452,6 +514,7 @@
                           "archived",
                           "open_asks",
                           "status",
+                          "links",
                           "credential_active"
                         ]
                       }
@@ -803,6 +866,42 @@
               "items": {
                 "type": "string",
                 "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 157,
+                "description": "A pull request as owner/name#number."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 396,
+                "description": "A branch as owner/name:branch."
               }
             },
             "style": "form",
@@ -1225,6 +1324,90 @@
                         "truncated"
                       ]
                     },
+                    "pull_request": {
+                      "type": "object",
+                      "properties": {
+                        "pull_requests": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "repo": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+                                "description": "The GitHub repository, as owner/name."
+                              },
+                              "number": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991,
+                                "description": "The pull request's number."
+                              },
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "repo",
+                              "number",
+                              "total"
+                            ]
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "pull_requests",
+                        "truncated"
+                      ]
+                    },
+                    "branch": {
+                      "type": "object",
+                      "properties": {
+                        "branches": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "repo": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+                                "description": "The GitHub repository, as owner/name."
+                              },
+                              "branch": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255,
+                                "description": "The branch's name, as git names it."
+                              },
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "repo",
+                              "branch",
+                              "total"
+                            ]
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "branches",
+                        "truncated"
+                      ]
+                    },
                     "reset": {
                       "type": "integer",
                       "minimum": 0,
@@ -1245,6 +1428,8 @@
                     "topic",
                     "session_group",
                     "tag",
+                    "pull_request",
+                    "branch",
                     "reset"
                   ]
                 }
@@ -1489,6 +1674,42 @@
             "explode": true
           },
           {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 157,
+                "description": "A pull request as owner/name#number."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 396,
+                "description": "A branch as owner/name:branch."
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -1633,6 +1854,32 @@
                             "seq"
                           ]
                         },
+                        "links": {
+                          "type": "object",
+                          "properties": {
+                            "pull_requests": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "branches": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "pull_request": {
+                              "$ref": "#/components/schemas/PullRequestLink"
+                            },
+                            "branch": {
+                              "$ref": "#/components/schemas/BranchLink"
+                            }
+                          },
+                          "required": [
+                            "pull_requests",
+                            "branches"
+                          ],
+                          "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                        },
                         "credential_active": {
                           "type": "boolean"
                         },
@@ -1660,6 +1907,7 @@
                         "archived",
                         "open_asks",
                         "status",
+                        "links",
                         "credential_active"
                       ]
                     },
@@ -1748,6 +1996,32 @@
                             "seq"
                           ]
                         },
+                        "links": {
+                          "type": "object",
+                          "properties": {
+                            "pull_requests": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "branches": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "pull_request": {
+                              "$ref": "#/components/schemas/PullRequestLink"
+                            },
+                            "branch": {
+                              "$ref": "#/components/schemas/BranchLink"
+                            }
+                          },
+                          "required": [
+                            "pull_requests",
+                            "branches"
+                          ],
+                          "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                        },
                         "credential_active": {
                           "type": "boolean"
                         },
@@ -1775,6 +2049,7 @@
                         "archived",
                         "open_asks",
                         "status",
+                        "links",
                         "credential_active"
                       ]
                     }
@@ -3711,6 +3986,28 @@
                           "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
                         },
                         "description": "Only threads whose session or agent carries one of these tags."
+                      },
+                      "pull_request": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 157,
+                          "description": "A pull request as owner/name#number."
+                        },
+                        "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case."
+                      },
+                      "branch": {
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 396,
+                          "description": "A branch as owner/name:branch."
+                        },
+                        "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case."
                       },
                       "include_archived": {
                         "default": false,
@@ -7317,7 +7614,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "6"
+          "const": "7"
         }
       }
     },
@@ -8489,6 +8786,32 @@
               "seq"
             ]
           },
+          "links": {
+            "type": "object",
+            "properties": {
+              "pull_requests": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "branches": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pull_request": {
+                "$ref": "#/components/schemas/PullRequestLink"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/BranchLink"
+              }
+            },
+            "required": [
+              "pull_requests",
+              "branches"
+            ],
+            "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+          },
           "credential_active": {
             "type": "boolean"
           },
@@ -8513,6 +8836,7 @@
           "archived",
           "open_asks",
           "status",
+          "links",
           "credential_active"
         ]
       },

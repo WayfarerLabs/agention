@@ -1,4 +1,10 @@
-import { carriesAPart, type Message, maxAnswers, type Reference } from "@wayfarerlabs/agention-api";
+import {
+  carriesAPart,
+  type Message,
+  maxAnswers,
+  type Reference,
+  type ThreadsView,
+} from "@wayfarerlabs/agention-api";
 import {
   type Dispatch,
   Fragment,
@@ -110,6 +116,9 @@ export const mine = (message: Message) => message.author.kind === "person";
 
 export interface MessageContext {
   target: ThreadTarget;
+  // The list the page returns to, whose order and grouping the lists a
+  // message's pull requests and branches lead to keep.
+  origin: ThreadsView;
   // A message on screen, by its sequence.
   find(seq: number): Message | undefined;
   actions?: MessageActions | undefined;
@@ -1082,7 +1091,11 @@ function MessageBody({
       {message.references !== undefined && (
         <References references={message.references} target={context.target} />
       )}
-      <MessageCodeLinks pullRequests={message.pull_requests} branches={message.branches} />
+      <MessageCodeLinks
+        pullRequests={message.pull_requests}
+        branches={message.branches}
+        origin={context.origin}
+      />
       {files.list}
       {message.asks?.map((ask) => (
         <AskCard key={ask.number} message={message} ask={ask} context={context} />

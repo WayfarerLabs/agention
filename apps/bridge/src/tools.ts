@@ -361,10 +361,12 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "open asks come first, most pressing first; the rest follow by latest message. Each " +
       "summary gives how far you have read as read_through, counts the messages after it you " +
       "have neither read nor archived as unread, says whether you archived it, gives its " +
-      "status, with the latest withdrawal while it is withdrawn, and rolls up the thread's " +
-      "open asks, listing the most pressing; summaries carry no Markdown, so read a thread " +
-      "with thread_get after its read_through. Continue with cursor set to next. A result too " +
-      `long to return comes back as a smaller page; ${tooLongText}`,
+      "status, with the latest withdrawal while it is withdrawn, rolls up the thread's open " +
+      "asks, listing the most pressing, and in links counts the pull requests and branches " +
+      "its live messages name, giving the one when there is only one; summaries carry no " +
+      "Markdown, so read a thread with thread_get after its read_through. Continue with " +
+      "cursor set to next. A result too long to return comes back as a smaller page; " +
+      tooLongText,
     z.object({
       include_archived: includeArchivedFilter,
       search: titleSearchFilter.optional(),
