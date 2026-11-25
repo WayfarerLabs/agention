@@ -281,13 +281,15 @@ Delivery 2 bumps the agent API to version 7:
   through it.
 - **The claim and the outcome.** `POST .../monitor/nudge` starts a nudge, in one transaction: the
   server checks that the bridge acts for the session and that one is due, records the nudge at its
-  own clock with no outcome yet, and answers whether to go. The bridge types nothing until it does.
-  The same route takes the outcome, sent or not, filling only a nudge that has none. A nudge whose
-  outcome never arrives, because its bridge died, counts as sent. The check-in stamp moves whenever
-  it is older than the latest nudge, so an agent that checks in while the nudge is under way counts
-  as answering it. The server shows "not responding to the nudge" while a nudge it recorded has no
-  check-in after it (N6), and applies M6's nudge branches, which strand the thread once the quiet
-  time passes. The report gains only whether the session can be nudged.
+  own clock with no outcome yet, and answers whether to go. The bridge types nothing until it does,
+  and retries the claim inside `begin`; a claim whose answer was lost and is then refused is
+  reported not sent, so a nudge never typed never reads as sent. The same route takes the outcome,
+  sent or not, filling only a nudge that has none. A nudge whose outcome never arrives, because its
+  bridge died, counts as sent. The check-in stamp moves whenever it is older than the latest nudge,
+  so an agent that checks in while the nudge is under way counts as answering it. The server shows
+  "not responding to the nudge" while a nudge it recorded has no check-in after it (N6), and applies
+  M6's nudge branches, which strand the thread once the quiet time passes. The report gains only
+  whether the session can be nudged.
 
 On a due answer, the reporter calls `observer.nudge()` with the warning (fixed words and a token
 from a cryptographic random source), the message (fixed words), the claim as `begin`, and a signal
