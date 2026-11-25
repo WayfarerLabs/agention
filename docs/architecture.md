@@ -1427,9 +1427,8 @@ waiting for approval on Sessions. The counts refresh on an interval, on returnin
 going to another view, and at once after any change the page makes lands, which the web API client
 announces for every request but a read and signing in or out. Wherever a thread shows as stranded,
 the UI says why from the session's presence in the thread's summary: the stop the session reported,
-with its outcome; otherwise quiet, with when it was last seen; otherwise no active credential. A
-thread stranded only because its session's bridge is not connected shows as stranded without a
-reason.
+with its outcome; otherwise quiet, with when it was last seen; otherwise no active credential;
+otherwise its bridge not connected.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

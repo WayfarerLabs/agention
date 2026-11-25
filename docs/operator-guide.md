@@ -492,9 +492,9 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     as the **Overdue** filter does, **Overdue since** then. Holding the pointer over the time shows
     it in full. A stranded thread shows a **Stranded** tag in the warning's color, as the sessions
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
-    seen** when, or **never seen**; or it has **no active credential**. A thread stranded only
-    because its session is not connected shows the tag alone. A session with no active credential
-    also shows its own tag, unless the stranded tag already says so.
+    seen** when, or **never seen**; it has **no active credential**; or its bridge is **not
+    connected**. A session with no active credential also shows its own tag, unless the stranded tag
+    already says so.
   - **Archive all read**, while archived threads are not included and no filter keeps only threads
     with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
     open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
@@ -505,13 +505,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   session and topic say where the thread is, and each opens the list narrowed to it alone, with no
   other filter on, showing everything there in the order and grouping you left the list in. Beneath,
   muted, a thread whose asks were answered or withdrawn says so, as its row does, and a stranded
-  thread says why its session has not read your latest messages: it stopped, and how, or its agent
-  was last seen when, or never; a session with no active credential says so in a notice under the
-  head. **Threads** stays marked in the navigation. The head holds **Thread above** and **Thread
-  below**, arrow buttons beside **Threads**, **Archive all**, and **Jump to unread** while anything
-  is unread or an ask is open to you, and shows the archive box while the thread is archived. The
-  messages open on the newest ones, or on the first one you had not read after those you archived
-  when that comes before them, and show earlier and later ones when you ask.
+  thread says why its session has not read your latest messages: it stopped, and how, its agent was
+  last seen when, or never, or its bridge is not connected; a session with no active credential says
+  so in a notice under the head. **Threads** stays marked in the navigation. The head holds **Thread
+  above** and **Thread below**, arrow buttons beside **Threads**, **Archive all**, and **Jump to
+  unread** while anything is unread or an ask is open to you, and shows the archive box while the
+  thread is archived. The messages open on the newest ones, or on the first one you had not read
+  after those you archived when that comes before them, and show earlier and later ones when you
+  ask.
   - While the page is visible, it reads what it shows: what is on screen when you open the thread,
     and messages that arrive or that you show later, as they appear. Each of the agent's messages
     shows the closed envelope if you had not read it when it appeared, until you leave the page or
@@ -754,10 +755,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     **New thread** opens a sheet for a title, the message and its details, as a thread's composer
     takes them, and **Send** starts the thread and opens it. The session's agent reads it as your
     words at its terminal and replies in it; the thread asks you nothing, since only agents ask.
-    When the session has stopped, is quiet or has no active credential, the sheet says it is not
-    likely to see the thread, and why: a stopped session not until it is started again, a quiet one
-    not soon, and one without a credential not until you approve a registration for it. The thread
-    is stranded until the session reads it.
+    When the session has stopped, is quiet, has no active credential or is not connected, the sheet
+    says it is not likely to see the thread, and why: a stopped session not until it is started
+    again, a quiet one not soon, one without a credential not until you approve a registration for
+    it, and one whose bridge is not connected not until it connects again. The thread is stranded
+    until the session reads it.
 
   - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
     page's address keeps your choice, so going back to the view or a link to it shows it the same.

@@ -623,6 +623,14 @@ describe("the head", () => {
       (line: Element | null) => expect(line?.querySelector("time")).toBeNull(),
     ],
     [
+      "is not connected",
+      { presence: { last_seen_at: "2026-10-27T09:00:00.000Z", quiet: false, connected: false } },
+      (line: Element | null) => {
+        expect(line).not.toBeNull();
+        expect(line?.querySelector("time")).toBeNull();
+      },
+    ],
+    [
       "has stopped, saying how",
       {
         presence: {

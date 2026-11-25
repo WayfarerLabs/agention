@@ -26,6 +26,7 @@ const awaited: Record<Absence["kind"], string> = {
   stopped: "until it is started again",
   quiet: "soon",
   credential: "until you approve a registration for it",
+  disconnected: "until its bridge connects again",
 };
 
 // titleProblem says why a title cannot be sent, in the API's words for the

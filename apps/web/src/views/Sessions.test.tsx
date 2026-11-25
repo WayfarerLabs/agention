@@ -951,6 +951,11 @@ describe("the new-thread sheet", () => {
       undefined,
     ],
     ["has no credential", sessionSummary({ registrations: [] }), undefined],
+    [
+      "is not connected",
+      sessionSummary({ presence: { last_seen_at: time, quiet: false, connected: false } }),
+      undefined,
+    ],
   ])("warns that a session that %s is not likely to see the thread", async (_, session, word) => {
     const dialog = await openSheet(session);
     const warning = dialog.querySelector(".notice.warning");
