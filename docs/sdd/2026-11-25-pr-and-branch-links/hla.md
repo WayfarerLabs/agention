@@ -1,7 +1,7 @@
 # Pull request and branch links: High-Level Architecture
 
 - Requirements: [FRD](frd.md); research: [prior art](prior-art-research.md); plan: [plan](plan.md)
-- Status: Draft, with the FRD's four open choices assumed as recommended.
+- Status: The FRD is accepted with the operator's rulings; this HLA follows them.
 
 ## Decisions at a glance
 
@@ -73,7 +73,9 @@ invalid input.
 `messageParts` gains `pull_requests` and `branches`, each optional and omitted rather than empty,
 and `needsAPart` counts them. The message read schema returns them as written. `threadGetResult`
 gains `pull_requests` and `branches`, the rollup, each bounded by `maxListed` with a `truncated`
-flag. `threadStartInput` stays as it is (FRD R10).
+flag. A thread summary, which list rows read, gains `links`: how many distinct pull requests and
+branches the rollup holds, and the one entry itself when there is exactly one (FRD R7).
+`threadStartInput` gains both lists, for the New Thread sheet (FRD R10).
 
 Filters: `listFilters` gains `pull_request` and `branch`, each a list of short forms bounded by
 `maxNarrowed`, like `topic`; `threadCounts` gains their counts; `sessionThreadsQuery` gains one
@@ -121,7 +123,13 @@ short form for each, as its `topic` takes one.
   listing the rollup with links.
 - **The filter sheet:** two multi-selects like Topic, fed by the counts, with chips and the address
   carrying the short forms.
-- **The composer and the start of a thread:** unchanged (FRD R10).
+- **A thread list row:** with one entry, its short form, compact like a chip; with more, a single
+  "several" mark with the count in its accessible name (FRD R7).
+- **Writing them (FRD R10):** the reply composer and the New Thread sheet gain a control beside
+  Attach and dictation, with a git branch icon rather than a forge's logo. It opens a small form
+  that takes a pasted URL (a GitHub pull request or branch URL fills in the entry) or a short form,
+  lists what the message will carry with Remove beside each, and refuses what the API would refuse,
+  saying why. A sent message shows them as any message does.
 
 ## Security model additions
 
@@ -146,24 +154,22 @@ forge joins ADR 0001's "Not doing".
 
 ## Decision record
 
-- **Typed references were set aside** (open choice 1, assumed): a reference's label is free text by
-  contract, so a kind would make its schema conditional, its label redundant for these kinds, and
-  its display collide with the new compact line.
+- **Typed references were set aside** (FRD ruling 1): a reference's label is free text by contract,
+  so a kind would make its schema conditional, its label redundant for these kinds, and its display
+  collide with the new compact line.
 - **A JSON column was set aside** for a table. Measured at 500,000 messages, a filter scanning a
   JSON column took about 25 ms against 0.1 ms indexed; counts cost about the same either way, since
   the `live_messages` join dominates. The filter repeats in every count query while it is on, and
   the table gives typed, checked keys, as `attachments` does.
 - **Stored roll-ups were set aside** under A8: a query over `live_messages` is exact by
   construction.
-- **A pull request state was set aside for now** (open choice 3, assumed). The research names
-  staleness shown as truth as the main risk of declared state, and the field could never be removed
-  from the agent API once released, while adding it later is one optional field and one migration.
-  Latest mention wins, by message order, when it comes; A6 rules out refusing a declared "open"
-  after "merged".
+- **A pull request state was set aside for now** (FRD ruling 4). The research names staleness shown
+  as truth as the main risk of declared state, and the field could never be removed from the agent
+  API once released, while adding it later is one optional field and one migration. Latest mention
+  wins, by message order, when it comes; A6 rules out refusing a declared "open" after "merged".
 - **A pull request's head branch was set aside**: nothing in the FRD needs a branch to fold under
   its pull request, and it can be added later as an optional field.
 - **Fetching was set aside** (FRD R11): it needs forge credentials and network access the server
   does not have, and makes Agention a forge client.
 - **Other forges were set aside** (FRD R2): none is in use, and their case rules are unverified.
-- **Thread list rows show nothing** (open choice 2, assumed), so no thread-level aggregate is
-  needed.
+- **Rows show one entry or a count** (FRD R7), so no thread-level aggregate state is needed.

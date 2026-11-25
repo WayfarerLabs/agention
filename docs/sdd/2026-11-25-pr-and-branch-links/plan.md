@@ -2,18 +2,19 @@
 
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md)
-- Building starts once the operator accepts the FRD.
-- Vehicle: two pull requests, each usable alone. The development contract lists no `sdd:` label, so
-  the pull requests cite this directory by path.
+- The operator accepted the FRD on 2026-11-25; building starts with the LLD.
+- Vehicle: three pull requests, each usable alone. The development contract lists no `sdd:` label,
+  so the pull requests cite this directory by path.
 
 ## Design
 
 - [x] Requirements, prior-art research, HLA and plan drafted, with the operator's direction quoted
       and four open choices asked in Agention (#139).
-- [ ] Requirements, HLA and plan reviewed (project review and complexity pass), findings disposed.
-- [ ] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
-      for any choice answered otherwise.
-- [ ] On acceptance, the development contract names this effort as active.
+- [x] Requirements, HLA and plan reviewed (project review and complexity pass), findings disposed
+      (#139).
+- [x] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
+      for any choice answered otherwise (#139).
+- [x] On acceptance, the development contract names this effort as active (#139).
 - [ ] `links-lld.md`: the short-form grammar and its bounds, the table and its triggers, the rollup
       and count queries, the response shapes, and the answer fitting's order.
 
@@ -42,15 +43,26 @@
   - the web UI shows one entry inline, folds two or more, and offers the thread's fold;
   - the released bridges pass.
 
-## P2: the operator's filters
+## P2: the operator's filters and the thread list rows
 
 - [ ] `listFilters` and `threadCounts` gain `pull_request` and `branch`; the store's parts and
       counts.
-- [ ] Web: the filter sheet's two multi-selects, their chips, the address.
+- [ ] Thread summaries gain `links`; the store computes it with the rollup's rules.
+- [ ] Web: the filter sheet's two multi-selects, their chips, the address; a row's one entry or
+      count.
 - [ ] Docs: the operator guide's filters, architecture's filters and counts, the API reference.
 - Done when: the operator narrows the list to one pull request from the sheet, the chip shows it,
   and a copied link opens the same list; the operator API's thread list and counts take the same
-  filters.
+  filters; a row with one pull request shows it, and one with two shows a count.
+
+## P3: the operator writes them
+
+- [ ] `threadStartInput` gains both lists.
+- [ ] Web: the git control beside Attach and dictation in the composer and the New Thread sheet, its
+      form taking a URL or a short form, and its list with Remove.
+- [ ] Docs: the operator guide's composer and New Thread sections, architecture's writers.
+- Done when: the operator pastes a pull request URL into the composer's form, sends, and the message
+  and the thread's rollup show it; the New Thread sheet does the same for a new thread.
 
 ## Closeout
 

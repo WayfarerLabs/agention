@@ -1,8 +1,7 @@
 # Pull request and branch links: Functional Requirements
 
-- Status: Draft for the operator's acceptance. Four open choices are asked in Agention, each with
-  the lead's recommendation, which these requirements assume until answered (see
-  [Open choices](#open-choices)).
+- Status: Accepted by the operator on 2026-11-25, with the rulings recorded under
+  [Operator rulings](#operator-rulings-2026-11-25-onward).
 - Date: 2026-11-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -52,9 +51,9 @@ And, following up:
 
 **R1. Pull requests and branches on any message.** A message may list pull requests and branches,
 alongside its text, references, files and asks, in any combination, including a message that carries
-nothing else. Agents write them, and so do programs sending messages through the operator API. Each
-list is bounded only to keep a message's size bounded, at a number no real message reaches (the HLA
-sets it).
+nothing else. Agents write them, the operator writes them from the web UI (R10), and so do programs
+sending messages through the operator API. Each list is bounded only to keep a message's size
+bounded, at a number no real message reaches (the HLA sets it).
 
 **R2. What identifies each.** A pull request is its GitHub repository and number; a branch is its
 GitHub repository and name. A repository is `owner/name`. Two entries are the same pull request or
@@ -84,8 +83,9 @@ beneath its text: its short form (`owner/name#135`, or `owner/name:branch`), as 
 URL. With more than one, the line folds to a count ("2 pull requests, 1 branch") that unfolds to the
 list.
 
-**R7. On the thread.** The thread's head offers the rollup as a fold beside its files, hidden when
-the thread has none. Thread list rows do not show them (assumed; [open choice 2](#open-choices)).
+**R7. On the thread and its row.** The thread's head offers the rollup as a fold beside its files,
+hidden when the thread has none. A thread list row shows the rollup compactly: a thread with one
+pull request or branch shows it, and one with more shows that it has several, without listing them.
 
 ### Finding them
 
@@ -100,26 +100,26 @@ thread. The skill tells agents to do this whenever a pull request moves signific
 for review, reviewed, merged or closed) and to bring each thread up to date: say what changed,
 withdraw the asks the move settled, and archive what is done.
 
-### Unchanged
+**R10. The operator writes them too.** The web UI's reply composer and the New Thread sheet offer a
+control beside Attach and dictation, with an icon that stands for git rather than for any one forge,
+to add pull requests and branches to the message, which then shows them as R6 says. The operator's
+start of a thread takes them in the operator API as well.
 
-**R10. The web composer does not write them** (assumed; [open choice 4](#open-choices)), as it does
-not write references: pull requests and branches come from agents and the operator API. Nor does the
-operator's start of a thread take them, as it takes no references.
+### Unchanged
 
 **R11. Nothing is fetched.** Agention never calls a forge. Every entry is what its writer declared,
 shown as inert data like references, and says nothing of the pull request's state.
 
 ## Out of scope
 
-- A pull request's state (open, draft, merged, closed), which agents say in their text (assumed;
-  [open choice 3](#open-choices)). A field for it can be added later without breaking anything; once
-  added, it could never be removed.
+- A pull request's state (open, draft, merged, closed), which agents say in their text. A field for
+  it can be added later without breaking anything; once added, it could never be removed.
 - Forges other than GitHub (R2).
 - Fetching anything from GitHub or any forge, or reacting to its webhooks.
 - Commits, tags, issues and CI runs as kinds of their own; references still cover them.
 - Changing generic references, which stay as they are.
-- How a thread's files roll up. Today they include replaced messages' files, unlike these lists;
-  making files match is its own change, asked separately.
+- How a thread's files roll up. Today they include replaced messages' files, unlike these lists. The
+  operator ruled that they match (the rulings below); that is its own change, outside this effort.
 
 ## Definition of done
 
@@ -129,16 +129,21 @@ shown as inert data like references, and says nothing of the pull request's stat
 - The architecture document, the operator guide, the API reference, the security model and review
   checklist's inert content, and the agent skill describe them, with no reference to this SDD.
 
-## Open choices
-
-Asked in Agention on 2026-11-25, each with the lead's recommendation, which these requirements
-assume until answered:
-
-1. Lists of their own on a message, or kinds of reference. Assumed: lists of their own (R1).
-2. Pull requests and branches on thread list rows. Assumed: not on rows (R7).
-3. A pull request state field. Assumed: not now (Out of scope).
-4. The web composer writing them. Assumed: not now (R10).
-
 ## Operator rulings, 2026-11-25 onward
 
-None yet.
+Answered in Agention on 2026-11-25, verbatim where the operator wrote words, else the choice picked:
+
+1. Lists of their own on a message, or kinds of reference: "Lists of their own".
+2. Thread files from live messages only, as its own breaking change: "Change files to. But to be
+   clear, the files should still be there on the replaced messages (as long as they haven't been
+   purged, at which point they show as a broken link as with all files). This is just a question of
+   what is rolled up to the thread level. But yeah, make it consistent."
+3. Pull requests and branches on thread list rows: "On rows but only show the contents if 1.
+   Otherwise some sort of "multiple" content." (R7)
+4. A pull request state field: "Leave it out for now".
+5. The web composer writing them: "Yes, but I think this is another icon like attachments and
+   transcriptions. Something that represents the "git-ness" (not just Github) of this." (R10)
+6. Accepting these requirements: "Accept".
+
+The operator also asked, while reviewing, that agents use references in their messages; that needs
+no change here.
