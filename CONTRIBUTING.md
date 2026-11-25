@@ -76,8 +76,8 @@ packages contain, through `packages/build`. The server's build first builds the 
 and then, through `packages/build`, the diagram frame's script, and copies it into
 `apps/server/web/`, which the server package ships and serves. Beside each bundle the build writes
 `THIRD-PARTY-NOTICES.txt`, the license of every npm package the bundle includes and, for the server,
-of every package in the web UI's build. Each bundle also includes its package's `package.json`, so
-it reports the version it was built at:
+of every package in the web UI's build and of the Material Symbols its icons copy. Each bundle also
+includes its package's `package.json`, so it reports the version it was built at:
 
 ```bash
 npm run -w apps/server build      # apps/web/dist/, apps/server/web/, apps/server/dist/agention.js
@@ -313,6 +313,13 @@ own error, and so does a clone without tags. A new tool or field joins the suite
   release closest to the parent's pin that fixes the advisory. Remove it once the parent depends on
   a fixed version: an override left behind keeps forcing that version on later releases of the
   parent, which may need another.
+- The web UI's icons are Material Symbols path data copied into `apps/web/src/icons.tsx`, whose
+  header says how to add one. The npm packages of Material Symbols SVGs, `@material-symbols/svg-*`,
+  carry only the 48-pixel optical size, whose strokes are thinner, so the icons come from Google's
+  repository instead. It tags no release carrying Material Symbols, so the pin is a commit of its
+  default branch, that of 2026-10-23, which `apps/server/build.ts` records. Dependabot does not see
+  the icons: moving them to a newer commit, one at least seven days old, updates every icon, the
+  commit and its date, and the license copy together.
 - A dependency that shapes the architecture or the supply chain (a framework, an authentication or
   storage library) gets an ADR recording the choice and its alternatives.
 - Dependabot proposes weekly updates. Review them like any other change.

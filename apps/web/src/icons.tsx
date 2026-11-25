@@ -1,149 +1,103 @@
-import type { ReactNode } from "react";
 import { Spoken } from "./format.tsx";
 
-// The app's icons, drawn on a 24-unit grid and stroked in the text's color.
-// Each is decoration beside text or an accessible name its control carries,
-// so it is hidden from assistive technology.
+// The app's icons: Material Symbols Outlined, Google's, at weight 500, a
+// little heavier than the default 400, grade 0, and the 24-pixel optical
+// size, from https://github.com/google/material-design-icons at the commit
+// apps/server/build.ts records in the server package's notices. An icon is
+// the path data of that commit's
+// symbols/web/<symbol>/materialsymbolsoutlined/<symbol>_wght500_24px.svg,
+// copied as published, and the comment above it names the symbol. Material
+// Symbols are under the Apache License 2.0, whose text is in
+// apps/web/third-party/material-symbols/LICENSE. The paths share Material's
+// grid, 960 units across with its origin at the bottom left, and are filled
+// in the text's color. Each icon is decoration beside text or an accessible
+// name its control carries, so it is hidden from assistive technology.
 
-const shapes = {
-  // A magnifying glass, for searching.
-  search: (
-    <>
-      <circle cx="10.5" cy="10.5" r="6.5" />
-      <path d="m15.5 15.5 5 5" />
-    </>
-  ),
-  // A cross, for closing what is open.
-  close: <path d="M6 6l12 12M18 6 6 18" />,
-  // A funnel, for the filters.
-  filters: <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />,
-  // Arrows up and down, for the order.
-  sort: <path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4" />,
+const paths = {
+  // A magnifying glass, for searching: search.
+  search:
+    "M783.52-110.91 529.85-364.59q-29.76 23.05-68.64 36.57-38.88 13.52-83.12 13.52-111.16 0-188.33-77.17-77.17-77.18-77.17-188.33t77.17-188.33q77.17-77.17 188.33-77.17 111.15 0 188.32 77.17 77.18 77.18 77.18 188.33 0 44.48-13.52 83.12-13.53 38.64-36.57 68.16l253.91 254.15-63.89 63.66ZM378.09-405.5q72.84 0 123.67-50.83 50.83-50.82 50.83-123.67t-50.83-123.67q-50.83-50.83-123.67-50.83-72.85 0-123.68 50.83-50.82 50.82-50.82 123.67t50.82 123.67q50.83 50.83 123.68 50.83Z",
+  // A cross, for closing what is open: close.
+  close:
+    "M256-192.35 192.35-256l224-224-224-224L256-767.65l224 224 224-224L767.65-704l-224 224 224 224L704-192.35l-224-224-224 224Z",
+  // A funnel, for the filters: filter_alt.
+  filters:
+    "M440-151.87q-20.11 0-34.12-14.01-14.01-14.01-14.01-34.12v-237.13L161.78-731.22q-18.35-24.06-5.57-50.49 12.77-26.42 43.79-26.42h560q31.02 0 43.79 26.42 12.78 26.43-5.57 50.49L568.13-437.13v239.76q0 19.39-13.05 32.45-13.06 13.05-32.45 13.05H440Zm40-320.91 191.78-244.35H288.22L480-472.78Zm0 0Z",
+  // Arrows up and down, for the order: swap_vert.
+  sort: "M314.02-439.52v-274.57l-97.5 97.5-64.65-63.65 207.65-207.89 207.65 207.89-64.65 63.65-97.5-97.5v274.57h-91ZM600.48-71.87 392.83-279.76l64.65-63.65 97.5 97.5v-274.57h91v274.57l97.5-97.5 64.65 63.65L600.48-71.87Z",
   // An arrow pointing down, for the thread below, and one pointing up, for
-  // reversing an order and the thread above.
-  "arrow-down": <path d="M12 4v16m-6-6 6 6 6-6" />,
-  "arrow-up": <path d="M12 20V4m-6 6 6-6 6 6" />,
-  // An arrow pointing back, for the way back to the list.
-  "arrow-left": <path d="M20 12H4m6-6-6 6 6 6" />,
-  // A ring around a dot, for staying where one is.
-  stay: (
-    <>
-      <circle cx="12" cy="12" r="7.5" />
-      <path d="M12 12h.01" strokeWidth="3" />
-    </>
-  ),
-  // Two headings, each over its indented rows, for grouping.
-  group: <path d="M3 4h9M7 8h14M7 11h14M3 15h9M7 19h14" />,
-  // A check mark, for what a picker has chosen and a copy that landed.
-  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
-  // Two columns of dots, for a handle that drags a row into another place.
-  grip: <path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" strokeWidth="3" />,
+  // reversing an order and the thread above: arrow_downward and arrow_upward.
+  "arrow-down":
+    "M434.5-808.13v481.98L215.76-544.89 151.87-480 480-151.87 808.13-480l-63.89-64.89L525.5-326.15v-481.98h-91Z",
+  "arrow-up":
+    "M434.5-151.87v-481.98L215.76-415.11 151.87-480 480-808.13 808.13-480l-63.89 64.89L525.5-633.85v481.98h-91Z",
+  // An arrow pointing back, for the way back to the list: arrow_back.
+  "arrow-left":
+    "m326.15-434.5 218.74 218.74L480-151.87 151.87-480 480-808.13l64.89 63.89L326.15-525.5h481.98v91H326.15Z",
+  // A ring around a dot, its sights on where one is, for staying there:
+  // my_location.
+  stay: "M436.41-34.35v-80Q310.7-128.59 219.52-220q-91.17-91.41-105.17-216.41h-80v-87.18h80Q128.59-649.3 220-740.48q91.41-91.17 216.41-105.17v-80h87.18v80q125 14 216.41 105.17 91.41 91.18 105.65 216.89h80v87.18h-80q-14 125-105.17 216.41-91.18 91.41-216.89 105.65v80h-87.18ZM480-202.87q115.04 0 196.09-81.04 81.04-81.05 81.04-196.09t-81.04-196.09Q595.04-757.13 480-757.13t-196.09 81.04Q202.87-595.04 202.87-480t81.04 196.09q81.05 81.04 196.09 81.04ZM480-320q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47Zm-.04-87.41q29.93 0 51.28-21.32 21.35-21.31 21.35-51.23 0-29.93-21.31-51.28-21.32-21.35-51.24-21.35-29.93 0-51.28 21.31-21.35 21.32-21.35 51.24 0 29.93 21.32 51.28 21.31 21.35 51.23 21.35ZM480-480Z",
+  // Two blocks, one over the other, for grouping: view_agenda.
+  group:
+    "M202.87-518.09q-37.78 0-64.39-26.61-26.61-26.6-26.61-64.39v-152.82q0-37.79 26.61-64.39 26.61-26.61 64.39-26.61h554.26q37.78 0 64.39 26.61 26.61 26.6 26.61 64.39v152.82q0 37.79-26.61 64.39-26.61 26.61-64.39 26.61H202.87Zm0-91h554.26v-152.82H202.87v152.82Zm0 502q-37.78 0-64.39-26.61-26.61-26.6-26.61-64.39v-152.82q0-37.79 26.61-64.39 26.61-26.61 64.39-26.61h554.26q37.78 0 64.39 26.61 26.61 26.6 26.61 64.39v152.82q0 37.79-26.61 64.39-26.61 26.61-64.39 26.61H202.87Zm0-91h554.26v-152.82H202.87v152.82Zm0-563.82v152.82-152.82Zm0 411v152.82-152.82Z",
+  // A check mark, for what a picker has chosen, a copy that landed, and a
+  // suggested answer picked: check.
+  check: "M382-232.35 146.35-468l64.89-64.89L382-362.13l366.76-366.76L813.65-664 382-232.35Z",
+  // Two columns of dots, for a handle that drags a row into another place:
+  // drag_indicator.
+  grip: "M356.48-152.59q-34.61 0-59.25-24.64t-24.64-59.25q0-34.61 24.64-59.06Q321.87-320 356.48-320t59.06 24.46Q440-271.09 440-236.48t-24.46 59.25q-24.45 24.64-59.06 24.64Zm247.21 0q-34.54 0-59.11-24.64Q520-201.87 520-236.48t24.55-59.06Q569.11-320 603.59-320q34.58 0 59.2 24.46 24.62 24.45 24.62 59.06t-24.59 59.25q-24.59 24.64-59.13 24.64ZM356.48-396.41q-34.61 0-59.25-24.56-24.64-24.55-24.64-59.03 0-34.67 24.64-59.13t59.25-24.46q34.61 0 59.06 24.46Q440-514.67 440-480.12t-24.46 59.13q-24.45 24.58-59.06 24.58Zm247.21 0q-34.54 0-59.11-24.56Q520-445.52 520-480q0-34.67 24.55-59.13 24.56-24.46 59.04-24.46 34.58 0 59.2 24.46 24.62 24.46 24.62 59.01t-24.59 59.13q-24.59 24.58-59.13 24.58ZM356.48-640q-34.61 0-59.25-24.55-24.64-24.56-24.64-59.04 0-34.58 24.64-59.2 24.64-24.62 59.25-24.62t59.06 24.59Q440-758.23 440-723.69q0 34.54-24.46 59.11Q391.09-640 356.48-640Zm247.21 0q-34.54 0-59.11-24.55Q520-689.11 520-723.59q0-34.58 24.55-59.2 24.56-24.62 59.04-24.62 34.58 0 59.2 24.59 24.62 24.59 24.62 59.13 0 34.54-24.59 59.11Q638.23-640 603.69-640Z",
   // A chevron pointing down, for a group shown expanded; turned to point
-  // along the line while it is collapsed.
-  expand: <path d="m6 9 6 6 6-6" />,
-  // One page over another, for copying.
-  copy: (
-    <>
-      <rect x="9" y="9" width="12" height="12" rx="2" />
-      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
-    </>
-  ),
-  // Three dots in a row, for a message's options; filled, not stroked.
-  options: (
-    <>
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
-    </>
-  ),
-  // A closed envelope, for unread.
-  unread: (
-    <>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="m3 7 9 6 9-6" />
-    </>
-  ),
-  // An open envelope, for read.
-  read: (
-    <>
-      <path d="M3 10 12 4l9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
-      <path d="m3 10 9 6 9-6" />
-    </>
-  ),
-  // A circle struck through, for declining asks.
-  decline: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="m5.6 5.6 12.8 12.8" />
-    </>
-  ),
-  // A pencil, for a draft.
-  draft: <path d="M4 20h4L20 8l-4-4L4 16zM13 7l4 4" />,
-  // A box under its lid, for archived.
-  archive: (
-    <>
-      <rect x="2" y="4" width="20" height="5" rx="1" />
-      <path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9M10 13h4" />
-    </>
-  ),
-  // A microphone on its stand, for dictation.
-  microphone: (
-    <>
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
-    </>
-  ),
-  // A paper clip, for attaching files.
-  attach: (
-    <path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" />
-  ),
-  // A camera with its lens, for taking a photo.
-  camera: (
-    <>
-      <path d="M4 7h3l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" />
-      <circle cx="12" cy="13" r="4" />
-    </>
-  ),
-  // A video camera, for recording a video.
-  video: (
-    <>
-      <rect x="2" y="6" width="14" height="12" rx="2" />
-      <path d="m16 10 6-3v10l-6-3z" />
-    </>
-  ),
-  // A picture of a hill under the sun, for photos and videos.
-  photos: (
-    <>
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="m21 15-5-5L5 21" />
-    </>
-  ),
-  // A git branch: a line down to a commit, and a second commit curving into
-  // it from the side, for pull requests and branches, the mark of no one
-  // forge.
-  branch: (
-    <>
-      <circle cx="6" cy="18" r="2.5" />
-      <circle cx="18" cy="6" r="2.5" />
-      <path d="M6 3v12.5M18 8.5a9.5 9.5 0 0 1-9.5 9.5" />
-    </>
-  ),
-  // A page with its corner folded, for files.
-  file: (
-    <>
-      <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
-      <path d="M14 3v5h5" />
-    </>
-  ),
-} satisfies Record<string, ReactNode>;
+  // along the line while it is collapsed: expand_more.
+  expand: "M480-337.59 232.35-585.24 296-648.89l184 184 184-184 63.65 63.65L480-337.59Z",
+  // One page over another, for copying: content_copy.
+  copy: "M368.37-237.37q-37.78 0-64.39-26.61t-26.61-64.39v-474.26q0-37.78 26.61-64.39t64.39-26.61h354.26q37.78 0 64.39 26.61t26.61 64.39v474.26q0 37.78-26.61 64.39t-64.39 26.61H368.37Zm0-91h354.26v-474.26H368.37v474.26Zm-171 262q-37.78 0-64.39-26.61t-26.61-64.39v-565.26h91v565.26h445.26v91H197.37Zm171-262v-474.26 474.26Z",
+  // Three dots in a row, for a message's options: more_horiz.
+  options:
+    "M232.69-396.41q-34.54 0-59.11-24.56Q149-445.52 149-480q0-34.67 24.55-59.13 24.56-24.46 59.04-24.46 34.58 0 59.2 24.46 24.62 24.46 24.62 59.01t-24.59 59.13q-24.6 24.58-59.13 24.58Zm247.43 0q-34.55 0-59.13-24.56-24.58-24.55-24.58-59.03 0-34.67 24.56-59.13 24.55-24.46 59.03-24.46 34.67 0 59.13 24.46t24.46 59.01q0 34.55-24.46 59.13-24.46 24.58-59.01 24.58Zm247.36 0q-34.61 0-59.25-24.56-24.64-24.55-24.64-59.03 0-34.67 24.64-59.13t59.25-24.46q34.61 0 59.06 24.46Q811-514.67 811-480.12t-24.46 59.13q-24.45 24.58-59.06 24.58Z",
+  // A closed envelope, for unread: mail.
+  unread:
+    "M162.87-151.87q-37.78 0-64.39-26.61t-26.61-64.39v-474.26q0-37.78 26.61-64.39t64.39-26.61h634.26q37.78 0 64.39 26.61t26.61 64.39v474.26q0 37.78-26.61 64.39t-64.39 26.61H162.87ZM480-429.72l-317.13-200v386.85h634.26v-386.85L480-429.72Zm0-87.41 317.13-200H162.87l317.13 200ZM162.87-629.72v-87.41 474.26-386.85Z",
+  // An open envelope, for read: drafts, Material's open envelope.
+  read: "m480-927.41 363.91 217.19q21.83 13.15 33.02 34.67 11.2 21.51 11.2 46.33v428.5q0 37.79-26.61 64.39-26.61 26.61-64.39 26.61H162.87q-37.78 0-64.39-26.61-26.61-26.6-26.61-64.39v-428.5q0-24.82 11.2-46.33 11.19-21.52 33.02-34.67L480-927.41Zm0 472.69 306.98-183.13L480-820.98 173.02-637.85 480-454.72Zm0 98.07L162.87-546.98v346.26h634.26v-346.26L480-356.65Zm0 155.93h317.13-634.26H480Z",
+  // A circle struck through, for declining asks: block.
+  decline:
+    "M480-71.87q-84.67 0-159.11-32.22-74.43-32.21-129.63-87.41-55.19-55.2-87.29-129.75-32.1-74.55-32.1-159.23 0-84.67 32.1-158.99 32.1-74.31 87.29-129.39 55.2-55.07 129.63-87.17 74.44-32.1 159.11-32.1 84.67 0 159.11 32.1 74.43 32.1 129.63 87.17 55.19 55.08 87.29 129.39 32.1 74.32 32.1 158.99 0 84.68-32.1 159.23-32.1 74.55-87.29 129.75-55.2 55.2-129.63 87.41Q564.67-71.87 480-71.87Zm0-91q52.09 0 100.65-16.3 48.57-16.31 89.13-48.11L226.8-670.02q-31.32 41.04-47.63 89.37-16.3 48.32-16.3 100.17 0 132.81 92.28 225.21T480-162.87Zm253.43-128.06q31.09-41.05 47.4-89.37 16.3-48.33 16.3-100.18 0-132.56-92.28-224.61-92.28-92.04-224.85-92.04-51.85 0-100.05 16.06-48.21 16.07-89.25 47.16l442.73 442.98Z",
+  // A pencil, for a draft: edit.
+  draft:
+    "M202.63-202.87h57.24l374.74-374.74-56.76-57-375.22 375.22v56.52Zm-90.76 91v-185.3l527.52-526.76q12.48-11.72 27.7-17.96 15.21-6.24 31.93-6.24 16.48 0 32.2 6.24 15.71 6.24 27.67 18.72l65.28 65.56q12.48 11.72 18.34 27.56 5.86 15.83 5.86 31.79 0 16.72-5.86 32.05-5.86 15.34-18.34 27.82L297.65-111.87H111.87Zm642.87-586.39-56.24-56.48 56.24 56.48Zm-148.89 92.41-28-28.76 56.76 57-28.76-28.24Z",
+  // A box with an arrow into it, for archived: archive.
+  archive:
+    "m480-242.87 160.48-160.48-60.07-60.54-57.3 57.3v-151.74h-86.22v151.74l-57.3-57.06-60.07 60.54L480-242.87ZM202.87-628.76v425.89h554.26v-425.89H202.87Zm0 516.89q-37.78 0-64.39-26.61t-26.61-64.39v-487.52q0-16.15 5.34-30.95 5.33-14.79 15.53-27.23l56.93-67.93q12.44-15.43 30.56-23.53 18.13-8.1 37.9-8.1h443.74q19.77 0 37.9 8.1 18.12 8.1 30.56 23.53l56.93 67.93q10.2 12.44 15.53 27.23 5.34 14.8 5.34 30.95v487.52q0 37.78-26.61 64.39t-64.39 26.61H202.87Zm21.5-605.5h511.26l-34-40H258.37l-34 40ZM480-415.93Z",
+  // A microphone on its stand, for dictation: mic.
+  microphone:
+    "M479.97-389q-53.8 0-91.43-37.65-37.63-37.65-37.63-91.44v-238.32q0-53.79 37.66-91.44t91.46-37.65q53.8 0 91.43 37.65 37.63 37.65 37.63 91.44v238.32q0 53.79-37.66 91.44T479.97-389Zm.03-248.37Zm-43.59 531.96v-123.96q-108.06-14.48-178.45-96.85-70.4-82.38-70.4-191.87h87.42q0 85.16 59.98 145.09 59.98 59.93 145.09 59.93 85.1 0 145.04-59.96 59.93-59.97 59.93-145.06h87.42q0 109.55-70.4 191.89-70.39 82.35-178.45 96.83v123.96h-87.18ZM480-480q16.19 0 27.14-10.95t10.95-27.14v-238.32q0-16.19-10.95-27.14T480-794.5q-16.19 0-27.14 10.95t-10.95 27.14v238.32q0 16.19 10.95 27.14T480-480Z",
+  // A paper clip, for attaching files: attach_file.
+  attach:
+    "M732.44-327.61q0 107.11-76.35 181.43-76.35 74.31-183.94 74.31-107.58 0-183.69-74.31-76.11-74.32-76.11-181.43v-375.26q0-77.63 55.13-131.45 55.13-53.81 133.24-53.81 78.11 0 133 53.81 54.89 53.82 54.89 131.45v355.02q0 48.15-34.03 81.47-34.04 33.31-82.43 33.31-48.39 0-82.18-33.31-33.8-33.32-33.8-81.47v-370h88.61v370q0 11.57 7.79 18.99 7.78 7.43 19.58 7.43 11.81 0 19.83-7.31 8.02-7.3 8.02-19.11v-354.78q-.76-41.04-29.38-69.09-28.62-28.04-69.9-28.04-41.29 0-70.52 27.92-29.24 27.93-29.24 68.97v375.26q-.76 70.52 49.83 118.95 50.6 48.42 121.6 48.42 70.24 0 120.08-48.42 49.83-48.43 51.36-118.95v-399.32h88.61v399.32Z",
+  // A camera with its lens, for taking a photo: photo_camera.
+  camera:
+    "M479.94-258.09q75.78 0 128.88-53.04 53.09-53.04 53.09-128.81 0-75.78-53.04-128.88-53.04-53.09-128.81-53.09-75.78 0-128.88 53.04-53.09 53.04-53.09 128.81 0 75.78 53.04 128.88 53.04 53.09 128.81 53.09Zm.06-86.21q-40.33 0-68.01-27.69Q384.3-399.67 384.3-440q0-40.33 27.69-68.01Q439.67-535.7 480-535.7q40.33 0 68.01 27.69Q575.7-480.33 575.7-440q0 40.33-27.69 68.01Q520.33-344.3 480-344.3ZM162.87-111.87q-37.78 0-64.39-26.61t-26.61-64.39v-474.26q0-37.78 26.61-64.39t64.39-26.61H281.7l77.34-80h241.92l77.34 80h118.83q37.78 0 64.39 26.61t26.61 64.39v474.26q0 37.78-26.61 64.39t-64.39 26.61H162.87Zm0-91h634.26v-474.26H638.72l-75.63-80H397.63l-77.06 80h-157.7v474.26ZM480-440Z",
+  // A video camera, for recording a video: videocam.
+  video:
+    "M162.87-151.87q-37.78 0-64.39-26.61t-26.61-64.39v-474.26q0-37.78 26.61-64.39t64.39-26.61h474.26q37.78 0 64.39 26.61t26.61 64.39V-540l160-160v440l-160-160v177.13q0 37.78-26.61 64.39t-64.39 26.61H162.87Zm0-91h474.26v-474.26H162.87v474.26Zm0 0v-474.26 474.26Z",
+  // A picture of hills over another behind it, for photos and videos:
+  // photo_library.
+  photos:
+    "M365.5-405.5h400l-138-180-92 120-62-80-108 140Zm-37.13 168.13q-37.78 0-64.39-26.61t-26.61-64.39v-474.26q0-37.78 26.61-64.39t64.39-26.61h474.26q37.78 0 64.39 26.61t26.61 64.39v474.26q0 37.78-26.61 64.39t-64.39 26.61H328.37Zm0-91h474.26v-474.26H328.37v474.26Zm-171 262q-37.78 0-64.39-26.61t-26.61-64.39v-565.26h91v565.26h565.26v91H157.37Zm171-736.26v474.26-474.26Z",
+  // Two lines merging into one, for pull requests and branches, which merge,
+  // the mark of no one forge: merge. Material Symbols draw no git branch.
+  branch:
+    "m251.22-111.87-63.66-63.65 201.61-202.61q22.05-22.04 33.69-50.21 11.64-28.16 11.64-58.96v-186.79l-64 63-63.65-63.65L480-847.89l173.15 173.15-63.65 63.65-64-63v186.79q0 30.8 11.64 58.96 11.64 28.17 33.69 50.21l201.61 202.61-63.66 63.65L480-340.65 251.22-111.87Z",
+  // A page with its corner folded, for files: draft, Material's blank page.
+  file: "M242.87-71.87q-37.78 0-64.39-26.61t-26.61-64.39v-634.26q0-37.78 26.61-64.39t64.39-26.61h320.48l244.78 244.78v480.48q0 37.78-26.61 64.39t-64.39 26.61H242.87Zm274.26-525.26v-200H242.87v634.26h474.26v-434.26h-200Zm-274.26-200v200-200 634.26-634.26Z",
+} satisfies Record<string, string>;
 
-export type IconName = keyof typeof shapes;
+export type IconName = keyof typeof paths;
 
 export function Icon({ name }: { name: IconName }) {
   return (
-    <svg className="icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-      {shapes[name]}
+    <svg className="icon" aria-hidden="true" focusable="false" viewBox="0 -960 960 960">
+      <path d={paths[name]} />
     </svg>
   );
 }

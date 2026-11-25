@@ -822,16 +822,12 @@ legend {
   background: var(--color-surface);
 }
 
-/* Icons drawn in lines, in the color of the text around them. */
+/* Icons filled in the color of the text around them (icons.tsx). */
 .icon {
   width: calc(var(--icon-size) * 1.25);
   height: calc(var(--icon-size) * 1.25);
   flex: none;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  fill: currentColor;
 }
 
 .badge {
@@ -1766,8 +1762,8 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   gap: var(--space-2);
 }
 
-/* The way back to Settings' sections on a phone: a heavy arrow and its
-   word, at full strength, bordered like the head's buttons. */
+/* The way back to Settings' sections on a phone: an arrow and its word, at
+   full strength, bordered like the head's buttons. */
 .back {
   display: inline-flex;
   align-items: center;
@@ -1781,16 +1777,6 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   color: var(--color-text);
   font-weight: 600;
   text-decoration: none;
-}
-
-.back svg {
-  width: calc(var(--icon-size) * 1.25);
-  height: calc(var(--icon-size) * 1.25);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .back:hover {
@@ -2102,11 +2088,6 @@ button.copy-button:hover {
   color: var(--color-text);
 }
 
-.options-button .icon {
-  fill: currentColor;
-  stroke: none;
-}
-
 .options-menu {
   position: absolute;
   top: 100%;
@@ -2309,16 +2290,10 @@ button.copy-button:hover {
   font-weight: 600;
 }
 
-.suggestions li.picked .check {
-  width: var(--icon-size);
-  height: var(--icon-size);
+.suggestions li.picked .icon {
   margin-right: var(--space-1);
-  vertical-align: -0.125em;
-  fill: none;
-  stroke: var(--color-success);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  vertical-align: -0.25em;
+  color: var(--color-success);
 }
 
 .suggestions li.unpicked {
