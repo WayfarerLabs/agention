@@ -6,10 +6,19 @@ import { z } from "zod";
 // released before the header. version is the one this release speaks. The
 // server serves every version from oldest to version, and the bridge refuses
 // an answer from a server older than itself, so a mismatch fails loudly
-// before a field goes missing unnoticed. Every change to the agent contract,
-// a new route or a new field on one, bumps version by one; oldest moves only
-// by the operator's decision.
-export const agentApi = { version: 5, oldest: 1 } as const;
+// before a field goes missing unnoticed. Every change to the agent contract
+// bumps version by one (CONTRIBUTING.md "The agent API"); oldest moves only by
+// a maintainer's decision.
+export const agentApi = { version: 6, oldest: 1 } as const;
+
+// The versions that added fields to the agent's answers. An answer to a
+// request stating an older version leaves out every field added after it, so
+// a bridge never reads, or has to fit within its answer cap, a field it does
+// not know.
+
+// The first version whose messages carry pull_requests and branches, and whose
+// thread reads carry the thread's roll-up of them.
+export const codeLinksAgentApiVersion = 6;
 
 export const agentApiHeader = "Agention-Agent-API";
 

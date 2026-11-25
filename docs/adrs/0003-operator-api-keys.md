@@ -4,11 +4,12 @@ Date: 2026-11-21
 
 ## Status
 
-Accepted. Supersedes, in [ADR 0001](0001-agention-v1-architecture.md) "Not doing", the clause of
-"One person, who never asks" that allows "no way to ... let people or integrations act for them":
-integrations may now act for the operator, within the scopes of a key the operator creates. The rest
-of that line stands: there is one operator, nobody shares their account, and the operator makes no
-asks.
+Accepted. Its "The version is in the path" is superseded in part, until 1.0, by
+[ADR 0005](0005-operator-api-meaning-before-1-0.md). Supersedes, in
+[ADR 0001](0001-agention-v1-architecture.md) "Not doing", the clause of "One person, who never asks"
+that allows "no way to ... let people or integrations act for them": integrations may now act for
+the operator, within the scopes of a key the operator creates. The rest of that line stands: there
+is one operator, nobody shares their account, and the operator makes no asks.
 
 ## Context
 
@@ -55,7 +56,9 @@ contract, and documentation.
   same scopes; this replaces the separate administration grant. Each chunk of a file written or read
   re-checks the credential, so a revoked or expired key stops a transfer within one chunk.
 - **The version is in the path.** A version changes only additively; a change that would break a
-  client is a new version beside the old. `GET /api/operator` lists the versions served.
+  client is a new version beside the old (superseded in part, until 1.0, by
+  [ADR 0005](0005-operator-api-meaning-before-1-0.md): what a field or value means may change in
+  place). `GET /api/operator` lists the versions served.
 - **Documentation generated from the declarations.** The operator and agent operations produce one
   OpenAPI 3.1 document with zod's own JSON Schema output. `agention serve --api-docs` serves it and
   a static page rendered from it under `/docs/api/`; without the flag nothing is served there. The

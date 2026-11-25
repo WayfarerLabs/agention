@@ -2,17 +2,17 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v5",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 5."
+    "version": "operator v1, agent v6",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 6."
   },
   "tags": [
     {
       "name": "operator",
-      "description": "Version 1 of the operator API, which a client calls as the operator with an API key the operator created in Settings. Each operation requires one scope, which the key must hold; an operation whose scope the key lacks answers not_found. A version changes only additively, with new operations, new optional request fields and new response fields, so a client ignores response fields it does not know."
+      "description": "Version 1 of the operator API, which a client calls as the operator with an API key the operator created in Settings. Each operation requires one scope, which the key must hold; an operation whose scope the key lacks answers not_found. A version changes only additively, with new operations, new optional request fields and new response fields, so a client ignores response fields it does not know. Until 1.0, what a field or value means may also change within a version, marked breaking in the changelog."
     },
     {
       "name": "agent",
-      "description": "The agent API, which the Agention bridge calls for an agent's session. Every request and every answer states in Agention-Agent-API the version its sender speaks."
+      "description": "The agent API, which the Agention bridge calls for an agent's session. Every request and every answer states in Agention-Agent-API the version its sender speaks. An answer leaves out the fields added after the version the request states, a missing header meaning 1."
     }
   ],
   "paths": {
@@ -1977,6 +1977,46 @@
                         "count",
                         "bytes"
                       ]
+                    },
+                    "pull_requests": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PullRequestLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct pull requests the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
+                    },
+                    "branches": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BranchLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct branches the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
                     }
                   },
                   "required": [
@@ -1984,7 +2024,9 @@
                     "messages",
                     "cursors",
                     "marks",
-                    "files"
+                    "files",
+                    "pull_requests",
+                    "branches"
                   ]
                 }
               }
@@ -2076,6 +2118,24 @@
                     "items": {
                       "$ref": "#/components/schemas/Reference"
                     }
+                  },
+                  "pull_requests": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PullRequestLink"
+                    },
+                    "description": "Up to 20 GitHub pull requests the message is about, each once, with its URL whenever you have it."
+                  },
+                  "branches": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/BranchLink"
+                    },
+                    "description": "Up to 20 git branches of GitHub repositories the message is about, each once, with its URL whenever you have it."
                   },
                   "attachments": {
                     "minItems": 1,
@@ -5167,6 +5227,24 @@
                       "$ref": "#/components/schemas/Reference"
                     }
                   },
+                  "pull_requests": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PullRequestLink"
+                    },
+                    "description": "Up to 20 GitHub pull requests the message is about, each once, with its URL whenever you have it."
+                  },
+                  "branches": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/BranchLink"
+                    },
+                    "description": "Up to 20 git branches of GitHub repositories the message is about, each once, with its URL whenever you have it."
+                  },
                   "attachments": {
                     "minItems": 1,
                     "maxItems": 10,
@@ -5333,6 +5411,26 @@
             "schema": {
               "type": "string",
               "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "pull_request",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name this pull request, as owner/name#number.",
+            "schema": {
+              "type": "string",
+              "maxLength": 157
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose live messages name this branch, as owner/name:branch.",
+            "schema": {
+              "type": "string",
+              "maxLength": 396
             }
           },
           {
@@ -5614,6 +5712,46 @@
                         "count",
                         "bytes"
                       ]
+                    },
+                    "pull_requests": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PullRequestLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct pull requests the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
+                    },
+                    "branches": {
+                      "type": "object",
+                      "properties": {
+                        "links": {
+                          "maxItems": 500,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BranchLink"
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "links",
+                        "truncated"
+                      ],
+                      "description": "The distinct branches the thread's live messages name, each as its latest mention wrote it with the latest URL given, the most recently mentioned first; truncated says the least recent were left out."
                     }
                   },
                   "required": [
@@ -5621,7 +5759,9 @@
                     "messages",
                     "cursors",
                     "marks",
-                    "files"
+                    "files",
+                    "pull_requests",
+                    "branches"
                   ]
                 }
               }
@@ -5714,6 +5854,24 @@
                     "items": {
                       "$ref": "#/components/schemas/Reference"
                     }
+                  },
+                  "pull_requests": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PullRequestLink"
+                    },
+                    "description": "Up to 20 GitHub pull requests the message is about, each once, with its URL whenever you have it."
+                  },
+                  "branches": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/BranchLink"
+                    },
+                    "description": "Up to 20 git branches of GitHub repositories the message is about, each once, with its URL whenever you have it."
                   },
                   "attachments": {
                     "minItems": 1,
@@ -6653,7 +6811,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "5"
+          "const": "6"
         }
       }
     },
@@ -7000,6 +7158,32 @@
           }
         ]
       },
+      "BranchLink": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+            "description": "The GitHub repository, as owner/name."
+          },
+          "branch": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "The branch's name, as git names it."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "The pull request's or branch's https URL. Give it whenever you have it."
+          }
+        },
+        "required": [
+          "repo",
+          "branch"
+        ]
+      },
       "Cursors": {
         "type": "object",
         "properties": {
@@ -7157,6 +7341,18 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Reference"
+            }
+          },
+          "pull_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PullRequestLink"
+            }
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchLink"
             }
           },
           "attachments": {
@@ -7318,6 +7514,32 @@
           "low"
         ],
         "description": "Where the audience should focus, by what delay costs, independent of impact. urgent: something is breaking, costing money or about to miss a real deadline now. high: delay costs real work or time. normal, the default: waiting costs little. low: whenever convenient."
+      },
+      "PullRequestLink": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,39}\\/[A-Za-z0-9._-]{1,100}$",
+            "description": "The GitHub repository, as owner/name."
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "The pull request's number."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "The pull request's or branch's https URL. Give it whenever you have it."
+          }
+        },
+        "required": [
+          "repo",
+          "number"
+        ]
       },
       "Reference": {
         "type": "object",

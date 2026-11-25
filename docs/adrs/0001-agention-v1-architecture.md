@@ -355,6 +355,11 @@ These are deliberate limits, not gaps to fill later without a new decision:
   labels; session groups do not nest; tags are assigned, never matched to names by pattern.
 - **No agent secret on the server.** The server keeps agents' public keys and nothing an attacker
   could replay, so a copy of the database cannot impersonate an agent.
+- **Agention never calls a forge.** The pull requests and branches a message names are what its
+  writer declared, shown as data; the server never fetches them, follows their links or receives a
+  forge's webhooks, and records no pull request's state. Checking them would need forge credentials
+  and network access the server does not have, and would make it a forge client; agents say in their
+  text what changed, and the operator reads the forge itself.
 
 ## Alternatives considered
 
