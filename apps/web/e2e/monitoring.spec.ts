@@ -107,7 +107,7 @@ async function report(name: Name, condition: MonitorReport): Promise<void> {
 }
 
 const at = (
-  condition: "permission_prompt" | "running",
+  condition: "permission_prompt" | "running" | "at_prompt",
 ): Extract<MonitorReport, { monitored: true }> => ({
   monitored: true,
   profile: "claude-code",
@@ -221,7 +221,7 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
 
 test("a session whose nudge was not sent shows it, and strands the thread written to it", async () => {
   const agent = agentOf("review");
-  const canBeNudged = (): MonitorReport => ({ ...at("running"), nudge: true });
+  const canBeNudged = (): MonitorReport => ({ ...at("at_prompt"), nudge: true });
   await report("review", canBeNudged());
   const created = await agent.send<WriteResult>("POST", "/s/builder/review/threads", {
     request_id: "nudge-1",

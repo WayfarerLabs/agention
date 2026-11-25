@@ -402,6 +402,30 @@ describe("the nudge", () => {
     expect(await due()).toBe(false);
   });
 
+  it.each(["running", "waiting", "permission_prompt", "other_prompt", "unknown"])(
+    "is never due while the session's condition is %s, away from its prompt",
+    async (condition) => {
+      report(first, { ...canBeNudged, condition });
+      written();
+      expect(await due()).toBe(false);
+      // Back at its prompt, the same nudge is due.
+      report(first, canBeNudged);
+      expect(await due()).toBe(true);
+    },
+  );
+
+  it("wakes the poll once the session reaches its prompt, a nudge due already", async () => {
+    report(first, { ...canBeNudged, condition: "running" });
+    written();
+    const pending = poll(first, { wait: "20" });
+    expect(await settled(pending)).toBe(false);
+    // A report that changes nothing that gates the nudge wakes nothing.
+    report(first, { ...canBeNudged, condition: "waiting" });
+    expect(await settled(pending)).toBe(false);
+    report(first, canBeNudged);
+    expect(await pending).toEqual({ replaced: false, nudge: true });
+  });
+
   it("wakes the poll once the session can be nudged, a nudge due already", async () => {
     report(first, { ...canBeNudged, nudge: false });
     written();

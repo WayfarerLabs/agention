@@ -28,12 +28,14 @@ every check that can be made before each key.
 ## Decision
 
 - **The server decides when, from what it stores.** A nudge is due when the session's bridge last
-  reported that it can be nudged, one of its threads holds a message from the operator that the
-  agent has not read, written after the agent's last check-in, and no nudge was tried since that
-  check-in. The bridge's background poll answers `nudge: true` while one is due, and nothing more:
-  no thread, message or presence reaches it. The rule reads only the session's rows, so it holds
-  across a server restart, a bridge restart and the takeover of ADR 0006's one acting bridge. A
-  session is nudged at most once until its agent checks in, whether the nudge was sent or not.
+  reported that it can be nudged and that it is at its prompt, one of its threads holds a message
+  from the operator that the agent has not read, written after the agent's last check-in, and no
+  nudge was tried since that check-in. A session busy with a turn, or at any other screen, is
+  offered none until a report finds it back at its prompt. The bridge's background poll answers
+  `nudge: true` while one is due, and nothing more: no thread, message or presence reaches it. The
+  rule reads only the session's rows, so it holds across a server restart, a bridge restart and the
+  takeover of ADR 0006's one acting bridge. A session is nudged at most once until its agent checks
+  in, whether the nudge was sent or not.
 - **The texts are the bridge's own.** A nudge puts two texts in the pane: a warning that a nudge is
   coming and that typing anything stops it, ending with a token drawn from a cryptographic random
   source for that nudge alone, and then one fixed message telling the agent to check in with

@@ -63,7 +63,9 @@ export async function pollMonitor(
 
 // offerNudge says whether a nudge is due for the session, and records the
 // offer when one is, inside the caller's transaction. One is due when its
-// bridge last reported that it can be nudged; one of its threads holds a
+// bridge last reported that it can be nudged and that it is at its prompt,
+// so a session busy or at any other screen is offered none, and its bridge
+// asks again only while it waits at its prompt; one of its threads holds a
 // live message by the operator that its agent has not read, written after
 // the agent last checked in; and no nudge was tried since that check-in. The
 // session's own rows decide it, so it holds across a server restart, a
@@ -78,6 +80,7 @@ function offerNudge(store: Store, sessionId: number): boolean {
       .prepare(
         `SELECT 1 FROM sessions s
          JOIN monitor_reports r ON r.session_id = s.id AND r.nudge = 1
+           AND r.condition = 'at_prompt'
          JOIN actors own ON own.session_id = s.id
          WHERE s.id = :session
            AND (s.nudged_at IS NULL OR s.nudged_at <= s.last_seen_at)
@@ -106,10 +109,10 @@ function offerNudge(store: Store, sessionId: number): boolean {
 // numbered above the latest accepted from it; it keeps nothing from a bridge
 // another has replaced, and ignores a report that arrives after a later one.
 // A bridge that is the first to call since the server started acts for the
-// session from then on. A report that says the session can now be nudged,
-// where its last said not, wakes the bridge's poll, so a nudge due already
-// is offered at once; and one that brings a nudge, as recordNudge says,
-// records it.
+// session from then on. A report that says the session can now be nudged
+// at its prompt, where its last did not, wakes the bridge's poll, so a nudge
+// due already is offered at once; and one that brings a nudge, as
+// recordNudge says, records it.
 export function reportMonitor(
   store: Store,
   identity: Identity,
@@ -150,8 +153,10 @@ export function reportMonitor(
             nudge: Number(report.nudge === true),
           };
     const before = db
-      .prepare("SELECT nudge FROM monitor_reports WHERE session_id = ?")
-      .get(sessionId) as { nudge: number } | undefined;
+      .prepare("SELECT nudge, condition FROM monitor_reports WHERE session_id = ?")
+      .get(sessionId) as { nudge: number; condition: string | null } | undefined;
+    const ready = (row: { nudge: number; condition: string | null } | undefined) =>
+      row?.nudge === 1 && row.condition === "at_prompt";
     db.prepare(
       `INSERT INTO monitor_reports (session_id, monitored, profile, condition, since, stopped_by,
          resets_at, nudge)
@@ -166,7 +171,7 @@ export function reportMonitor(
     if (report.monitored && report.last_nudge !== undefined) {
       recordNudge(store, sessionId, report.last_nudge);
     }
-    return { sessionId, wakes: observed.nudge === 1 && before?.nudge !== 1 };
+    return { sessionId, wakes: ready(observed) && !ready(before) };
   });
   if (outcome === "replaced") {
     return { replaced: true };

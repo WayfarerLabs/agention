@@ -65,8 +65,8 @@ without any access it lacks.
   keep the session connected, as it can report its status. So monitoring reaches only the operator,
   through the web UI and the operator API's session and thread reads, never an agent, and informs
   without authorizing or triggering anything. The one exception is [ADR 0007](0007-the-nudge.md)'s
-  nudge: the server offers one only where a report says the session can be nudged, and only the
-  observer's own checks let it press a key.
+  nudge: the server offers one only where a report says the session can be nudged and is at its
+  prompt, and only the observer's own checks let it press a key.
 
 ## Consequences
 

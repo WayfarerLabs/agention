@@ -1486,15 +1486,17 @@ leaves the nudge off, and the tools work as without it.
 
 The bridge nudges only a session at its prompt, not stopped by a usage limit before it resets, with
 the host holding the terminal, the pane not in a mode such as copy mode that keeps keys from it, no
-key typed into it for ten seconds, and its input line empty with room for the message; otherwise it
-waits and tries again each second while the nudge is due. Then it first puts a warning in the input
-line, saying a nudge is coming and that typing anything stops it, with a short code of its own at
-the end. **To stop a nudge, type anything over the warning** within its five seconds: the bridge
-finds the line changed and leaves it, sending nothing. Otherwise it removes the warning, puts the
-message there and submits it, and checks that the host took it. It presses no key but Backspace, to
-remove its own text, and Enter, to submit its message, and puts text in the pane only as a paste. A
-nudge that fails partway, such as one in Claude Code's vim normal mode, where Backspace moves the
-cursor rather than deleting, leaves what it could not remove in the input line, never submitted.
+key typed into it for ten seconds, and its input line empty with room for the message. The server
+offers a nudge only while the bridge's report finds the session at its prompt, so a session busy
+with a turn is nudged once it finishes; at its prompt but not yet ready, the bridge tries again each
+second while the nudge is due. Then it first puts a warning in the input line, saying a nudge is
+coming and that typing anything stops it, with a short code of its own at the end. **To stop a
+nudge, type anything over the warning** within its five seconds: the bridge finds the line changed
+and leaves it, sending nothing. Otherwise it removes the warning, puts the message there and submits
+it, and checks that the host took it. It presses no key but Backspace, to remove its own text, and
+Enter, to submit its message, and puts text in the pane only as a paste. A nudge that fails partway,
+such as one in Claude Code's vim normal mode, where Backspace moves the cursor rather than deleting,
+leaves what it could not remove in the input line, never submitted.
 
 A session is nudged at most once until its agent next checks in, whether that nudge was sent or not.
 The sessions view's line shows what came of the latest: **nudged** and when, once the agent checked

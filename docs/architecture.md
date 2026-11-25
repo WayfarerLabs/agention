@@ -370,17 +370,18 @@ only while the session is connected, so a bridge that ended never leaves its las
 current.
 
 The poll also answers `nudge: true`, at once, to the bridge that acts for the session while a nudge
-is due ([ADR 0007](adrs/0007-the-nudge.md)): its latest report says the session can be nudged, one
-of its threads holds a live message by the operator that its agent has not read, written after the
-agent's last check-in, and no nudge was tried since that check-in (`offerNudge`). It is read from
-the session's rows on each poll, so it holds across a server restart, a bridge restart and a
-takeover, and it says nothing more: no thread, message or presence. Each such answer records the
-offer's time on the session, and a report that says the session can now be nudged, where the one
-before did not, wakes the session's channel, so a nudge due already is offered at once. A report's
-`last_nudge`, the outcome of the latest nudge its bridge tried, is recorded as the session's latest
-nudge, at the offer that led to it, when an offer came since the latest recorded and the bridge's
-time for it differs from that one's, so a report repeating a nudge, or one bringing a nudge from
-before, records nothing. A session is nudged at most once until its agent checks in.
+is due ([ADR 0007](adrs/0007-the-nudge.md)): its latest report says the session can be nudged and is
+at its prompt, one of its threads holds a live message by the operator that its agent has not read,
+written after the agent's last check-in, and no nudge was tried since that check-in (`offerNudge`).
+It is read from the session's rows on each poll, so it holds across a server restart, a bridge
+restart and a takeover, and it says nothing more: no thread, message or presence. Each such answer
+records the offer's time on the session, and a report that says the session can now be nudged at its
+prompt, where the one before did not, wakes the session's channel, so a nudge due already is offered
+at once. A report's `last_nudge`, the outcome of the latest nudge its bridge tried, is recorded as
+the session's latest nudge, at the offer that led to it, when an offer came since the latest
+recorded and the bridge's time for it differs from that one's, so a report repeating a nudge, or one
+bringing a nudge from before, records nothing. A session is nudged at most once until its agent
+checks in.
 
 A session reports its status itself, on the agent mount's status route or beside a write: a thread
 it starts or a message it sends may carry a state, with its outcome, and a note, which apply as an
@@ -1217,17 +1218,17 @@ its tokens and where its requests may go.
   act in the names granted to it, and a request it makes to learn them is marked `background` too,
   so none marks the agent checked in. Against a server older than the bridge's agent API version,
   its requests fail as every tool's do and it backs off to a minute between them. A poll answered
-  `nudge: true`, while its latest report says the session can be nudged, has monitoring nudge the
-  agent with texts of `apps/bridge/src/nudge.ts`: a warning of fixed words and 4 random bytes in hex
-  from `crypto.randomBytes`, which the observer removes and never submits, and a fixed message
-  telling the agent to check in with Agention, each one line of printable ASCII. Nothing from the
-  server or the screen reaches either. A nudge the observer finds the session not ready for put
-  nothing in the pane: it is neither logged nor reported, and the next poll, a second later, asks
-  again while the nudge is still due. Any other outcome is logged by the step it stopped at, never a
-  text, and every report from then on carries it as `last_nudge`, its time the bridge's own and
-  moving only forward; the next poll waits until the server has answered that report, so a nudge is
-  never offered again before the server has recorded it, and a refusal of it stops nudging for the
-  life of the process.
+  `nudge: true`, which the server gives only while its latest report says the session can be nudged
+  and is at its prompt, has monitoring nudge the agent with texts of `apps/bridge/src/nudge.ts`: a
+  warning of fixed words and 4 random bytes in hex from `crypto.randomBytes`, which the observer
+  removes and never submits, and a fixed message telling the agent to check in with Agention, each
+  one line of printable ASCII. Nothing from the server or the screen reaches either. A nudge the
+  observer finds the session not ready for put nothing in the pane: it is neither logged nor
+  reported, and the next poll, a second later, asks again while the nudge is still due. Any other
+  outcome is logged by the step it stopped at, never a text, and every report from then on carries
+  it as `last_nudge`, its time the bridge's own and moving only forward; the next poll waits until
+  the server has answered that report, so a nudge is never offered again before the server has
+  recorded it, and a refusal of it stops nudging for the life of the process.
 - **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
   monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
   server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with
