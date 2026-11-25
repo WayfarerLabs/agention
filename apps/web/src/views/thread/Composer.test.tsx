@@ -6,6 +6,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiFailure, describeFailure } from "../../api.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import {
   type Ask,
@@ -17,9 +18,12 @@ import {
   operatorMessage,
   type Reply,
   renderAt,
+  threadAnswer,
   threadSummary,
 } from "../../test-support.tsx";
-import { goBackChoice } from "./Composer.tsx";
+import { afterSendingChoice, goBackChoice } from "./Composer.tsx";
+import { autoAdvanceChoice } from "./neighbor-thread.ts";
+import { endOfList } from "./leaving.ts";
 import {
   detailsBox,
   detailsFold,
@@ -1706,18 +1710,21 @@ describe("a stale write", () => {
   });
 });
 
-describe("going back after sending", () => {
-  const goBack = () =>
-    within(screen.getByRole("region", { name: "Reply" })).getByRole<HTMLInputElement>("checkbox");
+describe("where sending goes", () => {
+  const after = () =>
+    within(screen.getByRole("region", { name: "Reply" })).getByRole<HTMLSelectElement>("combobox", {
+      name: "After sending",
+    });
+  const choose = (where: string) => fireEvent.change(after(), { target: { value: where } });
   const where = () => `${window.location.pathname}${window.location.search}`;
   const list = "/?unread=true&include_archived=true";
 
   // opened opens a thread from a list, with this device's choice as given.
-  async function opened(choice: "true" | "false" | undefined): Promise<State> {
+  async function opened(choice: string | undefined): Promise<State> {
     if (choice === undefined) {
-      window.localStorage.removeItem(goBackChoice);
+      window.localStorage.removeItem(afterSendingChoice);
     } else {
-      window.localStorage.setItem(goBackChoice, choice);
+      window.localStorage.setItem(afterSendingChoice, choice);
     }
     const state = await page.open(
       {
@@ -1730,16 +1737,39 @@ describe("going back after sending", () => {
     return state;
   }
 
+  // The thread the server finds beside this one, and where it asks.
+  const next = threadSummary({ number: 2, title: "The next one", unread: 0 });
+  const neighbors = `${path}/neighbors`;
+
+  // serveNext answers that thread 2 is beside this one, below it unless said
+  // otherwise, and serves thread 2.
+  function serveNext(side: "above" | "below" = "below"): void {
+    page.api.on("GET", neighbors, { body: { [side]: next } });
+    page.api.on("GET", "/s/builder/main/threads/2", { body: threadAnswer(next, [message(1)]) });
+  }
+
   afterEach(() => {
     vi.restoreAllMocks();
+    window.localStorage.removeItem(afterSendingChoice);
+    window.localStorage.removeItem(goBackChoice);
   });
 
-  // holdWrites answers writes only once released.
-  function holdWrites() {
+  // Archiving goes on to the thread below in these tests.
+  beforeEach(() => {
+    window.localStorage.setItem(autoAdvanceChoice, "below");
+  });
+
+  // holdWrites answers writes only once released, as landing at 2, and,
+  // given the thread's state, as the thread's latest message there.
+  function holdWrites(state?: State) {
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
     page.api.on("POST", `${path}/messages`, async () => {
       await held;
+      if (state !== undefined) {
+        state.thread = { ...state.thread, last_seq: 2, message_count: 2 };
+        state.messages = [...state.messages, operatorMessage(2)];
+      }
       return written(2);
     });
     return () => release();
@@ -1747,6 +1777,14 @@ describe("going back after sending", () => {
 
   // listSays reads what the list's status region says.
   const listSays = () => screen.getByRole("status").textContent;
+  // composerSays reads what the composer says beside Send.
+  const composerSays = () =>
+    within(screen.getByRole("region", { name: "Reply" })).queryByRole("status")?.textContent ?? "";
+  // A refusal, and how the page describes it.
+  const refusal = (code: "invalid_input" | "internal", message: string) => ({
+    reply: failure(code, message),
+    described: describeFailure(new ApiFailure(code, message)),
+  });
 
   it.each([
     ["a message", () => fireEvent.change(textBox(), { target: { value: "Noted." } })],
@@ -1755,7 +1793,7 @@ describe("going back after sending", () => {
     "returns to the list as it was left once the server accepts %s, by default",
     async (_, write) => {
       await opened(undefined);
-      expect(goBack().checked).toBe(true);
+      expect(after().value).toBe("list");
       const entries = window.history.length;
       write();
       fireEvent.click(sendButton());
@@ -1767,13 +1805,341 @@ describe("going back after sending", () => {
     },
   );
 
-  it("goes back by the choice as it stands when the write lands", async () => {
+  it.each(["above", "below"] as const)(
+    "opens the thread %s in the list once the server accepts the message, as its button does",
+    async (side) => {
+      serveNext(side);
+      await opened(side);
+      const entries = window.history.length;
+      fireEvent.change(textBox(), { target: { value: "Noted." } });
+      fireEvent.click(sendButton());
+      await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+      expect(window.history.length).toBe(entries + 1);
+      expect(window.history.state).toMatchObject({ from: list });
+      expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
+      // The next thread's composer says what was sent.
+      await screen.findByRole("heading", { level: 1, name: /The next one/ });
+      await waitFor(() => expect(composerSays()).not.toBe(""));
+    },
+  );
+
+  it("says both what was sent and that it reached the end of the list, on the list", async () => {
+    page.api.on("GET", neighbors, { body: {} });
+    await opened("below");
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(where()).toBe(list));
+    await waitFor(() => expect(listSays()).toMatch(new RegExp(`. ${endOfList.below}$`)));
+  });
+
+  it("stays on the thread and says why beside Send when the thread below cannot be found", async () => {
+    await opened("below");
+    const { reply, described } = refusal("internal", "the list broke");
+    page.api.on("GET", neighbors, reply);
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(composerSays()).toContain(described));
+    expect(where()).toBe(path);
+  });
+
+  it("archives the thread once the server accepts the message, then goes where Auto-advance says in its place, as Archive all does", async () => {
+    serveNext();
+    await opened("archive");
+    const entries = window.history.length;
+    fireEvent.click(choice(/^SQLite/));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+    expect(window.history.length).toBe(entries);
+    // The archive went after the answer landed.
+    const order = page.api.calls
+      .filter((call) => call.method === "POST")
+      .map((call) => call.url.pathname.replace(/^\/api\/web/, ""));
+    expect(order).toEqual([`${path}/messages`, `${path}/archive`]);
+  });
+
+  it("archives the thread once the server accepts the message, then goes back to the list once Auto-advance says so, saying what was sent", async () => {
+    window.localStorage.setItem(autoAdvanceChoice, "list");
+    await opened("archive");
+    const entries = window.history.length;
+    fireEvent.click(choice(/^SQLite/));
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(where()).toBe(list));
+    expect(window.history.length).toBe(entries);
+    expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1);
+    await waitFor(() => expect(listSays()).not.toBe(""));
+  });
+
+  it("stays on the thread, saying why, when the server refuses the archive for an ask still open", async () => {
+    serveNext();
+    await opened("archive");
+    const { reply, described } = refusal(
+      "invalid_input",
+      "ask 1 is open to you; answer or decline it before archiving",
+    );
+    page.api.on("POST", `${path}/archive`, reply);
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    // Beside Send, where the operator is, and in the thread's head.
+    await waitFor(() => expect(composerSays()).toContain(described));
+    const head = screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
+    within(head).getByRole("alert");
+    expect(where()).toBe(path);
+  });
+
+  it("archives once, holding another send back while the first's archive and move on are under way", async () => {
+    serveNext();
+    await opened("archive");
+    // Finding the thread below is held.
+    const release = holdNeighbors();
+    fireEvent.change(textBox(), { target: { value: "First." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    await waitFor(() => expect(textBox().value).toBe(""));
+    fireEvent.change(textBox(), { target: { value: "Second." } });
+    await waitFor(() => expect(page.api.callsTo("GET", neighbors)).toHaveLength(1));
+    expect(sendButton().disabled).toBe(true);
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1);
+  });
+
+  // openPlain opens a thread with no ask open, from a list, with this
+  // device's choice as given.
+  async function openPlain(choice: string): Promise<State> {
+    window.localStorage.setItem(afterSendingChoice, choice);
+    serveNext();
+    const state = await page.open(
+      { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+      { from: list },
+    );
+    page.serveWrites(state);
+    return state;
+  }
+
+  // holdNeighbors holds finding the thread below until released.
+  function holdNeighbors(): () => void {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    page.api.on("GET", neighbors, async () => {
+      await held;
+      return { body: { below: next } };
+    });
+    return () => release();
+  }
+
+  // pressBelow presses ] with focus on the thread's heading, outside the
+  // composer's fields.
+  function pressBelow(): void {
+    screen.getByRole("heading", { level: 1 }).focus();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "]" });
+  }
+
+  it("lets ] go on while a message that stays on the thread is on its way", async () => {
+    await openPlain("stay");
+    holdWrites();
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    pressBelow();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+  });
+
+  it("holds After sending while the page moves on, so a send on its way keeps the choice it went with", async () => {
+    await openPlain("stay");
+    const landed = holdWrites();
+    const release = holdNeighbors();
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    pressBelow();
+    await waitFor(() => expect(page.api.callsTo("GET", neighbors)).toHaveLength(1));
+    expect(after().disabled).toBe(true);
+    landed();
+    await waitFor(() => expect(composerSays()).not.toBe(""));
+    expect(after().value).toBe("stay");
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
+  });
+
+  it("says beside Send nothing of a failure before the send's own way on", async () => {
+    await openPlain("below");
+    const { reply, described } = refusal("internal", "the archive broke");
+    page.api.on("POST", `${path}/archive`, reply);
+    fireEvent.click(screen.getByRole("button", { name: "Archive all" }));
+    const head = screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
+    await within(head).findByRole("alert");
+    const release = holdNeighbors();
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(textBox().value).toBe(""));
+    await waitFor(() => expect(composerSays()).not.toBe(""));
+    expect(composerSays()).not.toContain(described);
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+  });
+
+  it("says beside Send why a send's way on failed, after what was sent", async () => {
+    await openPlain("below");
+    const { reply, described } = refusal("internal", "the list broke");
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    page.api.on("GET", neighbors, async () => {
+      await held;
+      return reply;
+    });
+    fireEvent.change(textBox(), { target: { value: "First." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    await waitFor(() => expect(textBox().value).toBe(""));
+    release();
+    await waitFor(() => expect(composerSays()).toContain(described));
+    expect(where()).toBe(path);
+  });
+
+  it("holds Send back while the page moves to another thread, so no send loses its way on", async () => {
+    await openPlain("list");
+    const release = holdNeighbors();
+    pressBelow();
+    await waitFor(() => expect(page.api.callsTo("GET", neighbors)).toHaveLength(1));
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    expect(sendButton().disabled).toBe(true);
+    fireEvent.keyDown(textBox(), { key: "Enter", ctrlKey: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(page.writes()).toEqual([]);
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+  });
+
+  it("holds Thread above and Thread below back while a message that will archive is on its way", async () => {
+    window.localStorage.setItem(afterSendingChoice, "archive");
+    serveNext();
+    const state = await page.open(
+      { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+      { from: list },
+    );
+    page.serveWrites(state);
+    const release = holdWrites(state);
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    for (const name of ["Thread above", "Thread below"]) {
+      expect(screen.getByRole<HTMLButtonElement>("button", { name }).disabled).toBe(true);
+    }
+    screen.getByRole("heading", { level: 1 }).focus();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "]" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(where()).toBe(path);
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1);
+  });
+
+  it("archives a message sent past what the page had loaded only once the page has loaded through it, and no further than it shows", async () => {
+    window.localStorage.setItem(afterSendingChoice, "archive");
+    serveNext();
+    const state = await page.open(
+      { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+      { from: list },
+    );
+    page.serveWrites(state);
+    // The agent wrote meanwhile, and the page has not loaded it.
+    state.thread = { ...state.thread, last_seq: 2, message_count: 2 };
+    state.messages = [...state.messages, message(2, { text: "Agent note" })];
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    // Stale, it shows what was missed, and sends again on the next press.
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    await waitFor(() => expect(sendButton().disabled).toBe(false));
+    // The thread loads no further while the retry lands, as on a slow
+    // connection, and the agent writes again once it has.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    page.api.on("GET", path, async (call) => {
+      await held;
+      return page.threadReply(state, call);
+    });
+    page.api.on("POST", `${path}/archive`, (call) => {
+      // Archived only once the page shows what it archives.
+      expect(screen.getByText("Agent later")).toBeTruthy();
+      return {
+        body: {
+          marks: { read_through: 4, archived_through: (call.body as { through: number }).through },
+        },
+      };
+    });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(2));
+    state.thread = { ...state.thread, last_seq: 4, message_count: 4 };
+    state.messages = [...state.messages, message(4, { text: "Agent later" })];
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+    expect(page.seenThrough()).toEqual([1, 2]);
+    expect(page.api.callsTo("POST", `${path}/archive`).map((call) => call.body)).toEqual([
+      { through: 4 },
+    ]);
+  });
+
+  it("archives nothing with e while a message is on its way, then archives once it lands", async () => {
+    // No ask is open, so e could archive but for the message on its way.
+    window.localStorage.setItem(afterSendingChoice, "archive");
+    serveNext();
+    const state = await page.open(
+      { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+      { from: list },
+    );
+    page.serveWrites(state);
+    const release = holdWrites(state);
+    fireEvent.change(textBox(), { target: { value: "Noted." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    screen.getByRole("heading", { level: 1 }).focus();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "e" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toEqual([]);
+    release();
+    await waitFor(() => expect(where()).toBe("/s/builder/main/threads/2"));
+    expect(page.api.callsTo("POST", `${path}/archive`)).toHaveLength(1);
+  });
+
+  it.each([
+    ["true", "list"],
+    ["false", "stay"],
+  ])(
+    "carries on a choice an earlier release kept to go back as %s, as %s",
+    async (kept, carried) => {
+      window.localStorage.setItem(goBackChoice, kept);
+      await opened(undefined);
+      expect(after().value).toBe(carried);
+      // Chosen again, it is kept in its own place.
+      choose("below");
+      expect(window.localStorage.getItem(afterSendingChoice)).toBe("below");
+    },
+  );
+
+  it.each([
+    ["false", "stay"],
+    [undefined, "list"],
+  ])(
+    "reads a choice it cannot read as the earlier release's, %s, or else as back to the list",
+    async (kept, carried) => {
+      if (kept !== undefined) {
+        window.localStorage.setItem(goBackChoice, kept);
+      }
+      await opened("bogus");
+      expect(after().value).toBe(carried);
+    },
+  );
+
+  it("goes by the choice as it stands when the write lands", async () => {
     await opened(undefined);
     const release = holdWrites();
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
-    fireEvent.click(goBack());
+    choose("stay");
     release();
     await waitFor(() => expect(textBox().value).toBe(""));
     expect(where()).toBe(path);
@@ -1798,10 +2164,10 @@ describe("going back after sending", () => {
     expect(listSays()).toBe("");
   });
 
-  it("stays on the page when unchecked, a choice this device keeps", async () => {
+  it("stays on the page when Stay here is chosen, a choice this device keeps", async () => {
     await opened(undefined);
-    fireEvent.click(goBack());
-    expect(goBack().checked).toBe(false);
+    choose("stay");
+    expect(after().value).toBe("stay");
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
     await screen.findByRole("status");
@@ -1809,14 +2175,14 @@ describe("going back after sending", () => {
     cleanup();
     renderAt(path);
     await screen.findByRole("heading", { level: 1 });
-    expect(goBack().checked).toBe(false);
+    expect(after().value).toBe("stay");
   });
 
   it.each([
     ["refused", failure("invalid_input", "must not hold control characters", { field: "text" })],
     ["stale", failure("stale", "other messages landed", { missed: [message(2)] })],
   ])("stays on the page with the draft when the write is %s", async (_, refusal) => {
-    await opened("true");
+    await opened("list");
     page.api.on("POST", `${path}/messages`, refusal);
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
@@ -1838,14 +2204,14 @@ describe("going back after sending", () => {
       { from: list },
     );
     page.serveWrites(state);
-    expect(goBack().checked).toBe(true);
-    fireEvent.click(goBack());
-    expect(goBack().checked).toBe(false);
+    expect(after().value).toBe("list");
+    choose("stay");
+    expect(after().value).toBe("stay");
     fireEvent.change(textBox(), { target: { value: "Noted." } });
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
     await waitFor(() => expect(textBox().value).toBe(""));
     expect(where()).toBe(path);
-    expect(goBack().checked).toBe(false);
+    expect(after().value).toBe("stay");
   });
 });

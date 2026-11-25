@@ -105,14 +105,13 @@ describe("dictation in the composer", () => {
     expect(page.writes()).toEqual([]);
   });
 
-  it("keeps focus on Go back after sending as it moves back beside Send", async () => {
+  it("keeps focus on After sending as it moves back beside Send", async () => {
     const recorder = installRecorder();
     await openThread();
     fireEvent.change(textBox(), { target: { value: "Use it." } });
     answerTranscriptions({ body: { text: "SQLite" } });
     await record(recorder);
-    const option = () =>
-      within(composer()).getByRole("checkbox", { name: "Go back after sending" });
+    const option = () => within(composer()).getByRole("combobox", { name: "After sending" });
     // While recording, it sits below the Send row.
     expect(option().closest(".actions")).toBeNull();
     option().focus();

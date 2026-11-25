@@ -392,10 +392,16 @@ export class PasskeyFailure extends Error {
   override name = "PasskeyFailure";
 }
 
+// PageFailure is a failure the page found itself, its message already a
+// sentence for the page.
+export class PageFailure extends Error {
+  override name = "PageFailure";
+}
+
 // describeFailure says what went wrong as a sentence for the page. The API's
 // messages are lowercase phrases.
 export function describeFailure(failure: unknown): string {
-  if (failure instanceof PasskeyFailure) {
+  if (failure instanceof PasskeyFailure || failure instanceof PageFailure) {
     return failure.message;
   }
   if (!(failure instanceof ApiFailure)) {

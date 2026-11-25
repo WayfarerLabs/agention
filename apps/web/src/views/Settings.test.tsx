@@ -7,6 +7,7 @@ import {
   settingsNavigation,
   settingsSections,
 } from "./settings/sections.ts";
+import { autoAdvanceChoice } from "./thread/neighbor-thread.ts";
 
 let api: FakeApi;
 
@@ -137,5 +138,22 @@ describe("Settings' sections", () => {
     await screen.findByRole("heading", { level: 2, name: "Passkeys" });
     expect(window.location.pathname).toBe("/settings/passkeys");
     expect(window.history.length).toBe(entries);
+  });
+});
+
+describe("Settings' threads", () => {
+  const autoAdvance = () =>
+    screen.getByRole<HTMLSelectElement>("combobox", { name: "Auto-advance" });
+
+  it("advances to the thread above unless this browser keeps another choice, which it keeps", async () => {
+    await open("/settings/threads", "Threads");
+    expect(autoAdvance().value).toBe("above");
+    for (const choice of ["below", "list"]) {
+      fireEvent.change(autoAdvance(), { target: { value: choice } });
+      expect(window.localStorage.getItem(autoAdvanceChoice)).toBe(choice);
+      cleanup();
+      await open("/settings/threads", "Threads");
+      expect(autoAdvance().value).toBe(choice);
+    }
   });
 });
