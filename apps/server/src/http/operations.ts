@@ -53,7 +53,8 @@ export function isBytes(
 
 // Declaration is what the documentation reads of a route: its name (unique
 // on its mount), method, path relative to its mount, with :name for each path
-// parameter, one-line summary, the scope it requires, and its schemas, or,
+// parameter, one-line summary, any longer description, such as a limit it
+// keeps, the scope it requires, and its schemas, or,
 // for a body or an answer that is a file's bytes, their description. The
 // path parameters' schema names each parameter as the path does.
 export interface Declaration {
@@ -61,6 +62,7 @@ export interface Declaration {
   method: "GET" | "POST";
   path: string;
   summary: string;
+  description?: string | undefined;
   scope?: Scope | undefined;
   params?: DescribedSchema<unknown>;
   query?: DescribedSchema<unknown>;
@@ -99,6 +101,7 @@ interface Definition<P, Q, B, R> {
   method: "GET" | "POST";
   path: string;
   summary: string;
+  description?: string;
   params?: DescribedSchema<P>;
   query?: DescribedSchema<Q>;
   body?: DescribedSchema<B> | BytesBody;

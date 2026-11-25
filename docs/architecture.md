@@ -231,8 +231,9 @@ also sets `journal_size_limit` to 16 MiB, so a log that a backup's long read let
 
 `voice_settings` holds at most one row, what the operator's Settings last saved for voice: the base
 URL and model in effect when it was saved, the environment's included, so the row always records the
-address its key was entered for, an optional prompt, and an optional key. Turning voice off deletes
-the row. Which provider it means is worked out from its base URL, never stored apart from it.
+address its key was entered for, an optional prompt (Settings' additional context), and an optional
+key. Turning voice off deletes the row. Which provider it means is worked out from its base URL,
+never stored apart from it.
 
 `api_keys` holds the operator's API keys: each one's name, its scopes as a JSON array, the SHA-256
 of its secret, which is unique, and when it was created, when it expires (null for a key without an
@@ -521,7 +522,7 @@ and leaves the others after them as they were; it never changes a thread's lead.
 thread's number, and across sessions first on the session, so the positions a session's own list
 gives out say nothing about other sessions. Lists page by keyset cursors, each bound to its order,
 its direction and its grouping, so a cursor another gave out is refused; a cursor is at most 1,024
-characters, room for a grouped list's position, four sets of keys. All of these keys change as
+characters, room for a grouped list's position, three sets of keys. All of these keys change as
 threads do, so a thread that changes between two pages can be skipped or repeated, and the next
 refresh shows it. Beside a page, the operator's list says how many threads it holds. Bulk read and
 archive take each thread through the message the list showed; bulk archive skips the threads holding
@@ -530,17 +531,17 @@ an ask open to the operator and names them.
 Each thread in the operator's list carries its session's group, which no agent's list shows. With
 `group`, the operator's list orders its threads by their group, then by the sort, so a group's
 threads arrive together: grouped by session group (`group=session_group`), each session's group, no
-group being one of its own, each session within it, and each topic within that, is placed by its
-first thread under the sort, reversed or not; grouped by session, each session, and each topic
-within it, likewise; grouped by agent, each agent, and each session within it, likewise. A group's
-place is its first thread's keys, which a cursor carries beside the thread's own. As a moved thread
-does in the flat list, a change that moves a group ahead of a page's cursor skips that group's
-remaining threads for the rest of that pass, and one that moves it behind repeats them; the next
-load from the first page shows the list whole, and the web UI reloads from the first page on every
-refresh. A group can therefore come in two runs. A change that moves a group's first thread moves
-the whole group, so while every thread the list keeps is in one session group, it can skip or repeat
-the rest of the pass. Every page of a grouped list carries the roll-up of each session holding a
-thread the list keeps, with its group, and, grouped by session group or by session, of each of its
+group being one of its own, and each session within it, is placed by its first thread under the
+sort, reversed or not; grouped by session, each session, likewise; grouped by topic, each session,
+and each topic within it, likewise; grouped by agent, each agent, and each session within it,
+likewise. A group's place is its first thread's keys, which a cursor carries beside the thread's
+own. As a moved thread does in the flat list, a change that moves a group ahead of a page's cursor
+skips that group's remaining threads for the rest of that pass, and one that moves it behind repeats
+them; the next load from the first page shows the list whole, and the web UI reloads from the first
+page on every refresh. A group can therefore come in two runs. A change that moves a group's first
+thread moves the whole group, so while every thread the list keeps is in one session group, it can
+skip or repeat the rest of the pass. Every page of a grouped list carries the roll-up of each
+session holding a thread the list keeps, with its group, and, grouped by topic, of each of its
 topics: how many threads, how many unread, whether any holds a blocking ask open to the caller, the
 highest priority of an open ask, and whether all are archived for the caller, and each session's
 presence: when it was last seen and whether it is quiet. `composeRollup` rolls up groups into the
@@ -577,7 +578,14 @@ a full page continues with the threads it left out; a `since` past the latest po
 none, as a session's own does. It waits on the notifier's channel across every session, which every
 session's notification wakes, and the end of an API key or a browser session too, and it polls again
 when its credential expires, so an expiry ends the wait with the credential's refusal, as a
-revocation does.
+revocation does. Every message wakes every such wait to poll again, so one credential, an API key or
+a browser session, holds at most 4 at once, which the store's `OperatorWaits`
+(`apps/server/src/store/operator-waits.ts`) counts in the server process, as the notifier holds the
+waits. The operation takes a place once the request is authenticated and its input read, for a wait
+longer than 0, which answers at once and takes none, and gives it back however the wait ends:
+answered, run out, left by its client, ended by its credential's end or failed. One past the limit
+is refused at once as `rate_limited`, with a `Retry-After` of a second, and no held wait ends to
+make room, since clients that each wait again would then push each other out.
 
 ## HTTP API
 
@@ -606,7 +614,8 @@ built from the same lists ([API documentation](#api-documentation)).
   with the one scope it requires. Being in the list is what puts an operation on the operator mount,
   so one left out is not there. The web mount serves the same list to the browser session, which
   holds every scope, so both mounts run the same handlers. `threads:read` grants the thread list
-  (`GET /threads`), its counts (`GET /threads/counts`), the wait across sessions (`GET /wait`) and a
+  (`GET /threads`), its counts (`GET /threads/counts`), the threads above and below one in it
+  (`GET /s/:agent/:session/threads/:thread/neighbors`), the wait across sessions (`GET /wait`) and a
   thread with its messages, a thread's files and the file a message carries; `threads:write`
   starting a thread on a session, sending a message, marking a thread read or unread and archiving
   it, bulk read and archive (`POST /reads` and `POST /archives`), and uploading a file and removing
@@ -952,6 +961,9 @@ answer that is not a transcript. `POST /transcriptions` answers it as `provider_
 with a message naming the kind and never the provider's body, and logs only the kind and status. An
 upload the browser abandons before it arrives whole is logged as cancelled too.
 
+A transcript that is the prompt sent, ignoring case, punctuation and the spacing between words, is
+answered as empty, since Whisper sometimes answers silence with its prompt.
+
 ## Rate budgets
 
 Token buckets in `apps/server/src/http/rates.ts` keep one kind of traffic from starving another, and
@@ -964,8 +976,9 @@ else spends one budget per class: registrations of new keys, failed agent authen
 key authentication (`failedKeyAuth`), failed passkey sign-ins and failed passkey links. Every class
 but new registrations is charged only for a request that failed, after it was checked, so draining
 one never refuses a valid key, passkey or link, and beginning a ceremony costs nothing. An exhausted
-budget answers `rate_limited`, with a `Retry-After` header. The
-[operator guide](operator-guide.md#rate-budgets) lists the rates.
+budget answers `rate_limited`, with a `Retry-After` header, as does a wait across sessions past its
+credential's limit ([Store](#store)). The [operator guide](operator-guide.md#rate-budgets) lists the
+rates.
 
 ## Serving
 
@@ -1194,20 +1207,20 @@ address it listens on.
 `apps/web/` is a React application with no framework beyond React, which Vite builds into the server
 package's `web/` directory.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/voice/`         | Dictation, which records and has the server transcribe, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's search, sheet, chips, rows and groups, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas, and the web UI and the server share one rule, from `packages/server-api`, for the
@@ -1256,16 +1269,46 @@ or the list's address, so the entry, a reload, `u` and the list agree. The route
 listener to `popstate`, and runs the corrections views register (`correctPoppedEntry`) within it,
 with telling the page: a listener of its own would run only once the page had rendered the entry
 uncorrected. A row's link records the list on screen as it is followed. The open thread's row is
-`aria-current="page"`, and opening it again moves focus to the thread's pane. The page keeps one
+`aria-current="page"`, and opening it again moves focus into the thread's pane. The page keeps one
 title and one level-one heading, the thread's while one is open, and a change that leaves a thread,
-such as Archive all or a send that goes back, returns to the list as it stands once the change
-lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
+such as Archive all or a send that goes back to the list, returns to the list as it stands once the
+change lands. After a navigation the shell moves focus to where it lands (`focusLanding` in
 `src/components.tsx`), the place a view marks with `data-landing`, its heading or else the place
-itself: the thread's pane, as a phone lands on the page's content while a thread loads, or on
-returning to the list, the row of the thread just left (`src/views/list/beside.ts`). A row that goes
-while it holds focus passes it to the page's heading, and crossing the breakpoint, if it took away
-what held focus, moves focus to where a navigation lands. The thread keeps the page's own scroll,
-and the list's pane is sticky and scrolls on its own.
+itself: side by side the thread's pane, on a phone the page's content, or on returning to the list,
+the row of the thread just left (`src/views/list/beside.ts`). A landing with no heading yet, as a
+thread's while it loads, is pending: the first heading to show in it (`PageHeading`) takes focus as
+it shows, while focus is still on the landing itself or on nothing, as when the control that had it
+went, never from where the operator has put it meanwhile, within the landing or not. So a thread
+opened from the list, by Thread above or below, by archiving or after sending lands on its heading
+at every width. A row that goes while it holds focus passes it to the page's heading, and crossing
+the breakpoint, if it took away what held focus, moves focus to where a navigation lands. The thread
+keeps the page's own scroll, and the list's pane is sticky and scrolls on its own.
+
+A thread page's **Thread above** and **Thread below**, and Archive all as Auto-advance says, go to
+the row just above or below the thread in the list it returns to, as that list stands when the
+operator asks: the list Back to threads goes to, which its history entry names, or the list with no
+filters for a thread opened from a link. Side by side it is the list on screen, and a phone, showing
+no list, gets the same answer. The server answers it
+(`GET /s/:agent/:session/threads/:thread/neighbors`, `findThreadNeighbors` in
+`src/store/thread-lists.ts`), ranking the list once, as the list's pages rank it, grouping included,
+with the thread kept at its own place though the filters would leave it out, as they do a thread
+just archived or read out of a list kept to the unread, and answering the rows on either side. A
+kept thread stands within its own group, and the groups stay where the list shows them, so it never
+moves one; only a group it alone would hold takes its place from it. The request costs about what
+one page of the list does. The page (`src/views/thread/leaving.ts`) asks on each press, and Archive
+all asks once the archive has landed, so archiving never waits on the list. Should the operator
+change the list while the server answers, the page asks again in the list as it then stands, so it
+keeps their latest choice and opens a thread found in the list it returns to; should the list change
+three times running, it stays and says so rather than go by an answer for a list left behind.
+Archive all archives only through what the page shows: after sending, it waits until the page has
+loaded through the message sent, with any the agent wrote before it. The buttons push the thread
+found as a new history entry, carrying on the list it was found in; Archive all replaces the
+archived thread's entry, so Back does not return to it, and stays on the thread, archived, with the
+failure shown, should the request fail. At the end of the list that way each goes back to the list,
+leaving it a notice to say so; nothing goes round. Auto-advance is a choice the browser keeps
+(`useAutoAdvance`), the thread above unless the operator chooses otherwise in Settings' Threads
+section. While one way on is under way no other starts, the buttons are marked busy, and Send and
+After sending wait, so a send never lands to find its own way on refused or its choice changed.
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page,
 in `src/server-name.ts`, and shows it as the banner's brand and after each page's own name in its
@@ -1356,10 +1399,14 @@ was. While the operator is signed in, the navigation reads what waits on the ope
 `GET /attention`, and shows it as a badge on each tab while there is any: the unread threads on
 Threads and the registrations waiting for approval on Sessions. The counts refresh on an interval,
 on returning to the page, on going to another view, and at once after any change the page makes
-lands, which the web API client announces for every request but a read and signing in or out.
-Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
-summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
-seen; otherwise no active credential.
+lands, which the web API client announces for every request but a read and signing in or out. From
+the moment the operator starts ending the session, by signing out or by removing the passkey that
+signed this browser in, the page asks nothing more that needs the session on its own: no view
+refreshes, no count is read and a load under way stops before it asks again, since the server may
+sign the browser out before anything sent meanwhile arrives and would refuse it. Wherever a thread
+shows as stranded, the UI says why from the session's presence in the thread's summary: the stop the
+session reported, with its outcome; otherwise quiet, with when it was last seen; otherwise no active
+credential.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with
@@ -1394,12 +1441,15 @@ browser's own where it acts, apart from `/` on the thread list, which takes Fire
 deliberately; `Enter` on a row is left out, since the row is a link the browser follows. One handler
 on the document, added after the page's own, acts on a key only when nothing handled it first, it
 was not typed into a text field, a select or editable content, no dialog or options menu is open,
-and Ctrl, Alt and Meta are up; the first key of two, `g`, waits 1.5 seconds for the second. A screen
-reader's browse mode takes single keys before the page sees them, so the shortcuts reach the page
-only once it passes keys through, and never compete with its own. The composer's own keys, Send and
-leaving it, act within its fields from its form's key handler (`useFieldShortcuts`), and likewise
-not while a dialog or options menu is open, such as Attach's within the form. Side by side, the
-list's shortcuts and the thread's act together, each pane naming the area of its view's
+and Ctrl, Alt and Meta are up, AltGr, which Chrome on Windows reports as Ctrl and Alt held, counting
+as neither for the punctuation it types, such as `[` on a German keyboard; Chrome on Windows reports
+a real Ctrl and Alt chord as AltGr too, so with a letter, a digit or a named key such as `Escape`,
+which types nothing, it counts as Ctrl and Alt; the first key of two, `g`, waits 1.5 seconds for the
+second. A screen reader's browse mode takes single keys before the page sees them, so the shortcuts
+reach the page only once it passes keys through, and never compete with its own. The composer's own
+keys, Send and leaving it, act within its fields from its form's key handler (`useFieldShortcuts`),
+and likewise not while a dialog or options menu is open, such as Attach's within the form. Side by
+side, the list's shortcuts and the thread's act together, each pane naming the area of its view's
 (`ShortcutArea`), which clicking within a pane gives focus. While focus is in one place's area,
 another place's keys act only if they reach across (`reachesAcross`): the list's do, moving focus
 into it, but the thread's do not, so `e`, a digit or `u` never acts on the thread from the list. A
@@ -1412,14 +1462,34 @@ shortcuts are on unless the operator turns them off in Settings' Keyboard sectio
 browser keeps in its local storage (`src/device.ts`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
-each message's place by its sequence, so a refresh keeps an opened fold open. The composer checks
-its boxes against the API's bounds of a message's text and detail, counted with the API's
-`codePointLength` as the server counts them, and never cuts what is typed into them. Its Send row,
-which holds what answers Send, sticks to the foot of the screen within the composer, and the page's
-viewport asks a phone to shrink the layout for its keyboard (`interactive-widget=resizes-content`),
-so the keyboard does not hide Send. The composer measures the row as it changes and the page's
-scroll padding keeps that much clear, so the caret and a control focused from the keyboard scroll
-into view above the row.
+each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy
+button (`src/views/thread/copy.ts`) writes its text, and its detail while that fold is open, to the
+clipboard as Markdown, through `navigator.clipboard`, and says under the message when the browser
+refuses. The composer checks its boxes against the API's bounds of a message's text and detail,
+counted with the API's `codePointLength` as the server counts them, and never cuts what is typed
+into them. Its Send row, which holds what answers Send, sticks to the foot of the screen within the
+composer, and the page's viewport asks a phone to shrink the layout for its keyboard
+(`interactive-widget=resizes-content`), so the keyboard does not hide Send. The composer measures
+the row as it changes and the page's scroll padding keeps that much clear, so the caret and a
+control focused from the keyboard scroll into view above the row.
+
+The composer's After sending is where a message the server accepts takes the operator, a choice the
+browser keeps (`useDeviceOption` in `src/device.ts`); without one kept, the choice an earlier
+release kept, going back or staying, stands in its place, as it does for a value After sending does
+not know. A message that lands while the page is still open goes by the choice as it stands then
+(the composer's `onward`): back to the list, which says what was sent; to the thread above or below,
+as their buttons go; or Archive all's own path, run without the page's check for asks open to the
+operator, since the message may have answered them, so the server's refusal, naming the ask, shows
+instead and the page stays. What was sent goes with the operator: the thread opened says it beside
+Send (`leaveNotice` for the thread, in `src/notice.ts`), and a list gone back to says it, before
+saying it reached its end when it did. When a send's way on fails, its composer says so beside Send,
+after what was sent, in the head's own words, which a phone's keyboard can hide. An archive after
+sending goes through the message sent at least, which a stale send's retry can place past the latest
+the page has loaded. One rule holds for leaving the page: while a way on is under way, or a message
+that will take the page somewhere is on its way, no other way on starts, the buttons', Archive all's
+or a send's; a send's own way on, once it lands, waits only for the others. Each way on checks and
+marks it as it stands when it starts (`start`), not as the render that set it up saw it, and the
+buttons are disabled meanwhile, as Archive all is.
 
 The composer keeps a thread's draft in the browser's local storage (`src/device.ts`, through
 `src/views/thread/kept-draft.ts`), under the thread's agent, session and number, the origin
@@ -1555,10 +1625,10 @@ keeps the recording for Retry until it is discarded. `useDictation` gives its ca
 what went wrong and what it says otherwise apart, and the composer puts all three in its Send row, a
 failure before Send and anything else after it. The row stays short on a phone whatever its fonts:
 the microphone is its icon alone, the recording's time and a failure drop the words the rest says,
-and Go back after sending moves below the row while dictation has controls in it. Each control that
-replaces another moves focus to the next state's own control, unless the operator has put focus
-somewhere else meanwhile, as into the message box while the microphone opens, and starting a
-recording is announced once.
+and After sending moves below the row while dictation has controls in it, keeping focus as it moves.
+Each control that replaces another moves focus to the next state's own control, unless the operator
+has put focus somewhere else meanwhile, as into the message box while the microphone opens, and
+starting a recording is announced once.
 
 Read aloud (`src/voice/speech.ts`) speaks one message at a time through `speechSynthesis`, which
 Stop, another message, a recording or leaving the thread cancels at once. It speaks a sentence at a

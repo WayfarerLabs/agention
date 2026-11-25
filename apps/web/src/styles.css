@@ -569,15 +569,26 @@ legend {
 
 /* The thread list */
 
-/* The list's head: the order with its direction, the grouping, then the
-   Filters button at the end of its row, in one row that wraps, rather than
-   squeezing them, where the width does not hold them all. */
+/* The list's head: the search box across its top, then the order with its
+   direction, the grouping, and the Filters button at the end of their row,
+   which wraps, rather than squeezing them, where the width does not hold
+   them all. The search box takes the head's whole width at every width, so
+   it keeps its room beside a thread as on a phone. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
+}
+
+.list-search {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.list-search .field-error {
+  margin-bottom: 0;
 }
 
 /* A part of where a thread is, its agent, session or topic, is marked by a
@@ -1388,6 +1399,13 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin-bottom: var(--space-3);
 }
 
+/* The way back to the list, and to the threads above and below, together. */
+.thread-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* The back button: a heavy arrow and its word, at full strength, bordered
    like the head's other buttons. */
 .back {
@@ -1492,6 +1510,20 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   margin: 0;
 }
 
+/* After sending: its word beside its select, both on one line, the select
+   as wide as its longest option. */
+.after-sending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: 400;
+}
+
+.after-sending select {
+  width: auto;
+}
+
 /* What the page scrolls into view, as the caret while typing or a control
    focused from the keyboard, stops a little above the Send row stuck at the
    foot of the screen, whose height the composer measures as it changes. */
@@ -1584,6 +1616,23 @@ button.fold[aria-expanded="false"] > .icon:last-child {
   transform: rotate(-90deg);
 }
 
+/* The divider after the last message the operator archived: small muted
+   words, then a thin rule to the end of the line. */
+.archived-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.archived-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--color-border);
+}
+
 /* A message's detail, folded into one Details line under its text that opens
    it in place, set off from the text by a rule at its side; the composer's
    Details box folds under the message box the same way until opened. The
@@ -1622,7 +1671,23 @@ button.detail-fold[aria-expanded="false"] > .icon {
   z-index: var(--layer-menu);
 }
 
-button.options-button {
+/* A message's own controls, at the end of its head: Copy, then its options,
+   drawn out to the card's corner as a lone options button is. */
+.head-controls {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 0;
+}
+
+.head-controls .options {
+  margin: 0;
+}
+
+/* An options button, and a message's Copy beside it: an icon alone, quiet
+   until hovered. */
+button.options-button,
+button.copy-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1634,7 +1699,8 @@ button.options-button {
 }
 
 button.options-button:hover,
-button.options-button[aria-expanded="true"] {
+button.options-button[aria-expanded="true"],
+button.copy-button:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
 }

@@ -224,8 +224,8 @@ function ThreadFileList({
   showMessage: (seq: number) => void;
 }) {
   const path = threadPath(target.agent, target.session, target.number, "/files");
-  const pages = usePages(async (cursor) => {
-    const page = await request<ThreadFilesPage>("GET", `${path}${query({ cursor })}`);
+  const pages = usePages(async (cursor, signal) => {
+    const page = await request<ThreadFilesPage>("GET", `${path}${query({ cursor })}`, { signal });
     return { rows: page.files, next: page.next };
   });
   return (

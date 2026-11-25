@@ -186,10 +186,9 @@ function Badge({ count, spoken }: { count: number; spoken: string }) {
 }
 
 // Frame is the page around every view, under a banner led by the server's
-// name. After a navigation, focus moves to where it lands (focusLanding): the
-// new view's heading, or the content while it loads, so keyboard and screen
-// reader users start there. view names the view on screen, which a page that
-// failed to render gives way to when it changes.
+// name. After a navigation, focus moves to where it lands (focusLanding), so
+// keyboard and screen reader users start there. view names the view on
+// screen, which a page that failed to render gives way to when it changes.
 function Frame({ nav, view, children }: { nav?: ReactNode; view?: string; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
   const { pathname } = useLocation();

@@ -83,6 +83,23 @@ export function useDeviceChoice(
   return [value, choose];
 }
 
+// useDeviceOption gives the option kept under key, one of options, or else
+// fallback, as for a value it does not know, and a way to change and keep it.
+export function useDeviceOption<T extends string>(
+  key: string,
+  options: readonly T[],
+  fallback: T,
+): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(
+    () => options.find((option) => option === read(key)) ?? fallback,
+  );
+  const choose = (next: T) => {
+    setValue(next);
+    keep(key, next);
+  };
+  return [value, choose];
+}
+
 // useDeviceNames gives the names kept under key, none by default, and a way
 // to change and keep them.
 function useDeviceNames(key: string): [ReadonlySet<string>, (names: ReadonlySet<string>) => void] {

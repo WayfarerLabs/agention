@@ -36,12 +36,12 @@ import { ThreadRow } from "./ThreadRow.tsx";
 
 // The list grouped, folding the rows loaded inline under headers: by session
 // group, the sessions under their groups when the list holds two or more, no
-// group counting as one, and each session's threads under their topics when
-// they carry two or more; by session, the sessions so; or by agent, each
-// agent's under its sessions when it has two or more. The list arrives a
-// group at a time, each group's threads together,
-// but a group whose first thread changed between pages can arrive in two
-// runs, so rows fold under their group's header whichever page brought them.
+// group counting as one; by session, the sessions alone; by topic, the
+// sessions, each session's threads under their topics when they carry two or
+// more; or by agent, each agent's under its sessions when it has two or more.
+// The list arrives a group at a time, each group's threads together, but a
+// group whose first thread changed between pages can arrive in two runs, so
+// rows fold under their group's header whichever page brought them.
 // Depth shows through the headers' styles, the outer a sticky, tinted bar and
 // the inner a light subheader, rather than through indentation. Every header
 // rolls up its whole group, loaded or not, from the roll-ups the list
@@ -316,9 +316,10 @@ export function GroupedRows({
         const [first] = inSession;
         const session = heads.session(path);
         const topics = gather(inSession, (thread) => thread.topic ?? "");
-        // A session's topics branch when it carries two or more, as its
-        // roll-up or the rows loaded say.
-        const branches = Math.max(session?.topics?.length ?? 0, topics.length) >= 2;
+        // Grouped by topic, a session's topics branch when it carries two or
+        // more, as its roll-up or the rows loaded say.
+        const branches =
+          grouping === "topic" && Math.max(session?.topics?.length ?? 0, topics.length) >= 2;
         const inner = under(at);
         return (
           <GroupFold
@@ -366,8 +367,8 @@ export function GroupedRows({
     // Grouped by session group, the groups branch when the list holds two or
     // more, no group among them, as the roll-ups or the rows loaded say;
     // with every session in one, or none in any, the sessions head the list,
-    // as they do grouped by session.
-    if (grouping === "session" || Math.max(heads.groups, sessionGroups.length) < 2) {
+    // as they do grouped by session or by topic.
+    if (grouping !== "session_group" || Math.max(heads.groups, sessionGroups.length) < 2) {
       return sessionFolds(threads, top);
     }
     return sessionGroups.map(([key, held]) => {
