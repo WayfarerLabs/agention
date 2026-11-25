@@ -34,6 +34,7 @@ import { Mark } from "../../icons.tsx";
 import { readDraft } from "../../device.ts";
 import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
 import { ListBeside } from "./beside.ts";
+import { RowFocusOwed } from "./focus-owed.ts";
 import { ListSelection, longPress, threadKey } from "./selection.tsx";
 
 // What stands out about the asks open to the operator: the one the thread
@@ -116,7 +117,8 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // thread's pane; the row of the thread just left is where going back to the list
 // lands; and a row that goes while its link has focus, as the row of a thread
 // archived beside the list does once the list follows, gives focus to the
-// page's heading, so it is not lost.
+// page's heading, so it is not lost, unless the list's bar owes the rows
+// focus (RowFocusOwed), as after a mark key, and places it itself.
 //
 // Within a list that selects (ListSelection), the row carries a checkbox
 // named by its heading, with a mouse or a trackpad, and on a touch screen
@@ -129,6 +131,7 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
   const current = beside?.open === href;
   const left = beside?.left === href;
   const link = useRef<HTMLAnchorElement>(null);
+  const focusOwed = useContext(RowFocusOwed);
   // Whether the list was side by side as the row last showed.
   const sideBySide = useRef(false);
   useLayoutEffect(() => {
@@ -137,7 +140,12 @@ export function ThreadRow({ thread, level }: { thread: ThreadSummary; level: Fol
   useLayoutEffect(() => {
     const shown = link.current;
     return () => {
-      if (sideBySide.current && shown !== null && shown === document.activeElement) {
+      if (
+        sideBySide.current &&
+        shown !== null &&
+        shown === document.activeElement &&
+        focusOwed?.current !== true
+      ) {
         shown.closest("main")?.querySelector<HTMLElement>("h1")?.focus();
       }
     };

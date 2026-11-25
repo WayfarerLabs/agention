@@ -739,6 +739,116 @@ describe("selecting with a mouse", () => {
     fireEvent.keyDown(shown("Pick a port"), { key: "x" });
     expect(checkbox("Pick a port").checked).toBe(false);
   });
+
+  it("marks the current row's thread read with I and unread with U, focus staying on it", async () => {
+    renderAt("/");
+    await screen.findByText("Ship it");
+    // With no row current, there is nothing to mark.
+    fireEvent.keyDown(document.body, { key: "I", shiftKey: true });
+    expect(actionCalls()).toEqual([]);
+    shown("Ship it").focus();
+    fireEvent.keyDown(shown("Ship it"), { key: "U", shiftKey: true });
+    await said();
+    expect(actionCalls().map((call) => call.body)).toEqual([
+      { action: "unread", threads: [through(third)] },
+    ]);
+    expect(document.activeElement).toBe(shown("Ship it"));
+    shown("Choose a database").focus();
+    fireEvent.keyDown(shown("Choose a database"), { key: "I", shiftKey: true });
+    await waitFor(() => expect(actionCalls()).toHaveLength(2));
+    expect(actionCalls()[1]?.body).toEqual({ action: "read", threads: [through(first)] });
+    expect(document.activeElement).toBe(shown("Choose a database"));
+  });
+
+  it("marks the threads selected with I and U, as their buttons do, focus staying on the row", async () => {
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: titled("Choose a database") }));
+    fireEvent.click(checkbox("Ship it"));
+    shown("Pick a port").focus();
+    fireEvent.keyDown(shown("Pick a port"), { key: "I", shiftKey: true });
+    await said();
+    expect(actionCalls().map((call) => call.body)).toEqual([
+      { action: "read", threads: [through(first), through(third)] },
+    ]);
+    await waitFor(() => expect(selected()).toBeNull());
+    expect(document.activeElement).toBe(shown("Pick a port"));
+    fireEvent.click(checkbox("Pick a port"));
+    shown("Pick a port").focus();
+    fireEvent.keyDown(shown("Pick a port"), { key: "U", shiftKey: true });
+    await waitFor(() => expect(actionCalls()).toHaveLength(2));
+    expect(actionCalls()[1]?.body).toEqual({ action: "unread", threads: [through(second)] });
+  });
+
+  it("moves focus to the row in its place, or the last, once a key's mark takes its row out of the list", async () => {
+    api.on("POST", "/threads/actions", (call) => {
+      const { threads: marked } = call.body as { threads: { thread: number }[] };
+      threads = threads.filter((each) => !marked.some((one) => one.thread === each.number));
+      total = threads.length;
+      return { body: done };
+    });
+    renderAt("/?unread=true");
+    await screen.findByText("Ship it");
+    shown("Choose a database").focus();
+    fireEvent.keyDown(shown("Choose a database"), { key: "I", shiftKey: true });
+    await waitFor(() => expect(screen.queryByText("Choose a database")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(shown("Pick a port")));
+    shown("Ship it").focus();
+    fireEvent.keyDown(shown("Ship it"), { key: "I", shiftKey: true });
+    await waitFor(() => expect(screen.queryByText("Ship it")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(shown("Pick a port")));
+  });
+
+  it("starts nothing with a mark key while an action of the bar's is under way", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    api.on("POST", "/threads/actions", async () => {
+      await held;
+      return { body: done };
+    });
+    renderAt("/");
+    await screen.findByText("Ship it");
+    shown("Ship it").focus();
+    fireEvent.keyDown(shown("Ship it"), { key: "U", shiftKey: true });
+    await waitFor(() => expect(actionCalls()).toHaveLength(1));
+    shown("Pick a port").focus();
+    fireEvent.keyDown(shown("Pick a port"), { key: "I", shiftKey: true });
+    release();
+    await said();
+    expect(actionCalls().map((call) => call.body)).toEqual([
+      { action: "unread", threads: [through(third)] },
+    ]);
+  });
+
+  it("returns focus to the row a key was pressed on once its question is answered and the action done", async () => {
+    total = 40;
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Select all 40 threads that match" }),
+    );
+    shown("Pick a port").focus();
+    fireEvent.keyDown(shown("Pick a port"), { key: "U", shiftKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Mark unread" }));
+    await said();
+    await waitFor(() => expect(selected()).toBeNull());
+    expect(api.callsTo("POST", "/threads/actions/matching")).toHaveLength(1);
+    expect(document.activeElement).toBe(shown("Pick a port"));
+  });
+
+  it("returns focus to the row a key was pressed on once its question is answered with Cancel", async () => {
+    total = 40;
+    renderAt("/");
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Select all 40 threads that match" }),
+    );
+    shown("Pick a port").focus();
+    fireEvent.keyDown(shown("Pick a port"), { key: "U", shiftKey: true });
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    fireEvent.click(cancel);
+    expect(document.activeElement).toBe(shown("Pick a port"));
+    expect(api.callsTo("POST", "/threads/actions/matching")).toEqual([]);
+  });
 });
 
 describe("selecting on a touch screen", () => {

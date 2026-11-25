@@ -296,6 +296,13 @@ export function suggestionChoices(): HTMLInputElement[] {
   return choices(open.find((card) => choices(card).length > 0));
 }
 
+// focusedMessage gives the sequence of the message that holds focus, itself
+// or within it, if one does.
+export function focusedMessage(): number | undefined {
+  const seq = document.activeElement?.closest<HTMLElement>("article.message")?.dataset.seq;
+  return seq === undefined ? undefined : Number(seq);
+}
+
 function AskCard({
   message,
   ask,
@@ -788,6 +795,12 @@ interface Option {
   choose(): void;
 }
 
+// offersMarks says whether a message offers the marks made from it, Mark
+// unread from here and Archive through here: while it is live and the
+// archive mark has not reached it.
+export const offersMarks = (message: Message, archivedThrough: number) =>
+  message.live && message.seq > archivedThrough;
+
 // optionsOf lists what the operator can do from a live message: mark the
 // thread unread from it and archive through it, until the archive mark
 // reaches it; change the answers it carries while any ask they answer is
@@ -799,9 +812,8 @@ function optionsOf(message: Message, actions: MessageActions): Option[] {
   const answersLive = message.answers?.some((answer) => answer.ask_live) === true;
   const changeable = answersLive && mine(message) && !changing;
   const archiveHint = actions.archiveHint(message);
-  const archived = message.seq <= actions.archivedThrough;
   return [
-    ...(archived
+    ...(!offersMarks(message, actions.archivedThrough)
       ? []
       : [
           {
@@ -1101,7 +1113,12 @@ export function MessageView({
       message.replaced_by === undefined ? undefined : context.find(message.replaced_by);
     const retracted = replacement !== undefined && !carriesAPart(replacement);
     return (
-      <article id={`message-${message.seq}`} className="message replaced" aria-label={label}>
+      <article
+        id={`message-${message.seq}`}
+        data-seq={message.seq}
+        className="message replaced"
+        aria-label={label}
+      >
         <details>
           <summary>
             #{message.seq} by {authorName(message.author)},{" "}
@@ -1122,6 +1139,7 @@ export function MessageView({
   return (
     <article
       id={`message-${message.seq}`}
+      data-seq={message.seq}
       tabIndex={-1}
       className={unread ? "message unread" : "message"}
       aria-label={label}

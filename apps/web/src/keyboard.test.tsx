@@ -1,3 +1,4 @@
+import type { Message } from "@wayfarerlabs/agention-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,8 +9,21 @@ import {
   shortcuts,
   shortcutsChoice,
 } from "./keyboard.tsx";
-import { ask, message, renderAt, threadSummary, titleOf } from "./test-support.tsx";
-import { openDetails, path, textBox, ThreadPageTest } from "./views/thread/thread-test-support.tsx";
+import {
+  ask,
+  message,
+  operatorMessage,
+  renderAt,
+  threadSummary,
+  titleOf,
+} from "./test-support.tsx";
+import {
+  openDetails,
+  path,
+  type State,
+  textBox,
+  ThreadPageTest,
+} from "./views/thread/thread-test-support.tsx";
 
 let page: ThreadPageTest;
 
@@ -117,6 +131,67 @@ describe("on the thread list", () => {
     press("/");
     expect(document.activeElement).toBe(search);
     expect([search.selectionStart, search.selectionEnd]).toEqual([0, "release".length]);
+  });
+
+  it("opens the filters with f and the grouping's choice with b, while the head shows them", async () => {
+    await openList();
+    const sheet = () => screen.getByRole("dialog", { hidden: true });
+    const grouping = screen.getByRole("combobox", { name: "Group" });
+    press("b");
+    expect(document.activeElement).toBe(grouping);
+    screen.getByRole("link", { name: /Read one/ }).focus();
+    press("f");
+    expect(sheet().hasAttribute("open")).toBe(true);
+    fireEvent.click(within(sheet()).getByRole("button", { name: /^Show / }));
+    expect(sheet().hasAttribute("open")).toBe(false);
+    // While the search field takes the head's row, none of them acts.
+    press("/");
+    screen.getByRole("link", { name: /Read one/ }).focus();
+    press("f");
+    press("s");
+    press("b");
+    expect(sheet().hasAttribute("open")).toBe(false);
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: /Read one/ }));
+  });
+
+  it("chooses the order with s alone, while g then s still goes to Sessions", async () => {
+    page.api.on("GET", "/registrations", { body: { registrations: [] } });
+    await openList();
+    press("s");
+    expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Sort" }));
+    screen.getByRole("link", { name: /Read one/ }).focus();
+    press("g");
+    press("s");
+    await waitFor(() => expect(window.location.pathname).toBe("/sessions"));
+  });
+
+  it("opens the grouping's picker with b where the browser can, leaving focus on it where it cannot", async () => {
+    const showPicker = vi.fn();
+    const own = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "showPicker");
+    Object.defineProperty(HTMLSelectElement.prototype, "showPicker", {
+      configurable: true,
+      value: showPicker,
+    });
+    try {
+      await openList();
+      const grouping = screen.getByRole("combobox", { name: "Group" });
+      press("b");
+      expect(showPicker.mock.contexts).toEqual([grouping]);
+      expect(document.activeElement).toBe(grouping);
+      showPicker.mockImplementation(() => {
+        throw new DOMException("Not allowed", "NotAllowedError");
+      });
+      screen.getByRole("link", { name: /Read one/ }).focus();
+      press("b");
+      expect(showPicker).toHaveBeenCalledTimes(2);
+      expect(document.activeElement).toBe(grouping);
+    } finally {
+      if (own === undefined) {
+        Reflect.deleteProperty(HTMLSelectElement.prototype, "showPicker");
+      } else {
+        Object.defineProperty(HTMLSelectElement.prototype, "showPicker", own);
+      }
+    }
   });
 
   it("selects the search already on with /, so typing replaces it", async () => {
@@ -280,6 +355,143 @@ describe("on a thread's page", () => {
     press("1");
     expect(choice(/Which region/, "East").checked).toBe(true);
     expect(choice(/Which database/, "Postgres").checked).toBe(true);
+  });
+
+  describe("marks the thread unread with U and returns to the list, as Mark unread from here does", () => {
+    const marked = () => page.api.callsTo("POST", `${path}/unread`).map((call) => call.body);
+    beforeEach(() => {
+      page.api.on("POST", `${path}/unread`, { body: { cursors: { requester: 3, audience: 1 } } });
+    });
+
+    // openReading opens a thread whose last two messages are unread, holding
+    // the page's read mark of them until released, and gives what it serves.
+    async function openReading(
+      messages: Message[],
+    ): Promise<{ release: () => void; state: State }> {
+      const state = page.serve({ thread: threadSummary({ last_seq: 3, unread: 2 }), messages });
+      let release = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      page.api.on("POST", `${path}/read`, async () => {
+        await held;
+        return { body: { cursors: { requester: 3, audience: 3 } } };
+      });
+      renderAt(path);
+      await screen.findByRole("heading", { level: 1 });
+      await waitFor(() => expect(page.reads()).toEqual([3]));
+      return { release, state };
+    }
+
+    it("from the first message unread as the page opened, once its read mark has landed", async () => {
+      const { release } = await openReading([message(1), message(2), message(3)]);
+      press("U", { shiftKey: true });
+      await act(() => Promise.resolve());
+      expect(marked()).toEqual([]);
+      release();
+      await screen.findByRole("heading", { level: 1, name: "Threads" });
+      expect(marked()).toEqual([{ from: 2 }]);
+      expect(page.reads()).toEqual([3]);
+    });
+
+    it("from the first live one of those, passing over one replaced since", async () => {
+      const { release, state } = await openReading([message(1), message(2), message(3)]);
+      // Replaced while the page shows it, which then loads it again as the
+      // read mark lands.
+      state.messages = [message(1), message(2, { live: false, replaced_by: 3 }), message(3)];
+      release();
+      await waitFor(() =>
+        expect(document.getElementById("message-2")?.classList.contains("replaced")).toBe(true),
+      );
+      press("U", { shiftKey: true });
+      await screen.findByRole("heading", { level: 1, name: "Threads" });
+      expect(marked()).toEqual([{ from: 3 }]);
+    });
+
+    it.each([
+      ["the first", true],
+      ["the second", false],
+    ])(
+      "only once every read mark under way has landed, %s of two landing first",
+      async (_, firstFirst) => {
+        const { release, state } = await openReading([message(1), message(2), message(3)]);
+        // A message arrives while the first read mark is under way, and the
+        // page starts a second, through it.
+        let releaseSecond = () => {};
+        const second = new Promise<void>((resolve) => (releaseSecond = resolve));
+        page.api.on("POST", `${path}/read`, async () => {
+          await second;
+          return { body: { cursors: { requester: 4, audience: 4 } } };
+        });
+        state.messages = [...state.messages, message(4)];
+        state.thread = { ...state.thread, last_seq: 4, unread: 3 };
+        fireEvent.focus(window);
+        await waitFor(() => expect(page.reads()).toEqual([3, 4]));
+        press("U", { shiftKey: true });
+        const [landsFirst, landsLast] = firstFirst
+          ? [release, releaseSecond]
+          : [releaseSecond, release];
+        const loads = page.api.callsTo("GET", path).length;
+        landsFirst();
+        await waitFor(() => expect(page.api.callsTo("GET", path).length).toBeGreaterThan(loads));
+        await act(() => Promise.resolve());
+        expect(marked()).toEqual([]);
+        landsLast();
+        await screen.findByRole("heading", { level: 1, name: "Threads" });
+        expect(marked()).toEqual([{ from: 2 }]);
+      },
+    );
+
+    it("not once the message no longer offers it, the page reading on", async () => {
+      const { release, state } = await openReading([message(1), message(2), message(3)]);
+      document.getElementById("message-2")?.focus();
+      press("U", { shiftKey: true });
+      // Replaced while the read mark is under way, which the page loads.
+      state.messages = [message(1), message(2, { live: false, replaced_by: 3 }), message(3)];
+      fireEvent.focus(window);
+      await waitFor(() =>
+        expect(document.getElementById("message-2")?.classList.contains("replaced")).toBe(true),
+      );
+      release();
+      // A message arriving after is read as the page shows it.
+      state.messages = [...state.messages, message(4)];
+      state.thread = { ...state.thread, last_seq: 4, unread: 3 };
+      fireEvent.focus(window);
+      await waitFor(() => expect(page.reads()).toEqual([3, 4]));
+      expect(marked()).toEqual([]);
+      expect(heading().textContent).toMatch(/^#1 /);
+    });
+
+    it("from the message that has focus", async () => {
+      const { release } = await openReading([message(1), message(2), message(3)]);
+      document.getElementById("message-1")?.focus();
+      press("U", { shiftKey: true });
+      release();
+      await screen.findByRole("heading", { level: 1, name: "Threads" });
+      expect(marked()).toEqual([{ from: 1 }]);
+    });
+
+    it("once, though pressed again while the first is under way", async () => {
+      let release = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      page.api.on("POST", `${path}/unread`, async () => {
+        await held;
+        return { body: { cursors: { requester: 3, audience: 1 } } };
+      });
+      await page.openWith([message(1), message(2)]);
+      press("U", { shiftKey: true });
+      press("U", { shiftKey: true });
+      await waitFor(() => expect(marked()).toEqual([{ from: 2 }]));
+      press("U", { shiftKey: true });
+      release();
+      await screen.findByRole("heading", { level: 1, name: "Threads" });
+      expect(marked()).toEqual([{ from: 2 }]);
+    });
+
+    it("from the agent's latest message, with none unread", async () => {
+      await page.openWith([message(1), message(2), operatorMessage(3)]);
+      press("U", { shiftKey: true });
+      await screen.findByRole("heading", { level: 1, name: "Threads" });
+      expect(marked()).toEqual([{ from: 2 }]);
+    });
   });
 
   it("jumps to the next unread message with n", async () => {

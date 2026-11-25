@@ -18,8 +18,8 @@ import type { IconName } from "../../icons.tsx";
 import { useFollowing } from "../../data.ts";
 import { plural } from "../../format.tsx";
 import { queryOf } from "../../router.tsx";
-import { actOn, outcome, targetsOf } from "./actions.ts";
-import type { BarActing } from "./ListBar.tsx";
+import { actionLabel, actOn, outcome, targetsOf } from "./actions.ts";
+import { type BarActing, rowOf, useMarkKeys, withFocus } from "./ListBar.tsx";
 import type { Selection } from "./selection.tsx";
 
 // The selection's controls: the header above the list, its checkbox
@@ -97,13 +97,6 @@ export function SelectHead({
   );
 }
 
-const actionLabel: Record<ThreadAction, string> = {
-  read: "Mark read",
-  unread: "Mark unread",
-  read_and_archive: "Mark read and archive",
-  decline_read_and_archive: "Decline, mark read and archive",
-};
-
 // Each action's button in the bar: its icon, and the short label it shows
 // in place of its full name.
 const actionFace: Record<ThreadAction, { icon: IconName; label: string }> = {
@@ -112,6 +105,10 @@ const actionFace: Record<ThreadAction, { icon: IconName; label: string }> = {
   read_and_archive: { icon: "archive", label: "Archive" },
   decline_read_and_archive: { icon: "decline", label: "Decline" },
 };
+
+// What started an action: its button, or a mark key, pressed on a row, named
+// by its thread's key, or with focus elsewhere.
+type Started = "button" | { row: string | undefined };
 
 // What an action acts on: the threads selected, each through the latest
 // message the list showed; or every thread the filters keep, as of the
@@ -172,7 +169,13 @@ function question(
 // what the bar offers then is what the list holds, or, when that load
 // failed, the list's own error and its retry show. Focus it left goes back to its button
 // while the selection stays, as when it failed. Focus in the bar as the
-// selection clears, as Clear clears it, goes where the bar sends it.
+// selection clears, as Clear clears it, goes where the bar sends it. The mark
+// keys choose Mark read or Mark unread, as their buttons do, while those
+// could. Pressed on a row, focus goes back to it, or the row in its place
+// should it leave the list, where it would go back to the button: once the
+// action is done, and once its question is answered with Cancel. Pressed
+// with focus elsewhere, as in the thread beside the list, focus stays there
+// unless a question takes it.
 export function SelectionActions({
   view,
   selection,
@@ -190,7 +193,7 @@ export function SelectionActions({
   say: (text: string) => void;
   acting: BarActing;
 }) {
-  const { bar, pending, run, press, leave } = acting;
+  const { bar, pending, run, press, fromRow, leave, keys } = acting;
   // Focus is still in the bar as these actions go, before they leave it.
   useLayoutEffect(() => {
     const shown = bar.current;
@@ -205,20 +208,23 @@ export function SelectionActions({
     acted: Acted;
     question: string;
     submitted: number;
+    started: Started;
   }>();
   // The button of an action, which a question asked first stands in place
   // of.
   const buttonOf = (chosen: ThreadAction) =>
     bar.current?.querySelector<HTMLButtonElement>(`button[data-action="${chosen}"]`);
   // Once a question is answered with Cancel and the actions are back, focus
-  // returns to the action that asked it, unless the operator has put it
-  // elsewhere; answered with the action, it returns once that is done.
-  const lastAsked = useRef<ThreadAction>(undefined);
+  // returns to the action that asked it, or the row its key was pressed on,
+  // unless the operator has put it elsewhere; answered with the action, it
+  // returns once that is done.
+  const lastAsked = useRef<{ action: ThreadAction; started: Started }>(undefined);
   useLayoutEffect(() => {
     const before = lastAsked.current;
-    lastAsked.current = asking?.action;
+    lastAsked.current = asking;
     if (asking === undefined && before !== undefined && !pending && focusLeftWith(bar.current)) {
-      buttonOf(before)?.focus();
+      const row = before.started === "button" ? undefined : rowOf(before.started.row);
+      (row ?? buttonOf(before.action))?.focus();
     }
   }, [asking]);
   const { chosen, everything } = selection;
@@ -236,11 +242,26 @@ export function SelectionActions({
 
   // An action on every thread that matches, refused as stale because they
   // number otherwise now, asks again once the list has loaded afresh.
-  const [askAgain, setAskAgain] = useState<ThreadAction>();
+  const [askAgain, setAskAgain] = useState<{ action: ThreadAction; started: Started }>();
   // submitted is the selection's revision as the action took what it acts
-  // on, so one that lands after the operator chose again clears nothing.
-  const perform = async (chosenAction: ThreadAction, acted: Acted, submitted: number) => {
-    press(() => buttonOf(chosenAction));
+  // on, so one that lands after the operator chose again clears nothing;
+  // started, what started it, where focus then goes back.
+  const perform = async (
+    chosenAction: ThreadAction,
+    acted: Acted,
+    submitted: number,
+    started: Started,
+  ) => {
+    if (started === "button") {
+      press(() => buttonOf(chosenAction));
+    } else if (started.row !== undefined) {
+      fromRow(started.row);
+    } else if (asking !== undefined) {
+      // A key pressed away from any row asked first, so focus is on the
+      // question's answer, which goes as the actions come back: it returns
+      // to the action, as a Cancel does.
+      press(() => buttonOf(chosenAction));
+    }
     setAsking(undefined);
     say("");
     const send = async (csrf: string | undefined) => {
@@ -274,7 +295,7 @@ export function SelectionActions({
       // Asked again only from the list loaded afresh, and only while the
       // selection is as it was; a load that failed shows why instead.
       if (done.loaded && selection.revision() === submitted) {
-        setAskAgain(chosenAction);
+        setAskAgain({ action: chosenAction, started });
       }
       return;
     }
@@ -282,7 +303,7 @@ export function SelectionActions({
     selection.clearIf(submitted);
   };
 
-  const choose = (chosenAction: ThreadAction) => {
+  const choose = (chosenAction: ThreadAction, started: Started) => {
     const acted: Acted = everything
       ? {
           matching: {
@@ -295,19 +316,25 @@ export function SelectionActions({
     const submitted = selection.revision();
     const asked = question(chosenAction, chosen, everything, total, holding);
     if (asked === undefined) {
-      void perform(chosenAction, acted, submitted);
+      void perform(chosenAction, acted, submitted, started);
     } else {
-      setAsking({ action: chosenAction, acted, question: asked, submitted });
+      setAsking({ action: chosenAction, acted, question: asked, submitted, started });
     }
   };
 
   useEffect(() => {
     if (askAgain !== undefined) {
       setAskAgain(undefined);
-      choose(askAgain);
+      choose(askAgain.action, askAgain.started);
     }
     // choose is this render's, with the list as it loaded afresh.
   }, [askAgain]);
+
+  useMarkKeys(keys, (chosenAction, current) => {
+    if (asking === undefined && !pending && !tooMany) {
+      choose(chosenAction, { row: withFocus(current) });
+    }
+  });
 
   const declining = everything ? holding !== 0 : chosen.some((each) => each.open_asks.count > 0);
   return (
@@ -328,7 +355,9 @@ export function SelectionActions({
             question={asking.question}
             confirmLabel={actionLabel[asking.action]}
             disabled={pending}
-            onConfirm={() => void perform(asking.action, asking.acted, asking.submitted)}
+            onConfirm={() =>
+              void perform(asking.action, asking.acted, asking.submitted, asking.started)
+            }
             onCancel={() => setAsking(undefined)}
           />
         </div>
@@ -359,7 +388,7 @@ export function SelectionActions({
                 trailing={index === 0}
                 action={each}
                 disabled={pending || tooMany || (each === "decline_read_and_archive" && !declining)}
-                onClick={() => choose(each)}
+                onClick={() => choose(each, "button")}
               />
             ))}
           </BarSlots>

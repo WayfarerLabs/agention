@@ -10,6 +10,14 @@ import { plural } from "../../format.tsx";
 // The list's actions on many threads at once, which the bar at its foot
 // takes in both its states.
 
+// Each action's name, as its control and a failure of it say.
+export const actionLabel: Record<ThreadAction, string> = {
+  read: "Mark read",
+  unread: "Mark unread",
+  read_and_archive: "Mark read and archive",
+  decline_read_and_archive: "Decline, mark read and archive",
+};
+
 // targetsOf names threads as an action takes them, each through the latest
 // message the list showed, so a message that arrived since stays unread and
 // keeps its thread in the list.
