@@ -576,11 +576,15 @@ describe("monitoring", () => {
     // The header still counts every session it holds, the one hidden among
     // them: how many, its blocked and open asks and its stranded threads.
     expect(facts()).toEqual(unfiltered);
-    // The chip removes the filter, keeping the arrangement.
-    fireEvent.click(screen.getByRole("button", { name: "Remove filter: Needs you" }));
+    // The chip removes the filter, keeping the arrangement, and focus moves
+    // to the head's last control, Group, as the chip goes.
+    const chip = screen.getByRole("button", { name: "Remove filter: Needs you" });
+    chip.focus();
+    fireEvent.click(chip);
     await screen.findByRole("button", { name: /^Agent reviewer/ });
     expect(window.location.search).toBe("?group=agent&sort=registered");
     expect(screen.queryByRole("button", { name: "Remove filter: Needs you" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Group" }));
   });
 
   it("adds a history entry each time the filter turns on or off, which Back returns from", async () => {

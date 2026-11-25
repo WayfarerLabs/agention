@@ -84,6 +84,8 @@ export function Sessions() {
     refreshKnown();
   };
   const sections = useFolds(unfoldedSections);
+  // The head's grouping, which focus moves to once the filter's chip goes.
+  const grouping = useRef<HTMLSelectElement>(null);
   // The session the new-thread sheet is open on, as it was when it opened,
   // and the control focus returns to when it closes. The sheet follows the
   // session as the view refreshes.
@@ -146,8 +148,8 @@ export function Sessions() {
               </p>
             ) : (
               <>
-                <SessionsHead view={view} choose={choose} />
-                <NeedsYouChip shown={{ view, choose }} />
+                <SessionsHead view={view} choose={choose} groupRef={grouping} />
+                <NeedsYouChip shown={{ view, choose }} after={grouping} />
                 {/* The groups and tags color the view and give the groups'
                     order, so a failed load of them says so, with a retry. */}
                 {known.failure !== undefined && (

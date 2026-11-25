@@ -1,27 +1,36 @@
+import type { Ref } from "react";
 import { Icon, type IconName } from "../icons.tsx";
 
 // The controls a list's head holds, as the thread list's and the sessions
 // view's do: its order, the button reversing it, and its grouping.
 
 // HeadSelect is one of the head's choices beside its icon, a native select,
-// which a phone shows as its own picker.
+// which a phone shows as its own picker. Its ref is the select's, for a view
+// that moves focus to it.
 export function HeadSelect({
   icon,
   label,
   value,
   options,
   choose,
+  ref,
 }: {
   icon: IconName;
   label: string;
   value: string;
   options: { value: string; label: string }[];
   choose: (value: string) => void;
+  ref?: Ref<HTMLSelectElement> | undefined;
 }) {
   return (
     <div className="head-select">
       <Icon name={icon} />
-      <select aria-label={label} value={value} onChange={(event) => choose(event.target.value)}>
+      <select
+        ref={ref}
+        aria-label={label}
+        value={value}
+        onChange={(event) => choose(event.target.value)}
+      >
         {options.map((each) => (
           <option key={each.value} value={each.value}>
             {each.label}

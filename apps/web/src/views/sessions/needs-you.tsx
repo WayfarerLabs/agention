@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { plain, plural } from "../../format.tsx";
 import { Link } from "../../router.tsx";
 import { Chips } from "../list/Chips.tsx";
@@ -72,12 +73,23 @@ function FilterOn({ shown, flag, spoken }: { shown: ViewShown; flag: string; spo
 const needsYouChip = [{ key: "needs_you", label: plain("Needs you") }];
 
 // NeedsYouChip, while the filter is on, is its chip beneath the head, which
-// removes it, as the thread list's chips do.
-export function NeedsYouChip({ shown }: { shown: ViewShown }) {
+// removes it, as the thread list's chips do. The chip removed leaves the
+// button that had focus gone, so focus moves to the head's last control,
+// given as after, as the thread list's moves to Filters.
+export function NeedsYouChip({
+  shown,
+  after,
+}: {
+  shown: ViewShown;
+  after: RefObject<HTMLElement | null>;
+}) {
   return (
     <Chips
       chips={shown.view.needsYou ? needsYouChip : []}
-      remove={() => shown.choose({ ...shown.view, needsYou: false })}
+      remove={() => {
+        shown.choose({ ...shown.view, needsYou: false });
+        after.current?.focus();
+      }}
     />
   );
 }

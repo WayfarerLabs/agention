@@ -1474,8 +1474,9 @@ sessions, and the agents and groups holding any, arranged exactly as the view wo
 it hides rows and nothing else, so every count and link on a header or a head still covers all its
 sessions. Each flag and count links to the view with it on, keeping the arrangement, and stays that
 link, marked `aria-current`, once it is on, so keyboard focus stays where it was; a chip beneath the
-head removes it, through the thread list's chips (`views/list/Chips.tsx`). Turning it on or off
-pushes a history entry, while choosing the arrangement replaces the one it was chosen in
+head removes it, through the thread list's chips (`views/list/Chips.tsx`), focus moving to the
+head's grouping as the chip goes, as the thread list's moves to Filters. Turning it on or off pushes
+a history entry, while choosing the arrangement replaces the one it was chosen in
 (`views/sessions/needs-you.tsx`, `views/Sessions.tsx`). An unfolded row names the profile the bridge
 reads its terminal with, or that it monitors none. Each session's row shows its group and tags, and
 each agent's header its tags, from the sessions view's page, in the colors the operator's groups and

@@ -5,7 +5,7 @@ import {
   type SessionSummary,
   type ThreadsView,
 } from "@wayfarerlabs/agention-api";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useId, useRef, useState } from "react";
 import type { Agents } from "../../api.ts";
 import {
   Failure,
@@ -108,13 +108,15 @@ const groupLabel: Record<SessionGrouping, string> = {
 // SessionsHead holds the view's sort, beside the button reversing it, and
 // its grouping, as the thread list's head does. Choosing another sort takes
 // it in its own direction; another grouping keeps the sort while it offers
-// it.
+// it. groupRef is the grouping's select, the head's last control.
 export function SessionsHead({
   view,
   choose,
+  groupRef,
 }: {
   view: SessionsView;
   choose: (view: SessionsView) => void;
+  groupRef?: Ref<HTMLSelectElement>;
 }) {
   const { sort } = view;
   return (
@@ -142,6 +144,7 @@ export function SessionsHead({
         )}
       </div>
       <HeadSelect
+        ref={groupRef}
         icon="group"
         label="Group"
         value={view.group}
