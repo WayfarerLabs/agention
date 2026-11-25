@@ -265,20 +265,28 @@ bumping by one as CONTRIBUTING.md "The agent API" says.
 
 Delivery 2 bumps the agent API to version 7:
 
-- **Due.** `GET .../monitor` also answers `nudge` as soon as a nudge is due: the session has a
-  thread with a message from the operator the agent has not read, written after the agent's last
-  check-in, while no nudge has been tried since that check-in (N1, N3). The server works this out,
-  so it holds across bridge restarts, takeovers and Codex's several bridges, and the bridge learns
-  only that one is due, never why: nothing about threads or presence reaches the agent through it.
+- **Due.** `GET .../monitor` also answers `nudge` as soon as a nudge is due: the latest report says
+  the session can be nudged and is at its prompt, the session has a thread with a message from the
+  operator the agent has not read, written after the agent's last check-in, and no nudge has been
+  offered since that check-in (N1, N3, N4). A report that makes one due wakes the waiting poll, and
+  a replaced bridge is never told. The server works this out, so it holds across bridge restarts,
+  takeovers and Codex's several bridges, and the bridge learns only that one is due, never why:
+  nothing about threads or presence reaches the agent through it.
 - **The outcome.** `POST .../monitor` gains whether the session can be nudged and the latest nudge's
-  time and outcome, sent or not. The server shows "not responding to the nudge" when it was sent and
-  no check-in followed, and applies M6's nudge branches.
+  outcome, sent or not, both optional so a version 6 report stays valid. The server records the
+  outcome at the time it offered the nudge, by its own clock, so a bridge's clock cannot earn it a
+  second offer; the bridge's own time only tells a new nudge from a repeated report. The check-in
+  stamp moves whenever it is older than the latest offer, so an agent that checks in while the nudge
+  is still under way counts as answering it. The server shows "not responding to the nudge" when it
+  was sent and no check-in followed, and applies M6's nudge branches.
 
 On `nudge`, the reporter calls `observer.nudge()` with the warning (fixed words and a token from a
 cryptographic random source) and the message (fixed words), retrying `not-ready` once a second until
 the observer is ready or the due answer lapses, and reports the outcome; a `not-ready` outcome is
 not a nudge and is not reported. The bridge's log names the step a nudge stopped at, never pane
-text. T1's `register` answer and the usage skill come with this delivery.
+text. If the server refuses an outcome's report, the bridge stops nudging until it restarts, so it
+cannot loop. T1's `register` answer carries how answers reach the agent (`answers`: `nudge` or
+`check`), so the usage skill can point at it; it and the skill come with this delivery.
 
 ## Configuration
 
