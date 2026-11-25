@@ -4,9 +4,9 @@
 // played and text read, a PDF opened in its tab and a missing file marked;
 // every file downloading under its name; the operator attaching a file and
 // pasting an image, which the agent reads, and the thread's files folded in
-// its head; Attach's menu on a phone, each item its own picker; and bytes of
-// HTML and script declared as each type shown, opened on their own, running
-// nothing.
+// its head; a file left unsent removed as the page is left; Attach's menu
+// on a phone, each item its own picker; and bytes of HTML and script declared
+// as each type shown, opened on their own, running nothing.
 import type { BrowserContext, Page } from "@playwright/test";
 import type { ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
 import type { Agent } from "./agent.ts";
@@ -203,6 +203,23 @@ test("the operator attaches a file and pastes an image, which arrive with the me
   await expect(listed).toHaveCount(held);
   await listed.filter({ hasText: "shot.png" }).getByRole("link", { name: "#1" }).click();
   await expect(message(1)).toBeFocused();
+});
+
+test("leaving the thread for another page removes the upload it never sent from the server", async () => {
+  await page.goto(`${threads}/1`);
+  const composer = page.getByRole("region", { name: "Reply" });
+  const chooser = page.waitForEvent("filechooser");
+  await composer.getByRole("button", { name: "Attach files" }).click();
+  await (
+    await chooser
+  ).setFiles({ name: "draft.txt", mimeType: "text/plain", buffer: Buffer.from("Unsent.\n") });
+  await expect(composer.getByText("Uploaded")).toBeVisible();
+  const removed = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/uploads\/[^/]+\/remove$/.test(response.url()),
+  );
+  await page.getByRole("link", { name: "Sessions" }).click();
+  expect((await removed).status()).toBe(200);
 });
 
 test("on a phone, Attach opens a menu of where files come from, each its own picker", async ({

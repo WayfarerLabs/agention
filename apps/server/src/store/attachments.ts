@@ -172,13 +172,16 @@ export function attachmentOfRow(row: {
   };
 }
 
-// threadFileTotals counts a thread's distinct files, each once however many
-// of its messages carry it, and their bytes.
+// threadFileTotals counts the distinct files a thread's live messages carry,
+// and their bytes. A replaced message keeps its files, but they count only
+// while a live message, such as the replacement that kept them, carries them.
 export function threadFileTotals(db: Database, threadId: number): FileTotals {
   return db
     .prepare(
       `SELECT count(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM files
-       WHERE id IN (SELECT file_id FROM attachments WHERE thread_id = ?)`,
+       WHERE id IN (SELECT a.file_id FROM attachments a
+         JOIN live_messages l ON l.thread_id = a.thread_id AND l.seq = a.seq
+         WHERE a.thread_id = ?)`,
     )
     .get(threadId) as unknown as FileTotals;
 }
