@@ -156,19 +156,25 @@ package's tests cover the sequence:
    its reset; the host holds the terminal; keys are not blocked; no key from any client for the last
    ten seconds; the input line is empty and has room for the warning and the message. Otherwise
    `not-ready`, and nothing was sent.
-2. **Warning.** Paste it through a buffer of the bridge's own (`paste-buffer -b ... -d`), so the
-   operator's paste buffer is untouched; confirm the input line holds exactly it, cursor at its end;
-   wait five seconds; confirm again. A failure abandons at `warning`, removing nothing.
-3. **Clear.** Confirm it once more, send one Backspace per character, and confirm the line is empty;
-   otherwise `cleared`.
+2. **Warning.** Paste it through a buffer of the observer's own, loaded from standard input
+   (`load-buffer -b ... -`, then `paste-buffer -p -d -b ...`), so the operator's paste buffer is
+   untouched and no text is read as tmux command syntax; confirm the input line holds exactly it,
+   cursor at its end; wait five seconds; confirm again. A failure abandons at `warning`, removing
+   nothing.
+3. **Clear.** Send one Backspace per character, each right after a reading that shows the line one
+   character shorter than the last, until the line is empty; otherwise `cleared`.
 4. **Message.** Paste it and confirm it as in step 2; otherwise remove it if it is still exactly
    there, and abandon at `message`.
 5. **Submit.** Confirm, send Enter, and within five seconds see the line clear and the screen
    change; otherwise `submitted`, the one failure after the message went in.
 
 Only Backspace and Enter are ever sent, never an ordinary character or Escape (the spike), and each
-only right after a confirmation. `paste` refuses newlines and control characters, so no text can end
-the bracketed paste early.
+only right after a confirmation. Every confirmation also requires one pane, the host holding the
+terminal, keys not blocked and no key typed since the nudge began; the one before Enter, and the one
+after the warning's wait, require the whole screen unchanged as well. `paste` refuses control
+characters, so no text can end the bracketed paste early, and `nudge()` throws for a text that is
+empty or not printable ASCII, whose width it could never confirm: a caller's mistake, not a moment
+to wait out.
 
 ### Captures
 
@@ -352,11 +358,20 @@ The tools work as without monitoring in every case.
   appended at the cursor.
 - **Claude Code's vim normal mode** looks the same on screen as the normal editor's prompt at an
   empty input, and there Backspace moves the cursor rather than deleting. Accepted: the clear step
-  then finds the line not empty, abandons at `cleared` and reports not sent, so the warning stays in
-  the input, where the operator sees it and nothing submits it. Learning the mode another way waits
-  until it proves common.
+  then finds the line not shortened and abandons at `cleared` (or at `warning`, where the cursor
+  sits on the text's last character) and reports not sent, so the warning stays in the input, where
+  the operator sees it and nothing submits it. Learning the mode another way waits until it proves
+  common.
 - **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
   told from typed text only by the captured patterns, since captures carry no color; an unknown hint
   leaves the nudge not ready, which is safe. Reading text attributes waits until a hint is missed.
+- **Bracketed paste** cannot be detected: tmux has no format saying whether the program asked for
+  it. Claude Code and Codex both do; a generic harness that does not receives each text as typed
+  keys. Accepted: the texts are printable ASCII with no newline, so typed they insert the same
+  characters, and where a mode reads them as commands the line does not hold the text and the nudge
+  abandons before anything else is sent.
+- **Keys go to tmux's default target**, as reads do. Each key follows a reading that found one pane,
+  and Agentworks sessions hold one pane, so only a pane created in the milliseconds between could
+  receive it.
 - **A restarted bridge outside Agentworks** starts reporting only at the agent's next tool call,
   since it learns its session's names then; until then the session shows disconnected.
