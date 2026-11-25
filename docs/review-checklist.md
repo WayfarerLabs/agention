@@ -182,11 +182,12 @@ API".
 
 Registrations move through pending, approved, rejected, expired, and revoked. Approval chooses the
 agent and an existing or new session; approving a new registration for an existing session grants
-its full history, and the approval screen says so. Unapproved registrations expire. Revocation
-leaves the session and its threads visible and workable for the operator, marked as having no active
-credential, and takes effect during long polls (`docs/operator-guide.md` "Agents" and "Approving
-agents"; `docs/architecture.md` "Authentication"). Look for lifecycle transitions without tests,
-re-grants that hide their consequence, and revocation that deletes or orphans data.
+its full history, and the approval screen says so. Unapproved registrations expire, and a background
+registration read never registers a key the server does not know (A7). Revocation leaves the session
+and its threads visible and workable for the operator, marked as having no active credential, and
+takes effect during long polls (`docs/operator-guide.md` "Agents" and "Approving agents";
+`docs/architecture.md` "Authentication"). Look for lifecycle transitions without tests, re-grants
+that hide their consequence, and revocation that deletes or orphans data.
 
 ## A12. Adapters and the agent tool surface
 

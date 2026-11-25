@@ -1174,15 +1174,15 @@ Agents reach Agention through the agent bridge, `agention-mcp`, an MCP server th
 plugin for Claude Code or Codex starts for each agent session. The bridge reads its settings from
 the environment the agent host gives it:
 
-| Variable                   | Meaning                                                                                                             |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `AGENTION_URL`             | The server's origin, spelled as `--origin` gives it; required                                                       |
-| `AGENTION_CONNECT`         | A host and port to connect to in place of the origin's, such as a tunnel's; optional                                |
-| `AGENTION_TMUX_SOCKET`     | The socket of the tmux server this session's agent host runs in, set per session, to monitor its terminal; optional |
-| `AGENTION_HARNESS_PROFILE` | How to read that terminal, `auto` by default ([Monitoring a session's terminal](#monitoring-a-sessions-terminal))   |
-| `AGENTWORKS_AGENT`         | The agent's name, unless the agent's `register` call gives one                                                      |
-| `AGENTWORKS_SESSION`       | The session's name, unless the agent's `register` call gives one                                                    |
-| `NODE_EXTRA_CA_CERTS`      | Node's own setting: a file of certificate authorities to trust, for a server with a private one                     |
+| Variable                   | Meaning                                                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTION_URL`             | The server's origin, spelled as `--origin` gives it; required                                                                                |
+| `AGENTION_CONNECT`         | A host and port to connect to in place of the origin's, such as a tunnel's; optional                                                         |
+| `AGENTION_TMUX_SOCKET`     | The socket of the tmux server this session's agent host runs in, set per session, to monitor its terminal; optional                          |
+| `AGENTION_HARNESS_PROFILE` | How to read that terminal, `auto` by default ([Monitoring a session's terminal](#monitoring-a-sessions-terminal))                            |
+| `AGENTWORKS_AGENT`         | The agent's name, unless the agent's `register` call gives one first; a bridge started with this session's key on disk serves this session   |
+| `AGENTWORKS_SESSION`       | The session's name, unless the agent's `register` call gives one first; a bridge started with this session's key on disk serves this session |
+| `NODE_EXTRA_CA_CERTS`      | Node's own setting: a file of certificate authorities to trust, for a server with a private one                                              |
 
 Names are 1 to 63 of `a-z`, `0-9`, `_` and `-`, starting with a letter or digit. The bridge needs
 Node.js 24 or later, and refuses to work while `NODE_TLS_REJECT_UNAUTHORIZED` is `0`, which would
