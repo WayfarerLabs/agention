@@ -177,9 +177,9 @@ harness version and what they show, and its tests read them. They come from clea
 (a fresh home, default settings, no account details on screen) or are scrubbed, and review checks
 each one (M5). The spike's screens were not kept, so building each profile starts by capturing them
 again: the prompt, a running turn, the permission and trust dialogs, Claude Code's vim and shell
-modes. Usage limits come from a scrubbed capture of one of the operator's Claude Code sessions at a
-limit it reached on its own and from Codex samples the operator provides (ruling 5, pull request
-1c); block and error wait for a capture.
+modes. Usage limits come from screens the operator captures at a limit one of their Claude Code
+sessions reached on its own and from Codex samples the operator provides, each scrubbed (rulings 5
+and 6, pull request 1c); block and error wait for a capture.
 
 ## Monitoring
 

@@ -63,9 +63,9 @@
 
 ### Pull request 1c: usage limits
 
-- [ ] Usage-limit screens: a scrubbed capture of one of the operator's Claude Code sessions at a
-      limit it reached on its own, and Codex samples the operator provides, each reviewed. Done when
-      they are committed beside their profiles.
+- [ ] Usage-limit screens: the Claude Code screens the operator captures at a limit one of their
+      sessions reached on its own, and the Codex samples the operator provides, each scrubbed and
+      reviewed. Done when they are committed beside their profiles.
 - [ ] The Claude Code and Codex profiles report a usage limit, with its reset time where the screen
       shows it. Done when their tests read the new captures and the observer reports the session
       stopped by a usage limit with any prompt beside it.
