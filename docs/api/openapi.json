@@ -1786,6 +1786,7 @@
       "get": {
         "operationId": "operatorWaitForThreads",
         "summary": "Wait for messages you have not read, in any session, since a cursor",
+        "description": "One credential, an API key or a browser session, holds at most 4 of these waits at once. Another is refused at once as rate_limited (429), with Retry-After; the waits already held go on. A wait of 0 answers at once and counts toward none.",
         "tags": [
           "operator"
         ],
