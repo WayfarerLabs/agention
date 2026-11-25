@@ -22,14 +22,16 @@ Two seams keep terminals and harnesses apart:
   read.
 - **`Profile`**, the harness. `screen(snapshot)` says what one screen shows: a permission prompt,
   another prompt, the input line, or anything else, with why the harness stopped where its captured
-  screens show it. A harness's profiles are a `HarnessProfiles`, which `versionTable` builds from
-  the versions where its screens changed. Claude Code's and Codex's are this package's (see
-  [Harness profiles](#harness-profiles)); the generic profiles, `generic-strict` and
-  `generic-lenient`, serve a harness with no profile of its own, and never name a prompt or a
-  reason. `selectProfile(name, client)` chooses one, by a name in `profileNames` (`generic-strict`,
-  `generic-lenient`, `claude-code` or `codex`) or `auto` for the MCP client's harness and version,
-  with the strict generic profile where none applies; a caller checks a configured name against
-  `profileNames` itself.
+  screens show it. Claude Code's and Codex's profiles are this package's (see
+  [Harness profiles](#harness-profiles)). Adding a harness, or a version whose screens changed, is a
+  change inside the package, never through its interface: internally, a harness's profiles are a
+  `HarnessProfiles` (`src/profile.ts`), which `versionTable` (`src/version-table.ts`) builds from
+  the versions where its screens changed, and the registry (`src/registry.ts`) lists them; none of
+  these is exported. The generic profiles, `generic-strict` and `generic-lenient`, serve a harness
+  with no profile of its own, and never name a prompt or a reason. `selectProfile(name, client)`
+  chooses one, by a name in `profileNames` (`generic-strict`, `generic-lenient`, `claude-code` or
+  `codex`) or `auto` for the MCP client's harness and version, with the strict generic profile where
+  none applies; a caller checks a configured name against `profileNames` itself.
 
 `PaneObserver` joins them. `observations(signal)` reads the pane once a second until the signal
 aborts and yields an `Observation` whenever its activity, screen or stopped-by reason changes:
