@@ -783,7 +783,8 @@ beside its session it shows alone, and elsewhere as `session/topic`.
   what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
   - **Waiting for approval** holds the registrations to approve, as
     [Approving agents](#approving-agents) describes. The **Sessions** tab counts them, and approving
-    or rejecting them clears the count.
+    or rejecting them clears the count. While none is waiting the section is one short line, and
+    until some agent has a session it explains instead how a registration arrives.
   - Everything in the view that stands for threads is a link opening the thread list on those
     threads alone, with no other filter on: a group's, an agent's or a session's name, a count of
     threads, the envelope, **Blocked on you**, open asks and stranded threads, each within the
