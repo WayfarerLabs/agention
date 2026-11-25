@@ -3,12 +3,13 @@ import {
   agentApiHeader,
   type ErrorBody,
   formatTimestamp,
+  monitoringAgentApiVersion,
   nudgeAgentApiVersion,
   type SessionsPage,
   type ThreadPage,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { connectedFor, monitoringVersion } from "../store/presence.ts";
+import { connectedFor } from "../store/presence.ts";
 import { defaultQuietAfter } from "../store/store.ts";
 import { hour } from "../store/test-fixture.ts";
 import {
@@ -38,7 +39,7 @@ afterEach(() => {
 
 // The headers of a bridge speaking a version of the agent API.
 const speaking = (version: number) => ({ headers: { [agentApiHeader]: String(version) } });
-const monitoring = speaking(monitoringVersion);
+const monitoring = speaking(monitoringAgentApiVersion);
 
 const first = "bridge-first-0000";
 const second = "bridge-second-000";
@@ -113,10 +114,10 @@ describe("check-ins and background requests", () => {
   });
 
   it("stamp every other call a check-in, with the version of the agent API it states", async () => {
-    await list(monitoringVersion);
+    await list(monitoringAgentApiVersion);
     expect(stamps()).toEqual({
       last_seen_at: harness.fixture.now,
-      last_seen_version: monitoringVersion,
+      last_seen_version: monitoringAgentApiVersion,
       background_at: null,
     });
     harness.fixture.advance(1_000);
@@ -143,7 +144,7 @@ describe("check-ins and background requests", () => {
     await register({ agent: "builder", session: "main", background: false });
     expect(stamps()).toEqual({
       last_seen_at: harness.fixture.now,
-      last_seen_version: monitoringVersion,
+      last_seen_version: monitoringAgentApiVersion,
       background_at: harness.fixture.now - hour,
     });
   });
@@ -212,7 +213,7 @@ describe("one bridge acting for a session", () => {
 
 describe("what the operator sees", () => {
   it("is connection, last check-in and the latest report, on the operator API's session read", async () => {
-    await list(monitoringVersion);
+    await list(monitoringAgentApiVersion);
     await poll(first);
     await report(first, atPrompt);
     const { secret } = await harness.createKey(["sessions:read"]);
@@ -236,7 +237,7 @@ describe("what the operator sees", () => {
     await poll(first);
     await report(first, atPrompt);
     const answers: Response[] = [
-      await list(monitoringVersion),
+      await list(monitoringAgentApiVersion),
       await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, monitoring),
       await harness.agent(approved, "GET", "/s/builder/main/wait?wait=0", undefined, monitoring),
       await harness.agent(
@@ -410,7 +411,7 @@ describe("stranded", () => {
   const thread = async () => ((await harness.web("GET", "/threads")).body as ThreadPage).threads[0];
 
   it("holds the operator's message once the session's bridge is not connected", async () => {
-    await writtenTo(monitoringVersion);
+    await writtenTo(monitoringAgentApiVersion);
     await poll(first);
     expect(await thread()).toMatchObject({ stranded: false, presence: { connected: true } });
     harness.fixture.advance(connectedFor + 1);
@@ -421,7 +422,7 @@ describe("stranded", () => {
   });
 
   it("carries the latest report on the thread's presence while the bridge is connected", async () => {
-    await writtenTo(monitoringVersion);
+    await writtenTo(monitoringAgentApiVersion);
     await poll(first);
     await report(first, atPrompt);
     await harness.agent(
@@ -453,13 +454,13 @@ describe("stranded", () => {
   });
 
   it("follows the older rule for a session pinned back below monitoring after it ran it", async () => {
-    await writtenTo(monitoringVersion);
+    await writtenTo(monitoringAgentApiVersion);
     await poll(first);
     await report(first, atPrompt);
     harness.fixture.advance(connectedFor + 1);
     expect((await thread())?.stranded).toBe(true);
     // The operator pins the plugin back; the session restarts on the old bridge.
-    await list(monitoringVersion - 1);
+    await list(monitoringAgentApiVersion - 1);
     expect((await thread())?.stranded).toBe(false);
     expect((await thread())?.presence).not.toHaveProperty("connected");
     expect(await presence()).not.toHaveProperty("monitor");

@@ -31,7 +31,8 @@ or your desk. They read your answers and carry on.
   whatever you run next share one inbox. Plugins install it on Claude Code and Codex; any other
   harness adds the same server.
 - **You see the whole fleet.** Every session reports what it is doing, how far along it is, and
-  whether it waits on you.
+  whether it waits on you. You see whether its bridge is connected and, where the bridge watches its
+  terminal, whether it sits at a permission prompt or a usage limit.
 - **It stays yours.** One Node.js process and one SQLite file, on your machine. You sign in with a
   passkey, and each agent session holds a key of its own that you approve by matching a short code.
 

@@ -85,7 +85,8 @@ export function useMarkKeys(keys: BarActing["keys"], mark: MarkKey): void {
 //
 // Focus that leaves the bar goes to fallback, without scrolling the page, so
 // a phone's list stays where it was: as the action it left is done, and as
-// the control holding it goes, the bar's own as the list empties among them.
+// the control holding it goes, the bar's own as the list empties among them,
+// so a key pressed again never reaches an action on every thread shown.
 // keys is where the mark keys find their action, and focusOwed where the bar
 // says it owes the rows focus (RowFocusOwed).
 export function ListBar({

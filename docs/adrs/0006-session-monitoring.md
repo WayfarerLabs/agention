@@ -73,12 +73,9 @@ without any access it lacks.
 - The operator can tell a session that is there and idle from one that is gone, and find the
   sessions waiting at a prompt for the person at their terminal.
 - A stranded thread also means its session's bridge is not connected, so a thread waiting on a
-  session whose host ended shows as stranded within a minute, not only once it turns quiet.
-- Two values of the operator API's version 1 change what they mean in place, by the maintainer's
-  decision under [ADR 0005](0005-operator-api-meaning-before-1-0.md), and are marked breaking:
-  `stranded`, in a thread summary, the `agent_read=stranded` filter and a session's stranded count,
-  also covers a session whose bridge is not connected, and a session's `presence.last_seen_at` no
-  longer counts its bridge's background requests.
+  session whose host ended shows as stranded within a minute, not only once it turns quiet. This,
+  and `presence.last_seen_at` no longer counting background requests, change operator API v1 in
+  place under [ADR 0005](0005-operator-api-meaning-before-1-0.md), marked breaking.
 - Monitoring never changes what an agent sees or can do, and a bridge that cannot monitor still
   serves every tool, so a host Agention has no profile for, or a machine without tmux, loses only
   the condition.
