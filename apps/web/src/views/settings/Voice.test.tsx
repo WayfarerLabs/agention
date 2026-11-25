@@ -136,7 +136,7 @@ describe("voice in Settings", () => {
     expect(saves()).toEqual([]);
 
     fireEvent.change(field("Key"), { target: { value: "sk-new" } });
-    fireEvent.change(field("Words to recognize"), { target: { value: "Agention" } });
+    fireEvent.change(field("Additional context"), { target: { value: "Agention" } });
     api.on("GET", "/settings", later({ voice: voice({ prompt: "Agention" }) }));
     fireEvent.click(button("Save"));
     await waitFor(() => expect(saves()).toHaveLength(1));
@@ -146,13 +146,13 @@ describe("voice in Settings", () => {
     expect(api.callsTo("POST", "/settings/voice")[0]?.headers["x-csrf-token"]).toBe(csrf);
     // The form shows the saved settings afresh, with focus on Save.
     await within(section()).findByRole("status");
-    await waitFor(() => expect(field("Words to recognize").value).toBe("Agention"));
+    await waitFor(() => expect(field("Additional context").value).toBe("Agention"));
     await waitFor(() => expect(document.activeElement).toBe(button("Save")));
 
     // A later save does the same, once the form shows what it saved.
     answerSaves({ voice: voice({ prompt: "Agention, Wayfarer" }) });
     api.on("GET", "/settings", later({ voice: voice({ prompt: "Agention, Wayfarer" }) }));
-    fireEvent.change(field("Words to recognize"), { target: { value: "Agention, Wayfarer" } });
+    fireEvent.change(field("Additional context"), { target: { value: "Agention, Wayfarer" } });
     const before = button("Save");
     fireEvent.click(before);
     await waitFor(() => expect(button("Save")).not.toBe(before));

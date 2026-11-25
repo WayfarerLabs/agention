@@ -34,6 +34,7 @@ import {
   useSpeechFailed,
   wordsOf,
 } from "../../voice/speech.ts";
+import { type Copying, markdownOf, useCopy } from "./copy.ts";
 import { useMessageFiles } from "./files/FileList.tsx";
 import {
   type AnswerDraft,
@@ -105,20 +106,21 @@ export interface MessageContext {
 // MessageDetail is a message's detail, folded into one Details line under
 // its text that opens it in place. Folded, the detail is not parsed: a
 // detail at its bound can take seconds to parse, so the page parses only the
-// details the operator opens. The list keeps each message's place by its
-// sequence, so a refresh keeps an opened detail open. Its links may name the
-// message's own files.
+// details the operator opens. Its links may name the message's own files.
 function MessageDetail({
   seq,
   detail,
   files,
+  open,
+  setOpen,
 }: {
   seq: number;
   detail: string;
   files: FileLinks | undefined;
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }) {
   const id = useId();
-  const [open, setOpen] = useState(false);
   return (
     <div className="detail">
       <button
@@ -825,6 +827,39 @@ function MessageOptions({
   );
 }
 
+// CopyButton copies a message, as copy.ts's markdownOf gives it, from the
+// end of its head, as a control of the whole message. It shows a check while
+// the copy's confirmation lasts, which a polite live region beside it also
+// says. The region is there before it speaks, since a screen reader may not
+// announce one that arrives already holding its words; it is a live region
+// rather than a status so that it is not one more status on the page.
+function CopyButton({
+  seq,
+  copying,
+  markdown,
+}: {
+  seq: number;
+  copying: Copying;
+  markdown: string;
+}) {
+  const copied = copying.outcome === "copied";
+  return (
+    <>
+      <button
+        type="button"
+        className="copy-button"
+        aria-label={`Copy message ${seq}`}
+        onClick={() => copying.copy(markdown)}
+      >
+        <Icon name={copied ? "check" : "copy"} />
+      </button>
+      <span className="visually-hidden" aria-live="polite" aria-atomic="true">
+        {copied ? "Copied." : ""}
+      </span>
+    </>
+  );
+}
+
 // MessageReadMark says, in the head of a live message of the agent's,
 // whether the operator had read it when the page first showed it: the closed
 // envelope, accented, if not. It says nothing where the page does not know.
@@ -876,6 +911,12 @@ function MessageBody({
   const failure = actions?.markFailure?.seq === message.seq ? actions.markFailure : undefined;
   const readAloud = useReadAloud(message, context.target);
   const files = useMessageFiles(message, context.target);
+  // Whether the detail is open, which Copy follows. The list keeps each
+  // message's place by its sequence, so a refresh keeps an opened detail
+  // open.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const copying = useCopy();
+  const markdown = markdownOf(message, detailOpen);
   const options = [
     ...(actions !== undefined && message.live ? optionsOf(message, actions) : []),
     ...readAloud.options,
@@ -894,13 +935,20 @@ function MessageBody({
             </>
           )}
         </p>
-        {menu !== undefined && options.length > 0 && (
-          <MessageOptions
-            message={message}
-            options={options}
-            drafting={actions?.drafting === true}
-            menu={menu}
-          />
+        {(markdown !== undefined || (menu !== undefined && options.length > 0)) && (
+          <div className="head-controls">
+            {markdown !== undefined && (
+              <CopyButton seq={message.seq} copying={copying} markdown={markdown} />
+            )}
+            {menu !== undefined && options.length > 0 && (
+              <MessageOptions
+                message={message}
+                options={options}
+                drafting={actions?.drafting === true}
+                menu={menu}
+              />
+            )}
+          </div>
         )}
       </div>
       {failure !== undefined && (
@@ -911,11 +959,20 @@ function MessageBody({
         </div>
       )}
       {readAloud.failed && <Status>This device could not read this message aloud.</Status>}
+      {copying.outcome === "refused" && (
+        <Status>This browser refused to copy this message: select it to copy it by hand.</Status>
+      )}
       {message.seq === 1 && <p className="event">Started this thread.</p>}
       <Events message={message} find={context.find} />
       {message.text !== undefined && <Markdown text={message.text} files={files.links} />}
       {message.detail !== undefined && (
-        <MessageDetail seq={message.seq} detail={message.detail} files={files.links} />
+        <MessageDetail
+          seq={message.seq}
+          detail={message.detail}
+          files={files.links}
+          open={detailOpen}
+          setOpen={setDetailOpen}
+        />
       )}
       {message.references !== undefined && (
         <References references={message.references} target={context.target} />
@@ -978,17 +1035,32 @@ export function MessageView({
   );
 }
 
-// MessageList lists messages in order, marking whether each was read: those
-// unread when the page first showed them are marked unread. Each live message
-// has its options menu, one open at a time.
+// ArchivedDivider is the quiet rule after the last message the operator
+// archived, setting the messages after it apart. Its words are its name, so
+// a screen reader says them once.
+function ArchivedDivider() {
+  const label = "Archived through here";
+  return (
+    <div role="separator" aria-label={label} className="archived-divider">
+      <span aria-hidden="true">{label}</span>
+    </div>
+  );
+}
+
+// MessageList lists messages in order, marking unread those the page counts
+// unread. Each live message has its options menu, one open at a time. The
+// archived divider leads the first message after the archive mark, where the
+// page divides the two.
 export function MessageList({
   messages,
-  fresh,
+  unread,
   context,
+  firstAfterArchived,
 }: {
   messages: Message[];
-  fresh: ReadonlySet<number>;
+  unread: ReadonlySet<number>;
   context: MessageContext;
+  firstAfterArchived?: number | undefined;
 }) {
   const [open, setOpen] = useState<number>();
   const menu: OpenMenu = { open, set: setOpen };
@@ -998,10 +1070,11 @@ export function MessageList({
     <ol className="messages">
       {messages.map((message) => (
         <li key={message.seq}>
+          {message.seq === firstAfterArchived && <ArchivedDivider />}
           <MessageView
             message={message}
             context={context}
-            unread={fresh.has(message.seq)}
+            unread={unread.has(message.seq)}
             menu={menu}
           />
         </li>

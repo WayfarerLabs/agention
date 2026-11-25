@@ -297,11 +297,13 @@
             "name": "group",
             "in": "query",
             "required": false,
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups.",
             "schema": {
               "type": "string",
               "enum": [
                 "session_group",
                 "session",
+                "topic",
                 "agent"
               ]
             }
@@ -1248,10 +1250,543 @@
         }
       }
     },
+    "/api/operator/v1/s/{agent}/{session}/threads/{thread}/neighbors": {
+      "get": {
+        "operationId": "operatorFindThreadNeighbors",
+        "summary": "Find the threads just above and below a thread in the thread list, filtered, sorted and grouped, with the thread at its own place though the filters would leave it out",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "threads:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "thread",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose title, or the text and detail of one of whose live messages, holds every word of this text, each as the start of a word, ignoring case and accents.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none.",
+            "schema": {
+              "$ref": "#/components/schemas/ThreadStatus"
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "description": "Only threads holding an open ask at this priority or higher.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "high",
+                "urgent"
+              ]
+            }
+          },
+          {
+            "name": "impact",
+            "in": "query",
+            "required": false,
+            "description": "Only threads holding an open ask with this impact.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "blocking",
+                "assuming"
+              ]
+            }
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "required": false,
+            "description": "Only threads holding an open ask past its answer-by time.",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "effort",
+            "in": "query",
+            "required": false,
+            "description": "Only threads holding an open ask that states this effort or less.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "quick",
+                "under_15m",
+                "under_1h"
+              ]
+            }
+          },
+          {
+            "name": "unread",
+            "in": "query",
+            "required": false,
+            "description": "Only threads with messages from the other party that you have neither read nor archived.",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "agent_read",
+            "in": "query",
+            "required": false,
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unread",
+                "stranded"
+              ]
+            }
+          },
+          {
+            "name": "agent",
+            "in": "query",
+            "required": false,
+            "description": "Only threads of these agents.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "session",
+            "in": "query",
+            "required": false,
+            "description": "Only threads of these sessions, each written agent/session.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "description": "Only threads on these topics, each written agent/session/topic.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "session_group",
+            "in": "query",
+            "required": false,
+            "description": "Only threads of sessions in these groups, each by its id, or none for no group.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "none"
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "description": "Only threads whose session or agent carries one of these tags.",
+            "schema": {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "description": "Also list threads you archived that nothing new has brought back.",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "priority",
+              "type": "string",
+              "enum": [
+                "priority",
+                "due",
+                "effort",
+                "latest",
+                "created"
+              ]
+            }
+          },
+          {
+            "name": "reverse",
+            "in": "query",
+            "required": false,
+            "description": "Reverse the threads the order ranks, keeping those it does not rank after them.",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "session_group",
+                "session",
+                "topic",
+                "agent"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "above": {
+                      "type": "object",
+                      "properties": {
+                        "agent": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "session": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "number": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": "string"
+                        },
+                        "last_seq": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "topic": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "read_through": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unread": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "message_count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "archived": {
+                          "type": "boolean"
+                        },
+                        "open_asks": {
+                          "$ref": "#/components/schemas/OpenAsks"
+                        },
+                        "status": {
+                          "$ref": "#/components/schemas/ThreadStatus"
+                        },
+                        "withdrawal": {
+                          "type": "object",
+                          "properties": {
+                            "ask": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991,
+                              "description": "The number of the open ask this withdraws."
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300,
+                              "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "ask",
+                            "reason",
+                            "seq"
+                          ]
+                        },
+                        "credential_active": {
+                          "type": "boolean"
+                        },
+                        "presence": {
+                          "$ref": "#/components/schemas/ThreadPresence"
+                        },
+                        "stranded": {
+                          "type": "boolean"
+                        },
+                        "group": {
+                          "$ref": "#/components/schemas/GroupRef"
+                        }
+                      },
+                      "required": [
+                        "agent",
+                        "session",
+                        "number",
+                        "title",
+                        "created_at",
+                        "updated_at",
+                        "last_seq",
+                        "read_through",
+                        "unread",
+                        "message_count",
+                        "archived",
+                        "open_asks",
+                        "status",
+                        "credential_active"
+                      ]
+                    },
+                    "below": {
+                      "type": "object",
+                      "properties": {
+                        "agent": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "session": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "number": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": "string"
+                        },
+                        "last_seq": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "topic": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                        },
+                        "read_through": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unread": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "message_count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "archived": {
+                          "type": "boolean"
+                        },
+                        "open_asks": {
+                          "$ref": "#/components/schemas/OpenAsks"
+                        },
+                        "status": {
+                          "$ref": "#/components/schemas/ThreadStatus"
+                        },
+                        "withdrawal": {
+                          "type": "object",
+                          "properties": {
+                            "ask": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991,
+                              "description": "The number of the open ask this withdraws."
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300,
+                              "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                            },
+                            "seq": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "ask",
+                            "reason",
+                            "seq"
+                          ]
+                        },
+                        "credential_active": {
+                          "type": "boolean"
+                        },
+                        "presence": {
+                          "$ref": "#/components/schemas/ThreadPresence"
+                        },
+                        "stranded": {
+                          "type": "boolean"
+                        },
+                        "group": {
+                          "$ref": "#/components/schemas/GroupRef"
+                        }
+                      },
+                      "required": [
+                        "agent",
+                        "session",
+                        "number",
+                        "title",
+                        "created_at",
+                        "updated_at",
+                        "last_seq",
+                        "read_through",
+                        "unread",
+                        "message_count",
+                        "archived",
+                        "open_asks",
+                        "status",
+                        "credential_active"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
     "/api/operator/v1/wait": {
       "get": {
         "operationId": "operatorWaitForThreads",
         "summary": "Wait for messages you have not read, in any session, since a cursor",
+        "description": "One credential, an API key or a browser session, holds at most 4 of these waits at once. Another is refused at once as rate_limited (429), with Retry-After; the waits already held go on. A wait of 0 answers at once and counts toward none.",
         "tags": [
           "operator"
         ],

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { PasskeyList, PasskeySummary } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { keepDraft, readDraft, signOutMark } from "../../device.ts";
@@ -8,6 +8,7 @@ import {
   failure,
   installPasskeys,
   renderAt,
+  type Reply,
   signedIn,
 } from "../../test-support.tsx";
 
@@ -191,6 +192,39 @@ describe("the passkeys in Settings", () => {
     await screen.findByRole("heading", { level: 1, name: "Sign in" });
     expect(api.callsTo("POST", "/passkeys/1/remove")[0]?.headers["x-csrf-token"]).toBe(csrf);
     expect(readDraft(thread)).toBeUndefined();
+  });
+
+  it("asks nothing while removing the passkey that signed this browser in, and again once that fails", async () => {
+    await open(both);
+    let answer: (reply: Reply) => void = () => {};
+    api.on("POST", "/passkeys/1/remove", () => new Promise<Reply>((resolve) => (answer = resolve)));
+    const asked = () =>
+      api.callsTo("GET", "/passkeys").length + api.callsTo("GET", "/attention").length;
+    fireEvent.click(within(article("Laptop")).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(article("Laptop")).getByRole("button", { name: "Remove this passkey" }));
+    await waitFor(() => expect(api.callsTo("POST", "/passkeys/1/remove")).toHaveLength(1));
+    const before = asked();
+    window.dispatchEvent(new Event("focus"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(asked()).toBe(before);
+
+    await act(async () => {
+      answer(failure("internal", "The server failed."));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(asked()).toBeGreaterThan(before));
+  });
+
+  it("reads the list again when removing this browser's passkey finds the sign-in too old", async () => {
+    await open(both);
+    api.on("POST", "/passkeys/1/remove", failure("not_allowed", "this needs a recent sign-in"));
+    serve({ ...both, recent: false });
+    fireEvent.click(within(article("Laptop")).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(article("Laptop")).getByRole("button", { name: "Remove this passkey" }));
+    await waitFor(() => expect(api.callsTo("GET", "/passkeys")).toHaveLength(2));
   });
 
   it("keeps the last passkey, saying why", async () => {
