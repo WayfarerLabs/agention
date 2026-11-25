@@ -229,15 +229,16 @@ Reading the pane costs a few tmux calls at a time, at intervals the HLA bounds.
 
 ### Engineering
 
-**E1. Collateral.** A new ADR records monitoring and the nudge, superseding ADR 0001's "No push" for
-agents, amending its "No permissions, no harness control" for the nudge's texts and keys, and saying
-where monitoring's reports sit in its trust model: observations the bridge makes, which the screen
-can imitate, so only a session found at its prompt, behind N4 and N5, ever leads to a key. README,
-`SECURITY.md` (the agent bridge), `docs/review-checklist.md` (A1, A6 on derived signals, and how a
-call marks a session seen), the architecture document, the operator guide (monitoring and its
-conditions, quiet, `idle`, stranded threads and the New thread sheet's word on them, the nudge,
-profiles and the configuration), the usage skill and the tools' descriptions, the plugin definition
-and the bridge's usage text, `docs/live-testing.md` and the development contract describe them.
+**E1. Collateral.** Two new ADRs, one with each delivery, record monitoring and then the nudge, the
+second superseding ADR 0001's "No push" for agents, amending its "No permissions, no harness
+control" for the nudge's texts and keys, and saying where monitoring's reports sit in its trust
+model: observations the bridge makes, which the screen can imitate, so only a session found at its
+prompt, behind N4 and N5, ever leads to a key. README, `SECURITY.md` (the agent bridge),
+`docs/review-checklist.md` (A1, A6 on derived signals, and how a call marks a session seen), the
+architecture document, the operator guide (monitoring and its conditions, quiet, `idle`, stranded
+threads and the New thread sheet's word on them, the nudge, profiles and the configuration), the
+usage skill and the tools' descriptions, the plugin definition and the bridge's usage text,
+`docs/live-testing.md` and the development contract describe them.
 
 **E2. Tested at its boundary.** Monitoring, the nudge and every guard are tested against the bridge
 driving a real tmux server; each profile against its captured screens (M5); and the compatibility
