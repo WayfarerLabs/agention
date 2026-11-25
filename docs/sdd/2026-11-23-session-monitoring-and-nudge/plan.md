@@ -56,8 +56,8 @@
       thread's reason (M4, M6). Done when the browser tests show each.
 - [x] The operator guide describes monitoring as the operator sees it. Done when the project review
       finds none stale.
-- [ ] Live under Agentworks, configured by hand until Agentworks ships the socket path, on Claude
-      Code and Codex: connection, activity and the conditions of the definition of done, a session
+- [ ] Live on a bed shaped like an Agentworks session (FRD ruling 7), configured by hand as
+      Agentworks will configure it, on Claude Code and Codex: connection, activity and the conditions of the definition of done, a session
       approved at its prompt starting to report, and one of several Codex bridges reporting. Done
       when the pull request records the live evidence as `docs/live-testing.md` describes.
 
@@ -89,6 +89,6 @@
       nudge's ADR, superseding ADR 0001's "No push" for agents and amending "No permissions, no
       harness control"; review checklist A1 and A6; and the rest of E1. Done when the drift check
       passes and the project review finds none stale.
-- [ ] Live under Agentworks on Claude Code and Codex: the nudge cases of the definition of done.
+- [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done.
       Done when the pull request records the live evidence as `docs/live-testing.md` describes.
 - [ ] `locked.md` in this directory, with the final merge.
