@@ -3,6 +3,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   absoluteTime,
+  conditionWords,
   effortLabel,
   impactLabel,
   otherLabel,
@@ -14,6 +15,7 @@ import {
   ask,
   csrf,
   message,
+  observed,
   operatorMessage,
   type Reply,
   renderAt,
@@ -643,6 +645,23 @@ describe("the head", () => {
       (line: Element | null) => {
         expect(line?.textContent).toContain("withdrawn");
         expect(line?.querySelector("time")).toBeNull();
+      },
+    ],
+    [
+      "is quiet, saying what its terminal shows",
+      {
+        presence: {
+          last_seen_at: "2026-10-27T09:00:00.000Z",
+          quiet: true,
+          connected: true,
+          monitor: observed("at_prompt", { reason: "usage_limit" }),
+        },
+      },
+      (line: Element | null) => {
+        expect(line?.querySelector("time")).not.toBeNull();
+        expect(line?.textContent).toContain(
+          conditionWords(observed("at_prompt", { reason: "usage_limit" })),
+        );
       },
     ],
   ])(

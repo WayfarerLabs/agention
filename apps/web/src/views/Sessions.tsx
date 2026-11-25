@@ -8,6 +8,7 @@ import { loadGroupsAndTags, PaletteProvider } from "../organizing.tsx";
 import { navigate, useLocation } from "../router.tsx";
 import { type SessionsView, sessionsQuery, sessionsViewOf } from "./sessions/arrangement.ts";
 import { SessionGroupPicker, TagsSetter } from "./sessions/GroupsAndTags.tsx";
+import { NeedsYouChip } from "./sessions/needs-you.tsx";
 import { NewThreadSheet } from "./sessions/NewThreadSheet.tsx";
 import {
   DecidedRegistration,
@@ -20,7 +21,8 @@ import { type Organizing, SessionFolds, SessionsHead } from "./sessions/SessionF
 // Top to bottom: the registrations waiting for approval; the agents and
 // their sessions, under a head choosing how they are grouped and sorted
 // (sessions/arrangement.ts), as the thread list's head does, which the
-// address keeps; and, folded, the credentials and past requests. By
+// address keeps, with the chip of its one filter, Needs you, while it is on
+// (sessions/needs-you.tsx); and, folded, the credentials and past requests. By
 // default, once some session is in a group, the agents fold under their
 // groups, in the operator's order, which each group's head moves, and no
 // group last, an agent with sessions in two groups coming under each with
@@ -141,6 +143,7 @@ export function Sessions() {
             ) : (
               <>
                 <SessionsHead view={view} choose={choose} />
+                <NeedsYouChip shown={{ view, choose }} />
                 {/* The groups and tags color the view and give the groups'
                     order, so a failed load of them says so, with a retry. */}
                 {known.failure !== undefined && (
@@ -156,7 +159,7 @@ export function Sessions() {
                 <SessionFolds
                   agents={agents}
                   truncated={truncated}
-                  view={view}
+                  shown={{ view, choose }}
                   known={known.data}
                   knownFailure={known.failure}
                   refreshKnown={refreshKnown}

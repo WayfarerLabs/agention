@@ -1,0 +1,87 @@
+import { Link } from "../../router.tsx";
+import { type SessionsView, sessionsQuery } from "./arrangement.ts";
+
+// The marks of the sessions view's one filter, Needs you, which keeps the
+// sessions whose terminal shows a permission prompt or another prompt, or
+// something that stopped them (arrangement.ts, sessionNeedsYou). A session's
+// row flags it, as a session's or an agent's stranded threads are flagged,
+// and each agent's header and group's head counts its sessions that need the
+// operator; each flag and count links to the view with the filter on,
+// keeping its arrangement, and a chip beneath the head removes it, as the
+// thread list's chips remove its filters.
+
+// The view on screen, which the filter's links and chip change: its
+// arrangement and filter, and choosing another in its place.
+export interface ViewShown {
+  view: SessionsView;
+  choose: (view: SessionsView) => void;
+}
+
+// NeedsYouLink flags sessions that need the operator, in the warning's tone
+// as stranded threads are flagged, linking to the view with the filter on:
+// how many of a header's sessions do, such as "2 need you", or "Needs you"
+// while that is not known, as when sessions were left out. With the filter
+// on already, the flag links nowhere.
+export function NeedsYouLink({
+  count,
+  label,
+  shown,
+}: {
+  // How many sessions need the operator, or undefined while that is not
+  // known.
+  count: number | undefined;
+  // What the flag sits on, for assistive technology, such as "builder".
+  label: string;
+  shown: ViewShown;
+}) {
+  const [flag, spoken] =
+    count === undefined
+      ? ["Needs you", `Sessions of ${label} need you`]
+      : [
+          `${count} ${count === 1 ? "needs" : "need"} you`,
+          `${count} ${count === 1 ? "session" : "sessions"} of ${label} ${count === 1 ? "needs" : "need"} you`,
+        ];
+  return <FilterOn shown={shown} flag={flag} spoken={spoken} />;
+}
+
+// NeedsYouFlag flags a session's row, linking as NeedsYouLink does.
+export function NeedsYouFlag({ path, shown }: { path: string; shown: ViewShown }) {
+  return <FilterOn shown={shown} flag="Needs you" spoken={`${path} needs you`} />;
+}
+
+function FilterOn({ shown, flag, spoken }: { shown: ViewShown; flag: string; spoken: string }) {
+  const mark = <span className="flag warning">{flag}</span>;
+  if (shown.view.needsYou) {
+    return mark;
+  }
+  const filtered = { ...shown.view, needsYou: true };
+  return (
+    <Link
+      className="needs-you-link"
+      to={`/sessions${sessionsQuery(filtered)}`}
+      follow={() => shown.choose(filtered)}
+      aria-label={`${spoken}: list the sessions that need you`}
+    >
+      {mark}
+    </Link>
+  );
+}
+
+// NeedsYouChip, while the filter is on, is its chip beneath the head, which
+// removes it, as the thread list's chips do.
+export function NeedsYouChip({ shown }: { shown: ViewShown }) {
+  return !shown.view.needsYou ? null : (
+    <div className="filter-row">
+      <button
+        type="button"
+        className="chip"
+        title="Needs you"
+        aria-label="Remove filter: Needs you"
+        onClick={() => shown.choose({ ...shown.view, needsYou: false })}
+      >
+        Needs you
+        <span aria-hidden="true"> ×</span>
+      </button>
+    </div>
+  );
+}

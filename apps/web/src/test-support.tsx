@@ -6,6 +6,8 @@ import {
   type ErrorCode,
   type GroupsAndTags,
   type Message,
+  type MonitorCondition,
+  type MonitorState,
   type Registration,
   type SessionState,
   type SessionSummary,
@@ -382,6 +384,22 @@ export function registration(overrides: Partial<Registration> = {}): Registratio
     created_at: time,
     expires_at: "2026-10-27T13:00:00.000Z",
     ...overrides,
+  };
+}
+
+// What a session's bridge observed of its terminal, as the operator API
+// shows it: the condition, since a few minutes before the fixtures' time,
+// read with the Codex profile, with what stopped it when given.
+export function observed(
+  condition: MonitorCondition,
+  stopped?: Extract<MonitorState, { monitored: true }>["stopped_by"],
+): Extract<MonitorState, { monitored: true }> {
+  return {
+    monitored: true,
+    profile: "codex",
+    condition,
+    since: "2026-10-27T11:58:00.000Z",
+    ...(stopped === undefined ? {} : { stopped_by: stopped }),
   };
 }
 

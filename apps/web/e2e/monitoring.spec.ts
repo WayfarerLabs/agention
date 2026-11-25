@@ -1,0 +1,205 @@
+// Session monitoring in Chromium against the real server, on a server of
+// these tests' own: two sessions whose bridges, speaking the agent API's
+// current version, hold the background connection and report their
+// terminals, one at a permission prompt and one running; the sessions view
+// showing each connected with its condition apart from its reported state,
+// flagging the one at the prompt and counting it on its agent's header,
+// whose count lists just that session, its chip removing the filter, at a
+// phone's width too; and a thread stranded on the session at the prompt,
+// whose reason names its condition on the thread list, on the thread and in
+// the new-thread sheet.
+import type { BrowserContext, Page } from "@playwright/test";
+import {
+  agentApi,
+  type MonitorReport,
+  type PublicKey,
+  type WriteResult,
+} from "@wayfarerlabs/agention-api";
+import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { Agent } from "./agent.ts";
+import { type Agention, expect, resize, test } from "./fixtures.ts";
+
+test.describe.configure({ mode: "serial" });
+
+let context: BrowserContext;
+let page: Page;
+let server: Agention;
+const problems: string[] = [];
+
+const wide = { width: 1280, height: 800 };
+const phone = { width: 390, height: 844 };
+
+// Each session's agent and the id its bridge draws for monitoring.
+const sessions = {
+  main: { bridge: "browser-main-0000", agent: undefined as Agent | undefined },
+  review: { bridge: "browser-review-00", agent: undefined as Agent | undefined },
+};
+type Name = keyof typeof sessions;
+
+const agentOf = (name: Name): Agent => {
+  const { agent } = sessions[name];
+  if (agent === undefined) {
+    throw new Error(`no agent for ${name}`);
+  }
+  return agent;
+};
+
+test.beforeAll(async ({ browser, monitoringServer }) => {
+  server = monitoringServer;
+  context = await browser.newContext({ baseURL: server.origin, viewport: wide });
+  page = await context.newPage();
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      problems.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await page.goto(server.passkeyLink());
+  await page.getByLabel("Passkey name").fill("Laptop");
+  await page.getByRole("button", { name: "Create a passkey" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+
+  // The operator approves both sessions of builder, each agent on a bridge
+  // that speaks the current agent API.
+  await page.getByRole("link", { name: "Sessions" }).click();
+  for (const name of Object.keys(sessions) as Name[]) {
+    const agent = new Agent(server, { version: agentApi.version });
+    sessions[name].agent = agent;
+    await agent.send("POST", "/registrations", { agent: "builder", session: name });
+    const code = registrationCode(agent.publicKey as PublicKey);
+    await page
+      .getByRole("article", { name: `Registration ${code}` })
+      .getByRole("button", { name: "Approve" })
+      .click();
+    await expect(page.getByRole("button", { name: `Session ${name}` })).toBeVisible();
+  }
+});
+
+test.afterAll(async () => {
+  await context.close();
+});
+
+// report has a session's bridge claim the session on its background poll,
+// which keeps it connected, and report its terminal's condition, as the
+// bridge's reporter does at its start.
+async function report(name: Name, condition: MonitorReport): Promise<void> {
+  const agent = agentOf(name);
+  const { bridge } = sessions[name];
+  const path = `/s/builder/${name}/monitor?bridge=${bridge}`;
+  const polled = await agent.send("GET", `${path}&claim=true&wait=0`);
+  expect(polled.status).toBe(200);
+  const reported = await agent.send("POST", `${path}&seq=${Date.now()}`, condition);
+  expect(reported.status).toBe(200);
+}
+
+const at = (condition: "permission_prompt" | "running"): MonitorReport => ({
+  monitored: true,
+  profile: "claude-code",
+  condition,
+  since: new Date(Date.now() - 60_000).toISOString(),
+});
+
+const row = (name: Name) =>
+  page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Session ${name}` }) });
+
+// The filter's chip, which shows while it is on.
+const chip = () => page.getByRole("button", { name: "Remove filter: Needs you" });
+
+test("the sessions view flags a session at a permission prompt, and lists just those sessions, at a phone's width too", async () => {
+  for (const name of Object.keys(sessions) as Name[]) {
+    const reported = await agentOf(name).send("POST", `/s/builder/${name}/status`, {
+      state: "working",
+    });
+    expect(reported.status).toBe(200);
+  }
+  await report("main", at("permission_prompt"));
+  await report("review", at("running"));
+  for (const size of [wide, phone]) {
+    await resize(page, size);
+    await page.goto("/sessions");
+    // Each session is connected, with what its terminal shows and since
+    // when, on the line under its head, apart from the state it reports.
+    for (const name of Object.keys(sessions) as Name[]) {
+      await expect(row(name).locator(".session-seen .session-connection")).toBeVisible();
+      await expect(row(name).locator(".session-condition time")).toBeVisible();
+      await expect(row(name).locator(".session-facts").getByText("Working")).toBeVisible();
+    }
+    // The session at the permission prompt is flagged, in the warning's
+    // tone, and the other is not.
+    await expect(row("main").locator(".session-condition .warning")).toBeVisible();
+    await expect(row("review").locator(".session-condition .warning")).toHaveCount(0);
+    await expect(row("main").getByRole("link", { name: /needs you/ })).toBeVisible();
+    await expect(row("review").getByRole("link", { name: /needs you/ })).toHaveCount(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+    ).toBe(false);
+
+    // Its agent's header counts it, and its count lists just that session,
+    // the filter's chip removing the filter.
+    const count = page.getByRole("link", { name: /^1 session of builder needs you/ });
+    await count.click();
+    await expect(page).toHaveURL(/\/sessions\?needs_you=true$/);
+    await expect(chip()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Session main" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Session review" })).toHaveCount(0);
+    await chip().click();
+    await expect(page).toHaveURL(/\/sessions$/);
+    await expect(page.getByRole("button", { name: "Session review" })).toBeVisible();
+    await expect(chip()).toHaveCount(0);
+  }
+  await resize(page, wide);
+});
+
+test("a thread stranded on a session at a permission prompt names the prompt in its reason", async () => {
+  const agent = agentOf("main");
+  const created = await agent.send<WriteResult>("POST", "/s/builder/main/threads", {
+    request_id: "monitoring-1",
+    title: "Which database?",
+    text: "SQLite or Postgres?",
+  });
+  expect(created.status).toBe(200);
+  // The session stops, though its terminal shows a permission prompt, so a
+  // message the operator writes strands the thread.
+  await agent.send("POST", "/s/builder/main/status", { state: "stopped", outcome: "stalled" });
+  await report("main", at("permission_prompt"));
+
+  // The new-thread sheet warns that the session is not likely to see it,
+  // saying why and what its terminal shows.
+  await page.goto("/sessions");
+  await page.getByRole("button", { name: "Options for builder/main" }).click();
+  await page.getByRole("button", { name: "New thread" }).click();
+  const sheet = page.getByRole("dialog", { name: "New thread" });
+  await expect(sheet.locator(".notice.warning")).toContainText(/stalled.*permission prompt/);
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+
+  await page.goto(`/s/builder/main/threads/${created.body.number}`);
+  const reply = page.getByRole("region", { name: "Reply" });
+  await reply.getByRole("combobox", { name: "After sending" }).selectOption("Stay here");
+  await reply.getByRole("textbox", { name: "Message" }).fill("Postgres.");
+  await reply.getByRole("button", { name: "Send" }).click();
+  // The thread says why it is stranded, naming the prompt.
+  await expect(page.locator(".thread-header .stranded")).toContainText(
+    /stalled.*permission prompt/,
+  );
+  // So does its row on the thread list.
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /Which database\?/ })).toContainText(
+    /Stranded.*stalled.*permission prompt/,
+  );
+});
+
+test("the pages ran without an error", () => {
+  expect(problems).toEqual([]);
+});

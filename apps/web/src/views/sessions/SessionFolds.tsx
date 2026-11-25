@@ -39,10 +39,12 @@ import {
   type SessionSort,
   type SessionsView,
   sessionGroupings,
+  sessionNeedsYou,
   sessionSorts,
   sortsOf,
 } from "./arrangement.ts";
 import { TagChip } from "./GroupsAndTags.tsx";
+import { NeedsYouLink, type ViewShown } from "./needs-you.tsx";
 import {
   composeSessions,
   OpenAsksLink,
@@ -57,7 +59,8 @@ import { SessionRow, sessionKey } from "./SessionRow.tsx";
 // each holding its agents, which fold over their sessions' rows; grouped by
 // agent, the agents fold over their rows; grouped by session, the rows
 // stand alone. Each group's head and agent's header rolls up the sessions
-// beneath, and every chip that stands for threads links to them.
+// beneath, and every chip that stands for threads links to them; how many of
+// those sessions need the operator links to the view's Needs you filter.
 
 // What the operator is organizing, in a picker open on it: a session's group,
 // or an agent's or a session's tags; and the control the picker lies beside,
@@ -71,9 +74,11 @@ export type Organizing = { opener: HTMLElement | null } & (
 const foldedGroups = "agention.sessions.folded-groups";
 const foldedAgents = "agention.sessions.folded-agents";
 
-// The views' parts SessionFolds and AgentFolds pass down: reloading the
-// view, and opening the new-thread sheet or a picker organizing sessions.
+// The views' parts SessionFolds and AgentFolds pass down: the view on
+// screen, which the Needs you marks filter, reloading the view, and opening
+// the new-thread sheet or a picker organizing sessions.
 export interface Handlers {
+  shown: ViewShown;
   refresh: () => void;
   newThread: (agent: string, session: SessionSummary, opener: HTMLElement | null) => void;
   organize: (organizing: Organizing) => void;
@@ -180,7 +185,6 @@ function useUnfolded(): [ReadonlySet<string>, (key: string) => void] {
 export function SessionFolds({
   agents,
   truncated,
-  view,
   known,
   knownFailure,
   refreshKnown,
@@ -188,7 +192,6 @@ export function SessionFolds({
 }: {
   agents: Agents;
   truncated: boolean;
-  view: SessionsView;
   // The operator's groups and tags, whose groups' order Manual follows.
   known: GroupsAndTags | undefined;
   // Why the groups and tags last failed to load, until they load.
@@ -204,6 +207,7 @@ export function SessionFolds({
     refresh: refreshKnown,
     focus,
   });
+  const { view } = handlers.shown;
   const arranged = arrange(view, agents, order.ordered);
   // Groups move in the manual order, those the order holds alone, so none
   // move until the groups have loaded, nor one they no longer list.
@@ -214,6 +218,20 @@ export function SessionFolds({
       hush();
     }
   }, [moving, hush]);
+  const none =
+    arranged.kind === "agents"
+      ? arranged.agents.length === 0
+      : arranged.kind === "sessions"
+        ? arranged.sessions.length === 0
+        : arranged.groups.length === 0;
+  if (view.needsYou && none) {
+    return (
+      <p className="empty">
+        No session needs you now: none is at a permission prompt or another prompt, or stopped by
+        something.
+      </p>
+    );
+  }
   if (arranged.kind === "agents") {
     return <AgentFolds agents={arranged.agents} {...handlers} />;
   }
@@ -296,10 +314,10 @@ function GroupFoldOf({
   const palette = usePalette();
   const [over, drop] = useDropTarget(moves?.drag);
   const name = group?.name ?? "No group";
-  const rollup =
-    truncated || agents.some((entry) => entry.truncated)
-      ? undefined
-      : composeSessions(agents.flatMap((entry) => entry.sessions));
+  const short = truncated || agents.some((entry) => entry.truncated);
+  const sessions = agents.flatMap((entry) => entry.sessions);
+  const rollup = short ? undefined : composeSessions(sessions);
+  const needing = sessions.filter(sessionNeedsYou).length;
   const narrowing: Partial<ThreadsView> = { session_group: [group?.id ?? noGroup] };
   const label = group === undefined ? "no group" : name;
   const classes = [moves?.dragging ? "dragging" : "", over ? "drop-over" : ""].join(" ").trim();
@@ -319,10 +337,21 @@ function GroupFoldOf({
       }
       marks={
         <>
-          {rollup !== undefined && (
+          {(rollup !== undefined || needing > 0) && (
             <span className="roll-up">
-              <SessionsRollupMarks rollup={rollup} narrowing={narrowing} label={label} />
-              {rollup.blocked && <BlockedLink narrowing={narrowing} label={label} />}
+              {needing > 0 && (
+                <NeedsYouLink
+                  count={short ? undefined : needing}
+                  label={label}
+                  shown={handlers.shown}
+                />
+              )}
+              {rollup !== undefined && (
+                <>
+                  <SessionsRollupMarks rollup={rollup} narrowing={narrowing} label={label} />
+                  {rollup.blocked && <BlockedLink narrowing={narrowing} label={label} />}
+                </>
+              )}
             </span>
           )}
           <ThreadsLink rollup={rollup} narrowing={narrowing} label={label} />
@@ -351,6 +380,7 @@ function GroupFoldOf({
 function LoneSessions({
   sessions,
   agents,
+  shown,
   refresh,
   newThread,
   organize,
@@ -368,6 +398,7 @@ function LoneSessions({
               alone
               agent={agent}
               session={session}
+              shown={shown}
               unfolded={unfolded.has(key)}
               toggle={() => flip(key)}
               refresh={refresh}
@@ -399,6 +430,7 @@ function LoneSessions({
 function AgentFolds({
   agents,
   group,
+  shown,
   refresh,
   newThread,
   organize,
@@ -413,7 +445,7 @@ function AgentFolds({
   const inGroup = group === undefined ? undefined : group === noGroup ? noGroup : group.id;
   const level = group === undefined ? 3 : 4;
   return agents.map((entry) => {
-    const { asks, blocking, stranded } = countsOf(entry);
+    const { asks, blocking, stranded, needing } = countsOf(entry);
     // The roll-up of an agent that left sessions out would be short, and so
     // would its count of stranded threads, which then shows whether any of
     // the sessions it lists has some, but not how many.
@@ -445,6 +477,13 @@ function AgentFolds({
                   spoken={entry.truncated ? `more than ${sessions}` : sessions}
                 />
               </span>
+              {needing > 0 && (
+                <NeedsYouLink
+                  count={entry.truncated ? undefined : needing}
+                  label={entry.agent}
+                  shown={shown}
+                />
+              )}
               {rollup !== undefined && (
                 <SessionsRollupMarks rollup={rollup} narrowing={narrowing} label={entry.agent} />
               )}
@@ -485,6 +524,7 @@ function AgentFolds({
                 level={level === 3 ? 4 : 5}
                 agent={entry.agent}
                 session={session}
+                shown={shown}
                 unfolded={unfolded.has(key)}
                 toggle={() => flip(key)}
                 refresh={refresh}
@@ -523,7 +563,8 @@ function AgentMenu({
 }
 
 // countsOf adds up what an agent's sessions the view lists hold beyond their
-// roll-up: their open asks, the blocking among them, and stranded threads.
+// roll-up: their open asks, the blocking among them, stranded threads, and
+// how many of the sessions need the operator.
 function countsOf(entry: Held) {
   const sum = (count: (session: SessionSummary) => number) =>
     entry.sessions.reduce((total, session) => total + count(session), 0);
@@ -531,5 +572,6 @@ function countsOf(entry: Held) {
     asks: sum((session) => session.open_asks.count),
     blocking: sum((session) => session.open_asks.blocking_count),
     stranded: sum((session) => session.threads.stranded),
+    needing: entry.sessions.filter(sessionNeedsYou).length,
   };
 }

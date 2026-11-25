@@ -1362,10 +1362,11 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   color: var(--color-muted);
 }
 
-/* When a quiet session or agent was last seen, in the warning's tone,
-   wherever it shows: a session's row in the sessions view, and a session's
-   or an agent's header in the thread list. */
-.last-seen.warning {
+/* When a quiet session or agent was last seen, in the warning's tone, on a
+   session's or an agent's header in the thread list; and what needs the
+   operator on the line under a session's head in the sessions view. */
+.last-seen.warning,
+.session-seen .warning {
   color: var(--color-warning);
   font-weight: 600;
 }
@@ -2229,9 +2230,9 @@ a.session-name:hover {
   z-index: 1;
 }
 
-/* When the session was last seen and its status updated, set in under its
-   name as its facts are, in the warning's tone, as .last-seen.warning, while
-   it is quiet. */
+/* Where the session is, as the server knows it, and when its status was
+   updated, set in under its name as its facts are, what needs the operator
+   in the warning's tone. */
 .session-seen {
   margin: 0 0 var(--space-1);
   padding-left: calc(var(--icon-size) * 1.25 + var(--space-2));

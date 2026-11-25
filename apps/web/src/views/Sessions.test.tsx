@@ -8,11 +8,13 @@ import type {
 } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { conditionWords, dueTime, sinceTime } from "../format.tsx";
 import {
   type Call,
   csrf,
   FakeApi,
   failure,
+  observed,
   operatorMessage,
   registration,
   renderAt,
@@ -333,10 +335,10 @@ describe("the sessions view", () => {
     expect(within(row("docs")).getByText("Stopped · completed")).toBeTruthy();
     expect(within(row("docs")).getByText("No credential")).toBeTruthy();
     expect(within(row("nightly")).getByText("No status")).toBeTruthy();
-    // Every row says when its session was last seen, on a line of its own
+    // Every row says when its agent last checked in, on a line of its own
     // between its head and its facts, in the warning's tone while it is
     // quiet, but for a stopped session, whose state says it will not read
-    // what is written; one never seen has no time to give.
+    // what is written; one that never checked in has no time to give.
     const seen = (session: string) => row(session).querySelector(".session-seen");
     for (const [session, quiet] of [
       ["main", false],
@@ -348,7 +350,8 @@ describe("the sessions view", () => {
       const line = seen(session);
       expect(line?.previousElementSibling?.classList.contains("session-head")).toBe(true);
       expect(line?.nextElementSibling?.classList.contains("session-facts")).toBe(true);
-      expect([session, line?.classList.contains("warning")]).toEqual([session, quiet]);
+      const checkIn = line?.querySelector(".session-check-in");
+      expect([session, checkIn?.classList.contains("warning")]).toEqual([session, quiet]);
       expect([session, line?.querySelector("time") !== null]).toEqual([
         session,
         session !== "spare",
@@ -416,6 +419,218 @@ describe("the sessions view", () => {
     );
     const listed = api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
     expect([listed?.get("status"), listed?.getAll("session")]).toEqual(["open", ["builder/main"]]);
+  });
+});
+
+describe("monitoring", () => {
+  const connected = (monitor?: SessionSummary["presence"]["monitor"]) => ({
+    last_seen_at: earlier,
+    quiet: false,
+    connected: true,
+    ...(monitor === undefined ? {} : { monitor }),
+  });
+  const resets = "2026-10-27T15:00:00.000Z";
+  const watched = (session: string, monitor: SessionSummary["presence"]["monitor"]) =>
+    sessionSummary({
+      session,
+      presence: connected(monitor),
+      status: { state: "working", updated_at: time },
+    });
+  // A row's line of where its session is, and its parts.
+  const line = (session: string) => row(session).querySelector(".session-seen") as HTMLElement;
+  const part = (session: string, name: string) => line(session).querySelector(`.session-${name}`);
+  // The link to the view with Needs you on, from a row or a header, if any.
+  const needsYouLink = (within_: HTMLElement) =>
+    within(within_)
+      .queryAllByRole("link")
+      .find((link) => link.getAttribute("href")?.startsWith("/sessions")) ?? null;
+
+  it("says whether each session is connected, what its terminal shows and since when, apart from what it reports", async () => {
+    await open([
+      agent("builder", [
+        watched("main", observed("at_prompt")),
+        watched("asking", observed("permission_prompt")),
+        watched("limited", observed("other_prompt", { reason: "usage_limit", resets_at: resets })),
+        watched("bare", { monitored: false }),
+        sessionSummary({
+          session: "gone",
+          presence: { last_seen_at: earlier, quiet: false, connected: false },
+        }),
+        sessionSummary({
+          session: "ended",
+          presence: { last_seen_at: earlier, quiet: false, connected: false },
+          status: { state: "stopped", outcome: "completed", updated_at: time },
+        }),
+        sessionSummary({ session: "old", presence: { last_seen_at: earlier, quiet: false } }),
+      ]),
+    ]);
+    // A connected session's line leads with it, then what its terminal shows,
+    // since when, then its agent's last check-in, apart from it, and how old
+    // its status is.
+    const order = (session: string) =>
+      Array.from(line(session).querySelectorAll("[class^='session-']")).map((each) =>
+        each.className.replace(/ warning$/, ""),
+      );
+    expect(order("main")).toEqual([
+      "session-connection",
+      "session-condition",
+      "session-check-in",
+      "session-status-age",
+    ]);
+    expect(part("main", "condition")?.querySelector("time")?.getAttribute("dateTime")).toBe(
+      observed("at_prompt").since,
+    );
+    expect(part("main", "check-in")?.querySelector("time")?.getAttribute("dateTime")).toBe(earlier);
+    // Each condition reads its own way; one that needs the operator in the
+    // warning's tone, with what stopped it and when that resets.
+    const words = (session: string) =>
+      part(session, "condition")?.firstElementChild?.textContent ?? "";
+    expect(new Set(["main", "asking", "limited"].map(words)).size).toBe(3);
+    expect(part("main", "condition")?.querySelector(".warning")).toBeNull();
+    expect(part("asking", "condition")?.querySelector(".warning")).not.toBeNull();
+    expect(part("limited", "condition")?.querySelector(".warning")?.textContent).toContain(
+      dueTime(resets),
+    );
+    // What it reports stays among its facts, apart from what it shows.
+    expect(within(row("asking")).getByText("Working").closest(".session-facts")).not.toBeNull();
+    expect(line("asking").textContent).not.toContain("Working");
+    // A bridge that monitors no terminal, and one not connected, say no
+    // condition; not connected is a warning but for a session that stopped.
+    expect(order("bare")).toEqual(["session-connection", "session-check-in", "session-status-age"]);
+    expect(part("gone", "condition")).toBeNull();
+    expect(part("gone", "connection")?.classList.contains("warning")).toBe(true);
+    expect(part("ended", "connection")?.classList.contains("warning")).toBe(false);
+    expect(part("gone", "connection")?.textContent).not.toBe(
+      part("main", "connection")?.textContent,
+    );
+    // A bridge from before monitoring says nothing of a connection.
+    expect(order("old")).toEqual(["session-check-in"]);
+    expect(part("old", "check-in")?.textContent).toContain(sinceTime(earlier));
+  });
+
+  it("flags the sessions at a prompt or stopped by something, each header counting its own", async () => {
+    await open([
+      agent("builder", [
+        watched("main", observed("at_prompt")),
+        watched("asking", observed("permission_prompt")),
+        watched("trust", observed("other_prompt")),
+        watched("limited", observed("at_prompt", { reason: "usage_limit" })),
+        watched("busy", observed("running")),
+      ]),
+      agent("reviewer", [watched("main", observed("waiting"))]),
+    ]);
+    const flagged = (session: string, within_?: HTMLElement) =>
+      needsYouLink(row(session, within_))?.querySelector(".flag.warning") ?? null;
+    for (const session of ["asking", "trust", "limited"]) {
+      expect([session, flagged(session) !== null]).toEqual([session, true]);
+      expect(needsYouLink(row(session))?.getAttribute("href")).toBe("/sessions?needs_you=true");
+    }
+    expect(flagged("busy")).toBeNull();
+    const reviewer = folded(header("reviewer"));
+    expect(flagged("main", reviewer)).toBeNull();
+    // Each agent's header counts its sessions that need the operator, and
+    // links to them; one with none shows no count.
+    const count = needsYouLink(bar(header("builder")));
+    expect(count?.textContent).toMatch(/^3\b/);
+    expect(count?.getAttribute("href")).toBe("/sessions?needs_you=true");
+    expect(needsYouLink(bar(header("reviewer")))).toBeNull();
+  });
+
+  it("lists just the sessions that need the operator, keeping the arrangement, until its chip removes the filter", async () => {
+    await open(
+      [
+        agent("builder", [
+          watched("main", observed("at_prompt")),
+          watched("asking", observed("permission_prompt")),
+        ]),
+        agent("reviewer", [watched("main", observed("running"))]),
+      ],
+      "/sessions?group=agent&sort=registered",
+    );
+    const link = needsYouLink(bar(header("builder"))) as HTMLElement;
+    expect(link.getAttribute("href")).toBe("/sessions?group=agent&sort=registered&needs_you=true");
+    expect(screen.queryByRole("button", { name: "Remove filter: Needs you" })).toBeNull();
+    fireEvent.click(link);
+    await screen.findByRole("button", { name: "Remove filter: Needs you" });
+    expect(window.location.search).toBe("?group=agent&sort=registered&needs_you=true");
+    // Only builder's session at the permission prompt stays, its flag and its
+    // header's count linking nowhere now.
+    expect(screen.queryByRole("button", { name: /^Agent reviewer/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Session main" })).toBeNull();
+    expect(fold("asking")).toBeTruthy();
+    expect(needsYouLink(row("asking"))).toBeNull();
+    expect(row("asking").querySelector(".flag.warning")).not.toBeNull();
+    expect(needsYouLink(bar(header("builder")))).toBeNull();
+    // The chip removes the filter, keeping the arrangement.
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter: Needs you" }));
+    await screen.findByRole("button", { name: /^Agent reviewer/ });
+    expect(window.location.search).toBe("?group=agent&sort=registered");
+    expect(screen.queryByRole("button", { name: "Remove filter: Needs you" })).toBeNull();
+  });
+
+  it("says so when no session needs the operator", async () => {
+    serve([agent("builder", [watched("main", observed("running"))])]);
+    renderAt("/sessions?needs_you=true");
+    await screen.findByRole("button", { name: "Remove filter: Needs you" });
+    expect(screen.queryByRole("button", { name: /^Agent builder/ })).toBeNull();
+    expect(document.querySelector(".empty")).not.toBeNull();
+  });
+
+  it("counts on a group's head the sessions in it that need the operator", async () => {
+    const work = { id: 3, name: "Work" };
+    await open([
+      agent("builder", [
+        { ...watched("asking", observed("permission_prompt")), group: work },
+        { ...watched("main", observed("at_prompt")), group: work },
+        watched("trust", observed("other_prompt")),
+      ]),
+    ]);
+    const head = (name: string) =>
+      screen.getByRole("button", { name: new RegExp(`^${name}(,|$)`) });
+    for (const name of ["Group Work", "No group"]) {
+      expect([name, needsYouLink(bar(head(name)))?.textContent]).toEqual([
+        name,
+        expect.stringMatching(/^1\b/),
+      ]);
+    }
+  });
+
+  it("names the profile its bridge reads the terminal with, unfolded", async () => {
+    await open([
+      agent("builder", [
+        watched("main", observed("at_prompt")),
+        watched("bare", { monitored: false }),
+        sessionSummary({ session: "old" }),
+      ]),
+    ]);
+    const about = (session: string) => {
+      fireEvent.click(fold(session));
+      return row(session).querySelector(".session-about") as HTMLElement;
+    };
+    for (const session of ["main", "bare"]) {
+      serveLog([], 0, `/s/builder/${session}`);
+    }
+    expect(within(about("main")).getByText("codex")).toBeTruthy();
+    expect(about("bare").children).toHaveLength(2);
+    expect(about("old").children).toHaveLength(1);
+  });
+
+  it("warns, in the new-thread sheet, of a session away with what its terminal shows", async () => {
+    await open([
+      agent("builder", [
+        sessionSummary({
+          presence: connected(observed("permission_prompt")),
+          status: { state: "stopped", outcome: "stalled", updated_at: time },
+        }),
+      ]),
+    ]);
+    fireEvent.click(options("builder/main"));
+    fireEvent.click(screen.getByRole("button", { name: "New thread" }));
+    const warning = screen
+      .getByRole("dialog", { name: "New thread" })
+      .querySelector(".notice.warning");
+    expect(warning?.textContent).toContain("stalled");
+    expect(warning?.textContent).toContain(conditionWords(observed("permission_prompt")));
   });
 });
 

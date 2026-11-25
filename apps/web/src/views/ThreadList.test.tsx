@@ -9,12 +9,13 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { keepDraft, signOutMark } from "../device.ts";
-import { absoluteTime, sinceTime } from "../format.tsx";
+import { absoluteTime, conditionWords, sinceTime } from "../format.tsx";
 import { Icon, type IconName } from "../icons.tsx";
 import { leaveNotice } from "../notice.ts";
 import {
   csrf,
   FakeApi,
+  observed,
   type Reply,
   renderAt,
   threadSummary,
@@ -251,6 +252,12 @@ describe("the thread list", () => {
         stranded: true,
         presence: { last_seen_at: lastSeen, quiet: false, connected: false },
       }),
+      threadSummary({
+        number: 8,
+        title: "Asking",
+        stranded: true,
+        presence: { ...quiet, connected: true, monitor: observed("permission_prompt") },
+      }),
     ]);
     renderAt("/");
     await screen.findByText("Quiet");
@@ -273,8 +280,19 @@ describe("the thread list", () => {
     // A session whose bridge is not connected says so rather than nothing.
     expect(stranded("Disconnected")).not.toBe("Stranded");
     expect(stranded("Disconnected")).not.toContain(sinceTime(lastSeen));
+    // A session whose bridge observes its terminal says what it shows too.
+    expect(stranded("Asking")).toContain(sinceTime(lastSeen));
+    expect(stranded("Asking")).toContain(conditionWords(observed("permission_prompt")));
+    expect(stranded("Quiet")).not.toContain(conditionWords(observed("permission_prompt")));
     // Stranded shows in the warning's tone, as the sessions view flags it.
-    for (const name of ["Quiet", "Never seen", "Stalled", "Just revoked", "Disconnected"]) {
+    for (const name of [
+      "Quiet",
+      "Never seen",
+      "Stalled",
+      "Just revoked",
+      "Disconnected",
+      "Asking",
+    ]) {
       expect(
         row(name)
           .getByText(/^Stranded/)

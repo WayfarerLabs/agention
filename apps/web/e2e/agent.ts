@@ -1,5 +1,8 @@
 // An agent for the browser tests: it holds a session key and calls the agent
-// API the way the agent bridge does, with a token it signs for every request.
+// API the way the agent bridge does, with a token it signs for every request,
+// stating the agent API version it speaks when given one, as the bridge does,
+// and otherwise none, as a bridge from before versions did.
+import { agentApiHeader } from "@wayfarerlabs/agention-api";
 import { generateKeyPairSync, type KeyObject, sign } from "node:crypto";
 import { request as httpsRequest } from "node:https";
 
@@ -22,12 +25,15 @@ export class Agent {
   readonly publicKey: string;
   readonly #privateKey: KeyObject;
   readonly #server: AgentServer;
+  readonly #headers: Record<string, string>;
 
-  constructor(server: AgentServer) {
+  constructor(server: AgentServer, options: { version?: number } = {}) {
     const keys = generateKeyPairSync("ed25519");
     this.publicKey = keys.publicKey.export({ format: "jwk" }).x as string;
     this.#privateKey = keys.privateKey;
     this.#server = server;
+    this.#headers =
+      options.version === undefined ? {} : { [agentApiHeader]: String(options.version) };
   }
 
   // token is a compact JWS over Ed25519, naming the key and bound to the
@@ -50,28 +56,35 @@ export class Agent {
       body === undefined
         ? undefined
         : { type: "application/json", bytes: Buffer.from(JSON.stringify(body)) },
+      this.#headers,
     );
   }
 
   // upload sends bytes as the body of a POST, declared as type, as the
   // bridge uploads a file.
   upload<T>(path: string, bytes: Buffer, type: string): Promise<Answer<T>> {
-    return callServer(this.#server, "POST", `/api/agent${path}`, `Bearer ${this.token()}`, {
-      type,
-      bytes,
-    });
+    return callServer(
+      this.#server,
+      "POST",
+      `/api/agent${path}`,
+      `Bearer ${this.token()}`,
+      { type, bytes },
+      this.#headers,
+    );
   }
 }
 
 // callServer sends one request to the server over TLS, trusting its test
-// certificate, with an Authorization header and no cookie, as a program
-// outside the browser does: the agent bridge, or a client holding an API key.
+// certificate, with an Authorization header, any other headers given and no
+// cookie, as a program outside the browser does: the agent bridge, or a
+// client holding an API key.
 export function callServer<T>(
   server: AgentServer,
   method: "GET" | "POST",
   path: string,
   authorization: string,
   payload?: { type: string; bytes: Buffer },
+  headers: Record<string, string> = {},
 ): Promise<Answer<T>> {
   const { origin, port, certificate } = server;
   const url = new URL(origin);
@@ -85,6 +98,7 @@ export function callServer<T>(
         method,
         path,
         headers: {
+          ...headers,
           host: url.host,
           authorization,
           ...(payload === undefined

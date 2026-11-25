@@ -2,7 +2,8 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram, voice, API key and attachment tests' own.
+// and so do servers of the diagram, voice, API key, attachment and monitoring
+// tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -43,6 +44,9 @@ export const voiceServerName = "Voice";
 export const keysServerName = "Keys";
 // The name of the server the attachment tests start for themselves.
 export const filesServerName = "Files";
+
+// The name of the server the monitoring tests start for themselves.
+export const monitoringServerName = "Monitoring";
 
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
@@ -201,6 +205,7 @@ export const test = base.extend<
     voiceServer: Agention;
     keysServer: Agention;
     filesServer: Agention;
+    monitoringServer: Agention;
   }
 >({
   certificate: [
@@ -215,6 +220,7 @@ export const test = base.extend<
   voiceServer: [serving(voiceServerName), { scope: "worker" }],
   keysServer: [serving(keysServerName), { scope: "worker" }],
   filesServer: [serving(filesServerName), { scope: "worker" }],
+  monitoringServer: [serving(monitoringServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
       await use({
