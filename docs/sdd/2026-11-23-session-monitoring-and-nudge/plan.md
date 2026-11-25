@@ -49,6 +49,10 @@
       `CONTRIBUTING.md` (tmux among the prerequisites and dependencies), CI installing tmux, and the
       development contract. Done when the project review finds none stale.
 
+- [ ] Renumbered after main took agent API versions 6 and 7 and migration 10 for pull request and
+      branch links: monitoring is agent API version 8 and migration 11. Done when the gates pass on
+      the pull request brought up to date with main.
+
 ### Pull request 1b: the sessions view
 
 - [x] The sessions view shows connection, last check-in and condition, flags sessions at a prompt or
@@ -90,6 +94,8 @@
       nudge's ADR, superseding ADR 0001's "No push" for agents and amending "No permissions, no
       harness control"; review checklist A1 and A6; and the rest of E1. Done when the drift check
       passes and the project review finds none stale.
+- [ ] Renumbered as 1a was: the nudge is agent API version 9 and migration 12. Done when the gates
+      pass on the pull request brought up to date with main.
 - [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
       when the pull request records the live evidence as `docs/live-testing.md` describes.
 - [ ] `locked.md` in this directory, with the final merge.
