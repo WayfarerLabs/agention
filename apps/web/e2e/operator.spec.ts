@@ -8,7 +8,8 @@
 // the divider after messages archived and unfolded, at a phone's width too,
 // reading and marking unread from a message and the Threads tab's
 // count of unread threads, archiving, the list's filters, their counts, its
-// order, the order's direction and grouping, moving through the list, opening
+// search box, fitting beside a thread and on a phone, its order, the order's
+// direction and grouping, moving through the list, opening
 // a thread and returning from the keyboard, the list and the thread side by
 // side at a desktop's width and one at a time on a phone, the threads above
 // and below and where archiving goes, alike in both, an ask the agent withdraws and the
@@ -601,9 +602,14 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await expect(newest).toBeVisible();
   await page.getByRole("combobox", { name: "Sort" }).selectOption("Latest message");
 
-  await filters.click();
-  await sheet.getByRole("searchbox").fill("deep");
+  // The search box atop the list's head searches, and the sheet's box shows
+  // the same search.
+  const search = page.getByRole("searchbox", { name: "Search threads" });
+  await search.fill("deep");
   await expect(page).toHaveURL(/search=deep/);
+  await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
+  await filters.click();
+  await expect(sheet.getByRole("searchbox")).toHaveValue("deep");
   await sheet.getByRole("button", { name: /^Show 1 thread$/ }).click();
   await expect(sheet).toBeHidden();
   await expect(page.getByRole("heading", { name: "Deep text" })).toBeVisible();
@@ -624,7 +630,9 @@ test("the list narrows by its filters and search, counts them, orders by its sor
   await sheet.getByRole("button", { name: "Done" }).click();
   await sheet.getByRole("button", { name: /^Reset filters/ }).click();
   await expect(page).toHaveURL(/\/\?sort=latest$/);
+  await expect(sheet.getByRole("searchbox")).toHaveValue("");
   await page.keyboard.press("Escape");
+  await expect(search).toHaveValue("");
   await expect(page.getByRole("heading", { name: "Release notes are up" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: `#1 ${title}`, exact: true })).toBeVisible();
 
@@ -700,6 +708,24 @@ test("the keyboard moves through the list with j and k, its focus ring showing, 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
 });
 
+// fitsAcross checks that a box takes its area's whole content width, and
+// that neither the area nor the page scrolls sideways.
+async function fitsAcross(box: Locator, area: Locator): Promise<void> {
+  const shown = await box.boundingBox();
+  expect(shown).not.toBeNull();
+  const content = await area.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  });
+  expect(Math.abs((shown?.width ?? 0) - content)).toBeLessThanOrEqual(2);
+  expect(await area.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+}
+
 test("at a desktop's width the list stands beside the thread open, kept as chosen and marking it, each thread at its own address, and one at a time on a phone", async () => {
   await showList();
   const list = page.getByRole("region", { name: "Thread list" });
@@ -747,6 +773,19 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await expect(page).toHaveURL(/\/\?sort=latest$/);
   await expect(first).toBeFocused();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+
+  // The list's search box, across its head, fits its pane with nothing to
+  // scroll sideways, down to the narrowest width side by side, and / puts
+  // focus in it.
+  const searchBox = list.getByRole("searchbox", { name: "Search threads" });
+  await page.keyboard.press("/");
+  await expect(searchBox).toBeFocused();
+  const sideBySide = page.viewportSize();
+  for (const width of [1024, sideBySide?.width ?? 1280]) {
+    await resize(page, { width, height: sideBySide?.height ?? 720 });
+    await expect(pane).toBeVisible();
+    await fitsAcross(searchBox, list);
+  }
 
   // Back keeps the list as set: an order chosen beside the second thread
   // stays on going back to the first, whose entry then returns to it, and on
@@ -800,6 +839,7 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true);
   await page.keyboard.press("u");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
+  await fitsAcross(page.getByRole("searchbox", { name: "Search threads" }), page.locator("main"));
   await page.locator("ul.threads").getByRole("link").first().click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titles[0] ?? "");
   await expect(page.locator("ul.threads")).toHaveCount(0);

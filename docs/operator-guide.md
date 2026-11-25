@@ -369,11 +369,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 
 - **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
   counts those holding a message you have not read, the threads the **Unread** filter keeps with no
-  other filter on, and reading or archiving them clears the count. The list's head holds **Sort**,
-  the order it is in, beside a button saying which way the order runs, then **Group**, how the list
-  is grouped, and **Filters**, a funnel with a badge counting the filters that are on. On a phone,
-  **Sort** and its button take one row, with **Group** and **Filters** beneath them; on the
-  narrowest phones, or with enlarged text, the button wraps beneath **Sort**.
+  other filter on, and reading or archiving them clears the count. The list's head holds a search
+  box across its top, **Search threads**, then **Sort**, the order it is in, beside a button saying
+  which way the order runs, then **Group**, how the list is grouped, and **Filters**, a funnel with
+  a badge counting the filters that are on. On a phone, **Sort** and its button take one row, with
+  **Group** and **Filters** beneath them; on the narrowest phones, or with enlarged text, the button
+  wraps beneath **Sort**.
   - **Sort** orders the list by:
     - **Priority**, the default: the threads with asks open to you first, each by the most pressing
       of its asks: by priority, then those blocking the agent's work, then by the earliest
@@ -427,7 +428,10 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     - **Search** keeps the threads whose title holds every word you type, or one of whose messages
       does in its text and details, each as the start of a word, ignoring case and accents. A
       message you or an agent replaced no longer matches; its replacement does. It applies once you
-      pause typing. An agent's own search of its threads looks at titles alone.
+      pause typing, or at once on Enter. The search box atop the list's head and this one are the
+      same search: typing in either shows in both. Text the search cannot take, such as a tab or an
+      invisible character, stays in the box, which says why, and the list stays as it was. An
+      agent's own search of its threads looks at titles alone.
     - **Status** keeps the threads of one status, which rolls up the asks on their messages:
       **Open** while one waits for your answer; **Answered** once none does and you answered or
       declined at least one; **Withdrawn** when the agent withdrew every one; and **None** for a
@@ -880,7 +884,7 @@ anywhere to list them all.
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
 | The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
-| The thread list | `/`                         | Opens **Filters** on its search box                                                                                       |
+| The thread list | `/`                         | Puts focus in the list's search box, selecting what it holds                                                              |
 | A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
 | A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
 | A thread        | `e`                         | **Archive all**, while it is available, then where **Auto-advance** says                                                  |
