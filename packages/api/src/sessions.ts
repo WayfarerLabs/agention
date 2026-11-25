@@ -221,7 +221,9 @@ export const sessionPresence = presence.extend({
       "What the session's bridge last reported of its terminal, while the bridge is connected; " +
         "absent until one reports.",
     ),
-  last_nudge: nudgeState.optional(),
+  last_nudge: nudgeState
+    .optional()
+    .describe("The session's latest nudge; absent until its bridge first claims one."),
 });
 export type SessionPresence = z.infer<typeof sessionPresence>;
 

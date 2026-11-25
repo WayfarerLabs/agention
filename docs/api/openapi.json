@@ -8685,7 +8685,8 @@
                 "description": "When the session came to its condition."
               },
               "nudge": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Whether the bridge can nudge the agent at its prompt; false for a bridge older than the nudge."
               },
               "stopped_by": {
                 "oneOf": [
@@ -8746,13 +8747,16 @@
         "type": "object",
         "properties": {
           "at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the bridge claimed the nudge, by the server's clock."
           },
           "sent": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the nudge was sent; true too while it is under way or where its outcome never came."
           },
           "answered": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the agent has checked in since. A sent nudge not answered is one the agent is not responding to."
           }
         },
         "required": [
@@ -9013,7 +9017,8 @@
             "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
           },
           "last_nudge": {
-            "$ref": "#/components/schemas/NudgeState"
+            "$ref": "#/components/schemas/NudgeState",
+            "description": "The session's latest nudge; absent until its bridge first claims one."
           }
         },
         "required": [
@@ -9265,7 +9270,8 @@
             "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
           },
           "last_nudge": {
-            "$ref": "#/components/schemas/NudgeState"
+            "$ref": "#/components/schemas/NudgeState",
+            "description": "The session's latest nudge; absent until its bridge first claims one."
           },
           "state": {
             "$ref": "#/components/schemas/WorkState"

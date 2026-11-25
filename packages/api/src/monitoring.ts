@@ -170,7 +170,11 @@ export const monitorState = z.discriminatedUnion("monitored", [
     profile: monitorProfile,
     condition: monitorCondition,
     since: z.string().describe("When the session came to its condition."),
-    nudge: z.boolean(),
+    nudge: z
+      .boolean()
+      .describe(
+        "Whether the bridge can nudge the agent at its prompt; false for a bridge older than the nudge.",
+      ),
     stopped_by: z
       .discriminatedUnion("reason", [
         z.object({ reason: z.literal("usage_limit"), resets_at: z.string().optional() }),
@@ -189,8 +193,17 @@ export type MonitorState = z.infer<typeof monitorState>;
 // in since. A nudge sent with no check-in since is one the agent is not
 // responding to.
 export const nudgeState = z.object({
-  at: z.string(),
-  sent: z.boolean(),
-  answered: z.boolean(),
+  at: z.string().describe("When the bridge claimed the nudge, by the server's clock."),
+  sent: z
+    .boolean()
+    .describe(
+      "Whether the nudge was sent; true too while it is under way or where its outcome never came.",
+    ),
+  answered: z
+    .boolean()
+    .describe(
+      "Whether the agent has checked in since. A sent nudge not answered is one the agent is not " +
+        "responding to.",
+    ),
 });
 export type NudgeState = z.infer<typeof nudgeState>;
