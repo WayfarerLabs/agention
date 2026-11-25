@@ -280,10 +280,12 @@ if (HTMLDialogElement.prototype.showModal === undefined) {
 }
 
 // renderAt renders the application at a path, with state in its history
-// entry, as a link that recorded state would leave it.
-export function renderAt(path: string, state: unknown = null) {
+// entry, as a link that recorded state would leave it; strict renders it in
+// StrictMode, as main.tsx does, which unmounts and mounts each component once
+// more as it first mounts.
+export function renderAt(path: string, state: unknown = null, { strict = false } = {}) {
   window.history.replaceState(state, "", path);
-  return render(<App />);
+  return render(<App />, { reactStrictMode: strict });
 }
 
 const time = "2026-10-27T12:00:00.000Z";

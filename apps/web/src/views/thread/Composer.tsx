@@ -375,10 +375,15 @@ export function Composer({
     const sentDetail = detail;
     const sentStaged = staged;
     const sentFiles = fileIds;
-    const outcome =
-      writer.missed === undefined
-        ? await writer.write(content, basis ?? shown, shown)
-        : await writer.readAndWrite(content);
+    // Leaving the page keeps the files the write carries.
+    const outcome = await files.carry(
+      sentFiles,
+      () =>
+        writer.missed === undefined
+          ? writer.write(content, basis ?? shown, shown)
+          : writer.readAndWrite(content),
+      (ended) => ended !== undefined && "written" in ended,
+    );
     if (outcome === undefined) {
       return;
     }

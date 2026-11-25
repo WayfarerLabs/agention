@@ -19,8 +19,10 @@ import { useSession } from "../session.tsx";
 // files of the message it replaces, kept unless removed. The draft keeps each File, so
 // a failed or expired upload can be sent again. Nothing is uploaded for good
 // until the message is sent: removing a file removes its upload from the
-// server too, and one no message names expires there, which the server says
-// when a write names it.
+// server too, and so does leaving the writer without sending it, so an unsent
+// upload stops counting against the operator's pending uploads. One left
+// behind all the same, as when its removal fails, expires there, which the
+// server says when a write names it.
 //
 // Uploads run one at a time, in the order added. A browser opens only a few
 // connections to one host, and the page's long poll and every read share
@@ -229,8 +231,45 @@ export interface DraftFiles {
   dropKept(): void;
   // expire marks an upload the server no longer holds as expired.
   expire(id: number): void;
+  // carry runs send, a send of the files with these ids, and resolves to
+  // what it resolves to. Leaving the writer leaves their uploads alone while
+  // the send is on its way, since the server may yet attach them, and for
+  // good once landed says it landed, and remove refuses them while the send
+  // is on its way; a send that did not land frees them, unless another send
+  // on its way carries them too, removing their uploads should the writer be
+  // gone by then.
+  carry<T>(
+    ids: readonly number[],
+    send: () => Promise<T>,
+    landed: (result: T) => boolean,
+  ): Promise<T>;
   // sent drops the files a message that landed sent.
   sent(ids: readonly number[]): void;
+  // The ids of the files a send on its way carries, whose Remove waits.
+  carried: ReadonlySet<number>;
+}
+
+// The upload under way. Removed once every byte has gone, it is left to
+// answer, and its upload is then removed from the server.
+interface Running {
+  id: number;
+  controller: AbortController;
+  removed: boolean;
+  // The bytes sent of the file's size, as the upload reports them, before
+  // the list shows them.
+  sent: number;
+  size: number;
+}
+
+// stop stops the upload under way: while bytes remain it is aborted, so the
+// server never completes it; once every byte has gone the server may have,
+// so it is left to answer and then removed.
+function stop(running: Running): void {
+  if (running.sent >= running.size) {
+    running.removed = true;
+  } else {
+    running.controller.abort();
+  }
 }
 
 // useDraftFiles holds the draft's files for a message to a session, in one
@@ -241,10 +280,20 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
   const onFailure = useUnauthenticatedCheck();
   const [files, setFiles] = useState<DraftFile[]>([]);
   const nextId = useRef(1);
-  // The upload under way, if any. Removed once every byte has gone, it is
-  // left to answer, and its upload is then removed from the server.
-  const running = useRef<{ id: number; controller: AbortController; removed: boolean }>(undefined);
+  const running = useRef<Running>(undefined);
+  // How many sends carry each file, by its id: while each is on its way, and
+  // for good once one landed. The list follows them, for Remove to wait.
+  const carried = useRef(new Map<number, number>());
+  const [carriedIds, setCarriedIds] = useState<ReadonlySet<number>>(new Set());
+  // The upload each file holds on the server once its answer arrives, by the
+  // file's id, before the list shows it, so a Remove or leaving the writer in
+  // between still finds it.
+  const finished = useRef(new Map<number, string>());
+  // Whether the writer has gone: its page left, or its sheet closed.
+  const left = useRef(false);
 
+  // A removal that fails leaves the upload to expire, and says nothing: the
+  // server refuses one a message attached, or one already gone, as not found.
   const removeUpload = useCallback(
     (upload: string) => {
       request("POST", sessionPath(target.agent, target.session, `/uploads/${upload}/remove`), {
@@ -253,6 +302,23 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
     },
     [target.agent, target.session, csrf, onFailure],
   );
+
+  // The removal leaving uses, as the writer last had it, since it runs after.
+  const latestRemove = useRef(removeUpload);
+  useEffect(() => {
+    latestRemove.current = removeUpload;
+  }, [removeUpload]);
+
+  // removeUnsent removes from the server the finished uploads no send
+  // carries, of the files with these ids, or of every file.
+  const removeUnsent = useCallback((ids?: readonly number[]) => {
+    for (const [id, upload] of finished.current) {
+      if (!carried.current.has(id) && (ids === undefined || ids.includes(id))) {
+        finished.current.delete(id);
+        latestRemove.current(upload);
+      }
+    }
+  }, []);
 
   const update = useCallback((id: number, state: UploadState) => {
     setFiles((current) =>
@@ -270,7 +336,13 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
       return;
     }
     const controller = new AbortController();
-    const under = { id: next.id, controller, removed: false };
+    const under: Running = {
+      id: next.id,
+      controller,
+      removed: false,
+      sent: 0,
+      size: next.size,
+    };
     running.current = under;
     const done = () => {
       if (running.current === under) {
@@ -283,14 +355,20 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
       type: next.type,
       csrf,
       signal: controller.signal,
-      onProgress: (sent) => update(next.id, { kind: "uploading", sent }),
+      onProgress: (sent) => {
+        under.sent = sent;
+        update(next.id, { kind: "uploading", sent });
+      },
     }).then(
       (result) => {
         done();
-        if (under.removed) {
+        // Stopped as its answer arrived, by Remove or leaving the writer,
+        // the upload is the server's all the same, so it is removed.
+        if (under.removed || controller.signal.aborted) {
           removeUpload(result.upload);
           return;
         }
+        finished.current.set(next.id, result.upload);
         update(next.id, { kind: "uploaded", upload: result.upload });
       },
       (failure: unknown) => {
@@ -306,14 +384,25 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
     );
   }, [files, target.agent, target.session, csrf, update, removeUpload, onFailure]);
 
-  // Leaving the page stops what is under way.
-  useEffect(
-    () => () => {
-      running.current?.controller.abort();
-      running.current = undefined;
-    },
-    [],
-  );
+  // Leaving the writer, by any way its page or sheet goes, stops the upload
+  // under way and removes the finished uploads no send carries, so a draft
+  // left unsent holds none of the operator's pending uploads. Kept files are
+  // a sent message's, and a kept draft keeps no files. React's StrictMode
+  // unmounts and mounts the writer once more as it first mounts, before any
+  // file is added, so that removes nothing, and mounting again marks the
+  // writer as not gone.
+  useEffect(() => {
+    left.current = false;
+    return () => {
+      left.current = true;
+      const under = running.current;
+      if (under !== undefined) {
+        stop(under);
+        running.current = undefined;
+      }
+      removeUnsent();
+    };
+  }, [removeUnsent]);
 
   const add = useCallback((added: { file: File; name: string }[]) => {
     setFiles((current) => {
@@ -350,27 +439,33 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
   // so it is left to answer and then removed, as a finished upload is when
   // its file leaves the list. Should a removal fail, the upload counts until
   // it expires, as the server's refusal of another upload then says.
+  // A file a send on its way carries stays: the server may yet attach it.
   const remove = useCallback(
     (id: number) => {
-      const found = files.find((each) => each.id === id);
-      const file = found?.kind === "added" ? found : undefined;
+      if (carried.current.has(id)) {
+        return;
+      }
+      const upload = finished.current.get(id);
+      finished.current.delete(id);
       if (running.current?.id === id) {
-        if (file?.state.kind === "uploading" && file.state.sent >= file.size) {
-          running.current.removed = true;
-        } else {
-          running.current.controller.abort();
-        }
+        stop(running.current);
         running.current = undefined;
-      } else if (file?.state.kind === "uploaded") {
-        removeUpload(file.state.upload);
+      } else if (upload !== undefined) {
+        removeUpload(upload);
       }
       setFiles((current) => current.filter((each) => each.id !== id));
     },
-    [files, removeUpload],
+    [removeUpload],
   );
 
   const retry = useCallback((id: number) => update(id, { kind: "waiting" }), [update]);
-  const expire = useCallback((id: number) => update(id, { kind: "expired" }), [update]);
+  const expire = useCallback(
+    (id: number) => {
+      finished.current.delete(id);
+      update(id, { kind: "expired" });
+    },
+    [update],
+  );
 
   const keep = useCallback((message: Message) => {
     setFiles(
@@ -387,9 +482,55 @@ export function useDraftFiles(target: { agent: string; session: string }): Draft
     setFiles((current) => current.filter((file) => file.kind !== "kept"));
   }, []);
 
+  const carry = useCallback(
+    async <T>(ids: readonly number[], send: () => Promise<T>, landed: (result: T) => boolean) => {
+      const follow = () => setCarriedIds(new Set(carried.current.keys()));
+      for (const id of ids) {
+        carried.current.set(id, (carried.current.get(id) ?? 0) + 1);
+      }
+      follow();
+      let kept = false;
+      try {
+        const result = await send();
+        kept = landed(result);
+        return result;
+      } finally {
+        if (!kept) {
+          for (const id of ids) {
+            const count = (carried.current.get(id) ?? 1) - 1;
+            if (count > 0) {
+              carried.current.set(id, count);
+            } else {
+              carried.current.delete(id);
+            }
+          }
+          follow();
+          if (left.current) {
+            removeUnsent(ids);
+          }
+        }
+      }
+    },
+    [removeUnsent],
+  );
+
   const sent = useCallback((ids: readonly number[]) => {
+    for (const id of ids) {
+      finished.current.delete(id);
+    }
     setFiles((current) => current.filter((file) => !ids.includes(file.id)));
   }, []);
 
-  return { files, add, remove, retry, keep, dropKept, expire, sent };
+  return {
+    files,
+    add,
+    remove,
+    retry,
+    keep,
+    dropKept,
+    expire,
+    carry,
+    sent,
+    carried: carriedIds,
+  };
 }

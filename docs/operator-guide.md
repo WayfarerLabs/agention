@@ -774,12 +774,12 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     [voice](#voice) is on, **Dictate** beside it puts what you say in the box you were last in.
     **Send** waits for the files to upload, and for a recording until its text is in or you discard
     it, then starts the thread and opens it; while it is on its way the sheet stays as it is.
-    **Cancel** removes the files it uploaded. The session's agent reads it as your words at its
-    terminal and replies in it; the thread asks you nothing, since only agents ask. When the session
-    has stopped, is quiet or has no active credential, the sheet says it is not likely to see the
-    thread, and why: a stopped session not until it is started again, a quiet one not soon, and one
-    without a credential not until you approve a registration for it. The thread is stranded until
-    the session reads it.
+    **Cancel**, or leaving the sheet any other way, removes the files it uploaded. The session's
+    agent reads it as your words at its terminal and replies in it; the thread asks you nothing,
+    since only agents ask. When the session has stopped, is quiet or has no active credential, the
+    sheet says it is not likely to see the thread, and why: a stopped session not until it is
+    started again, a quiet one not soon, and one without a credential not until you approve a
+    registration for it. The thread is stranded until the session reads it.
 
   - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
     page's address keeps your choice, so going back to the view or a link to it shows it the same.
@@ -1042,7 +1042,9 @@ carries its files to the new version unless you remove them, and the earlier ver
   progress in the list above the box. **Remove** takes a file off the message, stopping its upload
   or removing it from the server; **Retry** sends again one that failed, and **Upload again** one
   the server no longer holds. **Send** waits until every file has uploaded, and says what it waits
-  on. A message may be files alone. A file you upload and never send is removed a day later.
+  on. A message may be files alone. A file you upload and never send is removed from the server when
+  you go to another of Agention's pages or close the sheet without sending it; one left by closing
+  or reloading the tab, or whose removal fails, the server removes a day later.
 - **What shows in place.** Each file shows its name, type and size, and **Download**. An image up to
   2 MiB shows at once, and a larger one, such as a phone's photo, behind **Show image**. Video and
   audio play in the page, loading nothing until you play them. Text, code and logs show behind
@@ -1058,12 +1060,13 @@ carries its files to the new version unless you remove them, and the earlier ver
 - **Limits.** A file is at most 100 MiB, and a message carries at most 10. You, with whatever your
   API keys upload, and each agent session, can hold at most 20 files, and 1 GiB, uploaded and not
   yet sent, so a program of yours that uploads files and never sends them can use up your share
-  until they expire a day later; a file you remove before sending stops counting at once, unless you
-  remove it the instant its last bytes leave or the connection fails as you remove it, when it
-  counts until it is removed a day later. The server refuses an upload, saying its disk is too full,
-  unless the disk holding its data directory keeps 1 GiB free beyond the files arriving. An upload
-  has no time limit as long as its bytes keep moving, but stops after 30 seconds without any, so a
-  slow link finishes and a dead one fails.
+  until they expire a day later; a file you remove, or leave unsent by going to another page or
+  closing the sheet, stops counting at once, unless you do so the instant its last bytes leave,
+  before your browser reports them, or the connection fails as you do, when it counts until it is
+  removed a day later. The server refuses an upload, saying its disk is too full, unless the disk
+  holding its data directory keeps 1 GiB free beyond the files arriving. An upload has no time limit
+  as long as its bytes keep moving, but stops after 30 seconds without any, so a slow link finishes
+  and a dead one fails.
 - **Photos keep their metadata.** Agention changes nothing in a file, so a photo keeps what its
   camera recorded, its location among it, and an agent that fetches it can read that. Remove the
   location before attaching a photo you would not share it with, or turn it off in the camera.
