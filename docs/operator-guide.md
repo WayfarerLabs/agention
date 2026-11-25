@@ -30,7 +30,7 @@ npm install -g @wayfarerlabs/agention
 agention version
 ```
 
-`agention version` prints the version installed, such as `agention 0.6.0`.
+`agention version` prints the version installed.
 
 If `npm install -g` fails for want of permission, npm's global prefix (`npm prefix -g`) is a system
 directory. Rather than use `sudo`, run `npm config set prefix ~/.local` and put `~/.local/bin` on
@@ -345,7 +345,9 @@ Agention's repository. Pin the marketplace to a release's tag, so the plugin's s
 exactly the bridge it runs. Between releases, `main`'s skill can describe what its pinned bridge
 does not do yet, so install from `main`, unpinned, only to follow changes as they merge.
 
-To pin it to a release, 0.6.0 in this example, in Claude Code:
+To pin it to a release, the latest in this example, in Claude Code:
+
+<!-- x-release-please-start-version -->
 
 ```bash
 claude plugin marketplace add WayfarerLabs/agention#v0.6.0
@@ -359,7 +361,9 @@ codex plugin marketplace add WayfarerLabs/agention --ref v0.6.0
 codex plugin add agention@agention
 ```
 
-To install from `main` instead, leave out `#v0.6.0` or `--ref v0.6.0`.
+<!-- x-release-please-end -->
+
+To install from `main` instead, leave the tag out of either command.
 
 Sessions started after that have the plugin. It carries the skill that tells an agent how to use
 Agention, and runs the bridge with `npx` at the version it pins, which npm fetches the first time.
@@ -403,14 +407,20 @@ server over standard input and output, one process for each agent session, on a 
 24 or later that can reach your server. Add this command to its MCP servers under the name
 `agention`, at your server's release, with `AGENTION_URL` in the environment the harness gives it:
 
+<!-- x-release-please-start-version -->
+
 ```bash
 npx -y @wayfarerlabs/agention-mcp@0.6.0
 ```
 
-Then give the agent the usage skill the plugins carry,
-[`SKILL.md`](https://github.com/WayfarerLabs/agention/blob/v0.6.0/apps/agent-plugin/skills/agention/SKILL.md)
-at the same release, as a skill or as instructions. The bridge's tools describe themselves, but the
-skill is what tells an agent to ask you through Agention and to keep checking for your answers.
+[skill]:
+  https://github.com/WayfarerLabs/agention/blob/v0.6.0/apps/agent-plugin/skills/agention/SKILL.md
+
+<!-- x-release-please-end -->
+
+Then give the agent the usage skill the plugins carry, [`SKILL.md`][skill] at the same release, as a
+skill or as instructions. The bridge's tools describe themselves, but the skill is what tells an
+agent to ask you through Agention and to keep checking for your answers.
 
 If the harness limits how long one tool call may take, the limit must be at least a minute, and
 longer for large files, as [Installing the plugins](#installing-the-plugins) says. Claude Code and
@@ -719,8 +729,8 @@ agention version
 systemctl --user start agention
 ```
 
-`@latest` installs the newest release; a version, such as `@0.6.0`, installs that one. On macOS,
-stop and start the server with the `launchctl bootout` and `launchctl bootstrap` commands of
+`@latest` installs the newest release; a version in its place installs that one. On macOS, stop and
+start the server with the `launchctl bootout` and `launchctl bootstrap` commands of
 [macOS: a launchd agent](#macos-a-launchd-agent). Run by hand, stop it with Ctrl-C and run it again.
 A browser tab opened before the upgrade keeps running the web UI it loaded, so reload it.
 
@@ -753,9 +763,11 @@ read:
 The bridge keeps its keys outside the plugin, in `~/.config/agention`, so its sessions stay
 registered through a plugin's upgrade.
 
-To move a pinned plugin to another release, 0.6.0 in this example, pin its marketplace to that
+To move a pinned plugin to another release, the latest in this example, pin its marketplace to that
 release's tag. Claude Code refuses to add a marketplace again from another tag, so remove it, which
 uninstalls the plugin, then add it and install the plugin again:
+
+<!-- x-release-please-start-version -->
 
 ```bash
 claude plugin marketplace remove agention
@@ -770,6 +782,8 @@ codex plugin marketplace remove agention
 codex plugin marketplace add WayfarerLabs/agention --ref v0.6.0
 codex plugin add agention@agention
 ```
+
+<!-- x-release-please-end -->
 
 To bring a plugin installed from `main` up to date, refresh the marketplace and install the plugin
 again: the hosts replace an installed plugin only when its version changes, which happens at each
