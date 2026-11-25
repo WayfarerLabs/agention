@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v4",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 4."
+    "version": "operator v1, agent v5",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 5."
   },
   "tags": [
     {
@@ -6653,7 +6653,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "4"
+          "const": "5"
         }
       }
     },
@@ -6699,7 +6699,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 4000,
-            "description": "Plain text: the audience's own words on the ask, instead of a pick or, where several are allowed, beside its picks; the whole answer to an ask without suggested answers."
+            "description": "Plain text: the audience's own words on the ask, part of the answer: notes beside its picks, or the whole answer when nothing is picked."
           }
         },
         "required": [
@@ -6769,7 +6769,7 @@
             "items": {
               "$ref": "#/components/schemas/Suggestion"
             },
-            "description": "Suggested answers the audience may pick; it may always answer in its own words instead, or beside its picks where several are allowed."
+            "description": "Suggested answers the audience may pick; it may add its own words beside its picks as notes, or answer in its own words alone instead."
           },
           "multiple": {
             "default": false,

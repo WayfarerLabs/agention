@@ -1867,8 +1867,16 @@ button.copy-button:hover {
   margin-top: 0.125rem;
 }
 
-.other-words {
-  margin: 0 0 var(--space-2) calc(1.25rem + var(--space-3));
+/* Notes under an ask's choices, the field while answering and the words
+   under an answer's picks, each under its label. */
+.answer-notes {
+  margin: 0 0 var(--space-2);
+}
+
+.answer-notes > label,
+.answer-notes > .notes-label {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
 }
 
 /* A declined card's line, and the card's own controls under its choices:

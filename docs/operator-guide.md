@@ -597,26 +597,31 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     and the reason for each ask it withdrew. An agent may withdraw an ask in the message that
     revises its others, and the card reads withdrawn all the same. A withdrawn ask takes no answer.
     An answered card checks the suggested answers you picked, sets the others apart and shows your
-    own words under **Other**; a declined one says so. The message carrying your answers says the
-    same for each, naming the ask by its number: the suggested answers you picked and **Other** with
-    your words beneath, your words alone on an ask without suggested answers, or that you declined.
+    words under **Notes** beside your picks, or under **Other** when you picked none; a declined one
+    says so. The message carrying your answers says the same for each, naming the ask by its number:
+    the suggested answers you picked, with notes when you wrote them, or **Other**, with your words
+    beneath; your words alone on an ask without suggested answers; or that you declined.
   - You answer on the card. Where the ask allows one answer, its suggested answers are radio buttons
     under **Choose one**; where it allows several, checkboxes under **Choose any that apply**. The
-    last choice, **Other**, is for your own words, instead of a pick or, where several are allowed,
-    beside your picks: choosing it opens a field for them and moves you there, and clearing it keeps
-    the words for when you choose it again, and sends none. An ask without suggested answers has
-    only that field. While [voice](#voice) is on, **Dictate** under the field puts what you say in
-    it, as the composer's does. Files for an answer go with the message that sends it: attach them
-    in the composer. **Decline to answer**, below the choices, sets them aside and declines the ask
+    last choice, **Other**, is for an answer in your own words instead, in place of any picks:
+    choosing it unchecks them, and picking a suggested answer unchecks it. Once you choose anything,
+    a **Notes** field opens under the choices: beside your picks, what you write there is optional
+    notes that go with the answer; with **Other** chosen, the field is your answer, so choosing
+    **Other** moves you there. Changing your choice keeps what you wrote. Where several may be
+    picked and you uncheck everything, the field stays while it holds words, and the answer waits
+    until you choose again or clear them. An ask without suggested answers has only a field, for
+    your answer. While [voice](#voice) is on, **Dictate** under the field puts what you say in it,
+    as the composer's does. Files for an answer go with the message that sends it: attach them in
+    the composer. **Decline to answer**, below the choices, sets them aside and declines the ask
     when you send, until you undo it. While the card holds an answer or a decline you have not sent,
     **Clear** there removes it as **Remove** in the line above the box does, leaving you on the card
     as it was before you chose anything. **Change answer**, in the options of a message carrying
     your answers, opens again the card of every ask that message answered that is still live, with
-    your answers, moves you to the first, unfolding the archived messages when it is among them, and
-    puts that message's text and details in their boxes. An answer to an ask the agent since revised
-    or retracted stays with that message, and the line above the box says so. When the asks it
-    changes have to load first, and the page learns meanwhile that the message was replaced, nothing
-    is staged.
+    your answers and notes, moves you to the first, unfolding the archived messages when it is among
+    them, and puts that message's text and details in their boxes. An answer to an ask the agent
+    since revised or retracted stays with that message, and the line above the box says so. When the
+    asks it changes have to load first, and the page learns meanwhile that the message was replaced,
+    nothing is staged.
   - **Edit** in the options of your other messages changes their text and details, and drops their
     answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
     whole message, so they need empty boxes with nothing staged. A replaced message folds into one
@@ -628,14 +633,14 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     up to 20,000; neither cuts what you type or paste, but while either is over, or there are
     details and no message, **Send** waits and the box says why. You can answer several asks at
     once, up to ten, and **Send** sends the answers, the text or both as one message. A line above
-    the box names each answer or decline by its ask's number (**Ask 3: “Postgres”**), each with
-    **Remove** to drop it, which also clears its card, as **Clear** on the card does; a change of
-    answers or an edit shows as one line, removed whole there, and the cards of a change offer no
-    **Clear**. **Send** is available only when there is something complete to send: **Other**
-    without words is not, and its field says so once you leave it. Once ten cards hold answers, the
-    other asks' choices are unavailable until you send or remove one. While a change or an edit is
-    staged, nothing else can be started until you send or remove it, and removing it empties both
-    boxes. An edit needs text.
+    the box names each answer or decline by its ask's number (**Ask 3: “Postgres”**, with notes when
+    you wrote them), each with **Remove** to drop it, which also clears its card, as **Clear** on
+    the card does; a change of answers or an edit shows as one line, removed whole there, and the
+    cards of a change offer no **Clear**. **Send** is available only when there is something
+    complete to send: **Other** without words is not, and its field says so once you leave it. Once
+    ten cards hold answers, the other asks' choices are unavailable until you send or remove one.
+    While a change or an edit is staged, nothing else can be started until you send or remove it,
+    and removing it empties both boxes. An edit needs text.
   - This browser keeps your draft's text and details as you type, one draft for each thread, so
     leaving the thread or reloading the page loses nothing: the composer opens with them when you
     come back, and counts from where the draft started, so a message the agent wrote while you were
@@ -685,7 +690,7 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     page, so the microphone never runs while you are not looking, and what it recorded is
     transcribed as usual; if you are still away from the page when the microphone opens, it closes
     without recording, and leaving the thread discards a recording. Starting a recording, here or
-    under an ask's own-words field, counts as seeing the thread then: a message the agent writes
+    under an ask's **Notes** field, counts as seeing the thread then: a message the agent writes
     while you record makes sending stale, as below. One recording runs at a time: starting another
     stops the first, whose text goes in as if you had chosen **Stop**. While a recording is there,
     here or on an ask's card, from the moment the microphone is asked for through recording and
@@ -923,7 +928,7 @@ the way of a screen reader, voice control or another tool, clear **Keyboard shor
 ## Voice
 
 Voice lets you dictate a message instead of typing it, and is off until you set it up: wherever you
-write one, in a thread's composer, an ask's own words or a new thread, **Dictate** puts what you say
+write one, in a thread's composer, an ask's **Notes** or a new thread, **Dictate** puts what you say
 in the box you were last in. A transcription provider turns your recording into text: you choose it
 in **Settings**, under **Voice**, and the server sends it each recording with a key it holds, and
 returns only the text. The provider receives your recordings, so turning voice on means choosing who

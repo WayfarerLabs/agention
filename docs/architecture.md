@@ -275,29 +275,29 @@ holds open, since a replacement's asks are numbered anew and the count is what c
 thread reference names a thread in the same session. Refusals name asks by their numbers. An answer
 is a decline, or distinct picks among the ask's suggested answers and the answerer's own words, at
 least one of them: an ask without suggested answers takes own words alone, and one that allows a
-single answer takes one pick or own words, never both. The own words are the answer's, plain text
-apart from the message's Markdown text and detail, which are any additional information. It appends
-the message with its asks and answers and raises the writer's read mark through it in the same
-transaction, where a writer for whom the thread is archived keeps it archived, its archive mark
-moving to its own message. A later message carries some part unless it replaces another, a rule the
-request's schema holds, since no constraint on a message's row sees the rows of its own; a thread's
-first message may carry nothing, since its title speaks for it, and a replacement carrying nothing
-retracts the message it replaces, which the rules above allow only while that message holds no open
-ask. A replacement is a whole message: what it leaves out, its detail included, is gone with the
-message it replaces. A write answers with the thread number and the message's sequence, and a retry
-of the same request id gets that same answer, while a retry with any part changed, its detail
-included, is a request-id conflict. A stale write appends nothing, so its retry may reuse the id.
-Everything a thread shows beyond its title, roles and latest sequence, such as its topic, open asks,
-status, unread count and count of live messages, is derived in queries over the two views, never
-stored. A thread's status rolls up the asks on its live messages and those a live message withdraws,
-so an ask its own message's replacement withdrew counts and a revised ask does not: `open` while any
-is open; otherwise `withdrawn` when every one is withdrawn, with the latest such withdrawal, and
-`answered` when there are any; `none` when there are none. It is the same whoever views it. After a
-write or a registration's revocation commits, an in-process notifier wakes the long polls waiting on
-the session, and with them the waits across every session. Revoking an API key and ending a browser
-session, by signing out, signing in again on that browser, removing the passkey that signed it in or
-replacing the passkeys through a link, wake the waits across every session alone once they commit,
-since no session's own changed.
+single answer takes one pick at most. The own words are part of the answer, notes beside its picks
+or the whole answer without them, plain text apart from the message's Markdown text and detail,
+which are any additional information. It appends the message with its asks and answers and raises
+the writer's read mark through it in the same transaction, where a writer for whom the thread is
+archived keeps it archived, its archive mark moving to its own message. A later message carries some
+part unless it replaces another, a rule the request's schema holds, since no constraint on a
+message's row sees the rows of its own; a thread's first message may carry nothing, since its title
+speaks for it, and a replacement carrying nothing retracts the message it replaces, which the rules
+above allow only while that message holds no open ask. A replacement is a whole message: what it
+leaves out, its detail included, is gone with the message it replaces. A write answers with the
+thread number and the message's sequence, and a retry of the same request id gets that same answer,
+while a retry with any part changed, its detail included, is a request-id conflict. A stale write
+appends nothing, so its retry may reuse the id. Everything a thread shows beyond its title, roles
+and latest sequence, such as its topic, open asks, status, unread count and count of live messages,
+is derived in queries over the two views, never stored. A thread's status rolls up the asks on its
+live messages and those a live message withdraws, so an ask its own message's replacement withdrew
+counts and a revised ask does not: `open` while any is open; otherwise `withdrawn` when every one is
+withdrawn, with the latest such withdrawal, and `answered` when there are any; `none` when there are
+none. It is the same whoever views it. After a write or a registration's revocation commits, an
+in-process notifier wakes the long polls waiting on the session, and with them the waits across
+every session. Revoking an API key and ending a browser session, by signing out, signing in again on
+that browser, removing the passkey that signed it in or replacing the passkeys through a link, wake
+the waits across every session alone once they commit, since no session's own changed.
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
 every conversation, marks its session seen before its own work, in a transaction of its own, so a

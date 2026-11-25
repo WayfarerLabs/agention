@@ -636,9 +636,12 @@ describe("dictation into an ask's own words", () => {
     fireEvent.click(within(card()).getByRole("radio", { name: "Other" }));
     fireEvent.click(await within(card()).findByRole("button", { name: "Dictate" }));
     await within(card()).findByRole("button", { name: "Stop" });
-    // Picking a suggestion hides the field and drops its recording, and
-    // Clear leaves nothing staged.
+    // Picking a suggestion keeps the field and its recording.
     fireEvent.click(within(card()).getByRole("radio", { name: /^SQLite/ }));
+    expect(within(card()).getByRole("button", { name: "Stop" })).toBeTruthy();
+    // Declining hides the field and drops its recording, and Clear leaves
+    // nothing staged.
+    fireEvent.click(within(card()).getByRole("button", { name: "Decline to answer" }));
     expect(within(card()).queryByRole("textbox")).toBeNull();
     fireEvent.click(within(card()).getByRole("button", { name: "Clear" }));
     expect(staged()).toBeNull();
