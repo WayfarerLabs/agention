@@ -8423,12 +8423,14 @@
           "running",
           "at_prompt",
           "waiting"
-        ]
+        ],
+        "description": "Where the session is, as its bridge reads its terminal, in this order of precedence: unknown when the bridge cannot read it; permission_prompt at a permission or approval dialog; other_prompt at any other dialog or prompt for someone at the terminal; running in a turn; at_prompt at its normal input line; waiting at rest in nothing its profile recognizes."
       },
       "MonitorProfile": {
         "type": "string",
         "maxLength": 40,
-        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+        "description": "The profile the bridge reads the terminal with, such as claude-code."
       },
       "MonitorReport": {
         "oneOf": [
@@ -8505,7 +8507,8 @@
                       "reason"
                     ]
                   }
-                ]
+                ],
+                "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
               }
             },
             "required": [
@@ -8545,7 +8548,8 @@
                 "$ref": "#/components/schemas/MonitorCondition"
               },
               "since": {
-                "type": "string"
+                "type": "string",
+                "description": "When the session came to its condition."
               },
               "stopped_by": {
                 "oneOf": [
@@ -8588,7 +8592,8 @@
                       "reason"
                     ]
                   }
-                ]
+                ],
+                "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
               }
             },
             "required": [
@@ -8677,13 +8682,16 @@
         "type": "object",
         "properties": {
           "last_seen_at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
           },
           "quiet": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the agent has not checked in within the server's quiet threshold, or never has."
           },
           "connected": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
           }
         },
         "required": [
@@ -8833,16 +8841,20 @@
         "type": "object",
         "properties": {
           "last_seen_at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
           },
           "quiet": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the agent has not checked in within the server's quiet threshold, or never has."
           },
           "connected": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
           },
           "monitor": {
-            "$ref": "#/components/schemas/MonitorState"
+            "$ref": "#/components/schemas/MonitorState",
+            "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
           }
         },
         "required": [
@@ -9078,13 +9090,16 @@
         "type": "object",
         "properties": {
           "last_seen_at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
           },
           "quiet": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the agent has not checked in within the server's quiet threshold, or never has."
           },
           "connected": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
           },
           "state": {
             "$ref": "#/components/schemas/WorkState"
