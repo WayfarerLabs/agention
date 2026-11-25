@@ -216,7 +216,10 @@ This keeps from agention#67's `push.ts` its loop and pacing (`#run`, `#registrat
 for starting on approval, recovery and the floor. Its host directory, wake file, notice, lapse line,
 saved cursor and `claude-code` gate do not carry over.
 
-### The agent API, version 5
+### The agent API, version 6
+
+Main took version 5 for notes beside an answer, so monitoring is version 6 and the nudge 7, each
+bumping by one as CONTRIBUTING.md "The agent API" says.
 
 - **`GET .../monitor`**, a long poll reusing the wait's machinery: it answers after 25 seconds, or
   at once with `replaced`. It never marks the session checked in.
@@ -243,16 +246,18 @@ saved cursor and `claude-code` gate do not carry over.
   and the condition, shown only while connected, so a dead bridge's last report is never shown as
   current.
 - **Older bridges (C1).** While no background request is fresh and the latest check-in came from a
-  version below 5, the session follows today's presence and stranded rule, never shown disconnected.
+  version below 6, the session follows today's presence and stranded rule, never shown disconnected.
   So a plugin pinned back to an older release reads as it always did.
 - **Shown.** The operator API's session reads carry connection, last check-in, condition with since,
   stopped-by and the profile's name (delivery 1a); the sessions view shows them, flags the sessions
   at a prompt or stopped by something with a filter listing them (M4), and names the condition in a
-  stranded thread's reason (delivery 1b). No agent-facing answer carries any of it (M8).
+  stranded thread's reason, for which thread presence carries the same condition while the bridge is
+  connected, on the operator API's thread reads too (delivery 1b). No agent-facing answer carries
+  any of it (M8).
 
 ## The nudge
 
-Delivery 2 bumps the agent API to version 6:
+Delivery 2 bumps the agent API to version 7:
 
 - **Due.** `GET .../monitor` also answers `nudge` as soon as a nudge is due: the session has a
   thread with a message from the operator the agent has not read, written after the agent's last
@@ -322,7 +327,7 @@ The tools work as without monitoring in every case.
 
 1. **Monitoring.**
    - **1a**: the observer package's reading side with the Claude Code, Codex and generic profiles
-     and their captures; the reporter; agent API version 5, the migration and the derivations; the
+     and their captures; the reporter; agent API version 6, the migration and the derivations; the
      operator API's session reads and `docs/api/openapi.json`; the configuration and plugin
      forwarding; the web UI's "not connected" stranded reason, which 1a's new stranded cause needs;
      the monitoring ADR; and the collateral E1 names for monitoring outside the sessions view.
@@ -330,7 +335,7 @@ The tools work as without monitoring in every case.
      operator guide's account of them.
    - **1c**: usage limits in the Claude Code and Codex profiles, from the captures and samples of
      ruling 5.
-2. **The nudge**: `nudge()`, agent API version 6, the due answer and outcome, M6's nudge branches,
+2. **The nudge**: `nudge()`, agent API version 7, the due answer and outcome, M6's nudge branches,
    T1 and the usage skill, the ADR and the rest of E1.
 
 ## Risks and open items

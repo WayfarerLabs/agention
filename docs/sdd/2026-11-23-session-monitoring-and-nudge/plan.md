@@ -19,18 +19,18 @@
       the profiles pass against their captures, and the observation order and sampling pass against
       a real tmux server running the scripted harness, including unknown for a dead pane, more than
       one pane, a host without the terminal and a missing `/proc` (HLA "The harness observer").
-- [ ] Agent API version 5: `GET` and `POST .../monitor`, the `background` flag on
+- [ ] Agent API version 6: `GET` and `POST .../monitor`, the `background` flag on
       `POST /registrations`, the migration, the stamps, the claim rule, and the derivations
       (connected, quiet from check-ins, condition only while connected, stranded by M6 without its
       nudge branches, and the older-bridge rule). Done when the store's and the HTTP tests show
-      each, including a bridge pinned back below version 5, and `docs/api/openapi.json` is
+      each, including a bridge pinned back below version 6, and `docs/api/openapi.json` is
       regenerated.
 - [ ] The reporter in the bridge: its start triggers, the pending read, the long poll, the claim and
       the report, carried from agention#67's loop. Done when tests against the bridge's test server
       show it starting at bridge start for the default session's stored key and on approval with no
       tool call, recovering from a server restart, standing down when replaced and taking over on a
       tool call, reporting only on change, and failing as the release lines require against a server
-      below version 5 (M1, M7, M9, C1, C2).
+      below version 6 (M1, M7, M9, C1, C2).
 - [ ] Configuration: the options and variables, the plugin forwarding on both hosts, and CF4's
       cases. Done when the bridge's tests show each case in the log with the tools unaffected and no
       pane text in any log line (M8), and the generator's drift check passes; the `register`
@@ -78,7 +78,7 @@
       the scripted harness show a nudge sent at a still prompt and abandoned at each step: a dialog,
       someone typing, copy mode, the warning typed over, a line that will not clear, and a message
       that does not submit.
-- [ ] Agent API version 6: the due answer, the outcome in the report, the check-in stamp against the
+- [ ] Agent API version 7: the due answer, the outcome in the report, the check-in stamp against the
       latest nudge, "not responding to the nudge", and M6's nudge branches. Done when the store's
       and HTTP tests show a nudge due at most once between check-ins, across a bridge restart and a
       takeover.
