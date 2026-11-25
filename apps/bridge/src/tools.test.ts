@@ -671,6 +671,40 @@ describe("the thread tools", () => {
     expect(await numbers({ cursor: page.next })).toEqual([2]);
   });
 
+  it("name pull requests and branches, read back with the thread's roll-up and found by list", async () => {
+    const bridge = await approvedBridge();
+    const pull = {
+      repo: "Acme/Agention",
+      number: 135,
+      url: "https://github.com/Acme/agention/pull/135",
+    };
+    const branch = { repo: "acme/agention", branch: "feat/links" };
+    await bridge.ok("thread_create", newThread("r1", { pull_requests: [pull] }));
+    await bridge.ok("thread_create", newThread("r2", { title: "Other" }));
+    await bridge.ok("message_send", {
+      thread: 2,
+      request_id: "r3",
+      seen_through: 1,
+      branches: [branch],
+    });
+    expect(await bridge.ok("thread_get", { thread: 2 })).toMatchObject({
+      messages: [{ seq: 1 }, { seq: 2, branches: [branch] }],
+      pull_requests: { links: [], truncated: false },
+      branches: { links: [branch], truncated: false },
+    });
+    const numbers = async (args: Record<string, unknown>) =>
+      ((await bridge.ok("thread_list", args)).threads as { number: number }[]).map(
+        (thread) => thread.number,
+      );
+    expect(await numbers({ pull_request: "acme/agention#135" })).toEqual([1]);
+    expect(await numbers({ branch: "Acme/Agention:feat/links" })).toEqual([2]);
+    expect(await numbers({ branch: "acme/agention:Feat/links" })).toEqual([]);
+    expect(await bridge.error("thread_list", { pull_request: "acme/agention" })).toMatchObject({
+      code: "invalid_input",
+      field: "pull_request",
+    });
+  });
+
   it("relay the API's errors as error results", async () => {
     const bridge = await approvedBridge();
     expect(await bridge.error("thread_get", { thread: 99 })).toEqual({

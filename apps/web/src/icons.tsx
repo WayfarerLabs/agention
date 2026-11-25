@@ -94,6 +94,16 @@ const shapes = {
       <path d="m21 15-5-5L5 21" />
     </>
   ),
+  // A git branch: a line down to a commit, and a second commit curving into
+  // it from the side, for pull requests and branches, the mark of no one
+  // forge.
+  branch: (
+    <>
+      <circle cx="6" cy="18" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <path d="M6 3v12.5M18 8.5a9.5 9.5 0 0 1-9.5 9.5" />
+    </>
+  ),
   // A page with its corner folded, for files.
   file: (
     <>

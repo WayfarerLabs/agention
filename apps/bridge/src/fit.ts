@@ -29,19 +29,20 @@ function listOf(answer: unknown, field: string): unknown[] | undefined {
   return Array.isArray(list) ? list : undefined;
 }
 
-// answerThatFits asks for a page and keeps the answer within the cap. While
-// the answer is over it, it asks again for half as many elements as the
-// smaller of the last page size and what the answer held, down to one, so
-// the agent always gets a page and its cursor always moves forward, and the
-// asking ends even if a server ignores the page size. An answer still over
-// the cap at one element leaves out its largest text.
+// answerThatFits asks for a page and keeps the answer within the cap. An
+// answer over it first leaves out its thread's roll-up. While the answer is
+// still over the cap, it asks again for half as many elements as the smaller
+// of the last page size and what the answer held, down to one, so the agent
+// always gets a page and its cursor always moves forward, and the asking ends
+// even if a server ignores the page size. An answer still over the cap at one
+// element leaves out its largest text.
 export async function answerThatFits(
   limit: number,
   field: string,
   ask: (limit: number) => Promise<unknown>,
 ): Promise<unknown> {
   let pageSize = limit;
-  let answer = await ask(pageSize);
+  let answer = withinCapFirst(await ask(pageSize));
   while (!fits(answer)) {
     const count = listOf(answer, field)?.length ?? 0;
     const smaller = Math.floor(Math.min(count, pageSize) / 2);
@@ -49,9 +50,35 @@ export async function answerThatFits(
       return leaveOutText(answer);
     }
     pageSize = smaller;
-    answer = await ask(pageSize);
+    answer = withinCapFirst(await ask(pageSize));
   }
   return answer;
+}
+
+// The fields of a thread's answer that roll up the pull requests and branches
+// its live messages name. A page of its messages matters more to the agent
+// reading it, and a smaller page brings the roll-up back unless the roll-up
+// alone is over the cap; the messages' own lists still name its entries.
+const rollupFields = ["pull_requests", "branches"];
+
+// withinCapFirst leaves the roll-up out of an answer over the cap, each of
+// its fields that lists any entry, naming each in the answer's omitted list.
+function withinCapFirst(answer: unknown): unknown {
+  if (fits(answer) || !isJson(answer)) {
+    return answer;
+  }
+  const omitted = rollupFields.filter((field) => {
+    const rollup = answer[field];
+    return isJson(rollup) && Array.isArray(rollup.links) && rollup.links.length > 0;
+  });
+  if (omitted.length === 0) {
+    return answer;
+  }
+  const result: Json = { ...answer, omitted };
+  for (const field of omitted) {
+    delete result[field];
+  }
+  return result;
 }
 
 // Every field of a message and of a thread's summary that carries text, by
@@ -61,6 +88,8 @@ const messageText = [
   ["text"],
   ["detail"],
   ["references"],
+  ["pull_requests"],
+  ["branches"],
   ["attachments"],
   ["asks", "*", "question"],
   ["asks", "*", "suggestions"],
@@ -108,11 +137,12 @@ function fieldsAt(prefix: string, value: unknown, path: string[]): TextField[] {
 
 // leaveOutText makes an answer still over the cap at one element fit by
 // leaving out its largest text-bearing fields, largest first: titles, texts
-// (an answer's own words included) and details, references, a message's list
-// of files, questions (an answer's included), suggested answers and the
-// labels of those picked, fallback text, and withdrawals' reasons, of its
-// thread, messages or threads. Each field it leaves out is named, as a dotted path, in the
-// answer's omitted list.
+// (an answer's own words included) and details, references, a message's
+// lists of pull requests, branches and files, questions (an answer's
+// included), suggested answers and the labels of those picked, fallback
+// text, and withdrawals' reasons, of its thread, messages or threads. Each
+// field it leaves out is named, as a dotted path, in the answer's omitted
+// list, after any it already names.
 function leaveOutText(answer: unknown): unknown {
   if (!isJson(answer)) {
     return answer;
@@ -129,7 +159,8 @@ function leaveOutText(answer: unknown): unknown {
   ];
   // The sort is stable, so fields of equal size go in the answer's order.
   fields.sort((a, b) => b.bytes - a.bytes);
-  const omitted: string[] = [];
+  const omitted: string[] = Array.isArray(result.omitted) ? (result.omitted as string[]) : [];
+  const already = omitted.length;
   for (const { path, holder, field } of fields) {
     if (fits({ ...result, omitted })) {
       break;
@@ -137,7 +168,7 @@ function leaveOutText(answer: unknown): unknown {
     delete holder[field];
     omitted.push(path);
   }
-  return omitted.length === 0 ? answer : { ...result, omitted };
+  return omitted.length === already ? answer : { ...result, omitted };
 }
 
 // trimMissed keeps a stale error within the error limit: it lists only the

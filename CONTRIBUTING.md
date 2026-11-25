@@ -235,11 +235,13 @@ document differs from what generation would write, so the Tests gate catches a s
 ### The agent API
 
 Agents run whatever bridge their plugin pins, so the agent routes only grow: each release's agent
-routes accept what every released bridge sends and answer what it reads. The bridge and the server
-state the agent API version they speak on every request and answer, `agentApi` in
-`packages/api/src/agent-api.ts`. Every change to the agent contract, a new route or a new field on
-one, bumps its `version` by one; its `oldest`, the oldest version the server still serves, moves
-only by a maintainer's decision.
+routes accept what every released bridge sends and answer what it reads. An answer to a request
+stating an older version leaves out the fields added after it, so a bridge never has to read, or fit
+within its answer cap, a field it does not know. The bridge and the server state the agent API
+version they speak on every request and answer, `agentApi` in `packages/api/src/agent-api.ts`. Every
+change to the agent contract, a new route, a new field, or a change in what a field or value means,
+bumps its `version` by one; its `oldest`, the oldest version the server still serves, moves only by
+a maintainer's decision.
 
 The agent compatibility gate holds the rule. For each `v*` tag reachable from HEAD and not on HEAD
 itself, `scripts/check-agent-compatibility.sh` installs that release's bridge from npm by its exact
@@ -251,10 +253,11 @@ every tool the release has, with the fields it sends: asks and answers, a withdr
 a stale write, a later message's ask, topic, detail and references, the list's filters and waits.
 Every release also reads messages carrying files: the operator's, which wakes its wait, and one of
 its own it replaces without keeping the file, with the messages' `attachments` and the thread's file
-totals passing through; a release that has the file tools drives `file_get` and `file_upload` too.
-Any refusal of valid input fails it, and so does any answer the release cannot read. A tag whose
-version npm does not have yet, as for a minute after a release, fails it too, named with npm's own
-error, and so does a clone without tags. A new tool or field joins the suite.
+totals passing through; a release that has the file tools drives `file_get` and `file_upload` too,
+and one whose writes take pull requests and branches names them, replaces them and lists its threads
+by them. Any refusal of valid input fails it, and so does any answer the release cannot read. A tag
+whose version npm does not have yet, as for a minute after a release, fails it too, named with npm's
+own error, and so does a clone without tags. A new tool or field joins the suite.
 `scripts/check.sh --fast` skips the gate, which needs the network.
 
 ## Dependencies
