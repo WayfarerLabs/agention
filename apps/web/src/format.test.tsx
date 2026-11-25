@@ -85,6 +85,7 @@ describe("a session's condition", () => {
       conditionWords(observed("waiting", { reason })),
     );
     expect(known).not.toContain(conditionWords(stopped));
+    expect(conditionWords(stopped)).not.toContain("undefined");
     expect(conditionWords(stopped)).not.toBe(conditionWords(observed("waiting")));
     expect(terminalNeedsYou(stopped)).toBe(true);
   });
