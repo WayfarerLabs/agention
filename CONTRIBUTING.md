@@ -153,6 +153,10 @@ pass or fail, and a test that makes a store or server fixture closes it in `afte
 test closes its `BridgeHarness`. A run that is killed, or a watch session until it exits, leaves its
 `agention-tests-*` directory in the outer `TMPDIR`.
 
+A store or server fixture's database is a copy of one that each test file's process migrates once
+(`apps/server/src/database/test-database.ts`), so a test pays for no migrations of its own. A test
+whose subject is opening or migrating a database calls `Database.open` on a new file itself.
+
 The web UI talks only to the server that serves it, and passkeys need that server's HTTPS origin, so
 try UI changes by building the server package and running it as the
 [operator guide](docs/operator-guide.md#running-the-server) describes.
