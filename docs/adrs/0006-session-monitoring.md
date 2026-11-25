@@ -7,7 +7,8 @@ Date: 2026-11-24
 Accepted. Refines how presence is observed in [ADR 0001](0001-agention-v1-architecture.md) "Sessions
 report what they are doing; presence is observed": a session's bridge keeps a background connection
 of its own, which never counts as the agent checking in, and may report what its harness's terminal
-shows. It supersedes nothing; the nudge, which will act on the terminal, gets an ADR of its own.
+shows. It supersedes nothing; the nudge, which acts on the terminal, is
+[ADR 0007](0007-the-nudge.md).
 
 ## Context
 
@@ -63,7 +64,9 @@ without any access it lacks.
   imitate a dialog, and any holder of the session's key, its agent included, can send a report or
   keep the session connected, as it can report its status. So monitoring reaches only the operator,
   through the web UI and the operator API's session and thread reads, never an agent, and informs
-  without authorizing or triggering anything.
+  without authorizing or triggering anything. The one exception is [ADR 0007](0007-the-nudge.md)'s
+  nudge: the server offers one only where a report says the session can be nudged, and only the
+  observer's own checks let it press a key.
 
 ## Consequences
 

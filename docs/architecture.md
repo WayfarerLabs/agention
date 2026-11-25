@@ -148,9 +148,11 @@ withdrawal belongs to its message and names the number of the ask it withdraws, 
 reason. Two views define once, for every query, which messages are live (`live_messages`: no later
 message replaces them) and which asks are open (`open_asks`: on a live message, and no live message
 answers or withdraws them). A session records when its agent last checked in, kept to the minute,
-with the agent API version of that call, and when its bridge last made a background request;
-`monitor_reports` holds each session's latest monitoring report, one row each, which the next
-replaces, its checks holding the report's shape. A thread changes only its latest sequence, which a
+with the agent API version of that call, when its bridge last made a background request, when the
+server last offered its bridge a nudge, and its latest nudge: when, by the server's clock, whether
+it was sent, and when, by the bridge's own clock; `monitor_reports` holds each session's latest
+monitoring report, one row each, which the next replaces, its checks holding the report's shape,
+whether the session can be nudged among it. A thread changes only its latest sequence, which a
 trigger holds. A full-text index, `thread_titles`, holds every thread's title for search, word
 prefixes matched with case and accents ignored; a trigger fills it as a thread is created, and it
 relies on titles never changing. Checks hold the rest of what the store keeps true: one operator,
@@ -315,10 +317,11 @@ last made one, on every one, and never mark the agent checked in; a registration
 body's parse, so a body that fails to parse stamps nothing. Every other call is the agent checking
 in, stamped with the agent API version the call states, and only when that moves the last check-in a
 minute or more, when the last check-in is after now, so a clock stepped back never holds it still,
-or when the version differs from the last one's. A stamp writes only while the registration is still
-approved, so a revocation that commits as a token is verified stamps nothing. A stamp that fails is
-logged and the call carries on, since presence is advisory. A pending registration has no session,
-so its calls mark nothing.
+when the version differs from the last one's, or when the last check-in is before the latest offer
+of a nudge, so a check-in during a nudge, or in reply to one, always shows. A stamp writes only
+while the registration is still approved, so a revocation that commits as a token is verified stamps
+nothing. A stamp that fails is logged and the call carries on, since presence is advisory. A pending
+registration has no session, so its calls mark nothing.
 
 From those the reads derive, against the request's clock and never stored:
 
@@ -328,9 +331,16 @@ From those the reads derive, against the request's clock and never stored:
   agent API version 6 cannot report a connection, so while no bridge is connected and the agent last
   checked in through such a bridge, as every check-in from before versions were kept did, the
   session follows their rule: connected is not stated and never counts against it.
-- **Stranded**: a thread holding a live message of the operator's that the session has not read
-  while the session is quiet, has no active credential, is not connected or has stopped: the agent
-  is not there to read it.
+- **Not responding to the nudge**: the session's latest nudge was sent, and its agent has not
+  checked in since. Each session's presence carries its latest nudge with whether it has, as
+  `last_nudge`'s `answered`.
+- **Stranded**: a thread holding a live message of the operator's that the session has not read, and
+  nothing will bring it to the agent soon: the session has no active credential or is not connected;
+  or it cannot be nudged, its connected bridge's report not saying it can, and it is quiet or has
+  stopped; or it can be nudged, and the latest nudge since the earliest such message was not sent,
+  or was sent and has had no check-in within the quiet time, or none was tried since and that
+  message is older than the quiet time. A session that can be nudged is not stranded for waiting at
+  its prompt, since a nudge will bring it.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as
@@ -358,6 +368,19 @@ delayed past a later one never overwrites it. The holder changes in memory only 
 goes with it, a claim's deletion or a report, has committed. The latest report shows to the operator
 only while the session is connected, so a bridge that ended never leaves its last report standing as
 current.
+
+The poll also answers `nudge: true`, at once, to the bridge that acts for the session while a nudge
+is due ([ADR 0007](adrs/0007-the-nudge.md)): its latest report says the session can be nudged, one
+of its threads holds a live message by the operator that its agent has not read, written after the
+agent's last check-in, and no nudge was tried since that check-in (`offerNudge`). It is read from
+the session's rows on each poll, so it holds across a server restart, a bridge restart and a
+takeover, and it says nothing more: no thread, message or presence. Each such answer records the
+offer's time on the session, and a report that says the session can now be nudged, where the one
+before did not, wakes the session's channel, so a nudge due already is offered at once. A report's
+`last_nudge`, the outcome of the latest nudge its bridge tried, is recorded as the session's latest
+nudge, at the offer that led to it, when an offer came since the latest recorded and the bridge's
+time for it differs from that one's, so a report repeating a nudge, or one bringing a nudge from
+before, records nothing. A session is nudged at most once until its agent checks in.
 
 A session reports its status itself, on the agent mount's status route or beside a write: a thread
 it starts or a message it sends may carry a state, with its outcome, and a note, which apply as an
@@ -510,14 +533,14 @@ its session as `agent/session/topic`. The operator's list also takes filters on 
 open asks: `priority` (an open ask at that level or higher), `impact` (an open ask blocking, or
 assuming), `overdue` (an open ask past its answer-by) and `effort` (an open ask that states that
 effort or less, so an ask stating none meets no effort filter); `agent_read`, `unread` (a live
-message of the operator's that the session has not read) or `stranded` (such a message while the
-session is quiet, has no active credential, is not connected or has stopped); `agent` and `session`,
-up to 50 of each, a session written `agent/session`; and the operator's `session_group`, up to 50
-groups by id, `none` naming no group, and `tag`, up to 50 tags, keeping a thread whose session or
-agent carries one. A group that was removed, or a tag nothing carries or that was removed, keeps
-nothing. The filters on asks together keep the threads holding one open ask that meets them all, so
-any of them keeps only open threads. One definition of each filter's condition serves the list, its
-total, its counts and its roll-ups.
+message of the operator's that the session has not read) or `stranded` (such a message that nothing
+will bring to the session soon, by the stranded rule above); `agent` and `session`, up to 50 of
+each, a session written `agent/session`; and the operator's `session_group`, up to 50 groups by id,
+`none` naming no group, and `tag`, up to 50 tags, keeping a thread whose session or agent carries
+one. A group that was removed, or a tag nothing carries or that was removed, keeps nothing. The
+filters on asks together keep the threads holding one open ask that meets them all, so any of them
+keeps only open threads. One definition of each filter's condition serves the list, its total, its
+counts and its roll-ups.
 
 A session's list has one order, which the operator's list calls `priority` and takes by default:
 threads with open asks first, each ranked by its most pressing open ask, the first in the open-asks
@@ -1044,14 +1067,15 @@ finished included.
 SDK's stdio transport, so it serves the protocol revisions hosts open with `initialize` and answers
 `server/discover` as a method it does not have. Its entry point checks for Node 24 or later before
 loading anything else. Without `--version` or `--help`, which print and exit, `agention-mcp` serves,
-taking monitoring's two options, `--tmux-socket` and `--harness-profile`. It exits once the host
-closes its standard input, ending its reporter's requests and its reading of the pane. Its answer to
-`initialize` carries instructions that state the usage skill's first rule, to ask through Agention
-and never wait at the terminal for an answer, and tell the agent to load the skill, so the agent has
-the rule before the skill loads. Claude Code adds them to the agent's system prompt. Codex describes
-the bridge's tools with them and shows only their first 250 characters until the agent loads the
-tools, so they stay within that. [SECURITY.md](../SECURITY.md#the-agent-bridge) states what the
-bridge holds and sends: its key file, its tokens and where its requests may go.
+taking monitoring's two options, `--tmux-socket` and `--harness-profile`, and the nudge's,
+`--nudge`. It exits once the host closes its standard input, ending its reporter's requests and its
+reading of the pane. Its answer to `initialize` carries instructions that state the usage skill's
+first rule, to ask through Agention and never wait at the terminal for an answer, and tell the agent
+to load the skill, so the agent has the rule before the skill loads. Claude Code adds them to the
+agent's system prompt. Codex describes the bridge's tools with them and shows only their first 250
+characters until the agent loads the tools, so they stay within that.
+[SECURITY.md](../SECURITY.md#the-agent-bridge) states what the bridge holds and sends: its key file,
+its tokens and where its requests may go.
 
 - **Configuration.** `AGENTION_URL` is read through `canonicalOrigin`, and `AGENTION_CONNECT`, when
   set and not empty, as a host and port: a host name or address, IPv6 in brackets, and a port from 1
@@ -1064,9 +1088,12 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   session for the life of the process; naming another afterwards is `invalid_input`. Monitoring
   reads `--tmux-socket`, else `AGENTION_TMUX_SOCKET`, the socket of the tmux server whose one pane
   the agent host runs in, and `--harness-profile`, else `AGENTION_HARNESS_PROFILE`, else `auto`; an
-  empty value counts as unset, and the bridge never reads `TMUX` or `TMUX_PANE`. No setting of
-  monitoring's stops the bridge or changes a tool's answer: a profile name the harness observer's
-  registry does not know is logged once, and the strict generic profile reads the pane instead.
+  empty value counts as unset, and the bridge never reads `TMUX` or `TMUX_PANE`. The nudge reads
+  `--nudge`, else `AGENTION_NUDGE`, and is off without either; `tmux` is the one type, and it needs
+  the socket. No setting of monitoring's or the nudge's stops the bridge or changes a tool's answer
+  but `register`'s word on how answers arrive: a profile name the harness observer's registry does
+  not know is logged once, and the strict generic profile reads the pane instead, and a nudge type
+  the bridge does not know, or `tmux` without a socket, is logged once and leaves the nudge off.
 - **Key file.** `apps/bridge/src/key-file.ts` keeps one key per server, agent and session, selected
   by the proposed names, and is the bridge's only state. Its operations are synchronous. Every
   request reads the file, so bridges sharing a session sign with the key now on disk. Only
@@ -1137,21 +1164,24 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   takes the withdrawals of the session's own open asks. `message_wait` waits for nothing by default
   and answers at once, which is how an agent checks for answers as it works; a longer wait is for an
   agent with no other work and open asks or unread messages, or for a waiter of its own.
-  `register`'s answer, once approved, says how answers reach the agent: when it checks. No tool
-  marks a thread unread, which agents have no use for, though the agent API offers it as the web API
-  does. The SDK advertises each tool's JSON Schema, generated from the shared schemas, but the
-  bridge parses the arguments itself, so input outside a bound is `invalid_input` naming the field,
-  as the server would answer it. A tool also refuses a field it does not know, at any depth, as
-  `invalid_input` naming it, so a misspelled field never drops silently, while the server's request
-  schemas ignore unknown fields, and the agent API version keeps a newer bridge from relying on that
-  against an older server. An answer is the API's JSON as text, followed by the status reminder when
-  one is due, and a call the server refuses is an error result holding the API's error JSON. A
-  problem the bridge finds itself, such as its configuration, an unreachable server, missing names
-  or a cancelled call, is an error result in plain text, worded for the agent: what to do, or, for
-  what only the operator can fix, to tell them at the terminal what to change and whether the
-  session must restart. `apps/bridge/src/errors.ts` words those. `message_wait` gives every error
-  but `invalid_input` no sooner than its `wait_seconds` would have ended, counted from the call's
-  start, so an agent that waits again at once does not call a server it cannot use in a tight loop.
+  `register`'s answer, once approved, says how answers reach the agent, in its message and as
+  `answers`: `nudge` where the session can be nudged, as monitoring says, its nudge on and its pane
+  read and running the harness, and otherwise `check`, when it checks; a pending answer says nothing
+  of it. No tool marks a thread unread, which agents have no use for, though the agent API offers it
+  as the web API does. The SDK advertises each tool's JSON Schema, generated from the shared
+  schemas, but the bridge parses the arguments itself, so input outside a bound is `invalid_input`
+  naming the field, as the server would answer it. A tool also refuses a field it does not know, at
+  any depth, as `invalid_input` naming it, so a misspelled field never drops silently, while the
+  server's request schemas ignore unknown fields, and the agent API version keeps a newer bridge
+  from relying on that against an older server. An answer is the API's JSON as text, followed by the
+  status reminder when one is due, and a call the server refuses is an error result holding the
+  API's error JSON. A problem the bridge finds itself, such as its configuration, an unreachable
+  server, missing names or a cancelled call, is an error result in plain text, worded for the agent:
+  what to do, or, for what only the operator can fix, to tell them at the terminal what to change
+  and whether the session must restart. `apps/bridge/src/errors.ts` words those. `message_wait`
+  gives every error but `invalid_input` no sooner than its `wait_seconds` would have ended, counted
+  from the call's start, so an agent that waits again at once does not call a server it cannot use
+  in a tight loop.
 - **Reporter** (`apps/bridge/src/reporter.ts`). The reporter holds the session's background
   connection and reports what monitoring observes, beside the tools, which work as without it and
   whose answers carry nothing of it. It starts with the bridge when the default session, the one
@@ -1186,7 +1216,18 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   finds the credential, when it claims the session again. Its requests sign with the key on disk and
   act in the names granted to it, and a request it makes to learn them is marked `background` too,
   so none marks the agent checked in. Against a server older than the bridge's agent API version,
-  its requests fail as every tool's do and it backs off to a minute between them.
+  its requests fail as every tool's do and it backs off to a minute between them. A poll answered
+  `nudge: true`, while its latest report says the session can be nudged, has monitoring nudge the
+  agent with texts of `apps/bridge/src/nudge.ts`: a warning of fixed words and 4 random bytes in hex
+  from `crypto.randomBytes`, which the observer removes and never submits, and a fixed message
+  telling the agent to check in with Agention, each one line of printable ASCII. Nothing from the
+  server or the screen reaches either. A nudge the observer finds the session not ready for put
+  nothing in the pane: it is neither logged nor reported, and the next poll, a second later, asks
+  again while the nudge is still due. Any other outcome is logged by the step it stopped at, never a
+  text, and every report from then on carries it as `last_nudge`, its time the bridge's own and
+  moving only forward; the next poll waits until the server has answered that report, so a nudge is
+  never offered again before the server has recorded it, and a refusal of it stops nudging for the
+  life of the process.
 - **Monitoring** (`apps/bridge/src/monitoring.ts`). Without a socket, the report says the bridge
   monitors no pane. With one, a `PaneObserver` from `packages/harness-observer` reads the tmux
   server's one pane through a `TmuxPane` once a second, while the bridge acts for its session, with
@@ -1194,18 +1235,22 @@ bridge holds and sends: its key file, its tokens and where its requests may go.
   client's `initialize`, each a string of at most 100 and 50 characters or none, and an unknown
   harness gets the strict generic profile. The pane is read only while its first process is an
   ancestor of the bridge's, walking `/proc`'s parent links, so a socket that names another session's
-  pane reads as unknown. A report carries the profile's name, the condition and since when, and what
+  pane reads as unknown. A report carries the profile's name, the condition and since when, what
   stopped the harness with its reset time, all spelled as the API spells them, with a reset time the
-  API would not take left out. The observer says whether the harness is running and, at rest, what
-  its screen holds; the bridge spells that as one condition, the screen naming it at rest (its
-  prompt `at_prompt`, a screen the profile does not recognize `waiting`), and puts the stopped-by
-  reason beside whatever condition it is. The bridge logs to its standard error, once each time one
-  begins, a pane it cannot read (no tmux server at the socket, a path too long for a socket, no
-  `tmux` command), a machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves
-  the formats it is asked for empty, which no tmux tested, 3.3 or later, does, a pane that does not
-  run the bridge, a tmux server holding more than one pane, and a pane whose first process does not
-  hold its terminal, each of which the observer reads as unknown; the line names the socket, process
-  ids and what tmux said, never the screen's text.
+  API would not take left out, and whether the session can be nudged: the nudge is on and the
+  condition is anything but unknown, since every profile, the generic ones included, can tell its
+  harness's prompt. The observer's `nudge` carries out the nudge, with every check before each key
+  that `packages/harness-observer`'s README lists, against the observations the bridge is reading;
+  the pane passes its pastes and keys to tmux and logs neither. The observer says whether the
+  harness is running and, at rest, what its screen holds; the bridge spells that as one condition,
+  the screen naming it at rest (its prompt `at_prompt`, a screen the profile does not recognize
+  `waiting`), and puts the stopped-by reason beside whatever condition it is. The bridge logs to its
+  standard error, once each time one begins, a pane it cannot read (no tmux server at the socket, a
+  path too long for a socket, no `tmux` command), a machine with no `/proc`, which monitoring needs
+  Linux for, a tmux that leaves the formats it is asked for empty, which no tmux tested, 3.3 or
+  later, does, a pane that does not run the bridge, a tmux server holding more than one pane, and a
+  pane whose first process does not hold its terminal, each of which the observer reads as unknown;
+  the line names the socket, process ids and what tmux said, never the screen's text.
 - **Status reminder** (`apps/bridge/src/status-reminder.ts`). The bridge keeps, within its process,
   when it last sent a status update the server logged (one with a note, one whose status differs
   from the last it knew, or its first), or, until then, when a tool first answered in the session,
@@ -1458,6 +1503,8 @@ or carrying that tag alone. Each session's row says, on the line under its head,
 is as the server knows it, apart from the state its agent reports among its facts: whether its
 bridge is connected, which the presence of a bridge from before monitoring does not state; while it
 is, what the bridge last reported of its terminal, from the presence's `monitor`, and since when;
+what came of its latest nudge, from `last_nudge` (`nudgeWords`, `src/format.tsx`), in the warning's
+tone while the agent has not checked in since, so a sent one reads as not responding to the nudge;
 when its agent last checked in, from `last_seen_at`, as quiet while it is and has not stopped; and
 how long ago its status was updated, from the status's `updated_at`, since an agent can go on
 checking in long after its status stopped saying what it does. The words for a condition come from
@@ -1478,26 +1525,26 @@ head removes it, through the thread list's chips (`views/list/Chips.tsx`), focus
 head's grouping as the chip goes, as the thread list's moves to Filters. Turning it on or off pushes
 a history entry, while choosing the arrangement replaces the one it was chosen in
 (`views/sessions/needs-you.tsx`, `views/Sessions.tsx`). An unfolded row names the profile the bridge
-reads its terminal with, or that it monitors none. Each session's row shows its group and tags, and
-each agent's header its tags, from the sessions view's page, in the colors the operator's groups and
-tags give them, which views that show groups and tags pass down through a palette
-(`src/organizing.tsx`); the stylesheet draws each of the API's named colors as a tone and a
-background for each color scheme, at AA contrast. A session's group and an agent's or a session's
-tags are set in pickers (`views/sessions/Picker.tsx`), modal dialogs placed beside the control that
-opened them on a wide screen and rising as a sheet on a phone, whose search box is a combobox owning
-a listbox of the groups or tags, the item the arrow keys are on its active descendant. Each pick
-applies at once, a picker taking one at a time, its items unavailable until the change settles, so
-tags picked fast never land out of order; a failed change shows the tags as last applied, and the
-view reloads with the groups and tags once a change lands. The same pickers, in a registration's
-approval (`views/sessions/Organize.tsx`), keep their picks for the approval request, starting from
-an existing session's own group and tags and over for another agent or session, a new session
-keeping them as it is named, dropping a pick that lands after they changed, and create a group
-picked new at once since the approval names its group by id. Settings' groups and tags
-(`views/settings/`) list them to create, rename, recolor, remove and, for groups, order, each move
-sending the whole order to `POST /groups/order`, which refuses one that does not name every group,
-so a stale order reloads the list, as it does the sessions view's groups. A move or a color under
-way marks its controls `aria-disabled` rather than disabling them, so keyboard focus stays where it
-was. While the operator is signed in, the navigation reads what waits on the operator, from
+reads its terminal with, or that it monitors none, and whether the bridge can nudge the agent. Each
+session's row shows its group and tags, and each agent's header its tags, from the sessions view's
+page, in the colors the operator's groups and tags give them, which views that show groups and tags
+pass down through a palette (`src/organizing.tsx`); the stylesheet draws each of the API's named
+colors as a tone and a background for each color scheme, at AA contrast. A session's group and an
+agent's or a session's tags are set in pickers (`views/sessions/Picker.tsx`), modal dialogs placed
+beside the control that opened them on a wide screen and rising as a sheet on a phone, whose search
+box is a combobox owning a listbox of the groups or tags, the item the arrow keys are on its active
+descendant. Each pick applies at once, a picker taking one at a time, its items unavailable until
+the change settles, so tags picked fast never land out of order; a failed change shows the tags as
+last applied, and the view reloads with the groups and tags once a change lands. The same pickers,
+in a registration's approval (`views/sessions/Organize.tsx`), keep their picks for the approval
+request, starting from an existing session's own group and tags and over for another agent or
+session, a new session keeping them as it is named, dropping a pick that lands after they changed,
+and create a group picked new at once since the approval names its group by id. Settings' groups and
+tags (`views/settings/`) list them to create, rename, recolor, remove and, for groups, order, each
+move sending the whole order to `POST /groups/order`, which refuses one that does not name every
+group, so a stale order reloads the list, as it does the sessions view's groups. A move or a color
+under way marks its controls `aria-disabled` rather than disabling them, so keyboard focus stays
+where it was. While the operator is signed in, the navigation reads what waits on the operator, from
 `GET /attention`, and shows it as a badge on each tab while there is any: the unread threads on
 Threads and the registrations waiting for approval on Sessions. The counts refresh on an interval,
 on returning to the page, on going to another view, and at once after any change the page makes
@@ -1506,10 +1553,14 @@ the moment the operator starts ending the session, by signing out or by removing
 signed this browser in, the page asks nothing more that needs the session on its own: no view
 refreshes, no count is read and a load under way stops before it asks again, since the server may
 sign the browser out before anything sent meanwhile arrives and would refuse it. Wherever a thread
-shows as stranded, the UI says why from the session's presence in the thread's summary: the stop the
-session reported, with its outcome; otherwise quiet, with when its agent last checked in; otherwise
-no active credential; otherwise its bridge not connected; and, beside any but the last, what its
-terminal shows, where the bridge reports it.
+shows as stranded, the UI says why from the session's presence in the thread's summary (`absenceOf`,
+`src/format.tsx`): for a session its bridge can nudge, no active credential; otherwise its latest
+nudge with no check-in since, not responding to it or not sent; otherwise that no nudge came. For
+any other session, the stop it reported, with its outcome; otherwise quiet, with when its agent last
+checked in; otherwise no active credential; otherwise its bridge not connected. Beside any but the
+last, it says what the session's terminal shows, where the bridge reports it. The new-thread sheet
+warns of the same reasons but the last of a session that can be nudged, which a new thread's nudge
+will reach.
 
 A fenced `mermaid` block renders as a diagram. Mermaid never runs in the page and is not in its
 bundle: the page creates one frame, for its first diagram, at `/diagram-frame`, sandboxed with

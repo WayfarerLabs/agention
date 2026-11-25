@@ -12,7 +12,8 @@ needs before it can merge.
   Version managers such as mise and asdf can read `.node-version` once their idiomatic (legacy)
   version file support is enabled for Node.
 - **Git** and **Bash**.
-- **tmux** 3.3 or later, which the harness observer's tests drive.
+- **tmux** 3.3 or later, which the harness observer's and the bridge's tests drive, and util-linux's
+  **`script`**, through which the harness observer's tests attach a client that types.
 
 Install the locked npm dependencies once, and again whenever `package-lock.json` changes:
 
@@ -44,7 +45,7 @@ TypeScript, Vitest, esbuild, Prettier, markdownlint-cli2 and cspell.
 | `packages/api`              | `@wayfarerlabs/agention-api` (private)              | The API contract: request and response schemas        |
 | `packages/build`            | `@wayfarerlabs/agention-build` (private)            | The bundle build the published packages use           |
 | `packages/private-files`    | `@wayfarerlabs/agention-private-files` (private)    | The private-file rule the server and the bridge share |
-| `packages/harness-observer` | `@wayfarerlabs/agention-harness-observer` (private) | What an agent harness's terminal pane shows           |
+| `packages/harness-observer` | `@wayfarerlabs/agention-harness-observer` (private) | What an agent harness's pane shows, and its nudge     |
 | `apps/server`               | `@wayfarerlabs/agention`                            | The server and the `agention` operator CLI            |
 | `apps/bridge`               | `@wayfarerlabs/agention-mcp`                        | The agent bridge, the `agention-mcp` command          |
 | `apps/web`                  | `@wayfarerlabs/agention-web` (private)              | The React web UI, built with Vite                     |

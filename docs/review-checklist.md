@@ -21,14 +21,21 @@ be built where the trust model says it does not belong (A6).
 ## A1. Standalone and runtime-neutral
 
 Agention never grants permissions, injects into a chat, controls a harness, or acts on message
-content (ADR 0001 "Not doing"). Tailscale is one documented way to host, not a dependency (ADR 0001
-"Transport independence"); Agentworks only supplies the session's default names, and nothing else
-depends on it; the MCP surface and usage skill work on every supported agent host (ADR 0001
-"Distribution: generated agent plugins"); and Agention uses no paid service by default: voice's
-transcription provider is the one optional paid service, which the operator opts into and which is
-off until they do (ADR 0002). Look for core paths that import, require, or default to one host,
-network, or harness, a paid service on by default or without a decision of its own, and optionality
-or dependencies nothing in the docs calls for.
+content (ADR 0001 "Not doing"), but for the nudge: where the operator turns it on, the bridge
+submits one fixed message at the agent's prompt, after a warning of fixed words and a random token,
+with Backspace and Enter as its only keys and pastes its only text (ADR 0007). Neither text carries
+anything from the server, the screen or any message, and every key follows the harness observer's
+own checks; the nudge's type is optional and off by default, and tmux is the one there is. Tailscale
+is one documented way to host, not a dependency (ADR 0001 "Transport independence"); Agentworks only
+supplies the session's default names, and nothing else depends on it; the MCP surface and usage
+skill work on every supported agent host (ADR 0001 "Distribution: generated agent plugins"); and
+Agention uses no paid service by default: voice's transcription provider is the one optional paid
+service, which the operator opts into and which is off until they do (ADR 0002). Look for core paths
+that import, require, or default to one host, network, or harness, a paid service on by default or
+without a decision of its own, optionality or dependencies nothing in the docs calls for, and any
+text or key reaching a pane beyond the nudge's own: a text built from anything but the bridge's
+constants and its token, a key but Backspace and Enter, or one pressed outside the observer's
+`nudge`.
 
 ## A2. Actor from authentication, target from the request
 
@@ -99,13 +106,16 @@ and close creeping back in (ADR 0001 "Not doing" and "Alternatives considered").
 As material as A5: the server never acts on a deadline, whose consequence is entirely the
 requester's choice; goals are set explicitly and never inferred (ADR 0001 "Not doing"); derived
 signals, such as overdue, quiet, connected and stranded, and what monitoring reports, inform and
-never trigger actions or block writes; and accuracy of impact, priority, effort, progress, and
-session state is the honor system's, not something to police with enforcement ladders. The server
-infers one thing a session did not report: its own write to a thread while idle, reporting no
-status, makes it working, logged as inferred, and a stopped session stays stopped (ADR 0001
-"Sessions report what they are doing"). Look for timers or jobs that change threads or a session's
-status, inferred goals, progress or any other state, automatic withdrawals, archives, or
-escalations, and validation that second-guesses what the agent reports.
+never trigger actions or block writes, with one exception: a nudge due, which the server derives
+from the session's rows when read, never stored, and answers its bridge's poll with, telling it
+nothing more (ADR 0007); and accuracy of impact, priority, effort, progress, and session state is
+the honor system's, not something to police with enforcement ladders. The server infers one thing a
+session did not report: its own write to a thread while idle, reporting no status, makes it working,
+logged as inferred, and a stopped session stays stopped (ADR 0001 "Sessions report what they are
+doing"). Look for timers or jobs that change threads or a session's status, inferred goals, progress
+or any other state, automatic withdrawals, archives, or escalations, validation that second-guesses
+what the agent reports, and a nudge offered on anything but that rule, more than once between
+check-ins, or with a reason, a thread or presence beside it.
 
 ## A7. Stale writes, request ids, and read cursors
 

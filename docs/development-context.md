@@ -38,8 +38,9 @@ index of those docs.
   (`docs/operator-guide.md` "Voice", ADR 0002), programs the operator runs that call the operator
   API with an API key they created (`docs/operator-guide.md` "API keys", ADR 0003), and tmux on the
   agent's machine, whose pane the bridge reads a session's condition from where it is given the
-  socket, on Linux with tmux 3.3 or later (`docs/operator-guide.md` "Monitoring a session's
-  terminal", ADR 0006)
+  socket, on Linux with tmux 3.3 or later, and into whose pane it types the nudge's one fixed
+  message where `AGENTION_NUDGE` turns it on (`docs/operator-guide.md` "Monitoring a session's
+  terminal" and "The nudge", ADR 0006 and ADR 0007)
 - Product shape, which selects the `project-review` conditional checks: long-lived managed entities
   agents, sessions, registrations and threads (ADR 0001 "Agents, sessions and threads";
   `docs/architecture.md` "Store"; `docs/operator-guide.md` "Approving agents"); persisted state and
@@ -133,7 +134,7 @@ index of those docs.
   (`docs/architecture.md` "Web UI"); the local stub transcription provider,
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
   the harness observer's scripted harness, `packages/harness-observer/test/scripted-harness.ts`,
-  which its tests and the bridge's monitoring tests run in tmux servers of their own
+  which its tests and the bridge's monitoring and nudge tests run in tmux servers of their own
   (`packages/harness-observer/test/tmux-server.ts`), and its captured harness screens,
   `packages/harness-observer/src/captures`, recorded with
   `packages/harness-observer/test/capture.ts` (the package's README "Captures"); and
@@ -141,9 +142,9 @@ index of those docs.
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`), with the server's, the bridge's and the harness observer's tests each in a
   `TMPDIR` of their own that must be empty when they finish (`CONTRIBUTING.md` "Working on one
-  component"); setup is the locked install, Chromium's headless shell and tmux (`CONTRIBUTING.md`
-  "Prerequisites"), and the release tags for the agent compatibility gate (`CONTRIBUTING.md`
-  "Checks")
+  component"); setup is the locked install, Chromium's headless shell, tmux and util-linux's
+  `script` (`CONTRIBUTING.md` "Prerequisites"), and the release tags for the agent compatibility
+  gate (`CONTRIBUTING.md` "Checks")
 - Integration test selection or markers: none; the bridge's in-process integration tests run in its
   Vitest suite, and the browser tests run with `npm run -w apps/web test:browser` against the
   server's last build, which `scripts/check.sh --fast` skips with the builds; the agent
