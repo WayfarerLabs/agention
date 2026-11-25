@@ -383,15 +383,16 @@ in name order, with its color and how many agents and how many sessions carry it
 nothing carries, saying when it leaves any out. The sessions view's page carries each agent's tags,
 and each session's group and tags.
 
-The operator starts a thread on a session with a title and a first message of text, with its detail.
-The session stays the thread's requester and the operator its audience, so the operator's request
-has no field for asks or a topic, nor for references or attachments, which the web UI does not offer
-there; a request carrying any of them starts a thread without them. The session reads the thread as
-the operator's words and replies in it. The thread starts whatever the session's state or
-credential, stranded from the start when the session is not there to read it; the operator's read
-mark reaches their message, and the session's long polls wake. A retry with the same request id is
-answered as the first was, and one with other content is a request-id conflict, as for a session's
-own thread, which a session still starts only in itself.
+The operator starts a thread on a session with a title and a first message of text, with its detail
+and its files, uploads of theirs to that session, checked as any first message's are. The session
+stays the thread's requester and the operator its audience, so the operator's request has no field
+for asks or a topic, nor for references, which the web UI does not offer there; a request carrying
+any of them starts a thread without them. The session reads the thread as the operator's words and
+replies in it. The thread starts whatever the session's state or credential, stranded from the start
+when the session is not there to read it; the operator's read mark reaches their message, and the
+session's long polls wake. A retry with the same request id is answered as the first was, and one
+with other content is a request-id conflict, as for a session's own thread, which a session still
+starts only in itself.
 
 An upload (`apps/server/src/store/files.ts`) begins in one transaction, which authorizes the session
 under `threads:write` and refuses it while its writer holds 20 pending uploads, or would hold more
