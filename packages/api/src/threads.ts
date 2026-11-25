@@ -333,44 +333,49 @@ export const messageFields = z.object({
     ),
 });
 
-// needsAPart refuses a message that carries nothing. Only a thread's first
-// message may, since the title speaks for it. The database stores a message's
-// asks, answers and withdrawals in rows of their own, which it cannot see from
-// the message's row, so this is where the rule holds. Detail is no part of its
-// own, since it needs text beside it.
+// What counts as a part of a message, by field, with the name needsAPart
+// gives it: every field of messageFields but request_id, seen_through and
+// replaces, and detail aside, since it needs text beside it. It is keyed by
+// those fields, so a new one fails to compile until it says whether it counts.
+const partNames = {
+  text: "text",
+  detail: null,
+  references: "references",
+  pull_requests: "pull requests",
+  branches: "branches",
+  attachments: "attachments",
+  asks: "asks",
+  answers: "answers",
+  withdrawals: "withdrawals",
+  topic: "a topic",
+} as const satisfies Record<
+  Exclude<keyof typeof messageFields.shape, "request_id" | "seen_through" | "replaces">,
+  string | null
+>;
+type PartField = keyof typeof partNames;
+const parts = (Object.keys(partNames) as PartField[]).filter((field) => partNames[field] !== null);
+
+// carriesAPart says whether a message, as written or as it reads, carries any
+// part of its own.
+export function carriesAPart(value: { [field in PartField]?: unknown }): boolean {
+  return parts.some((field) => value[field] !== undefined);
+}
+
+// needsAPart refuses a message that carries nothing and replaces nothing: one
+// that replaces another and carries nothing retracts it. A thread's first
+// message is free of the rule, since its title speaks for it. The database
+// stores a message's asks, answers and withdrawals in rows of their own, which
+// it cannot see from the message's row, so this is where the rule holds.
 export function needsAPart(
-  value: {
-    text?: string | undefined;
-    references?: unknown[] | undefined;
-    pull_requests?: unknown[] | undefined;
-    branches?: unknown[] | undefined;
-    attachments?: unknown[] | undefined;
-    asks?: unknown[] | undefined;
-    answers?: unknown[] | undefined;
-    withdrawals?: unknown[] | undefined;
-    topic?: string | undefined;
-    replaces?: number | undefined;
-  },
+  value: { [field in PartField]?: unknown } & { replaces?: number | undefined },
   context: z.RefinementCtx,
 ): void {
-  if (
-    value.text === undefined &&
-    value.references === undefined &&
-    value.pull_requests === undefined &&
-    value.branches === undefined &&
-    value.attachments === undefined &&
-    value.asks === undefined &&
-    value.answers === undefined &&
-    value.withdrawals === undefined &&
-    value.topic === undefined &&
-    value.replaces === undefined
-  ) {
+  if (!carriesAPart(value) && value.replaces === undefined) {
+    const named = [...parts.map((field) => partNames[field]), "a message it replaces"];
     context.addIssue({
       code: "custom",
       path: [],
-      message:
-        "a message needs text, references, pull requests, branches, attachments, asks, answers, " +
-        "withdrawals, a topic or a message it replaces",
+      message: `a message needs ${named.slice(0, -1).join(", ")} or ${named.at(-1)}`,
     });
   }
 }
