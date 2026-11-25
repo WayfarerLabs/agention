@@ -34,7 +34,7 @@ submit it, become the only exception.
 - **The operator**, who wants to see at a glance which sessions need them, and why, and have an
   agent see what they wrote without going to its terminal.
 - **Agents**, which should be woken to check in rather than keep a waiter running.
-- **Agentworks**, which runs every session in a tmux server it owns and can tell the bridge where,
+- **Agentworks**, which runs every session in a tmux server it owns and can tell the bridge where.
 - **Maintainers**, who ship one bridge for harnesses that differ in what their screens show and what
   a plugin can do, and change from version to version.
 
