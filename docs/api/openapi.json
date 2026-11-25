@@ -2978,6 +2978,34 @@
                     "minLength": 1,
                     "maxLength": 20000,
                     "description": "Markdown, shown folded under the text, which it needs beside it: everything else the reader needs to decide on or understand the message without looking elsewhere, such as what was found, the options and their tradeoffs, evidence, and excerpts of diffs, logs or errors. A fenced code block marked mermaid shows as the diagram it describes. Never point at what only your own conversation shows. Messages are never deleted, so take keys, tokens and passwords out of any excerpt."
+                  },
+                  "attachments": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "upload": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{22}$",
+                          "description": "The reference an upload of yours answered with, in this session and not yet attached to a message."
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "With upload: the name to attach the file under, by default the one it was uploaded under."
+                        },
+                        "keep": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "description": "On a replacement: a file of the message it replaces, by its name there, which this message carries again."
+                        }
+                      }
+                    },
+                    "description": "Up to 10 files this message carries, in order, each under a name unique within it. Upload a file first, then name its upload here; a replacement carries a file of the message it replaces only by keeping it."
                   }
                 },
                 "required": [

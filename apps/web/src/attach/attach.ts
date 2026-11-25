@@ -7,16 +7,16 @@ import {
   type Message,
   typeOfName,
 } from "@wayfarerlabs/agention-api";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { query, request, sessionPath, uploadFile } from "../../../api.ts";
-import { useUnauthenticatedCheck } from "../../../data.ts";
-import { byteSize } from "../../../format.tsx";
-import { useSession } from "../../../session.tsx";
-import type { ThreadTarget } from "../writer.ts";
+import { type ClipboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ApiFailure, query, request, sessionPath, uploadFile } from "../api.ts";
+import { useUnauthenticatedCheck } from "../data.ts";
+import { byteSize } from "../format.tsx";
+import { useSession } from "../session.tsx";
 
-// The files of the composer's draft: those the operator chose or pasted,
-// each uploaded as soon as it is added, and, on a replacement, the files of
-// the message it replaces, kept unless removed. The draft keeps each File, so
+// The files of a message the operator is writing, in a thread's composer or
+// the sheet that starts a thread: those the operator chose or pasted, each
+// uploaded to the session as soon as it is added, and, on a replacement, the
+// files of the message it replaces, kept unless removed. The draft keeps each File, so
 // a failed or expired upload can be sent again. Nothing is uploaded for good
 // until the message is sent: removing a file removes its upload from the
 // server too, and one no message names expires there, which the server says
@@ -81,6 +81,21 @@ export function pastedName(type: string, at: Date): string {
   return `pasted-${date}-${time}.${pastedTypes[type] ?? "bin"}`;
 }
 
+// attachPasted gives a message box's paste handler: a paste holding images
+// attaches them to the draft, named by when they were pasted, and inserts
+// nothing; any other paste is the browser's own.
+export function attachPasted(draft: DraftFiles) {
+  return (event: ClipboardEvent<HTMLElement>) => {
+    const images = pastedImages(event.clipboardData);
+    if (images.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    const at = new Date();
+    draft.add(images.map((file) => ({ file, name: pastedName(file.type, at) })));
+  };
+}
+
 // uniqueName gives name, or when another file of the draft has it, the name
 // with -2, -3 and so on before its extension, since a message carries one
 // file of each name.
@@ -120,16 +135,28 @@ export function attachmentsOf(files: readonly DraftFile[]): {
   };
 }
 
+// expireRefused marks the file a refusal of a write names as not uploaded,
+// by its place among the ids of the files the write sent, as expired: the
+// server no longer holds its upload, to upload again.
+export function expireRefused(draft: DraftFiles, failure: unknown, sent: readonly number[]): void {
+  const match =
+    failure instanceof ApiFailure ? /^attachments\.(\d+)\.upload$/.exec(failure.field ?? "") : null;
+  const id = match === null ? undefined : sent[Number(match[1])];
+  if (id !== undefined) {
+    draft.expire(id);
+  }
+}
+
 // What keeps the draft's files from being sent: a file refused, which the
 // operator removes; one that did not upload, which they retry or remove; or
 // uploads still to finish, the first of those under way counted among them.
-export type FilesHold =
+type FilesHold =
   | { kind: "refused" }
   | { kind: "failed" }
   | { kind: "uploading"; at: number; of: number }
   | undefined;
 
-export function filesHold(files: readonly DraftFile[]): FilesHold {
+function filesHold(files: readonly DraftFile[]): FilesHold {
   if (files.some((file) => file.kind === "refused")) {
     return { kind: "refused" };
   }
@@ -142,7 +169,7 @@ export function filesHold(files: readonly DraftFile[]): FilesHold {
 }
 
 // holdWords says what keeps Send waiting on the draft's files.
-export function holdWords(hold: NonNullable<FilesHold>): string {
+function holdWords(hold: NonNullable<FilesHold>): string {
   switch (hold.kind) {
     case "refused":
       return "A file cannot be attached: remove it.";
@@ -151,6 +178,21 @@ export function holdWords(hold: NonNullable<FilesHold>): string {
     case "uploading":
       return hold.of === 1 ? "Uploading the file." : `Uploading ${hold.at} of ${hold.of} files.`;
   }
+}
+
+// sendWait says what keeps Send waiting on a message the operator is
+// writing, wherever they write it, or undefined when nothing does: its files,
+// until each has uploaded, or a recording for it, until its text is in or it
+// is discarded, so dictated words are never lost under a send. A recording
+// counts while its microphone opens, and while it records, transcribes or
+// awaits Retry.
+export function sendWait(files: readonly DraftFile[], recording: boolean): string | undefined {
+  const hold = filesHold(files);
+  return hold !== undefined
+    ? holdWords(hold)
+    : recording
+      ? "Finish or cancel dictation first."
+      : undefined;
 }
 
 // Why a file is refused as it is added, without uploading, if it is.
@@ -191,9 +233,10 @@ export interface DraftFiles {
   sent(ids: readonly number[]): void;
 }
 
-// useDraftFiles holds the draft's files for a thread's composer and uploads
-// those added, one at a time, to the thread's session.
-export function useDraftFiles(target: ThreadTarget): DraftFiles {
+// useDraftFiles holds the draft's files for a message to a session, in one
+// of its threads or starting one, and uploads those added, one at a time, to
+// the session.
+export function useDraftFiles(target: { agent: string; session: string }): DraftFiles {
   const { csrf } = useSession();
   const onFailure = useUnauthenticatedCheck();
   const [files, setFiles] = useState<DraftFile[]>([]);

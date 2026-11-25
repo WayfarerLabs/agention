@@ -1,15 +1,15 @@
 import { maxAttachments, maxFileBytes } from "@wayfarerlabs/agention-api";
 import { type RefObject, useId, useLayoutEffect, useRef } from "react";
-import { describeFailure } from "../../../api.ts";
-import { byteSize } from "../../../format.tsx";
+import { describeFailure } from "../api.ts";
+import { byteSize } from "../format.tsx";
 import type { DraftFile, DraftFiles } from "./attach.ts";
 
-// The composer's files, above its Send row: each with its name, size and how
-// it stands, waiting, uploading with its progress, uploaded, failed with why
-// and Retry, expired with Upload again, refused with why, or kept from the
-// message a replacement replaces; and each with Remove. The list says the
-// limits once. A failure, an expiry and a refusal are announced as they
-// show. Attach, in the Send row, adds files to it.
+// A draft's files, under its boxes, above Send: each with its name, size
+// and how it stands, waiting, uploading with its progress, uploaded, failed
+// with why and Retry, expired with Upload again, refused with why, or kept
+// from the message a replacement replaces; and each with Remove. The list
+// says the limits once. A failure, an expiry and a refusal are announced as
+// they show. Attach, beside Send, adds files to it.
 
 // Where focus goes once the list changes: a file's Remove, or Attach.
 type FocusTarget = { id: number } | "attach";

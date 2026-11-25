@@ -289,16 +289,18 @@ export const threadCreateInput = z
 export type ThreadCreateInput = z.infer<typeof threadCreateInput>;
 
 // The operator's start of a thread on a session: a title and a first message
-// of text, with its detail. The session stays the thread's requester and the
-// operator its audience, so the requester's parts, asks and a topic, have no
-// field here, and neither do references and attachments, which the web UI's
-// sheet does not offer. Like every schema here it drops what it does not know, so a start
-// carrying any of them starts a thread without them.
+// of text, with its detail and the files it carries, uploads of theirs to the
+// session. The session stays the thread's requester and the operator its
+// audience, so the requester's parts, asks and a topic, have no field here,
+// and neither do references, which the web UI's sheet does not offer. Like
+// every schema here it drops what it does not know, so a start carrying any
+// of them starts a thread without them.
 export const threadStartInput = z.object({
   request_id: requestId,
   title: threadTitle,
   text: messageText,
   detail: messageDetail.optional(),
+  attachments: attachmentList.optional(),
 });
 export type ThreadStartInput = z.infer<typeof threadStartInput>;
 

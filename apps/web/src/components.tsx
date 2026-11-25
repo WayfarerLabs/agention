@@ -473,10 +473,14 @@ export function Sheet({
   onSubmit,
   foot,
   children,
+  held = false,
 }: {
   sheet: RefObject<HTMLDialogElement | null>;
   heading: string;
   onClose: () => void;
+  // Whether the sheet holds still, as while what it sends is on its way:
+  // Escape does not close it.
+  held?: boolean;
   onSubmit?: (event: FormEvent) => void;
   foot: ReactNode;
   children: ReactNode;
@@ -499,7 +503,24 @@ export function Sheet({
     </>
   );
   return (
-    <dialog ref={sheet} className="sheet" aria-labelledby={`${id}-heading`} onClose={onClose}>
+    <dialog
+      ref={sheet}
+      className="sheet"
+      aria-labelledby={`${id}-heading`}
+      onClose={onClose}
+      onCancel={(event) => {
+        if (held) {
+          event.preventDefault();
+        }
+      }}
+      onKeyDown={(event) => {
+        // A keydown's default is what makes Escape cancel the dialog, and
+        // the browser may not let its cancel event be refused every time.
+        if (held && event.key === "Escape") {
+          event.preventDefault();
+        }
+      }}
+    >
       {onSubmit === undefined ? (
         body
       ) : (

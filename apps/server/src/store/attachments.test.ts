@@ -81,6 +81,28 @@ describe("a message's attachments", () => {
     expect(messageAt(2)?.attachments?.map((each) => each.file)).toEqual([file]);
   });
 
+  it("ride on the first message of a thread the operator starts, from their uploads to its session", () => {
+    const file = upload("plan", { name: "plan.txt", identity: fixture.operator });
+    fixture.startThread(agent, { attachments: [{ upload: file }] });
+    expect(messageAt(1)?.attachments).toEqual([
+      { name: "plan.txt", file, size: 4, type: "text/plain" },
+    ]);
+    // Another writer's upload, one to another session and a kept file are
+    // refused there as on any first message, and start no thread.
+    const nightly = fixture.registerAgent("builder", "nightly");
+    const agents = upload("ag");
+    const elsewhere = upload("ns", { identity: fixture.operator, target: nightly.target });
+    for (const ref of [agents, elsewhere]) {
+      expect(failure(() => fixture.startThread(agent, { attachments: [{ upload: ref }] }))).toEqual(
+        { code: "invalid_input", field: "attachments.0.upload" },
+      );
+    }
+    expect(
+      failure(() => fixture.startThread(agent, { attachments: [{ keep: "plan.txt" }] })),
+    ).toEqual({ code: "invalid_input", field: "attachments.0.keep" });
+    expect(fixture.startThread(agent).number).toBe(2);
+  });
+
   it("refuse alike another writer's, another session's, an unknown, an expired and an attached upload", () => {
     fixture.createThread(agent);
     const nightly = fixture.registerAgent("builder", "nightly");

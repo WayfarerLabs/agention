@@ -12,8 +12,14 @@ import {
   operatorMessage,
   type Reply,
   uploadAnswer,
-} from "../../../test-support.tsx";
-import { option, path, textBox, ThreadPageTest, written } from "../thread-test-support.tsx";
+} from "../test-support.tsx";
+import {
+  option,
+  path,
+  textBox,
+  ThreadPageTest,
+  written,
+} from "../views/thread/thread-test-support.tsx";
 
 let page: ThreadPageTest;
 let uploads: FakeUpload[];

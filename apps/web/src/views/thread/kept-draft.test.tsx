@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   draftDays,
   forgetDrafts,
@@ -19,7 +19,6 @@ import {
 } from "../../device.ts";
 import {
   ask,
-  installRecorder,
   installUploads,
   message,
   operatorMessage,
@@ -65,38 +64,7 @@ function discard() {
   fireEvent.click(within(composer()).getByRole("button", { name: "Discard" }));
 }
 const draft = { text: "Half a reply", detail: "", basis: 1, leftBehind: false };
-// Voice on, so the composer offers dictation.
-const voiceOn = {
-  voice: {
-    on: true,
-    base_url: "https://api.openai.com/v1",
-    model: "gpt-transcribe",
-    prompt: null,
-    key: "set",
-    key_ending: "c3dE",
-    from_environment: [],
-    invalid: false,
-  },
-};
 const dayMs = 24 * 60 * 60 * 1000;
-
-// landsOnceShown lands a write the moment shown says what it waits for is on
-// the page, before the effects of the render that showed it run, and settles
-// then. Its observer goes with the test, even one that times out waiting.
-function landsOnceShown(shown: () => boolean, land: () => void): Promise<void> {
-  let observer: MutationObserver | undefined;
-  onTestFinished(() => observer?.disconnect());
-  return new Promise<void>((resolve) => {
-    observer = new MutationObserver(() => {
-      if (shown()) {
-        observer?.disconnect();
-        land();
-        resolve();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  });
-}
 
 // reopen leaves the thread, unmounting its page, and opens it again.
 async function reopen(state: State): Promise<void> {
@@ -297,70 +265,8 @@ describe("a draft kept in the browser", () => {
     },
   );
 
-  it.each([
-    [
-      "a file attached",
-      () => {
-        installUploads();
-        const picker = composer().querySelector<HTMLInputElement>('input[type="file"]')!;
-        fireEvent.change(picker, {
-          target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
-        });
-      },
-      () => within(composer()).queryByText("a.png") !== null,
-    ],
-    [
-      "a recording started",
-      () => {
-        fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
-      },
-      () => within(composer()).queryByRole("button", { name: "Stop" }) !== null,
-    ],
-  ])(
-    "still leaves behind %s while a restored draft was sent, with what was typed meanwhile, as the page goes back",
-    async (what, add, added) => {
-      if (what === "a recording started") {
-        page.api.on("GET", "/settings", { body: voiceOn });
-        installRecorder();
-      }
-      keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
-      // Going back as the write lands, the page never shows what is left, so
-      // only what the landing keeps is kept.
-      window.localStorage.setItem(afterSendingChoice, "list");
-      await page.open(
-        { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
-        { from: "/" },
-      );
-      if (what === "a recording started") {
-        await within(composer()).findByRole("button", { name: "Dictate" });
-      }
-      let answer: (reply: Reply) => void = () => {};
-      page.api.on(
-        "POST",
-        `${path}/messages`,
-        () => new Promise<Reply>((resolve) => (answer = resolve)),
-      );
-      fireEvent.click(sendButton());
-      await waitFor(() => expect(page.writes()).toHaveLength(1));
-      fireEvent.change(textBox(), { target: { value: "Half a reply, and another" } });
-      // The write lands the moment what was added shows. A recording starts
-      // outside the test's act, so its effects have not run yet then, and
-      // the landing must read what that render shows.
-      const shown = landsOnceShown(added, () => answer(written(2)));
-      add();
-      await shown;
-      await waitFor(() => expect(window.location.pathname).toBe("/"));
-      expect(readDraft(thread)).toMatchObject({
-        text: "Half a reply, and another",
-        leftBehind: true,
-      });
-    },
-  );
-
-  it("keeps what a write leaves, not an older render's draft, when the write lands just after a transcript", async () => {
-    page.api.on("GET", "/settings", { body: voiceOn });
-    installRecorder();
-    keepDraft(thread, draft, signOutMark());
+  it("still leaves behind a file attached while a restored draft was sent, with what was typed meanwhile, as the page goes back", async () => {
+    keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
     // Going back as the write lands, the page never shows what is left, so
     // only what the landing keeps is kept.
     window.localStorage.setItem(afterSendingChoice, "list");
@@ -368,7 +274,6 @@ describe("a draft kept in the browser", () => {
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: "/" },
     );
-    await within(composer()).findByRole("button", { name: "Dictate" });
     let answer: (reply: Reply) => void = () => {};
     page.api.on(
       "POST",
@@ -377,28 +282,22 @@ describe("a draft kept in the browser", () => {
     );
     fireEvent.click(sendButton());
     await waitFor(() => expect(page.writes()).toHaveLength(1));
-    let transcribed = false;
-    page.api.on("POST", "/transcriptions", () => {
-      transcribed = true;
-      return { body: { text: "And more." } };
+    fireEvent.change(textBox(), { target: { value: "Half a reply, and another" } });
+    // A file added while the write is on its way stays behind it. This checks
+    // what the landing keeps, not the order of a render and its effects: the
+    // file comes by a discrete event, whose effects run before the write can
+    // land, and no change outside such an event reaches the composer while a
+    // write is on its way, since dictation waits for it.
+    installUploads();
+    const picker = composer().querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(picker, {
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
     });
-    fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
-    await within(composer()).findByRole("button", { name: "Stop" });
-    // The write lands the moment the transcript shows, as early as it can:
-    // the draft that render keeps must not outlast what the write keeps.
-    const shown = landsOnceShown(
-      () => transcribed && within(composer()).queryByRole("button", { name: "Dictate" }) !== null,
-      () => answer(written(2)),
-    );
-    fireEvent.click(within(composer()).getByRole("button", { name: "Stop" }));
-    await shown;
+    answer(written(2));
     await waitFor(() => expect(window.location.pathname).toBe("/"));
-    // The text changed since it was sent, so all of it is left, counting from
-    // the message written.
     expect(readDraft(thread)).toMatchObject({
-      text: "And more. Half a reply",
-      basis: 2,
-      leftBehind: false,
+      text: "Half a reply, and another",
+      leftBehind: true,
     });
   });
 
