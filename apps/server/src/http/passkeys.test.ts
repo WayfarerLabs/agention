@@ -231,6 +231,8 @@ describe("signing in", () => {
     // A seal from another instance, or an altered one, is refused.
     const other = new TestServer();
     try {
+      // On the same clock, so only its key can refuse the seal, not its expiry.
+      other.now = server.now;
       const forged = new TestBrowser(other);
       const forgedOptions = await forged.begin("/auth/signin/begin");
       const moved = browser();

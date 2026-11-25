@@ -370,7 +370,7 @@ describe("serving headers", () => {
           : /^inline;/,
       );
     }
-  }, 20_000);
+  });
 
   it.each([
     ["notes.txt", `inline; filename="notes.txt"; filename*=UTF-8''notes.txt`],

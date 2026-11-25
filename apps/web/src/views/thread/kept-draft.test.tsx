@@ -1,5 +1,13 @@
-import { cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   draftDays,
   forgetDrafts,
@@ -18,7 +26,7 @@ import {
   type Reply,
   threadSummary,
 } from "../../test-support.tsx";
-import { goBackChoice } from "./Composer.tsx";
+import { afterSendingChoice } from "./Composer.tsx";
 import { useKeptDraft } from "./kept-draft.ts";
 import {
   detailsBox,
@@ -71,6 +79,24 @@ const voiceOn = {
   },
 };
 const dayMs = 24 * 60 * 60 * 1000;
+
+// landsOnceShown lands a write the moment shown says what it waits for is on
+// the page, before the effects of the render that showed it run, and settles
+// then. Its observer goes with the test, even one that times out waiting.
+function landsOnceShown(shown: () => boolean, land: () => void): Promise<void> {
+  let observer: MutationObserver | undefined;
+  onTestFinished(() => observer?.disconnect());
+  return new Promise<void>((resolve) => {
+    observer = new MutationObserver(() => {
+      if (shown()) {
+        observer?.disconnect();
+        land();
+        resolve();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
 
 // reopen leaves the thread, unmounting its page, and opens it again.
 async function reopen(state: State): Promise<void> {
@@ -153,7 +179,7 @@ describe("a draft kept in the browser", () => {
   });
 
   it("keeps only what was typed while a write was under way, when the page goes back as it lands", async () => {
-    window.localStorage.setItem(goBackChoice, "true");
+    window.localStorage.setItem(afterSendingChoice, "list");
     await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: "/" },
@@ -173,8 +199,27 @@ describe("a draft kept in the browser", () => {
     expect(readDraft(thread)).toMatchObject({ text: "First. And second.", basis: 2 });
   });
 
+  it("stays as edited since when a write sent before the thread was left lands", async () => {
+    const state = await page.openLog({ last_seq: 1 });
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise<Reply>((resolve) => (answer = resolve)),
+    );
+    fireEvent.change(textBox(), { target: { value: "First." } });
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    fireEvent.change(textBox(), { target: { value: "First. And second." } });
+    await reopen(state);
+    fireEvent.change(textBox(), { target: { value: "First. And a newer second." } });
+    await act(async () => answer(written(2)));
+    await reopen(state);
+    expect(textBox().value).toBe("First. And a newer second.");
+  });
+
   it("is forgotten when the page goes back as the write sending it lands", async () => {
-    window.localStorage.setItem(goBackChoice, "true");
+    window.localStorage.setItem(afterSendingChoice, "list");
     const state = await page.open(
       { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
       { from: "/" },
@@ -220,7 +265,7 @@ describe("a draft kept in the browser", () => {
     "starts afresh, leaving nothing behind, with what was typed while a restored draft was sent, as the page %s",
     async (_, goBack) => {
       keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
-      window.localStorage.setItem(goBackChoice, String(goBack));
+      window.localStorage.setItem(afterSendingChoice, goBack ? "list" : "stay");
       const state = await page.open(
         { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
         { from: "/" },
@@ -262,17 +307,18 @@ describe("a draft kept in the browser", () => {
           target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
         });
       },
+      () => within(composer()).queryByText("a.png") !== null,
     ],
     [
       "a recording started",
-      async () => {
+      () => {
         fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
-        await within(composer()).findByRole("button", { name: "Stop" });
       },
+      () => within(composer()).queryByRole("button", { name: "Stop" }) !== null,
     ],
   ])(
     "still leaves behind %s while a restored draft was sent, with what was typed meanwhile, as the page goes back",
-    async (what, add) => {
+    async (what, add, added) => {
       if (what === "a recording started") {
         page.api.on("GET", "/settings", { body: voiceOn });
         installRecorder();
@@ -280,7 +326,7 @@ describe("a draft kept in the browser", () => {
       keepDraft(thread, { ...draft, leftBehind: true }, signOutMark());
       // Going back as the write lands, the page never shows what is left, so
       // only what the landing keeps is kept.
-      window.localStorage.setItem(goBackChoice, "true");
+      window.localStorage.setItem(afterSendingChoice, "list");
       await page.open(
         { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
         { from: "/" },
@@ -297,8 +343,12 @@ describe("a draft kept in the browser", () => {
       fireEvent.click(sendButton());
       await waitFor(() => expect(page.writes()).toHaveLength(1));
       fireEvent.change(textBox(), { target: { value: "Half a reply, and another" } });
-      await add();
-      answer(written(2));
+      // The write lands the moment what was added shows. A recording starts
+      // outside the test's act, so its effects have not run yet then, and
+      // the landing must read what that render shows.
+      const shown = landsOnceShown(added, () => answer(written(2)));
+      add();
+      await shown;
       await waitFor(() => expect(window.location.pathname).toBe("/"));
       expect(readDraft(thread)).toMatchObject({
         text: "Half a reply, and another",
@@ -306,6 +356,51 @@ describe("a draft kept in the browser", () => {
       });
     },
   );
+
+  it("keeps what a write leaves, not an older render's draft, when the write lands just after a transcript", async () => {
+    page.api.on("GET", "/settings", { body: voiceOn });
+    installRecorder();
+    keepDraft(thread, draft, signOutMark());
+    // Going back as the write lands, the page never shows what is left, so
+    // only what the landing keeps is kept.
+    window.localStorage.setItem(afterSendingChoice, "list");
+    await page.open(
+      { thread: threadSummary({ unread: 0 }), messages: [message(1)] },
+      { from: "/" },
+    );
+    await within(composer()).findByRole("button", { name: "Dictate" });
+    let answer: (reply: Reply) => void = () => {};
+    page.api.on(
+      "POST",
+      `${path}/messages`,
+      () => new Promise<Reply>((resolve) => (answer = resolve)),
+    );
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(page.writes()).toHaveLength(1));
+    let transcribed = false;
+    page.api.on("POST", "/transcriptions", () => {
+      transcribed = true;
+      return { body: { text: "And more." } };
+    });
+    fireEvent.click(within(composer()).getByRole("button", { name: "Dictate" }));
+    await within(composer()).findByRole("button", { name: "Stop" });
+    // The write lands the moment the transcript shows, as early as it can:
+    // the draft that render keeps must not outlast what the write keeps.
+    const shown = landsOnceShown(
+      () => transcribed && within(composer()).queryByRole("button", { name: "Dictate" }) !== null,
+      () => answer(written(2)),
+    );
+    fireEvent.click(within(composer()).getByRole("button", { name: "Stop" }));
+    await shown;
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    // The text changed since it was sent, so all of it is left, counting from
+    // the message written.
+    expect(readDraft(thread)).toMatchObject({
+      text: "And more. Half a reply",
+      basis: 2,
+      leftBehind: false,
+    });
+  });
 
   it("comes back without what was staged", async () => {
     const state = await page.openWith([message(1, { asks: [ask()] })], {
@@ -480,11 +575,12 @@ describe("the drafts the browser keeps", () => {
 });
 
 describe("two pages keeping a thread's draft", () => {
+  type Typed = { text: string; basis?: number };
   const typing = (text: string) =>
     renderHook(
-      ({ text: typed }: { text: string }) =>
-        useKeptDraft(thread, { ...draft, text: typed }, typed !== ""),
-      { initialProps: { text } },
+      ({ text: typed, basis = draft.basis }: Typed) =>
+        useKeptDraft(thread, { ...draft, text: typed, basis }, typed !== ""),
+      { initialProps: { text } as Typed },
     );
 
   it("keep the draft typed last, which emptying the other leaves alone", () => {
@@ -501,5 +597,16 @@ describe("two pages keeping a thread's draft", () => {
     typing("From the second");
     first.result.current("", "", 2, false);
     expect(readDraft(thread)).toMatchObject({ text: "From the second" });
+  });
+
+  it("keep the draft typed last when the other's write lands with some left, until it is typed on", () => {
+    const first = typing("Left of the first");
+    typing("From the second");
+    first.result.current("Left of the first", "", 2, false);
+    // The page then counts from the message written, which changes its draft.
+    first.rerender({ text: "Left of the first", basis: 2 });
+    expect(readDraft(thread)).toMatchObject({ text: "From the second" });
+    first.rerender({ text: "Left of the first, typed on", basis: 2 });
+    expect(readDraft(thread)).toMatchObject({ text: "Left of the first, typed on", basis: 2 });
   });
 });

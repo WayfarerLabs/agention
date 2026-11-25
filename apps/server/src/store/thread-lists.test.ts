@@ -1349,8 +1349,7 @@ describe("grouped pages as the list changes", () => {
   });
 });
 
-// Building past each bound through the real write paths takes seconds.
-describe("bounds", { timeout: 30_000 }, () => {
+describe("bounds", () => {
   it(`counts and rolls up at most ${maxListed} agents and sessions, saying when it leaves any out`, () => {
     for (let index = 0; index <= maxListed; index++) {
       start(

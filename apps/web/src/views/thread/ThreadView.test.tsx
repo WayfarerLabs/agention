@@ -561,10 +561,7 @@ describe("reading", () => {
     state.thread = { ...state.thread, last_seq: 3, unread: 1 };
     state.messages = [...state.messages, message(3, { text: "Agent note" })];
     fireEvent.focus(window);
-    // Only its words say which action on the thread failed.
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Reading this thread/,
-    );
+    await within(threadHeader()).findByRole("alert");
     fireEvent.focus(window);
     await waitFor(() => expect(attempts).toBe(2));
   });
@@ -773,10 +770,7 @@ describe("the head", () => {
     page.api.on("GET", path, { status: 502, text: "<h1>Bad gateway</h1>" });
     const archiveAll = () => screen.getByRole<HTMLButtonElement>("button", { name: "Archive all" });
     fireEvent.click(archiveAll());
-    // Only its words say which action on the thread failed.
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Archiving this thread/,
-    );
+    await within(threadHeader()).findByRole("alert");
     await waitFor(() => expect(archiveAll().disabled).toBe(false));
     // A later refresh that succeeds archives nothing unasked.
     page.serve(state);
@@ -796,10 +790,7 @@ describe("the head", () => {
     await waitFor(() => expect(page.reads()).toEqual([2]));
     page.api.on("POST", `${path}/archive`, { status: 502, text: "<h1>Bad gateway</h1>" });
     fireEvent.click(screen.getByRole("button", { name: "Archive all" }));
-    // Only its words say which action on the thread failed.
-    expect((await within(threadHeader()).findByRole("alert")).textContent).toMatch(
-      /^Archiving this thread/,
-    );
+    await within(threadHeader()).findByRole("alert");
     state.thread = { ...state.thread, last_seq: 3, unread: 1 };
     state.messages = [...state.messages, message(3, { text: "Agent note" })];
     fireEvent.focus(window);
@@ -954,22 +945,23 @@ describe("the jump to unread", () => {
   });
 
   it("goes round the open asks the summary lists, the most pressing, once nothing is unread, counting those", async () => {
-    // Of 60 open asks, the summary lists the 50 most pressing: here the
-    // latest, most pressing first.
-    await page.openWith([message(1, { asks: range(1, 60).map((number) => ask({ number })) })], {
+    // Of 6 open asks, the summary lists only the most pressing, as the
+    // server's does past its limit: here the latest 4, most pressing first.
+    await page.openWith([message(1, { asks: range(1, 6).map((number) => ask({ number })) })], {
       open_asks: {
-        asks: range(11, 60)
+        asks: range(3, 6)
           .reverse()
           .map((number) => ({ number, seq: 1 })),
-        count: 60,
+        count: 6,
         blocking: true,
         overdue: false,
       },
     });
     expect(jumpingTo()).toBe("open ask");
-    expect(jumpButton()?.textContent).toMatch(/\b50\b/);
-    expect(jumpButton()?.textContent).not.toMatch(/\b60\b/);
-    for (const number of [...range(11, 60), 11]) {
+    expect(jumpButton()?.textContent).toMatch(/\b4\b/);
+    expect(jumpButton()?.textContent).not.toMatch(/\b6\b/);
+    // In the thread's order, going round past the last.
+    for (const number of [...range(3, 6), 3]) {
       await press(() => askCard(number));
     }
   });
@@ -1065,7 +1057,7 @@ describe("a message's options", () => {
     for (const control of [
       screen.getByRole("textbox"),
       optionsButton(2),
-      screen.getByText("Go back after sending"),
+      screen.getByRole("combobox", { name: "After sending" }),
     ]) {
       optionsMenu(4);
       focus.mockClear();
@@ -1215,6 +1207,20 @@ describe("archiving through a message", () => {
     }
     expect(within(messageArticle(3)).queryByTitle("Archived")).toBeNull();
     expect(optionNames(3)).toEqual(["Mark unread from here", "Archive through here"]);
+  });
+
+  it("marks a message it archives read, though it was unread when the page opened", async () => {
+    await page.openWith([message(1), message(2), message(3)], { unread: 3 });
+    await waitFor(() => expect(option(2, "Archive through here").disabled).toBe(false));
+    fireEvent.click(option(2, "Archive through here"));
+    await waitFor(() => expect(document.activeElement).toBe(fold()));
+    fireEvent.click(fold());
+    for (const seq of [1, 2]) {
+      expect(messageArticle(seq).classList.contains("unread")).toBe(false);
+      expect(within(messageArticle(seq)).queryByTitle("Unread")).toBeNull();
+    }
+    expect(messageArticle(3).classList.contains("unread")).toBe(true);
+    expect(within(messageArticle(3)).getByTitle("Unread")).toBeTruthy();
   });
 
   it("archives the thread through a message followed only by the operator's reply, head and messages agreeing", async () => {

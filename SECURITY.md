@@ -133,12 +133,15 @@ device, and involves no server.
   address it embeds would be, but is never the operator's own network, since a translator carries it
   across networks they may not control. Over either scheme these are never reached: link-local
   addresses, where most cloud metadata services live; the named metadata addresses outside them,
-  `100.100.100.200`, `fd00:ec2::254` and `fd20:ce::254`; the unspecified address; and multicast. A
-  host name other than `localhost`, which `https` allows, is not resolved and judged by address:
-  there the provider's certificate, which the server verifies, is what keeps the request from
-  anything else, since a metadata service or an internal host answering for that name cannot present
-  one. The rule is checked when a base URL is saved or read from the environment, and the saved one
-  again for each request, and requests to the provider follow no redirect.
+  `100.100.100.200`, `fd00:ec2::254` and `fd20:ce::254`; the unspecified address; multicast; and the
+  NAT64 local-use prefix `64:ff9b:1::/48`, where the IPv4 address sits wherever the network's own
+  translator prefix puts it, so it cannot be judged. A network-specific NAT64 prefix (RFC 6052) that
+  a network takes from its own address space looks like any other address, so the rule cannot
+  recognize one. A host name other than `localhost`, which `https` allows, is not resolved and
+  judged by address: there the provider's certificate, which the server verifies, is what keeps the
+  request from anything else, since a metadata service or an internal host answering for that name
+  cannot present one. The rule is checked when a base URL is saved or read from the environment, and
+  the saved one again for each request, and requests to the provider follow no redirect.
 - **The text.** A transcript goes into the operator's draft as text, which they read, change and
   send themselves; nothing is sent without them, so a provider can put words in a draft but never in
   a thread.

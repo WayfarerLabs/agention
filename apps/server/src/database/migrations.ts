@@ -3,8 +3,9 @@
 export const applicationId = 0x41474e31;
 
 // Migrations, in order. PRAGMA user_version records how many have run; each
-// runs in its own transaction with the bump. Append new migrations; never edit
-// one that has shipped, as migrations.test.ts checks.
+// runs in its own transaction with the bump. Append new migrations, each with
+// its hash in migrations.test.ts, which freezes them all; never edit one that
+// has shipped.
 //
 // Conventions: every table is STRICT; times are Unix milliseconds (UTC); text
 // columns hold exactly what was submitted; log tables are append-only, enforced

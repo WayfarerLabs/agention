@@ -11,7 +11,7 @@ import type { BrowserContext, Frame, Locator, Page, Request } from "@playwright/
 import type { PublicKey, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, test } from "./fixtures.ts";
+import { type Agention, expect, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -330,7 +330,9 @@ test("a frame that never answers is replaced, and the next diagram drawn in a ne
     const message = page.getByRole("article", { name: /^Message 1 by/ });
     const figures = message.locator("figure");
     await expect(figures.nth(0).locator(".diagram-note")).toBeVisible();
-    await expect(figures.nth(0).locator("pre code")).toHaveText(flowchart, { timeout: 15_000 });
+    // The fallback shows only once the draw gives up, after its 10 seconds,
+    // so this waits that long beyond the usual allowance.
+    await expect(figures.nth(0).locator("pre code")).toHaveText(flowchart, { timeout: 25_000 });
     await expect(figures.nth(1).getByRole("img", { name: "Diagram" })).toBeVisible();
     expect(frameRequests().length - before).toBe(2);
     await expect(page.locator("iframe")).toHaveCount(1);
@@ -340,7 +342,7 @@ test("a frame that never answers is replaced, and the next diagram drawn in a ne
 });
 
 test("the viewer opens a diagram full screen at a phone's width, and gives focus back", async () => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   const wide = [
     "flowchart LR",
     ...Array.from({ length: 12 }, (_, index) => `  step${index} --> step${index + 1}`),
@@ -394,7 +396,7 @@ test("the viewer opens a diagram full screen at a phone's width, and gives focus
 });
 
 test("the viewer fits a diagram too long for its least zoom, and zooms out no further", async () => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, { width: 390, height: 844 });
   // A chain of 100 edges, written short to fit in a message's text.
   const long = `flowchart LR\n  ${Array.from({ length: 101 }, (_, index) => `n${index}`).join("-->")}`;
   await openThread(fenced(long));

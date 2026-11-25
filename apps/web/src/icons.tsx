@@ -10,8 +10,8 @@ const shapes = {
   filters: <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />,
   // Arrows up and down, for the order.
   sort: <path d="M7 4v16m-4-4 4 4 4-4M17 20V4m-4 4 4-4 4 4" />,
-  // An arrow pointing down, for an order in its own direction, and one
-  // pointing up, for an order reversed.
+  // An arrow pointing down, for an order in its own direction and the thread
+  // below, and one pointing up, for an order reversed and the thread above.
   "arrow-down": <path d="M12 4v16m-6-6 6 6 6-6" />,
   "arrow-up": <path d="M12 20V4m-6 6 6-6 6 6" />,
   // Two headings, each over its indented rows, for grouping.

@@ -60,6 +60,7 @@ interface Pane {
 interface Snapshot {
   readonly lines: readonly string[]; // the visible screen, top to bottom
   readonly cursor: { readonly x: number; readonly y: number; readonly visible: boolean };
+  readonly width: number; // columns, since a capture trims trailing spaces
   readonly hostHasTerminal: boolean; // the foreground process group is the pane's first process
   readonly keysBlocked: boolean; // a mode, such as tmux's copy mode, keeps keys from the host
   readonly lastTyped: number | undefined; // the latest key from any attached client, ms
@@ -93,7 +94,8 @@ type StoppedBy =
 
 // The profiles of one harness, by version: each entry applies from its version until the next.
 interface HarnessProfiles {
-  readonly harness: string; // as the MCP client names itself, such as "claude-code"
+  readonly harness: string; // the name the configuration uses, such as "codex"
+  readonly client: string; // as the MCP client names itself, such as "codex-mcp-client"
   forVersion(version: string): Profile | undefined; // undefined below the oldest entry
 }
 
@@ -133,7 +135,7 @@ the configured name.
   changed within the last two seconds; **at its prompt** when the profile finds the input line;
   **waiting** otherwise. Dialogs come before stillness, so a dialog's animation (Claude Code's
   blinking bullet) never reads as running. The stopped-by reason comes from the profile's screen and
-  shows only at rest.
+  shows at any condition but running and unknown.
 - **Harness profiles** tell what their captures show: the permission dialogs (cursor hidden, the
   dialog's text), other prompts (trust, sign-in), and the input line (cursor visible after `❯` or
   `›` and a space; for Claude Code, `-- INSERT --` when vim mode is on and not `!` shell mode).
@@ -141,9 +143,9 @@ the configured name.
   input line only when the cursor is visible with nothing after it on its row; the lenient one
   whenever the cursor is visible.
 - **Choosing.** `auto` takes the harness name and version from the MCP client's `initialize`
-  `clientInfo`, validated as outside input, and asks the registry; an unknown harness, or a version
-  below the oldest entry, gets the strict generic profile. Codex's `clientInfo` is captured when its
-  profile is built.
+  `clientInfo` (Claude Code names itself `claude-code`, Codex `codex-mcp-client`), validated as
+  outside input, and asks the registry; an unknown harness, or a version below the oldest entry,
+  gets the strict generic profile. Codex's `clientInfo` is captured when its profile is built.
 
 ### Writing: `nudge()`
 
@@ -321,5 +323,15 @@ The tools work as without monitoring in every case.
 - **Usage limit, block and error** need captures before any profile claims them; how one is obtained
   is open with the operator.
 - **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
+- **The nudge with a generic profile**: a generic profile cannot tell a prompt marker from typed
+  text, so its input line is the cursor's whole row; `nudge()` will confirm its texts by comparing
+  that row before and after each paste, settled with delivery 2.
+- **Claude Code's vim normal mode** looks the same on screen as its insert mode at an empty prompt,
+  and there Backspace moves the cursor rather than deleting, so a nudge would leave its warning in
+  the input at the clear step. Settled with delivery 2: accept and report it, or learn the mode
+  another way.
+- **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
+  told from typed text only by the captured patterns, since captures carry no color; an unknown hint
+  leaves the nudge not ready. Reading text attributes is the alternative, for delivery 2.
 - **A restarted bridge** starts reporting only at the agent's next tool call, since it learns its
   session's names then; until then the session shows disconnected.

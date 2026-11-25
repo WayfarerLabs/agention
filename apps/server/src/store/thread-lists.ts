@@ -22,10 +22,12 @@ import {
   type ThreadGrouping,
   type ThreadGroups,
   type ThreadList,
+  type ThreadNeighbors,
   type ThreadPage,
   type ThreadSort,
   type ThreadSummary,
   type ThreadsQuery,
+  type ThreadsView,
   threadStatus,
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
@@ -45,7 +47,12 @@ import {
   type ViewerAndCutoff,
   viewerAndCutoff,
 } from "./thread-reads.ts";
-import { authorizeSession, type SessionTarget } from "./threads.ts";
+import {
+  authorizeSession,
+  requireThread,
+  type SessionTarget,
+  type ThreadTarget,
+} from "./threads.ts";
 
 // Every list is a query over the threads as the viewer sees them (seen, read
 // as th), kept by the parts its query sets, then ordered. One definition of
@@ -357,20 +364,33 @@ const keysOf = (grouping: ThreadGrouping | undefined): readonly OrderKey[] =>
     : [...levelsOf[grouping].flatMap(({ level }) => levelKeys(level)), ...keys];
 
 // placing selects the threads a query keeps, over ranked as th, with the
-// places of their groups when grouped.
-function placing(query: ThreadFilters, parts: Parts, grouping: ThreadGrouping | undefined): string {
+// places of their groups when grouped. Given a thread also kept, by its
+// condition, whatever the query keeps, it keeps that thread too, at its own
+// place within its groups, but leaves each group placed by the threads the
+// query keeps, as the list shows it: only a group holding no other thread
+// takes its place from the kept one.
+function placing(
+  query: ThreadFilters,
+  parts: Parts,
+  grouping: ThreadGrouping | undefined,
+  alsoKept?: string,
+): string {
+  const kept = where(query, parts);
+  const keeps = alsoKept === undefined ? kept : `(${kept}) OR ${alsoKept}`;
   if (grouping === undefined) {
-    return `SELECT th.* FROM ranked th WHERE ${where(query, parts)}`;
+    return `SELECT th.* FROM ranked th WHERE ${keeps}`;
   }
+  // A group's first thread comes first among those the query keeps.
+  const leading = alsoKept === undefined ? listOrder : `IIF(${kept}, 0, 1), ${listOrder}`;
   const levels = levelsOf[grouping];
   const firsts = levels.flatMap(({ level }) =>
     keys.map((key) => `first_value(th.${key}) OVER level${level} AS level${level}_${key}`),
   );
   const windows = levels.map(
-    ({ level, partition }) => `level${level} AS (PARTITION BY ${partition} ORDER BY ${listOrder})`,
+    ({ level, partition }) => `level${level} AS (PARTITION BY ${partition} ORDER BY ${leading})`,
   );
   return `SELECT th.*, ${firsts.join(", ")}
-    FROM ranked th WHERE ${where(query, parts)}
+    FROM ranked th WHERE ${keeps}
     WINDOW ${windows.join(", ")}`;
 }
 
@@ -539,6 +559,51 @@ export function listThreads(store: Store, identity: Identity, query: ThreadsQuer
       ...page,
       total,
       ...(query.group === undefined ? {} : { groups: rollUpGroups(reach, query, query.group) }),
+    };
+  });
+}
+
+// findThreadNeighbors finds the rows just above and below a thread in the
+// operator's list with the view's filters, order, direction and grouping:
+// the list as listThreads pages it, ranked once and with no paging, the
+// thread kept in it though the filters would leave it out, as a thread read
+// out of a list kept to the unread, or archived, is. Kept, it stands at its
+// own place within its groups, which stay where the list shows them, so the
+// rows around it are those the operator sees around where it was. An unknown
+// thread, or one in a session the identity does not reach, is not_found.
+export function findThreadNeighbors(
+  store: Store,
+  identity: Identity,
+  target: ThreadTarget,
+  view: ThreadsView,
+): ThreadNeighbors {
+  const { db } = store;
+  return db.transaction(() => {
+    const now = store.clock();
+    const sessionId = authorizeSession(db, identity, "threads:read", target, now);
+    const { id } = requireThread(db, sessionId, target.thread);
+    const reach = reachOf(store, identity, now);
+    const order = keysOf(view.group).join(", ");
+    const kept = placing(view, listParts, view.group, "th.id = :thread_id");
+    const rows = listStatement(
+      db,
+      `${threadsSeen(reached, leadOf(view, view.sort))}, ${ranked(view.sort, view.reverse, true)},
+       kept AS (${kept}),
+       listed AS (SELECT kept.*, row_number() OVER (ORDER BY ${order}) AS place FROM kept),
+       here AS (SELECT place FROM listed WHERE id = :thread_id)
+       SELECT listed.*, listed.place - here.place AS step
+       FROM listed, here WHERE listed.place IN (here.place - 1, here.place + 1)`,
+    ).all({
+      ...reach.scope,
+      ...parametersOf(view, reach.viewing, now),
+      thread_id: id,
+    }) as unknown as (ThreadRow & { step: number })[];
+    const at = (step: number) => rows.find((row) => row.step === step);
+    const above = at(-1);
+    const below = at(1);
+    return {
+      ...(above === undefined ? {} : { above: withGroup(above, now) }),
+      ...(below === undefined ? {} : { below: withGroup(below, now) }),
     };
   });
 }
