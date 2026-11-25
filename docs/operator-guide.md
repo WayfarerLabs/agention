@@ -503,10 +503,17 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     view flags stranded threads, saying why: its session **stopped**, with how; it is quiet, **last
     seen** when, or **never seen**; or it has **no active credential**. A session with no active
     credential also shows its own tag, unless the stranded tag already says so.
-  - **Archive all read**, while archived threads are not included and no filter keeps only threads
-    with open asks, archives the threads loaded that hold nothing unread, keeping those with an ask
-    open to you, and **Mark all read** with **Unread** on marks the threads loaded read, each
-    through the latest message shown. Both say when more remain.
+  - A bar at the foot of the list acts on every thread shown, leaving out those under a folded
+    header, as **Select all** does. It stays in view as the list scrolls, below its last row once
+    you reach it, and a row you move to with the keys scrolls into view above it. **Mark all read**
+    marks read the threads shown that hold anything unread, and **Archive all read**, while archived
+    threads are not included and no filter keeps only threads with open asks, archives those that
+    hold nothing unread, keeping those with an ask open to you, each through the latest message
+    shown. **Mark all read** shows while a thread shown is unread, and **Archive all read** while
+    one it would archive holds no ask open to you; the first of them is the main button, so once
+    everything is read, **Archive all read** is the one to press next, and focus moves to it. Both
+    act on at most 500 threads at once, and say when more remain. While anything is selected, the
+    bar gives way to the selection's toolbar.
   - **Selecting threads** acts on several at once. With a mouse or a trackpad, each row has a
     checkbox at its start; on a phone or a tablet, hold a row down to select it, and then, while
     anything is selected, a tap selects or unselects a row rather than opening it. `x` selects or
@@ -514,25 +521,25 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     thread shown, leaving out those under a folded header; once it has, while the list holds more, a
     button beside it, such as **Select all 40 threads that match**, selects every thread the filters
     keep, up to 500 at once, and another, such as **Select only the 25 shown**, goes back. While
-    anything is selected, the toolbar at the foot of the list says how many and offers **Mark
-    read**; **Mark unread**, which marks each thread unread from the agent's latest message, leaving
-    out a thread holding none, so the count it gives is of the threads now unread; **Mark read and
-    archive**, which keeps each thread holding an ask open to you as it was and says how many it
-    kept; and, while a thread selected holds an ask open to you, **Decline, mark read and archive**,
-    which first declines every such ask in messages of yours, up to ten answers to a message, which
-    the agent reads, then marks the thread read and archives it. Declining asks first: for the
-    threads selected, with how many asks and threads; for every thread that matches, with how many
-    of them hold an ask open to you, as the counts of the filters give it. An action on the threads
-    selected acts on at most 500 at once, each through the latest message the list showed; an action
-    on every thread that matches asks first, with how many, and acts on the threads the filters
-    keep, each through its latest message when the list was last loaded, leaving out a thread
-    started since; when the threads that match have changed in number since, as when a deadline
-    passed, it acts on none, and the list loads again and asks again. Either way a message that
-    arrived since stays unread and brings its thread back, and declining leaves as it was a thread
-    holding such a message, since you have not seen it. The status line says what the action did,
-    and the selection clears. **Done**, or `Esc` within the list, clears it too; with the question
-    open, `Esc` answers it with **Cancel**. The selection stays as the list refreshes and loads
-    more, and a thread that leaves the list leaves it.
+    anything is selected, the toolbar in the bar's place at the foot of the list says how many and
+    offers **Mark read**; **Mark unread**, which marks each thread unread from the agent's latest
+    message, leaving out a thread holding none, so the count it gives is of the threads now unread;
+    **Mark read and archive**, which keeps each thread holding an ask open to you as it was and says
+    how many it kept; and, while a thread selected holds an ask open to you, **Decline, mark read
+    and archive**, which first declines every such ask in messages of yours, up to ten answers to a
+    message, which the agent reads, then marks the thread read and archives it. Declining asks
+    first: for the threads selected, with how many asks and threads; for every thread that matches,
+    with how many of them hold an ask open to you, as the counts of the filters give it. An action
+    on the threads selected acts on at most 500 at once, each through the latest message the list
+    showed; an action on every thread that matches asks first, with how many, and acts on the
+    threads the filters keep, each through its latest message when the list was last loaded, leaving
+    out a thread started since; when the threads that match have changed in number since, as when a
+    deadline passed, it acts on none, and the list loads again and asks again. Either way a message
+    that arrived since stays unread and brings its thread back, and declining leaves as it was a
+    thread holding such a message, since you have not seen it. The status line says what the action
+    did, and the selection clears. **Done**, or `Esc` within the list, clears it too; with the
+    question open, `Esc` answers it with **Cancel**. The selection stays as the list refreshes and
+    loads more, and a thread that leaves the list leaves it.
 - **A thread** reads like an email. Its head starts with **Threads**, a button back to the list as
   you left it, with its filters, order and grouping, or with none when you opened the thread
   directly. Its heading leads with the thread's number, as a row's does. Under it, its agent,

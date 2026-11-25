@@ -1187,10 +1187,13 @@ button.picker[aria-expanded="true"] .icon {
   margin: 0;
 }
 
-/* The toolbar acting on the threads selected stays at the foot of the view
-   while the list scrolls beneath it, its actions wrapping where the width
-   does not hold them, so all of them stay on a phone's screen. */
-.selection-bar {
+/* The bar at the list's foot, acting on every thread shown or, while any is
+   selected, on those selected, stays at the foot of the view while the list
+   scrolls beneath it, and in the flow after the list's last row, so it never
+   covers that row once scrolled to; its actions wrap where the width does
+   not hold them, so all of them stay on a phone's screen, at its end but for
+   the count of those selected. */
+.list-bar {
   position: sticky;
   bottom: 0;
   z-index: var(--layer-sticky);
@@ -1200,10 +1203,19 @@ button.picker[aria-expanded="true"] .icon {
   background: var(--color-bg);
 }
 
-.selection-actions {
+/* What a key moves focus to scrolls into view a little above the bar, in
+   the page and in the list's own pane beside a thread, whose height ListBar
+   measures as it changes. */
+:root:has(.list-bar),
+.list-pane:has(.list-bar) {
+  scroll-padding-bottom: calc(var(--list-bar-height, 0px) + var(--space-2));
+}
+
+.list-bar-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 

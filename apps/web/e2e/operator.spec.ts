@@ -746,7 +746,7 @@ async function onOneRow(head: Locator): Promise<void> {
   expect(new Set(tops).size).toBe(1);
 }
 
-test("at a phone's width, down to the narrowest, the list's head holds its icons on one row, with nothing to scroll sideways, as the search field does", async () => {
+test("at a phone's width, down to the narrowest, the list's head holds its icons on one row, with nothing to scroll sideways, as the search field does, and the bar at the list's foot clears its last row", async () => {
   const wide = page.viewportSize();
   // Every control set, so each shows its mark, and Filters its count.
   await page.goto("/?search=deep&unread=true&sort=latest&reverse=true&group=session");
@@ -783,15 +783,77 @@ test("at a phone's width, down to the narrowest, the list's head holds its icons
     );
     await page.getByRole("button", { name: "Close search" }).click();
   }
-  // With threads listed, the head fits as it does over none.
+  // With threads listed, the bar at the list's foot acting on them follows
+  // the last row, which it never covers once scrolled to, on the narrowest
+  // phone and in the list beside a thread, with nothing to scroll sideways.
   await page.goto("/");
+  await clearOfTheBar(page.locator("main"));
   await fitsAcross(head, page.locator("main"));
   await onOneRow(head);
+  // A row j moves focus to scrolls into view clear of the bar too, on a
+  // phone and beside a thread, on screens short enough for the list to
+  // scroll.
+  await focusClearOfTheBar(page.locator("main"), 390);
+  const list = page.getByRole("region", { name: "Thread list" });
+  await focusClearOfTheBar(list, 1280);
+  await clearOfTheBar(list);
+  await fitsAcross(list.locator(".list-head"), list);
   if (wide !== null) {
     await resize(page, wide);
   }
   await page.goto("/");
 });
+
+// focusClearOfTheBar sizes the window at a width so the list's last row
+// ends at the foot of the screen, under the bar at the list's foot, then
+// moves focus down the rows with j from the top, and checks that each row
+// focused stands clear of the bar.
+async function focusClearOfTheBar(area: Locator, width: number): Promise<void> {
+  const bar = area.locator(".list-bar");
+  const rows = area.locator("ul.threads").getByRole("link");
+  const toTop = () =>
+    area.evaluate((element) => {
+      element.scrollTop = 0;
+      window.scrollTo(0, 0);
+    });
+  await resize(page, { width, height: 1200 });
+  await toTop();
+  const end = await rows.last().boundingBox();
+  await resize(page, { width, height: Math.ceil((end?.y ?? 0) + (end?.height ?? 0)) });
+  await expect(bar).toBeVisible();
+  await toTop();
+  // From no row, so j starts at the first.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const count = await rows.count();
+  const [last, before] = await Promise.all([rows.last().boundingBox(), bar.boundingBox()]);
+  // The last row starts out under the bar or below it, so moving to it
+  // scrolls.
+  expect((last?.y ?? 0) + (last?.height ?? 0)).toBeGreaterThan(before?.y ?? 0);
+  for (let index = 0; index < count; index += 1) {
+    await page.keyboard.press("j");
+    await expect(rows.nth(index)).toBeFocused();
+    const [row, shown] = await Promise.all([rows.nth(index).boundingBox(), bar.boundingBox()]);
+    expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual((shown?.y ?? 0) + 1);
+  }
+}
+
+// clearOfTheBar scrolls the list's area, and the page, to their ends, and
+// checks that the bar at the list's foot stands below the last row.
+async function clearOfTheBar(area: Locator): Promise<void> {
+  const bar = area.locator(".list-bar");
+  await expect(bar).toBeVisible();
+  await area.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  const [row, shown] = await Promise.all([
+    area.locator("ul.threads > li").last().boundingBox(),
+    bar.boundingBox(),
+  ]);
+  expect(row).not.toBeNull();
+  expect(shown).not.toBeNull();
+  expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual((shown?.y ?? 0) + 1);
+}
 
 test("from 41rem across, and only from there, the list's head shows every control's words on one row, its widest by touch with every control set, in the system's font and in Arial", async () => {
   const wide = page.viewportSize();

@@ -1297,12 +1297,22 @@ pointer (`pointer: coarse`), as Attach's menu does. On a touch screen a finger h
 for `longPress` selects it; the click that may follow is swallowed page-wide, since the list, as its
 header checkbox and checkboxes appear, can move another row under the finger, until it comes, a key
 is pressed, another touch starts or shortly after the finger lifts; and the link's own menu stays
-shut. The toolbar and the bulk buttons act through the actions on many threads, in one request
-(`src/views/list/actions.ts`): on the threads loaded, at most `maxActionThreads`, each through the
-latest message the list showed; or, once every thread that matches is selected, through the matching
-action with the list's filters, its `as_of` and its total as `expected`. What a confirmed action
-sends is taken as it asks, so it is what was on screen; refused as stale, the list loads again and
-asks again with what it then shows.
+shut. The list body's foot holds one bar (`ListBar`), sticky at the bottom of the view and in the
+flow after the last row, so it never covers that row once scrolled to: the bulk actions
+(`src/views/list/BulkActions.tsx`) on every thread shown, as the header checkbox takes them, while
+nothing is selected, each offered only while it would act on a thread, Archive all read only while
+one it takes holds no ask open to the operator, and the first of them the primary button, and the
+selection's toolbar (`src/views/list/SelectionBar.tsx`) while anything is; two components in one
+place, since the toolbar's questions and its acting on every thread that matches are the selection's
+alone. The bar gives the root its height (`useScrollClearOf`, as the composer's Send row does),
+which the page's and the list pane's `scroll-padding-bottom` keep clear, so a row focused from the
+keyboard scrolls into view above it. Focus that a pressed bulk action left moves to the new primary
+button, or, as the bar goes, where the toolbar's goes. The toolbar and the bulk actions act through
+the actions on many threads, in one request (`src/views/list/actions.ts`): on the threads loaded, at
+most `maxActionThreads`, each through the latest message the list showed; or, once every thread that
+matches is selected, through the matching action with the list's filters, its `as_of` and its total
+as `expected`. What a confirmed action sends is taken as it asks, so it is what was on screen;
+refused as stale, the list loads again and asks again with what it then shows.
 
 At a desktop's width, `64rem` and up, the Threads tab shows the list and the thread open side by
 side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. Side by

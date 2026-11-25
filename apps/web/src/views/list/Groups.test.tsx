@@ -335,6 +335,27 @@ describe("grouped by topic", () => {
     // The list loads again.
     await waitFor(() => expect(api.callsTo("GET", "/threads")).toHaveLength(2));
   });
+  it("marks read and archives only the threads shown, as Select all takes them, not those under a folded header", async () => {
+    serve(bySession);
+    api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
+    renderAt("/?group=topic");
+    await screen.findByRole("heading", { name: titled("Auth one") });
+    fireEvent.click(header("Agent builder Session main"));
+    fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
+    await waitFor(() => expect(api.callsTo("POST", "/threads/actions")).toHaveLength(1));
+    // builder/main's are folded away: only reviewer/main's unread thread.
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
+      threads: [{ agent: "reviewer", session: "main", thread: 1, through: 1 }],
+    });
+    await waitFor(() => expect(api.callsTo("GET", "/threads")).toHaveLength(2));
+    fireEvent.click(screen.getByRole("button", { name: "Archive all read" }));
+    await waitFor(() => expect(api.callsTo("POST", "/threads/actions")).toHaveLength(2));
+    expect(api.callsTo("POST", "/threads/actions")[1]?.body).toEqual({
+      action: "read_and_archive",
+      threads: [{ agent: "builder", session: "side", thread: 1, through: 1 }],
+    });
+  });
 });
 
 describe("grouped by session", () => {

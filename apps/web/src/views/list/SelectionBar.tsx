@@ -10,9 +10,16 @@ import {
   type ThreadSummary,
   type ThreadsView,
 } from "@wayfarerlabs/agention-api";
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { ApiFailure, query, request } from "../../api.ts";
-import { Confirmation, Failure, focusLeftWith } from "../../components.tsx";
+import { Confirmation, Failure, focusLeftWith, useScrollClearOf } from "../../components.tsx";
 import { useAction, useFollowing } from "../../data.ts";
 import { plural } from "../../format.tsx";
 import { queryOf } from "../../router.tsx";
@@ -23,6 +30,28 @@ import type { Selection } from "./selection.tsx";
 // selecting every thread shown and the offer to select every thread the
 // filters keep; and the toolbar below it while anything is selected, which
 // acts on what is.
+
+// The root's property holding how tall the bar at the list's foot is, which
+// the scroll padding of the page and of the list's own pane keeps clear.
+const listBarHeight = "--list-bar-height";
+
+// ListBar is the bar at the list's foot, stuck to the foot of the view, which
+// acts on every thread shown or on those selected; what a key moves focus to
+// scrolls into view clear of it. bar is the caller's hold on it.
+export function ListBar({
+  bar,
+  children,
+}: {
+  bar: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  useScrollClearOf(bar, listBarHeight);
+  return (
+    <div ref={bar} className="list-bar">
+      {children}
+    </div>
+  );
+}
 
 // SelectHead is the list's header checkbox, with a mouse or a trackpad, or
 // on a touch screen while anything is selected; and, once every thread shown
@@ -284,7 +313,7 @@ export function SelectionToolbar({
     (each) => each !== "decline_read_and_archive" || declining,
   );
   return (
-    <div ref={bar} className="selection-bar">
+    <ListBar bar={bar}>
       <Failure failure={action.failure} />
       {asking !== undefined ? (
         // Escape answers the question with Cancel, before it would clear the
@@ -306,7 +335,7 @@ export function SelectionToolbar({
           />
         </div>
       ) : (
-        <div role="group" aria-label={`${count} selected`} className="selection-actions">
+        <div role="group" aria-label={`${count} selected`} className="list-bar-actions">
           <span className="selection-count" aria-hidden="true">
             {count} selected
           </span>
@@ -332,6 +361,6 @@ export function SelectionToolbar({
           </button>
         </div>
       )}
-    </div>
+    </ListBar>
   );
 }

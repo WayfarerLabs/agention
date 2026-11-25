@@ -40,7 +40,7 @@ import { GroupedRows } from "./list/Groups.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
 import { ListHead, useHeadSearch } from "./list/ListHead.tsx";
 import { useSearchText } from "./list/search.tsx";
-import { ListSelection, useSelection } from "./list/selection.tsx";
+import { ListSelection, threadKey, useSelection } from "./list/selection.tsx";
 import { SelectHead, SelectionToolbar } from "./list/SelectionBar.tsx";
 import { useListShortcuts } from "./list/shortcuts.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
@@ -181,8 +181,10 @@ export function ThreadList() {
 // would be, and as each change the page makes lands, such as the thread
 // beside it being read, besides its refresh. It holds the list's selection
 // (useSelection) and its keyboard shortcuts, among them the one that selects
-// a row; onSearch is what the search shortcut does. Escape within the list
-// clears the selection.
+// a row; onSearch is what the search shortcut does. At its foot one bar acts
+// on threads: on every thread shown (BulkActions) while none is selected,
+// and on those selected (SelectionToolbar) while any are. Escape within the
+// list clears the selection.
 function ListBody({
   list,
   empty,
@@ -262,6 +264,7 @@ function ListBody({
     return () => observer.disconnect();
   }, [readRendered]);
   const selection = useSelection(shown?.rows ?? noRows, rendered);
+  const shownKeys = useMemo(() => new Set(rendered), [rendered]);
   useListShortcuts(onSearch, selection.toggle);
   const selectAll = useRef<HTMLInputElement>(null);
   // Where focus goes from the toolbar as it goes: the header checkbox, or
@@ -285,15 +288,6 @@ function ListBody({
             <p className="empty">{empty}</p>
           ) : (
             <ListSelection.Provider value={selection}>
-              {!selection.selecting && (
-                <BulkActions
-                  view={view}
-                  threads={rows}
-                  more={next !== undefined}
-                  refresh={pages.refresh}
-                  say={say}
-                />
-              )}
               <SelectHead selection={selection} total={total} checkbox={selectAll} />
               {view.group === undefined ? (
                 <ul className="threads">
@@ -309,12 +303,21 @@ function ListBody({
                 <GroupedRows threads={rows} groups={groups} grouping={view.group} list={list} />
               )}
               <MoreButton next={next} loading={pages.loading} more={pages.more} />
-              {selection.selecting && (
+              {selection.selecting ? (
                 <SelectionToolbar
                   view={view}
                   selection={selection}
                   total={total}
                   asOf={asOf}
+                  refresh={pages.refresh}
+                  say={say}
+                  fallback={fallback}
+                />
+              ) : (
+                <BulkActions
+                  view={view}
+                  threads={rows.filter((thread) => shownKeys.has(threadKey(thread)))}
+                  more={next !== undefined}
                   refresh={pages.refresh}
                   say={say}
                   fallback={fallback}

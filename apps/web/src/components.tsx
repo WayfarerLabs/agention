@@ -216,6 +216,29 @@ export function Loadable<T>({
   );
 }
 
+// useScrollClearOf keeps what the page scrolls into view, as the caret while
+// typing or a control focused from the keyboard, clear of a bar stuck at the
+// foot of the screen, such as the composer's Send row, however tall what it
+// holds makes it: it gives the root's property the bar's height while the
+// bar is shown, for the stylesheet's scroll padding.
+export function useScrollClearOf(bar: RefObject<HTMLElement | null>, property: string): void {
+  useEffect(() => {
+    const element = bar.current;
+    if (element === null || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => {
+      root.style.setProperty(property, `${element.offsetHeight}px`);
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty(property);
+    };
+  }, [bar, property]);
+}
+
 // focusLeftWith says whether focus is where a pressed control left it: on
 // nothing, as when that control was removed, or within one of the elements
 // given. A control that replaces another moves focus to its successor only

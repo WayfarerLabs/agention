@@ -1781,6 +1781,111 @@ describe("bulk marks", () => {
     });
   });
 
+  it("offer Mark all read first while any thread loaded is unread, and Archive all read once none is", async () => {
+    let read = false;
+    api
+      .on("GET", "/threads", () => ({
+        body: {
+          threads: [
+            threadSummary({ number: 1, title: "Unread", unread: read ? 0 : 2, last_seq: 3 }),
+            threadSummary({ number: 2, title: "Read", unread: 0, last_seq: 4 }),
+          ],
+          total,
+        },
+      }))
+      .on("POST", "/threads/actions", () => {
+        read = true;
+        return {
+          body: {
+            acted: [{ agent: "builder", session: "main", thread: 1 }],
+            declined: [],
+            kept: [],
+          },
+        };
+      });
+    renderAt("/");
+    const loaded = async () => screen.findByRole("group", { name: "Threads shown" });
+    // The primary action, the one not drawn as secondary, comes last.
+    const offered = async () =>
+      within(await loaded())
+        .getAllByRole("button")
+        .map((each) => [each.textContent, each.classList.contains("secondary")]);
+    expect(await offered()).toEqual([
+      ["Archive all read", true],
+      ["Mark all read", false],
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    await said();
+    // Without the Unread filter it marks only the threads holding something
+    // unread.
+    expect(api.callsTo("POST", "/threads/actions")[0]?.body).toEqual({
+      action: "read",
+      threads: [{ agent: "builder", session: "main", thread: 1, through: 3 }],
+    });
+    await waitFor(async () => expect(await offered()).toEqual([["Archive all read", false]]));
+  });
+
+  it("move focus that the action pressed left to the next one, and to Select all once the bar goes", async () => {
+    let step = 0;
+    const withAsk = threadSummary({
+      number: 3,
+      title: "Read, with an ask",
+      unread: 0,
+      last_seq: 2,
+      open_asks: { ...asking.open_asks, asks: [{ number: 1, seq: 2 }], count: 1 },
+    });
+    api
+      .on("GET", "/threads", () => ({
+        body: {
+          threads: [
+            ...(step < 2
+              ? [threadSummary({ number: 1, title: "Notes", unread: step === 0 ? 1 : 0 })]
+              : []),
+            withAsk,
+          ],
+          total,
+        },
+      }))
+      .on("POST", "/threads/actions", () => {
+        step += 1;
+        return { body: { acted: [], declined: [], kept: [] } };
+      });
+    renderAt("/");
+    const markRead = await screen.findByRole("button", { name: "Mark all read" });
+    markRead.focus();
+    fireEvent.click(markRead);
+    const archive = await screen.findByRole("button", { name: "Archive all read" });
+    await waitFor(() => expect(document.activeElement).toBe(archive));
+    fireEvent.click(archive);
+    // Only a thread holding an ask is left, which archiving would keep, so
+    // the bar goes, and focus moves where the selection's toolbar sends it.
+    await waitFor(() => expect(document.querySelector(".list-bar")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("checkbox", { name: "Select all" }));
+  });
+
+  it("offer no archiving while every read thread shown holds an ask open, which it would keep", async () => {
+    serve([
+      threadSummary({
+        number: 3,
+        title: "Read, with an ask",
+        unread: 0,
+        open_asks: { ...asking.open_asks, asks: [{ number: 1, seq: 1 }], count: 1 },
+      }),
+    ]);
+    renderAt("/");
+    await screen.findByText("Read, with an ask");
+    expect(screen.queryByRole("button", { name: "Archive all read" })).toBeNull();
+    expect(document.querySelector(".list-bar")).toBeNull();
+  });
+
+  it("show no bar when there is nothing to mark read or archive", async () => {
+    serve([threadSummary({ number: 2, title: "Read", unread: 0 })]);
+    renderAt("/?include_archived=true");
+    await screen.findByText("Read");
+    expect(screen.queryByRole("group", { name: "Threads shown" })).toBeNull();
+    expect(document.querySelector(".list-bar")).toBeNull();
+  });
+
   it("act on the threads loaded while more remain to load", async () => {
     api
       .on("GET", "/threads", {

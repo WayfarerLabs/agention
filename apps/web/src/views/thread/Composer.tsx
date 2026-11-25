@@ -18,7 +18,7 @@ import {
 } from "../../attach/attach.ts";
 import { AttachButton } from "../../attach/AttachButton.tsx";
 import { AttachList } from "../../attach/AttachList.tsx";
-import { ConfirmButton, Status } from "../../components.tsx";
+import { ConfirmButton, Status, useScrollClearOf } from "../../components.tsx";
 import { type KeptDraft, useDeviceChoice, useDeviceOption } from "../../device.ts";
 import { otherLabel, quoted } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
@@ -151,28 +151,6 @@ function sentStatus(staged: Staged | undefined): string {
 // The root's property holding how tall the Send row is, which the page's
 // scroll padding keeps clear.
 const sendRowHeight = "--send-row-height";
-
-// useScrollClearOf keeps what the page scrolls into view, as the caret while
-// typing or a control focused from the keyboard, clear of the Send row stuck
-// at the foot of the screen, however tall what it holds makes it: it gives
-// the root the row's height while the composer is open.
-function useScrollClearOf(row: RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    const element = row.current;
-    if (element === null || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const root = document.documentElement;
-    const observer = new ResizeObserver(() => {
-      root.style.setProperty(sendRowHeight, `${element.offsetHeight}px`);
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      root.style.removeProperty(sendRowHeight);
-    };
-  }, [row]);
-}
 
 export function Composer({
   writer,
@@ -324,7 +302,7 @@ export function Composer({
   const [status, setStatus] = useState(arrived ?? "");
   const said = onwardFailure === undefined ? status : `${status} ${onwardFailure}`.trim();
   const actions = useRef<HTMLDivElement>(null);
-  useScrollClearOf(actions);
+  useScrollClearOf(actions, sendRowHeight);
   // Whether After sending had focus as dictation moved it.
   const afterHadFocus = useRef(false);
   const id = useId();
