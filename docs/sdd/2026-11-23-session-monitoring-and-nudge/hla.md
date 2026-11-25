@@ -177,9 +177,9 @@ harness version and what they show, and its tests read them. They come from clea
 (a fresh home, default settings, no account details on screen) or are scrubbed, and review checks
 each one (M5). The spike's screens were not kept, so building each profile starts by capturing them
 again: the prompt, a running turn, the permission and trust dialogs, Claude Code's vim and shell
-modes. Usage limits come from a scrubbed capture of one of the operator's Claude Code sessions at a
-limit it reached on its own and from Codex samples the operator provides (ruling 5, pull request
-1c); block and error wait for a capture.
+modes. Usage limits come from screens the operator captures at a limit one of their Claude Code
+sessions reached on its own and from Codex samples the operator provides, each scrubbed (rulings 5
+and 6, pull request 1c); block and error wait for a capture.
 
 ## Monitoring
 
@@ -188,12 +188,13 @@ limit it reached on its own and from Codex samples the operator provides (ruling
 The reporter runs in the bridge beside the agent's own tools, which work as today.
 
 - **Starting.** At bridge start when the default session (the one `AGENTWORKS_AGENT` and
-  `AGENTWORKS_SESSION` name) has a key on disk, as a restarted bridge under Agentworks does; on
-  `register`; and on the first tool call that finds the session's credential, as any other restarted
-  bridge does. While the registration is pending it reads its state every 15 seconds with the
-  request `register` already makes, marked as background (below), until two minutes before it
-  expires; on approval it starts monitoring without the agent calling a tool (M9). A refused,
-  revoked or expired registration stops it until the next `register`.
+  `AGENTWORKS_SESSION` name) has a key on disk, as a restarted bridge under Agentworks does, which
+  fixes the bridge to that session; on `register`; and on the first tool call that finds the
+  session's credential, as any other restarted bridge does. While the registration is pending it
+  reads its state every 15 seconds with the request `register` already makes, marked as background
+  (below), until two minutes before it expires; on approval it starts monitoring without the agent
+  calling a tool (M9). A refused, revoked or expired registration stops it until the next
+  `register`.
 - **The background connection.** It long-polls `GET /api/agent/s/<agent>/<session>/monitor` with an
   id it drew at start, 25 seconds at a time, one request at a time, at least a second apart, backing
   off from 1 to 60 seconds while the server is unreachable. Each request keeps the session connected
@@ -223,8 +224,10 @@ saved cursor and `claude-code` gate do not carry over.
   whether a pane is monitored, the profile's name, the condition and since when, and the stopped-by
   reason with its reset time. Every field is a schema-checked enumeration, boolean, time or the
   profile's name; there is no free text (M8). A report replaces the last.
-- **`POST /registrations`** gains a `background` flag; the reporter's pending reads set it, so
-  approval marks the session connected, never checked in.
+- **`POST /registrations`** gains a `background` flag; the reporter's reads set it, so approval
+  marks the session connected, never checked in, and a background read never creates a registration:
+  a key the server does not know is refused, so a restarted bridge never puts an approval in front
+  of the operator that no agent asked for.
 - **Every other approved request is the agent checking in** (M2), as today's last seen is.
 
 ### The server

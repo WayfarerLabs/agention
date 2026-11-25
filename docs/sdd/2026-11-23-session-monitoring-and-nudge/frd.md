@@ -353,6 +353,11 @@ an account label, was dropped by ruling 4.
    running, screen and stopped-by model, the definition of done's usage limits on both hosts, and
    the reworded bound.
 
+6. (2026-11-25) Asked whether they would tell the effort lead which Claude Code session hit a usage
+   limit so its pane could be captured once, the operator chose "I'll capture it myself" and wrote:
+   "I'll capture it myself. You won't have access to do it directly." Taken: the definition of
+   done's Claude Code usage-limit screens come from the operator.
+
 ## Definition of done
 
 Monitoring ships first and stands on its own; each delivery is done when its part holds.
@@ -366,8 +371,8 @@ Monitoring ships first and stands on its own; each delivery is done when its par
     while at its prompt starts reporting; and on Codex, of several bridges for one session, only one
     reports.
   - A usage limit is detected on Claude Code and on Codex from screens of limits that happened on
-    their own, never brought about for the purpose: a scrubbed capture of one of the operator's
-    Claude Code sessions, and Codex samples the operator provides (ruling 5).
+    their own, never brought about for the purpose: Claude Code screens the operator captures from
+    one of their sessions, and Codex samples the operator provides, both scrubbed (rulings 5 and 6).
 - **Nudge:**
   - N1 to N6 and T1 are implemented, tested at their boundary, and documented in permanent docs.
   - Live the same way: an agent at its prompt is nudged when the operator starts a thread with it
