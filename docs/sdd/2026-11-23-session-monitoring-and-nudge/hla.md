@@ -273,12 +273,12 @@ Delivery 2 bumps the agent API to version 7:
   agent's last check-in; and no nudge has been claimed since that check-in (N1, N3, N4). The answer
   is level-triggered: a bridge that already knows one is due says so, and its poll is held until
   that changes, so a nudge waiting for a still prompt costs no requests (C2). A report that finds
-  the session nudgeable at its prompt and a message wake the poll, since those make a nudge due;
-  what ends one wakes nothing, because a claim checks again that one is due; working it out writes
-  nothing, and a replaced bridge is never told. The server works this out from the session's own
-  rows, so it holds across bridge restarts, takeovers and Codex's several bridges, and the bridge
-  learns only that one is due, never why: nothing about threads or presence reaches the agent
-  through it.
+  the session at its prompt, able to be nudged, and a message wake the poll, since those make a
+  nudge due; what ends one wakes nothing, because a claim checks again that one is due; working it
+  out writes nothing, and a replaced bridge is never told. The server works this out from the
+  session's own rows, so it holds across bridge restarts, takeovers and Codex's several bridges, and
+  the bridge learns only that one is due, never why: nothing about threads or presence reaches the
+  agent through it.
 - **The claim and the outcome.** `POST .../monitor/nudge` starts a nudge, in one transaction: the
   server checks that the bridge acts for the session and that one is due, records the nudge at its
   own clock with no outcome yet, and answers whether to go. The bridge types nothing until it does,
