@@ -32,17 +32,19 @@ import {
   useLocation,
 } from "../router.tsx";
 import type { ListShown } from "./filter-links.tsx";
+import { openPicker } from "./list-head.tsx";
 import { ListBeside } from "./list/beside.ts";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet } from "./list/FilterSheet.tsx";
+import { RowFocusOwed } from "./list/focus-owed.ts";
 import { GroupedRows } from "./list/Groups.tsx";
-import { ListBar, ShownActions } from "./list/ListBar.tsx";
+import { ListBar, type MarkKey, ShownActions } from "./list/ListBar.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
 import { ListHead, useHeadSearch } from "./list/ListHead.tsx";
 import { useSearchText } from "./list/search.tsx";
 import { ListSelection, threadKey, useSelection } from "./list/selection.tsx";
 import { SelectHead, SelectionActions } from "./list/SelectionControls.tsx";
-import { useListShortcuts } from "./list/shortcuts.ts";
+import { type ListKeys, useListShortcuts } from "./list/shortcuts.ts";
 import { ThreadRow } from "./list/ThreadRow.tsx";
 
 // The thread list, built filters first: with no filter on it holds every
@@ -92,6 +94,8 @@ export function ThreadList() {
   const sheet = useRef<HTMLDialogElement>(null);
   const sheetHeading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  const sorting = useRef<HTMLSelectElement>(null);
+  const grouping = useRef<HTMLSelectElement>(null);
   const field = useHeadSearch(search, view.search);
   const searchId = useId();
   // A chip removed, or a header's link followed, leaves the control that had
@@ -133,6 +137,8 @@ export function ThreadList() {
         on={on}
         opener={opener}
         openSheet={openSheet}
+        sorting={sorting}
+        grouping={grouping}
       />
       {/* The search's chip hides while the field shows the search. */}
       <Chips
@@ -168,7 +174,14 @@ export function ThreadList() {
         }}
         empty={on > 0 ? "No threads match these filters." : "No threads to show."}
         onTotal={onTotal}
-        onSearch={field.show}
+        head={{
+          search: field.show,
+          // As pressing Filters, the order, and the grouping do, while the
+          // head shows them: not while the search field takes its row.
+          filters: () => opener.current?.click(),
+          sort: () => openPicker(sorting.current),
+          grouping: () => openPicker(grouping.current),
+        }}
       />
     </PaletteProvider>
   );
@@ -184,7 +197,8 @@ export function ThreadList() {
 // would be, and as each change the page makes lands, such as the thread
 // beside it being read, besides its refresh. It holds the list's selection
 // (useSelection) and its keyboard shortcuts, among them the one that selects
-// a row; onSearch is what the search shortcut does. At its foot, while it has
+// a row and those that mark threads, which act through the bar; head is what
+// the shortcuts acting on the list's head do. At its foot, while it has
 // rows, one bar acts on threads (ListBar): on every thread shown
 // (ShownActions) while none is selected, its caption saying what the status
 // region says, and on those selected (SelectionActions) while any are.
@@ -193,13 +207,13 @@ function ListBody({
   list,
   empty,
   onTotal,
-  onSearch,
+  head,
 }: {
   // The list on screen, which a grouped header's links choose changes to.
   list: ListShown;
   empty: string;
   onTotal: (total: number) => void;
-  onSearch: () => void;
+  head: Pick<ListKeys, "search" | "filters" | "sort" | "grouping">;
 }) {
   const { view } = list;
   const [said, say] = useState("");
@@ -269,7 +283,15 @@ function ListBody({
   }, [readRendered]);
   const selection = useSelection(shown?.rows ?? noRows, rendered);
   const shownKeys = useMemo(() => new Set(rendered), [rendered]);
-  useListShortcuts(onSearch, selection.toggle);
+  // The mark keys' action, which the bar's state gives while the bar shows.
+  const marking = useRef<MarkKey>(undefined);
+  // Whether the bar owes the rows focus, which they leave to it as they go.
+  const focusOwed = useRef(false);
+  useListShortcuts({
+    ...head,
+    toggle: selection.toggle,
+    mark: (action, current) => marking.current?.(action, current),
+  });
   const selectAll = useRef<HTMLInputElement>(null);
   // Where focus goes from the bar as what it holds goes: the header
   // checkbox, or where it is not shown, as on a touch screen with nothing
@@ -296,47 +318,49 @@ function ListBody({
             <p className="empty">{empty}</p>
           ) : (
             <ListSelection.Provider value={selection}>
-              <SelectHead selection={selection} total={total} checkbox={selectAll} />
-              {view.group === undefined ? (
-                <ul className="threads">
-                  {rows.map((thread) => (
-                    <ThreadRow
-                      key={`${thread.agent}/${thread.session}/${thread.number}`}
-                      thread={thread}
-                      level={2}
-                    />
-                  ))}
-                </ul>
-              ) : (
-                <GroupedRows threads={rows} groups={groups} grouping={view.group} list={list} />
-              )}
-              <MoreButton next={next} loading={pages.loading} more={pages.more} />
-              <ListBar fallback={fallback}>
-                {(acting) =>
-                  selection.selecting ? (
-                    <SelectionActions
-                      view={view}
-                      selection={selection}
-                      total={total}
-                      asOf={asOf}
-                      refresh={pages.refresh}
-                      say={say}
-                      acting={acting}
-                    />
-                  ) : (
-                    <ShownActions
-                      view={view}
-                      threads={rows.filter((thread) => shownKeys.has(threadKey(thread)))}
-                      total={total}
-                      more={next !== undefined}
-                      refresh={pages.refresh}
-                      said={said}
-                      say={say}
-                      acting={acting}
-                    />
-                  )
-                }
-              </ListBar>
+              <RowFocusOwed.Provider value={focusOwed}>
+                <SelectHead selection={selection} total={total} checkbox={selectAll} />
+                {view.group === undefined ? (
+                  <ul className="threads">
+                    {rows.map((thread) => (
+                      <ThreadRow
+                        key={`${thread.agent}/${thread.session}/${thread.number}`}
+                        thread={thread}
+                        level={2}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <GroupedRows threads={rows} groups={groups} grouping={view.group} list={list} />
+                )}
+                <MoreButton next={next} loading={pages.loading} more={pages.more} />
+                <ListBar fallback={fallback} keys={marking} focusOwed={focusOwed}>
+                  {(acting) =>
+                    selection.selecting ? (
+                      <SelectionActions
+                        view={view}
+                        selection={selection}
+                        total={total}
+                        asOf={asOf}
+                        refresh={pages.refresh}
+                        say={say}
+                        acting={acting}
+                      />
+                    ) : (
+                      <ShownActions
+                        view={view}
+                        threads={rows.filter((thread) => shownKeys.has(threadKey(thread)))}
+                        total={total}
+                        more={next !== undefined}
+                        refresh={pages.refresh}
+                        said={said}
+                        say={say}
+                        acting={acting}
+                      />
+                    )
+                  }
+                </ListBar>
+              </RowFocusOwed.Provider>
             </ListSelection.Provider>
           )
         }

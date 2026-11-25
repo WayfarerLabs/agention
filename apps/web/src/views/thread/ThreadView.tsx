@@ -54,7 +54,14 @@ import { useVoiceOn } from "../../voice/Dictation.tsx";
 import { Composer, useAfterSending } from "./Composer.tsx";
 import { ThreadCodeLinks } from "./CodeLinks.tsx";
 import { ThreadFiles } from "./files/FileList.tsx";
-import { type MessageContext, MessageList, mine, suggestionChoices } from "./Messages.tsx";
+import {
+  focusedMessage,
+  type MessageContext,
+  MessageList,
+  mine,
+  offersMarks,
+  suggestionChoices,
+} from "./Messages.tsx";
 import { returnToList, useLeaving } from "./leaving.ts";
 import { ThreadBar } from "./ThreadBar.tsx";
 import {
@@ -608,6 +615,57 @@ function ThreadPage({
     (seq: number) => messages.find((message) => message.seq === seq),
     [messages],
   );
+  // Mark unread from here, from a message's options or U.
+  const markUnread = (message: Message) => {
+    reading.stop();
+    setMarkedFrom({ seq: message.seq, mark: "unread" });
+    void leaveWith(unread, "/unread", { from: message.seq });
+  };
+  // U marks the thread unread from the message that holds focus; with none,
+  // from the first live one the page marks unread, so the thread is unread
+  // again as it was on opening; or with none, from the agent's latest
+  // loaded; and only while that message offers Mark unread from here, by its
+  // sequence.
+  // It waits until every read mark the page started has settled, since one
+  // landing after it would undo it, then looks again at the message as the
+  // page shows it then, and starts nothing while the page is on its way
+  // elsewhere (busy), as while a mark from a message or Archive all is under
+  // way. It is held from the press, so a second press before the page
+  // renders again starts no other. The page reads on until the mark goes
+  // ahead, which stops it, so one that does not, as when the message was
+  // replaced meanwhile, leaves the page reading what it shows.
+  const [unreadAsked, setUnreadAsked] = useState<number>();
+  const unreadHeld = useRef(false);
+  useEffect(() => {
+    if (unreadAsked === undefined && !unread.pending) {
+      unreadHeld.current = false;
+    }
+  });
+  useEffect(() => {
+    if (unreadAsked === undefined || reading.pending) {
+      return;
+    }
+    setUnreadAsked(undefined);
+    const from = find(unreadAsked);
+    if (!busy && from !== undefined && offersMarks(from, archivedThrough)) {
+      markUnread(from);
+    }
+  }, [unreadAsked, reading.pending]);
+  const markUnreadByKey = () => {
+    if (unreadHeld.current || busy) {
+      return;
+    }
+    const focused = focusedMessage();
+    const from =
+      focused !== undefined
+        ? find(focused)
+        : (messages.find((message) => message.live && unreadHere.has(message.seq)) ??
+          messages.findLast((message) => message.live && !mine(message)));
+    if (from !== undefined && offersMarks(from, archivedThrough)) {
+      unreadHeld.current = true;
+      setUnreadAsked(from.seq);
+    }
+  };
   // A change or an edit is a whole message, so it starts only from an empty
   // composer, loading the text, detail and files of the message it replaces,
   // before anything is staged, and stages the parts it carries again
@@ -764,11 +822,7 @@ function ThreadPage({
       changeAnswers: (message) => void changeAnswers(message),
       edit: (message) =>
         replace(message, { kind: "edit", replaces: message.seq, kept: keptParts(message) }),
-      markUnread: (message) => {
-        reading.stop();
-        setMarkedFrom({ seq: message.seq, mark: "unread" });
-        void leaveWith(unread, "/unread", { from: message.seq });
-      },
+      markUnread,
       archiveThrough: (message) => void archiveThrough(message),
       archiveHint: (message) => archiveHint(message.seq),
       archivedThrough,
@@ -806,6 +860,7 @@ function ThreadPage({
     backToList: () => navigate(listHref(origin)),
     reply: () => composerBox.current?.focus(),
     archive: pressArchive,
+    markUnreadFrom: markUnreadByKey,
     openAbove: () => void openNeighbor("above"),
     openBelow: () => void openNeighbor("below"),
     jump: () => {

@@ -1355,12 +1355,16 @@ thread's while it loads, is pending: the first heading to show in it (`PageHeadi
 it shows, while focus is still on the landing itself or on nothing, as when the control that had it
 went, never from where the operator has put it meanwhile, within the landing or not. So a thread
 opened from the list, by Thread above or below, by archiving or after sending lands on its heading
-at every width. A row that goes while it holds focus passes it to the page's heading, and crossing
-the breakpoint, if it took away what held focus, moves focus to where a navigation lands. The thread
-keeps the page's own scroll, and the list's pane is sticky and scrolls on its own; until the page
-scrolls the banner away, the pane starts below it, so its height leaves out how far below the top of
-the screen it starts, which the layout measures as the page scrolls, as the window resizes and as
-the banner changes in height (`usePaneTop`), so the bar at the pane's foot stays on screen.
+at every width. A row that goes while it holds focus passes it to the page's heading, unless the
+list's bar owes the rows focus (`RowFocusOwed`, `src/views/list/focus-owed.ts`), as it does from a
+mark key pressed on a row until its action is done: the list can load afresh without the row before
+then, as on the change landing, and the bar then returns focus to the row in its place itself.
+Crossing the breakpoint, if it took away what held focus, moves focus to where a navigation lands.
+The thread keeps the page's own scroll, and the list's pane is sticky and scrolls on its own; until
+the page scrolls the banner away, the pane starts below it, so its height leaves out how far below
+the top of the screen it starts, which the layout measures as the page scrolls, as the window
+resizes and as the banner changes in height (`usePaneTop`), so the bar at the pane's foot stays on
+screen.
 
 Both bars at the foot of a pane, the list's and the thread page's, are one component
 (`src/action-bar.tsx`): a labelled region, last in its pane, sticky at the foot of the screen, or of
@@ -1539,21 +1543,34 @@ keys, Send and leaving it, act within its fields from its form's key handler (`u
 and likewise not while a dialog or options menu is open, such as Attach's within the form. Side by
 side, the list's shortcuts and the thread's act together, each pane naming the area of its view's
 (`ShortcutArea`), which clicking within a pane gives focus. While focus is in one place's area,
-another place's keys act only if they reach across (`reachesAcross`): the list's do, moving focus
-into it, but the thread's do not, so `e`, a digit or `u` never acts on the thread from the list. A
-key both bind, `n`, acts in the place whose area holds focus, or else in the later place declared,
-the thread. The thread list's selection is the row whose link has focus
+another place's keys act only if they reach across (`reachesAcross`): the list's do, acting on the
+list from the thread beside it, as `j` moves focus into the list and `I` marks the open thread's row
+with focus left in the thread, but the thread's do not, so `e`, a digit, or `u` never acts on the
+thread from the list. A key both bind, `n` or `U`, acts in the place whose area holds focus, or else
+in the later place declared, the thread. The thread list's selection is the row whose link has focus
 (`src/views/list/shortcuts.ts`), or, side by side with focus on no row, the open thread's, so moving
 it moves focus, which the focus ring shows and a screen reader follows; the number keys choose a
 suggestion on the ask card that holds focus or else the first open one, by pressing its control. The
-shortcuts are on unless the operator turns them off in Settings' Keyboard section, which this
-browser keeps in its local storage (`src/device.ts`). Enter sends, in the same section, is a choice
-of its own, off until the operator turns it on and kept the same way, and not a shortcut, so it
-holds with the shortcuts off: on, the composer's form handler takes `Enter` alone in its Message or
-Details box and gives it its Send shortcut's action, but not its repeats, which type nothing, and
-leaves `Shift+Enter` and `Enter` on its buttons to the browser; the boxes' hints say so. No key in
-the composer acts while an input method composes, by `isComposing` or WebKit's key code 229
-(`composing`).
+list's `I` and `U` act through the bar at its foot, whose state gives them its action (`useMarkKeys`
+in `src/views/list/ListBar.tsx`): on the threads selected, as Read and Unread do, or with none
+selected, on the current row's thread alone; pressed with focus on that row, focus goes back to it,
+or, should the mark take it out of the list, to the row in its place, and pressed with focus
+elsewhere, as in the thread beside the list, it stays there. A thread's `U` is Mark unread from
+here, on the message that holds focus, or else the first live one the page marks unread, or else the
+agent's latest loaded message, once every read mark the page started has settled (`useReading`
+counts them, since they can overlap and land out of order), so no read can undo it; it then looks
+again at the message as the page shows it. It looks only at the messages loaded, so on a thread read
+already whose agent last wrote before the newest 50, `U` with no message focused does nothing. `f`
+presses Filters, and `s` and `b` give focus to the order's select and the grouping's, opening their
+pickers with `showPicker` where the browser allows it; `s` alone is a key of its own, though `g`
+then `s` goes to Sessions. The shortcuts are on unless the operator turns them off in Settings'
+Keyboard section, which this browser keeps in its local storage (`src/device.ts`). Enter sends, in
+the same section, is a choice of its own, off until the operator turns it on and kept the same way,
+and not a shortcut, so it holds with the shortcuts off: on, the composer's form handler takes
+`Enter` alone in its Message or Details box and gives it its Send shortcut's action, but not its
+repeats, which type nothing, and leaves `Shift+Enter` and `Enter` on its buttons to the browser; the
+boxes' hints say so. No key in the composer acts while an input method composes, by `isComposing` or
+WebKit's key code 229 (`composing`).
 
 The thread page parses a message's detail only once its fold is opened, and the message list keeps
 each message's place by its sequence, so a refresh keeps an opened fold open. A message's copy

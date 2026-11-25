@@ -106,6 +106,8 @@ export function ListHead({
   on,
   opener,
   openSheet,
+  sorting,
+  grouping,
 }: {
   view: ThreadsView;
   choose: (change: Partial<ThreadsView>) => void;
@@ -117,6 +119,9 @@ export function ListHead({
   // Filters, which opens the sheet.
   opener: RefObject<HTMLButtonElement | null>;
   openSheet: () => void;
+  // The order's select and the grouping's.
+  sorting: RefObject<HTMLSelectElement | null>;
+  grouping: RefObject<HTMLSelectElement | null>;
 }) {
   if (field.open) {
     return (
@@ -160,6 +165,7 @@ export function ListHead({
           value={view.sort}
           options={threadSort.options.map((each) => ({ value: each, label: sortLabel[each] }))}
           marked={view.sort !== unfiltered.sort}
+          select={sorting}
           choose={(value) =>
             choose({ sort: threadSort.safeParse(value).data ?? view.sort, reverse: false })
           }
@@ -179,6 +185,7 @@ export function ListHead({
           ...threadGrouping.options.map((each) => ({ value: each, label: groupLabel[each] })),
         ]}
         marked={view.group !== undefined}
+        select={grouping}
         choose={(value) => choose({ group: threadGrouping.safeParse(value).data })}
       />
     </div>

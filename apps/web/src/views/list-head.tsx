@@ -72,6 +72,7 @@ export function HeadSelect({
   value,
   options,
   marked,
+  select,
   choose,
 }: {
   icon: IconName;
@@ -80,6 +81,7 @@ export function HeadSelect({
   options: { value: string; label: string }[];
   // Whether the choice is any but the default.
   marked: boolean;
+  select?: Ref<HTMLSelectElement>;
   choose: (value: string) => void;
 }) {
   const chosen = options.find((each) => each.value === value);
@@ -90,7 +92,12 @@ export function HeadSelect({
         {chosen?.label}
       </span>
       {marked && <SetMark />}
-      <select aria-label={label} value={value} onChange={(event) => choose(event.target.value)}>
+      <select
+        ref={select}
+        aria-label={label}
+        value={value}
+        onChange={(event) => choose(event.target.value)}
+      >
         {options.map((each) => (
           <option key={each.value} value={each.value}>
             {each.label}
@@ -99,6 +106,22 @@ export function HeadSelect({
       </select>
     </div>
   );
+}
+
+// openPicker puts focus on a head's select and opens its picker, as a click
+// on it does, where the browser lets a key open it; elsewhere, with focus on
+// it, the keyboard opens it or chooses.
+export function openPicker(select: HTMLSelectElement | null): void {
+  if (select === null) {
+    return;
+  }
+  select.focus();
+  try {
+    select.showPicker();
+  } catch {
+    // A browser without showPicker for a select, or refusing it here, leaves
+    // the select with focus.
+  }
 }
 
 // DirectionButton reverses the list's order when pressed, its arrow pointing

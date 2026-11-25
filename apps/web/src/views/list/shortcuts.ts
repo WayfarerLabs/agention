@@ -1,4 +1,5 @@
 import { useShortcuts } from "../../keyboard.tsx";
+import type { MarkKey } from "./ListBar.tsx";
 import { needsYou, rowLinks } from "./ThreadRow.tsx";
 
 // The thread list's keyboard shortcuts. The current row is the row whose
@@ -7,7 +8,9 @@ import { needsYou, rowLinks } from "./ThreadRow.tsx";
 // side, the row of the thread open beside the list is current, so moving
 // starts from it and opens nothing; with none current, moving goes to the
 // first row there is to move to. Selecting threads to act on together
-// (selection.tsx) is apart from this: x selects the current row's thread.
+// (selection.tsx) is apart from this: x selects the current row's thread,
+// and I and U mark read or unread the threads selected, or with none, the
+// current row's.
 
 function current(links: HTMLAnchorElement[]): number {
   const focused = links.findIndex((link) => link === document.activeElement);
@@ -46,10 +49,38 @@ function open(): void {
   links[current(links)]?.click();
 }
 
+// The current row's thread, by its key, if a row is current.
+function currentKey(): string | undefined {
+  const links = rowLinks();
+  return links[current(links)]?.dataset.thread;
+}
+
+// What the thread list's shortcuts act through, beyond its rows: search opens
+// the list's search, filters its sheet of filters, and sort and grouping the
+// choice of its order and of its grouping, as their controls in the list's
+// head do; toggle selects or unselects a thread by its key, as the current
+// row's checkbox does; and mark marks read or unread, as the bar at the
+// list's foot does, the threads selected, or with none, the current row's
+// thread, by its key.
+export interface ListKeys {
+  search: () => void;
+  filters: () => void;
+  sort: () => void;
+  grouping: () => void;
+  toggle: (key: string) => void;
+  mark: MarkKey;
+}
+
 // useListShortcuts gives the thread list's shortcuts their actions while the
-// list is mounted; search opens the list's search, and toggle selects or
-// unselects a thread by its key, as the current row's checkbox does.
-export function useListShortcuts(search: () => void, toggle: (key: string) => void): void {
+// list is mounted.
+export function useListShortcuts({
+  search,
+  filters,
+  sort,
+  grouping,
+  toggle,
+  mark,
+}: ListKeys): void {
   useShortcuts("Thread list", {
     nextThread: () => step(1),
     previousThread: () => step(-1),
@@ -57,12 +88,16 @@ export function useListShortcuts(search: () => void, toggle: (key: string) => vo
     previousNeeding: () => seek(-1),
     openThread: open,
     toggleSelected: () => {
-      const links = rowLinks();
-      const key = links[current(links)]?.dataset.thread;
+      const key = currentKey();
       if (key !== undefined) {
         toggle(key);
       }
     },
+    markRead: () => mark("read", currentKey()),
+    markUnread: () => mark("unread", currentKey()),
     search,
+    openFilters: filters,
+    chooseSort: sort,
+    chooseGrouping: grouping,
   });
 }

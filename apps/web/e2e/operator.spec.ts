@@ -999,6 +999,19 @@ test("at a desktop's width the list stands beside the thread open, kept as chose
   await fitsAcross(searchBox.locator(".."), list);
   await page.keyboard.press("Escape");
   await expect(list.getByRole("button", { name: "Search", exact: true })).toBeFocused();
+  // f opens the filters, as Filters does, and s and b give the order and the
+  // grouping focus, whether or not the browser opens their pickers; focus
+  // then moves on to a row, as the operator would move it.
+  await page.keyboard.press("f");
+  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(list.getByRole("button", { name: "Filters", exact: true })).toBeFocused();
+  await page.keyboard.press("s");
+  await expect(sort).toBeFocused();
+  await first.focus();
+  await page.keyboard.press("b");
+  await expect(list.getByRole("combobox", { name: "Group" })).toBeFocused();
+  await first.focus();
 
   // Back keeps the list as set: an order chosen beside the second thread
   // stays on going back to the first, whose entry then returns to it, and on

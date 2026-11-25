@@ -40,11 +40,13 @@ import { Link, navigate, useLocation } from "./router.tsx";
 // Side by side, the thread list and a thread are on the page at once, each
 // in its pane, which its view's ShortcutArea names. While focus is in one
 // place's area, another place's keys act there only if they reach across
-// (reachesAcross): the list's do, moving focus into it, as j does from the
-// thread beside it, but a thread's do not, so e, a digit or u never acts on
-// the thread while the operator is in the list. A key both places bind, as
-// both bind n, acts in the place whose area holds focus, or, with focus in
-// neither, in the later place in shortcutPlaces: the thread.
+// (reachesAcross): the list's do, acting on the list from the thread beside
+// it, as j moves focus into the list and I marks the open thread's row,
+// leaving focus in the thread; but a thread's do not, so e, a digit, or u
+// never acts on the thread while the operator is in the list. A key both
+// places bind, as both bind n and U, acts in the place whose area holds
+// focus, or, with focus in neither, in the later place in shortcutPlaces:
+// the thread.
 
 // Where a shortcut acts: anywhere, on the thread list, on a thread's page,
 // or within the composer's text fields.
@@ -69,7 +71,8 @@ export interface Shortcut {
   description: string;
   // Whether a key held down acts once, not again as it repeats: those that
   // leave the page, which would otherwise go on past where the operator
-  // meant to stop.
+  // meant to stop, and those that mark threads, which would otherwise mark
+  // the selection and then, as it clears, the current row's thread too.
   once?: true;
 }
 
@@ -96,7 +99,26 @@ export const shortcuts = {
     keys: ["x"],
     description: "Select or unselect the thread, to act on it with others",
   },
+  markRead: {
+    place: "Thread list",
+    keys: ["I"],
+    description: "Mark read the threads selected, or with none, the thread",
+    once: true,
+  },
+  markUnread: {
+    place: "Thread list",
+    keys: ["U"],
+    description: "Mark unread the threads selected, or with none, the thread",
+    once: true,
+  },
   search: { place: "Thread list", keys: ["/"], description: "Search the threads" },
+  openFilters: { place: "Thread list", keys: ["f"], description: "Open the filters" },
+  chooseSort: { place: "Thread list", keys: ["s"], description: "Choose how the list is sorted" },
+  chooseGrouping: {
+    place: "Thread list",
+    keys: ["b"],
+    description: "Choose how the list is grouped",
+  },
   backToList: { place: "Thread", keys: ["u", "Escape"], description: "Back to the thread list" },
   reply: { place: "Thread", keys: ["r"], description: "Write in the composer" },
   archive: {
@@ -115,6 +137,13 @@ export const shortcuts = {
     place: "Thread",
     keys: ["]"],
     description: "Open the thread below in the list",
+    once: true,
+  },
+  markUnreadFrom: {
+    place: "Thread",
+    keys: ["U"],
+    description:
+      "Mark the thread unread from the message that has focus, or else from the first unread or the agent's latest loaded, then go back to the list",
     once: true,
   },
   jump: {

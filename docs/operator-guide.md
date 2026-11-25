@@ -970,34 +970,42 @@ counts as none for the punctuation it types, though Ctrl and Alt with a letter, 
 that types nothing, such as Esc, never act. On a phone without a keyboard nothing changes. Press `?`
 anywhere to list them all.
 
-| Where           | Key                         | What it does                                                                                                              |
-| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Anywhere        | `?`                         | Lists the shortcuts                                                                                                       |
-| Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone |
-| The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                              |
-| The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                        |
-| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                              |
-| The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                 |
-| The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                    |
-| A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                |
-| A thread        | `r`                         | Puts focus in the composer's message box                                                                                  |
-| A thread        | `e`                         | **Archive all**, then where **Auto-advance** says; while an ask is open to you, says why it waits                         |
-| A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                     |
-| A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                               |
-| A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                       |
-| The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                 |
-| The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                    |
+| Where           | Key                         | What it does                                                                                                                                                                                |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Anywhere        | `?`                         | Lists the shortcuts                                                                                                                                                                         |
+| Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone                                                                   |
+| The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                                                                                                |
+| The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                                                                                          |
+| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                                                                                                |
+| The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                                                                                   |
+| The thread list | `I` and `U`                 | Marks read or unread the threads selected, as **Read** and **Unread** in the bar do, or with none selected, the thread                                                                      |
+| The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                                                                                      |
+| The thread list | `f`                         | Opens **Filters**                                                                                                                                                                           |
+| The thread list | `s`                         | Puts focus on the order, opening its choices where the browser can                                                                                                                          |
+| The thread list | `b`                         | Puts focus on the grouping, opening its choices where the browser can                                                                                                                       |
+| A thread        | `u` or `Esc`                | Returns to the thread list                                                                                                                                                                  |
+| A thread        | `r`                         | Puts focus in the composer's message box                                                                                                                                                    |
+| A thread        | `e`                         | **Archive all**, then where **Auto-advance** says; while an ask is open to you, says why it waits                                                                                           |
+| A thread        | `U`                         | **Mark unread from here** on the message that has focus, or else on the first that was unread as you opened the thread, or else on the agent's latest loaded message, returning to the list |
+| A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                                                                                       |
+| A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                                                                                                 |
+| A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                                                                                         |
+| The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                                                                                   |
+| The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                                                                                      |
 
-Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does.
-Moving through the list moves focus from row to row, so a screen reader reads each row as it is
-reached. With the list and a thread side by side, the list's keys act wherever focus is, and moving
-through the list starts from the open thread's row and opens nothing until `o`; the thread's keys
-act only while focus is outside the list, as after clicking the thread; and `n`, which both use,
-acts in the list while focus is in it, and in the thread otherwise. A screen reader in its browse
-mode keeps single keys for its own navigation, so the shortcuts act only once it passes keys
-through, as in its focus mode. To turn the shortcuts listed here off in this browser, if they get in
-the way of a screen reader, voice control or another tool, clear **Keyboard shortcuts** in
-**Settings**, under **Keyboard**, which also lists them. The diagram viewer's own keys stay on.
+Leaving a thread with `u`, `Esc` or a `g` key keeps its draft, as leaving it any other way does. `U`
+on a thread looks only at the messages the page has loaded, so on a thread you have read whose agent
+last wrote before the newest 50 messages, `U` does nothing until you focus a message or show earlier
+ones. Moving through the list moves focus from row to row, so a screen reader reads each row as it
+is reached. With the list and a thread side by side, the list's keys act wherever focus is, and
+moving through the list starts from the open thread's row and opens nothing until `o`; the thread's
+keys act only while focus is outside the list, as after clicking the thread; `I` from the thread
+marks it read in the list and leaves focus in the thread; and `n` and `U`, which both use, act in
+the list while focus is in it, and in the thread otherwise. A screen reader in its browse mode keeps
+single keys for its own navigation, so the shortcuts act only once it passes keys through, as in its
+focus mode. To turn the shortcuts listed here off in this browser, if they get in the way of a
+screen reader, voice control or another tool, clear **Keyboard shortcuts** in **Settings**, under
+**Keyboard**, which also lists them. The diagram viewer's own keys stay on.
 
 **Enter sends**, also under **Keyboard**, is off until you turn it on in a browser, which keeps the
 choice. On, `Enter` in the composer's message or **Details** box sends, once there is something to
