@@ -107,15 +107,16 @@ As material as A5: the server never acts on a deadline, whose consequence is ent
 requester's choice; goals are set explicitly and never inferred (ADR 0001 "Not doing"); derived
 signals, such as overdue, quiet, connected and stranded, and what monitoring reports, inform and
 never trigger actions or block writes, with one exception: a nudge due, which the server derives
-from the session's rows when read, never stored, and answers its bridge's poll with, telling it
-nothing more (ADR 0007); and accuracy of impact, priority, effort, progress, and session state is
-the honor system's, not something to police with enforcement ladders. The server infers one thing a
-session did not report: its own write to a thread while idle, reporting no status, makes it working,
-logged as inferred, and a stopped session stays stopped (ADR 0001 "Sessions report what they are
-doing"). Look for timers or jobs that change threads or a session's status, inferred goals, progress
-or any other state, automatic withdrawals, archives, or escalations, validation that second-guesses
-what the agent reports, and a nudge offered on anything but that rule, more than once between
-check-ins, or with a reason, a thread or presence beside it.
+from the session's rows when read, writing nothing, and answers its bridge's poll with, telling it
+nothing more, and which the bridge claims before it nudges (ADR 0007); and accuracy of impact,
+priority, effort, progress, and session state is the honor system's, not something to police with
+enforcement ladders. The server infers one thing a session did not report: its own write to a thread
+while idle, reporting no status, makes it working, logged as inferred, and a stopped session stays
+stopped (ADR 0001 "Sessions report what they are doing"). Look for timers or jobs that change
+threads or a session's status, inferred goals, progress or any other state, automatic withdrawals,
+archives, or escalations, validation that second-guesses what the agent reports, and a nudge said to
+be due on anything but that rule, with a reason, a thread or presence beside it, or tried or claimed
+more than once between check-ins, by one bridge or across several, a restart or a takeover.
 
 ## A7. Stale writes, request ids, and read cursors
 
