@@ -29,6 +29,7 @@
     "licence",
     "lockfiles",
     "loglevel",
+    "materialsymbolsoutlined",
     "mkfifo",
     "mktemp",
     "modelcontextprotocol",
@@ -64,8 +65,10 @@
     "unranked",
     "unstub",
     "usernameless",
+    "videocam",
     "wayfarerlabs",
     "webauthn",
+    "wght",
     "Willison",
     "zeroblob"
   ],

@@ -225,14 +225,12 @@ function answered(answer: Pick<AnswerRead, "labels" | "text">, suggested: boolea
   return suggested && answer.text !== undefined ? `: ${otherLabel}` : ":";
 }
 
-// Picked marks a choice as picked: a check to see, drawn so that it shows
+// Picked marks a choice as picked: a check to see, an icon so that it shows
 // whatever the font, and words for assistive technology.
 function Picked() {
   return (
     <>
-      <svg className="check" aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-        <path d="M3 8.5 6.5 12 13 4.5" />
-      </svg>
+      <Icon name="check" />
       <span className="visually-hidden">Picked: </span>
     </>
   );

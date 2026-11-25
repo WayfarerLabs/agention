@@ -654,11 +654,11 @@ beside its session it shows alone, and elsewhere as `session/topic`.
     [Attachments](#attachments) describes. While the thread's current messages carry any, its head
     holds **Files**, folded, with how many there are and the space they take.
   - The GitHub pull requests and branches a message is about show on one short line under its text,
-    beside a branch icon: one by its short form, `owner/name#135` for a pull request or
-    `owner/name:branch` for a branch, as a link when the agent gave its URL; two or more as a count,
-    such as **2 pull requests, 1 branch**, which unfolds to the list. While the thread's messages
-    name any, its head holds **Pull requests and branches**, folded, with how many there are,
-    listing each once, pull requests and then branches, each the most recently named first. A
+    beside an icon of two lines merging into one: one by its short form, `owner/name#135` for a pull
+    request or `owner/name:branch` for a branch, as a link when the agent gave its URL; two or more
+    as a count, such as **2 pull requests, 1 branch**, which unfolds to the list. While the thread's
+    messages name any, its head holds **Pull requests and branches**, folded, with how many there
+    are, listing each once, pull requests and then branches, each the most recently named first. A
     replaced message keeps its own, but they leave the thread's list unless its replacement names
     them again. They are what the writer declared: Agention never contacts GitHub, so a link says
     nothing about whether the pull request is open, merged or still exists, which the message's text
