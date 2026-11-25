@@ -50,10 +50,15 @@
 - [ ] Thread summaries gain `links`; the store computes it with the rollup's rules.
 - [ ] Web: the filter sheet's two multi-selects, their chips, the address; a row's one entry or
       count.
+- [ ] Web: every shown entry, on a message, in the thread head's fold and on a row, links to the
+      list filtered by it as the HLA's "Where an entry leads" says, with its URL as a small link
+      beside it.
 - [ ] Docs: the operator guide's filters, architecture's filters and counts, the API reference.
 - Done when: the operator narrows the list to one pull request from the sheet, the chip shows it,
   and a copied link opens the same list; the operator API's thread list and counts take the same
-  filters; a row with one pull request shows it, and one with two shows a count.
+  filters; a row with one pull request shows it, and one with two shows a count; a pull request on a
+  message opens the list of every session's threads that name it, and its forge link beside it opens
+  the pull request.
 
 ## P3: the operator writes them
 

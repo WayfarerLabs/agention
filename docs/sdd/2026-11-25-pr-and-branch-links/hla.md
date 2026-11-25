@@ -125,6 +125,13 @@ short form for each, as its `topic` takes one.
   carrying the short forms.
 - **A thread list row:** with one entry, its short form, compact like a chip; with more, a single
   "several" mark with the count in its accessible name (FRD R7).
+- **Where an entry leads** (FRD ruling 7): once the operator's filters exist, every shown entry is a
+  link to the thread list filtered by it, following the tool's existing rule for such links
+  (`FilterLink` and the thread page's path): from a message or the thread head, the list with that
+  filter alone, keeping its order and grouping, so threads of every session that name it show; from
+  a row in the list, the filter added to the list on screen, as a grouped header's label adds its
+  session. An entry with a linkable URL keeps it as a small link beside it that opens the forge's
+  page. Until then (P1) an entry links to its URL.
 - **Writing them (FRD R10):** the reply composer and the New Thread sheet gain a control beside
   Attach and dictation, with a git branch icon rather than a forge's logo. It opens a small form
   that takes a pasted URL (a GitHub pull request or branch URL fills in the entry) or a short form,

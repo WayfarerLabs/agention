@@ -145,5 +145,10 @@ Answered in Agention on 2026-11-25, verbatim where the operator wrote words, els
    transcriptions. Something that represents the "git-ness" (not just Github) of this." (R10)
 6. Accepting these requirements: "Accept".
 
+7. Where entries lead, added after acceptance: "Btw, the PR and branches should be clickable
+   anywhere they are shown and should take you to a filter for that. In my mind, this should be a
+   filter _just_ for that (you probably want to see other sessions that reference that filter) but
+   we should keep that behavior consistent across the tool. I'm ultimately fine with whatever."
+
 The operator also asked, while reviewing, that agents use references in their messages; that needs
 no change here.
