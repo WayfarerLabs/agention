@@ -8,7 +8,8 @@
 - Date: 2026-11-23
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md); plan item: "`push-lld.md`" under Design in [the plan](plan.md)
-- Base: `main` at c0ee2ff. Every `file:line` below is at that commit.
+- Base: `main` at c0ee2ff. Every `file:line` below is at that commit, except where one is stated as
+  on `main` at ef3439f.
 
 This design fills in PR 2 of the plan: the schema and migration, the check, the mark, the push keys
 and token, the encryption, the endpoint rule, the sender, the routes, and how the service worker
@@ -20,7 +21,7 @@ section prices.
 | Where                                          | Holds                                                                     |
 | ---------------------------------------------- | ------------------------------------------------------------------------- |
 | `packages/api/src/notifications.ts` (new)      | the rule filters schema, the route inputs and answers, the push payload   |
-| `apps/server/src/database/migrations.ts`       | migration 8, appended after the seven at `:12-582`                        |
+| `apps/server/src/database/migrations.ts`       | the notifications migration, appended after the last on `main`            |
 | `apps/server/src/store/notifications.ts` (new) | rules, subscriptions and the check, each in its own transaction           |
 | `apps/server/src/store/thread-lists.ts`        | `totalOf` taking its scope; `threadKept`, exported                        |
 | `apps/server/src/store/threads.ts`             | the hook after an agent's write; `raiseReadMark` clearing the mark        |
@@ -31,15 +32,19 @@ section prices.
 | `packages/build/src/bundle.ts`                 | `bundleScript` taking a fixed name                                        |
 | `apps/web/src/push/` (new)                     | the device intent, subscribe and refresh, and the page's message listener |
 | `apps/web/src/service-worker.ts` (new)         | `push` and `notificationclick`                                            |
+| `apps/web/src/routes.ts` (new)                 | the route table, moved from `router.tsx`, its callers importing it here   |
 
 The check lives in the store because it is a read of the store's own tables in a transaction; the
 sender lives apart because it does network I/O, which no store function does.
 
-## Data model: migration 8
+## Data model: the migration
 
 Migrations run forward only, in order, each in its own transaction with the bump of `user_version`,
-and one that has shipped never changes (`migrations.ts:5-11`, `migrations.test.ts:5-13`). This one
-is appended as the eighth and gets its frozen hash in `migrations.test.ts` when a release ships it.
+and one that has shipped never changes (`migrations.ts:5-11`). This one is appended after the last
+migration on `main` when it lands, whatever number that makes it (ten are frozen on `main` today,
+and other efforts may append theirs first), and its hash joins `frozen` in `migrations.test.ts` in
+the same change, since every migration is frozen, released or not (`migrations.test.ts:5-10` on
+`main` at ef3439f).
 
 ```sql
 -- The operator's notification rules: each a set of the thread list's
@@ -105,7 +110,7 @@ Notes on the constraints:
   travels in a URL.
 - `thread_marks` is `STRICT, WITHOUT ROWID` (`migrations.ts:322-328`); SQLite allows `ADD COLUMN`
   with a `CHECK` on both. Its comment there is in migration 1, which has shipped, so the new
-  column's comment lives in migration 8.
+  column's comment lives in this one.
 - `instance` follows its `name` column's pattern, the one-way trigger included
   (`migrations.ts:86-99`).
 - The caps (20 rules, 10 subscriptions) are checked in the store with a typed error, as the API
@@ -149,8 +154,9 @@ export const maxNotificationRules = 20;
 - `strictObject` refuses a refused filter as an unknown key, and zod's issue names it, so the error
   says which filter (`invalidInputBody`, `packages/api/src/errors.ts:66-76`), with the issue on
   `filters`.
-- The `omit` is written out, and a test checks that it names `ruleRefusedFilters` and
-  `include_archived` and nothing else, so the list the web UI reads cannot drift from the schema.
+- The `omit` is written out beside `ruleRefusedFilters`, and the schema's test refuses a rule of
+  each filter that list names, so the web UI never says a filter keeps **Notify me** off that a rule
+  takes.
 - `include_archived` is taken and dropped, so **Notify me** stays on for a list that includes
   archived threads, and the stored JSON never holds it.
 - The schema reads the stored JSON back too, as the API keys' scopes are read (`api-keys.ts:48-52`):
@@ -340,9 +346,13 @@ const authorization = `vapid t=${jwt}, k=${publicKeyBase64url}`;
   audience, in the sender, so in memory and per process. It holds the signing's promise, so the
   parallel sends of one notification to two devices on one push service sign once. A cached value is
   reused until `renewAt`, an hour before its expiry: 11 hours of reuse, never a new token for an
-  audience more often than once an hour, which is Apple's rule (research 2.2), and never one within
-  an hour of expiring. A signing that rejects is removed from the cache. The key never changes, so
-  the cache needs no other key.
+  audience more often than once an hour within one process, which is Apple's rule (research 2.2),
+  and never one within an hour of expiring. A signing that rejects is removed from the cache. The
+  key never changes, so the cache needs no other key.
+- The cache is not persisted, so it cannot limit signing across restarts: each start signs a new
+  token at its first send to an audience, and a server restarted more often than once an hour signs
+  more often than Apple asks. Restarts are an operator's act and rare, so the design accepts that
+  rather than storing tokens.
 
 ## The payload and its size
 
@@ -477,14 +487,17 @@ export function endpointProblem(endpoint: string): string | undefined {
 `(url: string, init: RequestInit) => Promise<Response>`, which is `fetch` in `agention serve` and a
 local test push service in the tests.
 
-### Each send
+### Each try
 
-For each subscription the check returned, in parallel:
+For each subscription the check returned, in parallel, each try of the schedule below:
 
 1. Check the endpoint again with `endpointProblem`; a problem fails it at once (a row from before a
    rule change).
-2. Encrypt the payload for the subscription's keys.
-3. `POST` to the endpoint with:
+2. Take the token for the endpoint's origin from the cache, signing it if needed.
+3. Check, in one read of the store, that the try is still wanted (below); if not, cancel it and
+   every later try for this subscription.
+4. Encrypt the payload for the subscription's keys.
+5. `POST` to the endpoint with:
    - `Authorization`: the cached token for the endpoint's origin;
    - `Content-Encoding: aes128gcm`, `Content-Type: application/octet-stream`;
    - `TTL: 86400`, one day;
@@ -494,7 +507,34 @@ For each subscription the check returned, in parallel:
      transcription provider does (`apps/server/src/transcription/provider.ts:157-165`);
    - a signal of `AbortSignal.any([shutdown, AbortSignal.timeout(10_000)])`, as the provider
      combines its own (`provider.ts:142-143`).
-4. Cancel the response body unread.
+6. Cancel the response body unread.
+
+### Still wanted
+
+The check returned the subscriptions as they were when it committed, and a try can start up to a
+minute later. Before each try, `stillWanted(store, { subscription, threadId, seq })` in
+`store/notifications.ts` reads:
+
+```sql
+SELECT 1 FROM push_subscriptions
+WHERE id = :id AND endpoint = :endpoint AND p256dh = :p256dh AND auth = :auth;
+SELECT 1 FROM thread_marks
+WHERE actor_id = :operator AND thread_id = :thread AND notified_seq = :seq;
+```
+
+- The first finds no row when the device was removed, signed out, or lost its passkey meanwhile, so
+  nothing reaches a device whose notifications have ended (FRD D3); or when **On** or **Refresh**
+  gave the row other keys or another endpoint, which the browser now holds instead.
+- The second finds no row when the operator read or archived the thread through this message, or a
+  later message notified: a late try would alert for what was read, or replace the newer
+  notification of the same `tag` with this older one.
+- A cancelled try sends nothing and counts as one no push service accepted. It is not logged: the
+  operator's own change caused it.
+- Steps 3 to 5 run with no `await` between the read and the transport's call, and the store is
+  synchronous, so no request can change either row between the read and the request starting. The
+  token's signing, the one wait, comes before the read.
+- A request already started cannot be recalled: a device removed while a try is in flight may still
+  show that one notification. Removal stops every try not yet started.
 
 ### Outcomes
 
@@ -529,7 +569,8 @@ the secret part, nor the keys or the token.
   ```
 
 - If the operator read the thread meanwhile, the mark is already clear and this changes nothing; if
-  a later message notified, the mark names that one and this changes nothing.
+  a later message notified, the mark names that one and this changes nothing. In both cases the
+  tries not yet started were cancelled.
 - Each of these writes, and `accepted_at` and the deletes, is its own small transaction. A row
   deleted meanwhile is simply not updated.
 
@@ -737,8 +778,12 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 async function open(target: ReturnType<typeof openTarget.safeParse>): Promise<void> {
-  const path = target.success ? threadPath(target.data) : "/";
-  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const path = target.success
+    ? threadHref(target.data.agent, target.data.session, target.data.thread)
+    : "/";
+  const windows = (
+    await self.clients.matchAll({ type: "window", includeUncontrolled: true })
+  ).filter(showsWebUi);
   const client = windows.find((each) => each.focused) ?? windows[0];
   if (client !== undefined) {
     await client.focus();
@@ -749,20 +794,48 @@ async function open(target: ReturnType<typeof openTarget.safeParse>): Promise<vo
   }
   await self.clients.openWindow(new URL(path, self.location.origin).href);
 }
+
+// showsWebUi says whether a window is the web UI, whose page listens for
+// open-thread, rather than another page of this origin.
+function showsWebUi(client: WindowClient): boolean {
+  return matchRoute(new URL(client.url).pathname).name !== "not-found";
+}
 ```
 
-- `openTarget` is the payload's `agent`, `session` and `thread` with their schemas. `threadPath`
-  builds the route the web UI's `threadHref` does (`apps/web/src/router.tsx:265-267`), from the
-  identifiers alone, never from a URL in the payload, and the result is always on the worker's own
-  origin.
-- A window already open is focused and told which thread to open, rather than navigated by URL:
-  `Client.url` does not follow a single-page app's route changes (research Q6, "Click URLs").
-  `focus()` and `openWindow()` are allowed here because a notification click gives the worker
+- `openTarget` is the payload's `agent`, `session`, and `thread` with their schemas. `threadHref`
+  (`apps/web/src/router.tsx:265-267`) builds the route from the identifiers alone, never from a URL
+  in the payload, and the result is always on the worker's own origin.
+- **Only a web UI window is chosen.** `matchAll` with `includeUncontrolled` returns every window
+  client of the worker's origin, controlled or not (W3C Service Workers, `Clients.matchAll`,
+  <https://www.w3.org/TR/service-workers/#clients-matchall>), and nothing in a client says whether
+  its page listens for `open-thread`. Not every page of the origin is the web UI: the API's
+  documentation at `/docs/api/` is static HTML that runs no script
+  (`apps/server/src/http/api-docs.ts:6-18`), and a tab can show an API answer or a file of the
+  build. Each is a path the web UI's own router names `not-found`, so `showsWebUi` keeps the windows
+  whose URL is a route of the UI, and when none is, the click opens a new window at the thread
+  rather than telling a page that cannot hear it.
+- The route table moves from `router.tsx` to `routes.ts`, which imports neither React nor the DOM,
+  so the worker bundles it: the `Route` type (`router.tsx:15-25`), the two patterns `matchRoute`
+  reads (`:27-29`), `matchRoute` (`:31-59`), and `threadHref` (`:265-267`). `router.tsx` re-exports
+  none of them, so each name has one home: in the same change, every caller's import moves to
+  `routes.ts`. On `main` at ef3439f those are `App.tsx`, `App.test.tsx`, `views/ThreadList.tsx`,
+  `views/Threads.tsx`, `views/list/ThreadRow.tsx`, `views/sessions/NewThreadSheet.tsx`, and
+  `views/thread/leaving.ts`, all under `apps/web/src/`, and `router.tsx` imports `matchRoute` and
+  `threadHref` for its own uses. The worker and the UI then share one route table.
+- A web UI window already open is focused and told which thread to open, rather than navigated by
+  URL: `Client.url` does not follow a single-page app's route changes everywhere (research Q6,
+  "Click URLs"). Whichever URL a browser reports, it is a route of the UI, since the UI moves only
+  between its own routes, which is all `showsWebUi` needs.
+- A web UI window that loaded at an address the UI does not know, such as a mistyped link, reports
+  that `not-found` URL in a browser that does not follow its later routes. It is passed over, and
+  the click opens a new window, which still opens the thread.
+- `focus()` and `openWindow()` are allowed here because a notification click gives the worker
   transient activation.
 - `includeUncontrolled` finds a window the worker does not control, such as the first one after it
   installed; `Client.postMessage` reaches it all the same.
 
-The page side, `apps/web/src/push/open-thread.ts`, installed once from `main.tsx`:
+The page side, `apps/web/src/push/open-thread.ts`, installed once from `main.tsx` before the app
+renders:
 
 ```ts
 navigator.serviceWorker?.addEventListener("message", (event) => {
@@ -779,11 +852,21 @@ navigator.serviceWorker?.startMessages();
   the thread and moves focus to it as any navigation does. With no `from` in the entry's state, the
   thread returns to the list with no filters, as a thread opened any other way does
   (`router.tsx:168-171`).
+- **It listens on every route of the UI.** Every path `showsWebUi` accepts gets the UI's page
+  (`apps/server/src/http/web-ui.ts:6-8`), and so runs `main.tsx`, which installs the listener
+  outside the shell and before it picks a view. The listener therefore runs on the sign-in and link
+  pages, and while the session is loading or unreachable, so a click focusing a window that shows
+  only the sign-in page is heard there and the click filter needs no exception for it.
 - Signed out, the shell sends the thread's route to sign-in with `next`, and signing in comes back
   to it (`apps/web/src/App.tsx:50-64`), which is FRD D4's "signed in as usual".
 - The message is checked with a schema built from the API's own `name` and thread number schemas; a
   message that fails is ignored. Only the origin's own service worker can post to it.
 - Opening the thread reads it, which clears the mark.
+- **Known limit: a tab on an older bundle.** The web UI does not reload when the server is upgraded.
+  A tab opened before the release that adds this listener, or before a release that changes the
+  message's shape, shows a route of the UI but runs a bundle that does not act on the message, so a
+  click that focuses it is swallowed: the tab comes forward and the thread does not open. The limit
+  is transient, lasting until that tab reloads, and the design adds no acknowledgment to detect it.
 
 ### Device intent, subscribe and refresh
 
@@ -818,9 +901,9 @@ As the HLA's Testing section lists them, with the shape this design gives them:
   `exp` and `sub`; two parallel first sends to one origin sign once; a send within 11 hours reuses
   the token, one after does not.
 - **Payload**: the largest payload is 1005 bytes and fits.
-- **Rule schema**: its `omit` names `ruleRefusedFilters` and `include_archived` and nothing else;
-  each refused filter refused, its name in the issue on `filters`; `include_archived` taken and
-  dropped.
+- **Rule schema**: each filter `ruleRefusedFilters` names refused, its name in the issue on
+  `filters`; a rule with no filter on refused; `include_archived` taken and dropped, so the stored
+  JSON never holds it.
 - **Endpoint rule**: the table above, accepted or refused.
 - **The check**: through the store with a recording `afterAgentMessage` sink and the real check: a
   rule keeps its thread and not a sibling in the session, for an ask filter and a name filter; the
@@ -832,15 +915,22 @@ As the HLA's Testing section lists them, with the shape this design gives them:
   redirect followed, the retry schedule with a fake clock (5xx, 429, timeouts), 404 and 410
   deleting, the mark cleared only when none accepted and only while it names the message, a slow
   service never delaying the agent's answer, and the shutdown signal clearing the mark of a send in
-  flight.
+  flight. Stale tries, each with a first try answered 500: the device's row removed during the wait,
+  and the row re-keyed by a Refresh during the wait, present but with other keys, each sending no
+  second try; the thread read during the wait, then a later message notifying and accepted, then the
+  wait ending, sending nothing for the older message. Sign-out and passkey removal need no case of
+  their own, since the Subscriptions tests prove each deletes the row.
 - **Subscriptions and routes**: each error in the tables; On needing a recent sign-in; Refresh
   updating a stored endpoint only, and `not_found` for any other; a refresh moving a subscription to
   a new session, deleting that session's older row; removing this device without a recent sign-in
   and another device only with one; sign-out removing it and a new sign-in not; passkey removal by
   both paths; expiry leaving it; the routes absent from the operator API.
-- **Migration**: a database at migration 7 holding threads, marks and an instance row, migrated
-  forward: its rows intact, the starting rule present once, the new columns empty; the key's trigger
-  refusing a change.
+- **Migration**: a database at the migration before this one holding threads, marks, and an instance
+  row, migrated forward: its rows intact, the starting rule present once, the new columns empty; the
+  key's trigger refusing a change.
 - **Browser (Chromium)**: as the HLA says, with `push` and `notificationclick` delivered to the
   worker, a window already open receiving `open-thread` and showing the thread, and a refresh
-  answered `not_found` showing "Stopped".
+  answered `not_found` showing "Stopped". A click with the API's documentation page focused beside a
+  web UI window opens the thread in the web UI window, and one with only the documentation page open
+  opens a new window at the thread. A click with only the sign-in page open, signed out, leaves that
+  page on sign-in with `next` naming the thread.

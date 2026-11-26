@@ -150,6 +150,11 @@ registered or last refreshed it, one subscription per session, so no endpoint tr
 - a `fetch` with `redirect: "manual"`, as the transcription provider's, refusing any redirect, a
   10-second timeout, `TTL` of one day and `Urgency: high`, after checking the endpoint's host again;
 - on a timeout, a 5xx or a 429, up to two more tries over about a minute;
+- before each try, a read of the store that the subscription still holds the endpoint and keys the
+  check found and that the thread's mark still names this message. A device whose notifications
+  ended meanwhile gets nothing (FRD D3), nor does one under keys it has replaced, and a thread read
+  or notified anew meanwhile gets no late alert that would replace its newer notification. A stale
+  try is cancelled, as one not accepted; a request already started cannot be recalled;
 - when no subscription accepted the send, the mark is cleared if it still names that message, so the
   thread's next agent message tries again.
 
@@ -187,9 +192,11 @@ sets, so the store does no network work itself.
 - **The service worker** shows each push as a notification: the thread's title, and why it needs the
   operator from its most pressing open ask ("Blocking ask", "Urgent ask", "Open ask") or "New
   message" when none is open. Its `tag` is the thread's agent, session and number, so a later one
-  for the thread replaces it. On click it focuses an Agention window and tells it, by message, which
-  thread to open, or opens a window at that thread's route. The route is built from the identifiers,
-  never taken as a URL from the payload.
+  for the thread replaces it. On click it focuses a window showing the web UI, one whose address is
+  a route of the UI, and tells it, by message, which thread to open; with none, it opens a window at
+  that thread's route (FRD D4). Another page of the origin, such as the API's documentation, which
+  runs no script, is never chosen. The route is built from the identifiers, never taken as a URL
+  from the payload.
 - **Device intent.** The web UI keeps, in this browser's storage beside its other device settings,
   whether the operator turned notifications on here. Refresh acts only while it is set; Off and
   sign-out clear it and unsubscribe in the browser. A device the operator turned off is never
@@ -248,17 +255,20 @@ One migration adds them, with its frozen hash, and rolls back as a whole like th
   read or archive, the next one does, including after marking unread again; the operator's own
   writes never notify; no device on, no mark.
 - **Sender:** against a local test push service through the sender's transport seam: padding to one
-  size, headers, no redirect followed, retries on 5xx, 429 and timeouts, the mark cleared when every
-  send failed, 404 and 410 removing the subscription, and a slow service not holding up the write.
-  The host and endpoint rule is tested apart, as a pure function.
+  size, headers, no redirect followed, retries on 5xx, 429, and timeouts, the mark cleared when
+  every send failed, 404 and 410 removing the subscription, and a slow service not holding up the
+  write. A retry sends nothing after its device is removed or re-keyed during the wait, or after the
+  thread is read and a newer message notifies during it. The host and endpoint rule is tested apart,
+  as a pure function.
 - **Subscriptions:** refused endpoints; a recent sign-in needed to register and to remove another
   device; sign-out, passkey removal by either path and Remove from the list; expiry leaving them; a
   second sign-in moving one; a refresh of an endpoint the server does not store stopping the device.
 - **Browser (Chromium, Playwright):** headless Chromium has no push service and Playwright cannot
   click a system notification, so these run against a stubbed `pushManager` and by delivering `push`
   and `notificationclick` events to the worker directly: the switch's states, the device list,
-  Notify me, rules in Settings, and a click opening the right thread. The manifest's install check
-  runs through Chromium's own installability report where the headless shell offers it.
+  Notify me, rules in Settings, and a click opening the right thread, in a web UI window and never
+  in the API's documentation page. The manifest's install check runs through Chromium's own
+  installability report where the headless shell offers it.
 - **Devices (operator):** Android Chrome installed and screen off, and Windows Edge and Chrome, as
   the FRD's definition of done says. Apple browsers are built to their documented rules and stated
   as untested; Apple's declarative Web Push is not adopted, for the same reason.

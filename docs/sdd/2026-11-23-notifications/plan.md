@@ -55,6 +55,10 @@ Server:
       boundary) and the sender, with its transport seam, no redirect, a timeout, `TTL`, `Urgency`,
       three tries at 10 and 45 seconds, the mark cleared when every send failed or the server stops
       mid-send, and 404 and 410 removing the subscription.
+- [ ] Each try rechecks that its subscription's endpoint and keys and the thread's mark are as the
+      check left them, and is cancelled otherwise. Tests: the row removed, and the row re-keyed by a
+      Refresh, during a retry's wait, each sending no retry; the thread read, a newer message
+      notified, then the older message's retry sending nothing.
 - [ ] The check in the post-commit blocks of thread start and append, for agent writers only: no
       device, no mark; the list's statement scoped to the thread; errors logged, never failing the
       write. Tests: own thread not a sibling, an ask filter and a name filter, removed names.
@@ -66,7 +70,9 @@ Server:
 
 Web UI:
 
-- [ ] Service worker `push` and `notificationclick`, the route built from identifiers.
+- [ ] Service worker `push` and `notificationclick`, the route built from identifiers; a click goes
+      only to a window on a route of the UI, else opens one, with `matchRoute` and `threadHref`
+      moved to a module the worker bundles.
 - [ ] Settings, Notifications: this device's switch and state, the device list with Remove, and the
       rules.
 - [ ] Thread list: **Notify me** in the bar, off with its reason for a filter rules cannot take.
@@ -75,7 +81,8 @@ Web UI:
       intent cleared); On unsubscribes first under a changed public key; Off and sign-out clear it
       and unsubscribe.
 - [ ] Browser tests against a stubbed `pushManager`, with `push` and `notificationclick` delivered
-      to the worker.
+      to the worker, including a click with the API's documentation page focused beside a web UI
+      window, with only that page open, and with only the sign-in page open.
 
 Collateral:
 
