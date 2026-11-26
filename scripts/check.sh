@@ -6,11 +6,12 @@
 # CI runs this script, so a local pass means the same checks pass in CI.
 # Prerequisites: Node at the version in .node-version, with the npm it
 # bundles, the repository's release tags, and network access for the
-# install, signature, vulnerability, agent compatibility and release order
-# checks. The first gate installs the locked dependencies with `npm ci`. The
-# browser gate needs Chromium's headless shell, installed once with
-# `npx playwright install --only-shell chromium`. --fast skips the agent
-# compatibility gate, which installs the released bridges, the release order
+# install, signature, vulnerability, agent compatibility, server compatibility
+# and release order checks. The first gate installs the locked dependencies
+# with `npm ci`. The browser gate needs Chromium's headless shell, installed
+# once with `npx playwright install --only-shell chromium`. --fast skips the
+# agent compatibility gate, which installs the released bridges, the server
+# compatibility gate, which installs released servers, the release order
 # gate, which asks npm for a server release, the builds and the browser gate,
 # which drives them. --packages DIR runs only the install
 # and the build gate, which builds the published packages and checks each as
@@ -209,6 +210,11 @@ if [[ $mode != packages ]]; then
     # The release order gate's decisions, on fixtures of their own, which
     # need neither the network nor the release tags.
     scripts/check-release-order.test.sh
+
+    step "Server compatibility tests"
+    # The releases the server compatibility gate selects, on fixtures of
+    # their own, which need neither the network nor the release tags.
+    scripts/check-server-compatibility.test.sh
 fi
 
 if [[ $mode == all ]]; then
@@ -216,6 +222,11 @@ if [[ $mode == all ]]; then
     # Every released bridge against the agent routes at HEAD, as
     # CONTRIBUTING.md "The agent API" describes.
     scripts/check-agent-compatibility.sh
+
+    step "Server compatibility"
+    # The bridge at HEAD against the newest released server of each older
+    # agent API version, as CONTRIBUTING.md "The agent API" describes.
+    scripts/check-server-compatibility.sh
 
     step "Release order"
     # The agent line's release pull request waits for a published server that

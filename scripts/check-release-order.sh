@@ -53,14 +53,10 @@ if [[ -z "$server_tag" ]]; then
 fi
 server_version="${server_tag#agention-v}"
 
-# agentApi_of prints the version and oldest of the one line that declares
-# agentApi, written as the contract writes it; a line written any other way
-# prints nothing, which fails below rather than reading a wrong version.
-agentApi_of() {
-    sed -nE 's/^export const agentApi = \{ version: ([0-9]+), oldest: ([0-9]+) \} as const;$/\1 \2/p'
-}
-read -r head_api _ < <(agentApi_of <"$contract") || true
-read -r server_api server_oldest < <(git show "$server_tag:$contract" | agentApi_of) || true
+# A contract line written another way reads as nothing, which fails below
+# rather than reading a wrong version.
+read -r head_api _ < <(agent_api_of <"$contract") || true
+read -r server_api server_oldest < <(git show "$server_tag:$contract" | agent_api_of) || true
 if [[ -z "${head_api:-}" ]]; then
     fail "could not read agentApi's version from $contract at HEAD."
 fi

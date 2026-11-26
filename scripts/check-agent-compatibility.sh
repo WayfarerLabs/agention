@@ -49,4 +49,4 @@ for tag in "${tags[@]}"; do
     echo "$tag: $package@$version installed and verified"
 done
 
-AGENTION_RELEASED_BRIDGES="$scratch/bridges" npm run --silent --workspace apps/bridge test:compat
+AGENTION_RELEASED_BRIDGES="$scratch/bridges" npm run --silent --workspace apps/bridge test:agent-compat
