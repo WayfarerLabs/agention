@@ -168,6 +168,13 @@ The web UI talks only to the server that serves it, and passkeys need that serve
 try UI changes by building the server package and running it as the
 [operator guide](docs/operator-guide.md#running-the-server) describes.
 
+The browser tests start the built server themselves, serving its built web UI over TLS at
+`https://agention.test:<port>`, and drive it in Chromium with CDP virtual authenticators. Passkeys
+need a domain name and a secure context, so Chromium resolves `agention.test` to the loopback
+address with `--host-resolver-rules` and trusts the certificate made for that name at run time by
+its public key with `--ignore-certificate-errors-spki-list`. That makes the page a real secure
+context rather than one that bypasses a certificate error.
+
 ### Generated plugins
 
 The Claude Code and Codex plugins under `out/` and the catalogs in `.claude-plugin/` and
@@ -233,7 +240,20 @@ scripts/generate-api-docs.sh
 A test in the server's suite, `apps/server/src/http/api-docs.test.ts`, fails while the committed
 document differs from what generation would write, so the Tests gate catches a stale one.
 `agention serve --api-docs` serves the document, and a page rendered from it, as
-[the operator guide](docs/operator-guide.md#using-the-operator-api) describes.
+[Operator API](docs/operator-api.md#reference) describes.
+
+### README screenshots
+
+The screenshots in `docs/images/`, which the README and the server package's page show, are taken by
+`apps/web/e2e/readme-screenshots.ts`, of a server it starts and fills with demonstration threads.
+When a view they show changes, build the server, retake them and commit them with the change:
+
+```bash
+npm run -w apps/server build
+scripts/generate-screenshots.sh
+```
+
+No gate retakes or compares them: whether a picture still shows the product is a review question.
 
 ### The agent API
 
@@ -365,8 +385,12 @@ maintainer cuts 1.0.0 deliberately, with a `Release-As: 1.0.0` footer on a commi
 Agention releases on two lines, each with its own version ([Releasing](#releasing)): the server
 line, `@wayfarerlabs/agention` with the web UI, and the agent line, `@wayfarerlabs/agention-mcp`
 with the plugins that run it. Each line's release pull request writes its version everywhere it
-appears ([architecture](docs/architecture.md#versions) "Versions"), so never change a version by
-hand.
+appears ([architecture](docs/architecture.md#versions) "Versions"), the agent line's including the
+operator guide's pinned commands, so never change a version by hand. In `docs/operator-guide.md` the
+agent line's release pull request rewrites the first version on each line between a
+`x-release-please-start-version` comment and the next `x-release-please-end`, so a pinned example of
+the plugin or the bridge goes in a code block or a link definition inside such a pair, one version
+to a line, and never in wrapped prose, which a longer version would rewrap.
 
 A commit that releases goes to the line whose paths it touches, as the `exclude-paths` of each
 line's configuration, `release-please-config.json` and `release-please-config.agent.json`, decide:

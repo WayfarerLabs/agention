@@ -1,97 +1,120 @@
 # Agention
 
-A self-hosted attention inbox for autonomous agents and the people working with them.
+**One inbox for everything your agents need from you, whatever harness runs them.**
 
-One person can run many largely autonomous agent sessions. Each session occasionally needs that
-person: a question answered, a decision noticed, something done in another system, a result
-reviewed. Agention gives those sessions threads in which to say what they need and ask what they
-want answered, and gives the person one phone-friendly list of threads in which to read and answer
-them. Agents read the answers through the same interface they write through.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/inbox-dark.png">
+  <img src="docs/images/inbox-light.png" alt="The thread list beside an open thread: four agent sessions' threads, the most pressing first, and the top one's ask with a suggested answer chosen">
+</picture>
 
-Agention never grants permissions, injects text into an agent's conversation, or controls an agent
-harness. It records and shows; the agent decides what to do with an answer.
+Agents got good enough to run on their own. Now the slow part is you. Each session you run sooner or
+later needs a decision, an approval or a look at a result, and it asks at a terminal you are not
+watching.
 
-## Status
+Agention is a self-hosted attention inbox for any agent that speaks MCP. Your agents post what they
+need as threads and keep working. You get one list, most pressing first, and answer from your phone
+or your desk. They read your answers and carry on.
 
-Agention v1 is complete, and has been usable since its first release, 0.1.0. It is released on two
-lines, each with its own version and published to npm: the server and operator CLI as
-`@wayfarerlabs/agention`, and the agent bridge as `@wayfarerlabs/agention-mcp`, with the Claude Code
-and Codex plugins that run it, which install from this repository's plugin marketplace. Both lines
-start from 0.6.0, the last release of all three under one version
-([CONTRIBUTING.md](CONTRIBUTING.md#releasing) "Releasing"), and the
-[operator guide](docs/operator-guide.md) takes you from installing the server to agents asking and
-you answering. The repository contains:
+## How it works
 
-- the `agention` command, the server and operator CLI: `agention serve` runs the HTTP API, with
-  passkey sign-in for the person, key authentication for agents and API keys for the person's own
-  programs, over the server's database and store, and `agention passkey-link` issues the link that
-  registers the person's passkeys;
-- the web UI, which the server serves: the person signs in with a passkey, works through one thread
-  list, filtered, grouped and searched down to what messages say, reads and answers threads, opens
-  the files agents attach and attaches their own, archives threads, follows every session's status
-  and updates in one view, where they approve agents' registrations, start threads on a session, and
-  sort sessions into groups and tag agents and sessions, and in Settings, in sections, manages their
-  passkeys, their API keys and voice, which dictates replies through a transcription provider they
-  choose and reads messages aloud on their device, and sees the space files take;
-- the operator API, a versioned API through which a program the person runs, such as a tool that
-  already shows their agents, reads and answers Agention as them, files included, with an API key
-  they created in Settings and within the scopes they gave it, and its OpenAPI document, which the
-  server serves with its documentation when asked;
-- the `agention-mcp` agent bridge, the MCP server through which an agent session registers its key,
-  starts threads, writes and reads their messages, uploads files for them to carry and fetches those
-  they carry, withdraws the asks it no longer needs answered, checks for new messages, and reports
-  its state, such as working or stopped;
-- the API contract, which the server, the bridge and the web UI share, and the OpenAPI document
-  generated from it;
-- the Claude Code and Codex plugins and their generator. The plugins carry the agent usage skill and
-  run the bridge at the version they pin.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/phone-thread-dark.png">
+  <img src="docs/images/phone-thread-light.png" alt="A thread on a phone: an agent's ask with two suggested answers, one chosen" width="280" align="right">
+</picture>
 
-[docs/architecture.md](docs/architecture.md) describes what exists.
+- **Agents ask, and keep working.** An ask says what it blocks, how urgent it is and how long
+  answering takes, and offers suggested answers. The agent never sits at a prompt: it carries on
+  with whatever your answer does not block, and keeps checking for it.
+- **You answer in seconds.** Pick a suggestion or write your own words, or dictate them once you set
+  up voice. The detail, diagrams and files an agent attached are a tap away.
+- **Any harness.** Agents reach Agention through a small local MCP server, so Claude Code, Codex and
+  whatever you run next share one inbox. Plugins install it on Claude Code and Codex; any other
+  harness adds the same server.
+- **You see the whole fleet.** Every session reports what it is doing, how far along it is, and
+  whether it waits on you.
+- **It stays yours.** One Node.js process and one SQLite file, on your machine. You sign in with a
+  passkey, and each agent session holds a key of its own that you approve by matching a short code.
 
-## Design
+Your own programs can read and answer as you through the [operator API](docs/operator-api.md), with
+API keys you scope and revoke.
 
-Agention is TypeScript on Node. One server process serves an HTTP API and a web UI for the person
-from one HTTPS origin, with all state in one SQLite file. Agents do not call the API directly: each
-agent host runs the agent bridge, a small MCP server that the Agention plugin starts with a pinned
-`npx` command, and the bridge turns each tool call into one API request. Each agent session
-authenticates with its own key, which the person approves by matching a short code; the person signs
-in with passkeys. The server terminates TLS itself or runs on loopback behind a TLS terminator, such
-as a reverse proxy or `tailscale serve`, as the operator guide describes.
-[ADR 0001](docs/adrs/0001-agention-v1-architecture.md) records the design and the alternatives
-considered. Voice is optional and off until the person chooses a transcription provider: the server
-relays their recordings to it with a key it holds, and keeps none of them, as
-[ADR 0002](docs/adrs/0002-voice-through-the-server.md) records. Integrations act for the person only
-through API keys they create, each limited to its scopes and revocable at once, as
-[ADR 0003](docs/adrs/0003-operator-api-keys.md) records. Files attached to messages live in the same
-database, and are served under rules that keep them from acting as the person, as
-[ADR 0004](docs/adrs/0004-attachments.md) records.
+<br clear="right">
 
-Agention works on the honor system: it cannot stop an agent from misreporting, so it enforces
-provenance, isolation and append-only history instead, as [SECURITY.md](SECURITY.md) describes.
+```mermaid
+flowchart LR
+  agents["Agent sessions<br>Claude Code, Codex, any MCP harness"] -- "MCP tools" --> bridge["Agent bridge<br>agention-mcp"]
+  bridge -- "HTTPS, a key per session" --> server["agention serve<br>one process, one SQLite file"]
+  you["You<br>phone or desktop"] -- "web UI, passkeys" --> server
+  programs["Your programs"] -- "operator API, API keys" --> server
+```
 
-## Contributing
+## Quick start
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers building from source, the checks CI runs, the contribution
-process and releasing. The [operator guide](docs/operator-guide.md) lists the commands.
+You need Node.js 24 or later, and an HTTPS address with a domain name for the server, since passkeys
+need one. A reverse proxy gives you one, and on a Tailscale network so does
+[`tailscale serve`](docs/operator-guide.md#publishing-it-with-tailscale-serve), in a single command.
 
-## Repository layout
+Install and run the server:
 
-Each component is an npm workspace, and one lockfile covers them all.
+```bash
+npm install -g @wayfarerlabs/agention
+agention serve --data ~/.local/share/agention --origin https://agention.example.com
+```
 
-| Path                                          | Contents                                                                                                                                                                                     |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api/`                               | The API contract the bridge shares with the server and the web UI                                                                                                                            |
-| `packages/build/`                             | The bundle build for the published packages, with their license notices                                                                                                                      |
-| `packages/private-files/`                     | The private-file rule the server and the bridge share                                                                                                                                        |
-| `packages/server-api/`                        | The rest of the API contract, which only the server and the web UI ship                                                                                                                      |
-| `apps/server/`                                | The server and operator CLI, npm package `@wayfarerlabs/agention`                                                                                                                            |
-| `apps/bridge/`                                | The agent bridge, npm package `@wayfarerlabs/agention-mcp`                                                                                                                                   |
-| `apps/web/`                                   | The React web UI                                                                                                                                                                             |
-| `apps/agent-plugin/`                          | The canonical agent plugin definition and its generator                                                                                                                                      |
-| `out/`, `.claude-plugin/`, `.agents/plugins/` | Generated Claude Code and Codex plugins and catalogs (committed)                                                                                                                             |
-| `scripts/`                                    | Check, lint, release, plugin generation and API document generation scripts                                                                                                                  |
-| `release-please-config*.json`                 | The release configurations of the server line and the agent line, beside their manifests                                                                                                     |
-| `docs/`                                       | Architecture, operator guide, decision records (`docs/adrs/`), the generated OpenAPI document (`docs/api/`), the development contract and its checklists, and design documents (`docs/sdd/`) |
+The first start names the server `Agention` for good, the name your passkeys and the web UI carry;
+add `--name` to choose another.
+
+In another terminal, print the link that registers your first passkey, and open it:
+
+```bash
+agention passkey-link --data ~/.local/share/agention --origin https://agention.example.com
+```
+
+Where your agents run, install the plugin, here in Claude Code, and tell it where the server is:
+
+```bash
+claude plugin marketplace add WayfarerLabs/agention
+claude plugin install agention@agention
+export AGENTION_URL=https://agention.example.com
+```
+
+Any other harness: add `npx -y @wayfarerlabs/agention-mcp` as a local MCP server, with
+`AGENTION_URL` in its environment, and give your agent the
+[usage skill](apps/agent-plugin/skills/agention/SKILL.md) that the plugins carry. The operator
+guide's [Other harnesses](docs/operator-guide.md#other-harnesses) says what the harness must do, and
+pins both to a release.
+
+Start a session. It registers and shows you a code; approve the matching one under **Sessions**, and
+its first thread lands in your inbox.
+
+The [operator guide](docs/operator-guide.md) covers the rest: Codex, pinning the plugin to a release
+(the commands above follow `main`), running as a service, voice, API keys, upgrading and backing up.
+
+## What it does not do
+
+Agention records and shows. The agent decides what to do with an answer.
+
+- It grants no permissions, and it does not reach into an agent's session: agents come to it and
+  check for your answers.
+- It never holds up an agent's work, and never acts on a deadline.
+- It sends no notifications or email. You look when you choose to.
+
+It also works on the honor system: it cannot stop an agent from misreporting. What it enforces is
+that every message is attributed to whoever wrote it, that sessions see only their own threads, and
+that history is never edited or erased. [SECURITY.md](SECURITY.md) has the full model.
+
+## Learn more
+
+- [Operator guide](docs/operator-guide.md): install, run and connect an instance.
+- [The web UI](docs/web-ui.md): the thread list, a thread and the sessions view, control by control.
+- [Operator API](docs/operator-api.md): how your own programs read and answer as you.
+- [Architecture](docs/architecture.md): what exists and how it fits together.
+- [Decision records](docs/adrs/): why it is built this way, and the alternatives considered.
+- [Contributing](CONTRIBUTING.md): building from source, checks and releasing.
+- [Changelog](CHANGELOG.md): what each server release changed. The plugins, with the bridge they
+  run, are released apart from the server, with a version and a
+  [changelog](apps/bridge/CHANGELOG.md) of their own; both lines start from 0.6.0, the last release
+  of all three under one version ([Releasing](CONTRIBUTING.md#releasing)).
 
 ## License
 

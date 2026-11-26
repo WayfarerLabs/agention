@@ -126,10 +126,10 @@ needs no request id; updates are last-writer-wins and exempt from the stale rule
 session writes its own status. A report beside a write, and the inference from a write, apply in the
 write's transaction once its checks pass, so a write that fails changes no status, and the report is
 part of the write's digest, so a replay applies nothing again. The UI keeps the draft on a stale
-write (`docs/operator-guide.md` "Using the web UI"). Look for marks or derived counts that depart
-from those definitions, check-then-write races outside one immediate transaction, writes that skip
-the sequence check, a status a write changes outside its transaction, and request-id handling that
-replays a different payload.
+write (`docs/web-ui.md` "A thread"). Look for marks or derived counts that depart from those
+definitions, check-then-write races outside one immediate transaction, writes that skip the sequence
+check, a status a write changes outside its transaction, and request-id handling that replays a
+different payload.
 
 ## A8. Append-only, attributed history
 

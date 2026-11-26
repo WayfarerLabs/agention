@@ -12,7 +12,7 @@
 // thread's roll-up with them.
 import type { BrowserContext, Page } from "@playwright/test";
 import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { Agent, callServer } from "./agent.ts";
 import { signIn, threads } from "./files.ts";
 import { type Agention, expect, resize, test } from "./fixtures.ts";
