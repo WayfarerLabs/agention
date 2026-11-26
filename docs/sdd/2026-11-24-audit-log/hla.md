@@ -31,7 +31,9 @@ No agent route, tool or answer changes.
 - **Tamper evidence is the copy that has left the box** (FRD R9): each event has a unique id and a
   sequence, and there is no hash chain.
 - **A small Sink interface and a dispatcher with one cursor per sink**, in the database. A failing
-  sink falls behind and says so; nothing waits for it.
+  sink falls behind and says so; nothing waits for it. A sink whose destination refuses a request
+  for good pauses, keeping its events and cursor, rather than resending what the protocol forbids
+  resending.
 - **Sinks are configured where the server starts**, by `serve` options, one per kind; a network
   sink's credentials come from the environment only.
 - **Retention prunes the oldest events only**, and only those every sink has delivered, which a
@@ -292,8 +294,14 @@ interface Sink {
   deliver(batch: readonly AuditRecord[], signal: AbortSignal): Promise<Delivery>;
   close(): Promise<void>;
 }
+// accepted: the destination took the batch through `through`.
+// retry: a failure that may pass, such as an outage; sent again later.
+// paused: the destination refused the request for good; sent again only
+// once the operator restarts the server.
 type Delivery =
-  { ok: true; through: number } | { ok: false; retryAfterMs?: number; reason: string };
+  | { outcome: "accepted"; through: number }
+  | { outcome: "retry"; retryAfterMs?: number; reason: string }
+  | { outcome: "paused"; reason: string };
 interface AuditRecord {
   seq: number;
   uid: string;
@@ -309,33 +317,65 @@ loop:
   batch <- events after the sink's cursor, at most 100 events or 1 MiB
   if empty: wait for a wake (a commit that recorded events) or 30 seconds
   result <- deliver(batch)
-  ok:     cursor <- result.through, in a short transaction; backoff reset
-  not ok: note the failure; wait max(retryAfter, backoff); backoff doubles, 1 s to 5 min, jittered
+  accepted: cursor <- result.through, in a short transaction; backoff reset
+  retry:    note the failure; wait max(retryAfter, backoff); backoff doubles, 1 s to 5 min, jittered
+  paused:   note the failure as refused, with its status; this sink's loop ends until the next start
 ```
 
-- **Never dropped.** A destination refusing for good (a 4xx other than 408, 413 and 429) is a
-  configuration problem: the sink keeps retrying at the longest backoff and reports itself failing,
-  rather than skipping events. A 413 halves the batch. An OTLP partial success is final, per the
-  protocol: the sink advances, counts the rejected records, and logs the count.
-- **Lag.** For each sink: events behind the head, the age of the oldest undelivered, the last error.
-  `agention serve` writes a stderr line when a sink starts failing, every 15 minutes while it fails,
-  and when it recovers (`S/cli.ts:224-227`), naming the sink by its kind, never its URL. Settings
-  show it from P2.
+- **Never dropped, never resent against the protocol.** A failure that may pass is `retry`: for
+  OTLP, a 429, 502, 503, or 504, a timeout, or a network error; for stdout and a file, any failed
+  write, which nothing forbids repeating and which a freed disk or a fixed permission ends. A
+  destination that refuses a request for good is `paused`: for OTLP, every other 4xx or 5xx, which
+  OTLP forbids retrying
+  ([Retryable Response Codes](https://opentelemetry.io/docs/specs/otlp/#retryable-response-codes)),
+  400 Bad Data by name ([Bad Data](https://opentelemetry.io/docs/specs/otlp/#bad-data)), and a
+  redirect. OTLP leaves a 3xx to HTTP; the sink pauses on one because it follows no redirect, so
+  sending the request again would only get the same redirect. Sorting an answer into retry, pause,
+  or halve (below) is a pure function of the answer.
+- **A paused sink** keeps its cursor and every event after it, so nothing is skipped (FRD R11) and
+  retention keeps them (R8). It sends nothing more. `audit_sinks` records the pause as the sink's
+  last error, of class `refused` with the answer's status, which the next start's first result
+  overwrites as any result does; no column marks it. Its stderr line says it is paused and that the
+  destination or the sink's options need correcting, and repeats every 15 minutes while it stays
+  paused, with how far behind it is, since its backlog grows. A pause arrives with the OTLP sink in
+  P3, which is when Settings and the sinks' state in `listAuditEvents` start showing one: a sink
+  whose last error is `refused`, a class P3 adds, shows as paused, with its status and what to
+  correct. Sinks change only on restart (Configuration), so the next start of `agention serve`,
+  after the operator corrects the destination or the options, resumes it from its cursor. A start
+  with neither corrected sends that batch once more and pauses again: one request per start, never a
+  loop.
+- **413 and partial success are neither.** A 413 halves the batch, a smaller request rather than the
+  same one again; a single event refused with 413 pauses the sink. An OTLP partial success is a
+  success whose rejected records are final, per the protocol (R11): the sink advances past them,
+  counts them, and logs the count.
+- **Lag.** For each sink: events behind the head, the age of the oldest undelivered, and the last
+  error, `refused` for a paused sink. `agention serve` writes a stderr line when a sink starts
+  failing, every 15 minutes while it fails or stays paused, and when it recovers
+  (`S/cli.ts:224-227`), naming the sink by its kind, never its URL. Settings show it from P2.
 - **Wake.** `recordAudit` marks its transaction, and `Database.transaction`
   (`S/database/database.ts:75-93`) wakes the dispatcher once that transaction commits, as store
   writes call `store.notifier.notify` for the long polls; the 30-second poll picks up what the
   command line wrote.
-- **Start and stop.** A sink new to the database starts from the oldest retained event, or from the
-  head with `start=now`. A sink no longer configured keeps its cursor, which holds back retention,
-  and `agention serve` writes a stderr line at start and every 15 minutes naming it and how far
-  behind it is: one start without a sink's option, such as a missing platform variable, must not let
-  retention prune what that sink never received. `agention audit forget-sink` removes the cursor. A
-  sink's cursor is keyed by its kind, since each kind is configured at most once. At shutdown each
-  sink gets 5 seconds to finish its batch; whatever is undelivered waits in the table.
+- **Start and stop.** A sink new to the database starts from the oldest retained event, so a new
+  destination receives every event Agention still holds (R11). A sink no longer configured keeps its
+  cursor, which holds back retention, and `agention serve` writes a stderr line at start and every
+  15 minutes naming it and how far behind it is: one start without a sink's option, such as a
+  missing platform variable, must not let retention prune what that sink never received.
+  `agention audit forget-sink` removes the cursor. A sink's cursor is keyed by its kind, since each
+  kind is configured at most once, so changing the OTLP URL or the file directory keeps the cursor:
+  the new destination starts where the old one stopped. To give it every retained event instead,
+  stop the server, run `forget-sink` for that kind, and start it, which gives the sink a new cursor
+  at the oldest retained event. At shutdown each sink gets 5 seconds to finish its batch; whatever
+  is undelivered waits in the table.
+- **Backlog on disk.** Undelivered events stay in the database, so a sink that fails, is paused, or
+  is no longer configured grows it by every event recorded meanwhile, on the same finite disk as the
+  rest of the data, until it delivers or is forgotten. Its stderr lines say how far behind it is.
 
 **stdout.** One JSON line per event. `agention serve` writes nothing else to standard output (its
 own lines go to stderr). Node writes to a pipe asynchronously, so a batch is acknowledged only once
-its write has drained, and backpressure holds the loop.
+its write has drained, and backpressure holds the loop. Drained means handed to the local stream,
+not collected: the event has left the box (FRD R9) only once the platform's log pipeline has carried
+it off.
 
 **file.** `--audit-dir DIR` writes `DIR/audit.jsonl`, rotated daily at UTC midnight, the rotated
 file named for its UTC date, keeping the newest `--audit-keep-days` rotated files (30 by default).
@@ -344,20 +384,21 @@ The directory is created 0700, or refused if any other user has any access to it
 collector that runs as its own user, as packaged collectors commonly do (to confirm for Vector and
 Grafana Alloy in the LLD): the directory is 0750 and files 0640, in that group, which the server's
 user must belong to; other users still have no access. A batch is written and `fsync`ed before it is
-acknowledged.
+acknowledged. The file is on the same box, so it is evidence against the box (FRD R9) only once a
+collector has shipped it elsewhere.
 
 **otlp** (P3). `--audit-otlp URL` POSTs OTLP/HTTP JSON to the full logs URL (a collector's
 `/v1/logs`, Loki's `/otlp/v1/logs`). Resource attributes `service.name` `agention` and
 `service.version`; one log record per event with `timeUnixNano`, `severityNumber` 9 (13 for a
 failure), `eventName` `ocsf.<class>`, the event as a map `body`, and `ocsf.class_uid`,
-`ocsf.activity_id` and `agention.audit.sequence` as attributes. Retries only on 429, 502, 503, 504
-and network errors, honoring `Retry-After`. Headers, such as a vendor's API key, come from
-`AGENTION_AUDIT_OTLP_HEADERS` in the `OTEL_EXPORTER_OTLP_HEADERS` format. The URL is checked by the
-transcription provider's rule (`S/transcription/base-url.ts`): HTTPS anywhere but link-local and
-metadata addresses, plain HTTP only on the operator's own network, and no user information, query or
-fragment. It follows no redirect and times out after 10 seconds. The retry policy above (backoff,
-`Retry-After`, a lasting 4xx retried rather than skipped, 413 halving) arrives with it; until then
-the two local sinks retry at a short fixed interval.
+`ocsf.activity_id` and `agention.audit.sequence` as attributes. Retries only on a 429, 502, 503, or
+504, a timeout, or a network error, honoring `Retry-After`. Headers, such as a vendor's API key,
+come from `AGENTION_AUDIT_OTLP_HEADERS` in the `OTEL_EXPORTER_OTLP_HEADERS` format. The URL is
+checked by the transcription provider's rule (`S/transcription/base-url.ts`): HTTPS anywhere but
+link-local and metadata addresses, plain HTTP only on the operator's own network, and no user
+information, query or fragment. It follows no redirect and times out after 10 seconds. The policy
+above (backoff, `Retry-After`, the pause on a refusal for good, and 413 halving) arrives with it;
+until then the two local sinks retry at a short fixed interval and never pause.
 
 ### Configuration
 
@@ -415,7 +456,7 @@ configured gets a new cursor at the next start.
 | Where                       | Holds                                                                             |
 | --------------------------- | --------------------------------------------------------------------------------- |
 | `audit_events` (new)        | seq, uid, time, class, action, outcome, credential kind and id, event, open_until |
-| `audit_sinks` (new)         | name, delivered_seq, last delivery, failing since, last error                     |
+| `audit_sinks` (new)         | name, delivered_seq, last delivery, failing since, last error (class and status)  |
 | `browser_sessions.id` (new) | a random, non-secret id, unique; existing sessions given one by the migration     |
 
 One migration per phase that needs one, each with its frozen hash, rolling back as a whole.
@@ -461,10 +502,15 @@ FRD R5 and R16 state the rules; the design adds:
   retention; `forget-sink` removes it and records its event.
 - **Dispatcher:** a fake sink's partial acknowledgments and failures; a restart resuming from the
   cursor; a stalled sink not delaying a write; with OTLP (P3), `Retry-After` and backoff on a fake
-  clock.
+  clock, and a paused sink sending nothing more, keeping its cursor and events, and resuming from
+  that cursor at the next start.
+- **OTLP's answer sort** (P3): the pure function, as a table of cases: a 429, 502, 503, or 504, a
+  timeout, and a network error retry; a 400, 401, 500, or 3xx pauses; a 413 halves the batch, and
+  pauses for a single event.
 - **Sinks:** stdout backpressure with a slow stream; file rotation, permissions, the group option
-  and `--audit-keep-days`; OTLP (P3) against a local receiver: shape, retry codes, partial success,
-  413 halving, no redirect followed, refused URLs.
+  and `--audit-keep-days`; OTLP (P3) against a local receiver: shape, a pausing answer sending one
+  request and then nothing more, partial success, 413 halving, a redirect not followed, refused
+  URLs.
 - **Configuration:** the options refused when malformed, such as a group the server's user is not
   in.
 - **Live:** the operator's instance with a local Vector or OpenTelemetry Collector, per
@@ -526,6 +572,16 @@ FRD R5 and R16 state the rules; the design adds:
 19. **Sinks no longer configured keep their cursors until `forget-sink`**, so one start without a
     sink's option cannot prune what it never received. _Alternative:_ a grace period, which still
     prunes after a long enough mistake.
+20. **A refusal for good pauses the sink until the next start** (FRD R11), keeping its events and
+    cursor. _Alternatives:_ retrying it at the longest backoff, which OTLP forbids; skipping the
+    rejected batch, which loses events R11 promises; a pause that survives restarts until the sink's
+    options change, which needs a stored fingerprint of a URL and headers that can carry secrets, to
+    spare one rejected request per start; a pause stored in `audit_sinks` until the operator clears
+    it with `agention audit resume-sink KIND`, modeled on `forget-sink`, which needs no fingerprint
+    and sends nothing while nothing is corrected, but costs a column, a command, and its event, and
+    makes every fix two steps: a correction restarted without the command leaves the sink paused and
+    its backlog growing, while a pause that ends at the next start ends with the restart every
+    correction needs anyway.
 
 ## Delivery
 
@@ -534,6 +590,6 @@ One pull request per phase, each merged and released before the next starts; eac
 1. **P1:** the table, events for every write and the security failures, stdout and file sinks with
    their options, retention, `forget-sink`, and each sink's state and stderr lines.
 2. **P2:** the viewer and `audit:read`.
-3. **P3:** the OTLP sink, with backoff and `Retry-After`.
+3. **P3:** the OTLP sink, with backoff, `Retry-After`, and the pause.
 
 Each carries its collateral; see the [plan](plan.md).

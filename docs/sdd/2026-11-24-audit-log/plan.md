@@ -61,7 +61,7 @@ Server:
 - [ ] `agention passkey-link` records the link it issues in the same transaction.
 - [ ] The dispatcher: a loop per sink from its cursor, woken when a transaction that recorded events
       commits and by a 30-second poll; an open coalesced failure held until its minute ends; a new
-      sink from the oldest event or from the head; a short fixed retry; 5 seconds at shutdown.
+      sink from the oldest retained event; a short fixed retry; 5 seconds at shutdown.
 - [ ] Each sink's state in `audit_sinks`, and stderr lines when a sink starts failing, every 15
       minutes while it fails, and when it recovers, naming the sink by kind; the cursor of a sink no
       longer configured kept, and named on stderr at start and every 15 minutes.
@@ -134,18 +134,29 @@ in a release.
 
 ## P3: shipping over OTLP
 
-- [ ] Backoff from 1 second to 5 minutes, jittered; `Retry-After` honored; a lasting 4xx retried at
-      the longest backoff and reported, never skipped; a 413 halving the batch.
+- [ ] `Delivery` as accepted, retry, or paused; backoff from 1 second to 5 minutes, jittered, for a
+      retry; `Retry-After` honored; a paused sink sending nothing more, keeping its cursor and
+      events, recorded as its last error in `audit_sinks`, of class `refused` with the status, and
+      on stderr every 15 minutes with what to correct, and resumed by the next start, whose first
+      result overwrites that error; a 413 halving the batch, and pausing for a single event.
+- [ ] Settings and the sinks' state in `listAuditEvents` showing a sink whose last error is
+      `refused` as paused, with its status and what to correct; `refused` among the sinks' last
+      error classes in that answer, and the regenerated `docs/api/openapi.json`.
 - [ ] The OTLP sink (`--audit-otlp`): OTLP/HTTP JSON, the event as a map body with promoted
-      attributes, headers from `AGENTION_AUDIT_OTLP_HEADERS`, retries on 429, 502, 503, 504, a
-      partial success final and counted; the transcription provider's URL rule, no redirect
-      followed, a 10-second timeout.
-- [ ] Tests against a local receiver: shape and headers, retry codes, partial success, 413, no
-      redirect, refused URLs, the headers in no event, stderr line or `audit_sinks` error.
-- [ ] Collateral: the operator guide's OTLP sink and collector recipes for syslog, GELF and Loki;
-      SECURITY.md's outbound rules; the architecture document; the development contract's optional
-      integrations (a log collector or SIEM the operator runs); the live testing guide's collector
-      check.
+      attributes, headers from `AGENTION_AUDIT_OTLP_HEADERS`, retries on a 429, 502, 503, or 504, a
+      timeout, or a network error only, every other 4xx or 5xx and a redirect pausing, a partial
+      success final and counted; the transcription provider's URL rule, no redirect followed, a
+      10-second timeout.
+- [ ] Tests: the answer sort as a pure function over a table (429, 502, 503, 504, a timeout, and a
+      network error retry; 400, 401, 500, and 3xx pause; 413 halves, and pauses for a single event);
+      against a local receiver, shape and headers, a pausing answer sending one request and then
+      nothing more, partial success, 413 halving, no redirect followed, refused URLs, and the
+      headers in no event, stderr line, or `audit_sinks` error.
+- [ ] Collateral: the operator guide's OTLP sink, saying plainly that any OTLP 4xx or 5xx other than
+      429, 502, 503, and 504, a plain 500 included, pauses the export until the next start, and its
+      collector recipes for syslog, GELF, and Loki; SECURITY.md's outbound rules; the architecture
+      document; the development contract's optional integrations (a log collector or SIEM the
+      operator runs); the live testing guide's collector check.
 
 **Done when:** on a live instance, an API key's writes reach a local OpenTelemetry Collector; with
 the collector stopped, the lag appears on stderr, and once it restarts every event arrives, none
