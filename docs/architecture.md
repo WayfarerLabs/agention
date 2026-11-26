@@ -2280,7 +2280,7 @@ Agention releases on two lines, each with its own version, release pull request,
 | Server | `@wayfarerlabs/agention`, with the web UI it serves                       | `agention-vX.Y.Z`     | `CHANGELOG.md`             |
 | Agent  | `@wayfarerlabs/agention-mcp` and the plugins, which run that same version | `agention-mcp-vX.Y.Z` | `apps/bridge/CHANGELOG.md` |
 
-Both start from 0.6.0, the last release that covered all three under one version, tagged `v0.6.0`
+Both start from 0.7.0, the last release that covered all three under one version, tagged `v0.7.0`
 like the releases before it; each of those releases also carries both lines' tags. Each line is the
 root package of its own release-please configuration: `release-please-config.json` and
 `.release-please-manifest.json` for the server line, `release-please-config.agent.json` and

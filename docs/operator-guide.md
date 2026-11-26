@@ -352,14 +352,14 @@ To pin it to a release, the latest in this example, in Claude Code:
 <!-- x-release-please-start-version -->
 
 ```bash
-claude plugin marketplace add WayfarerLabs/agention#agention-mcp-v0.6.0
+claude plugin marketplace add WayfarerLabs/agention#agention-mcp-v0.7.0
 claude plugin install agention@agention
 ```
 
 In Codex:
 
 ```bash
-codex plugin marketplace add WayfarerLabs/agention --ref agention-mcp-v0.6.0
+codex plugin marketplace add WayfarerLabs/agention --ref agention-mcp-v0.7.0
 codex plugin add agention@agention
 ```
 
@@ -413,11 +413,11 @@ environment the harness gives it:
 <!-- x-release-please-start-version -->
 
 ```bash
-npx -y @wayfarerlabs/agention-mcp@0.6.0
+npx -y @wayfarerlabs/agention-mcp@0.7.0
 ```
 
 [skill]:
-  https://github.com/WayfarerLabs/agention/blob/agention-mcp-v0.6.0/apps/agent-plugin/skills/agention/SKILL.md
+  https://github.com/WayfarerLabs/agention/blob/agention-mcp-v0.7.0/apps/agent-plugin/skills/agention/SKILL.md
 
 <!-- x-release-please-end -->
 
@@ -792,7 +792,7 @@ plugin, then add it and install the plugin again:
 
 ```bash
 claude plugin marketplace remove agention
-claude plugin marketplace add WayfarerLabs/agention#agention-mcp-v0.6.0
+claude plugin marketplace add WayfarerLabs/agention#agention-mcp-v0.7.0
 claude plugin install agention@agention
 ```
 
@@ -800,7 +800,7 @@ In Codex:
 
 ```bash
 codex plugin marketplace remove agention
-codex plugin marketplace add WayfarerLabs/agention --ref agention-mcp-v0.6.0
+codex plugin marketplace add WayfarerLabs/agention --ref agention-mcp-v0.7.0
 codex plugin add agention@agention
 ```
 

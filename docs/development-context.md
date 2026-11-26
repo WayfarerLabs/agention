@@ -61,7 +61,7 @@ index of those docs.
   "Design documents"
 - Releases: two lines, the server line (`@wayfarerlabs/agention`, tags `agention-vX.Y.Z`) and the
   agent line (`@wayfarerlabs/agention-mcp` and the plugins, tags `agention-mcp-vX.Y.Z`), from the
-  last combined release, 0.6.0 (ADR 0005; `docs/architecture.md` "Versions"); their release-please
+  last combined release, 0.7.0 (ADR 0005; `docs/architecture.md` "Versions"); their release-please
   configurations `release-please-config.json` and `release-please-config.agent.json`, with their
   manifests; `.github/workflows/release.yml`; and the merge order the release order gate,
   `scripts/check-release-order.sh`, holds (`CONTRIBUTING.md` "Releasing")
