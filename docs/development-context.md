@@ -56,8 +56,15 @@ index of those docs.
 ## Contribution and gates
 
 - Contribution process and commit convention: `CONTRIBUTING.md` "Commits and pull requests"
-  (Conventional Commits, which release-please reads, and the pull request template in
-  `.github/pull_request_template.md`), "Architecture decision records" and "Design documents"
+  (Conventional Commits, which release-please reads, the release line a commit releases, and the
+  pull request template in `.github/pull_request_template.md`), "Architecture decision records" and
+  "Design documents"
+- Releases: two lines, the server line (`@wayfarerlabs/agention`, tags `agention-vX.Y.Z`) and the
+  agent line (`@wayfarerlabs/agention-mcp` and the plugins, tags `agention-mcp-vX.Y.Z`), from the
+  last combined release, 0.7.0 (ADR 0005; `docs/architecture.md` "Versions"); their release-please
+  configurations `release-please-config.json` and `release-please-config.agent.json`, with their
+  manifests; `.github/workflows/release.yml`; and the merge order the release order gate,
+  `scripts/check-release-order.sh`, holds (`CONTRIBUTING.md` "Releasing")
 - Toolchain pins and locked install: `.node-version`, with the npm it bundles; exact pins in each
   `package.json` and the one root `package-lock.json`; `.npmrc` (`save-exact`, `ignore-scripts`);
   `npm ci --ignore-scripts`, then `npx playwright install --only-shell chromium` for the browser
@@ -74,8 +81,8 @@ index of those docs.
   `npm run -w apps/bridge build` (`CONTRIBUTING.md` "Building"); the "Build" gate packs, installs
   and runs each package, and `scripts/check.sh --packages DIR` keeps the tarballs it checked
 - Security and dependency checks: `npm audit signatures` in the "Dependency integrity" gate, and for
-  each released bridge in the "Agent compatibility" gate, and `npm audit --audit-level=high` in the
-  "Vulnerabilities" gate of `scripts/check.sh`
+  each agent line release's bridge in the "Agent compatibility" gate, and
+  `npm audit --audit-level=high` in the "Vulnerabilities" gate of `scripts/check.sh`
 - Generated outputs, their generator configuration, and drift check: `out/claude-plugin/`,
   `out/codex-plugin/`, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`,
   generated from `apps/agent-plugin/plugin.json` and `apps/agent-plugin/skills/` by
@@ -135,17 +142,18 @@ index of those docs.
   (`docs/architecture.md` "Web UI"; `CONTRIBUTING.md` "Working on one component", which says how
   they reach it); the local stub transcription provider,
   `apps/server/src/transcription/test-provider.ts`, which the server's and the browser tests share;
-  and `scripts/check-sdd.test.sh`
+  `scripts/check-sdd.test.sh`; and `scripts/check-release-order.test.sh`, the release order gate's
+  fixture tests
 - Test environment setup and snapshot commands: disposable state only (temporary data directories,
   homes and `TMPDIR`), with the server's and the bridge's tests each in a `TMPDIR` of their own that
   must be empty when they finish (`CONTRIBUTING.md` "Working on one component"); setup is the locked
   install and Chromium's headless shell (`CONTRIBUTING.md` "Prerequisites"), and the release tags
-  for the agent compatibility gate (`CONTRIBUTING.md` "Checks")
+  for the agent compatibility and release order gates (`CONTRIBUTING.md` "Checks")
 - Integration test selection or markers: none; the bridge's in-process integration tests run in its
   Vitest suite, and the browser tests run with `npm run -w apps/web test:browser` against the
   server's last build, which `scripts/check.sh --fast` skips with the builds; the agent
-  compatibility suite runs only in its gate, which `--fast` also skips (`CONTRIBUTING.md` "The agent
-  API")
+  compatibility suite runs only in its gate, which `--fast` also skips, as it does the release order
+  gate (`CONTRIBUTING.md` "The agent API" and "Checks")
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
   acceptance, and dictation with a real transcription provider, by the operator; Codex used only for

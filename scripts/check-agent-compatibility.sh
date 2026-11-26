@@ -3,7 +3,7 @@
 # ============================================================================
 # check-agent-compatibility.sh: the agent compatibility gate, every released
 # bridge against the agent routes at HEAD, as CONTRIBUTING.md "The agent API"
-# describes. It needs the release tags and network access.
+# describes. It needs the agent line's release tags and network access.
 # ============================================================================
 
 set -euo pipefail
@@ -18,13 +18,14 @@ cd "$REPO_ROOT"
 
 package=@wayfarerlabs/agention-mcp
 
-# The v* tags reachable from HEAD, apart from those on HEAD itself.
+# The agent line's tags reachable from HEAD, apart from those on HEAD itself.
+prefix=agention-mcp-v
 tags=()
 while IFS= read -r tag; do
     tags+=("$tag")
-done < <(comm -23 <(git tag --list 'v*' --merged HEAD | sort) <(git tag --list 'v*' --points-at HEAD | sort))
+done < <(comm -23 <(git tag --list "$prefix*" --merged HEAD | sort) <(git tag --list "$prefix*" --points-at HEAD | sort))
 if [[ ${#tags[@]} -eq 0 ]]; then
-    echo "check-agent-compatibility.sh: no release tag is reachable from HEAD; fetch the tags with 'git fetch --tags' and run it again." >&2
+    echo "check-agent-compatibility.sh: no $prefix* release tag is reachable from HEAD; fetch the tags with 'git fetch --tags' and run it again." >&2
     exit 1
 fi
 
@@ -32,7 +33,7 @@ scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
 for tag in "${tags[@]}"; do
-    version="${tag#v}"
+    version="${tag#"$prefix"}"
     dir="$scratch/bridges/$version"
     mkdir -p "$dir"
     # --prefix keeps the repository's .npmrc out of this install, and

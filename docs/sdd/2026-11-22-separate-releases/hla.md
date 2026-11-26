@@ -78,14 +78,17 @@ is the root package of its own configuration, excluding what it does not ship (F
   release type `simple` (so it writes no root `package.json`, F4), component `agention-mcp`, the
   changelog `apps/bridge/CHANGELOG.md`, its own `label` and `release-label`, and `extra-files` for
   every place the agent version appears today: the bridge's `package.json` and lockfile entry, the
-  plugin definition, both generated plugin manifests, and the bridge's package spec in both
-  generated `.mcp.json` files.
+  plugin definition, both generated plugin manifests, the bridge's package spec in both generated
+  `.mcp.json` files, and the operator guide, whose release-stamped blocks (agention#169) pin only
+  the plugin's and the bridge's version.
 
-Each configuration's `exclude-paths` lists the other line's paths and the paths that ship nothing,
-so a feature that carries its docs releases only its own line, and a change to shared paths releases
-both. release-please drops a commit from a package only when every file it touches is excluded (F2),
-so a new top-level path that ships nothing and is missing from the lists releases both lines: the
-safe failure. CONTRIBUTING says where to add one.
+Each configuration's `exclude-paths` lists the other line's paths and the directories that ship
+nothing, so a feature that carries its docs releases only its own line, and a change to shared paths
+releases both. release-please drops a commit from a package only when every file it touches is
+excluded (F2), so a new top-level directory that ships nothing and is missing from the lists
+releases both lines: the safe failure. CONTRIBUTING says where to add one. release-please excludes
+only directories, so the root's Markdown and lint and editor configuration, which ship nothing,
+cannot be listed: a change to them goes in its own non-releasing commit (Risks, Root files).
 
 The agent configuration's labels differ from the server's because release-please stops updating a
 release pull request while any merged one still carries its pending label: shared labels would let
@@ -99,7 +102,7 @@ pull request and outputs. `node-workspace` and `linked-versions` are not used (F
 
 `.github/workflows/release.yml` triggers on `agention-v*` and `agention-mcp-v*` (which the first
 does not match) instead of `v*`. The build job reads the line from the tag's prefix, refuses a tag
-that is not that line's version everywhere the line stamps it, runs
+that is not that line's version everywhere a shipped artifact carries it, runs
 `scripts/check.sh --packages DIR`, and keeps only that line's tarball; the publish job, which runs
 no repository code, publishes it. A version already on npm is skipped, as today.
 
@@ -142,7 +145,7 @@ plugin that is not yet released lasts minutes (U4).
 
 ### Migration
 
-Both lines start from the last combined release, `vX.Y.Z` below: 0.6.0 (released 2026-11-23, UTC),
+Both lines start from the last combined release, `vX.Y.Z` below: 0.7.0 (released 2026-11-25, UTC),
 or a later one cut before the switch (R4, FRD ruling 3). Releases go on as usual until the operator
 starts step 1. From then until the release-lines pull request merges, a matter of hours, no release
 pull request merges, since a combined release cut after step 2 would need tags only the release App
@@ -194,13 +197,17 @@ server's release.
 Servers from 0.3.0 check the agent API version before any route, the registration route included, so
 a newer bridge's call is refused before anything is recorded or done (proved at HEAD by the server's
 agent API tests). Servers before 0.3.0, current for two days, state no version, so they act on a
-call before the bridge refuses their answer: a new key's registration is recorded pending, and
-expires unapproved within the hour; a session already approved there has its call carried out,
-without the fields that server does not know, and then reported as failed. The bridge could prevent
-both by checking the server's version once when it starts, but the operator chose to accept and
-document it as a known limit of those three releases (FRD ruling 3), so the bridge does not change;
-the operator guide says so, narrowing its statement that any older server leaves a registration
-waiting to servers before 0.3.0.
+request before the bridge refuses their answer. The bridge learns its session's grant only from a
+registration answer it accepts, so a bridge that starts against such a server sends only
+registration checks: a new key's registration is recorded pending, and expires unapproved within the
+hour, and no tool call is carried out. Only a bridge that learned its grant before its server was
+replaced by such a release has a call carried out there, without the fields that server does not
+know, and then reported as failed. (The FRD's ruling 3 was asked on the broader reading, that any
+approved session's call is carried out; delivery 4's design found the narrower behavior.) The bridge
+could prevent both by checking the server's version once when it starts, but the operator chose to
+accept and document it as a known limit of those three releases (FRD ruling 3), so the bridge does
+not change; the operator guide says so, narrowing its statement that any older server leaves a
+registration waiting to servers before 0.3.0.
 
 ### The server compatibility gate (C5)
 
@@ -215,8 +222,9 @@ with C3's refusal, and for servers from 0.3.0 the database holds no registration
 server that serves the bridge's version is skipped: the agent compatibility gate already covers
 bridges against the server at HEAD, and a server at the same version serves the same contract, which
 is also why one server per older version suffices (FRD ruling 4). The gate drives only unapproved
-sessions, since released servers approve only through a passkey; the low-level design measures its
-run time against CI's limit for the `check` job.
+sessions: approval changes nothing a starting bridge sends to a server before 0.3.0, and from 0.3.0
+the server refuses the version before authenticating. The low-level design measures its run time
+against CI's limit for the `check` job.
 
 ## 3. The plugin-is-behind signal
 
@@ -258,9 +266,9 @@ covers them all (U2).
   unreleased plugin changes on `main`, but the tag still exists before the bridge is on npm, and the
   catalog's ref becomes one more thing each release stamps. Not needed for this effort's
   requirements; a later change can adopt it.
-- **A version check when the bridge starts**: it would spare servers before 0.3.0 both their pending
-  registrations and their carried-out calls, at a request per bridge start; the operator chose to
-  document the limit instead (FRD ruling 3).
+- **A version check when the bridge starts**: it would spare servers before 0.3.0 their pending
+  registrations, and the calls a bridge running across a downgrade has carried out, at a request per
+  bridge start; the operator chose to document the limit instead (FRD ruling 3).
 - **A separate plugin version**: the FRD excludes it.
 
 ## Documentation
@@ -311,5 +319,10 @@ covers them all (U2).
   would not release the fix at all, and cheap, since the agent API version does not move and the
   sessions view marks nothing. Nothing enforces the convention, and a missed split over-releases,
   the safe failure.
-- **Exclusion lists drift.** A path that ships nothing but is missing from both lists releases both
-  lines; over-releasing is the safe failure, and review catches the list.
+- **Exclusion lists drift.** A directory that ships nothing but is missing from both lists releases
+  both lines; over-releasing is the safe failure, and review catches the list.
+- **Root files.** release-please excludes only directories, so a releasing commit that also touches
+  a root file that ships nothing (such as `CONTRIBUTING.md` or `.cspell.json`) releases both lines.
+  CONTRIBUTING has such a change go in its own `docs:` or `chore:` commit, as with dependencies.
+  Nothing enforces it, and a missed split over-releases, the safe failure: a residual of R2,
+  reported to the operator.

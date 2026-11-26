@@ -104,7 +104,7 @@ pass means CI will pass the same checks.
 
 ```bash
 scripts/check.sh                  # everything CI runs
-scripts/check.sh --fast           # skips the agent compatibility gate, the builds and the browser gate
+scripts/check.sh --fast           # skips the agent compatibility and release order gates, the builds and the browser gate
 scripts/check.sh --packages DIR   # only the install and the build, keeping the checked tarballs in DIR
 ```
 
@@ -117,17 +117,20 @@ scripts/check.sh --packages DIR   # only the install and the build, keeping the 
 | Vulnerabilities      | Known advisories of high severity or above in npm dependencies                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Plugin drift         | Committed plugin outputs match their sources                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | SDD records          | A completed plan checkbox in `docs/sdd/` never changes once merged, and a locked SDD changes only its `locked.md` (`scripts/check-sdd.sh`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Agent compatibility  | Every released bridge, installed from npm with its signatures and provenance checked, drives every tool it has against the agent routes at HEAD (`scripts/check-agent-compatibility.sh`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Release order tests  | The release order gate's decisions, on fixture repositories with npm stubbed (`scripts/check-release-order.test.sh`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Agent compatibility  | Every released bridge, from the agent line's tags, installed from npm with its signatures and provenance checked, drives every tool it has against the agent routes at HEAD (`scripts/check-agent-compatibility.sh`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Release order        | On the agent line's release pull request, the newest server release serves its agent API version and npm has it (`scripts/check-release-order.sh`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Build                | Both bundles, the server's with the web UI; each package, installed from its tarball, runs and prints its version, and the server serves its web UI and begins a passkey sign-in                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Browser              | The web UI, served by the built server over TLS, in Chromium with virtual passkey authenticators: the server's name, passkey link and sign-in, a second passkey, approval and the Sessions tab's count of registrations waiting, answers, a message's detail, a stale write, a draft kept across the Sessions tab and a reload until discarded, Send kept on a short phone's screen, After sending archiving a thread and going on, its controls on one line at 320 pixels, and the way back under the composer, Markdown, hostile text, unread marks and the Threads tab's count of unread threads, archiving and the divider after what was archived once unfolded, at a phone's width too, the list's filters, their counts, its search box, one search with the sheet's, fitting beside a thread and at a phone's width, its order, the order's direction and grouping, a grouped header folding by a click on its bar and its label adding its session to the filters, moving through the list, opening a thread and returning from the keyboard, the threads above and below and where archiving goes, alike beside the list and at a phone's width, from the list or a link, and back to the list at its end, and the sessions view, at a phone's width too, with a session's status and log, a row unfolding by a click on its title, its folds by group, a group created and tags picked in their pickers, beside the menu on a wide screen and as a sheet on a phone, a group's and a tag's links to their threads and the links to stranded threads, a thread started there with a file and stranded's reason; diagrams drawn in their sandboxed frame against hostile sources, falling back to their source, and in the viewer at a phone's width; Settings in sections, at a desktop's width and a phone's, with the groups ordered by their buttons and by dragging, with voice set up and tried, dictation through Chromium's fake microphone and a stub transcription provider, at a phone's width too, reading a message aloud, storage shown, and an API key created, its secret shown once and copied, used on the operator API within its scope and refused once revoked, at a phone's width too; and attachments: a file attached and an image pasted, Attach's menu on a touch device at a phone's width, each item its own picker, arriving with the message and in the thread's files, images, video, audio and text shown in place, a PDF opening in a tab, a missing file marked, every file downloading under its name, and HTML and script bytes declared as each served type running nothing in the page or opened on their own |
 
 Read [`scripts/check.sh`](scripts/check.sh) for the exact commands; it is the single definition of
 the gates.
 
-The install, signature, vulnerability and agent compatibility checks need network access. The agent
-compatibility gate also needs the repository's release tags, which a clone may lack; fetch them with
-`git fetch --tags`. A local Node version that differs from `.node-version` produces a warning, not a
-failure, since CI checks on the pinned version, and on the oldest supported Node as well.
+The install, signature, vulnerability, agent compatibility and release order checks need network
+access. The agent compatibility and release order gates also need the repository's release tags,
+which a clone may lack; fetch them with `git fetch --tags`. A local Node version that differs from
+`.node-version` produces a warning, not a failure, since CI checks on the pinned version, and on the
+oldest supported Node as well.
 
 ### Formatting and spelling
 
@@ -263,24 +266,28 @@ change to the agent contract, a new route, a new field, or a change in what a fi
 bumps its `version` by one; its `oldest`, the oldest version the server still serves, moves only by
 a maintainer's decision.
 
-The agent compatibility gate holds the rule. For each `v*` tag reachable from HEAD and not on HEAD
-itself, `scripts/check-agent-compatibility.sh` installs that release's bridge from npm by its exact
-version into a scratch directory, with the seven-day wait off (see [Dependencies](#dependencies)),
-and checks its registry signatures and provenance with `npm audit signatures`. The bridge's suite,
-`apps/bridge/src/released-bridges.compat.ts`, then starts each installed bundle as an agent host
-would, over standard input and output, against the server at HEAD, and drives register, approval and
-every tool the release has, with the fields it sends: asks and answers, a withdrawal, a replacement,
-a stale write, a later message's ask, topic, detail and references, the list's filters and waits.
-Every release also reads messages carrying files: the operator's, which wakes its wait, and one of
-its own it replaces without keeping the file, with the messages' `attachments` and the thread's file
-totals passing through; a release that has the file tools drives `file_get` and `file_upload` too,
-and one whose writes take pull requests and branches names them, replaces them and lists its threads
-by them. Every release reads the summary of a thread naming one pull request from a thread read, a
-list, and a wait, with its `links` exactly when the version its requests state has them. Any refusal
-of valid input fails it, and so does any answer the release cannot read. A tag whose version npm
-does not have yet, as for a minute after a release, fails it too, named with npm's own error, and so
-does a clone without tags. A new tool or field joins the suite. `scripts/check.sh --fast` skips the
-gate, which needs the network.
+The agent compatibility gate holds the rule. For each agent line tag, `agention-mcp-v*`, reachable
+from HEAD and not on HEAD itself, `scripts/check-agent-compatibility.sh` installs that release's
+bridge from npm by its exact version into a scratch directory, with the seven-day wait off (see
+[Dependencies](#dependencies)), and checks its registry signatures and provenance with
+`npm audit signatures`. The bridge's suite, `apps/bridge/src/released-bridges.compat.ts`, then
+starts each installed bundle as an agent host would, over standard input and output, against the
+server at HEAD, and drives register, approval and every tool the release has, with the fields it
+sends: asks and answers, a withdrawal, a replacement, a stale write, a later message's ask, topic,
+detail and references, the list's filters and waits. Every release also reads messages carrying
+files: the operator's, which wakes its wait, and one of its own it replaces without keeping the
+file, with the messages' `attachments` and the thread's file totals passing through; a release that
+has the file tools drives `file_get` and `file_upload` too, and one whose writes take pull requests
+and branches names them, replaces them and lists its threads by them. Every release reads the
+summary of a thread naming one pull request from a thread read, a list, and a wait, with its `links`
+exactly when the version its requests state has them. Any refusal of valid input fails it, and so
+does any answer the release cannot read. A tag whose version npm does not have yet, as for a minute
+after a release, fails it too, named with npm's own error, and so does a clone without tags. A new
+tool or field joins the suite. `scripts/check.sh --fast` skips the gate, which needs the network.
+
+The agent contract is in `packages/api`, which both release lines ship, so a change to it releases
+both, the server first: the release order gate keeps the agent line's release pull request from
+merging until a published server serves its agent API version ([Releasing](#releasing)).
 
 ## Dependencies
 
@@ -362,9 +369,9 @@ gate, which needs the network.
 ## Commits and pull requests
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). release-please
-reads them to choose the next version and write `CHANGELOG.md`, so the type matters: `feat` and
-`fix` appear in the changelog, and a `BREAKING CHANGE:` footer marks a breaking change. Keep each
-footer to one paragraph.
+reads them to choose each release line's next version and write its changelog, so the type matters:
+`feat`, `fix` and `perf` release and appear in the changelog, and a `BREAKING CHANGE:` footer marks
+a breaking change; other types release nothing. Keep each footer to one paragraph.
 
 Pull requests merge with a merge commit, whose message GitHub fills with the pull request's title.
 release-please reads every Conventional Commits line in a commit's message as a change, so a pull
@@ -375,13 +382,37 @@ Agention is pre-1.0. Releases start at 0.1.0; until 1.0.0, `feat` and breaking c
 minor version and `fix` bumps the patch version, so no change bumps the major version on its own. A
 maintainer cuts 1.0.0 deliberately, with a `Release-As: 1.0.0` footer on a commit to `main`.
 
-One version covers the server, the bridge and the plugins. The release pull request writes it
-everywhere it appears (the root and published `package.json` files, the lockfile, the plugin
-definition and generated plugins, including the bridge's package spec, and the operator guide's
-pinned commands), so never change a version by hand. In `docs/operator-guide.md` it rewrites the
-first version on each line between a `x-release-please-start-version` comment and the next
-`x-release-please-end`, so a pinned example goes in a code block or a link definition inside such a
-pair, one version to a line, and never in wrapped prose, which a longer version would rewrap.
+Agention releases on two lines, each with its own version ([Releasing](#releasing)): the server
+line, `@wayfarerlabs/agention` with the web UI, and the agent line, `@wayfarerlabs/agention-mcp`
+with the plugins that run it. Each line's release pull request writes its version everywhere it
+appears ([architecture](docs/architecture.md#versions) "Versions"), the agent line's including the
+operator guide's pinned commands, so never change a version by hand. In `docs/operator-guide.md` the
+agent line's release pull request rewrites the first version on each line between a
+`x-release-please-start-version` comment and the next `x-release-please-end`, so a pinned example of
+the plugin or the bridge goes in a code block or a link definition inside such a pair, one version
+to a line, and never in wrapped prose, which a longer version would rewrap.
+
+A commit that releases goes to the line whose paths it touches, as the `exclude-paths` of each
+line's configuration, `release-please-config.json` and `release-please-config.agent.json`, decide:
+the server line excludes the agent line's directories and the agent line the server's, and both
+exclude the directories that ship nothing, `docs/`, `scripts/` and `.github/`. A commit releases a
+line unless every file it changes is excluded there, so one touching `packages/api`,
+`packages/build`, `packages/private-files` or a file at the repository's root releases both. So:
+
+- Keep a feature or fix to the paths of the line it changes, with its docs under `docs/` if it has
+  any. A change to a file at the root that ships nothing, such as `CONTRIBUTING.md`, `README.md` or
+  a word added to `.cspell.json`, goes in a commit of its own whose type releases nothing, such as
+  `docs:` or `chore:`; release-please excludes only directories, so a feature or fix carrying it
+  releases both lines.
+- A dependency a feature or fix needs goes in its own `build(deps)` commit, which releases nothing,
+  since every dependency change touches the root `package-lock.json`. A dependency change that is
+  itself the fix, such as a security update, is `fix(deps)`, and releases both lines, even when only
+  one line's manifest changed.
+- A new top-level directory that ships nothing joins the `exclude-paths` of both configurations.
+  Until it does, a feature or fix touching it releases both lines.
+
+Releasing a line that a change did not touch is the safe failure: its new release ships what its
+last one did.
 
 A pull request should:
 
@@ -394,39 +425,71 @@ A pull request should:
 
 ## Releasing
 
-Maintainers release from `main`, and only CI publishes:
+Maintainers release from `main`, and only CI publishes. Agention releases on two lines, each with
+its own version, release pull request, changelog and tags
+([architecture](docs/architecture.md#versions) "Versions"):
+
+| Line   | Releases                                                     | Release pull request                      | Tag                   |
+| ------ | ------------------------------------------------------------ | ----------------------------------------- | --------------------- |
+| Server | `@wayfarerlabs/agention`, with the web UI                    | `chore(main): release agention X.Y.Z`     | `agention-vX.Y.Z`     |
+| Agent  | `@wayfarerlabs/agention-mcp` and the plugins, at one version | `chore(main): release agention-mcp X.Y.Z` | `agention-mcp-vX.Y.Z` |
 
 1. Changes land on `main` with Conventional Commit messages, and release-please keeps a release pull
-   request open that sets the next version everywhere it appears and writes its changelog entry.
-2. Merging the release pull request tags its commit `vX.Y.Z` and publishes the GitHub release. That
-   merge is a release's human approval; CI publishes with no further step.
+   request open for each line a change released
+   ([Commits and pull requests](#commits-and-pull-requests)), which sets that line's next version
+   everywhere it appears and writes its changelog entry. The
+   [release-please workflow](.github/workflows/release-please.yml) runs once per line's
+   configuration. The agent line's release pull requests carry labels of their own,
+   `autorelease-agent: pending` and then `autorelease-agent: tagged`, since release-please stops
+   updating a line's release pull request while a merged one carrying that line's pending label is
+   untagged: shared labels would let one line's untagged release hold up the other's.
+2. Merging a release pull request tags its commit with its line's tag and publishes the GitHub
+   release. That merge is a release's human approval; CI publishes with no further step.
 3. The tag starts [`release.yml`](.github/workflows/release.yml). Its build job refuses a tag that
-   is not the version of both packages and of the plugin definition, runs
-   `scripts/check.sh --packages DIR`, and uploads the tarballs it checked and kept in `DIR` as the
-   run's artifact. Its publish job, the only one that can publish, runs no repository code: it
-   publishes those tarballs, `@wayfarerlabs/agention-mcp` first and then `@wayfarerlabs/agention`,
-   through npm's trusted publishing, with provenance and no token. A version already on npm is
-   skipped, so a run that failed part way finishes with **Re-run failed jobs**, which reuses the
-   build's artifact while the repository keeps it, 90 days by default. **Re-run all jobs** would
-   upload the artifact again, which collides with the one the first build uploaded.
-4. The committed plugins already pin the new bridge, since the release pull request updated them
-   with everything else. Until the release workflow has published it, a plugin installed from `main`
-   names a bridge version npm does not have yet, so fix a failed release promptly.
+   is not the version of its line's package, and for the agent line of the plugin definition too,
+   then runs `scripts/check.sh --packages DIR` and uploads the tarball of the tag's line it checked
+   and kept in `DIR` as the run's artifact. Its publish job, the only one that can publish, runs no
+   repository code: it checks that the tarball is the tag's package at the tag's version and
+   publishes it through npm's trusted publishing, with provenance and no token. A version already on
+   npm is skipped, so a run that failed after publishing finishes with **Re-run failed jobs**, which
+   reuses the build's artifact while the repository keeps it, 90 days by default. **Re-run all
+   jobs** would upload the artifact again, which collides with the one the first build uploaded.
+4. The committed plugins already pin the new bridge, since the agent line's release pull request
+   updated them with the rest. A host that installed the plugin unpinned takes it from `main`'s
+   catalog, and Codex may refresh such a plugin by itself once the marketplace moves, so the merge
+   itself can change the bridge those hosts run. Until the release workflow has published it, such a
+   plugin names a bridge version npm does not have yet, so fix a failed release promptly.
+
+When a change releases both lines, as a change to the agent API does, merge the server line's
+release pull request first. The release order gate in `scripts/check.sh` fails the agent line's
+release pull request until the newest server release serves its agent API version and npm has that
+server, naming what to merge and publish first; once the release workflow has published the server,
+run the check again, which reads the tags anew. Then merge the agent line's release pull request
+promptly: as soon as an operator upgrades the server, the sessions view asks them to update a plugin
+that speaks an older agent API version, and that update should exist.
+
+`main` does not require a branch to be up to date before it merges, so a release pull request's
+checks are as of its last update. Merge one only once release-please has updated it after the latest
+change merged to `main` that it includes, and its checks have passed on that update.
 
 ### Checking a release
 
-Run these outside a checkout of this repository, where the last would run the workspace's bridge
-instead of the published one.
+Run these outside a checkout of this repository, where the last command, `npx`, would run the
+workspace's bridge instead of the published one. Each line has its own `X.Y.Z`.
 
 ```bash
+# The server line, agention-vX.Y.Z
 npm view @wayfarerlabs/agention@X.Y.Z dist.attestations.provenance.predicateType
+
+# The agent line, agention-mcp-vX.Y.Z
 npm view @wayfarerlabs/agention-mcp@X.Y.Z dist.attestations.provenance.predicateType
 npx -y @wayfarerlabs/agention-mcp@X.Y.Z --version
 ```
 
-Each package's provenance names `https://slsa.dev/provenance/v1`, and its version's page on
-npmjs.com shows the provenance, with the commit and the workflow run that built it. The bridge
-prints `agention-mcp X.Y.Z`.
+The package's provenance names `https://slsa.dev/provenance/v1`, and its version's page on npmjs.com
+shows the provenance, with the commit and the workflow run that built it. The bridge prints
+`agention-mcp X.Y.Z`. A release publishes its line's package alone, so the other package has no
+version for it.
 
 ### One-time setup
 
@@ -447,11 +510,15 @@ The repository's owner sets these up once, before the first release:
    is set the release-please workflow is skipped. release-please opens its pull request and tags
    releases with the App's token, so CI runs on the pull request and the tag starts the release
    workflow. Then run the Release Please workflow from the Actions tab, or push to `main`, to open
-   the first release pull request.
-4. **The `v*` tag ruleset.** Add a repository ruleset for tags matching `v*` that restricts their
-   creation, update and deletion, with the release-please App as its only bypass actor.
+   the first release pull requests.
+4. **The tag rulesets.** Add two repository rulesets for tags matching `agention-v*`,
+   `agention-mcp-v*` and `v*`, the tags of the releases before the lines split: one that restricts
+   their creation, with the release-please App as its only bypass actor, and one that makes them
+   immutable, refusing their update and deletion with no bypass actor, so a tag stays where the App
+   put it and a moved tag cannot start a publish.
 5. **The `npm` environment.** Create an environment named `npm` in the repository, and limit its
-   deployment branches and tags to the tag pattern `v*`, with no branch.
+   deployment branches and tags to the tag patterns `agention-v*` and `agention-mcp-v*`, with no
+   branch.
 6. **Each package's trusted publisher.** npm sets up a trusted publisher only on a package that
    exists, so each package starts as a [placeholder](#the-placeholder). Then add the package's
    trusted publisher on npmjs.com, under its Settings → Trusted publishing: GitHub Actions,
@@ -463,16 +530,16 @@ The repository's owner sets these up once, before the first release:
    access to "Require two-factor authentication and disallow tokens". Trusted publishing uses no
    token, so it goes on working.
 
-Together these let only a merged release pull request publish: only the App may create `v*` tags,
+Together these let only a merged release pull request publish: only the App may create release tags,
 its key is usable only from `main`, which changes only through reviewed pull requests with the
-required check, and only `v*` tags may use the `npm` environment that each trusted publisher names.
-The repository must stay public: npm attaches provenance only to a package published from a public
-repository, and the release workflow's explicit `--provenance` fails a release otherwise.
+required check, and only release tags may use the `npm` environment that each trusted publisher
+names. The repository must stay public: npm attaches provenance only to a package published from a
+public repository, and the release workflow's explicit `--provenance` fails a release otherwise.
 
 A package added later starts the same way: publish and deprecate its placeholder, add it beside the
-others to the package checks in `scripts/check.sh`, to `release.yml` and to
-`release-please-config.json`, add its trusted publisher within the two days before the release that
-first publishes it, and disallow tokens once that release is out.
+others to the package checks in `scripts/check.sh`, to `release.yml`'s mapping of tags to packages
+and to its release line's configuration, add its trusted publisher within the two days before the
+release that first publishes it, and disallow tokens once that release is out.
 
 ### The placeholder
 

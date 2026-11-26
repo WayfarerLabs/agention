@@ -6,12 +6,13 @@
 # CI runs this script, so a local pass means the same checks pass in CI.
 # Prerequisites: Node at the version in .node-version, with the npm it
 # bundles, the repository's release tags, and network access for the
-# install, signature, vulnerability and agent compatibility checks. The first
-# gate installs the locked dependencies with `npm ci`. The browser gate needs
-# Chromium's headless shell, installed once with
+# install, signature, vulnerability, agent compatibility and release order
+# checks. The first gate installs the locked dependencies with `npm ci`. The
+# browser gate needs Chromium's headless shell, installed once with
 # `npx playwright install --only-shell chromium`. --fast skips the agent
-# compatibility gate, which installs the released bridges, the builds and the
-# browser gate, which drives them. --packages DIR runs only the install
+# compatibility gate, which installs the released bridges, the release order
+# gate, which asks npm for a server release, the builds and the browser gate,
+# which drives them. --packages DIR runs only the install
 # and the build gate, which builds the published packages and checks each as
 # npm would publish it, and keeps the tarballs it checked in DIR, which must
 # be empty or missing; the release workflow publishes those. The SDD gate
@@ -203,6 +204,11 @@ if [[ $mode != packages ]]; then
     step "SDD records"
     scripts/check-sdd.test.sh
     scripts/check-sdd.sh ${SDD_BASE:+"$SDD_BASE"}
+
+    step "Release order tests"
+    # The release order gate's decisions, on fixtures of their own, which
+    # need neither the network nor the release tags.
+    scripts/check-release-order.test.sh
 fi
 
 if [[ $mode == all ]]; then
@@ -210,6 +216,11 @@ if [[ $mode == all ]]; then
     # Every released bridge against the agent routes at HEAD, as
     # CONTRIBUTING.md "The agent API" describes.
     scripts/check-agent-compatibility.sh
+
+    step "Release order"
+    # The agent line's release pull request waits for a published server that
+    # serves its agent API version, as CONTRIBUTING.md "Releasing" describes.
+    scripts/check-release-order.sh
 fi
 
 if [[ $mode != fast ]]; then

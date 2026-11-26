@@ -1,0 +1,62 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "label": "autorelease-agent: pending",
+  "release-label": "autorelease-agent: tagged",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "component": "agention-mcp",
+      "changelog-path": "apps/bridge/CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "exclude-paths": [
+        "apps/server",
+        "apps/web",
+        "packages/server-api",
+        "docs",
+        "scripts",
+        ".github"
+      ],
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "apps/bridge/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "package-lock.json",
+          "jsonpath": "$.packages['apps/bridge'].version"
+        },
+        {
+          "type": "json",
+          "path": "apps/agent-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "out/claude-plugin/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "out/claude-plugin/.mcp.json",
+          "jsonpath": "$.mcpServers.agention.args[1]"
+        },
+        {
+          "type": "json",
+          "path": "out/codex-plugin/.codex-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "out/codex-plugin/.mcp.json",
+          "jsonpath": "$.mcpServers.agention.args[1]"
+        },
+        {
+          "type": "generic",
+          "path": "docs/operator-guide.md"
+        }
+      ]
+    }
+  }
+}

@@ -1,22 +1,32 @@
 name: Release
 
 # release-please tags each release when its pull request merges, with its
-# GitHub App's token, so the tag push starts this workflow. A repository
-# ruleset lets only that App create v* tags, and the App's key is a secret of
-# an environment only main may use, and main changes only through reviewed
-# pull requests with the required check, so a v* tag marks a merged release
-# pull request.
+# GitHub App's token, so the tag push starts this workflow: agention-vX.Y.Z
+# for the server line and agention-mcp-vX.Y.Z for the agent line, which the
+# first pattern does not match. A repository ruleset lets only that App create
+# these tags, and the App's key is a secret of an environment only main may
+# use, and main changes only through reviewed pull requests with the required
+# check, so such a tag marks a merged release pull request.
 on:
   push:
-    tags: ["v*"]
+    tags: ["agention-v*", "agention-mcp-v*"]
 
 permissions:
   contents: read
 
+# The line the tag releases, read from its prefix, and the one package that
+# line publishes.
+env:
+  LINE_PREFIX:
+    ${{ startsWith(github.ref_name, 'agention-mcp-v') && 'agention-mcp-v' || 'agention-v' }}
+  PACKAGE:
+    ${{ startsWith(github.ref_name, 'agention-mcp-v') && '@wayfarerlabs/agention-mcp' ||
+    '@wayfarerlabs/agention' }}
+
 jobs:
-  # Builds and checks both packages, and uploads the tarballs it checked for
-  # the publish job. It holds no OIDC token, so nothing it runs, the
-  # dependencies included, can publish.
+  # Builds and checks both packages, and uploads the tarball of the tag's line
+  # it checked for the publish job. It holds no OIDC token, so nothing it runs,
+  # the dependencies included, can publish.
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -38,13 +48,19 @@ jobs:
         id: node-pin
         run: echo "node-version=$(tr -d '[:space:]' <.node-version)" >>"$GITHUB_OUTPUT"
 
-      # The plugin definition's version is the bridge version the committed
-      # plugins pin, which the publish job's order relies on.
-      - name: Refuse a tag the versions do not match
+      # The tag's line ships its package at the tag's version, and the agent
+      # line its plugins too, whose definition's version is the bridge version
+      # the committed plugins pin; the Plugin drift gate holds the generated
+      # plugins to that definition. Files that ship nothing are not checked.
+      - name: Refuse a tag the line's versions do not match
         run: |
-          for manifest in apps/server/package.json apps/bridge/package.json apps/agent-plugin/plugin.json; do
+          case "$LINE_PREFIX" in
+            agention-mcp-v) manifests=(apps/bridge/package.json apps/agent-plugin/plugin.json) ;;
+            *) manifests=(apps/server/package.json) ;;
+          esac
+          for manifest in "${manifests[@]}"; do
             version="$(node -p 'require(process.argv[1]).version' "$PWD/$manifest")"
-            if [[ "$version" != "${GITHUB_REF_NAME#v}" ]]; then
+            if [[ "$version" != "${GITHUB_REF_NAME#"$LINE_PREFIX"}" ]]; then
               echo "::error::$manifest is version $version, which is not the tag $GITHUB_REF_NAME."
               exit 1
             fi
@@ -52,9 +68,14 @@ jobs:
 
       # Installs the locked dependencies, builds both packages, proves each
       # packed package's command prints its package.json version, which the
-      # step above matched to the tag, and keeps the tarballs it checked.
+      # step above matched to the tag for the line's package, and keeps the
+      # tarballs it checked, of which only the line's is uploaded.
       - name: scripts/check.sh --packages
-        run: scripts/check.sh --packages "$RUNNER_TEMP/packages"
+        run: |
+          scripts/check.sh --packages "$RUNNER_TEMP/checked"
+          # npm packs @scope/name at a version as scope-name-version.tgz.
+          mkdir "$RUNNER_TEMP/packages"
+          mv "$RUNNER_TEMP/checked/$(tr / - <<<"${PACKAGE#@}")-${GITHUB_REF_NAME#"$LINE_PREFIX"}.tgz" "$RUNNER_TEMP/packages/"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -62,9 +83,9 @@ jobs:
           path: ${{ runner.temp }}/packages/
           if-no-files-found: error
 
-  # Publishes the build job's tarballs to npm through trusted publishing,
+  # Publishes the build job's tarball to npm through trusted publishing,
   # running no repository code. Each package's trusted publisher names this
-  # workflow and the npm environment, which only v* tags may use.
+  # workflow and the npm environment, which only the two lines' tags may use.
   publish:
     needs: build
     runs-on: ubuntu-24.04
@@ -85,30 +106,25 @@ jobs:
           name: packages
           path: ${{ runner.temp }}/packages
 
-      # Both tarballs are checked before either is published. The bridge goes
-      # first, since the plugins on main already pin this version of it. A
-      # version already on npm, published by an earlier run that failed part
-      # way, is skipped, so a rerun finishes the release; the registry refuses
-      # a version twice whatever this check says. --provenance makes a publish
-      # that cannot carry provenance fail rather than go out without it.
+      # The tarball is checked to be the line's package at the tag's version
+      # before it is published. A version already on npm, published by an
+      # earlier run that failed after publishing, is skipped, so a rerun
+      # finishes the release; the registry refuses a version twice whatever
+      # this check says. --provenance makes a publish that cannot carry
+      # provenance fail rather than go out without it.
       - name: Publish to npm
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          names=(@wayfarerlabs/agention-mcp @wayfarerlabs/agention)
+          version="${GITHUB_REF_NAME#"$LINE_PREFIX"}"
           # npm packs @scope/name at a version as scope-name-version.tgz.
-          tarball() { echo "$RUNNER_TEMP/packages/$(tr / - <<<"${1#@}")-$version.tgz"; }
-          for name in "${names[@]}"; do
-            packed="$(tar -xzOf "$(tarball "$name")" package/package.json |
-              node -p 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); m.name + "@" + m.version')"
-            if [[ "$packed" != "$name@$version" ]]; then
-              echo "::error::$(tarball "$name") holds $packed, not $name@$version."
-              exit 1
-            fi
-          done
-          for name in "${names[@]}"; do
-            if npm view "$name@$version" version >/dev/null; then
-              echo "$name@$version is already on npm, so it is skipped."
-            else
-              npm publish "$(tarball "$name")" --provenance --ignore-scripts
-            fi
-          done
+          tarball="$RUNNER_TEMP/packages/$(tr / - <<<"${PACKAGE#@}")-$version.tgz"
+          packed="$(tar -xzOf "$tarball" package/package.json |
+            node -p 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); m.name + "@" + m.version')"
+          if [[ "$packed" != "$PACKAGE@$version" ]]; then
+            echo "::error::$tarball holds $packed, not $PACKAGE@$version."
+            exit 1
+          fi
+          if npm view "$PACKAGE@$version" version >/dev/null; then
+            echo "$PACKAGE@$version is already on npm, so it is skipped."
+          else
+            npm publish "$tarball" --provenance --ignore-scripts
+          fi

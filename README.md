@@ -111,7 +111,10 @@ that history is never edited or erased. [SECURITY.md](SECURITY.md) has the full 
 - [Architecture](docs/architecture.md): what exists and how it fits together.
 - [Decision records](docs/adrs/): why it is built this way, and the alternatives considered.
 - [Contributing](CONTRIBUTING.md): building from source, checks and releasing.
-- [Changelog](CHANGELOG.md): what each release changed.
+- [Changelog](CHANGELOG.md): what each server release changed. The plugins, with the bridge they
+  run, are released apart from the server, with a version and a
+  [changelog](apps/bridge/CHANGELOG.md) of their own; both lines start from 0.7.0, the last release
+  of all three under one version ([Releasing](CONTRIBUTING.md#releasing)).
 
 ## License
 

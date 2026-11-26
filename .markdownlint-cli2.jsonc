@@ -8,5 +8,5 @@
     "MD033": { "allowed_elements": ["picture", "source", "img", "br"] },
   },
   "gitignore": true,
-  "ignores": ["out/**", "CHANGELOG.md"],
+  "ignores": ["out/**", "CHANGELOG.md", "apps/bridge/CHANGELOG.md"],
 }

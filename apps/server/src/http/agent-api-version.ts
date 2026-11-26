@@ -31,8 +31,11 @@ export const stateAgentApiVersion: MiddlewareHandler = async (c, next) => {
 // authentication or any other work. The refusal is worded for the agent, as
 // the bridge's own problems are, so a bridge that relays it as it is tells the
 // agent what the operator updates. Anyone who reaches the server can read it,
-// so it names the versions the server serves, never its release. A version it
-// serves goes on the context, for the answer.
+// so it names the versions the server serves, never its release. The server
+// and the plugin are released on lines of their own, so the fix is the newest
+// release of the one behind: Agention's bridges refuse an older server's
+// answers before relaying them, so only other clients read the first. A
+// version it serves goes on the context, for the answer.
 export const requireServedAgentApiVersion: MiddlewareHandler<AgentApiVersionEnv> = async (
   c,
   next,
@@ -44,16 +47,15 @@ export const requireServedAgentApiVersion: MiddlewareHandler<AgentApiVersionEnv>
   if (version > agentApi.version) {
     throw unsupported(
       served,
-      "upgrade the Agention server to the plugin's release or later, or to pin the Agention " +
-        "plugin to a release that matches the server, and restart this session, resuming it to " +
-        "keep this conversation",
+      "upgrade the Agention server to its newest release, and restart this session, resuming it " +
+        "to keep this conversation",
     );
   }
   if (version < agentApi.oldest) {
     throw unsupported(
       served,
-      "update the Agention plugin to the server's release or later, and restart this session, " +
-        "resuming it to keep this conversation",
+      "update the Agention plugin to its newest release, and restart this session, resuming it " +
+        "to keep this conversation",
     );
   }
   c.set("agentApiVersion", version);
