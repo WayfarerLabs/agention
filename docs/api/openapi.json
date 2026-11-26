@@ -499,7 +499,7 @@
                           },
                           "unread_by_agent_since": {
                             "type": "string",
-                            "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
+                            "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all."
                           },
                           "stranded": {
                             "type": "boolean"
@@ -1896,7 +1896,7 @@
                         },
                         "unread_by_agent_since": {
                           "type": "string",
-                          "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
+                          "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all."
                         },
                         "stranded": {
                           "type": "boolean"
@@ -2042,7 +2042,7 @@
                         },
                         "unread_by_agent_since": {
                           "type": "string",
-                          "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
+                          "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all."
                         },
                         "stranded": {
                           "type": "boolean"
@@ -9424,7 +9424,7 @@
           },
           "unread_by_agent_since": {
             "type": "string",
-            "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all. A latest nudge claimed at or after it came for this thread."
+            "description": "When the earliest live message of yours that the session has not read was written; absent when it has read them all."
           },
           "stranded": {
             "type": "boolean"

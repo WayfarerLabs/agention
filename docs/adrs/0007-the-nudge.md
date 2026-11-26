@@ -88,8 +88,9 @@ every check that can be made before each key.
   the quiet time. A check-in after the nudge does not hold that off: an agent that checks in without
   reading the thread is not nudged for it again, since one nudge is due per check-in and only for a
   message written after it, so nothing more will bring it, and the operator sees that the agent
-  checked in after the nudge without reading the thread. Its other causes, no active credential and
-  no connection, stand as before.
+  checked in without reading the thread. A message the operator writes after that check-in makes a
+  nudge due again, so the quiet time then runs from that message, as for one with no nudge claimed
+  since it. Its other causes, no active credential and no connection, stand as before.
 
 ## Consequences
 

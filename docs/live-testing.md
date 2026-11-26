@@ -93,8 +93,8 @@ disagreement is the finding.
   warning, and left in the input in Claude Code's vim normal mode; a bridge restarted, or a second
   one started, in the middle of a nudge, with no second nudge before the agent checks in; a session
   whose nudge went unanswered shown as not responding; and a thread whose agent checked in after the
-  nudge without reading it stranded once the quiet time passes, saying so (`docs/operator-guide.md`
-  "The nudge").
+  nudge without reading it stranded once the quiet time passes, saying so, and nudged again, not
+  stranded, when the operator then writes to it again (`docs/operator-guide.md` "The nudge").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.

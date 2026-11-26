@@ -129,12 +129,17 @@ export function connectedOf(sessions: string): string {
 // will bring such a message to the other party soon. That holds while the
 // session has no active credential or is not connected; while it cannot be
 // nudged, which takes a connected bridge whose report says it can, and it is
-// quiet or has stopped; and while it can be, once the latest nudge since the
-// earliest such message was not sent, or was sent, or its outcome is not
-// known, before the quiet cut-off, whether or not the agent checked in since,
-// or, with none claimed since, that message was written before the quiet
-// cut-off. Last comes the operator's group for its session, which only the
-// operator's list shows.
+// quiet or has stopped; and while it can be, by the message the next nudge
+// comes for. Where no nudge was claimed since the agent last checked in and
+// a live message of the viewer's that the other party has neither read nor
+// archived was written after that check-in, as nudgeDue (monitors.ts) reads
+// it, a nudge will come for it, so the thread is stranded once the earliest
+// of those was written before the quiet cut-off. Otherwise it is once the
+// latest nudge since the earliest message the other party has not read was
+// not sent, or was sent, or its outcome is not known, before the quiet
+// cut-off, whether or not the agent checked in since, or, with none claimed
+// since, that message was written before the quiet cut-off. Last comes the
+// operator's group for its session, which only the operator's list shows.
 //
 // scope reads the threads as t, their sessions as s and their agents as g.
 // Callers bind a ViewerAndCutoff and whatever lead's conditions name, and
@@ -258,7 +263,14 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
             SELECT m.read_seq FROM thread_marks m
             WHERE m.actor_id = base.other_actor_id AND m.thread_id = base.id
           ), 0)
-        ) AS unread_by_other_since
+        ) AS unread_by_other_since,
+        (
+          SELECT min(l.created_at) FROM live_messages l
+          LEFT JOIN thread_marks m ON m.actor_id = base.other_actor_id AND m.thread_id = base.id
+          WHERE l.thread_id = base.id AND l.actor_id = :viewer
+            AND l.seq > max(COALESCE(m.read_seq, 0), COALESCE(m.archived_seq, 0))
+            AND (base.last_seen_at IS NULL OR l.created_at > base.last_seen_at)
+        ) AS unread_since_check_in
       FROM base
       LEFT JOIN open_summary r ON r.thread_id = base.id
       LEFT JOIN rolled_asks rolled ON rolled.thread_id = base.id
@@ -276,9 +288,14 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           OR IIF(
             joined.connected IS 1 AND joined.nudge IS 1,
             IIF(
-              joined.nudged_at >= joined.unread_by_other_since,
-              joined.nudge_sent IS 0 OR joined.nudged_at < :quiet_before,
-              joined.unread_by_other_since < :quiet_before
+              joined.unread_since_check_in IS NOT NULL
+                AND (joined.nudged_at IS NULL OR joined.nudged_at <= joined.last_seen_at),
+              joined.unread_since_check_in < :quiet_before,
+              IIF(
+                joined.nudged_at >= joined.unread_by_other_since,
+                joined.nudge_sent IS 0 OR joined.nudged_at < :quiet_before,
+                joined.unread_by_other_since < :quiet_before
+              )
             ),
             joined.quiet OR joined.session_state IS 'stopped'
           )

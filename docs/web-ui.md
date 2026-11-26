@@ -182,16 +182,16 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   threads, saying why: its session **stopped**, with how; it is quiet, **last check-in** when, or
   **never checked in**; it has **no active credential**; or its bridge is **not connected**. For a
   session its bridge can nudge, it says what came of the nudge instead: **not responding to the
-  nudge at 14:05**, **nudge not sent at 14:05**, **checked in after the nudge at 14:05 without
-  reading this**, or **not nudged**. Where the session's bridge monitors its terminal, the tag also
-  says what the terminal shows, in the words of the sessions view's rows, such as **last check-in
-  14:02 · stopped at a permission prompt**. A session with no active credential also shows its own
-  tag, unless the stranded tag already says so. When the thread's messages name one GitHub pull
-  request or branch, it shows beneath, beside the same icon of two lines merging into one, by its
-  short form, which adds it to the filters on, keeping the others, the order and the grouping; its
-  link to GitHub is on the thread's page. When they name two or more, that icon among the row's
-  marks says how many, which a screen reader says in full, such as **2 pull requests, 1 branch**,
-  and the thread's head lists them.
+  nudge at 14:05**, **nudge not sent at 14:05**, **checked in at 14:05 without reading this**, or
+  **not nudged**. Where the session's bridge monitors its terminal, the tag also says what the
+  terminal shows, in the words of the sessions view's rows, such as **last check-in 14:02 · stopped
+  at a permission prompt**. A session with no active credential also shows its own tag, unless the
+  stranded tag already says so. When the thread's messages name one GitHub pull request or branch,
+  it shows beneath, beside the same icon of two lines merging into one, by its short form, which
+  adds it to the filters on, keeping the others, the order and the grouping; its link to GitHub is
+  on the thread's page. When they name two or more, that icon among the row's marks says how many,
+  which a screen reader says in full, such as **2 pull requests, 1 branch**, and the thread's head
+  lists them.
 - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
   leaving out those under a folded header, as **Select all** does. It stays in view as the list
   scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
@@ -249,12 +249,12 @@ it alone, with no other filter on, showing everything there in the order and gro
 list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row does,
 and a stranded thread says why its session has not read your latest messages: it stopped, and how,
 its agent last checked in when, or never, or its bridge is not connected, or, for a session its
-bridge can nudge, what came of the nudge, such as its agent checking in after the nudge without
-reading the thread, with what its terminal shows where its bridge monitors it; a session with no
-active credential says so in a notice under the head. **Threads** stays marked in the navigation.
-The head holds **Jump to unread** while anything is unread or an ask is open to you. The messages
-open on the newest ones, or on the first one you had not read after those you archived when that
-comes before them, and show earlier and later ones when you ask.
+bridge can nudge, what came of the nudge, such as its agent checking in without reading the thread,
+with what its terminal shows where its bridge monitors it; a session with no active credential says
+so in a notice under the head. **Threads** stays marked in the navigation. The head holds **Jump to
+unread** while anything is unread or an ask is open to you. The messages open on the newest ones, or
+on the first one you had not read after those you archived when that comes before them, and show
+earlier and later ones when you ask.
 
 - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it, each
   an icon over a short word: **Threads**, back to the list as you left it, with its filters, order,

@@ -9,7 +9,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
-import { markRead } from "./marks.ts";
+import { archiveThread, markRead } from "./marks.ts";
 import { claimNudge, pollMonitor, recordNudgeOutcome, reportMonitor } from "./monitors.ts";
 import { connectedFor, seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
@@ -660,18 +660,61 @@ describe("stranded, for a session that can be nudged", () => {
     fixture.advance(1);
     expect(presence()?.quiet).toBe(false);
     expect(stranded()).toBe(true);
-    // The thread says when its unread message was written, so the nudge
-    // reads as one sent for it.
+    // The thread says when its unread message was written, so the check-in
+    // reads as one that passed it over.
     expect(thread()?.unread_by_agent_since).toBe(new Date(written).toISOString());
     expect((await poll(first, { wait: "0" })).nudge).toBe(false);
-    expect(
-      listSessions(fixture.store, fixture.operator, sessionsQuery.parse({})).agents[0]?.sessions[0]
-        ?.threads.stranded,
-    ).toBe(1);
-    expect(
-      listThreads(fixture.store, fixture.operator, threadsQuery.parse({ agent_read: "stranded" }))
-        .threads,
-    ).toHaveLength(1);
+  });
+
+  // followedUp has the operator write again in the thread, a millisecond on.
+  const followedUp = () => {
+    fixture.advance(1);
+    fixture.write(fixture.operator, threadTarget(agent, 1), { text: "Any news?" });
+  };
+
+  it.each([
+    [
+      "after the agent checked in since a nudge",
+      async () => {
+        await claimed(true);
+        fixture.seen(agent);
+      },
+    ],
+    [
+      "after the agent checked in since the message, with no nudge",
+      () => {
+        fixture.advance(seenStep);
+        fixture.seen(agent);
+      },
+    ],
+  ])(
+    "is not, where the operator wrote again %s, until the quiet time passes after that with no nudge",
+    async (_, checkedIn) => {
+      await checkedIn();
+      fixture.advance(quiet);
+      expect(stranded()).toBe(true);
+      followedUp();
+      // A nudge is due for the later message, so it will bring the thread.
+      expect(stranded()).toBe(false);
+      expect((await poll(first, { wait: "0" })).nudge).toBe(true);
+      fixture.advance(quiet - 1);
+      expect(stranded()).toBe(false);
+      fixture.advance(1);
+      expect(stranded()).toBe(true);
+    },
+  );
+
+  it("is once the agent archives the operator's later message without reading the thread", async () => {
+    await claimed(true);
+    fixture.seen(agent);
+    fixture.advance(quiet);
+    followedUp();
+    expect(stranded()).toBe(false);
+    const target = threadTarget(agent, 1);
+    archiveThread(fixture.store, agent.identity, target, { through: fixture.lastSeq(target) });
+    // No nudge is due for an archived message, so nothing will bring it.
+    expect((await poll(first, { wait: "0" })).nudge).toBe(false);
+    expect(stranded()).toBe(true);
   });
 
   it("is not where the agent read the thread after the nudge, however long since", async () => {

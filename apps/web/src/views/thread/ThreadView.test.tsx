@@ -690,7 +690,7 @@ describe("the head", () => {
       },
     ],
     [
-      "checked in after a nudge sent for it without reading it, saying when the nudge came",
+      "checked in after the operator wrote without reading the thread, saying when it checked in",
       {
         presence: {
           last_seen_at: "2026-10-27T12:00:00.000Z",
@@ -703,7 +703,7 @@ describe("the head", () => {
       },
       (line: Element | null) => {
         expect(line?.querySelector("time")?.getAttribute("datetime")).toBe(
-          "2026-10-27T11:59:00.000Z",
+          "2026-10-27T12:00:00.000Z",
         );
         expect(line?.textContent).toContain(conditionWords(observed("running")));
       },
