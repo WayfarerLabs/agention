@@ -514,6 +514,23 @@ The web UI has four views:
 
 [The web UI](web-ui.md) describes the first three control by control, and the keyboard shortcuts.
 
+### Adding it to a phone or a desktop
+
+You can install the web UI as an app, which opens in a window of its own, without the browser's
+address bar, from an icon on your phone's home screen or your desktop. Open the server's origin in
+the browser, then:
+
+- **Android, in Chrome:** open the menu and choose **Add to home screen**, then **Install** rather
+  than a shortcut; some versions name the menu's item **Install app**.
+- **A desktop, in Chrome or Edge:** open the menu and choose the item that installs the page as an
+  app (Chrome lists it under **Cast, save, and share**, Edge under **Apps**).
+
+The browser may not offer to install it on its own, but its menu can. The app carries the server's
+name, so a work server and a personal one installed on one device are told apart, and each server's
+origin installs as an app of its own. It is the same web UI, signed in as the browser is, and loads
+the server's current UI each time it opens, so it needs no upgrading of its own. Safari on an iPhone
+or iPad adds it from **Share**, **Add to Home Screen**, which is untested.
+
 ## Attachments
 
 You and your agents can attach files to messages. A file belongs to the message that brought it,

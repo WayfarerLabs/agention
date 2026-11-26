@@ -34,14 +34,17 @@ import { serveWebUi } from "./web-ui.ts";
 export const maxBodyBytes = 2 * 1024 * 1024;
 
 // The content security policy of every response whose route declares none of
-// its own: the UI loads only its own scripts, styles, images and media, talks
-// only to its own origin, and cannot be framed. Message text is rendered
-// inert, and this backs that up. The UI frames only the diagram frame, and
-// shows the images it makes from the frame's answers as blob: URLs.
+// its own: the UI loads only its own scripts, styles, images, media, web app
+// manifest, and workers, talks only to its own origin, and cannot be framed.
+// Message text is rendered inert, and this backs that up. The UI frames only
+// the diagram frame, and shows the images it makes from the frame's answers
+// as blob: URLs. worker-src states what script-src already implies for
+// workers, so a later change to scripts cannot widen them.
 export function contentSecurityPolicy(origin: string): string {
   return (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; " +
-    `media-src 'self'; frame-src ${origin}${diagramFramePath}; connect-src 'self'; ` +
+    `media-src 'self'; manifest-src 'self'; worker-src 'self'; ` +
+    `frame-src ${origin}${diagramFramePath}; connect-src 'self'; ` +
     "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
   );
 }

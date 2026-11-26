@@ -87,9 +87,11 @@ index of those docs.
   generated from the server's operation declarations and the `packages/api` schemas they use by
   `apps/server/generate-api-docs.ts`, through `scripts/generate-api-docs.sh`, with the parity test
   `apps/server/src/http/api-docs.test.ts` in the "Tests" gate (`CONTRIBUTING.md` "Generated API
-  document"); and the screenshots in `docs/images/`, retaken by `apps/web/e2e/readme-screenshots.ts`
+  document"); the screenshots in `docs/images/`, retaken by `apps/web/e2e/readme-screenshots.ts`
   through `scripts/generate-screenshots.sh`, with no drift check (`CONTRIBUTING.md` "README
-  screenshots")
+  screenshots"); and the app icons in `apps/web/public/icons/`, drawn from
+  `apps/web/public/favicon.svg` and `apps/web/icons/maskable.svg` by `apps/web/generate-icons.ts`
+  through `scripts/generate-icons.sh`, with no drift check (`CONTRIBUTING.md` "App icons")
 - Everything CI requires on a pull request, in order: `.github/workflows/ci.yml`: the `check` job
   runs `scripts/check.sh`, whose gates `CONTRIBUTING.md` "Checks" lists in order; then `ci-success`,
   the one required check, which passes only when `check` succeeded

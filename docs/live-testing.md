@@ -197,14 +197,15 @@ disagreement is the finding.
   when tapped while a touch selection is under way, the forge link beside a message's or the fold's
   entry opening the forge's page in a new tab, and the filter sheet's **Pull request** and
   **Branch** with their counts, chips, and the address, on a phone's width too
-  (`docs/operator-guide.md` "Signing in", "Voice", "Attachments" and "Approving agents";
-  `docs/web-ui.md`). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
-  with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
-  opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick
-  list told at a glance from the thread bar's arrow buttons just below it, its choices read in the
-  phone's own picker, and a photo from the phone read by an agent, with an image, a PDF, a video and
-  a text file an agent attached opened in Android Chrome and Windows Edge or Chrome, are the
-  operator's acceptance, not the tester's.
+  (`docs/operator-guide.md` "Signing in", "Adding it to a phone or a desktop", "Voice",
+  "Attachments" and "Approving agents"; `docs/web-ui.md`). Real-phone passkeys, the web UI added to
+  a phone's home screen and opening standalone, Send above a phone's keyboard while writing,
+  dictation with a real provider, diagrams and their viewer in iOS Safari, what each item of
+  Attach's menu opens on a real phone, holding a row down to select it in Android Chrome, After
+  sending's pick list told at a glance from the thread bar's arrow buttons just below it, its
+  choices read in the phone's own picker, and a photo from the phone read by an agent, with an
+  image, a PDF, a video and a text file an agent attached opened in Android Chrome and Windows Edge
+  or Chrome, are the operator's acceptance, not the tester's.
 - **The Sessions tab side by side**, in the same browser: at a desktop's width, a row opening its
   session beside the rows at its own address, the open session's row marked, Back from session to
   session and onto the rows, focus back on the row left, and the arrangement kept through it; below

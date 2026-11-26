@@ -60,6 +60,15 @@ function namedPage(page: string, name: string): string {
   );
 }
 
+// The web app manifest's path in the build, which the index page links to.
+// The server serves it with its own name as the installed app's, so two
+// servers a device installs are told apart as their pages are.
+const webAppManifestPath = "/manifest.webmanifest";
+
+// namedManifest sets the server's name as the manifest's name and short name.
+const namedManifest = (file: string, name: string) =>
+  JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), name, short_name: name });
+
 // The paths at which the build would serve the index page's file as it is on
 // disk: the root, and the file's own name in any case, since a
 // case-insensitive file system serves it under every one.
@@ -97,10 +106,10 @@ function serveAssets(app: Hono, root: string): void {
 }
 
 // serveWebUi adds the GET routes that serve the build in root, or the
-// placeholder page when root holds no build. The index page is prepared once,
-// as the server starts, carrying the server's name, and its file is never
-// served as it is. The app's own routes, the API included, must be added
-// first.
+// placeholder page when root holds no build. The index page and the web app
+// manifest are prepared once, as the server starts, carrying the server's
+// name, and their files are never served as they are. The app's own routes,
+// the API included, must be added first.
 export function serveWebUi(app: Hono, root: string | undefined, name: string): void {
   if (root === undefined || !existsSync(path.join(root, "index.html"))) {
     app.get("/*", (c) => c.html(placeholderPage));
@@ -110,6 +119,17 @@ export function serveWebUi(app: Hono, root: string | undefined, name: string): v
   const serveIndex = (c: Context) => c.html(page);
   app.get("/*", (c, next) => (isIndexFile(c.req.path) ? serveIndex(c) : next()));
   serveAssets(app, root);
+  // A build without the manifest serves none, so its path serves as any other.
+  const manifestFile = path.join(root, webAppManifestPath);
+  if (existsSync(manifestFile)) {
+    const manifest = namedManifest(manifestFile, name);
+    // Matched in any case, as the index page's file is.
+    app.get("/*", (c, next) =>
+      c.req.path.toLowerCase() === webAppManifestPath
+        ? c.body(manifest, 200, { "Content-Type": "application/manifest+json" })
+        : next(),
+    );
+  }
   app.get("/*", serveStatic({ root }));
   app.get("/*", serveIndex);
 }

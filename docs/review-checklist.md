@@ -156,14 +156,15 @@ loads: it shows as a link. Files attached to messages are not message text, and 
 holds them (ADR 0004); message text reaches a file only through a link to one of its own message's
 files. A diagram drawn from message text is drawn in isolation, so drawing it can neither run
 anything in the app's page nor fetch anything, and shows as an image, with the content security
-policy kept strict: it gains only the diagram frame's route as a frame source, `blob:` images, and
-media from its own origin for attachments, and the frame's own policy sandboxes it. Look for
-content-driven fetches or previews, any call to GitHub or another forge about a pull request or
-branch, raw HTML or images other than such a diagram or an attached file reaching the DOM, a link
-from text to a file another message carries, a diagram drawn outside its isolation, classes or
-styles taken from text, live non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search
-text read as query syntax, and message content treated as the operator's direction anywhere, the
-usage skill included, unless the operator wrote it (its author is the person).
+policy kept strict: it gains only the diagram frame's route as a frame source, `blob:` images, media
+from its own origin for attachments, and `manifest-src 'self'` and `worker-src 'self'` for the
+installable web UI, and the frame's own policy sandboxes it. Look for content-driven fetches or
+previews, any call to GitHub or another forge about a pull request or branch, raw HTML or images
+other than such a diagram or an attached file reaching the DOM, a link from text to a file another
+message carries, a diagram drawn outside its isolation, classes or styles taken from text, live
+non-HTTPS links, links to URLs that `isLinkableUrl` refuses, search text read as query syntax, and
+message content treated as the operator's direction anywhere, the usage skill included, unless the
+operator wrote it (its author is the person).
 
 ## A10. Listener, TLS, proxy, and transport
 
