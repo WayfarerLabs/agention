@@ -110,8 +110,8 @@ Agention's server, sessions or threads, so it can be reused by other projects an
 package of its own later. It ships inside the bridge for now; releasing it separately is a later
 effort, after the server and the bridge and plugins are split (ruling 4).
 
-**M6. Stranded tells the truth.** A thread is stranded when the agent has not read the operator's
-latest message and nothing will bring it to the agent soon:
+**M6. Stranded and ignored tell the truth.** A thread is stranded when the agent has not read the
+operator's latest message and nothing will bring it to the agent soon:
 
 - its session has no active credential or its bridge is not connected (M1);
 - its session cannot be nudged, and it has stopped or is quiet, where quiet now reads when the agent
@@ -121,7 +121,16 @@ latest message and nothing will bring it to the agent soon:
 
 A session that can be nudged is not stranded merely for waiting at its prompt, which is what T1
 teaches it to do. A stranded thread says why, as today, with the session's condition (M3) where it
-has one. These are worked out from what the bridge reports, never stored.
+has one.
+
+A thread is ignored instead (ruling 8) when its session can be nudged and the agent checked in at or
+after the operator's earliest message it has not read, without reading the thread, and the quiet
+time passed with nothing more to bring it there. Stranded can be normal, as when a session stopped;
+ignored says the session is not doing what it should, so it is a status of its own. An ignored
+thread is not stranded, says when the agent checked in, and counts toward what needs the operator.
+No second nudge comes for it; a message the operator writes after that check-in makes one due.
+
+Both are worked out from what the bridge reports, never stored.
 
 **M7. One bridge acts for a host session.** A host may run several bridges for one session, as Codex
 does when it starts new ones without ending the old, and all of them share its key and its approved
@@ -368,6 +377,17 @@ an account label, was dropped by ruling 4.
    but I think this deserves a special status, right?" Taken: monitoring's live check on a bed
    shaped like an Agentworks session that the effort lead runs, the breaking-change footers, and
    migration 10's comment; how that thread's status shows is being settled before acceptance.
+
+8. (2026-11-26) Asked in Agention whether the effort lead may force-push pull request #157's draft
+   branch to drop a withdrawn breaking-change commit, the operator chose "Yes, force-push". Asked
+   which special status a thread should get after the agent checks in without reading it, offered
+   stranded with a reason of its own or a state of its own, they answered: "Maybe "ignored"? Again,
+   unlike stranded, which is somewhat normal (session stopped for some reason), this is an
+   indication of the session not doing what it's supposed to. Different enough to merit a different
+   status." Asked whether, as maintainer, they decide that the nudge's change to "stranded"
+   (stranded by the nudge's outcome rather than by waiting at the prompt) lands in place on operator
+   API v1, marked BREAKING CHANGE, they chose "Yes, mark it breaking". Taken: the force-push, M6's
+   ignored status, and the nudge's breaking-change footer.
 
 ## Definition of done
 

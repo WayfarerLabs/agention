@@ -49,7 +49,7 @@
       `CONTRIBUTING.md` (tmux among the prerequisites and dependencies), CI installing tmux, and the
       development contract. Done when the project review finds none stale.
 
-- [ ] Renumbered after main took agent API versions 6 and 7 and migration 10 for pull request and
+- [x] Renumbered after main took agent API versions 6 and 7 and migration 10 for pull request and
       branch links: monitoring is agent API version 8 and migration 11. Done when the gates pass on
       the pull request brought up to date with main.
 
@@ -60,7 +60,7 @@
       thread's reason (M4, M6). Done when the browser tests show each.
 - [x] The operator guide describes monitoring as the operator sees it. Done when the project review
       finds none stale.
-- [ ] Live on a bed shaped like an Agentworks session (FRD ruling 7), configured by hand as
+- [x] Live on a bed shaped like an Agentworks session (FRD ruling 7), configured by hand as
       Agentworks will configure it, on Claude Code and Codex: connection, activity and the
       conditions of the definition of done, a session approved at its prompt starting to report, and
       one of several Codex bridges reporting. Done when the pull request records the live evidence
@@ -96,6 +96,11 @@
       passes and the project review finds none stale.
 - [ ] Renumbered as 1a was: the nudge is agent API version 9 and migration 12. Done when the gates
       pass on the pull request brought up to date with main.
+- [ ] M6's ignored status (ruling 8): a thread whose agent checked in at or after the operator's
+      earliest unread message without reading it, the quiet time past, is ignored rather than
+      stranded, on the operator API's thread summary, agent-read filter and session counts and in
+      the web UI. Done when the store's, HTTP and web tests show such a thread ignored and not
+      stranded, and neither once the agent reads it.
 - [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
       when the pull request records the live evidence as `docs/live-testing.md` describes.
 - [ ] `locked.md` in this directory, with the final merge.
