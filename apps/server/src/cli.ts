@@ -6,7 +6,11 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsConfig } from "node:util";
+import { forgetSink, sinkKinds } from "./audit/cursors.ts";
+import { AuditDispatcher } from "./audit/dispatcher.ts";
+import { auditFlags, openSinks } from "./audit/serve-options.ts";
 import { issuePasskeyLink, passkeyLinkLifetime } from "./auth/passkey-links.ts";
+import { UsageError, wholeNumberFlag } from "./cli-flags.ts";
 import { BackupError, backupDatabase } from "./database/backup.ts";
 import { Database, DatabaseOpenError } from "./database/database.ts";
 import { createApp, securityHeaderValues } from "./http/app.ts";
@@ -17,7 +21,7 @@ import {
   serverName,
   storedName,
   storeName,
-  sweepFilesRegularly,
+  sweepRegularly,
 } from "./store/index.ts";
 import { readVoiceEnvironment, VoiceEnvironmentError } from "./transcription/environment.ts";
 
@@ -27,6 +31,7 @@ Commands:
   serve         Run the server
   passkey-link  Print a one-use link that registers the operator's passkeys
   backup        Write a consistent copy of the server's database
+  audit         Manage the audit log's sinks
   version       Print the Agention version
 
 Run agention <command> --help for a command's options.
@@ -38,22 +43,38 @@ Options:
 const serveUsage = `Usage: agention serve --data DIR --origin URL [options]
 
 Options:
-  --data DIR          The data directory, private to this user
-  --origin URL        The HTTPS origin people and agents reach the server at
-  --listen ADDR       The IP address and port to listen on (default 127.0.0.1:8080)
-  --tls-cert FILE     The TLS certificate chain, in PEM; needs --tls-key
-  --tls-key FILE      The TLS private key, in PEM; needs --tls-cert
-  --allow-plain-http  Allow plain HTTP on a non-loopback address
-  --quiet-minutes N   Minutes, 1 to 10080, after which a session not seen is
-                      quiet (default 15)
-  --name NAME         The server's name, 1 to 40 characters, which its web UI
-                      shows as its title and its passkeys carry; set by the
-                      first start that serves (default Agention), and never
-                      changed after
-  --api-docs          Serve the API's documentation, without sign-in, at
-                      /docs/api/ and its OpenAPI document at
-                      /docs/api/openapi.json
-  -h, --help          Print this help
+  --data DIR                The data directory, private to this user
+  --origin URL              The HTTPS origin people and agents reach the server
+                            at
+  --listen ADDR             The IP address and port to listen on (default
+                            127.0.0.1:8080)
+  --tls-cert FILE           The TLS certificate chain, in PEM; needs --tls-key
+  --tls-key FILE            The TLS private key, in PEM; needs --tls-cert
+  --allow-plain-http        Allow plain HTTP on a non-loopback address
+  --quiet-minutes N         Minutes, 1 to 10080, after which a session not seen
+                            is quiet (default 15)
+  --name NAME               The server's name, 1 to 40 characters, which its
+                            web UI shows as its title and its passkeys carry;
+                            set by the first start that serves (default
+                            Agention), and never changed after
+  --api-docs                Serve the API's documentation, without sign-in, at
+                            /docs/api/ and its OpenAPI document at
+                            /docs/api/openapi.json
+  --audit-stdout            Write each audit event to standard output as a JSON
+                            line; the server writes nothing else there
+  --audit-dir DIR           Write audit events to DIR/audit.jsonl, renamed for
+                            its UTC day to audit-YYYY-MM-DD.jsonl at the first
+                            write of a later day; DIR is made with mode 0700,
+                            or refused if any other user has access to it
+  --audit-group NAME        Make DIR 0750 and its files 0640 in group NAME, for
+                            a collector that runs as its own user; needs
+                            --audit-dir, and this user in the group
+  --audit-keep-days N       The renamed audit files to keep, 1 to 3650
+                            (default 30); needs --audit-dir
+  --audit-retention-days N  Days, 1 to 36500, after which an audit event every
+                            sink has received is removed, or 0 to keep events
+                            forever (default 365)
+  -h, --help                Print this help
 
 Environment, read once at start, each optional; each supplies one field of
 Settings' voice exactly as entering it there would, and Settings show it as
@@ -97,14 +118,40 @@ Options:
   -h, --help  Print this help
 `;
 
+const auditUsage = `Usage: agention audit <command> [options]
+
+Commands:
+  forget-sink  Remove an audit sink's cursor, so retention no longer waits for it
+
+Run agention audit <command> --help for a command's options.
+`;
+
+const forgetSinkUsage = `Usage: agention audit forget-sink --data DIR KIND
+
+Removes the cursor of the audit sink of kind KIND, stdout or file, and
+records that it did in the audit log. A sink's cursor stays when agention
+serve stops being given its option, and keeps every event it has not
+delivered from retention, so run this for a sink that is gone for good. A
+sink still configured starts again from the oldest event kept at the next
+start of agention serve. It works whether or not the server is running.
+
+Options:
+  --data DIR  The server's data directory
+  -h, --help  Print this help
+`;
+
 // Usage errors exit with a different code than failures, so scripts can tell a
 // mistyped command from one that ran and failed.
 const exitOK = 0;
 const exitFailure = 1;
 const exitUsage = 2;
 
+// Where a command writes: its callback, when given, runs once the text has
+// been handed to the stream, as the audit log's stdout sink waits for. A
+// stream that can fail, as a pipe can, reports its errors to its listener.
 export interface Output {
-  write(text: string): unknown;
+  write(text: string, callback?: (error?: Error | null) => void): unknown;
+  on?(event: "error", listener: (error: Error) => void): unknown;
 }
 
 export interface Io {
@@ -123,9 +170,6 @@ const webDirectory = fileURLToPath(new URL("../web/", import.meta.url));
 
 const isHelp = (arg: string | undefined) => arg === "-h" || arg === "--help";
 
-// A command-line mistake, reported as a usage error.
-class UsageError extends Error {}
-
 type Command = (args: string[], io: Io) => Promise<number>;
 
 // Each command, with its help text.
@@ -133,6 +177,7 @@ const commands = new Map<string, [string, Command]>([
   ["serve", [serveUsage, serve]],
   ["passkey-link", [passkeyLinkUsage, passkeyLink]],
   ["backup", [backupUsage, backup]],
+  ["audit", [auditUsage, audit]],
   ["version", [usage, version]],
 ]);
 
@@ -233,16 +278,8 @@ const quietMinutes = { min: 1, max: 10_080 };
 // quietAfterFlag reads --quiet-minutes as the time in milliseconds after
 // which a session not seen is quiet.
 function quietAfterFlag(value: string | undefined): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  const minutes = /^\d{1,5}$/.test(value) ? Number(value) : Number.NaN;
-  if (!(minutes >= quietMinutes.min && minutes <= quietMinutes.max)) {
-    throw new UsageError(
-      `--quiet-minutes must be a whole number from ${quietMinutes.min} to ${quietMinutes.max}`,
-    );
-  }
-  return minutes * 60_000;
+  const minutes = wholeNumberFlag("--quiet-minutes", value, quietMinutes);
+  return minutes === undefined ? undefined : minutes * 60_000;
 }
 
 // nameFlag reads --name, the server's name, which the first start to serve
@@ -285,10 +322,16 @@ async function serve(args: string[], io: Io): Promise<number> {
     "quiet-minutes": { type: "string" },
     name: { type: "string" },
     "api-docs": { type: "boolean", default: false },
+    "audit-stdout": { type: "boolean", default: false },
+    "audit-dir": { type: "string" },
+    "audit-group": { type: "string" },
+    "audit-keep-days": { type: "string" },
+    "audit-retention-days": { type: "string" },
   });
   const data = required(flags.data, "--data");
   const origin = originFlag(flags.origin);
   const quietAfter = quietAfterFlag(flags["quiet-minutes"]);
+  const auditOptions = auditFlags(flags);
   const givenName = nameFlag(flags.name);
   const voiceEnvironment = readVoiceEnvironment(io.env);
   const plan = planListener({
@@ -307,10 +350,26 @@ async function serve(args: string[], io: Io): Promise<number> {
     }
   }
 
+  // The audit sinks are opened first, so a directory the private-file rule
+  // refuses stops the start before the database is touched.
+  const sinks = openSinks(auditOptions, io.stdout);
+  if (typeof sinks === "string") {
+    io.stderr.write(`agention serve: ${sinks}\n`);
+    return exitFailure;
+  }
   const log = serverLog(io);
-  const db = Database.open(databaseFile(data), { log });
+  let db: Database;
+  try {
+    db = Database.open(databaseFile(data), { log });
+  } catch (error) {
+    await Promise.all(sinks.map((sink) => sink.close()));
+    throw error;
+  }
   const shutdown = new AbortController();
-  let sweeps: ReturnType<typeof sweepFilesRegularly> | undefined;
+  let sweeps: ReturnType<typeof sweepRegularly> | undefined;
+  const store = createStore(db, quietAfter === undefined ? {} : { quietAfter });
+  const dispatcher = new AuditDispatcher(store, sinks, { log });
+  let started = false;
   try {
     // The server's name is the stored one or, on a new database, the one
     // given, Agention without one. A later start may repeat it but never
@@ -320,10 +379,13 @@ async function serve(args: string[], io: Io): Promise<number> {
       throw renamed(stored);
     }
     const name = stored ?? givenName ?? "Agention";
-    const store = createStore(db, quietAfter === undefined ? {} : { quietAfter });
+    // Each sink has its cursor before the first prune, so a sink new to the
+    // database receives every event retained when it starts.
+    dispatcher.start();
+    started = true;
     // Before the server listens, no upload is arriving, so the first sweep
     // removes every one a crash or a failed abort left unfinished.
-    sweeps = sweepFilesRegularly(store, log);
+    sweeps = sweepRegularly(store, log, { auditRetentionDays: auditOptions.retentionDays });
     await sweeps.first;
     const app = createApp({
       store,
@@ -377,8 +439,23 @@ async function serve(args: string[], io: Io): Promise<number> {
     }
     return exitOK;
   } finally {
-    await sweeps?.stop();
-    db.close();
+    // The loops stop first, then the sweep and the database, whatever went
+    // wrong before, and the sinks last: a file sink waits for its write under
+    // way, which a stalled disk may hold until the service manager ends the
+    // process, by when the database is closed and the undelivered events wait
+    // in it.
+    try {
+      if (started) {
+        await dispatcher.stop();
+      }
+    } finally {
+      try {
+        await sweeps?.stop();
+      } finally {
+        db.close();
+        await Promise.all(sinks.map((sink) => sink.close()));
+      }
+    }
   }
 }
 
@@ -443,4 +520,54 @@ async function backup(args: string[], io: Io): Promise<number> {
     `${result.file}: ${result.bytes} bytes, schema version ${result.schemaVersion}\n`,
   );
   return exitOK;
+}
+
+async function audit(args: string[], io: Io): Promise<number> {
+  const [command, ...rest] = args;
+  if (command === undefined) {
+    io.stderr.write(auditUsage);
+    return exitUsage;
+  }
+  if (isHelp(command)) {
+    io.stdout.write(auditUsage);
+    return exitOK;
+  }
+  if (command !== "forget-sink") {
+    io.stderr.write(`agention audit: unknown command ${JSON.stringify(command)}\n\n${auditUsage}`);
+    return exitUsage;
+  }
+  if (isHelp(rest[0])) {
+    io.stdout.write(forgetSinkUsage);
+    return exitOK;
+  }
+  const { values: flags, positionals } = parseWithPositionals(
+    rest,
+    { data: { type: "string" } },
+    1,
+  );
+  const data = required(flags.data, "--data");
+  const [kind] = positionals;
+  const sink = sinkKinds.find((each) => each === kind);
+  if (sink === undefined) {
+    throw new UsageError(`name the KIND of sink to forget: ${sinkKinds.join(" or ")}`);
+  }
+  if (!existsSync(databaseFile(data))) {
+    io.stderr.write(
+      `agention audit forget-sink: ${data} holds no Agention database; check --data\n`,
+    );
+    return exitFailure;
+  }
+  const db = Database.open(databaseFile(data), { log: serverLog(io) });
+  try {
+    const delivered = forgetSink(createStore(db), sink);
+    if (delivered === undefined) {
+      throw new UsageError(`the ${sink} sink has no cursor to forget; nothing was changed`);
+    }
+    io.stdout.write(
+      `Forgot the ${sink} sink's cursor, which had delivered through sequence ${delivered}.\n`,
+    );
+    return exitOK;
+  } finally {
+    db.close();
+  }
 }

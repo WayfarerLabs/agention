@@ -1,14 +1,16 @@
 import { pendingLifetime } from "@wayfarerlabs/agention-api";
 import { setImmediate as nextTurn } from "node:timers/promises";
+import { pruneAuditEvents } from "../audit/retention.ts";
 import { removePending } from "./files.ts";
 import type { Store } from "./store.ts";
 
-// The sweep removes the uploads no message will name: those that completed
-// longer than pendingLifetime ago, and those left incomplete that no upload
-// in flight is still filling, which only a crash or a failed Abort leaves. A
-// slow upload is never swept, however long a chunk takes to fill. It runs
-// once as agention serve starts, before it listens, when nothing is in
-// flight, so every incomplete upload goes, and then on a timer.
+// The sweep removes what the server keeps no longer: the audit log's events
+// past their retention, and the uploads no message will name, those that
+// completed longer than pendingLifetime ago and those left incomplete that no
+// upload in flight is still filling, which only a crash or a failed Abort
+// leaves. A slow upload is never swept, however long a chunk takes to fill.
+// It runs once as agention serve starts, before it listens, when nothing is
+// in flight, so every incomplete upload goes, and then on a timer.
 
 // How often the sweep runs after the first.
 export const sweepInterval = 10 * 60_000;
@@ -17,11 +19,11 @@ export const sweepInterval = 10 * 60_000;
 // holds the connection for about 15 ms.
 const vacuumStepPages = 2048;
 
-// sweepFiles removes what the sweep removes, each file in a transaction of
-// its own, and then, when that freed pages, returns them to the disk a
-// vacuum step at a time, yielding to other work between steps. A database
-// not yet switched to incremental vacuuming keeps its free pages for reuse.
-// It answers how many files it removed.
+// sweepFiles removes the uploads the sweep removes, each file in a
+// transaction of its own, and then, when that or an earlier removal freed
+// pages, returns them to the disk a vacuum step at a time, yielding to other
+// work between steps. A database not yet switched to incremental vacuuming
+// keeps its free pages for reuse. It answers how many files it removed.
 export async function sweepFiles(store: Store): Promise<number> {
   const { db } = store;
   const candidates = db.transaction(
@@ -49,18 +51,28 @@ export async function sweepFiles(store: Store): Promise<number> {
   return swept.length;
 }
 
-// sweepFilesRegularly runs the sweep now, resolving first once that pass is
-// done, and then every sweepInterval on a timer that never holds the process
-// open, until stop, which resolves once a pass under way is done. A pass that
-// fails is logged, and the next tries again; a pass still running when the
-// timer fires is not run twice.
-export function sweepFilesRegularly(
+// sweepRegularly runs the sweep now, resolving first once that pass is done,
+// and then every sweepInterval on a timer that never holds the process open,
+// until stop, which resolves once a pass under way is done. Each pass prunes
+// the audit log, keeping events for auditRetentionDays, or forever for 0,
+// then sweeps the uploads, whose vacuum returns the pages both freed. A pass
+// that fails is logged, and the next tries again; a pass still running when
+// the timer fires is not run twice.
+export function sweepRegularly(
   store: Store,
   log: (message: string) => void,
+  options: { auditRetentionDays: number },
 ): { first: Promise<void>; stop: () => Promise<void> } {
   let running: Promise<void> | undefined;
   const pass = (): Promise<void> => {
-    running ??= sweepFiles(store)
+    running ??= pruneAuditEvents(store, options.auditRetentionDays)
+      .then(
+        () => undefined,
+        (error: unknown) => {
+          log(`cannot remove audit events past their retention: ${(error as Error).message}`);
+        },
+      )
+      .then(() => sweepFiles(store))
       .then(
         () => undefined,
         (error: unknown) => {

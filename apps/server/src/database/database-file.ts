@@ -121,8 +121,8 @@ function refusal(error: PrivateFileError): DatabaseOpenError {
 // privateFileRefusal words a refusal under the private-file rule for the
 // operator, with what to change, since Agention changes nothing that exists.
 // The place names the directory the rule applies to, such as the data
-// directory.
-export function privateFileRefusal(error: PrivateFileError, place: string): string {
+// directory, and group the group it is shared with, if it is.
+export function privateFileRefusal(error: PrivateFileError, place: string, group?: string): string {
   const at = error.path;
   switch (error.reason) {
     case "unsupported_platform":
@@ -142,10 +142,16 @@ export function privateFileRefusal(error: PrivateFileError, place: string): stri
         `choose a ${place} whose ancestors only their owners can write to`
       );
     case "directory_not_private":
-      return `${at} must belong to the current user with mode 0700; its permissions were not changed`;
+      return group === undefined
+        ? `${at} must belong to the current user with mode 0700; its permissions were not changed`
+        : `${at} must belong to the current user and ${group} with mode 0750; its permissions ` +
+            "were not changed";
     case "not_a_file":
       return `${at} must be a regular file, not a symlink or a directory`;
     case "file_not_private":
-      return `${at} must belong to the current user with mode 0600; its permissions were not changed`;
+      return group === undefined
+        ? `${at} must belong to the current user with mode 0600; its permissions were not changed`
+        : `${at} must belong to the current user and ${group} with mode 0640; its permissions ` +
+            "were not changed";
   }
 }

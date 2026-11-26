@@ -1,8 +1,10 @@
 import {
   chmodSync,
+  chownSync,
   closeSync,
   constants,
   fchmodSync,
+  fchownSync,
   fstatSync,
   lstatSync,
   mkdirSync,
@@ -32,6 +34,12 @@ import path from "node:path";
 // rather than repairs, with a PrivateFileError that the caller words as what
 // to change. A file system error on the way is a refusal too, never a raw
 // error.
+//
+// A directory may instead be shared with a group, for a program running as
+// another user that only reads its files, such as a log collector: the same
+// rule, except that the directory belongs to the user and that group with
+// mode 0750, and each file in it to the user and the group with mode 0640.
+// The group can read, never write, and others still have no access.
 
 // Why a path breaks the private-file rule.
 export type PrivateFileReason =
@@ -50,12 +58,14 @@ export type PrivateFileReason =
   // A directory on the real path is writable by another user.
   | "writable_ancestor"
   // The directory holding the file does not belong to the current user, or
-  // has group or other permissions.
+  // has group or other permissions; or, shared with a group, it does not
+  // belong to the user and that group with mode 0750.
   | "directory_not_private"
   // The file is a symlink, a directory or anything else but a regular file.
   | "not_a_file"
   // The file does not belong to the current user, or has group or other
-  // permissions.
+  // permissions; or, shared with a group, it does not belong to the user and
+  // that group with mode 0640.
   | "file_not_private";
 
 // A refusal under the private-file rule: the reason, the real path at fault,
@@ -124,6 +134,15 @@ function lstatOrUndefined(target: string): Stats | undefined {
   }
 }
 
+// The modes a directory and its files take: private, or shared with a
+// reading group, by its id, which the user must be a member of to give it the
+// directory and its files.
+function modesFor(gid: number | undefined) {
+  return gid === undefined
+    ? { directory: 0o700, file: 0o600, gid }
+    : { directory: 0o750, file: 0o640, gid };
+}
+
 // The parts of a directory's status the ancestor rule reads.
 export interface DirectoryStatus {
   uid: number;
@@ -155,12 +174,17 @@ export function checkAncestor(
 
 // checkOwnDirectory applies the rule for the directory that holds the file: a
 // directory that belongs to the current user, with no group or other
-// permissions.
-function checkOwnDirectory(directory: string, status: Stats, user: User): void {
+// permissions, or, shared with a group, one that belongs to the user and the
+// group with mode 0750.
+function checkOwnDirectory(directory: string, status: Stats, user: User, gid?: number): void {
   if (!status.isDirectory()) {
     throw new PrivateFileError("not_a_directory", directory);
   }
-  if (status.uid !== user.uid || (status.mode & 0o077) !== 0) {
+  const allowed =
+    gid === undefined
+      ? (status.mode & 0o077) === 0
+      : status.gid === gid && (status.mode & 0o777) === 0o750;
+  if (status.uid !== user.uid || !allowed) {
     throw new PrivateFileError("directory_not_private", directory);
   }
 }
@@ -171,7 +195,10 @@ function checkOwnDirectory(directory: string, status: Stats, user: User): void {
 // it that do not exist yet, and the user the rule is for. A directory that
 // exists is checked as the file's own first, so that one others can write to
 // is refused once, for what it needs.
-function checkedPath(directory: string): { real: string; missing: string[]; user: User } {
+function checkedPath(
+  directory: string,
+  gid?: number,
+): { real: string; missing: string[]; user: User } {
   const absolute = path.resolve(directory);
   const user = currentUser(absolute);
   const missing: string[] = [];
@@ -188,7 +215,7 @@ function checkedPath(directory: string): { real: string; missing: string[]; user
     }
   }
   if (missing.length === 0) {
-    checkOwnDirectory(real, lstatSync(real), user);
+    checkOwnDirectory(real, lstatSync(real), user, gid);
   }
   const components: string[] = [];
   for (let p = real; ; p = path.dirname(p)) {
@@ -205,33 +232,43 @@ function checkedPath(directory: string): { real: string; missing: string[]; user
 
 // existingDirectory applies the rule to a directory that should exist, and
 // returns its real path, or undefined when it is missing.
-function existingDirectory(directory: string): string | undefined {
-  const { real, missing } = checkedPath(directory);
+function existingDirectory(directory: string, gid?: number): string | undefined {
+  const { real, missing } = checkedPath(directory, gid);
   return missing.length === 0 ? real : undefined;
 }
 
-function checkFile(file: string, status: Stats, user: User): void {
+function checkFile(file: string, status: Stats, user: User, gid?: number): void {
   if (!status.isFile()) {
     throw new PrivateFileError("not_a_file", file);
   }
-  if (status.uid !== user.uid || (status.mode & 0o077) !== 0) {
+  const allowed =
+    gid === undefined
+      ? (status.mode & 0o077) === 0
+      : status.gid === gid && (status.mode & 0o777) === 0o640;
+  if (status.uid !== user.uid || !allowed) {
     throw new PrivateFileError("file_not_private", file);
   }
 }
 
 // ensurePrivateDirectory makes a directory to hold private files, creating it
-// and any missing directory above it with mode 0700 whatever the umask, and
-// returns its real path, the one to work in.
-export function ensurePrivateDirectory(directory: string): string {
+// and any missing directory above it with mode 0700 whatever the umask, or,
+// shared with a group, with mode 0750 in that group, and returns its real
+// path, the one to work in.
+export function ensurePrivateDirectory(directory: string, gid?: number): string {
   return refusing(directory, () => {
-    const { real, missing, user } = checkedPath(directory);
+    const modes = modesFor(gid);
+    const { real, missing, user } = checkedPath(directory, gid);
     let current = real;
     for (const name of missing) {
       current = path.join(current, name);
       try {
-        mkdirSync(current, { mode: 0o700 });
-        // The umask may have narrowed the mode; this directory is ours to set.
-        chmodSync(current, 0o700);
+        mkdirSync(current, { mode: modes.directory });
+        // The group is set first, since changing it may clear mode bits, and
+        // the umask may have narrowed the mode; this directory is ours to set.
+        if (modes.gid !== undefined) {
+          chownSync(current, user.uid, modes.gid);
+        }
+        chmodSync(current, modes.directory);
       } catch (error) {
         if (errorCode(error) !== "EEXIST") {
           throw error;
@@ -239,7 +276,7 @@ export function ensurePrivateDirectory(directory: string): string {
       }
       checkAncestor(current, lstatSync(current), user);
     }
-    checkOwnDirectory(current, lstatSync(current), user);
+    checkOwnDirectory(current, lstatSync(current), user, gid);
     return current;
   });
 }
@@ -274,26 +311,14 @@ export function openPrivateFile(file: string): number | undefined {
       return undefined;
     }
     const real = path.join(directory, path.basename(absolute));
-    let fd: number;
     try {
-      fd = openSync(real, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      return openExisting(real, constants.O_RDONLY | constants.O_NOFOLLOW, currentUser(real));
     } catch (error) {
       if (errorCode(error) === "ENOENT") {
         return undefined;
       }
-      // What open answers for a symlink it was told not to follow.
-      if (errorCode(error) === "ELOOP") {
-        throw new PrivateFileError("not_a_file", real);
-      }
       throw error;
     }
-    try {
-      checkFile(real, fstatSync(fd), currentUser(real));
-    } catch (error) {
-      closeSync(fd);
-      throw error;
-    }
-    return fd;
   });
 }
 
@@ -330,4 +355,64 @@ export function createPrivateFile(file: string): number | undefined {
     }
     return fd;
   });
+}
+
+// appendToPrivateFile opens a private file for appending, in a directory
+// ensurePrivateDirectory has made with the same group, if any, and returns
+// its descriptor: a new file is created with mode 0600 whatever the umask, or
+// 0640 in the group; one that exists is opened and checked, never changed.
+export function appendToPrivateFile(file: string, gid?: number): number {
+  return refusing(file, () => {
+    const absolute = path.resolve(file);
+    const directory = existingDirectory(path.dirname(absolute), gid);
+    if (directory === undefined) {
+      throw new PrivateFileError("inaccessible", path.dirname(absolute), "ENOENT");
+    }
+    const real = path.join(directory, path.basename(absolute));
+    const user = currentUser(real);
+    const modes = modesFor(gid);
+    const append = constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW;
+    let fd: number;
+    try {
+      fd = openSync(real, append | constants.O_CREAT | constants.O_EXCL, modes.file);
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") {
+        throw error;
+      }
+      return openExisting(real, append, user, gid);
+    }
+    try {
+      // The group is set first, since changing it may clear mode bits.
+      if (modes.gid !== undefined) {
+        fchownSync(fd, user.uid, modes.gid);
+      }
+      fchmodSync(fd, modes.file);
+    } catch (error) {
+      closeSync(fd);
+      throw error;
+    }
+    return fd;
+  });
+}
+
+// openExisting opens a file that exists with the flags given, never waiting
+// on one that would block, and checks the file it opened.
+function openExisting(real: string, flags: number, user: User, gid?: number): number {
+  let fd: number;
+  try {
+    fd = openSync(real, flags | constants.O_NONBLOCK);
+  } catch (error) {
+    // What open answers for a symlink it was told not to follow.
+    if (errorCode(error) === "ELOOP") {
+      throw new PrivateFileError("not_a_file", real);
+    }
+    throw error;
+  }
+  try {
+    checkFile(real, fstatSync(fd), user, gid);
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
+  return fd;
 }

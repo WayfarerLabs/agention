@@ -1,15 +1,23 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { Writable } from "node:stream";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { issuePasskeyLink } from "../auth/passkey-links.ts";
 import { hashOfSecret } from "../auth/secrets.ts";
 import { uploaded } from "../http/file-test-support.ts";
 import { TestAuthenticator, TestBrowser } from "../http/test-browser.ts";
 import { codeOf, Harness, newThread } from "../http/test-harness.ts";
+import { testDirectory } from "../test-directory.ts";
+import { AuditDispatcher, type Sink } from "./dispatcher.ts";
+import { FileSink } from "./sinks/file.ts";
+import { stdoutSink } from "./sinks/stdout.ts";
 import { eventsAfter } from "./test-events.ts";
 
 // Nothing secret and no content reaches the audit log: a marker planted in
 // every secret and every content field the writes below carry appears in no
-// event and no line the server logs, and neither does any secret the server
-// holds, in any of the encodings it keeps one in.
+// event, in what the sinks deliver, in no cursor and in no line the server
+// logs, and neither does any secret the server holds, in any of the encodings
+// it keeps one in.
 
 let harness: Harness;
 
@@ -128,8 +136,59 @@ it("keeps every secret and all content out of the log", async () => {
   }
   const recorded = eventsAfter(harness.fixture.db).map((event) => event.event);
   expect(recorded.length).toBeGreaterThan(10);
+
+  // Delivered to a stream, to a file, and to a sink that fails, which says
+  // so on stderr, once the refusal's minute has ended.
+  harness.fixture.advance(60_000);
+  let delivered = "";
+  const stream = new Writable({
+    write(chunk: Buffer, _, callback) {
+      delivered += chunk.toString();
+      callback();
+    },
+  });
+  const directory = path.join(testDirectory("audit-secrets"), "audit");
+  const failing: Sink = {
+    kind: "file",
+    deliver: async () => {
+      throw Object.assign(new Error("input/output error"), { code: "EIO" });
+    },
+    close: async () => undefined,
+  };
+  const stderr: string[] = [];
+  for (const sinks of [
+    [
+      stdoutSink(stream),
+      FileSink.open({
+        directory,
+        gid: undefined,
+        keepDays: 1,
+        clock: harness.fixture.store.clock,
+      }),
+    ],
+    [failing],
+  ]) {
+    const dispatcher = new AuditDispatcher(harness.fixture.store, sinks, {
+      log: (line) => stderr.push(line),
+      retryInterval: 5,
+    });
+    dispatcher.start();
+    for (
+      let i = 0;
+      i < 200 && stderr.length === 0 && delivered.split("\n").length <= recorded.length;
+      i++
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    await dispatcher.stop();
+    await Promise.all(sinks.map((sink) => sink.close()));
+  }
+  expect(delivered.split("\n").filter((line) => line !== "")).toHaveLength(recorded.length);
+  expect(stderr.length).toBeGreaterThan(0);
+  const written = readFileSync(path.join(directory, "audit.jsonl"), "utf8");
+
   const sinks = JSON.stringify(harness.fixture.db.prepare("SELECT * FROM audit_sinks").all());
-  for (const text of [...recorded, ...harness.logged, sinks]) {
+  for (const text of [...recorded, ...harness.logged, ...stderr, delivered, written, sinks]) {
     expect(text).not.toContain(marker);
     expect(text).not.toContain(topicMarker);
     for (const value of secrets) {

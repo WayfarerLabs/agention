@@ -4,7 +4,7 @@
 export { countAttention } from "./attention.ts";
 export { findOperator, insertOperator, type Operator } from "./directory.ts";
 export { type CarriedFile, findCarriedFile, listThreadFiles, readFileChunk } from "./file-reads.ts";
-export { sweepFiles, sweepFilesRegularly } from "./file-sweep.ts";
+export { sweepFiles, sweepRegularly } from "./sweep.ts";
 export {
   abortUpload,
   beginUpload,
