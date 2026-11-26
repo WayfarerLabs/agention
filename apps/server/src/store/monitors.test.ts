@@ -591,11 +591,14 @@ describe("stranded, for a session that can be nudged", () => {
     fixture.startThread(agent);
   });
 
-  const thread = () => {
+  // thread reads the thread numbered number as the operator's list shows it.
+  const thread = (number = 1) => {
     fixture.connect(agent);
-    return listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).threads[0];
+    return listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).threads.find(
+      (each) => each.number === number,
+    );
   };
-  const stranded = () => thread()?.stranded;
+  const stranded = (number = 1) => thread(number)?.stranded;
 
   // claimed claims the nudge due, and reports its outcome where one is given.
   const claimed = async (sent?: boolean) => {
@@ -703,6 +706,23 @@ describe("stranded, for a session that can be nudged", () => {
       expect(stranded()).toBe(true);
     },
   );
+
+  it("is not, where the operator started another thread after the agent checked in since a nudge, until the quiet time passes after that with no nudge", async () => {
+    await claimed(true);
+    fixture.seen(agent);
+    fixture.advance(quiet);
+    expect(stranded()).toBe(true);
+    fixture.advance(1);
+    fixture.startThread(agent);
+    // The nudge due for the other thread brings the agent to this one too.
+    expect(stranded()).toBe(false);
+    expect((await poll(first, { wait: "0" })).nudge).toBe(true);
+    fixture.advance(quiet - 1);
+    expect(stranded()).toBe(false);
+    fixture.advance(1);
+    expect(stranded()).toBe(true);
+    expect(stranded(2)).toBe(true);
+  });
 
   it("is once the agent archives the operator's later message without reading the thread", async () => {
     await claimed(true);

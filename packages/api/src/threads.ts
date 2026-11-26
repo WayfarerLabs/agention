@@ -550,14 +550,16 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // absent when it has read them all; and whether it is stranded: it holds such
 // a message, and nothing will bring it to the session soon. So, while the
 // session has no active credential or is not connected; while it cannot be
-// nudged and is quiet or has stopped; and while it can be nudged, once a
-// message of the audience's that the session has neither read nor archived,
-// written after its agent last checked in, goes the quiet time with no nudge
-// claimed since that check-in, since such a message makes a nudge due at the
-// session's prompt; otherwise once the latest nudge since the earliest
-// message it has not read was not sent, or was sent and the quiet time has
-// passed since, even where the agent checked in after it without reading the
-// thread, or none was sent within the quiet time. links counts the pull
+// nudged and is quiet or has stopped; and while it can be nudged, by the
+// nudge due for the session or, where none is, the latest one: once a
+// message in any of the session's threads that the session has neither read
+// nor archived, written after its agent last checked in, goes the quiet time
+// with no nudge claimed since that check-in, since such a message makes a
+// nudge due at the session's prompt that brings the agent to every thread;
+// otherwise once the latest nudge since the earliest message it has not read
+// was not sent, or was sent and the quiet time has passed since, even where
+// the agent checked in after it without reading the thread, or none was sent
+// within the quiet time. links counts the pull
 // requests and branches its live messages name, giving the one entry when
 // there is exactly one.
 export const threadSummary = z.object({
