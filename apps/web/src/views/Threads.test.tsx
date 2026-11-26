@@ -256,6 +256,22 @@ describe("side by side", () => {
     await waitFor(() => expect(titleOf(threadHeading())).toBe("First"));
   });
 
+  it("opens with o only the row holding focus, and nothing from the thread, leaving focus where it is", async () => {
+    await openList();
+    await openFromList("Second");
+    const archiveAll = within(threadPane()).getByRole("button", { name: "Archive all" });
+    archiveAll.focus();
+    press("o");
+    expect(document.activeElement).toBe(archiveAll);
+    expect(window.location.pathname).toBe(threadPath(2));
+    // From anywhere in a row, its checkbox too, o opens that row's thread.
+    within(listPane())
+      .getByRole("checkbox", { name: /^#3 Third/ })
+      .focus();
+    press("o");
+    await waitFor(() => expect(titleOf(threadHeading())).toBe("Third"));
+  });
+
   it("moves focus to the thread's heading on opening the thread already open, by o or by its row", async () => {
     await openList();
     await openFromList("Second");

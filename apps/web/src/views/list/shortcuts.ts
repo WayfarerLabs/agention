@@ -8,16 +8,24 @@ import { needsYou, rowLinks } from "./ThreadRow.tsx";
 // ring shows it. With focus on no row, side by side, the row of the thread
 // open beside the list is current, so moving starts from it and opens
 // nothing; with none current, moving goes to the first row there is to move
-// to. Selecting threads to act on together (selection.tsx) is apart from
-// this: x selects the current row's thread, and I and U mark read or unread
-// the threads selected, or with none, the current row's.
+// to. o opens only the row holding focus, never the open thread's from the
+// thread beside the list, which would only take focus from where the
+// operator is. Selecting threads to act on together (selection.tsx) is apart
+// from this: x selects the current row's thread, and I and U mark read or
+// unread the threads selected, or with none, the current row's.
 
-function current(links: HTMLAnchorElement[]): number {
+// focused gives the place among the rows' links of the row holding focus, or
+// -1.
+function focused(links: HTMLAnchorElement[]): number {
   const row = document.activeElement?.closest(".thread-row") ?? null;
-  const focused = row === null ? -1 : links.findIndex((link) => row.contains(link));
-  return focused !== -1
-    ? focused
-    : links.findIndex((link) => link.getAttribute("aria-current") === "page");
+  return row === null ? -1 : links.findIndex((link) => row.contains(link));
+}
+
+// current gives the place of the current row: the row holding focus, or else
+// the open thread's.
+function current(links: HTMLAnchorElement[]): number {
+  const at = focused(links);
+  return at !== -1 ? at : links.findIndex((link) => link.getAttribute("aria-current") === "page");
 }
 
 // step moves focus by one row, stopping at either end.
@@ -44,10 +52,11 @@ function seek(by: 1 | -1): void {
   }
 }
 
-// open opens the current row's thread, as following its link does.
+// open opens the thread of the row holding focus, as following its link
+// does.
 function open(): void {
   const links = rowLinks();
-  links[current(links)]?.click();
+  links[focused(links)]?.click();
 }
 
 // The current row's thread, by its key, if a row is current.

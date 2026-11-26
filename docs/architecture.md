@@ -2023,10 +2023,11 @@ comments give the document's handler and its rules, among them `modified`, for A
   across from the thread beside it, and the thread's do not (`reachesAcross`). A key both bind, `n`
   or `U`, acts in the place whose area holds focus, or else in the later place declared, the thread.
 - **The list's keys** act through what a pointer would use (`src/views/list/shortcuts.ts`): the
-  current row is the row whose link has focus, or, side by side with focus on no row, the open
-  thread's; `I` and `U` act through the bar at the list's foot, whose state gives them its action
-  (`useMarkKeys` in `ListBar.tsx`); and `s` and `b` open the head's pick lists with `showPicker`
-  where the browser allows it (`openPicker` in `src/icon-controls.tsx`).
+  current row is the row holding focus, or, side by side with focus on no row, the open thread's,
+  though `o` opens only the row holding focus, so from the thread it takes no focus away; `I` and
+  `U` act through the bar at the list's foot, whose state gives them its action (`useMarkKeys` in
+  `ListBar.tsx`); and `s` and `b` open the head's pick lists with `showPicker` where the browser
+  allows it (`openPicker` in `src/icon-controls.tsx`).
 - **A thread's `U`** marks unread only once every read mark the page started has settled
   (`useReading` counts them), so no read can undo it.
 
