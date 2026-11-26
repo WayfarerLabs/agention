@@ -17,8 +17,8 @@ the server's part of them on every request, and the web UI renders content inert
   authentication, never from request content.
 - **Isolation.** An agent session sees and changes only what its credential authorizes. A target the
   caller may not access produces the same response as one that does not exist. Session groups and
-  tags, and the presence signals (quiet and stranded), are the operator's alone and reach no agent,
-  and groups and tags grant nothing.
+  tags, saved views, and the presence signals (quiet and stranded), are the operator's alone: no
+  agent sees or changes them, and groups, tags, and saved views grant nothing.
 - **Append-only, attributed history.** Nothing is edited or erased: a replacement is a new message,
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.
@@ -174,9 +174,13 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   operator's but never a file a message carries. A leaked key holding `sessions:approve` can approve
   an agent's registration, letting an agent of its holder's choosing into the operator's sessions,
   so Settings and the operator guide say what that scope grants. Approving that also sets the
-  session's group or tags needs `sessions:write` too, which the store checks with the approval. A
-  message written with a key is the operator's, and records no key; the [audit log](#audit-log)
-  records which key wrote it.
+  session's group or tags needs `sessions:write` too, which the store checks with the approval. The
+  operator's saved views, each a name and a thread list, have scopes of their own:
+  `saved-views:read` reads them, and a key holding `saved-views:write` can change which lists the
+  operator's views open, and nothing more, since a view grants nothing and opening one only shows a
+  list. Renaming a tag with `sessions:write` renames it in the saved views naming it too, as it
+  renames it everywhere else. A message written with a key is the operator's, and records no key;
+  the [audit log](#audit-log) records which key wrote it.
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with
@@ -197,20 +201,20 @@ transaction as the change, so a change is never saved without its event, and an 
 saved fails the change. The operator guide's "Audit log" lists what it records.
 
 - **Metadata only.** An event names who acted, by credential, what they acted on, by id, with the
-  names the operator and agents chose for agents, sessions, groups, tags, keys and passkeys, the
-  outcome, the request's origin, and the time. It never holds a message's or an answer's text, a
-  thread's title, a file's name or bytes, a transcription, or a secret: no session cookie or its
-  hash, CSRF token, API key, passkey link token, passkey material, the instance's own key, an
-  agent's token, or the transcription key. The events are built from typed inputs only, which have
-  no field for any of these, and a test plants a marker in every one of them and finds it in no
-  event, no delivered line and no stderr line.
+  names the operator and agents chose for agents, sessions, groups, tags, saved views, keys, and
+  passkeys, the outcome, the request's origin, and the time. It never holds a message's or an
+  answer's text, a thread's title, a saved view's list, a file's name or bytes, a transcription, or
+  a secret: no session cookie or its hash, CSRF token, API key, passkey link token, passkey
+  material, the instance's own key, an agent's token, or the transcription key. The events are built
+  from typed inputs only, which have no field for any of these, and a test plants a marker in every
+  one of them and finds it in no event, no delivered line and no stderr line.
 - **Credentials by ids that are not secret.** A browser session is named by a random id of its own,
   never its cookie or anything derived from it, with the passkey that signed it in; an API key by
   its id and name; an agent by its registration's id.
 - **Bounded input from clients.** Beside ids and numbers, an event carries what clients chose only
-  as bounded, grammar-checked values: the names of agents, sessions, groups, tags, keys and
-  passkeys, an upload's media type, and the user agent. The user agent, cut to 256 characters, is
-  the only free-form text a client chooses that reaches an event. A refused request, and a key's
+  as bounded, grammar-checked values: the names of agents, sessions, groups, tags, saved views, keys
+  and passkeys, an upload's media type, and the user agent. The user agent, cut to 256 characters,
+  is the only free-form text a client chooses that reaches an event. A refused request, and a key's
   first use, which is recorded before the request's path is checked, record the route's pattern,
   never the path the client sent. Every event is written on one line, with the characters some
   readers take for a line's end escaped.

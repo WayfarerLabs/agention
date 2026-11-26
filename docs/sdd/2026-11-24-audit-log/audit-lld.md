@@ -243,6 +243,7 @@ used: older consumers know `entity` and `data`.
 | file           | `file:<id>`                 | none (FRD R5)                                 |
 | group          | `group:<id>`                | the group's name                              |
 | tag            | `tag:<name>`                | the tag's name                                |
+| saved view     | `saved_view:<id>`           | the view's name                               |
 | voice settings | `voice_settings`            | none                                          |
 | audit sink     | `audit_sink:<kind>`         | the kind                                      |
 | API key        | `api_key:<id>`              | the key's name                                |
@@ -254,8 +255,9 @@ used: older consumers know `entity` and `data`.
 - A tag has no id: tags are keyed by name (`S/database/migrations.ts:615-619`), so a tag's `uid`
   changes when it is renamed. `renameTag`'s event names the tag by its new name, with the old in
   `data.previous_name`, which is how a consumer follows a tag across a rename.
-- A thread is never named by its title, nor a file by its name (FRD R5). A passkey link has no
-  identifier but its token's hash, which is derived from a secret, so it has none in an event.
+- A thread is never named by its title, nor a file by its name (FRD R5), nor a saved view by its
+  list, whose search is text the operator typed. A passkey link has no identifier but its token's
+  hash, which is derived from a secret, so it has none in an event.
 
 ### Service, for Authentication
 
@@ -291,6 +293,10 @@ Every action, its class and activity, and what it names.
 | `renameTag`              | 3 Update | web, operator | the tag by its new name, `data.previous_name`                                             |
 | `recolorTag`             | 3 Update | web, operator | the tag, `data.color`                                                                     |
 | `removeTag`              | 4 Delete | web, operator | the tag                                                                                   |
+| `createSavedView`        | 1 Create | web, operator | the saved view                                                                            |
+| `renameSavedView`        | 3 Update | web, operator | the saved view, `data.previous_name`                                                      |
+| `replaceSavedView`       | 3 Update | web, operator | the saved view                                                                            |
+| `removeSavedView`        | 4 Delete | web, operator | the saved view                                                                            |
 | `setSessionGroup`        | 3 Update | web, operator | the session, `data.group` (`group:<id>` or null)                                          |
 | `setSessionTags`         | 3 Update | web, operator | the session, `data` `{ tags, created_tags }`                                              |
 | `setAgentTags`           | 3 Update | web, operator | the agent, `data` `{ tags, created_tags }`                                                |

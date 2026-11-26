@@ -49,11 +49,11 @@ operation, including reading, archiving, list filters, references to threads, an
 (the **Isolation** invariant in `SECURITY.md` "Security model"; `docs/architecture.md` "Store").
 Agents set and filter topics on their own session's threads, and topics never span sessions; a
 thread reference names a thread of the same session. Quiet and stranded reach only the operator, and
-the operator's session groups and tags are operator-only and grant nothing. Look for distinguishable
-errors, counts, timing paths, identifiers, or list positions that reveal another session's threads;
-references or topics that cross sessions; an archive mark visible to the other party; authorization
-not rechecked on each `message_wait` wake; and presence signals, groups, or tags reachable from the
-agent surface.
+the operator's session groups, tags, and saved views are operator-only and grant nothing. Look for
+distinguishable errors, counts, timing paths, identifiers, or list positions that reveal another
+session's threads; references or topics that cross sessions; an archive mark visible to the other
+party; authorization not rechecked on each `message_wait` wake; and presence signals, groups, tags,
+or saved views reachable from the agent surface, read or written.
 
 ## A4. People and agents authenticate separately
 
@@ -302,20 +302,25 @@ needs `sessions:write` beside `sessions:approve`, which the store checks inside 
 transaction, answering a key without it `not_found` on the field and applying nothing, as
 `apps/server/src/http/groups-and-tags.test.ts` holds. Files are their threads': uploading and
 removing a pending upload need `threads:write`, and a thread's files and reading one `threads:read`.
-The mount refuses a missing scope before reading input, and the store operation confirms the same
-scope inside its transaction, which a test over every operation in the same file holds; a file's
-chunk reads and writes are store calls too, and confirm it as every other does. Each chunk also
-re-checks the credential, in its own transaction, so a transfer stops within one chunk once its
-credential is revoked or expires (one check for both), which the store's
-`apps/server/src/store/files.test.ts` ("stops within a chunk once its credential is revoked") and
-the HTTP tests in `apps/server/src/http/files.test.ts` (the same, for a read) and
+Saved views have scopes of their own, `saved-views:read` and `saved-views:write`, so no thread or
+session scope grants them. One crossing is intended: renaming a tag, under `sessions:write`, also
+rewrites the saved views naming it inside its transaction, so they keep their meaning, as
+`apps/server/src/http/saved-views.test.ts` holds; it grants no other reach into saved views. The
+mount refuses a missing scope before reading input, and the store operation confirms the same scope
+inside its transaction, which a test over every operation in the same file holds; a file's chunk
+reads and writes are store calls too, and confirm it as every other does. Each chunk also re-checks
+the credential, in its own transaction, so a transfer stops within one chunk once its credential is
+revoked or expires (one check for both), which the store's `apps/server/src/store/files.test.ts`
+("stops within a chunk once its credential is revoked") and the HTTP tests in
+`apps/server/src/http/files.test.ts` (the same, for a read) and
 `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
 adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
 an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the
-list, an operation with a scope wider or narrower than what it does, a read-scoped operation that
-writes or takes a body, a store operation or a file's chunk read or write that leaves its scope to
-the mount, an operation whose body or answer is bytes but not declared so, a key-reachable route
-that manages credentials or Settings, and a scope whose meaning changes.
+list, an operation with a scope wider or narrower than what it does, a write across resources beyond
+the tag rename's, a read-scoped operation that writes or takes a body, a store operation or a file's
+chunk read or write that leaves its scope to the mount, an operation whose body or answer is bytes
+but not declared so, a key-reachable route that manages credentials or Settings, and a scope whose
+meaning changes.
 
 ## A19. The operator API contract and its document
 
@@ -329,11 +334,15 @@ is generated from the declarations and never edited by hand: a change to an oper
 operation, or to a schema one uses, regenerates it with `scripts/generate-api-docs.sh` in the same
 change, and its diff is reviewed as the contract change it is; the server's suite fails while the
 committed document differs from the code's (`CONTRIBUTING.md` "Generated API document";
-`docs/architecture.md` "API documentation"). Look for a contract change whose document was not
-regenerated, a regenerated document whose diff removes or narrows anything a served version or the
-agent API (A12) carries, a document that describes more than the server checks (it may describe
-less: a rule enforced only in code answers `invalid_input`, naming the field when the rule concerns
-one), and documentation served with anything beyond the contract or without `--api-docs`.
+`docs/architecture.md` "API documentation"). A saved view stores the list's view schema
+(`threadsView`) whole and reads it back strictly, so a change to that schema that would refuse a
+stored view ships with a migration rewriting the stored views (`docs/architecture.md` "Saved
+views"). Look for a contract change whose document was not regenerated, a change to the list's view
+schema without that migration, a regenerated document whose diff removes or narrows anything a
+served version or the agent API (A12) carries, a document that describes more than the server checks
+(it may describe less: a rule enforced only in code answers `invalid_input`, naming the field when
+the rule concerns one), and documentation served with anything beyond the contract or without
+`--api-docs`.
 
 ## A20. The audit log
 

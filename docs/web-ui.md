@@ -2,8 +2,8 @@
 
 This page describes the web UI you answer your agents in, control by control: the thread list, a
 thread, the sessions view and Settings, with the Markdown messages are written in, groups and tags,
-and the keyboard shortcuts. The [operator guide](operator-guide.md) covers installing, running and
-connecting an instance, and the settings each feature needs.
+saved views, and the keyboard shortcuts. The [operator guide](operator-guide.md) covers installing,
+running and connecting an instance, and the settings each feature needs.
 
 The web UI is laid out for a phone first and follows the browser's light or dark setting. With a
 mouse or a trackpad, its controls and spacing are more compact than on a touch screen. Every view
@@ -34,17 +34,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
 counts those holding a message you have not read, the threads the **Unread** filter keeps with no
 other filter on, and reading or archiving them clears the count. The list's head is one row of icon
-controls: **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the filters
+controls: **Saved views**, a bookmark, which opens your saved views, as [Saved views](#saved-views)
+describes; **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the filters
 that are on; **Sort**, the order the list is in, beside a checkbox, an arrow pointing up, that
 reverses it; and **Group**, how the list is grouped. Holding the pointer over one names it, and
 **Search**, **Sort**, and **Group** each carry a dot while set to anything but their default. Where
 the list has room, as in a tablet's window or beside a thread on a wide screen, **Sort** and
-**Group** show their choice beside their icons, and with more room every button shows its words.
-**Sort** and **Group** are pick lists, and here as everywhere in the web UI the lower corner of such
-a compact control says what kind it is: a small down caret marks a pick list, which opens its
-choices and changes nothing until you choose one; a small box marks a checkbox, hollow while it is
-off and filled, with the control tinted and outlined, while it is on; and a button, which acts when
-pressed or opens a dialog or a menu of things to do, has nothing there.
+**Group** show their choice beside their icons, and with more room every button but **Saved views**
+shows its words. **Sort** and **Group** are pick lists, and here as everywhere in the web UI the
+lower corner of such a compact control says what kind it is: a small down caret marks a pick list,
+which opens its choices and changes nothing until you choose one; a small box marks a checkbox,
+hollow while it is off and filled, with the control tinted and outlined, while it is on; and a
+button, which acts when pressed or opens a dialog or a menu of things to do, has nothing there.
 
 - **Search** opens the search field in the row's place, holding the search on, such as
   **"release"**, which its chip shows, with focus in it; this is where you change the search. Its
@@ -608,15 +609,15 @@ From the top:
 **API keys** (`/settings/api-keys`), as [API keys](operator-guide.md#api-keys) describes; under
 **Features**, **Threads** (`/settings/threads`), whose **Auto-advance** chooses where **Archive
 all** takes you, as [A thread](#a-thread) describes, **Groups and tags**
-(`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
-(`/settings/voice`), as [Voice](operator-guide.md#voice) describes, **Storage**
-(`/settings/storage`), as [Attachments](operator-guide.md#attachments) describes, and **Keyboard**
-(`/settings/keyboard`), as [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out**
-(`/settings/sign-out`), which signs this browser out, forgetting the drafts it kept, and leaves your
-others signed in. On a wide screen the sections are listed beside the one open; on a phone Settings
-opens on the list, and each section has a link back to it. `/passkeys` leads to Passkeys. While your
-sign-in is too old for a change to passkeys, API keys or voice, those sections offer **Sign in
-again** first.
+(`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Saved views**
+(`/settings/saved-views`), as [Saved views](#saved-views) describes, **Voice** (`/settings/voice`),
+as [Voice](operator-guide.md#voice) describes, **Storage** (`/settings/storage`), as
+[Attachments](operator-guide.md#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
+[Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`), which
+signs this browser out, forgetting the drafts it kept, and leaves your others signed in. On a wide
+screen the sections are listed beside the one open; on a phone Settings opens on the list, and each
+section has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too old for a
+change to passkeys, API keys or voice, those sections offer **Sign in again** first.
 
 ## Markdown and diagrams
 
@@ -693,6 +694,41 @@ which the sessions view and the thread list's **Group** filter follow; a new gro
   When another browser changed the groups since the list loaded, the move is refused and the list
   shows them as they are.
 
+## Saved views
+
+A saved view keeps a thread list you return to under a name, such as **Blocking me**, **Billing
+migration, by session** or **Overdue**: every filter, the order and its direction, and the grouping,
+as the list's address holds them. Your views are kept by the server, so every browser you sign in on
+has the same ones, and a backup holds them. Agents never see them, and they grant nothing.
+
+- **Saved views**, the bookmark first in the thread list's head, opens them, at every width and
+  beside a thread too, and so does `g` then `v` from anywhere, going to the thread list first where
+  it is not on screen. Its name and tooltip say which views the list on screen is, such as **Saved
+  views, Blocking me**. It opens a sheet from the bottom on a phone, and a panel on a wide screen,
+  listing your views by name.
+- **A view is current** while the list on screen is its list, the values chosen in a filter in any
+  order, and the sheet checks it. Two views of the same list are both current.
+- **Opening a view**, by its name in the sheet, shows its list just as its address would, so
+  **Back**, reloading and copying the link behave as for any list. A filter that depends on the
+  time, such as **Overdue**, is judged as the list shows, not when the view was saved. Changing the
+  list after opening a view leaves the view as it was.
+- **Replace with this list**, on each view that is not current, puts the list on screen in place of
+  the view's own, after asking. Nothing else changes a view's list.
+- **Save as new view** names the list on screen and saves it, every part of it, even one at its
+  default, so a later change to a default leaves your view as you saved it. A name is up to 100
+  characters on one line and unique, whatever the case of its letters A to Z; you can keep up to 200
+  views.
+- **Manage saved views** opens **Settings**, under **Saved views** (`/settings/saved-views`), which
+  lists your views by name, each linking to its list, with **Rename** and **Remove**, which asks
+  first and leaves every list and thread as it was.
+
+**Threads** and `g` then `t` still open the list with no filter on: no view takes its place.
+
+A view naming a session group or a tag keeps naming it after you rename it. One naming a group or a
+tag you removed keeps that filter, whose chip says the group or tag was removed, and keeps no
+threads rather than showing more. Tags are named by their names, as in the list's address, so once a
+tag of a removed one's name exists again, the view matches it.
+
 ## Keyboard shortcuts
 
 With a keyboard, single keys do the everyday things, in the manner of mail and code-review tools.
@@ -706,6 +742,7 @@ anywhere to list them all.
 | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Anywhere        | `?`                         | Lists the shortcuts                                                                                                                                                                         |
 | Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone                                                                   |
+| Anywhere        | `g` then `v`                | Opens **Saved views**, going to the thread list first where it is not on screen                                                                                                             |
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                                                                                                |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                                                                                          |
 | The thread list | `o`                         | Opens the thread of the row that has focus, as `Enter` on its link does                                                                                                                     |

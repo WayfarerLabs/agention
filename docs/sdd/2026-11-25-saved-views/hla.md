@@ -132,14 +132,21 @@ saved views so they keep their meaning, which A18's text records as an exception
   Search's name says the search on (`ListHead.tsx:145-152`, `views/list-head.tsx:12-15`), its name
   and tooltip add the current view, such as "Saved views, Blocking me". It opens a dialog, as a
   button may: the **Saved views** sheet, a sheet from the bottom on a phone and a panel on a wide
-  screen, as the filter sheet is.
+  screen, as the filter sheet is. Built, the head never has room for its words by touch: with every
+  control set in DejaVu Sans, the widest font measured, they take the row to about 49.5rem, and the
+  head is at most 44rem wide by touch, in the page's content, so the button shows its bookmark
+  alone, and the other controls' words move from 41rem to 44rem, past the row's 43.7rem with the
+  bookmark. On the narrowest phones, up to 22.5rem, the head's gaps tighten and Filters' count draws
+  on its corner, as a set control's mark does, so its six touch targets keep one row at 320 pixels.
 - **The sheet** lists the views by name, each a link to its list, the current one checked as a
   picker marks its choice. Each other row offers **Replace with this list**, which asks first
   (`ConfirmButton`, `apps/web/src/components.tsx:318`). Beneath them, **Save as new view** takes a
   name, and **Manage saved views** opens Settings' section.
 - **The key** `g v`, **Go to saved views**, opens the sheet from anywhere, going to the list first
   from a thread on a phone. `g` already starts the go-to keys and `g v` is free
-  (`apps/web/src/keyboard.tsx:79-162`).
+  (`apps/web/src/keyboard.tsx:79-162`). Built, the list opens it while mounted, on its page and
+  beside a thread; anywhere else, a thread on a phone, Sessions or Settings, the page goes to the
+  list a thread page returns to, which opens the sheet as it mounts.
 - **Settings** gains a **Saved views** section under **Features**
   (`apps/web/src/views/settings/sections.ts:39-52`), built from the parts **Groups and tags** uses
   (`views/settings/Organizer.tsx`): each view with a link opening it, **Rename**, and **Remove**,

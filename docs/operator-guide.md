@@ -715,13 +715,15 @@ keys**. **Create an API key** asks for:
 - **Name**: up to 50 characters on one line, such as the program that will hold the key.
 - **Scopes**: what the key may do, as you, at least one of them:
 
-  | Scope              | What it grants                                                                                                                                                                                                                                    |
-  | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session                                                                            |
-  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                         |
-  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                         |
-  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags |
-  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                    |
+  | Scope               | What it grants                                                                                                                                                                                                                                                                                       |
+  | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `threads:read`      | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session                                                                                                                               |
+  | `threads:write`     | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                                                                            |
+  | `sessions:read`     | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                                                                            |
+  | `sessions:write`    | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, a tag's rename reaching the saved views naming it, and setting a session's group and an agent's or a session's tags |
+  | `sessions:approve`  | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                                                                       |
+  | `saved-views:read`  | Reading your saved views, each with its thread list                                                                                                                                                                                                                                                  |
+  | `saved-views:write` | Also saving, renaming, replacing and removing saved views                                                                                                                                                                                                                                            |
 
   A write or approve scope includes its resource's read; `sessions:write` and `sessions:approve`
   include neither the other. `sessions:approve` lets whoever holds the key let an agent into your
@@ -759,9 +761,9 @@ already run.
 ### What it records
 
 - **Every write**, on the web UI, the operator API and the agent API: starting threads, messages and
-  answers, archiving, files uploaded and removed, groups and tags and their assignment, a session's
-  status updates, voice settings set and cleared, and the decisions on agents' registrations.
-  Marking threads read or unread and marking a session's log read are not recorded.
+  answers, archiving, files uploaded and removed, groups and tags and their assignment, saved views,
+  a session's status updates, voice settings set and cleared, and the decisions on agents'
+  registrations. Marking threads read or unread and marking a session's log read are not recorded.
 - **Sign-ins**: a passkey's sign-in, a sign-out, and a passkey link's use, with the browser sessions
   each ended. A failed sign-in or link is recorded with no one as its actor.
 - **Credentials**: an API key created, revoked, or revoked by a passkey link, and its first use; a
@@ -776,9 +778,10 @@ already run.
 Each event names its credential by an id that is not secret: a browser session by its own id and the
 passkey that signed it in, an API key by its id and name, and an agent by its registration's id,
 with its agent and session. It names what was acted on by id, with the names you and your agents
-chose for agents, sessions, groups, tags, keys and passkeys. It names a thread by its agent, session
-and number, never its title, and a file by its id, never its name. No event holds a message's or an
-answer's text, a file's bytes, a transcription, or any secret.
+chose for agents, sessions, groups, tags, saved views, keys, and passkeys. It names a thread by its
+agent, session and number, never its title, a file by its id, never its name, and a saved view by
+its id and name, never its list. No event holds a message's or an answer's text, a file's bytes, a
+transcription, or any secret.
 
 The address recorded is the connection's peer. Behind `tailscale serve` or a platform's router that
 is the proxy's address, often the loopback, since the server reads no forwarded header. The user

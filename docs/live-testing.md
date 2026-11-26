@@ -66,9 +66,14 @@ disagreement is the finding.
   page at `/docs/api/` and `/docs/api/openapi.json` without sign-in, `/docs/api` leading to the
   page, the page running no script, the document equal to `docs/api/openapi.json` at the head, and
   without the flag every path under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP
-  API", "API documentation" and "Authentication"; `docs/operator-api.md`). The file routes on every
-  mount, the operator mount with a key of each threads scope among them: an upload's answer, each of
-  its refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
+  API", "API documentation" and "Authentication"; `docs/operator-api.md`). The operator mount's
+  `saved-views` operations with a key of each scope: `saved-views:read` listing the views,
+  `saved-views:write` saving, renaming, replacing and removing them, a name another view has refused
+  as `conflict`, a list the thread list refuses as `invalid_input` naming the part, and each refused
+  as `not_found` to a key without its scope; a tag renamed with `sessions:write` renaming it in the
+  views naming it (`docs/architecture.md` "Saved views"). The file routes on every mount, the
+  operator mount with a key of each threads scope among them: an upload's answer, each of its
+  refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
   `storage_full` with the disk filled, a length that does not match), a message naming another
   writer's, another session's, an expired or an attached upload refused alike, `keep` on a
   replacement; a file read with each single range, several ranges answered whole, a range outside
@@ -164,39 +169,46 @@ disagreement is the finding.
   sheet on a phone, the chips that show them in their colors in both color schemes, and Settings'
   groups and tags, with create, rename, its refusal of a name another group or tag has, recolor,
   removal, asked first, and the groups' order by their buttons and by dragging, followed by the
-  sessions view; the sessions view's arrangement, grouped by group, by agent and by session, sorted
-  alphabetically, by registration time and manually, each way, no group last, its groups moved in
-  the manual order by their buttons and by dragging, and the arrangement kept in the address through
-  a reload, Back and a shared link; a thread the operator starts there, with the warning for a
-  session not there to see it, and the agent's reply in it; registration approval, with a group and
-  tags picked, rejection, and revocation from past requests and a session's options; diagrams, drawn
-  in light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons
-  and keys, on a phone's width too; Settings in sections, listed beside the open one on a wide
-  screen and listed first on a phone with each section's way back, with `/passkeys` leading to
-  Passkeys; API keys: one created with each expiry choice, the no-expiry warning and the list's
-  flag, a scope that a chosen one includes shown chosen with it, the secret shown once with Copy and
-  gone once dismissed, nowhere in storage or the address, the list's last use, Revoke asked first,
-  creating and revoking held back without a recent sign-in, and Create held back at 20 live keys, at
-  a phone's width too; and voice set up, with the write-only key shown masked but for its last four
-  characters, what the environment supplies shown read-only, Turn off and Try it; dictation through
-  Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
-  microphone and what it says beside Send on a short screen, its failures keeping the recording for
-  a retry, and a recording stopped when the page is hidden, alike in the composer, an ask's
-  own-words field and the new-thread sheet; and Read aloud and Stop, in WebKit too where it
-  installs; a message's copy button, with its details folded and open, and a code block's, from the
-  keyboard and beside a long line; attachments: **Attach**, its menu on a touch device (each item's
-  picker, Escape and a tap elsewhere), a pasted image and a paste carrying text, progress,
-  **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message of files alone,
-  an edit keeping and removing files, a new thread started with files and its sheet cancelled with
-  uploads, each kind of file shown in place, **Show image** and **Show text**, a PDF's tab,
-  **Download**, an `attachment:` link, a missing file, the thread's **Files** fold, and **Storage**,
-  on a phone's width too; and pull requests and branches: a message's one entry and its fold, the
-  thread's fold, a row's one entry, beside its checkbox too, and its mark counting several, each
-  entry leading to the thread list filtered by it, alone from a message or the thread's fold and
-  added to the list on screen from a row, but selecting the row in its place when held by touch, and
-  when tapped while a touch selection is under way, the forge link beside a message's or the fold's
-  entry opening the forge's page in a new tab, and the filter sheet's **Pull request** and
-  **Branch** with their counts, chips, and the address, on a phone's width too
+  sessions view; saved views: the list's **Saved views** first in its head, named with the views
+  current, its sheet from the bottom on a phone and as a panel side by side, a view saved, opened in
+  another browser to the same list, its link, Back and a reload behaving as the address's, current
+  with its filters chosen in another order, replaced only once asked, and `g v` opening the sheet
+  from a thread, from Sessions and from Settings, on a phone and side by side; Settings' saved
+  views, with rename, its refusal of a name another view has, and removal, asked first; and a view
+  naming a renamed tag still keeping its threads, and one naming a removed group or tag showing the
+  chip as removed with the list kept narrow; the sessions view's arrangement, grouped by group, by
+  agent and by session, sorted alphabetically, by registration time and manually, each way, no group
+  last, its groups moved in the manual order by their buttons and by dragging, and the arrangement
+  kept in the address through a reload, Back and a shared link; a thread the operator starts there,
+  with the warning for a session not there to see it, and the agent's reply in it; registration
+  approval, with a group and tags picked, rejection, and revocation from past requests and a
+  session's options; diagrams, drawn in light and dark, with their Source toggle, their fallback,
+  and the viewer's gestures, buttons and keys, on a phone's width too; Settings in sections, listed
+  beside the open one on a wide screen and listed first on a phone with each section's way back,
+  with `/passkeys` leading to Passkeys; API keys: one created with each expiry choice, the no-expiry
+  warning and the list's flag, a scope that a chosen one includes shown chosen with it, the secret
+  shown once with Copy and gone once dismissed, nowhere in storage or the address, the list's last
+  use, Revoke asked first, creating and revoking held back without a recent sign-in, and Create held
+  back at 20 live keys, at a phone's width too; and voice set up, with the write-only key shown
+  masked but for its last four characters, what the environment supplies shown read-only, Turn off
+  and Try it; dictation through Chromium's fake microphone and a stub provider, its text at the
+  caret with nothing sent, the microphone and what it says beside Send on a short screen, its
+  failures keeping the recording for a retry, and a recording stopped when the page is hidden, alike
+  in the composer, an ask's own-words field and the new-thread sheet; and Read aloud and Stop, in
+  WebKit too where it installs; a message's copy button, with its details folded and open, and a
+  code block's, from the keyboard and beside a long line; attachments: **Attach**, its menu on a
+  touch device (each item's picker, Escape and a tap elsewhere), a pasted image and a paste carrying
+  text, progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message
+  of files alone, an edit keeping and removing files, a new thread started with files and its sheet
+  cancelled with uploads, each kind of file shown in place, **Show image** and **Show text**, a
+  PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's **Files** fold, and
+  **Storage**, on a phone's width too; and pull requests and branches: a message's one entry and its
+  fold, the thread's fold, a row's one entry, beside its checkbox too, and its mark counting
+  several, each entry leading to the thread list filtered by it, alone from a message or the
+  thread's fold and added to the list on screen from a row, but selecting the row in its place when
+  held by touch, and when tapped while a touch selection is under way, the forge link beside a
+  message's or the fold's entry opening the forge's page in a new tab, and the filter sheet's **Pull
+  request** and **Branch** with their counts, chips, and the address, on a phone's width too
   (`docs/operator-guide.md` "Signing in", "Adding it to a phone or a desktop", "Voice",
   "Attachments" and "Approving agents"; `docs/web-ui.md`). Real-phone passkeys, the web UI added to
   a phone's home screen and opening standalone, Send above a phone's keyboard while writing,
