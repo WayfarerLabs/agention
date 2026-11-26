@@ -185,6 +185,7 @@ describe("quiet", () => {
     const own = fixture.thread(agent.identity, target()).thread;
     expect(own).not.toHaveProperty("presence");
     expect(own).not.toHaveProperty("stranded");
+    expect(own).not.toHaveProperty("ignored");
   });
 });
 

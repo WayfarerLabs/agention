@@ -420,6 +420,7 @@ describe("presence", () => {
     const own = (await list(approved)).body as ThreadPage;
     expect(own.threads[0]).not.toHaveProperty("presence");
     expect(own.threads[0]).not.toHaveProperty("stranded");
+    expect(own.threads[0]).not.toHaveProperty("ignored");
   });
 });
 

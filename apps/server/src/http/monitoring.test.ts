@@ -342,6 +342,32 @@ describe("the nudge", () => {
     expect((await presence())?.last_nudge).toMatchObject({ answered: true });
   });
 
+  it("leaves the thread ignored once the agent checks in after it without reading it, until it does", async () => {
+    const { secret } = await harness.createKey(["threads:read"]);
+    await nudgeClaim({ phase: "start" });
+    await nudgeClaim({ phase: "done", sent: true });
+    // The agent checks in in answer, without reading the thread.
+    await list(agentApi.version);
+    harness.fixture.advance(defaultQuietAfter + hour);
+    await nudgePoll();
+    const listed = async (query: string) =>
+      ((await harness.operator(secret, "GET", `/threads${query}`)).body as ThreadPage).threads;
+    const ignored = await listed("?agent_read=ignored");
+    expect(ignored.map((thread) => thread.number)).toEqual([1]);
+    expect(ignored[0]).toMatchObject({ ignored: true, stranded: false });
+    expect(await listed("?agent_read=stranded")).toEqual([]);
+    await harness.agent(
+      approved,
+      "POST",
+      "/s/builder/main/threads/1/read",
+      { through: 2 },
+      nudging,
+    );
+    await nudgePoll();
+    expect((await listed(""))[0]).toMatchObject({ ignored: false, stranded: false });
+    expect(await listed("?agent_read=ignored")).toEqual([]);
+  });
+
   it("is claimed as a background request, never a check-in", async () => {
     const before = stamps();
     harness.fixture.advance(1_000);
