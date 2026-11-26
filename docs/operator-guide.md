@@ -15,8 +15,9 @@ To set up an instance:
    [approve each session](#approving-agents) as it registers.
 6. [Back it up](#backing-up), and read [Upgrading](#upgrading) before your first upgrade.
 
-[Voice](#voice), to dictate your replies, and [API keys](#api-keys), for programs of yours that read
-or answer Agention as you, are optional. [Commands](#commands) lists every command.
+[Voice](#voice), to dictate your replies, [API keys](#api-keys), for programs of yours that read or
+answer Agention as you, and delivering the [audit log](#audit-log) to your log tooling are optional.
+[Commands](#commands) lists every command.
 
 Two pages go further: [The web UI](web-ui.md) describes the views control by control, and
 [Operator API](operator-api.md) says how your programs call Agention.
@@ -107,17 +108,22 @@ rules allow. Tailscale Funnel would publish it to the whole internet; Agention d
 agention serve --data ~/.local/share/agention --origin https://agention.example.com --name Work
 ```
 
-| Option               | Meaning                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `--data DIR`         | The data directory, which holds the database, `agention.db`; required                                                    |
-| `--origin URL`       | The HTTPS origin people and agents reach the server at; required                                                         |
-| `--listen ADDR`      | The IP address, never a name, and port to listen on, by default `127.0.0.1:8080`; IPv6 goes in brackets, as `[::1]:8080` |
-| `--tls-cert FILE`    | The TLS certificate chain, in PEM, for the server to terminate TLS itself                                                |
-| `--tls-key FILE`     | The certificate's private key, in PEM; give both TLS options or neither                                                  |
-| `--allow-plain-http` | Allow plain HTTP on an address other than loopback                                                                       |
-| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session not seen is quiet; 15 by default                                             |
-| `--name NAME`        | The server's name, 1 to 40 characters on one line, set by its first start                                                |
-| `--api-docs`         | Serve the API's documentation, without sign-in, under `/docs/api/`, for [writing programs against it](operator-api.md)   |
+| Option                     | Meaning                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--data DIR`               | The data directory, which holds the database, `agention.db`; required                                                    |
+| `--origin URL`             | The HTTPS origin people and agents reach the server at; required                                                         |
+| `--listen ADDR`            | The IP address, never a name, and port to listen on, by default `127.0.0.1:8080`; IPv6 goes in brackets, as `[::1]:8080` |
+| `--tls-cert FILE`          | The TLS certificate chain, in PEM, for the server to terminate TLS itself                                                |
+| `--tls-key FILE`           | The certificate's private key, in PEM; give both TLS options or neither                                                  |
+| `--allow-plain-http`       | Allow plain HTTP on an address other than loopback                                                                       |
+| `--quiet-minutes N`        | Minutes, 1 to 10,080, after which a session not seen is quiet; 15 by default                                             |
+| `--name NAME`              | The server's name, 1 to 40 characters on one line, set by its first start                                                |
+| `--api-docs`               | Serve the API's documentation, without sign-in, under `/docs/api/`, for [writing programs against it](operator-api.md)   |
+| `--audit-stdout`           | Deliver the [audit log](#sinks) to standard output                                                                       |
+| `--audit-dir DIR`          | Deliver the audit log to files in `DIR`                                                                                  |
+| `--audit-group NAME`       | Share `--audit-dir` with a group, for a collector that runs as its own user                                              |
+| `--audit-keep-days N`      | The renamed audit files to keep, 1 to 3,650; 30 by default                                                               |
+| `--audit-retention-days N` | Days, 1 to 36,500, to keep audit events, or 0 to keep them forever; 365 by default                                       |
 
 [Giving it an HTTPS origin](#giving-it-an-https-origin) says when to set `--listen` and the TLS
 options. Three optional environment variables
@@ -725,6 +731,246 @@ revokes every key ([Signing in](#signing-in)).
 
 [Operator API](operator-api.md) says how a program calls it, and where its reference is.
 
+## Audit log
+
+The server records every change made to it in an audit log: each write, sign-in and credential
+change, which credential made it, from where, and when. The log lives in the database, written with
+each change in the same transaction, so a change is never saved without its event. The server can
+also deliver it to standard output and to files, for the log pipeline or security tooling you
+already run.
+
+### What it records
+
+- **Every write**, on the web UI, the operator API and the agent API: starting threads, messages and
+  answers, archiving, files uploaded and removed, groups and tags and their assignment, a session's
+  status updates, voice settings set and cleared, and the decisions on agents' registrations.
+  Marking threads read or unread and marking a session's log read are not recorded.
+- **Sign-ins**: a passkey's sign-in, a sign-out, and a passkey link's use, with the browser sessions
+  each ended. A failed sign-in or link is recorded with no one as its actor.
+- **Credentials**: an API key created, revoked, or revoked by a passkey link, and its first use; a
+  passkey added, renamed, removed, or replaced by a link; an agent's registration submitted,
+  approved, rejected, or revoked; a link issued by `agention passkey-link`; and a sink forgotten by
+  `agention audit forget-sink`.
+- **Refused API keys**: a key the server knows, refused as revoked or expired, or for lacking an
+  operation's scope. A key the server does not know records nothing. The answer the program gets is
+  the same as before. A key refused partway through a download, which cuts the download short, is
+  recorded with no answer status, since the program had already been answered.
+
+Each event names its credential by an id that is not secret: a browser session by its own id and the
+passkey that signed it in, an API key by its id and name, and an agent by its registration's id,
+with its agent and session. It names what was acted on by id, with the names you and your agents
+chose for agents, sessions, groups, tags, keys and passkeys. It names a thread by its agent, session
+and number, never its title, and a file by its id, never its name. No event holds a message's or an
+answer's text, a file's bytes, a transcription, or any secret.
+
+The address recorded is the connection's peer. Behind `tailscale serve` or a platform's router that
+is the proxy's address, often the loopback, since the server reads no forwarded header. The user
+agent is kept to 256 characters.
+
+Not recorded: reads, the audit log's own included; transcriptions; the server's own housekeeping,
+such as a session's idle expiry moving on, a key's hourly last use, or the upload sweep; and failed
+agent authentication.
+
+Anyone who can reach the server can cause failed sign-ins, so failures are counted rather than
+recorded one by one: the first failure of a kind in a minute, per key for a key's refusals, records
+an event, and each later one in that minute raises its `count` and moves its `end_time` on. Only
+failures within the [rate budgets](#rate-budgets) are counted.
+
+### The format
+
+Each event is one JSON object in the [Open Cybersecurity Schema Framework](https://schema.ocsf.io/)
+(OCSF), version 1.9.0, which Splunk, Datadog, Google SecOps and AWS Security Lake read natively and
+any other SIEM or collector can query as JSON. Writes are API Activity (`class_uid` 6003), sign-ins
+and refused keys Authentication (3002), and API keys, passkeys, registrations and links Entity
+Management (3004). Fields worth knowing:
+
+| Field                               | Holds                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| `metadata.event_code`               | The action, under its stable name, such as `archiveThread` or `signIn`      |
+| `metadata.uid`                      | The event's own random id, to tell an event delivered twice                 |
+| `metadata.sequence`                 | Its place in this server's log, which counts up from 1 without gaps         |
+| `metadata.reporter.uid`             | This server's id, to tell several servers' events apart in one destination  |
+| `time`                              | When it happened, in Unix milliseconds                                      |
+| `status_id`, `status_detail`        | 1 for a success, 2 for a failure, with a refused key's reason in the detail |
+| `actor`                             | Who: you, an agent's session, or the command line's user, by credential     |
+| `unmapped.credential`               | The credential in Agention's own terms: its kind, id and name               |
+| `src_endpoint`, `http_request`      | The peer's address, and the request's method, path and user agent           |
+| `resources` (6003), `entity` (3004) | What it acted on                                                            |
+
+For example, an API key archiving a thread, on one line in a file:
+
+```json
+{
+  "class_uid": 6003,
+  "category_uid": 6,
+  "activity_id": 3,
+  "type_uid": 600303,
+  "class_name": "API Activity",
+  "activity_name": "Update",
+  "time": 1795564800123,
+  "severity_id": 1,
+  "status_id": 1,
+  "metadata": {
+    "version": "1.9.0",
+    "product": { "name": "Agention", "vendor_name": "Wayfarer Labs", "version": "0.8.0" },
+    "reporter": { "uid": "8d0f5a523c1e4b7a9e246f1b0c9d2a37", "name": "Work" },
+    "uid": "3f2b8c1e-5d4a-4e8f-9a61-0c7d2e9b4f15",
+    "sequence": 4211,
+    "log_name": "audit",
+    "event_code": "archiveThread"
+  },
+  "actor": {
+    "user": { "uid": "person:1", "name": "morgan", "type_id": 2 },
+    "session": { "credential_uid": "api_key:7" }
+  },
+  "api": { "operation": "archiveThread", "service": { "name": "operator/v1" } },
+  "resources": [
+    { "type": "thread", "uid": "thread:118", "name": "claude/builder/42", "data": { "through": 9 } }
+  ],
+  "src_endpoint": { "ip": "127.0.0.1" },
+  "http_request": {
+    "http_method": "POST",
+    "url": { "path": "/api/operator/v1/s/claude/builder/threads/42/archive" },
+    "user_agent": "tmux-agents/0.3"
+  },
+  "http_response": { "code": 200 },
+  "unmapped": { "credential": { "kind": "api_key", "id": 7, "name": "ci-deploy" } }
+}
+```
+
+A failure's path is the route's pattern, such as `/api/operator/v1/s/:agent/:session/threads`, never
+the path the client sent. A counted failure also carries `count`, `start_time` and `end_time`.
+
+### Sinks
+
+With no sink, the log is kept in the database alone. Each sink is a `serve` option, and changes only
+when the server starts again:
+
+| Option                     | What it does                                                                                                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--audit-stdout`           | Writes each event as one JSON line to standard output, where systemd's journal, `docker logs` or a platform's log pipeline collects it. The server writes nothing else there; its own messages go to standard error                               |
+| `--audit-dir DIR`          | Writes each event as one JSON line to `DIR/audit.jsonl` and syncs it to the disk. At the first write of a later UTC day, the file is renamed for the day it was written, `audit-2026-11-26.jsonl`, and a new one started, for a collector to tail |
+| `--audit-group NAME`       | Shares `--audit-dir`'s directory and files with group `NAME`, for a collector that runs as its own user ([below](#a-collector-that-runs-as-its-own-user))                                                                                         |
+| `--audit-keep-days N`      | How many renamed files `--audit-dir` keeps, 1 to 3,650; 30 by default. The oldest beyond that are removed                                                                                                                                         |
+| `--audit-retention-days N` | How long the database keeps events, 1 to 36,500 days, or 0 to keep them forever; 365 by default ([Retention](#retention))                                                                                                                         |
+
+`--audit-dir` makes the directory, and any missing directory above it, readable only by you, mode
+0700, with files of mode 0600, as the data directory is
+([SECURITY.md](../SECURITY.md#private-files)). It refuses a directory or file that exists with any
+other mode, says what to change, and never changes it itself. A directory the server cannot reach,
+such as the data directory under your home, is no use to a collector running as another user; give
+the files a directory of their own.
+
+Each sink receives every event at least once, in order, from where it left off: the server keeps how
+far each has got in the database. A sink new to the database starts from the oldest event the
+database holds. An event is delivered once standard output has taken it, or once it is written and
+synced to the file; it has left the machine only once whatever reads it has carried it off. A
+counted failure is delivered once its minute has ended, and the events after it wait for it.
+
+A sink that fails, such as a full disk, is tried again every few seconds, and nothing else waits for
+it. The server says so on standard error when it starts failing, every 15 minutes while it goes on
+failing, with how far behind it is, and when it recovers. A delivery still under way after a minute,
+such as to a pipe that nothing reads, is named on standard error as stalled, every 15 minutes while
+it stays so, and once it completes. Undelivered events wait in the database meanwhile, on the same
+disk as everything else.
+
+Stopping the server gives the sinks 5 seconds to deliver what is pending. A file write that a
+stalled disk holds keeps the server from exiting until the service manager kills it, as systemd does
+once its stop timeout passes; no event is lost, since what it was writing is delivered again at the
+next start.
+
+The file holds whole lines only: one a crash left half written is ended before the next, and a write
+that fails is cut back off. A file renamed or removed from under the server, as by logrotate or a
+collector, is let go, and the next event starts a new `audit.jsonl`.
+
+### A collector that runs as its own user
+
+Packaged collectors such as Vector and Grafana Alloy run as users of their own, `vector` and
+`alloy`, which cannot read a directory only you can. `--audit-group` gives one group read access,
+never write: the directory becomes mode 0750 and its files 0640, in that group, and other users
+still have no access. Make a group for the audit files alone, put your user and the collector's in
+it, and make the directory:
+
+```bash
+sudo groupadd agention-audit
+sudo usermod -aG agention-audit "$USER"
+sudo usermod -aG agention-audit vector
+sudo install -d -o "$USER" -g agention-audit -m 0750 /var/lib/agention-audit
+sudo systemctl restart vector
+```
+
+Use `alloy` in place of `vector` for Grafana Alloy. The collector takes its new group when it starts
+again, which the last line does. Then give the server the directory and the group:
+
+```bash
+agention serve ... --audit-dir /var/lib/agention-audit --audit-group agention-audit
+```
+
+- **Every directory above the audit directory** must belong to you or root, with no one else able to
+  write to it, as for the data directory. `/var/lib` qualifies on Debian. `/var/log` does not on
+  Ubuntu, whose group `syslog` can write to it.
+- **The server's user must be in the group when it starts**, and the server refuses the option
+  otherwise. Log in again after `usermod`. A [systemd user unit](#linux-a-systemd-user-unit) runs
+  under your user's service manager, which takes a new group only when it starts again, and with
+  lingering on it outlives your logins, so restart it with
+  `sudo systemctl restart "user@$(id -u).service"`, or restart the machine.
+- **Not `adm`.** Both collectors' Debian packages also put them in `adm`, so `--audit-group adm`
+  would work with no change to the collector, but it would put your user in `adm`, which reads the
+  system's logs.
+- `--audit-group` needs `getent`, which finds the group as the system is set up to, LDAP included.
+  Minimal and distroless container images have none, and refuse the option.
+
+### Which sink fits which setting
+
+| Setting                               | Sink                  | Notes                                                                  |
+| ------------------------------------- | --------------------- | ---------------------------------------------------------------------- |
+| Fly.io                                | stdout                | Fly Log Shipper (Vector) forwards it; watch it, as it can stall        |
+| Render                                | stdout                | Render's log streams forward over syslog TLS or HTTPS                  |
+| Railway                               | stdout                | No native drain; run a Vector forwarder                                |
+| Cloud Run                             | stdout                | A JSON line becomes `jsonPayload` in Cloud Logging                     |
+| Azure Container Apps                  | stdout                | Lands in Log Analytics, which Sentinel reads                           |
+| Datadog, Elastic Cloud, Grafana Cloud | file, via their agent | The vendor's agent or a collector tails the file                       |
+| Splunk, HEC-compatible SIEMs, Cribl   | file, via a forwarder | Universal Forwarder, or a collector's HEC exporter                     |
+| Homelab, systemd, Docker              | file, or stdout       | stdout lands in the journal or `docker logs`                           |
+| Homelab with Wazuh                    | file                  | `localfile` with `log_format json`                                     |
+| Homelab with Loki or Graylog          | file, via a collector | Alloy, Vector or Fluent Bit tails the file and forwards it             |
+| Syslog receivers (rsyslog, syslog-ng) | file, via a collector | Vector, Fluent Bit or the OpenTelemetry Collector forwards over syslog |
+
+A destination keeps its own copy under its own access controls: it holds which credential did what
+and when, never what was written.
+
+### Retention
+
+The database removes events older than `--audit-retention-days`, 365 by default, oldest first, and
+only once every sink has received them; with no sink, by age alone. It checks as the server starts
+and every 10 minutes after.
+
+A sink you stop giving `serve` keeps its place in the database, so that one start without its option
+cannot let retention remove what it never received. The server names it on standard error as it
+starts and every 15 minutes, with how far behind it is, while its events wait. Once a sink is gone
+for good, forget it, with the server running or not:
+
+```bash
+agention audit forget-sink --data ~/.local/share/agention file
+```
+
+Its `KIND` is `stdout` or `file`. Forgetting a sink records an event of its own. Forgetting one that
+a running server still delivers to stops that sink at its next delivery, which goes out first,
+saying so on standard error, until the server starts again and gives it a new place. A sink's place
+is kept by its kind, so giving `--audit-dir` another directory carries on where the old one stopped.
+To give a sink every event the database still holds instead, stop the server, forget the sink, and
+start the server again.
+
+### What the log proves
+
+The copy of an event that has left the machine is the evidence: whoever controls the server cannot
+change or remove it there. Each event's `metadata.uid` and `metadata.sequence` let the destination
+see an event missing, or received twice. Events not yet delivered can be removed or rewritten unseen
+by whoever can write the database ([ADR 0006](adrs/0006-audit-log.md) says why nothing on the
+machine guards them).
+
+Restoring a backup rolls the log back with everything else ([Backing up](#backing-up)).
+
 ## Upgrading
 
 One version covers the server, the bridge and the plugins. Upgrade the server first, then the
@@ -878,6 +1124,13 @@ Run by hand, stop the server with Ctrl-C and wait for your prompt first. `cp` gi
 database the copy's mode, 0600. The server opens a copy made by its own release or an earlier one.
 Remove the replaced files when you no longer need them.
 
+**Restoring rolls the audit log back** with the data: the events recorded after the backup are gone
+from the database, though not from a destination that already received them. Each sink's place rolls
+back too, so a sink receives again only the events the backup holds that it had received after the
+backup was made, under the same `metadata.uid`, which lets a destination drop the copies. Events
+recorded after the restore take the sequence numbers that followed the backup, under new ids, which
+shows a destination the rollback ([ADR 0006](adrs/0006-audit-log.md)).
+
 ## Rate budgets
 
 The server limits how fast each kind of request may arrive, so a flood of one kind cannot crowd out
@@ -911,12 +1164,13 @@ registered.
 
 ## Commands
 
-| Command                 | What it does                                                           |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `agention version`      | Prints the version and exits                                           |
-| `agention --help`       | Prints the command list and exits                                      |
-| `agention serve`        | Runs the server, with listener, TLS and origin settings                |
-| `agention passkey-link` | Prints a one-time link to register or replace the operator's passkeys  |
-| `agention backup`       | Writes a consistent copy of the database, while the server runs or not |
+| Command                      | What it does                                                           |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `agention version`           | Prints the version and exits                                           |
+| `agention --help`            | Prints the command list and exits                                      |
+| `agention serve`             | Runs the server, with listener, TLS and origin settings                |
+| `agention passkey-link`      | Prints a one-time link to register or replace the operator's passkeys  |
+| `agention backup`            | Writes a consistent copy of the database, while the server runs or not |
+| `agention audit forget-sink` | Removes an audit sink's place, so retention no longer waits for it     |
 
 Every command takes `--help`.

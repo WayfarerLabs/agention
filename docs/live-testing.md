@@ -24,6 +24,19 @@ disagreement is the finding.
   environment variables, each value that breaks its rules, and a key without a base URL, refusing
   the start by naming the variable and never printing the value (`docs/operator-guide.md` "Voice
   from the environment").
+- **Audit log**, on the packed server: `agention serve --audit-stdout --audit-dir DIR` on a loopback
+  instance, an API key's writes appearing on standard output and in `DIR/audit.jsonl`, each with the
+  key's id and name, the file read by a collector tailing it (Vector, Grafana Alloy or `tail -F`),
+  and every line a valid OCSF 1.9.0 event (`docs/operator-guide.md` "Audit log"); standard output
+  holding nothing but those lines; the directory and file modes, and with `--audit-group` a
+  collector running as its own user reading the files through the operator guide's recipe and
+  writing none; a sink made to fail, such as a directory made unwritable, named on standard error,
+  then recovering with nothing lost; a failed sign-in counted into one event, delivered once its
+  minute ends; a restart without a sink's option naming its cursor, and `agention audit forget-sink`
+  removing it, on a running server too, which stops that sink; the file rotated away by logrotate,
+  and the next event starting a new one; a stdout reader that stops reading named as stalled;
+  retention keeping what a sink has not received; and a restore from a backup reusing sequences
+  under new ids (`docs/operator-guide.md` "Backing up").
 - **HTTP API** through the real listener: the agent mount (key-signed tokens) and the web mount
   (passkey session and CSRF). The token cases: no token, a signature by another key than the one it
   names, an unknown key, another audience (refused naming the expected origin), an expiry past or
@@ -291,6 +304,10 @@ On top of the method's failure classes, look for:
   default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
   an upload cut off, or the server killed during one, leaving no file or chunks after the next
   sweep; a `file_get` that fails leaving no partial file.
+- **Audit gaps**: a write, sign-in or credential change without its event, or an event without its
+  change; an event naming another credential than the one that made the write; a message's or an
+  answer's text, a title, a file name, or any secret in a line or a stderr message; an event
+  delivered out of order, or lost across a restart or a failing sink.
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong

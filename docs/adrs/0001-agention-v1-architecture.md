@@ -16,7 +16,10 @@ message text stays inert, and files load only as attachments, under that ADR's r
 view's tab counting the sessions with unread updates is superseded: a navigation badge counts only
 what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
 approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
-UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates.
+UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates. Its
+"No push" and "history is retained" are narrowed for the audit log by [ADR 0006](0006-audit-log.md):
+the server delivers that log to the sinks the operator configures, and removes its events after
+their retention.
 
 ## Context
 
@@ -350,7 +353,8 @@ These are deliberate limits, not gaps to fill later without a new decision:
   or other channel, and reaches an agent only when the agent checks, through `message_wait`.
   Standard MCP notifications reach neither host's model; waking an idle agent takes each host's own
   mechanism, which exists on both hosts, and is left for a later release so that polling, which
-  every host supports, works well first.
+  every host supports, works well first. (Narrowed by [ADR 0006](0006-audit-log.md): the server
+  delivers the audit log, and only it, to the sinks the operator configures.)
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
   agent's conversation, or control an agent harness.
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through
@@ -488,7 +492,8 @@ These are deliberate limits, not gaps to fill later without a new decision:
   than scoping everything by credential, and it is what makes later cross-session grants possible
   without breaking the API.
 - Append-only logs mean history grows without bound. That is intended: history is retained, and
-  backups carry all of it.
+  backups carry all of it. (Narrowed by [ADR 0006](0006-audit-log.md): the audit log's events are
+  removed after their retention.)
 - Agents and people both handle stale writes. The web UI keeps the draft, shows what was missed and
   resubmits in one step; agents re-read and retry.
 - Committed generated plugins add a regeneration step to changes that touch the plugin sources. A

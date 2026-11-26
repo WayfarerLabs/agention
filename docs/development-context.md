@@ -96,9 +96,9 @@ index of those docs.
 ## Invariants and collateral
 
 - Trust model, security checklist, and invariants reviewers check clause by clause: `SECURITY.md`
-  "Security model", with "Voice", "API keys", "Attachments", "Private files" and "The agent bridge";
-  the project checks A1 to A19 in `docs/review-checklist.md`; the deliberate limits in ADR 0001 "Not
-  doing"
+  "Security model", with "Voice", "API keys", "Audit log", "Attachments", "Private files" and "The
+  agent bridge"; the project checks A1 to A20 in `docs/review-checklist.md`; the deliberate limits
+  in ADR 0001 "Not doing"
 - Collateral to keep in sync: docs `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/architecture.md`, `docs/operator-guide.md`, `docs/web-ui.md`, `docs/operator-api.md`,
   `docs/tunnel.md`, `docs/adrs/`, `docs/review-checklist.md`, `docs/live-testing.md`, this file, and
