@@ -1,12 +1,15 @@
-import { readdirSync, realpathSync, writeFileSync } from "node:fs";
-import { open } from "node:fs/promises";
-import path from "node:path";
 import {
+  agentApi,
   agentApiHeader,
+  agentApiVersion,
   maxLinks,
   maxUrlLength,
   summaryLinksAgentApiVersion,
 } from "@wayfarerlabs/agention-api";
+import type { SessionsPage } from "@wayfarerlabs/agention-server-api";
+import { readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { open } from "node:fs/promises";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { maxResultBytes } from "./fit.ts";
 import { agent, BridgeHarness, session, type TestBridge } from "./test-harness.ts";
@@ -63,6 +66,12 @@ describe.each(versions)("the bridge released as %s", (version) => {
 
   it("works through every tool it has against this server", { timeout: 60_000 }, async () => {
     expect(bridge.client.getServerVersion()?.version).toBe(version);
+    // The agent API version the latest request to the server stated, the
+    // bridge's own once it has called.
+    let stated: string | undefined;
+    harness.beforeRequest = (request) => {
+      stated = request.headers.get(agentApiHeader) ?? undefined;
+    };
     const { tools } = await bridge.client.listTools();
     const has = (tool: string) => tools.some((each) => each.name === tool);
     // takes says whether a tool the release has takes a field.
@@ -352,6 +361,15 @@ describe.each(versions)("the bridge released as %s", (version) => {
       }
     }
 
+    // The sessions view marks its live session's plugin behind exactly when
+    // the version it states, none reading as 1, is below the server's, and
+    // marks it no more once it has stopped.
+    const marked = async (behind: boolean) =>
+      expect(
+        ((await harness.server.web("GET", "/sessions")).body as SessionsPage).agents,
+      ).toMatchObject([{ agent, sessions: [{ session, plugin_behind: behind }] }]);
+    await marked(agentApiVersion.parse(stated) < BigInt(agentApi.version));
+
     // The operator's message naming as many pull requests and branches as it
     // may, each with the longest URL, more than the answer cap on its own.
     // Every release reads it within the cap, and one whose writes do not name
@@ -424,10 +442,10 @@ describe.each(versions)("the bridge released as %s", (version) => {
     // thread read, a list, and a wait carry it: whole to a release stating a
     // version that has it, and without it to one stating an older version,
     // as each of its requests states.
-    const stated = new Set<string>();
+    const statedVersions = new Set<string>();
     harness.beforeRequest = (request) => {
       if (new URL(request.url).pathname.startsWith("/api/agent/")) {
-        stated.add(request.headers.get(agentApiHeader) ?? "1");
+        statedVersions.add(request.headers.get(agentApiHeader) ?? "1");
       }
     };
     const before = await call("message_wait", { wait_seconds: 0 });
@@ -441,8 +459,8 @@ describe.each(versions)("the bridge released as %s", (version) => {
       ...ofThree((await call("message_wait", { since: before.since, wait_seconds: 5 })).threads),
     ];
     harness.beforeRequest = undefined;
-    expect(stated.size).toBe(1);
-    const hasLinks = Number([...stated][0]) >= summaryLinksAgentApiVersion;
+    expect(statedVersions.size).toBe(1);
+    const hasLinks = Number([...statedVersions][0]) >= summaryLinksAgentApiVersion;
     expect(summaries).toHaveLength(3);
     for (const summary of summaries) {
       expect(summary).toMatchObject({ number: 3 });
@@ -457,6 +475,7 @@ describe.each(versions)("the bridge released as %s", (version) => {
       expect(
         await call("session_update", { state: "stopped", outcome: "completed", note: "Shipped." }),
       ).toMatchObject({ state: "stopped", outcome: "completed" });
+      await marked(false);
     }
     expect([...called].sort()).toEqual(tools.map((tool) => tool.name).sort());
   });

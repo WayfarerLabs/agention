@@ -41,12 +41,13 @@ import type {
   Request,
   Response,
 } from "@playwright/test";
-import type {
-  PublicKey,
-  RegistrationState,
-  SessionStatus,
-  ThreadGetResult,
-  WriteResult,
+import {
+  agentApi,
+  type PublicKey,
+  type RegistrationState,
+  type SessionStatus,
+  type ThreadGetResult,
+  type WriteResult,
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { Agent } from "./agent.ts";
@@ -1574,6 +1575,43 @@ test("the last session's options menu lies over the folds below it, grouped or n
   if (wide !== null) {
     await resize(page, wide);
   }
+});
+
+test("a session whose plugin is behind the server says so on its row until the plugin is updated", async () => {
+  const row = (path: string) =>
+    page
+      .locator(".session-row")
+      .filter({ has: page.getByRole("button", { name: `Options for ${path}`, exact: true }) });
+  const notice = (path: string) => row(path).locator(".notice.warning");
+  // reload goes to another view and back, which loads the sessions view anew.
+  const reload = async () => {
+    await showList();
+    await tab("Sessions").click();
+    await expect(row("builder/main")).toBeVisible();
+  };
+  // builder/main calls as a session on an older plugin does.
+  const calls = async (version: string | undefined) => {
+    agent.agentApiVersion = version;
+    expect((await agent.send("GET", `${threads}?limit=1`)).status).toBe(200);
+  };
+
+  await reload();
+  await expect(notice("builder/main")).toHaveCount(0);
+  for (const version of [String(agentApi.version - 1), undefined]) {
+    await calls(version);
+    await reload();
+    // The notice shows on the folded row, and only on the session behind.
+    await expect(row("builder/main").locator(".session-fold")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(notice("builder/main")).toBeVisible();
+    await expect(notice("deployer/main")).toHaveCount(0);
+  }
+  // The plugin updated, its calls state this release's version again.
+  await calls(String(agentApi.version));
+  await reload();
+  await expect(notice("builder/main")).toHaveCount(0);
 });
 
 test("Settings orders the groups by their buttons and by dragging, keeping the order", async () => {

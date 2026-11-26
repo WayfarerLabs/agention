@@ -1,7 +1,7 @@
 # Separate releases: Functional Requirements
 
 - Status: Accepted by the operator, 2026-11-22 (ruling 2); C3 and R4 amended by ruling 3, C5 by
-  ruling 4
+  ruling 4, U2 by ruling 5
 - Date: 2026-11-22
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -62,10 +62,13 @@ updates the plugin when Agention tells them to. The operator guide says so, and 
 
 **U2. The sessions view says when a plugin is behind.** A session's plugin is behind when its bridge
 speaks an older agent API version than the server, so the server offers something the bridge cannot
-use. The sessions view marks such a session and says what to do: update the Agention plugin on that
-agent's host to its newest release and restart the session. A session whose bridge is current shows
-nothing. The operator API's read of the sessions view carries the same information. This covers
-every released bridge, from the version each already states or, before the header existed, does not.
+use. The sessions view marks such a session while it is live, having not reported that it stopped
+and holding an approved, unrevoked registration, and says what to do: update the Agention plugin on
+that agent's host to its newest release and restart the session. A session whose bridge is current
+shows nothing, and so does a stopped or revoked one, which is marked again once it resumes if still
+behind (ruling 5). The operator API's read of the sessions view carries the same information. This
+covers every released bridge, from the version each already states or, before the header existed,
+does not.
 
 **U3. The agent hears it at registration.** When a session registers, or checks its registration,
 with a bridge that is behind in the sense of U2, the answer tells the agent so, in words it can
@@ -164,6 +167,13 @@ gate work with each line's tags, and a release refuses a tag that does not match
 4. (2026-11-23) Asked whether to amend C5 to test the newest released server of each older agent API
    version, instead of every older server, the operator chose "Newest per version (recommended)".
    Taken: C5 as amended.
+
+5. (2026-11-24) Sessions and their history are kept forever, so the next agent API bump would mark
+   every session ever recorded at the old version, stopped and revoked ones included, with a fix
+   ("restart the session") that does not apply. Asked "Mark only live sessions (not stopped,
+   credential still active) as plugin-behind?", the operator chose "Only live sessions
+   (recommended)": "Stopped or revoked sessions show no notice; a resumed session is marked again if
+   still behind." Taken: U2 as amended, marking only live sessions.
 
 ## Definition of done
 

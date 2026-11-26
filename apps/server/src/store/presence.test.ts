@@ -1,8 +1,10 @@
-import { threadFilters, threadsQuery } from "@wayfarerlabs/agention-server-api";
+import { agentApi } from "@wayfarerlabs/agention-api";
+import { sessionsQuery, threadFilters, threadsQuery } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { markRead } from "./marks.ts";
-import { seenStep } from "./presence.ts";
+import { markSeen, seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
+import { listSessions } from "./sessions.ts";
 import { defaultQuietAfter } from "./store.ts";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
 import { countThreads, listThreads } from "./thread-lists.ts";
@@ -56,6 +58,82 @@ describe("last seen", () => {
     revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
     fixture.seen(agent);
     expect(lastSeen()).toBeNull();
+  });
+});
+
+describe("the agent API version", () => {
+  const recorded = () =>
+    (
+      fixture.db
+        .prepare("SELECT agent_api_version FROM sessions WHERE id = ?")
+        .get(agent.sessionId) as { agent_api_version: number | null }
+    ).agent_api_version;
+
+  // Whether the sessions view marks the session's plugin behind.
+  const behind = () =>
+    listSessions(fixture.store, fixture.operator, sessionsQuery.parse({})).agents[0]?.sessions[0]
+      ?.plugin_behind;
+
+  // How many rows the last statement on the connection wrote.
+  const written = () => (fixture.db.prepare("SELECT changes() AS n").get() as { n: number }).n;
+
+  it("records none, and marks nothing, for a session never seen", () => {
+    expect([recorded(), behind()]).toEqual([null, false]);
+  });
+
+  it.each([
+    ["version 1, which a missing header reads as", 1, true],
+    ["an older version", agentApi.version - 1, true],
+    ["the server's own", agentApi.version, false],
+  ])(
+    "records %s, marking the session behind while it is below the server's",
+    (_, version, marked) => {
+      fixture.seen(agent, version);
+      expect([recorded(), behind()]).toEqual([version, marked]);
+    },
+  );
+
+  it("is recorded whenever it changes, within the minute that holds last seen", () => {
+    fixture.seen(agent, agentApi.version - 1);
+    const first = fixture.now;
+    fixture.advance(1);
+    fixture.seen(agent, agentApi.version);
+    expect([recorded(), lastSeen(), behind()]).toEqual([agentApi.version, first, false]);
+    fixture.advance(1);
+    fixture.seen(agent, agentApi.version - 1);
+    expect([recorded(), lastSeen(), behind()]).toEqual([agentApi.version - 1, first, true]);
+  });
+
+  it("writes nothing on a call that changes neither it nor last seen", () => {
+    fixture.seen(agent);
+    expect(written()).toBe(1);
+    fixture.advance(seenStep - 1);
+    markSeen(fixture.store, agent.registrationId, agentApi.version);
+    expect(written()).toBe(0);
+    expect(recorded()).toBe(agentApi.version);
+  });
+
+  it("is recorded only while the registration is approved", () => {
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    fixture.seen(agent, 1);
+    expect([recorded(), behind()]).toEqual([null, false]);
+  });
+
+  it("marks a session behind only while it has not stopped, and again once it reports working", () => {
+    fixture.seen(agent, agentApi.version - 1);
+    fixture.report(agent, { state: "working" });
+    expect(behind()).toBe(true);
+    fixture.report(agent, { state: "stopped", outcome: "completed" });
+    expect([recorded(), behind()]).toEqual([agentApi.version - 1, false]);
+    fixture.report(agent, { state: "working" });
+    expect(behind()).toBe(true);
+  });
+
+  it("marks a session behind only while it holds an approved credential", () => {
+    fixture.seen(agent, agentApi.version - 1);
+    expect(behind()).toBe(true);
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    expect([recorded(), behind()]).toEqual([agentApi.version - 1, false]);
   });
 });
 

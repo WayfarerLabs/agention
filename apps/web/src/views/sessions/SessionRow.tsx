@@ -26,7 +26,8 @@ import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of three short lines, its
 // head, when it was last seen and its status updated, and its key facts, the
-// facts wrapping on a phone, so that many fit on a screen; unfolded, its title
+// facts wrapping on a phone, so that many fit on a screen, with a notice
+// beneath them while its plugin is behind the server; unfolded, its title
 // wrapping whole in its head, and beneath, its goal, its credentials and its
 // log. The row's chevron folds or unfolds it, as a tap anywhere else on the
 // row does, but for the links and the controls on it: the session's name and
@@ -129,6 +130,7 @@ export function SessionRow({
         <Recency session={session} />
         <SessionFacts agent={agent} session={session} />
       </div>
+      {session.plugin_behind && <PluginBehind />}
       <Revocation
         asking={revoking}
         stop={() => setRevoking(undefined)}
@@ -169,6 +171,18 @@ function Recency({ session }: { session: SessionSummary }) {
           · status updated <Time value={status.updated_at} />
         </span>
       )}
+    </p>
+  );
+}
+
+// PluginBehind says, on a session whose plugin is behind the server, that
+// the server offers what the plugin cannot use, and how the operator fixes
+// it. It shows folded and unfolded, so the fix is read without unfolding.
+function PluginBehind() {
+  return (
+    <p className="notice warning">
+      The server offers features this session's Agention plugin cannot use. Update the Agention
+      plugin on this agent's host to its newest release, and restart the session.
     </p>
   );
 }

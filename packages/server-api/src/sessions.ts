@@ -68,8 +68,8 @@ export type SessionsQuery = z.infer<typeof sessionsQuery>;
 // in all its threads, and how many of those are blocking, which is what waits
 // on the operator. The operator can never archive a thread holding an ask open
 // to them, so their thread list shows every thread these asks are in. It also
-// carries the operator's group for it, absent when it is in none, and its tags,
-// in name order.
+// carries the operator's group for it, absent when it is in none, its tags,
+// in name order, and whether its plugin is behind the server.
 export const sessionSummary = z.object({
   session: name,
   created_at: z.string(),
@@ -83,6 +83,16 @@ export const sessionSummary = z.object({
   unread_updates: sequence,
   threads: z.object({ total: sequence, unread: sequence, stranded: sequence }),
   open_asks: z.object({ count: sequence, blocking_count: sequence }),
+  plugin_behind: z
+    .boolean()
+    .describe(
+      "whether the session is live, holding an approved registration and not stopped, and " +
+        "its latest call stated an older agent API version than the server's, so the server " +
+        "offers features its Agention plugin cannot use; the fix is to update the plugin on " +
+        "the agent's host to its newest release and restart the session. False for a session " +
+        "with no call recorded, and for one stopped or with no approved registration until " +
+        "it is live again",
+    ),
 });
 export type SessionSummary = z.infer<typeof sessionSummary>;
 

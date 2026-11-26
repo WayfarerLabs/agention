@@ -36,37 +36,40 @@ disagreement is the finding.
   included: a request without the `Agention-Agent-API` header served as version 1, one stating a
   version above the server's, however many digits it has, refused as `unsupported_version` before
   authentication, and a header that is not a positive integer written without leading zeros refused
-  as `invalid_input`. The settings and transcription routes on the web mount only, each unknown on
-  the agent mount; every voice change refused without a recent sign-in; a base URL the rule refuses
-  in any spelling of a refused address; a changed base URL clearing the key; no answer or log
-  carrying a key or a provider's body; and each provider failure, against a local stub provider
-  (`docs/architecture.md` "Voice"). The operator mount (`/api/operator/v1`) with keys created in
-  Settings, driven with `curl` from the served documentation alone: a key of each scope reading and
-  writing what its scope grants, a write or an approval refused to a read key as `not_found`, a
-  cookie on the operator mount and a key on the web mount refused, a mistyped, revoked or expired
-  key refused with one and the same answer, the key, passkey, settings and transcription routes
-  unknown there, `GET /api/operator` listing the versions and an unknown version `not_found`, and
-  the API key budget; the operator's wait across sessions, answering at once, woken by a message in
-  another session, never woken twice for one message when its `since` is passed back, continuing a
-  full page, and ending at once with its refusal when its key is revoked or expires and when the
-  browser session holding it on the web mount signs out or loses its passkey; and `--api-docs`: the
-  page at `/docs/api/` and `/docs/api/openapi.json` without sign-in, `/docs/api` leading to the
-  page, the page running no script, the document equal to `docs/api/openapi.json` at the head, and
-  without the flag every path under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP
-  API", "API documentation" and "Authentication"; `docs/operator-api.md`). The file routes on every
-  mount, the operator mount with a key of each threads scope among them: an upload's answer, each of
-  its refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
-  `storage_full` with the disk filled, a length that does not match), a message naming another
-  writer's, another session's, an expired or an attached upload refused alike, `keep` on a
-  replacement; a file read with each single range, several ranges answered whole, a range outside
-  the file answered 416 with `Content-Range`, `HEAD`, and a `file` reference that is not the file's,
-  and another session's thread, `not_found`; on the operator mount, an upload or its removal refused
-  to a key without `threads:write` and a list or read refused to one without `threads:read`, as
-  `not_found`, removing an attached file refused, and the file still reading, and a revoked key's
-  transfer stopped within a chunk; and the listener's deadlines, an idle body cut at 30 seconds with
-  a 408 carrying the security headers and, on the agent mount, the version, a request body cut at 30
-  seconds whole, and an upload trickling past that finishing (`docs/architecture.md` "HTTP API" and
-  "Serving").
+  as `invalid_input`; and the version each approved call states recorded on its session, read back
+  as `plugin_behind` in the sessions read on the web and operator mounts, true after a call stating
+  an older version or none while the session is live, not stopped and with an approved registration,
+  and false after one stating the server's, before any call, and while it is not live. The settings
+  and transcription routes on the web mount only, each unknown on the agent mount; every voice
+  change refused without a recent sign-in; a base URL the rule refuses in any spelling of a refused
+  address; a changed base URL clearing the key; no answer or log carrying a key or a provider's
+  body; and each provider failure, against a local stub provider (`docs/architecture.md` "Voice").
+  The operator mount (`/api/operator/v1`) with keys created in Settings, driven with `curl` from the
+  served documentation alone: a key of each scope reading and writing what its scope grants, a write
+  or an approval refused to a read key as `not_found`, a cookie on the operator mount and a key on
+  the web mount refused, a mistyped, revoked or expired key refused with one and the same answer,
+  the key, passkey, settings and transcription routes unknown there, `GET /api/operator` listing the
+  versions and an unknown version `not_found`, and the API key budget; the operator's wait across
+  sessions, answering at once, woken by a message in another session, never woken twice for one
+  message when its `since` is passed back, continuing a full page, and ending at once with its
+  refusal when its key is revoked or expires and when the browser session holding it on the web
+  mount signs out or loses its passkey; and `--api-docs`: the page at `/docs/api/` and
+  `/docs/api/openapi.json` without sign-in, `/docs/api` leading to the page, the page running no
+  script, the document equal to `docs/api/openapi.json` at the head, and without the flag every path
+  under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP API", "API documentation" and
+  "Authentication"; `docs/operator-api.md`). The file routes on every mount, the operator mount with
+  a key of each threads scope among them: an upload's answer, each of its refusals by its code and
+  status (chunked, over 100 MiB, the pending limits by count and bytes, `storage_full` with the disk
+  filled, a length that does not match), a message naming another writer's, another session's, an
+  expired or an attached upload refused alike, `keep` on a replacement; a file read with each single
+  range, several ranges answered whole, a range outside the file answered 416 with `Content-Range`,
+  `HEAD`, and a `file` reference that is not the file's, and another session's thread, `not_found`;
+  on the operator mount, an upload or its removal refused to a key without `threads:write` and a
+  list or read refused to one without `threads:read`, as `not_found`, removing an attached file
+  refused, and the file still reading, and a revoked key's transfer stopped within a chunk; and the
+  listener's deadlines, an idle body cut at 30 seconds with a 408 carrying the security headers and,
+  on the agent mount, the version, a request body cut at 30 seconds whole, and an upload trickling
+  past that finishing (`docs/architecture.md` "HTTP API" and "Serving").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -77,15 +80,17 @@ disagreement is the finding.
   resuming, a goal changed without a percent, and a note alone; a state and note beside
   `thread_create` and `message_send`, an idle session's write without one marking it working, and
   reads and waits changing nothing; and the status reminder a host's model sees once the status goes
-  unreported past its threshold, a write that ended an idle status included (`docs/architecture.md`
-  "Agent bridge" and "Store"). `file_upload` with a file, an empty one, one at 100 MiB, and each
-  refusal: a relative path, a directory, a FIFO, which must not hang, a file over 100 MiB, and a key
-  file named directly and through a symlink; `file_get` of each served type, its file's name and
-  mode, and its image block; attachments on `thread_create` and `message_send`, and a replacement
-  keeping a file. The bridge at the head against a server of an earlier release, which it refuses
-  with what the operator upgrades, and a bridge an earlier release published against the server at
-  the head, which it still serves, where the charter names those releases; the agent compatibility
-  gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
+  unreported past its threshold, a write that ended an idle status included, and `register` against
+  a server stating a newer agent API version than the bridge's, whose answer asks the agent to have
+  the plugin updated without failing (`docs/architecture.md` "Agent bridge" and "Store").
+  `file_upload` with a file, an empty one, one at 100 MiB, and each refusal: a relative path, a
+  directory, a FIFO, which must not hang, a file over 100 MiB, and a key file named directly and
+  through a symlink; `file_get` of each served type, its file's name and mode, and its image block;
+  attachments on `thread_create` and `message_send`, and a replacement keeping a file. The bridge at
+  the head against a server of an earlier release, which it refuses with what the operator upgrades,
+  and a bridge an earlier release published against the server at the head, which it still serves,
+  where the charter names those releases; the agent compatibility gate covers the latter on every
+  change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
@@ -137,8 +142,9 @@ disagreement is the finding.
   is quiet, how old its status is, its open asks in the thread list's words and its threads'
   roll-up, the links from a row, an agent and a group, their names and every chip standing for
   threads among them, to the thread list filtered to them, folding nothing, and from a row's and an
-  agent's stranded flag to their stranded threads, a row unfolded to its log and marking it read,
-  the Sessions tab's count of registrations waiting falling as they are approved or rejected, their
+  agent's stranded flag to their stranded threads, the warning on a row whose session's plugin is
+  behind, gone once it calls on a current plugin, a row unfolded to its log and marking it read, the
+  Sessions tab's count of registrations waiting falling as they are approved or rejected, their
   section one line while none waits, the Threads tab's count of unread threads falling as they are
   read or archived, and the folds kept, on a phone's width too; the operator's session groups and
   tags: a session's group and an agent's and a session's tags picked from their options, each pick

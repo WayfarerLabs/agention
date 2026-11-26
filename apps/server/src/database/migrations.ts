@@ -678,4 +678,10 @@ export const migrations: readonly string[] = [
     SELECT RAISE(ABORT, 'message links are append-only');
   END;
   `,
+  `
+  -- The agent API version stated on the session's latest approved call, null
+  -- until its first one after this migration, which records nothing a call
+  -- stated before it.
+  ALTER TABLE sessions ADD COLUMN agent_api_version INTEGER CHECK (agent_api_version >= 1);
+  `,
 ];

@@ -620,7 +620,7 @@ describe("the agent API version", () => {
 
   it("serves a request without the header as version 1, and one stating its own", async () => {
     for (const version of [undefined, "1", String(agentApi.version)]) {
-      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const headers = { [agentApiHeader]: version };
       expect([version, codeOf(await list(approved, { headers }))]).toEqual([version, "ok"]);
     }
   });
@@ -637,7 +637,7 @@ describe("the agent API version", () => {
     // What a bridge stating the version reads: the thread, its first message
     // and the first message a stale write missed.
     const answers = async (version: string | undefined) => {
-      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const headers = { [agentApiHeader]: version };
       const read = await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, {
         headers,
       });
@@ -684,7 +684,7 @@ describe("the agent API version", () => {
     // The summaries a bridge stating the version reads: a thread's, and those
     // of a list and a wait.
     const summaries = async (version: string | undefined) => {
-      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const headers = { [agentApiHeader]: version };
       const read = async (path: string) =>
         (await harness.agent(approved, "GET", `/s/builder/main${path}`, undefined, { headers }))
           .body as { thread?: object; threads?: object[] };
@@ -814,7 +814,7 @@ describe("a write's status", () => {
   it("is working once an idle session writes, from a bridge of any version served", async () => {
     for (const version of [undefined, String(agentApi.version - 1)]) {
       await status({ state: "idle", note: "Waiting." });
-      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const headers = { [agentApiHeader]: version };
       const created = await harness.agent(
         approved,
         "POST",

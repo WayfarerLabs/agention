@@ -337,6 +337,7 @@ describe("listSessions", () => {
             unread_updates: 0,
             threads: { total: 0, unread: 0, stranded: 0 },
             open_asks: { count: 0, blocking_count: 0 },
+            plugin_behind: false,
           },
           {
             session: "main",
@@ -357,6 +358,7 @@ describe("listSessions", () => {
             unread_updates: 1,
             threads: { total: 0, unread: 0, stranded: 0 },
             open_asks: { count: 0, blocking_count: 0 },
+            plugin_behind: false,
           },
         ],
         truncated: false,

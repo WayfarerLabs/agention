@@ -92,6 +92,13 @@ export interface DownloadRequest {
   signal?: AbortSignal;
 }
 
+// A successful answer in Agention's JSON: its body, and the agent API version
+// the server stated on it, at least the bridge's own.
+export interface Answered {
+  body: unknown;
+  serverVersion: bigint;
+}
+
 // What a download wrote: its size, and the type the server served it as.
 export interface Downloaded {
   size: number;
@@ -130,11 +137,17 @@ export class AgentApi {
     this.#clock = options.clock;
   }
 
-  // request returns the body of a successful answer. It throws ApiFailure
-  // for an answer in the API's error shape, and BridgeError when the server
-  // cannot be reached, is older than the bridge or answers with something
-  // else.
+  // request returns the body of a successful answer, failing as answered
+  // does.
   async request(key: SessionKey, request: ApiRequest): Promise<unknown> {
+    return (await this.answered(key, request)).body;
+  }
+
+  // answered returns a successful answer's body and the version its server
+  // stated. It throws ApiFailure for an answer in the API's error shape, and
+  // BridgeError when the server cannot be reached, is older than the bridge or
+  // answers with something else.
+  async answered(key: SessionKey, request: ApiRequest): Promise<Answered> {
     const url = this.#url(request.path, request.query);
     const sent = request.body === undefined ? undefined : JSON.stringify(request.body);
     const headers = await this.#headers(
@@ -219,7 +232,7 @@ export class AgentApi {
     } finally {
       watchdog.stop();
     }
-    return this.#answer(answer);
+    return this.#answer(answer).body;
   }
 
   // download writes the bytes of a successful answer into a stream and
@@ -330,13 +343,12 @@ export class AgentApi {
     };
   }
 
-  // answer reads an answer that is not a file's bytes: the body of a
-  // successful one in Agention's JSON, or the failure it describes.
-  #answer(answer: Answer): unknown {
+  // answer reads an answer that is not a file's bytes: a successful one in
+  // Agention's JSON, or the failure it describes.
+  #answer(answer: Answer): Answered {
     const body = parsedJson(answer.text);
     if (answer.status >= 200 && answer.status < 300 && body !== undefined) {
-      this.#requireVersion(answer.version);
-      return body;
+      return { body, serverVersion: this.#requireVersion(answer.version) };
     }
     return this.#failure(answer, body);
   }
@@ -376,11 +388,11 @@ export class AgentApi {
   // anything uses the answer: such a server ignores what it does not know of
   // a request, so a field the bridge sent could go missing without a word. A
   // newer server's answers are used: it serves this bridge's version, or
-  // refuses it in words of its own.
-  #requireVersion(version: string | undefined): void {
+  // refuses it in words of its own. It returns the version accepted.
+  #requireVersion(version: string | undefined): bigint {
     const stated = agentApiVersion.safeParse(version);
     if (stated.success && stated.data >= agentApi.version) {
-      return;
+      return stated.data;
     }
     throw operatorProblem(
       `The Agention server at ${this.origin} is older than this bridge, ` +

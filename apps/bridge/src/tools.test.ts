@@ -279,6 +279,29 @@ describe("the agent API version", () => {
     }
   });
 
+  it.each([
+    ["a pending", pending],
+    ["an approved", { ...pending, status: "approved", agent: "builder", session: "main" }],
+    ["a rejected", { ...pending, status: "rejected" }],
+  ])(
+    "adds a sentence to %s register answer from a newer server, and nothing else",
+    async (_, body) => {
+      // A rejected key is replaced and registered again, which the same
+      // answer reports once more.
+      const bridge = await harness.bridge();
+      answerWith(200, body, String(agentApi.version));
+      const { message: current, ...fields } = await bridge.ok("register");
+      for (const version of [String(agentApi.version + 1), "99999999999999999999"]) {
+        answerWith(200, body, version);
+        const { message, ...newer } = await bridge.ok("register");
+        expect(newer).toEqual(fields);
+        expect([typeof current, typeof message]).toEqual(["string", "string"]);
+        const [own, told] = [current as string, message as string];
+        expect([told.startsWith(own), told.length > own.length + 1]).toEqual([true, true]);
+      }
+    },
+  );
+
   it("leaves an answer without Agention's JSON, such as a proxy's, to the problem it names", async () => {
     const bridge = await harness.bridge();
     harness.beforeRequest = () => new Response("Bad Gateway", { status: 502 });

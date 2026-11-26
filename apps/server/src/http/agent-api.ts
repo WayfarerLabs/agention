@@ -35,14 +35,16 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
   const { store, origin, budgets, log } = options;
   const api = new Hono<IdentityEnv & AgentApiVersionEnv>();
 
-  // seen marks the session an approved registration acts for as seen. Last
-  // seen is advisory, so a failure to stamp it is logged and the call goes on.
-  // A failure that lasts, such as a full or busy database, recurs on every
-  // call, so it is logged at most once a minute, by the store's clock.
+  // seen marks the session an approved registration acts for as seen,
+  // speaking the agent API version the call states, which the mount's first
+  // middleware has checked it serves. Presence is advisory, so a failure to
+  // mark it is logged and the call goes on. A failure that lasts, such as a
+  // full or busy database, recurs on every call, so it is logged at most once
+  // a minute, by the store's clock.
   let failureLoggedAt: number | undefined;
-  const seen = (registrationId: number): void => {
+  const seen = (registrationId: number, agentApiVersion: bigint): void => {
     try {
-      markSeen(store, registrationId);
+      markSeen(store, registrationId, Number(agentApiVersion));
     } catch (error) {
       const now = store.clock();
       if (failureLoggedAt === undefined || now - failureLoggedAt >= seenFailureLogInterval) {
@@ -74,7 +76,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
       budgets.spend("submit");
     } else {
       budgets.spendForKey(key);
-      seen(known.id);
+      seen(known.id, c.var.agentApiVersion);
     }
     const input = await parseBody(c, registration.body);
     const state: RegistrationState = submitRegistration(store, key, input);
@@ -84,13 +86,13 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
   // A failed authentication spends the shared failed-authentication budget;
   // a key that verifies spends only its own. Every authenticated call marks
   // its session seen before its own work, so one refused later counts too.
-  const authenticate: MiddlewareHandler<IdentityEnv> = async (c, next) => {
+  const authenticate: MiddlewareHandler<IdentityEnv & AgentApiVersionEnv> = async (c, next) => {
     const { identity, publicKey } = await budgets.spendOnFailure("failedAgentAuth", () =>
       authenticateAgent(store.db, c.req.header("authorization"), origin, store.clock()),
     );
     budgets.spendForKey(publicKey);
     if (identity.credential.kind === "registration") {
-      seen(identity.credential.registrationId);
+      seen(identity.credential.registrationId, c.var.agentApiVersion);
     }
     c.set("identity", identity);
     await next();

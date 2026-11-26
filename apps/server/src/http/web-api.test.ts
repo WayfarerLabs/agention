@@ -1,8 +1,10 @@
-import type {
-  ErrorBody,
-  ThreadGetResult,
-  WaitResult,
-  WriteResult,
+import {
+  agentApi,
+  agentApiHeader,
+  type ErrorBody,
+  type ThreadGetResult,
+  type WaitResult,
+  type WriteResult,
 } from "@wayfarerlabs/agention-api";
 import {
   type AttentionCounts,
@@ -439,6 +441,52 @@ describe("the sessions view", () => {
       },
     ]);
     expect(codeOf(await harness.web("GET", "/sessions?limit=0"))).toBe("invalid_input");
+  });
+
+  // Whether the sessions view marks each session's plugin behind, by path.
+  const behind = async () =>
+    ((await harness.web("GET", "/sessions")).body as SessionsPage).agents.flatMap((each) =>
+      each.sessions.map((session) => [`${each.agent}/${session.session}`, session.plugin_behind]),
+    );
+
+  it("marks a session behind while its latest call states an older agent API version", async () => {
+    // reviewer/main has made no call since it was approved, so it records no
+    // version.
+    await harness.approvedAgent("reviewer", "main");
+    const marks = (builder: boolean) => [
+      ["builder/main", builder],
+      ["reviewer/main", false],
+    ];
+    expect(await behind()).toEqual(marks(false));
+    for (const [version, marked] of [
+      [String(agentApi.version - 1), true],
+      [String(agentApi.version), false],
+      [undefined, true],
+      [String(agentApi.version), false],
+    ] as const) {
+      const listed = await harness.agent(agent, "GET", "/s/builder/main/threads", undefined, {
+        headers: { [agentApiHeader]: version },
+      });
+      expect(listed.status).toBe(200);
+      expect([version, await behind()]).toEqual([version, marks(marked)]);
+    }
+  });
+
+  it("records the version an approved key's registration states, the call that clears the mark", async () => {
+    for (const [version, marked] of [
+      [String(agentApi.version - 1), true],
+      [String(agentApi.version), false],
+    ] as const) {
+      const registered = await harness.agent(
+        agent,
+        "POST",
+        "/registrations",
+        { agent: "builder", session: "main" },
+        { headers: { [agentApiHeader]: version } },
+      );
+      expect([version, codeOf(registered)]).toEqual([version, "ok"]);
+      expect([version, await behind()]).toEqual([version, [["builder/main", marked]]]);
+    }
   });
 
   it("pages a session's log newest first and marks it read", async () => {

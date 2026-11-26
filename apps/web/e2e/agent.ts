@@ -1,5 +1,6 @@
 // An agent for the browser tests: it holds a session key and calls the agent
 // API the way the agent bridge does, with a token it signs for every request.
+import { agentApi, agentApiHeader } from "@wayfarerlabs/agention-api";
 import { generateKeyPairSync, type KeyObject, sign } from "node:crypto";
 import { request as httpsRequest } from "node:https";
 
@@ -20,6 +21,9 @@ const base64url = (value: string | Buffer) => Buffer.from(value).toString("base6
 
 export class Agent {
   readonly publicKey: string;
+  // The agent API version every request states, this release's unless a
+  // test sets another, as a session on an older plugin does, or none.
+  agentApiVersion: string | undefined = String(agentApi.version);
   readonly #privateKey: KeyObject;
   readonly #server: AgentServer;
 
@@ -50,28 +54,40 @@ export class Agent {
       body === undefined
         ? undefined
         : { type: "application/json", bytes: Buffer.from(JSON.stringify(body)) },
+      this.#version(),
     );
   }
 
   // upload sends bytes as the body of a POST, declared as type, as the
   // bridge uploads a file.
   upload<T>(path: string, bytes: Buffer, type: string): Promise<Answer<T>> {
-    return callServer(this.#server, "POST", `/api/agent${path}`, `Bearer ${this.token()}`, {
-      type,
-      bytes,
-    });
+    return callServer(
+      this.#server,
+      "POST",
+      `/api/agent${path}`,
+      `Bearer ${this.token()}`,
+      { type, bytes },
+      this.#version(),
+    );
+  }
+
+  // version is the header stating the agent API version, if any.
+  #version(): Record<string, string> {
+    return this.agentApiVersion === undefined ? {} : { [agentApiHeader]: this.agentApiVersion };
   }
 }
 
 // callServer sends one request to the server over TLS, trusting its test
-// certificate, with an Authorization header and no cookie, as a program
-// outside the browser does: the agent bridge, or a client holding an API key.
+// certificate, with an Authorization header, the headers given and no cookie,
+// as a program outside the browser does: the agent bridge, or a client
+// holding an API key.
 export function callServer<T>(
   server: AgentServer,
   method: "GET" | "POST",
   path: string,
   authorization: string,
   payload?: { type: string; bytes: Buffer },
+  headers: Record<string, string> = {},
 ): Promise<Answer<T>> {
   const { origin, port, certificate } = server;
   const url = new URL(origin);
@@ -85,6 +101,7 @@ export function callServer<T>(
         method,
         path,
         headers: {
+          ...headers,
           host: url.host,
           authorization,
           ...(payload === undefined

@@ -260,9 +260,10 @@ replaces them) and which asks are open (`open_asks`: on a live message, and no l
 or withdraws them).
 
 A thread changes only its latest sequence, which a trigger holds. A session records when it was last
-seen, kept to the minute. Checks hold the rest of what the store keeps true: one operator, whose id
-is 1; a registration's session set exactly when it is approved or revoked; and a message's detail
-only beside its text.
+seen, kept to the minute, and the agent API version its latest approved call stated, null until its
+first. Checks hold the rest of what the store keeps true: one operator, whose id is 1; a
+registration's session set exactly when it is approved or revoked; and a message's detail only
+beside its text.
 
 `message_positions` gives every message a position among all messages, in the order they are
 written, which the operator's wait across sessions counts from. A message has no stable integer key
@@ -488,6 +489,9 @@ call refused later still counts.
   is verified stamps nothing.
 - It writes only when that moves the session's last seen a minute or more, or when the last seen is
   after now, so a clock stepped back never holds it still.
+- The same statement records the agent API version the call states, the version the mount's first
+  middleware checked, whenever it differs from the one recorded, whatever the minute, so a call that
+  changes neither writes nothing. A session two bridges share records whichever called last.
 - A stamp that fails is logged and the call carries on, since presence is advisory.
 - A pending registration has no session, so its calls mark nothing.
 
@@ -557,7 +561,16 @@ that never reported, then stopped ones, each latest seen first. Each session car
   operator has not read and how many are stranded, counted for every session of the page in one
   statement grouped over the threads as the operator sees them;
 - how many asks are open in all its threads, with how many of those are blocking, which is what
-  waits on the operator, counted in one statement grouped over the open asks.
+  waits on the operator, counted in one statement grouped over the open asks;
+- `plugin_behind`, true while the session is live and its recorded agent API version is below the
+  server's, so the server offers what its plugin cannot use.
+
+Live means the session holds an approved registration and has not reported `stopped`, the conditions
+besides quiet under which its threads are stranded, since restarting the session is no fix for one
+that is not running or cannot call; one started again reports a state other than `stopped` and is
+marked again while still behind. A session with no call recorded is never marked. The server's own
+version is compared as the page is read, never stored, so once a server that moved it starts, every
+live session recorded at an older one is marked before it calls again.
 
 The operator can never archive a thread holding an ask open to them, so their thread list shows
 every thread counted. A separate read counts the sessions whose log holds entries the operator has
@@ -1061,6 +1074,10 @@ contract bumps it ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api)).
 - **Requests.** A request states its own there, and a missing one means 1, which every bridge
   released before the header sends. A version is read whole, however many digits it has, and a
   header that is not a positive integer written without leading zeros is `invalid_input`, naming it.
+- **Recorded.** The version a served call by an approved key states is what the store records for
+  its session, from which the sessions view's page, on the web mount and the operator mount alike,
+  says whether the session's plugin is behind
+  ([The sessions view's page](#the-sessions-views-page)).
 - **Older versions.** An answer to a request stating an older version leaves out the fields added
   after it, so a bridge never has to fit a field it does not know within its answer cap. The next
   middleware keeps a list of what each version added and drops those fields: before
@@ -1624,8 +1641,11 @@ creates nothing and reports its state. It answers with that state, keeping its `
 while the registration is pending, so an agent never reads it as the credential's; `replaced` when
 it replaced the key; and a `message` saying what to do next: the code to relay, to carry on
 meanwhile with work that does not need Agention, and the names to pass when the agent calls again.
-Once the server has pruned a key's expired pending registration, the same key is registered afresh
-and keeps its code.
+When the answer it reports states a newer agent API version than the bridge's, the message, in any
+state, adds a sentence asking the agent to tell the operator to update the Agention plugin on its
+host to its newest release and restart the session, while the call succeeds with its fields
+unchanged. Once the server has pruned a key's expired pending registration, the same key is
+registered afresh and keeps its code.
 
 The bridge keeps the names the operator granted, with the key they were granted to. A thread tool
 that does not know them for the key on disk first makes the request `register` makes, and answers
@@ -1949,10 +1969,11 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
   replaces the address, as the thread list's head does, sharing its controls
   (`src/views/list-head.tsx`).
 - **Sources.** A row's last seen comes from the session's presence, how long ago its status was
-  updated from the status's `updated_at`, and its threads' roll-up from its summary; an agent's
-  header and a group's head compose theirs from the sessions they show, none when the view or the
-  agent left sessions out. Each session's group and tags, and each agent's tags, come from the
-  sessions view's page.
+  updated from the status's `updated_at`, its threads' roll-up from its summary, and the warning
+  that its plugin is behind, folded or not, from its `plugin_behind`; an agent's header and a
+  group's head compose theirs from the sessions they show, none when the view or the agent left
+  sessions out. Each session's group and tags, and each agent's tags, come from the sessions view's
+  page.
 - **Groups and tags.** The view loads `GET /groups-and-tags` beside its sessions, for the groups'
   order and the colors, which views that show groups and tags pass down through a palette
   (`src/organizing.tsx`); the stylesheet draws each of the API's named colors as a tone and a

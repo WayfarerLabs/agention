@@ -532,6 +532,17 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   - its unread updates, such as **2 new updates**;
   - and its latest update's note, cut to fit, with none after the server marked it working.
 
+  When a session's Agention plugin is behind the server, its row carries a warning under these
+  facts, folded or not: the server offers features that plugin cannot use, since its bridge last
+  called speaking an older version of the agent API.
+  [Update the Agention plugin](operator-guide.md#upgrading) on that agent's host to its newest
+  release, and restart the session, resuming it to keep its conversation; the warning goes once the
+  session calls again. A session on a current plugin shows nothing, and so does one with no call
+  recorded yet, one that has stopped and one with no approved registration, such as one you revoked;
+  a stopped session started again shows the warning again while its plugin is still behind. The
+  session's agent is told the same when it calls `register` with a plugin new enough to know, and
+  the operator API's sessions read carries it as `plugin_behind`.
+
   Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
   and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
   each update changed, newest first, with its note, and **inferred from a write** on one the server
