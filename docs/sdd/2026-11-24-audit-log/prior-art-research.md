@@ -214,6 +214,49 @@ facto generic SIEM protocol: one HEC sink reaches many products. _Decisions 3, 5
   SQLite writer gives a total order **(analysis)**. _Decision 11._
 - **Content.** Prior art defaults to metadata [S23, S27]. _Decision 8._
 
+## 5. OCSF versions and their consumers (P1 design, 2026-11-26)
+
+Researched for the [P1 LLD](audit-lld.md)'s version ruling.
+
+- **Tags.** The schema repository tags 1.9.0 as `1.9.0` (commit 856d462b, also its branch `v1.9.0`)
+  and 1.10.0 as `v1.10.0` (commit 2d209039, released 2026-11-20); 1.10.0's changelog has an empty
+  "Breaking changes" section [S72]. What 1.10.0 changes for the classes and objects P1 uses is in
+  the LLD's version section.
+- **Consumers lag both.** AWS Security Lake takes custom sources only at OCSF 1.3 and earlier [S12].
+  Google SecOps' parser changelog cites 1.1.0 categories [S14]. Splunk Edge Processor's example of
+  converted output carries `metadata.version` 1.5.0, which suggests its target without stating it
+  [S73]. Datadog's OCSF page names no target version and links schema.ocsf.io's 1.4.0 pages [S74].
+  Elastic and Sentinel have no native OCSF [S16, S16b]. Vector, Grafana Alloy, and the OpenTelemetry
+  Collector carry JSON as they find it, and none documents processing that depends on the OCSF
+  version **(analysis)**.
+- **So** no consumer reads 1.9.0 or 1.10.0 natively, and the difference between them matters only to
+  a validator pinned to one. _Decision 1: 1.9.0, ruled by the lead; move when a later phase needs a
+  1.10.0 attribute._
+
+## 6. Packaged collectors' users (P1 design, 2026-11-26)
+
+Researched for the file sink's `--audit-group`, from each project's packaging at its latest release
+tag and its own docs.
+
+- **Vector** (tag `v0.59.0`, commit a3231c76) [S75]. The Debian `preinst` creates a system user and
+  group `vector` (`useradd --system ... --user-group`, `distribution/debian/scripts/preinst:5-7`);
+  the `postinst` adds it to `adm` (`distribution/debian/scripts/postinst:4-5`) and, where they
+  exist, `systemd-journal` and `systemd-journal-remote`. The RPM spec creates the same user and adds
+  it to `systemd-journal` only, not `adm` (`distribution/rpm/vector.spec:70-73`). The systemd unit
+  runs `User=vector`, `Group=vector` (`distribution/systemd/vector.service:8-9`). Vector's docs: "If
+  you have deployed Vector as using one our distributed packages, then you will find Vector running
+  as the `vector` user", which "must be able to read the files and execute their parent directories"
+  [S76]. Its Docker images set no `USER`, so they run as root.
+- **Grafana Alloy** (tag `v1.22.0`, commit 3e1d2736) [S77]. The Debian `postinst` creates group and
+  user `alloy` and adds the user to `adm` and `systemd-journal`
+  (`packaging/deb/control/postinst:12-27`); the RPM's `postinst` does the same. Both units run
+  `User=alloy` (`packaging/deb/alloy.service:9`, `packaging/rpm/alloy.service:9`). Alloy's pages on
+  installing, running, and configuring it on Linux do not mention its user. Its image creates an
+  `alloy` user (UID 473) without running as it, calling non-root use "an experimental, undocumented
+  feature" (`Dockerfile:72-79`).
+- **So** a packaged collector reads the audit files through a group, never as the server's user.
+  _Decision 6: the file sink's `--audit-group`; the LLD gives the recipe._
+
 ## Refuted / do-not-rely-on
 
 1. **"Account Change 3001 is the class for credential changes."** Deprecated since 1.9.0 in favor of
@@ -273,8 +316,8 @@ Each with where the design stands; the operator's rulings are in the [FRD](frd.m
 9. **Should reading the log, or changing sinks, be audited (OWASP says access to logs should be)?**
    _Reads of the log are not recorded (FRD R14, decision 17), and SECURITY.md says so; sinks change
    only at start, and forgetting one records its event (decision 19)._
-10. **Which OCSF version at implementation?** _1.9.0 pinned; 1.10.0 leaves the hold-back on
-    2026-11-27, so P1 re-checks (plan)._
+10. **Which OCSF version at implementation?** _1.9.0, ruled by the lead on 2026-11-26 on consumers'
+    lag (section 5)._
 11. **Does Splunk accept OTLP natively?** _Not verified; Splunk is reached through HEC or a
     collector._
 
@@ -357,3 +400,9 @@ Each with where the design stands; the operator's rulings are in the [FRD](frd.m
 | S69  | Crosby and Wallach, USENIX Security 2009                                           | P     | History tree                    |
 | S70  | cheatsheetseries.owasp.org Logging Cheat Sheet                                     | P     | What not to log, integrity      |
 | S71  | pkg.go.dev lokiexporter; grafana.com native OTLP versus the Loki exporter          | P     | Loki exporter deprecation       |
+| S72  | github.com/ocsf/ocsf-schema tags `1.9.0` and `v1.10.0`; CHANGELOG.md at `v1.10.0`  | P     | Versions, changes               |
+| S73  | help.splunk.com OCSF data conversion process (search summary)                      | S     | Splunk OCSF output version      |
+| S74  | docs.datadoghq.com Cloud SIEM OCSF page                                            | P     | Datadog OCSF version            |
+| S75  | github.com/vectordotdev/vector `distribution/` at `v0.59.0`                        | P     | Vector packaging                |
+| S76  | vector.dev/docs/reference/configuration/sources/file, "File permissions"           | P     | Vector's user                   |
+| S77  | github.com/grafana/alloy `packaging/` and `Dockerfile` at `v1.22.0`                | P     | Alloy packaging                 |

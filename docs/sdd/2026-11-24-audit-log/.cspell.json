@@ -12,9 +12,11 @@
     "Cribl",
     "datadoghq",
     "enduser",
+    "ENOSPC",
     "Firestore",
     "fluentbit",
     "GELF",
+    "gids",
     "Gitea",
     "goauthentik",
     "goteleport",
@@ -25,6 +27,7 @@
     "lokiexporter",
     "mgmt",
     "microfocus",
+    "microtask",
     "motlp",
     "OCSF",
     "openshell",
@@ -38,6 +41,8 @@
     "Tsudik",
     "uids",
     "unenroll",
+    "usermod",
+    "vectordotdev",
     "Wallach",
     "Wazuh"
   ]

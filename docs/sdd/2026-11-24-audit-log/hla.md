@@ -79,11 +79,11 @@ identity (sign-in, link use, registration submit) take an origin of their own.
 after its change, with the action, its target and any details. The function builds the event and
 inserts the row. A failed insert fails the transaction, and with it the write (R16).
 
-**Every write is declared.** An operation declaration (`S/http/operations.ts`) that is a `POST`
-names its audit action, or declares that it records none, the read marks; the type requires one or
-the other, so a new mutation cannot be added silently. The web-only routes
-(`S/http/web-api.ts:151-245`) call the store's recording functions directly. A test drives every
-declared write and checks its event (see Testing).
+**Every write is covered.** The coverage test walks every `POST` operation declaration
+(`S/http/operations.ts`) and every web-only route (`S/http/web-api.ts:151-245`), fails on any it has
+no driver for, holds the one list of declarations that record nothing (the read marks), and checks
+every other declaration's name against the LLD's action table, so a new mutation cannot be added
+silently (see Testing). The web-only routes call the store's recording functions directly.
 
 **Failures with no actor.** A failed sign-in or link has rolled back, or never opened, its
 transaction. Its event is recorded in a transaction of its own, after the failure spends its rate
@@ -105,13 +105,20 @@ refusal (`S/auth/api-keys.ts:190-192`):
 - a revoked or expired key, which `authenticateApiKey` found by its hash but refuses, within the
   `failedKeyAuth` budget. An unknown key names no credential and is not recorded.
 
+Two refusals of the same kinds come from inside a store function, whose transaction rolls back, and
+are recorded the same way once it has: `approveRegistration` refusing a group or tags to a key
+without `sessions:write`, a scope refusal; and an operation's own check of the credential refusing a
+key revoked or expired since it authenticated, as a long poll's can be.
+
 **Reads of the log** (FRD R14) record nothing: `listAuditEvents` (P2) is a `GET` whose store work
 writes nothing, as review check A18 requires of every read-scope operation.
 
-**Cascades.** One action that changes several credentials records an event for each, correlated by
-the first event's `metadata.uid` in their `metadata.correlation_uid`: a passkey link replacing the
-operator's passkeys records the sign-in, each passkey removed and added, and each live API key
-revoked (ADR 0003, "Recovery revokes keys").
+**Cascades.** One action that changes several credentials records an event for each: a passkey link
+replacing the operator's passkeys records the sign-in, each passkey removed and added, and each live
+API key revoked (ADR 0003, "Recovery revokes keys"). No field correlates them, as the FRD asks for
+none; they share the new browser session as their credential, their time, and their path, in
+consecutive sequences. Browser sessions an action ends (a sign-in replacing the browser's session, a
+passkey's removal, a link) are named in that action's event, not in events of their own.
 
 **First use of a key.** `authenticateApiKey` (`S/auth/api-keys.ts:194-226`) already writes
 `last_used_at` when it is null or an hour old, in a statement of its own outside any transaction
@@ -128,7 +135,7 @@ dispatcher, which polls as well as waking on its own commits, delivers it.
 or a platform's router, the proxy's. A later `serve` option, off by default, may trust a forwarded
 header only from a configured proxy's address (FRD R4); this effort does not build it. A request
 answered in process (`app.request`, the test harness) has no peer address, and its `src_endpoint`
-carries none.
+names it `unknown`.
 
 ### The table
 
@@ -141,7 +148,7 @@ carries none.
   sequence numbers a destination has already seen; their uids are new, so deduplication by uid never
   drops them.
 - `time`, `class_uid`, `action`, `outcome`, `credential_kind`, `credential_id`: copies of the
-  event's fields for filtering, indexed for the viewer (P2).
+  event's fields for filtering, indexed for the viewer by P2's own migration.
 - `event`: the event's JSON text, exactly as built, never re-serialized.
 - `open_until`: for a coalesced failure, the end of its minute; the dispatcher delivers no event
   until it has passed, so a count is final when it leaves.
@@ -149,12 +156,14 @@ carries none.
 Triggers, like the other append-only tables' (`messages_no_update` and `messages_no_delete` at
 `S/database/migrations.ts:206-213`):
 
-- no `UPDATE`, except raising an open coalesced failure's count before its `open_until`;
+- no `UPDATE`, except raising an open coalesced failure's `count` and moving its `end_time` on,
+  within its minute and before any sink has it;
 - a `DELETE` only of the oldest row, and only of a row every sink's cursor has passed.
 
-`audit_sinks`, one row per configured sink: its `name`, `delivered_seq`, when it last delivered,
-since when it has been failing, and its last error as a class and status, never a response body or a
-credential.
+`audit_sinks`, one row per sink: its `name` and `delivered_seq`, its cursor. P2's migration adds its
+state for Settings: when it last delivered, since when it has been failing, and its last error as a
+class and code, never a response body or a credential. Until then the dispatcher keeps that state in
+memory for the stderr lines.
 
 **Retention** (FRD R8): `--audit-retention-days`, 365 by default, 0 for forever. Pruning runs at
 start and with the upload sweep every 10 minutes (`S/store/file-sweep.ts`), in bounded batches,
@@ -170,73 +179,41 @@ uids, and knows the reuse for a rollback. The operator guide's "Backing up" says
 ### Events
 
 Every event is an OCSF 1.9.0 object, built by one module from typed inputs only, with its keys in a
-fixed order. No request body reaches it; the one string a client supplies, the user agent, is cut to
-256 characters, and the path is one of the server's own routes.
+fixed order. No request body reaches it; the one string a client chooses, the user agent, is cut to
+256 characters. A success's path is the routed path, whose parameters the operation's schemas
+accepted; a failure's is the matched route pattern (`c.req.routePath`), never the raw path.
 
 - `class_uid`, `category_uid`, `activity_id`, `type_uid`, `class_name`, `activity_name`;
 - `time` (epoch milliseconds), `severity_id` (1 Informational, 2 Low for a failure), `status_id` (1
   Success, 2 Failure) and, on failure, `status_detail` (a fixed reason code);
 - `metadata`: `version` "1.9.0", `product` (name `Agention`, vendor `Wayfarer Labs`, the server's
-  version), `uid`, `sequence`, `log_name` "audit", and `correlation_uid` in a cascade;
+  version), `reporter` (the instance's id as `uid`, and the server's name once stored), `uid`,
+  `sequence`, `log_name` "audit", and `event_code` the action's stable name in every class;
 - on a coalesced failure, `count`, `start_time` and `end_time`;
-- `actor`, and the class's own objects below;
-- `src_endpoint` (`ip` when known), `http_request` (`http_method`, `url.path`, `user_agent`) for a
-  request;
+- `actor`, and the class's own objects: for 6003 `api` and `resources`; for 3002 `user`, `session`,
+  and `service`, the server's name and origin, which 3002 requires; for 3004 `entity`, as it stands
+  after the action, with what it was in its `data` (`data.previous_name` for a rename) rather than
+  the deprecated `entity_result`;
+- `src_endpoint`, always present: `ip` when known, else `name` `unknown`, and `hostname` for the
+  command line; `http_request` (`http_method`, `url.path`, `user_agent`) for a request;
 - `unmapped.credential`: the credential in Agention's own terms, so one field answers "which
   credential" across all three classes.
 
-**Credentials.** The exact attribute placement, here and in the action table, is to be verified
-against the pinned schema in P1's LLD. The schema the tests validate against is the classes without
-profiles: schema.ocsf.io's export applies profiles by default, which makes `cloud` and `osint`
-required. Fields a class requires are always present, so 6003's `src_endpoint` is sent even where
-the peer is unknown, as in an in-process request.
+**The instance.** Each database holds a random, non-secret uid, made once by P1's migration, which
+every event carries in `metadata.reporter.uid`. Sequences are per database, so the instance id lets
+a destination shared by several servers tell their events apart and find gaps in each server's
+sequence.
 
-| Credential           | `actor.user`                                                             | `actor.session`                                               | `unmapped.credential`                 |
-| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------- |
-| Browser session      | the operator: `uid` `person:<id>`, `name`, `type_id` 2 Admin             | `uid` `browser_session:<id>`, `credential_uid` `passkey:<id>` | kind, session id, passkey id and name |
-| API key              | the operator, as above                                                   | `credential_uid` `api_key:<id>`                               | kind, key id and name                 |
-| Agent's registration | the session: `uid` `session:<id>`, `name` `<agent>/<session>`, 4 Service | `credential_uid` `registration:<id>`                          | kind, registration id, agent, session |
-| Command line         | the OS user, `type_id` 3 System; `actor.process` the command             | none                                                          | kind `cli`                            |
-| None (a failure)     | no actor; 3002's required `user` is `name` `unknown`, `type_id` 0        | none                                                          | kind `none`                           |
-
-**Actions.** Resource identifiers are stable ids (`thread:<id>`, with `name` the thread's
+**Classes, credentials, and actions.** Writes are API Activity 6003; sign-ins, sign-outs, link use,
+and refused keys are Authentication 3002; API keys, passkeys, registrations, the operator a first
+link creates, and passkey links are Entity Management 3004. Each credential's exact placement, every
+action's class, activity, and what it names, and the map of every write to its event are in the
+[LLD](audit-lld.md), checked against the class schemas without profiles: schema.ocsf.io's export
+applies profiles by default, which makes `cloud` and `osint` required. Fields a class requires are
+always present, so 6003's `src_endpoint` is sent even where the peer is unknown, as in an in-process
+request. Resource identifiers are stable ids (`thread:<id>`, with `name` the thread's
 `<agent>/<session>/<number>`, never its title), plus names the operator chose for groups, tags, keys
 and passkeys.
-
-| Action (`api.operation` or entity)                         | Mount                | Class, activity         | Target and details                                    |
-| ---------------------------------------------------------- | -------------------- | ----------------------- | ----------------------------------------------------- |
-| `startThread`, agent `createThread`                        | web, operator; agent | 6003 Create 1           | session; the new thread and its first message         |
-| `sendMessage`                                              | all three            | 6003 Create 1           | thread; the message, with its asks, answers, files    |
-| `archiveThread`, `bulkArchive`                             | all three; web, op   | 6003 Update 3           | each thread                                           |
-| `uploadFile`                                               | all three            | 6003 Create 1           | file id, size, media type (no name, FRD R5)           |
-| `removeUpload`                                             | all three            | 6003 Delete 4           | file id                                               |
-| `createGroup`, `createTag`                                 | web, operator        | 6003 Create 1           | group or tag: id, name, color                         |
-| `renameGroup`, `recolorGroup`, `orderGroups`               | web, operator        | 6003 Update 3           | group(s): id, new name, color or position             |
-| `renameTag`, `recolorTag`                                  | web, operator        | 6003 Update 3           | tag: id, new name or color                            |
-| `removeGroup`, `removeTag`                                 | web, operator        | 6003 Delete 4           | group or tag id and name                              |
-| `setSessionGroup`, `setSessionTags`                        | web, operator        | 6003 Update 3           | session; group or tags                                |
-| `setAgentTags`                                             | web, operator        | 6003 Update 3           | agent; tags                                           |
-| agent `updateSession` (status)                             | agent                | 6003 Create 1           | the session's new update                              |
-| `markRead`, `markUnread`, `bulkRead`, `markSessionLogRead` | all                  | not recorded (FRD R1)   |                                                       |
-| passkey register finish                                    | web                  | 3004 Create 1           | `entity` passkey: id, name                            |
-| passkey rename                                             | web                  | 3004 Update 3           | `entity` passkey: id, new name                        |
-| passkey remove (or replaced by a passkey link)             | web                  | 3004 Delete 4           | `entity` passkey; the browser sessions it ended       |
-| voice settings set, clear                                  | web                  | 6003 Update 3, Delete 4 | `voice_settings`: which fields changed, never the key |
-| sign-in finish                                             | web                  | 3002 Logon 1            | `user` the operator; `session` the new session        |
-| passkey link use (begin refused, finish)                   | web                  | 3002 Logon 1            | as sign-in; first link: operator created; cascades    |
-| sign-out                                                   | web                  | 3002 Logoff 2           | the session ended                                     |
-| API key create                                             | web                  | 3004 Create 1           | `entity` key: id, name, scopes, expiry                |
-| API key revoke (or by a passkey link)                      | web                  | 3004 Disable 9          | `entity` key: id, name                                |
-| API key first use                                          | operator             | 3004 Activate 10        | `entity` key: id, name                                |
-| agent `register` (a new registration)                      | agent                | 3004 Create 1           | `entity` registration: id, proposed agent and session |
-| `approveRegistration`                                      | web, operator        | 3004 Enroll 6           | registration; the session, group and tags given       |
-| `rejectRegistration`                                       | web, operator        | 3004 Other 99, "Reject" | registration                                          |
-| `revokeRegistration`                                       | web, operator        | 3004 Disable 9          | registration                                          |
-| `agention passkey-link`                                    | command line         | 3004 Create 1           | `entity` passkey link: expiry, first or replacing     |
-| a live key refused for scope (FRD R1)                      | operator             | 6003, the operation's   | failure, `status_detail` `scope`; the operation       |
-| a revoked or expired key presented (FRD R1)                | operator             | 3002 Logon 1            | failure, `key_revoked` or `key_expired`; the key      |
-| `listAuditEvents` (P2)                                     | web, operator        | not recorded (FRD R14)  |                                                       |
-| `agention audit forget-sink`                               | command line         | 6003 Delete 4           | the sink's name and the sequence it had delivered     |
 
 Not recorded: reads, the audit log's included (FRD R14); transcriptions (no database write); the
 idle-expiry extension of `GET /session`, hourly `last_used_at`, passkey counters and sessions'
@@ -260,9 +237,11 @@ the operator API:
   "metadata": {
     "version": "1.9.0",
     "product": { "name": "Agention", "vendor_name": "Wayfarer Labs", "version": "0.7.0" },
+    "reporter": { "uid": "8d0f5a523c1e4b7a9e246f1b0c9d2a37", "name": "Work" },
     "uid": "3f2b8c1e-5d4a-4e8f-9a61-0c7d2e9b4f15",
     "sequence": 4211,
-    "log_name": "audit"
+    "log_name": "audit",
+    "event_code": "archiveThread"
   },
   "actor": {
     "user": { "uid": "person:1", "name": "operator", "type_id": 2 },
@@ -352,10 +331,9 @@ loop:
   error, `refused` for a paused sink. `agention serve` writes a stderr line when a sink starts
   failing, every 15 minutes while it fails or stays paused, and when it recovers
   (`S/cli.ts:224-227`), naming the sink by its kind, never its URL. Settings show it from P2.
-- **Wake.** `recordAudit` marks its transaction, and `Database.transaction`
-  (`S/database/database.ts:75-93`) wakes the dispatcher once that transaction commits, as store
-  writes call `store.notifier.notify` for the long polls; the 30-second poll picks up what the
-  command line wrote.
+- **Wake.** `recordAudit` wakes the dispatcher with `queueMicrotask`, which runs once the store's
+  synchronous transaction has ended; a wake after a rollback finds nothing new and is harmless. The
+  30-second poll picks up what the command line wrote.
 - **Start and stop.** A sink new to the database starts from the oldest retained event, so a new
   destination receives every event Agention still holds (R11). A sink no longer configured keeps its
   cursor, which holds back retention, and `agention serve` writes a stderr line at start and every
@@ -381,11 +359,10 @@ it off.
 file named for its UTC date, keeping the newest `--audit-keep-days` rotated files (30 by default).
 The directory is created 0700, or refused if any other user has any access to it, and files are
 0600, through `packages/private-files` as the data directory is. `--audit-group NAME` is for a
-collector that runs as its own user, as packaged collectors commonly do (to confirm for Vector and
-Grafana Alloy in the LLD): the directory is 0750 and files 0640, in that group, which the server's
-user must belong to; other users still have no access. A batch is written and `fsync`ed before it is
-acknowledged. The file is on the same box, so it is evidence against the box (FRD R9) only once a
-collector has shipped it elsewhere.
+collector that runs as its own user, as packaged Vector and Grafana Alloy do (LLD): the directory is
+0750 and files 0640, in that group, which the server's user must belong to; other users still have
+no access. A batch is written and `fsync`ed before it is acknowledged. The file is on the same box,
+so it is evidence against the box (FRD R9) only once a collector has shipped it elsewhere.
 
 **otlp** (P3). `--audit-otlp URL` POSTs OTLP/HTTP JSON to the full logs URL (a collector's
 `/v1/logs`, Loki's `/otlp/v1/logs`). Resource attributes `service.name` `agention` and
@@ -404,7 +381,7 @@ until then the two local sinks retry at a short fixed interval and never pause.
 
 ```text
 --audit-stdout
---audit-dir /var/log/agention  [--audit-group alloy]  [--audit-keep-days 30]
+--audit-dir /var/lib/agention-audit  [--audit-group agention-audit]  [--audit-keep-days 30]
 --audit-otlp https://otel.lan:4318/v1/logs            (P3)
 AGENTION_AUDIT_OTLP_HEADERS=api-key=...               (P3)
 --audit-retention-days 365
@@ -453,11 +430,12 @@ configured gets a new cursor at the next start.
 
 ## Data model additions
 
-| Where                       | Holds                                                                             |
-| --------------------------- | --------------------------------------------------------------------------------- |
-| `audit_events` (new)        | seq, uid, time, class, action, outcome, credential kind and id, event, open_until |
-| `audit_sinks` (new)         | name, delivered_seq, last delivery, failing since, last error (class and status)  |
-| `browser_sessions.id` (new) | a random, non-secret id, unique; existing sessions given one by the migration     |
+| Where                       | Holds                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| `audit_events` (new)        | seq, uid, time, class, action, outcome, credential kind and id, event, open_until   |
+| `audit_sinks` (new)         | name, delivered_seq; P2 adds last delivery, failing since, last error (class, code) |
+| `browser_sessions.id` (new) | a random, non-secret id, unique; existing sessions given one by the migration       |
+| `instance.uid` (new)        | the instance's random, non-secret id, made by the migration, never changed          |
 
 One migration per phase that needs one, each with its frozen hash, rolling back as a whole.
 
@@ -466,11 +444,12 @@ One migration per phase that needs one, each with its frozen hash, rolling back 
 FRD R5 and R16 state the rules; the design adds:
 
 - **Typed inputs only** reach the builder, and a test plants a marker in every secret and content
-  field and finds it in no event, stderr line or `audit_sinks` error. Credentials are named by
+  field and finds it in no event, stderr line or `audit_sinks` row. Credentials are named by
   non-secret ids, never the cookie or its hash.
 - **Bounded failures:** every failure event, before or after authentication, is recorded only within
   a rate budget it has already spent, and coalesced to one event per kind and key per minute; the
-  user agent is cut to 256 characters.
+  user agent is cut to 256 characters, and a failure's path is the route's pattern, never the raw
+  path, so the user agent is the only string a client chooses that reaches an event.
 - **Addresses** are the peer's, unverified; behind a proxy, the proxy's (FRD R4).
 - **Destinations hold activity metadata**, never content; the operator guide says their access
   controls then apply. Readers in Agention are the operator alone.
@@ -479,9 +458,9 @@ FRD R5 and R16 state the rules; the design adds:
 
 ## Testing
 
-- **Coverage:** the in-process harness (`S/http/test-harness.ts`) calls every declared `POST` on the
-  web, operator and agent mounts, and the web-only routes, and finds exactly one primary event with
-  the declared action and credential, or none for a declared exclusion.
+- **Coverage:** the in-process harness (`S/http/test-harness.ts`) drives every `POST` declaration on
+  the web, operator and agent mounts, and every web-only route, fails on any without a driver, and
+  finds exactly the events the LLD's map lists, with their credential, or none for the read marks.
 - **Schema:** every action's event validates against the pinned OCSF 1.9.0 class schemas, kept as
   test fixtures, with `ajv`, already in the lockfile through the bridge, added to the server's
   development dependencies at its locked version.
@@ -519,7 +498,7 @@ FRD R5 and R16 state the rules; the design adds:
 ## Decision record
 
 1. **OCSF 1.9.0 JSON** (FRD R6, the operator's choice). The only open security taxonomy most SIEMs
-   read or translate. Pinned 1.9.0, since 1.10.0 (2026-11-20) is inside the seven-day hold-back;
+   read or translate. Pinned 1.9.0, confirmed over 1.10.0 (2026-11-20) for consumers' lag (LLD);
    only long-lived classes and attributes. _Alternatives:_ **a flat object of Agention's own**,
    about half the size, with no class or activity to choose per action, read as plain JSON by every
    tool, which is how all but Splunk, Datadog, Google SecOps and Security Lake read OCSF too;
