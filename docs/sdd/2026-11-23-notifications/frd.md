@@ -1,7 +1,11 @@
 # Notifications: Functional Requirements
 
-- Status: Draft for the operator's acceptance. The choices marked **Open** below are the operator's;
-  each states the lead's recommendation and the alternatives.
+- Status: Accepted by the operator on 2026-11-25, with the rulings recorded under
+  [Operator rulings](#operator-rulings-2026-11-23-onward). Ruling 7 accepts that a rule can follow a
+  saved view. The requirements this touches (R1, R3, E2, the out-of-scope line on sort and grouping,
+  and Why this exists) are to be revised, and nothing is built until the operator accepts the
+  revision, recorded as a ruling. One question on it is open for the operator (see
+  [Open question](#open-question-for-the-operator)).
 - Date: 2026-11-23
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -56,22 +60,18 @@ archived it. The operator's own actions (reading, marking unread, tagging, group
 the operator API) never notify, and neither does time passing.
 
 **R3. A starting rule, stored once.** Agention starts with one stored rule, which the operator may
-change or remove like any other; once removed, it does not return. **Open (starting rule):** the
-recommendation is a thread with an open ask whose impact is blocking. Alternatives: any open ask; no
-starting rule.
+change or remove like any other; once removed, it does not return. The starting rule is a thread
+with an open ask whose impact is blocking (ruling 1).
 
 ### Volume
 
 **N1. One notification per thread until read.** Across all rules, a thread notifies at most once
 until the operator reads or archives it, as R2 says. Where the device supports replacing a
-notification, a later one for the same thread replaces the earlier rather than adding to it. **Open
-(reminder):** the recommendation is no reminder. The alternative is one reminder at a fixed delay
-for a thread still unread, which would also be the place to notify when an answer-by passes.
+notification, a later one for the same thread replaces the earlier rather than adding to it. There
+is no reminder (ruling 2).
 
-**N2. Quiet hours.** **Open (quiet hours):** the recommendation is none in this effort; the phone's
-own Do Not Disturb covers it, and the operator guide says how. The alternative is daily quiet hours
-in the operator's time zone, during which nothing notifies, with each thread that would have
-notified meanwhile notifying once when they end if it is still unread.
+**N2. No quiet hours in this effort.** Agention adds none in this effort; the phone's own Do Not
+Disturb covers it, and the operator guide says how (ruling 3).
 
 ### Delivery
 
@@ -89,20 +89,16 @@ after a recent sign-in there. Settings list every device that receives them, wit
 last sent to each. A device turns its own notifications off at any time; removing another device
 from the list needs a recent sign-in, as revoking an API key does. When a device's notifications
 stop, because the browser dropped them or another device removed it, its Settings say so, and
-turning them on again needs a recent sign-in, as the first time did. **Open (what ends a device's
-notifications):** the recommendation is that they end when the operator turns them off, signs that
-device out, or removes the passkey that signed it in, and not when its sign-in expires, so a phone
-left alone for a week still notifies; until one of those happens, a phone whose sign-in expired
-still shows what D5 allows. The alternative ends them with the sign-in, which on a phone unused for
-seven days ends them silently.
+turning them on again needs a recent sign-in, as the first time did. A device's notifications end
+when the operator turns them off, signs that device out, or removes the passkey that signed it in,
+and not when its sign-in expires, so a phone left alone for a week still notifies; until one of
+those happens, a phone whose sign-in expired still shows what D5 allows (ruling 5).
 
 **D4. A notification opens its thread.** Opening a notification opens the thread it is about in
 Agention, signed in as usual.
 
-**D5. Content.** **Open (content):** the recommendation is the thread's title and why it needs the
-operator, such as "Blocking ask", never a message's text. Alternatives: the same, with an option to
-add the latest message's first line, knowing it then shows on a lock screen; or a generic text
-alone, such as "A thread needs you", with no title.
+**D5. Content.** A notification shows the thread's title and why it needs the operator, such as
+"Blocking ask", never a message's text (ruling 4).
 
 ### Engineering
 
@@ -150,4 +146,38 @@ them.
 
 ## Operator rulings, 2026-11-23 onward
 
-(None yet.)
+Answered in Agention on 2026-11-25, local time (thread 35, message 7, 2026-11-26T05:28Z). The
+question: "Which designs should I build for the next release? Picking one accepts its requirements
+as drafted, with the recommendations." Its detail: "Picking an effort below accepts its requirements
+as drafted, with the recommended answer to each question still open on it, so you would not need to
+answer its own thread too." The operator picked "Saved views (#170)", "Notifications (#96)", and
+"Audit log (#123)". The questions still open on notifications were asks 5 to 10 in Agention thread
+19, and picking notifications settled each at its recommended answer:
+
+1. Starting rule: blocking asks (R3).
+2. Reminders: none (N1).
+3. Quiet hours (ask 7, "Quiet hours in Agention itself?"): "Not now; use phone DND" ("Your phone's
+   Do Not Disturb covers nights; the guide says how. Agention quiet hours would need your time zone,
+   a held queue and a release job."). So there are none in this effort; the phone's Do Not Disturb
+   covers it, and the operator guide says how (N2).
+4. What a notification shows: the title and why it needs the operator, never a message's text (D5).
+5. What ends a device's notifications: turning them off, signing that device out, or removing its
+   passkey, not the sign-in expiring (D3).
+6. Web Push (ask 10, "How should the server speak Web Push?"): "Own code on node:crypto" ("No new
+   dependency; padding and outbound limits built in; tested against the RFC's worked example and
+   your devices."). The token is signed with `jose`, which the server already ships, as the HLA
+   says. Ask 12 in thread 19, asked after this acceptance, reopens how push is implemented, and is
+   open.
+7. Saved views (thread 35's suggestion for notifications): "Recommended second, reshaped so a rule
+   can follow a saved view; I'd show you that change before building". The reshape touches R1, R3,
+   E2, the out-of-scope line saying only filters define a rule (saved views carry order and grouping
+   too), and Why this exists. Building starts once the operator accepts those revised requirements,
+   recorded here as a ruling.
+
+## Open question for the operator
+
+**A rule following a view, and the operator API.** Saved views R8 puts views on the operator API,
+under scopes of their own (its HLA names `saved-views:write`). E2 says rules and notification
+settings change only through the web UI, never through the operator API. A rule that follows a view
+would let a program change what notifies. Does E2 give way for that, or does the revision keep
+programs from changing what notifies? The revised requirements carry the answer.

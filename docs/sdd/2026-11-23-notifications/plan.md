@@ -3,8 +3,9 @@
 <!-- cspell:ignore VAPID webmanifest -->
 
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md)
-- Building starts once the operator accepts the FRD. Until then the open choices are planned as
-  recommended, and an answer otherwise changes the step the HLA's last section names.
+- The operator accepted the FRD on 2026-11-25, its open choices as recommended. Building starts once
+  the operator accepts the requirements revised so a rule can follow a saved view, recorded as an
+  FRD ruling (FRD ruling 7; the last two items under Design).
 
 ## Design
 
@@ -15,8 +16,15 @@
 - [x] `push-lld.md` (agention#96): the payload and its padded size, the token cache, the retry
       schedule, the check's statement and its transaction, the route shapes and their errors, and
       how the worker opens a thread in an open window.
-- [ ] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
-      for any choice answered otherwise.
+- [x] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
+      for any choice answered otherwise (agention#96).
+- [x] On acceptance, the development contract names this effort as active alongside pull request and
+      branch links (agention#96).
+- [ ] Requirements revised so a rule can follow a saved view (FRD ruling 7): R1, R3, E2, the
+      out-of-scope line saying only filters define a rule, and Why this exists, with the FRD's open
+      question on the operator API answered. Done when the operator accepts the revised
+      requirements, recorded as a ruling in the FRD.
+- [ ] The HLA, `push-lld.md`, and PR 2's steps updated to the accepted revision.
 
 ## PR 1: installable web UI
 

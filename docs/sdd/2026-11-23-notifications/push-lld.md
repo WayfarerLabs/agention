@@ -2,7 +2,9 @@
 
 <!-- cspell:ignore VAPID vapid aes128gcm p256dh ECDH HKDF renotify unixepoch notificationclick -->
 
-- Status: Draft, following the HLA's draft; the FRD's open choices are built as recommended
+- Status: Following the HLA. The FRD is accepted with its open choices as recommended; rules are
+  still drafted as filter sets until the operator accepts requirements revised so a rule can follow
+  a saved view (FRD ruling 7).
 - Date: 2026-11-23
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md); plan item: "`push-lld.md`" under Design in [the plan](plan.md)
@@ -573,7 +575,7 @@ confirms the browser session and gives its passkey and whether the sign-in is re
 - **Passkey removal**: removing one (`apps/server/src/auth/operator-passkeys.ts:75`) or replacing
   them all by a passkey link (`passkeys.ts:440`) deletes its subscriptions by the cascade.
 - **Expiry** of a browser session deletes the session row only (`browser-sessions.ts:24-28`); the
-  subscription has no foreign key to it, so it stays (FRD D3, as recommended).
+  subscription has no foreign key to it, so it stays (FRD D3, ruling 5).
 
 The keys arrive as base64url and are stored as their bytes. `p256dh` must decode to 65 octets and be
 a point on P-256, which the route checks by `createECDH("prime256v1").computeSecret(p256dh)` on a

@@ -2,7 +2,10 @@
 
 <!-- cspell:ignore VAPID vapid aes128gcm webmanifest -->
 
-- Status: Draft, following the FRD's draft; the FRD's open choices are built as recommended
+- Status: The FRD is accepted with the operator's rulings, its open choices as recommended, and this
+  HLA follows them. Rules are still drafted here as filter sets. Ruling 7 accepts that a rule can
+  follow a saved view; the FRD's requirements are revised for it first, and this HLA is updated once
+  the operator accepts them (a plan item, before building).
 - Date: 2026-11-23
 - Requirements: [FRD](frd.md), R1 to R3, N1 and N2, D1 to D5, E1 to E3
 - Research: [prior-art research](prior-art-research.md)
@@ -37,8 +40,8 @@ No agent route, tool or answer changes.
   server's host.
 - **A subscription belongs to the passkey that signed its device in.** It goes when that passkey is
   removed, when its device turns notifications off or signs out, or when the operator removes it
-  from the device list. A browser session expiring leaves it (FRD D3, as recommended). Turning a
-  device on needs a recent sign-in, and Settings list every device.
+  from the device list. A browser session expiring leaves it (FRD D3, ruling 5). Turning a device on
+  needs a recent sign-in, and Settings list every device.
 - **A failed send is retried briefly, then lets the thread notify again.** No durable queue.
 - **A notification is information to the operator, never an action on an agent's work.** The new ADR
   says so, which is how rules may key on open asks, a derived signal, without breaking the review
@@ -224,7 +227,7 @@ One migration adds them, with its frozen hash, and rolls back as a whole like th
   project, not the server's host), `TTL`, `Urgency`, and a ciphertext of fixed size. Not the
   thread's title, agent, session or number, and no per-thread value it could link notifications by.
 - **What a device shows:** the thread's title and why, on its lock screen. Never a message's text
-  (D5, as recommended).
+  (D5, ruling 4).
 - **Keys:** the VAPID private key and the subscriptions are secrets in the database, carried by
   backups, which are already private files.
 - **Who can subscribe:** only a signed-in browser with a recent sign-in, through the web API with
@@ -271,9 +274,10 @@ Two pull requests, each usable on its own:
    skill, SECURITY.md, the architecture document, the new ADR, the review checklist, the live
    testing guide, and the development contract's optional integrations.
 
-## Open with the operator
+## Settled with the operator
 
-The FRD's five choices and the Web Push library. Each other answer changes this design only locally:
+The operator accepted the FRD's five choices and the Web Push library as recommended (FRD rulings 1
+to 6). Each other answer would have changed this design only locally:
 
 - **A starting rule of "any open ask", or none:** the migration's insert.
 - **A reminder:** a periodic job and a reminded mark, which could also notify when an answer-by
