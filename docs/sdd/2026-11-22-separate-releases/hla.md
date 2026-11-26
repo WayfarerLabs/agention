@@ -78,8 +78,9 @@ is the root package of its own configuration, excluding what it does not ship (F
   release type `simple` (so it writes no root `package.json`, F4), component `agention-mcp`, the
   changelog `apps/bridge/CHANGELOG.md`, its own `label` and `release-label`, and `extra-files` for
   every place the agent version appears today: the bridge's `package.json` and lockfile entry, the
-  plugin definition, both generated plugin manifests, and the bridge's package spec in both
-  generated `.mcp.json` files.
+  plugin definition, both generated plugin manifests, the bridge's package spec in both generated
+  `.mcp.json` files, and the operator guide, whose release-stamped blocks (agention#169) pin only
+  the plugin's and the bridge's version.
 
 Each configuration's `exclude-paths` lists the other line's paths and the directories that ship
 nothing, so a feature that carries its docs releases only its own line, and a change to shared paths
@@ -144,7 +145,7 @@ plugin that is not yet released lasts minutes (U4).
 
 ### Migration
 
-Both lines start from the last combined release, `vX.Y.Z` below: 0.6.0 (released 2026-11-23, UTC),
+Both lines start from the last combined release, `vX.Y.Z` below: 0.7.0 (released 2026-11-25, UTC),
 or a later one cut before the switch (R4, FRD ruling 3). Releases go on as usual until the operator
 starts step 1. From then until the release-lines pull request merges, a matter of hours, no release
 pull request merges, since a combined release cut after step 2 would need tags only the release App
