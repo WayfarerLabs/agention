@@ -150,6 +150,11 @@ function subscribe(onChange: () => void): () => void {
 
 const currentPath = () => window.location.pathname + window.location.search;
 
+// afterNextNavigation runs run once, as the page next follows a navigation.
+export function afterNextNavigation(run: () => void): void {
+  window.addEventListener(navigated, run, { once: true });
+}
+
 // useLocation returns the current path and query, and re-renders on change.
 export function useLocation(): URL {
   const path = useSyncExternalStore(subscribe, currentPath);

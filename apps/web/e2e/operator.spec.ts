@@ -889,7 +889,7 @@ async function clearOfTheBar(area: Locator): Promise<void> {
   expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual((shown?.y ?? 0) + 1);
 }
 
-test("from 41rem across, and only from there, the list's head shows every control's words on one row, its widest by touch with every control set, in the system's font and in Arial", async () => {
+test("from 44rem across, and only from there, the list's head shows the words of every control that has them on one row, its widest by touch with every control set, in the system's font and in Arial", async () => {
   const wide = page.viewportSize();
   // Twelve filters on, for a count of two digits, and the order and
   // grouping whose words run longest.
@@ -907,7 +907,7 @@ test("from 41rem across, and only from there, the list's head shows every contro
     element.clientWidth,
     parseFloat(getComputedStyle(document.documentElement).fontSize),
   ]);
-  const tier = 41 * (rem ?? 16);
+  const tier = 44 * (rem ?? 16);
   await resize(page, { width: first + tier - (width ?? 0), height: 844 }, true);
   expect(await head.evaluate((element) => element.clientWidth)).toBe(tier);
   // In whatever font the machine running the tests has for the system's,
@@ -927,7 +927,7 @@ test("from 41rem across, and only from there, the list's head shows every contro
     await onOneRow(head);
     await fitsAcross(head, page.locator("main"));
   }
-  // A pixel narrower, the buttons show their icons alone, so 41rem is the
+  // A pixel narrower, the buttons show their icons alone, so 44rem is the
   // narrowest the row shows every word at.
   await resize(page, { width: first + tier - (width ?? 0) - 1, height: 844 }, true);
   expect(await head.evaluate((element) => element.clientWidth)).toBe(tier - 1);

@@ -10,9 +10,10 @@ import { Icon, type IconName } from "../icons.tsx";
 // default.
 
 // HeadButton is a button of the head: its icon, the words it shows where
-// there is room, and its name, which starts with those words, as speech input
-// hears them, and is its tooltip. It carries its mark while marked, or, given
-// a count above none, a badge showing it, which its name must say.
+// there is room, if it has any, and its name, which starts with those words,
+// or with what it is called, as speech input hears them, and is its tooltip.
+// It carries its mark while marked, or, given a count above none, a badge
+// showing it, which its name must say.
 export function HeadButton({
   icon,
   shown,
@@ -24,7 +25,7 @@ export function HeadButton({
   onClick,
 }: {
   icon: IconName;
-  shown: string;
+  shown?: string | undefined;
   name: string;
   marked?: boolean;
   count?: number;
@@ -44,7 +45,7 @@ export function HeadButton({
       onClick={onClick}
     >
       <Icon name={icon} />
-      <span className="control-label">{shown}</span>
+      {shown !== undefined && <span className="control-label">{shown}</span>}
       {count > 0 ? (
         <span className="badge" aria-hidden="true">
           {count}

@@ -17,7 +17,7 @@ import {
 } from "react";
 import { changeLanded, query, request } from "../api.ts";
 import { Loadable, MoreButton, PageHeading, Status, usePageTitle } from "../components.tsx";
-import { useFollowing, usePages } from "../data.ts";
+import { useFollowing, usePages, useResource } from "../data.ts";
 import { openPicker } from "../icon-controls.tsx";
 import { takeNotice } from "../notice.ts";
 import { PaletteProvider } from "../organizing.tsx";
@@ -32,6 +32,7 @@ import {
   useListView,
   useLocation,
 } from "../router.tsx";
+import { currentViews, loadSavedViews, useSavedViewsOpener } from "../saved-views.ts";
 import type { ListShown } from "./filter-links.tsx";
 import { ListBeside } from "./side-by-side.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
@@ -42,6 +43,7 @@ import { ListBar, type MarkKey, ShownActions } from "./list/ListBar.tsx";
 import { distinct, type ListedThread } from "./list/listing.ts";
 import { ListHead, useHeadSearch } from "./list/ListHead.tsx";
 import { useSearchText } from "./list/search.tsx";
+import { SavedViewsSheet, savedViewsName } from "./list/SavedViews.tsx";
 import { ListSelection, threadKey, useSelection } from "./list/selection.tsx";
 import { SelectHead, SelectionActions } from "./list/SelectionControls.tsx";
 import { type ListKeys, useListShortcuts } from "./list/shortcuts.ts";
@@ -50,7 +52,9 @@ import { ThreadRow } from "./list/ThreadRow.tsx";
 // The thread list, built filters first: with no filter on it holds every
 // thread the operator has not archived, and every way of narrowing it is a
 // filter that combines with the others. Its head (ListHead) is one row of
-// icon buttons: Search, which opens the search field in place of the row;
+// icon buttons: Saved views, which opens the sheet of the operator's saved
+// views, each a list to go to, and g v opens from anywhere; Search, which
+// opens the search field in place of the row;
 // Filters, which opens a sheet holding every filter, the search among them,
 // whose box there edits the same text; the order beside the button that
 // reverses it; and how the list is grouped. Each filter that is on shows
@@ -125,11 +129,20 @@ export function ThreadList() {
   );
   const chips = chipsOf(view, known);
   const on = chips.length;
+  // The operator's saved views, which name the button by those whose list is
+  // on screen, and fill its sheet, open while it is mounted.
+  const savedViews = useResource(loadSavedViews);
+  const savedButton = useRef<HTMLButtonElement>(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const openSaved = useCallback(() => setSavedOpen(true), []);
+  useSavedViewsOpener(openSaved);
+  const current = currentViews(savedViews.data?.views ?? [], view);
   return (
     <PaletteProvider known={known}>
       {!threadBeside && <PageHeading visuallyHidden>Threads</PageHeading>}
       <ListHead
         view={view}
+        saved={{ name: savedViewsName(current), button: savedButton, open: openSaved }}
         choose={choose}
         search={search}
         field={field}
@@ -148,6 +161,17 @@ export function ThreadList() {
           focusHead();
         }}
       />
+      {savedOpen && (
+        <SavedViewsSheet
+          views={savedViews}
+          shown={view}
+          current={current}
+          onClose={() => {
+            setSavedOpen(false);
+            savedButton.current?.focus();
+          }}
+        />
+      )}
       <FilterSheet
         sheet={sheet}
         heading={sheetHeading}
