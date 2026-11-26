@@ -96,6 +96,11 @@
       passes and the project review finds none stale.
 - [ ] Renumbered as 1a was: the nudge is agent API version 9 and migration 12. Done when the gates
       pass on the pull request brought up to date with main.
+- [ ] M6's ignored status (ruling 8): a thread whose agent checked in at or after the operator's
+      earliest unread message without reading it, the quiet time past, is ignored rather than
+      stranded, on the operator API's thread summary, agent-read filter and session counts and in
+      the web UI. Done when the store's, HTTP and web tests show such a thread ignored and not
+      stranded, and neither once the agent reads it.
 - [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
       when the pull request records the live evidence as `docs/live-testing.md` describes.
 - [ ] `locked.md` in this directory, with the final merge.
