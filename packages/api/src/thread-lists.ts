@@ -92,15 +92,17 @@ export const agentReadFilter = z
   .enum(["unread", "stranded", "ignored"])
   .describe(
     "Only threads holding a message of yours that the session has not read: unread for any " +
-      "such thread; stranded for one nothing will bring to it soon: the session has no active " +
+      "such thread. Stranded for one nothing will bring to it soon: the session has no active " +
       "credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or " +
-      "it can be nudged, and the latest nudge since your message was not sent, or was sent " +
-      "and the quiet time has passed since, or none was sent within the quiet time; ignored, " +
-      "in place of stranded, for one on a session that can be nudged and has an active " +
-      "credential, whose agent checked in at or after both your earliest message there it has " +
-      "not read and its latest nudge, without reading the thread, with no nudge due that would " +
-      "bring it there; a thread waiting on a nudge due is stranded once none was sent within " +
-      "the quiet time, never ignored.",
+      "it can be nudged and a nudge is due that would bring its agent there, since a message " +
+      "was written after the agent last checked in, with none claimed since, but none was " +
+      "sent within the quiet time of that message; or, with none due, the latest nudge since " +
+      "your message was not sent, or was sent and the quiet time has passed since, or none " +
+      "was sent within the quiet time, and the thread is not ignored. Ignored for such a " +
+      "thread, with no nudge due, whose agent checked in at or after both your earliest " +
+      "message there it has not read and its latest nudge without reading the thread, so it " +
+      "was there and left the thread unread; it shows only once that quiet time has passed, " +
+      "and never with stranded.",
   );
 
 // The filters on the pull requests and branches a thread's live messages
@@ -237,8 +239,8 @@ export const branchesFilter = distinctEntries(
 // by the session, unread, stranded or ignored; agents, sessions and topics,
 // several of each, a topic named with its session; the operator's session
 // groups and tags, several of each; and the pull requests and branches the
-// threads' live messages name, several of each. They come in the order the operator
-// is offered them, which a list's address in the web UI keeps.
+// threads' live messages name, several of each. They come in the order the
+// operator is offered them, which a list's address in the web UI keeps.
 const listFilters = {
   search: messageSearchFilter.optional(),
   status: statusFilter.optional(),

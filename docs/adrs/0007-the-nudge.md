@@ -82,23 +82,13 @@ every check that can be made before each key.
   `register` tells the agent whether answers arrive by a nudge or as it checks, and the usage skill
   tells a nudged agent with nothing else to do to report `idle` and end its turn.
 - **Stranded follows the nudge, and ignored stands apart.** A thread on a session that can be nudged
-  is not stranded for its session waiting at its prompt, quiet or stopped, since the nudge will
-  bring it; the nudge misses it once the latest nudge since the operator's message was not sent, or
-  was sent, or its outcome never arrived, and went the quiet time without the agent reading the
-  thread, or none was claimed within the quiet time. A check-in after the nudge does not hold that
-  off: an agent that checks in without reading the thread is not nudged for it again, since one
-  nudge is due per check-in and only for a message written after it, so nothing more will bring it.
-  A thread the nudge misses whose agent checked in at or after both the operator's earliest message
-  it has not read and its latest nudge is **ignored**, not stranded. Stranded is ordinary: the
-  session stopped, went quiet or lost its connection. Ignored says the session is not doing what it
-  is supposed to, which is different enough to be a status of its own, with its own filter and
-  counts, and never both at once. A message the operator writes after that check-in, in any thread
-  of the session, makes a nudge due again if none already is, and the thread then waits on that
-  nudge, since a nudge brings the agent to every thread it has neither read nor archived. While it
-  waits it is judged by that nudge alone: stranded once the nudge goes the quiet time unclaimed,
-  never ignored, since a nudge due but never sent is the nudge failing, not the agent ignoring the
-  operator. Its other causes, no active credential and no connection, stand as before, and strand
-  it, never ignore it.
+  is not stranded for waiting at its prompt, since the nudge will bring it. One the nudge did not
+  bring, whose agent checked in at or after the operator's message and the latest nudge without
+  reading it, is **ignored**: stranded is ordinary, a session stopped or gone, while ignored says
+  the session is not doing what it should, different enough to be a status of its own. A nudge due
+  comes first: a thread it would bring is stranded if it never comes, since that is the nudge
+  failing, not the agent ignoring the operator. The full rule is in
+  [Presence, quiet and stranded](../architecture.md#presence-quiet-and-stranded).
 
 ## Consequences
 

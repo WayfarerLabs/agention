@@ -545,27 +545,10 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // withdrawal, the first of its message's; credential_active says whether its
 // session still has an approved credential. Its audience also sees its
 // session's presence, with its state and what its bridge last reported of
-// its terminal and its latest nudge, and whether it is stranded or ignored:
-// it holds a live message by the audience that the session has not read, and
-// nothing will bring it to the session soon. So, while the session has no
-// active credential or is not connected; while it cannot be nudged and is
-// quiet or has stopped; and while it can be nudged, once the nudge misses it,
-// by the nudge due for the session or, where none is, the latest one: once a
-// message in any of the session's threads that the session has neither read
-// nor archived, written after its agent last checked in, goes the quiet time
-// with no nudge claimed since that check-in, since such a message makes a
-// nudge due at the session's prompt that brings the agent to every thread
-// holding a message it has neither read nor archived; otherwise once the
-// latest nudge since the earliest message it has not read was not sent, or
-// was sent and the quiet time has passed since, or none was sent within the
-// quiet time. A thread the latest nudge misses, with no nudge due that brings
-// the agent to it, is ignored, not stranded, where the session has an active
-// credential and its agent checked in at or after both that earliest message
-// and its latest nudge, if any, so it was there and left the thread unread;
-// every other such thread is stranded, a thread waiting on a nudge due among
-// them, since that nudge not coming is the nudge failing. links counts
-// the pull requests and branches its live messages name, giving the one
-// entry when there is exactly one.
+// its terminal and its latest nudge, and whether it is stranded or ignored,
+// as the agent_read filter's description says. links counts the pull
+// requests and branches its live messages name, giving the one entry when
+// there is exactly one.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -596,10 +579,9 @@ export const threadSummary = z.object({
     .boolean()
     .optional()
     .describe(
-      "Whether the session's agent checked in at or after your earliest message here that it has " +
-        "not read, and after its latest nudge, without reading the thread, and no nudge is due " +
-        "that would bring it there, as the agent_read filter's ignored says; never true with " +
-        "stranded.",
+      "Whether the session's agent checked in without reading a message of yours here and the " +
+        "quiet time has passed with nothing more to bring it there, as the agent_read filter's " +
+        "ignored says; never true with stranded.",
     ),
 });
 export type ThreadSummary = z.infer<typeof threadSummary>;

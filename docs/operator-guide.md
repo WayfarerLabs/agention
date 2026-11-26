@@ -140,23 +140,19 @@ connection to the server, which is not the agent checking in; while it does, the
 **connected**, and it stops being so within a minute of the bridge ending. A bridge from before the
 background connection cannot report one, so a session whose agent last checked in through such a
 bridge, with no newer one connected, is never shown disconnected. A thread is **stranded** when its
-agent has not read your latest messages and its session is quiet, not connected, stopped or without
-an active credential. A session its bridge can nudge is not stranded for being quiet or stopped,
-since the nudge brings it back when you write; its thread is stranded once the nudge did not: it was
-not sent; or it was sent, or its outcome never came, and `--quiet-minutes` have passed since without
-the agent reading the thread; or none was sent within that time. Where its agent checked in after
-your earliest message it has not read, and after its latest nudge, the thread is **ignored**
-instead: the agent was there and left it unread, which says the session is not doing what it should,
-where stranded says only that it is not there. Writing again after the agent's last check-in, in
-that thread or any other of the session, makes a nudge due if none already is, and the thread then
-waits on it alone: it is stranded, not ignored, once none was sent within `--quiet-minutes` of the
-earliest message it is due for, since then the nudge failed. A thread the agent archived without
-reading it is not brought by a nudge, so it does not wait on one. A session that reports it stopped
-says how, as **completed**, **withdrawn** (you called it off) or **stalled** (it cannot go on), and
-stays stopped until it reports working or idle. An idle session that writes to its threads without
-reporting a state or note, by a message, a new thread, or marking one read, unread or archived, is
-working from then on: the server marks it so itself and logs that it did, with no note. Checking for
-your answers changes nothing, and neither does anything you write.
+agent has not read your latest messages and nothing will bring it to them soon: its session is
+quiet, stopped, not connected or without an active credential, or, for a session its bridge can
+nudge, the nudge did not come or did not bring it within `--quiet-minutes`. It is **ignored**
+instead when the agent checked in at or after your earliest message it has not read, and its latest
+nudge, without reading it, and `--quiet-minutes` have passed with nothing more to bring it there:
+the agent was there and left it unread, which says the session is not doing what it should
+([Presence, quiet and stranded](architecture.md#presence-quiet-and-stranded) gives the full rule). A
+session that reports it stopped says how, as **completed**, **withdrawn** (you called it off) or
+**stalled** (it cannot go on), and stays stopped until it reports working or idle. An idle session
+that writes to its threads without reporting a state or note, by a message, a new thread, or marking
+one read, unread or archived, is working from then on: the server marks it so itself and logs that
+it did, with no note. Checking for your answers changes nothing, and neither does anything you
+write.
 
 The data directory and the database must be private to the user running Agention, under the rule in
 [SECURITY.md](../SECURITY.md#private-files). `agention serve` creates a missing data directory, and
@@ -600,11 +596,11 @@ sent, or is under way or its outcome never came, and the agent has not checked i
 not sent** when the bridge gave it up, the last two in the warning's color. An agent that checks in
 after a nudge without reading the thread it came for is not nudged for it again, so once
 `--quiet-minutes` pass after the nudge, the thread is ignored and says when the agent **checked in**
-without reading it, as it does for an agent that checked in after you wrote with no nudge due. An
-unfolded row says whether the session can be nudged. With these and **Connected** and its last
-check-in, you can tell a session that is offline, one that is online but not checking in, and one
-that did not respond to a nudge. The bridge logs the step a nudge stopped at, never what was on the
-screen or what it typed.
+without reading it, as it does for an agent that checked in at or after your message with no nudge
+due. An unfolded row says whether the session can be nudged. With these and **Connected** and its
+last check-in, you can tell a session that is offline, one that is online but not checking in, and
+one that did not respond to a nudge. The bridge logs the step a nudge stopped at, never what was on
+the screen or what it typed.
 
 ### Reaching the server through a tunnel
 

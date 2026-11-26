@@ -503,31 +503,35 @@ From those the reads derive, against the request's clock and never stored:
   and its agent has not checked in since. Each session's presence carries its latest nudge with
   whether it has, as `last_nudge`'s `answered`, and with `sent` true for a nudge whose outcome is
   not known.
-- **Stranded**: a thread holding a live message of the operator's that the session has not read, and
-  nothing will bring it to the agent soon: the session has no active credential or is not connected;
-  or it cannot be nudged, its connected bridge's report not saying it can, and it is quiet or has
-  stopped; or it can be nudged, the nudge misses the thread, and the thread is not ignored. The
-  nudge is judged by the one due for the session or, where none is, the latest one. A nudge is due
-  at the session's prompt where none was claimed since the agent last checked in and any of the
-  session's threads holds a message by anyone but the agent that the agent has neither read nor
-  archived, written after that check-in; that nudge brings the agent to every thread holding a
-  message it has neither read nor archived, so it misses such a thread once the earliest such
-  message is older than the quiet time. Otherwise it misses the thread once the latest nudge since
-  the earliest message the agent has not read was not sent, or was sent, or its outcome is not
-  known, and was claimed longer ago than the quiet time; or once none was claimed since and that
-  message is older than the quiet time. A session that can be nudged is not stranded for waiting at
-  its prompt, since a nudge will bring it. A thread waiting on a nudge due is judged by that nudge
-  alone, so it is stranded once the nudge goes the quiet time unclaimed and never ignored, since
-  that is the nudge failing, not the agent passing the thread over.
-- **Ignored**: a thread the latest nudge misses, with no nudge due that brings the agent to it, on a
-  session that can be nudged and has an active credential, whose agent last checked in at or after
-  both the earliest message of the operator's it has not read and its latest nudge, if any: the
-  agent was there and left the thread unread. Where stranded follows from a session that stopped,
-  went quiet or lost its connection, ignored says the agent is not doing what it should. An agent
-  that checks in without reading the thread is not nudged for it again, since a nudge is due only
-  for a message written after the last check-in, so nothing more brings it until the operator writes
-  again, in it or any other thread of the session. A thread is never both stranded and ignored, and
-  a session that cannot be nudged has no ignored threads.
+- **Stranded** and **ignored**: a thread holding a live message of the operator's that the session
+  has not read is left unread, one or the other, by the first of these that holds (`threadsSeen`,
+  `apps/server/src/store/thread-reads.ts`):
+  1. With no active credential, or not connected, it is stranded.
+  2. A session that cannot be nudged, its connected bridge's report not saying it can, strands it
+     while quiet or stopped.
+  3. Where a nudge is due that brings the agent to the thread, the thread waits on that nudge alone:
+     stranded once the earliest message it is due for is older than the quiet time, since the nudge
+     failed to come, and never ignored. A nudge is due where none was claimed since the agent last
+     checked in and any of the session's threads holds a message by anyone but the agent that the
+     agent has neither read nor archived, written after that check-in (`nudgeDueSince`, which the
+     bridge's poll shares); it brings the agent to every thread holding a message it has neither
+     read nor archived. This reading does not look at the bridge's report, so a session that is
+     busy, at another screen or held by a usage limit, which its bridge is due no nudge for, waits
+     as if one were.
+  4. Otherwise it is neither until the latest nudge since the earliest message the agent has not
+     read was not sent, or was sent, or its outcome is not known, and was claimed longer ago than
+     the quiet time, or, with none claimed since, that message is older than the quiet time.
+  5. Then it is ignored where the agent last checked in at or after both that message and the latest
+     nudge, if any: the agent was there and left the thread unread.
+  6. Otherwise it is stranded.
+
+  A session that can be nudged is not stranded for waiting at its prompt, since a nudge will bring
+  it. Stranded follows from a session that stopped, went quiet or lost its connection, or a nudge
+  that never came; ignored says the agent is not doing what it should. An agent that checks in
+  without reading a thread is not nudged for it again, since a nudge is due only for a message
+  written after the last check-in, so nothing more brings it until the operator writes again, in it
+  or any other thread of the session. A thread is never both, and a session that cannot be nudged
+  has no ignored threads.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as
