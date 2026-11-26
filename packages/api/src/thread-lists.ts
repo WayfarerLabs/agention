@@ -96,12 +96,15 @@ export const agentReadFilter = z
       "credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or " +
       "it can be nudged and a nudge is due that would bring its agent there, since a message " +
       "was written after the agent last checked in, with none claimed since, but none was " +
-      "sent within the quiet time of that message; or, with none due, the latest nudge since " +
+      "sent within the quiet time of that message; or, with none due that would bring it there, " +
+      "the latest nudge since " +
       "your message was not sent, or was sent and the quiet time has passed since, or none " +
       "was sent within the quiet time, and the thread is not ignored. Ignored for such a " +
-      "thread, with no nudge due, whose agent checked in at or after both your earliest " +
+      "thread, with no nudge due that would bring it there, whose agent checked in at or after " +
+      "both your earliest " +
       "message there it has not read and its latest nudge without reading the thread, so it " +
-      "was there and left the thread unread; it shows only once that quiet time has passed, " +
+      "was there and left the thread unread; it shows only once that message is older than the " +
+      "quiet time, " +
       "and never with stranded.",
   );
 

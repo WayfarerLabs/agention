@@ -31,12 +31,11 @@ import { type Organizing, SessionFolds, SessionsHead } from "./sessions/SessionF
 // each agent folds under its header, rolling up its sessions' threads, open
 // asks, unread updates and stranded and ignored threads, with links to its
 // threads and to its stranded and its ignored threads, its tags and a menu
-// setting them, over a folded row
-// for each of its sessions; grouped by session, the rows stand alone. Every
-// chip that stands for threads, the names of groups, agents and sessions
-// among them, links to those threads on the thread list, and following one
-// never folds anything; a header's chevron folds it, as a click on the rest
-// of its bar does. The view reads every session before it shows any, so it
+// setting them, over a folded row for each of its sessions; grouped by
+// session, the rows stand alone. Every chip that stands for threads, the
+// names of groups, agents and sessions among them, links to those threads on
+// the thread list, and following one never folds anything; a header's
+// chevron folds it, as a click on the rest of its bar does. The view reads every session before it shows any, so it
 // arranges them whole. It refreshes as every view does. The operator's groups
 // and tags load beside the sessions, for their colors and the groups' order;
 // a session's group and an agent's or a session's tags are picked from their

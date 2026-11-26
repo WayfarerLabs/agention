@@ -648,6 +648,18 @@ describe("stranded and ignored, for a session that can be nudged", () => {
     expect(standing()).toBe("stranded");
   });
 
+  it("stays stranded after a nudge not sent, though the agent checks in, until the quiet time passes after the message", async () => {
+    await claimed(false);
+    fixture.advance(seenStep);
+    fixture.seen(agent);
+    expect(presence()?.quiet).toBe(false);
+    expect(standing()).toBe("stranded");
+    fixture.advance(quiet - seenStep - 1);
+    expect(standing()).toBe("stranded");
+    fixture.advance(1);
+    expect(standing()).toBe("ignored");
+  });
+
   it.each([
     ["a sent nudge", true],
     ["a claimed nudge whose outcome never came", undefined],

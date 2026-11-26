@@ -166,12 +166,13 @@ export function connectedOf(sessions: string): string {
 //     screen or held by a usage limit, which nudgeDue finds none due for,
 //     waits here as if one were.
 //  5. Otherwise it is neither until the latest nudge since the earliest such
-//     message was not sent, or was sent, or its outcome is not known, before
+//     message was not sent, or was sent (or its outcome is not known) before
 //     the quiet cut-off, or, with none claimed since, that message was
 //     written before it.
 //  6. Then it is ignored where the agent checked in at or after both that
-//     message and the latest nudge, if any: the agent was there and left the
-//     thread unread.
+//     message and the latest nudge, if any, and that message was written
+//     before the quiet cut-off: the agent was there and left the thread
+//     unread for the quiet time.
 //  7. Otherwise it is stranded.
 //
 // Last comes the operator's group for its session, which only the operator's
@@ -333,6 +334,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           ) THEN NULL
           WHEN joined.last_seen_at >= joined.unread_by_other_since
             AND (joined.nudged_at IS NULL OR joined.last_seen_at >= joined.nudged_at)
+            AND joined.unread_by_other_since < :quiet_before
             THEN 'ignored'
           ELSE 'stranded'
         END AS left_unread

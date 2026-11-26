@@ -519,10 +519,11 @@ From those the reads derive, against the request's clock and never stored:
      busy, at another screen or held by a usage limit, which its bridge is due no nudge for, waits
      as if one were.
   4. Otherwise it is neither until the latest nudge since the earliest message the agent has not
-     read was not sent, or was sent, or its outcome is not known, and was claimed longer ago than
+     read was not sent, or was sent (or its outcome is not known) and was claimed longer ago than
      the quiet time, or, with none claimed since, that message is older than the quiet time.
   5. Then it is ignored where the agent last checked in at or after both that message and the latest
-     nudge, if any: the agent was there and left the thread unread.
+     nudge, if any, and that message is older than the quiet time: the agent was there and left the
+     thread unread.
   6. Otherwise it is stranded.
 
   A session that can be nudged is not stranded for waiting at its prompt, since a nudge will bring
