@@ -55,12 +55,12 @@ A target the caller may not access gets the same response as one that does not e
 operation, including reading, archiving, list filters, references to threads, and long-poll wakes
 (the **Isolation** invariant in `SECURITY.md` "Security model"; `docs/architecture.md` "Store").
 Agents set and filter topics on their own session's threads, and topics never span sessions; a
-thread reference names a thread of the same session. Quiet, connected, stranded and what monitoring
-reports reach only the operator, and the operator's session groups and tags are operator-only and
-grant nothing. Look for distinguishable errors, counts, timing paths, identifiers, or list positions
-that reveal another session's threads; references or topics that cross sessions; an archive mark
-visible to the other party; authorization not rechecked on each `message_wait` wake; and presence
-signals, groups, or tags reachable from the agent surface.
+thread reference names a thread of the same session. Quiet, connected, stranded, ignored and what
+monitoring reports reach only the operator, and the operator's session groups and tags are
+operator-only and grant nothing. Look for distinguishable errors, counts, timing paths, identifiers,
+or list positions that reveal another session's threads; references or topics that cross sessions;
+an archive mark visible to the other party; authorization not rechecked on each `message_wait` wake;
+and presence signals, groups, or tags reachable from the agent surface.
 
 ## A4. People and agents authenticate separately
 
@@ -105,14 +105,14 @@ and close creeping back in (ADR 0001 "Not doing" and "Alternatives considered").
 
 As material as A5: the server never acts on a deadline, whose consequence is entirely the
 requester's choice; goals are set explicitly and never inferred (ADR 0001 "Not doing"); derived
-signals, such as overdue, quiet, connected and stranded, and what monitoring reports, inform and
-never trigger actions or block writes, with one exception: a nudge due, which the server derives
-from the session's rows when read, writing nothing, and answers its bridge's poll with, telling it
-nothing more, and which the bridge claims before it nudges (ADR 0007); and accuracy of impact,
-priority, effort, progress, and session state is the honor system's, not something to police with
-enforcement ladders. The server infers one thing a session did not report: its own write to a thread
-while idle, reporting no status, makes it working, logged as inferred, and a stopped session stays
-stopped (ADR 0001 "Sessions report what they are doing"). Look for timers or jobs that change
+signals, such as overdue, quiet, connected, stranded and ignored, and what monitoring reports,
+inform and never trigger actions or block writes, with one exception: a nudge due, which the server
+derives from the session's rows when read, writing nothing, and answers its bridge's poll with,
+telling it nothing more, and which the bridge claims before it nudges (ADR 0007); and accuracy of
+impact, priority, effort, progress, and session state is the honor system's, not something to police
+with enforcement ladders. The server infers one thing a session did not report: its own write to a
+thread while idle, reporting no status, makes it working, logged as inferred, and a stopped session
+stays stopped (ADR 0001 "Sessions report what they are doing"). Look for timers or jobs that change
 threads or a session's status, inferred goals, progress or any other state, automatic withdrawals,
 archives, or escalations, validation that second-guesses what the agent reports, and a nudge said to
 be due on anything but that rule, with a reason, a thread or presence beside it, or tried or claimed

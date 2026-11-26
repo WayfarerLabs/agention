@@ -81,17 +81,21 @@ every check that can be made before each key.
   once and leaves the nudge off; the tools work as without it. Once its registration is approved,
   `register` tells the agent whether answers arrive by a nudge or as it checks, and the usage skill
   tells a nudged agent with nothing else to do to report `idle` and end its turn.
-- **Stranded follows the nudge.** A thread on a session that can be nudged is not stranded for its
-  session waiting at its prompt, quiet or stopped, since the nudge will bring it; it is stranded
-  once the latest nudge since the operator's message was not sent, or was sent, or its outcome never
-  arrived, and went the quiet time without the agent reading the thread, or none was claimed within
-  the quiet time. A check-in after the nudge does not hold that off: an agent that checks in without
-  reading the thread is not nudged for it again, since one nudge is due per check-in and only for a
-  message written after it, so nothing more will bring it, and the operator sees that the agent
-  checked in without reading the thread. A message the operator writes after that check-in, in any
-  thread of the session, makes a nudge due again if none already is, and the thread then waits on
-  that nudge, since a nudge brings the agent to every thread it has neither read nor archived. Its
-  other causes, no active credential and no connection, stand as before.
+- **Stranded follows the nudge, and ignored stands apart.** A thread on a session that can be nudged
+  is not stranded for its session waiting at its prompt, quiet or stopped, since the nudge will
+  bring it; the nudge misses it once the latest nudge since the operator's message was not sent, or
+  was sent, or its outcome never arrived, and went the quiet time without the agent reading the
+  thread, or none was claimed within the quiet time. A check-in after the nudge does not hold that
+  off: an agent that checks in without reading the thread is not nudged for it again, since one
+  nudge is due per check-in and only for a message written after it, so nothing more will bring it.
+  A thread the nudge misses whose agent checked in at or after both the operator's earliest message
+  it has not read and its latest nudge is **ignored**, not stranded. Stranded is ordinary: the
+  session stopped, went quiet or lost its connection. Ignored says the session is not doing what it
+  is supposed to, which is different enough to be a status of its own, with its own filter and
+  counts, and never both at once. A message the operator writes after that check-in, in any thread
+  of the session, makes a nudge due again if none already is, and the thread then waits on that
+  nudge, since a nudge brings the agent to every thread it has neither read nor archived. Its other
+  causes, no active credential and no connection, stand as before, and strand it, never ignore it.
 
 ## Consequences
 

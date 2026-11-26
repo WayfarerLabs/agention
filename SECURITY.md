@@ -17,11 +17,11 @@ the server's part of them on every request, and the web UI renders content inert
   authentication, never from request content.
 - **Isolation.** An agent session sees and changes only what its credential authorizes. A target the
   caller may not access produces the same response as one that does not exist. Session groups and
-  tags, the presence signals (quiet, connected and stranded) and what a session's bridge reports of
-  its terminal (its condition, what stopped it and its profile), are the operator's alone and reach
-  no agent, and groups and tags grant nothing. A bridge's report holds only enumerations, booleans,
-  times and its profile's name, never text from the terminal, and is its own observation, trusted as
-  the agent's host is.
+  tags, the presence signals (quiet, connected, stranded and ignored) and what a session's bridge
+  reports of its terminal (its condition, what stopped it and its profile), are the operator's alone
+  and reach no agent, and groups and tags grant nothing. A bridge's report holds only enumerations,
+  booleans, times and its profile's name, never text from the terminal, and is its own observation,
+  trusted as the agent's host is.
 - **Append-only, attributed history.** Nothing is edited or erased: a replacement is a new message,
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.

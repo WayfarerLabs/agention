@@ -50,9 +50,8 @@ The first request lists your agents with their sessions, each with its `presence
 while its bridge is connected, its `monitor`, what the bridge last reported of the session's
 terminal, and, once its bridge has claimed a nudge, its `last_nudge`
 ([The nudge](operator-guide.md#the-nudge)). A thread's `presence` carries the same, with the state
-and outcome its session last reported, and the thread its `unread_by_agent_since`, when the earliest
-message of yours the session has not read was written, so a last check-in at or after it is one that
-left the thread unread. With them a program can say why a stranded thread waits; the
+and outcome its session last reported, and the thread says whether it is `stranded` or `ignored`
+(its agent checked in and left it unread), so a program can say why such a thread waits; the
 [reference](#reference) gives their fields. The second answers at once with the threads, in any
 session, holding messages you have not read, each naming its agent and session; with none, it waits
 up to 25 seconds for one. Its answer holds a `since`: pass that back, as `wait?wait=25&since=...`,

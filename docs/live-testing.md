@@ -93,9 +93,10 @@ disagreement is the finding.
   warning, and left in the input in Claude Code's vim normal mode; a bridge restarted, or a second
   one started, in the middle of a nudge, with no second nudge before the agent checks in; a session
   whose nudge went unanswered shown as not responding; and a thread whose agent checked in after the
-  nudge without reading it stranded once the quiet time passes, saying so, and waiting on a new
-  nudge, not stranded, when the operator then writes to it or another thread of the session
-  (`docs/operator-guide.md` "The nudge").
+  nudge without reading it ignored, not stranded, once the quiet time passes, saying so, listed by
+  the Ignored filter and counted in the sessions view, and waiting on a new nudge, neither, when the
+  operator then writes to it or another thread of the session (`docs/operator-guide.md` "The
+  nudge").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.
@@ -143,63 +144,63 @@ disagreement is the finding.
   and the full ones by touch, a touchscreen laptop among them; the Threads tab side by side at a
   desktop's width, filling it, the list kept as chosen beside each thread opened, the open thread's
   row marked, Back from thread to thread, focus back on the row left, and one at a time below that
-  width; stranded's reasons, in the warning's color in both tabs; the sessions view, its group and
-  agent folds and folded rows with what each session reports, whether its bridge is connected and
-  what its terminal shows, apart from what it reports, its agent's last check-in and whether it is
-  quiet, how old its status is, what came of its latest nudge, unfolded whether it can be nudged,
-  the Needs you flag on a session at a prompt or stopped by something, its header's count and the
-  filter they turn on, its chip turning it off, its open asks in the thread list's words and its
-  threads' roll-up, the links from a row, an agent and a group, their names and every chip standing
-  for threads among them, to the thread list filtered to them, folding nothing, and from a row's and
-  an agent's stranded flag to their stranded threads, a row unfolded to its log and marking it read,
-  the Sessions tab's count of registrations waiting falling as they are approved or rejected, their
-  section one line while none waits, the Threads tab's count of unread threads falling as they are
-  read or archived, and the folds kept, on a phone's width too; the operator's session groups and
-  tags: a session's group and an agent's and a session's tags picked from their options, each pick
-  applied at once, by pointer and by the keys, the pickers beside the menu on a wide screen and as a
-  sheet on a phone, the chips that show them in their colors in both color schemes, and Settings'
-  groups and tags, with create, rename, its refusal of a name another group or tag has, recolor,
-  removal, asked first, and the groups' order by their buttons and by dragging, followed by the
-  sessions view; the sessions view's arrangement, grouped by group, by agent and by session, sorted
-  alphabetically, by registration time and manually, each way, no group last, its groups moved in
-  the manual order by their buttons and by dragging, and the arrangement kept in the address through
-  a reload, Back and a shared link; a thread the operator starts there, with the warning for a
-  session not there to see it, and the agent's reply in it; registration approval, with a group and
-  tags picked, rejection, and revocation from past requests and a session's options; diagrams, drawn
-  in light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons
-  and keys, on a phone's width too; Settings in sections, listed beside the open one on a wide
-  screen and listed first on a phone with each section's way back, with `/passkeys` leading to
-  Passkeys; API keys: one created with each expiry choice, the no-expiry warning and the list's
-  flag, a scope that a chosen one includes shown chosen with it, the secret shown once with Copy and
-  gone once dismissed, nowhere in storage or the address, the list's last use, Revoke asked first,
-  creating and revoking held back without a recent sign-in, and Create held back at 20 live keys, at
-  a phone's width too; and voice set up, with the write-only key shown masked but for its last four
-  characters, what the environment supplies shown read-only, Turn off and Try it; dictation through
-  Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
-  microphone and what it says beside Send on a short screen, its failures keeping the recording for
-  a retry, and a recording stopped when the page is hidden, alike in the composer, an ask's
-  own-words field and the new-thread sheet; and Read aloud and Stop, in WebKit too where it
-  installs; a message's copy button, with its details folded and open; attachments: **Attach**, its
-  menu on a touch device (each item's picker, Escape and a tap elsewhere), a pasted image and a
-  paste carrying text, progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on
-  uploads, a message of files alone, an edit keeping and removing files, a new thread started with
-  files and its sheet cancelled with uploads, each kind of file shown in place, **Show image** and
-  **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
-  **Files** fold, and **Storage**, on a phone's width too; and pull requests and branches: a
-  message's one entry and its fold, the thread's fold, a row's one entry, beside its checkbox too,
-  and its mark counting several, each entry leading to the thread list filtered by it, alone from a
-  message or the thread's fold and added to the list on screen from a row, but selecting the row in
-  its place when held by touch, and when tapped while a touch selection is under way, the forge link
-  beside a message's or the fold's entry opening the forge's page in a new tab, and the filter
-  sheet's **Pull request** and **Branch** with their counts, chips, and the address, on a phone's
-  width too (`docs/operator-guide.md` "Signing in", "Voice", "Attachments" and "Approving agents";
-  `docs/web-ui.md`). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
-  with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
-  opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick
-  list told at a glance from the thread bar's arrow buttons just below it, its choices read in the
-  phone's own picker, and a photo from the phone read by an agent, with an image, a PDF, a video and
-  a text file an agent attached opened in Android Chrome and Windows Edge or Chrome, are the
-  operator's acceptance, not the tester's.
+  width; stranded's and ignored's reasons, in the warning's color in both tabs; the sessions view,
+  its group and agent folds and folded rows with what each session reports, whether its bridge is
+  connected and what its terminal shows, apart from what it reports, its agent's last check-in and
+  whether it is quiet, how old its status is, what came of its latest nudge, unfolded whether it can
+  be nudged, the Needs you flag on a session at a prompt or stopped by something, its header's count
+  and the filter they turn on, its chip turning it off, its open asks in the thread list's words and
+  its threads' roll-up, the links from a row, an agent and a group, their names and every chip
+  standing for threads among them, to the thread list filtered to them, folding nothing, and from a
+  row's and an agent's stranded and ignored flags to their stranded and ignored threads, a row
+  unfolded to its log and marking it read, the Sessions tab's count of registrations waiting falling
+  as they are approved or rejected, their section one line while none waits, the Threads tab's count
+  of unread threads falling as they are read or archived, and the folds kept, on a phone's width
+  too; the operator's session groups and tags: a session's group and an agent's and a session's tags
+  picked from their options, each pick applied at once, by pointer and by the keys, the pickers
+  beside the menu on a wide screen and as a sheet on a phone, the chips that show them in their
+  colors in both color schemes, and Settings' groups and tags, with create, rename, its refusal of a
+  name another group or tag has, recolor, removal, asked first, and the groups' order by their
+  buttons and by dragging, followed by the sessions view; the sessions view's arrangement, grouped
+  by group, by agent and by session, sorted alphabetically, by registration time and manually, each
+  way, no group last, its groups moved in the manual order by their buttons and by dragging, and the
+  arrangement kept in the address through a reload, Back and a shared link; a thread the operator
+  starts there, with the warning for a session not there to see it, and the agent's reply in it;
+  registration approval, with a group and tags picked, rejection, and revocation from past requests
+  and a session's options; diagrams, drawn in light and dark, with their Source toggle, their
+  fallback, and the viewer's gestures, buttons and keys, on a phone's width too; Settings in
+  sections, listed beside the open one on a wide screen and listed first on a phone with each
+  section's way back, with `/passkeys` leading to Passkeys; API keys: one created with each expiry
+  choice, the no-expiry warning and the list's flag, a scope that a chosen one includes shown chosen
+  with it, the secret shown once with Copy and gone once dismissed, nowhere in storage or the
+  address, the list's last use, Revoke asked first, creating and revoking held back without a recent
+  sign-in, and Create held back at 20 live keys, at a phone's width too; and voice set up, with the
+  write-only key shown masked but for its last four characters, what the environment supplies shown
+  read-only, Turn off and Try it; dictation through Chromium's fake microphone and a stub provider,
+  its text at the caret with nothing sent, the microphone and what it says beside Send on a short
+  screen, its failures keeping the recording for a retry, and a recording stopped when the page is
+  hidden, alike in the composer, an ask's own-words field and the new-thread sheet; and Read aloud
+  and Stop, in WebKit too where it installs; a message's copy button, with its details folded and
+  open; attachments: **Attach**, its menu on a touch device (each item's picker, Escape and a tap
+  elsewhere), a pasted image and a paste carrying text, progress, **Remove**, **Retry** and **Upload
+  again**, **Send** waiting on uploads, a message of files alone, an edit keeping and removing
+  files, a new thread started with files and its sheet cancelled with uploads, each kind of file
+  shown in place, **Show image** and **Show text**, a PDF's tab, **Download**, an `attachment:`
+  link, a missing file, the thread's **Files** fold, and **Storage**, on a phone's width too; and
+  pull requests and branches: a message's one entry and its fold, the thread's fold, a row's one
+  entry, beside its checkbox too, and its mark counting several, each entry leading to the thread
+  list filtered by it, alone from a message or the thread's fold and added to the list on screen
+  from a row, but selecting the row in its place when held by touch, and when tapped while a touch
+  selection is under way, the forge link beside a message's or the fold's entry opening the forge's
+  page in a new tab, and the filter sheet's **Pull request** and **Branch** with their counts,
+  chips, and the address, on a phone's width too (`docs/operator-guide.md` "Signing in", "Voice",
+  "Attachments" and "Approving agents"; `docs/web-ui.md`). Real-phone passkeys, Send above a phone's
+  keyboard while writing, dictation with a real provider, diagrams and their viewer in iOS Safari,
+  what each item of Attach's menu opens on a real phone, holding a row down to select it in Android
+  Chrome, After sending's pick list told at a glance from the thread bar's arrow buttons just below
+  it, its choices read in the phone's own picker, and a photo from the phone read by an agent, with
+  an image, a PDF, a video and a text file an agent attached opened in Android Chrome and Windows
+  Edge or Chrome, are the operator's acceptance, not the tester's.
 
 ## Layers to cross-check
 
@@ -244,15 +245,16 @@ On top of the method's failure classes, look for:
   tab's count against the list's total with Unread the only filter on, the Sessions tab's count
   against the registrations waiting for approval, a filter value's count against the list that value
   produces, a group's roll-up against the threads it holds and the list its link opens, a stranded
-  count in the sessions view against the list its link opens, a session flagged Needs you or a
-  stranded thread's condition against the session's terminal, a header's Needs you count against the
-  sessions its filter lists, a session nudged more than once between its agent's check-ins, across a
-  takeover or a restart included, a draft at the prompt submitted with the nudge's message, a nudge
-  shown not responding after the agent checked in, a thread on a session that can be nudged stranded
-  while the nudge is still to come, or not stranded, or nudged again, once the quiet time has passed
-  since a nudge the agent checked in after without reading the thread, a tag on an agent against the
-  threads of each of its sessions, an archived thread that another party's later message failed to
-  bring back to the list, and one the caller's own message brought back.
+  or ignored count in the sessions view against the list its link opens, a session flagged Needs you
+  or a stranded thread's condition against the session's terminal, a header's Needs you count
+  against the sessions its filter lists, a session nudged more than once between its agent's
+  check-ins, across a takeover or a restart included, a draft at the prompt submitted with the
+  nudge's message, a nudge shown not responding after the agent checked in, a thread on a session
+  that can be nudged stranded while the nudge is still to come, a thread both stranded and ignored,
+  or not ignored, or nudged again, once the quiet time has passed since a nudge the agent checked in
+  after without reading the thread, a tag on an agent against the threads of each of its sessions,
+  an archived thread that another party's later message failed to bring back to the list, and one
+  the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them

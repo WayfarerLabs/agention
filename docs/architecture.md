@@ -39,16 +39,17 @@ one file does and why is in that file's header comment, and this document names 
 
 The rest of this document uses these terms:
 
-| Term                   | Meaning                                                                                                                            |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Requester and audience | A thread's two roles: the agent session it belongs to, which alone asks, and the operator, who alone answers                       |
-| Live message           | A message no later one replaces ([Messages and asks](#messages-and-asks))                                                          |
-| Open ask               | An ask still waiting for its answer ([Messages and asks](#messages-and-asks))                                                      |
-| Thread status          | A thread's roll-up of its asks ([Derived state](#derived-state))                                                                   |
-| Marks                  | Each party's own read and archive marks on a thread ([Marks](#marks))                                                              |
-| Quiet                  | A session whose agent has not checked in lately ([Presence, quiet and stranded](#presence-quiet-and-stranded))                     |
-| Connected              | A session whose bridge holds its background connection ([Presence, quiet and stranded](#presence-quiet-and-stranded))              |
-| Stranded               | A thread whose session is not there to read what the operator wrote ([Presence, quiet and stranded](#presence-quiet-and-stranded)) |
+| Term                   | Meaning                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Requester and audience | A thread's two roles: the agent session it belongs to, which alone asks, and the operator, who alone answers                                     |
+| Live message           | A message no later one replaces ([Messages and asks](#messages-and-asks))                                                                        |
+| Open ask               | An ask still waiting for its answer ([Messages and asks](#messages-and-asks))                                                                    |
+| Thread status          | A thread's roll-up of its asks ([Derived state](#derived-state))                                                                                 |
+| Marks                  | Each party's own read and archive marks on a thread ([Marks](#marks))                                                                            |
+| Quiet                  | A session whose agent has not checked in lately ([Presence, quiet and stranded](#presence-quiet-and-stranded))                                   |
+| Connected              | A session whose bridge holds its background connection ([Presence, quiet and stranded](#presence-quiet-and-stranded))                            |
+| Stranded               | A thread whose session is not there to read what the operator wrote ([Presence, quiet and stranded](#presence-quiet-and-stranded))               |
+| Ignored                | A thread whose session's agent checked in and left what the operator wrote unread ([Presence, quiet and stranded](#presence-quiet-and-stranded)) |
 
 ## Components
 
@@ -505,29 +506,33 @@ From those the reads derive, against the request's clock and never stored:
 - **Stranded**: a thread holding a live message of the operator's that the session has not read, and
   nothing will bring it to the agent soon: the session has no active credential or is not connected;
   or it cannot be nudged, its connected bridge's report not saying it can, and it is quiet or has
-  stopped; or it can be nudged, judged by the nudge due for the session or, where none is, the
-  latest one. A nudge is due at the session's prompt where none was claimed since the agent last
-  checked in and any of the session's threads holds a message by anyone but the agent that the agent
-  has neither read nor archived, written after that check-in; that nudge brings the agent to every
-  thread holding a message it has neither read nor archived, so such a thread is stranded once the
-  earliest such message is older than the quiet time. Otherwise the latest nudge since the earliest
-  message the agent has not read was not sent, or was sent, or its outcome is not known, and was
-  claimed longer ago than the quiet time, even where the agent checked in since without reading the
-  thread; or none was claimed since and that message is older than the quiet time, whether or not
-  the agent checked in since it was written. A session that can be nudged is not stranded for
-  waiting at its prompt, since a nudge will bring it. An agent that checks in after the nudge
-  without reading the thread is not nudged for it again, since a nudge is due only for a message
-  written after the last check-in, so the quiet time after the nudge is all the thread waits until
-  the operator writes again, in it or any other thread of the session.
+  stopped; or it can be nudged, the nudge misses the thread, and the thread is not ignored. The
+  nudge is judged by the one due for the session or, where none is, the latest one. A nudge is due
+  at the session's prompt where none was claimed since the agent last checked in and any of the
+  session's threads holds a message by anyone but the agent that the agent has neither read nor
+  archived, written after that check-in; that nudge brings the agent to every thread holding a
+  message it has neither read nor archived, so it misses such a thread once the earliest such
+  message is older than the quiet time. Otherwise it misses the thread once the latest nudge since
+  the earliest message the agent has not read was not sent, or was sent, or its outcome is not
+  known, and was claimed longer ago than the quiet time; or once none was claimed since and that
+  message is older than the quiet time. A session that can be nudged is not stranded for waiting at
+  its prompt, since a nudge will bring it.
+- **Ignored**: a thread the nudge misses, on a session that can be nudged and has an active
+  credential, whose agent last checked in at or after both the earliest message of the operator's it
+  has not read and its latest nudge, if any: the agent was there and left the thread unread. Where
+  stranded follows from a session that stopped, went quiet or lost its connection, ignored says the
+  agent is not doing what it should. An agent that checks in without reading the thread is not
+  nudged for it again, since a nudge is due only for a message written after the last check-in, so
+  nothing more brings it until the operator writes again, in it or any other thread of the session.
+  A thread is never both stranded and ignored, and a session that cannot be nudged has no ignored
+  threads.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as
-the sessions view's page carries it, so a stranded thread can say what the session's terminal shows;
-the thread also carries `unread_by_agent_since`, when the earliest message of the operator's that
-the session has not read was written, so a reason can tell whether its agent checked in since
-without reading the thread; a grouped list's presence for a session or an agent carries quiet, last
-seen and connected, and neither state, outcome nor report. One function describes a session's
-presence for both reads (`presenceOf`, `apps/server/src/store/presence.ts`).
+the sessions view's page carries it, so a stranded or ignored thread can say what the session's
+terminal shows; a grouped list's presence for a session or an agent carries quiet, last seen and
+connected, and neither state, outcome nor report. One function describes a session's presence for
+both reads (`presenceOf`, `apps/server/src/store/presence.ts`).
 
 ### Monitoring reports
 
@@ -638,8 +643,8 @@ that never reported, then stopped ones, each latest seen first. Each session car
   entry was written;
 - its unread updates;
 - how many of its threads the operator has not archived, with how many of those hold messages the
-  operator has not read and how many are stranded, counted for every session of the page in one
-  statement grouped over the threads as the operator sees them;
+  operator has not read, how many are stranded and how many ignored, counted for every session of
+  the page in one statement grouped over the threads as the operator sees them;
 - how many asks are open in all its threads, with how many of those are blocking, which is what
   waits on the operator, counted in one statement grouped over the open asks.
 
@@ -822,17 +827,17 @@ definition.
 
 The operator's list also takes these:
 
-| Filter                      | Keeps the threads                                                                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `priority`                  | With an open ask at that level or higher                                                                                                                           |
-| `impact`                    | With an open ask blocking, or assuming                                                                                                                             |
-| `overdue`                   | With an open ask past its answer-by                                                                                                                                |
-| `effort`                    | With an open ask that states that effort or less, so an ask stating none meets no effort filter                                                                    |
-| `agent_read`                | `unread`: with a live message of the operator's that the session has not read. `stranded`: stranded ([Presence, quiet and stranded](#presence-quiet-and-stranded)) |
-| `agent` and `session`       | Of those agents or sessions, up to 50 of each, a session written `agent/session`                                                                                   |
-| `session_group`             | Whose session is in one of up to 50 of the operator's groups, named by id, `none` naming no group. A group that was removed keeps nothing                          |
-| `tag`                       | Whose session or agent carries one of up to 50 tags. A tag nothing carries or that was removed keeps nothing                                                       |
-| `pull_request` and `branch` | Whose live messages name one of up to 50 short forms of each, the short forms naming each entry once by its key                                                    |
+| Filter                      | Keeps the threads                                                                                                                                                                      |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `priority`                  | With an open ask at that level or higher                                                                                                                                               |
+| `impact`                    | With an open ask blocking, or assuming                                                                                                                                                 |
+| `overdue`                   | With an open ask past its answer-by                                                                                                                                                    |
+| `effort`                    | With an open ask that states that effort or less, so an ask stating none meets no effort filter                                                                                        |
+| `agent_read`                | `unread`: with a live message of the operator's that the session has not read. `stranded`: stranded. `ignored`: ignored ([Presence, quiet and stranded](#presence-quiet-and-stranded)) |
+| `agent` and `session`       | Of those agents or sessions, up to 50 of each, a session written `agent/session`                                                                                                       |
+| `session_group`             | Whose session is in one of up to 50 of the operator's groups, named by id, `none` naming no group. A group that was removed keeps nothing                                              |
+| `tag`                       | Whose session or agent carries one of up to 50 tags. A tag nothing carries or that was removed keeps nothing                                                                           |
+| `pull_request` and `branch` | Whose live messages name one of up to 50 short forms of each, the short forms naming each entry once by its key                                                                        |
 
 `priority`, `impact`, `overdue` and `effort` are the filters on the properties of open asks.
 Together they keep the threads holding one open ask that meets them all, so any of them keeps only
@@ -2196,16 +2201,15 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
   order. In a registration's approval (`Organize.tsx`) the same pickers keep their picks for the
   approval request, and create a group picked new at once, since the approval names its group by id.
 
-Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
-summary (`absenceOf`, `src/format.tsx`): for a session its bridge can nudge, no active credential;
-otherwise its latest nudge with no check-in since, not responding to it or not sent; otherwise,
-where its agent last checked in at or after the thread's `unread_by_agent_since`, that it checked in
-then without reading the thread; otherwise that no nudge came. For any other session, the stop it
-reported, with its outcome; otherwise quiet, with when its agent last checked in; otherwise no
-active credential; otherwise its bridge not connected. Beside any but the last, it says what the
-session's terminal shows, where the bridge reports it. The new-thread sheet warns of the same
-reasons but the last two of a session that can be nudged, which need a thread already stranded, and
-which a new thread's nudge will reach.
+Wherever a thread shows as stranded or ignored, the UI says why from the session's presence in the
+thread's summary (`absenceOf`, `src/format.tsx`): for an ignored thread, when its agent last checked
+in, without reading it. Otherwise, for a session its bridge can nudge, no active credential;
+otherwise its latest nudge with no check-in since, not responding to it or not sent; otherwise that
+no nudge came. For any other session, the stop it reported, with its outcome; otherwise quiet, with
+when its agent last checked in; otherwise no active credential; otherwise its bridge not connected.
+Beside any but the last, it says what the session's terminal shows, where the bridge reports it. The
+new-thread sheet warns of the same reasons but the last of a session that can be nudged, which a new
+thread's nudge will reach, and the first, which only a thread already written to can have.
 
 ### Navigation counts
 

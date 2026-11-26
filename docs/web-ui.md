@@ -120,9 +120,9 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
     open threads, so **Status** shows **Open** while one is on: choosing one under another status
     chooses **Open**, and choosing any other status turns them all off.
   - **Read**: **Unread** keeps the threads with messages you have not read, and **Read by agent**:
-    **Unread** those with a message of yours the agent has not read yet, and **Stranded** those
-    among them whose agent is not there to read it, as
-    [Running the server](operator-guide.md#running-the-server) says.
+    **Unread** those with a message of yours the agent has not read yet, **Stranded** those among
+    them whose agent is not there to read it, and **Ignored** those whose agent checked in and left
+    it unread, as [Running the server](operator-guide.md#running-the-server) says.
   - **Agent**, **Session** and **Topic**, each beside its badge, open a list of the agents, the
     sessions or the topics holding a thread, each with its count, which stays as you check and
     uncheck them; a search box above narrows them by what they show. Check up to 50 of each.
@@ -182,16 +182,17 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   threads, saying why: its session **stopped**, with how; it is quiet, **last check-in** when, or
   **never checked in**; it has **no active credential**; or its bridge is **not connected**. For a
   session its bridge can nudge, it says what came of the nudge instead: **not responding to the
-  nudge at 14:05**, **nudge not sent at 14:05**, **checked in at 14:05 without reading this**, or
-  **not nudged**. Where the session's bridge monitors its terminal, the tag also says what the
-  terminal shows, in the words of the sessions view's rows, such as **last check-in 14:02 · stopped
-  at a permission prompt**. A session with no active credential also shows its own tag, unless the
-  stranded tag already says so. When the thread's messages name one GitHub pull request or branch,
-  it shows beneath, beside the same icon of two lines merging into one, by its short form, which
-  adds it to the filters on, keeping the others, the order and the grouping; its link to GitHub is
-  on the thread's page. When they name two or more, that icon among the row's marks says how many,
-  which a screen reader says in full, such as **2 pull requests, 1 branch**, and the thread's head
-  lists them.
+  nudge at 14:05**, **nudge not sent at 14:05**, or **not nudged**. An ignored thread shows an
+  **Ignored** tag in the same color instead, saying when its agent checked in without reading it:
+  **Ignored · checked in at 14:05 without reading this**. Where the session's bridge monitors its
+  terminal, either tag also says what the terminal shows, in the words of the sessions view's rows,
+  such as **last check-in 14:02 · stopped at a permission prompt**. A session with no active
+  credential also shows its own tag, unless the stranded tag already says so. When the thread's
+  messages name one GitHub pull request or branch, it shows beneath, beside the same icon of two
+  lines merging into one, by its short form, which adds it to the filters on, keeping the others,
+  the order and the grouping; its link to GitHub is on the thread's page. When they name two or
+  more, that icon among the row's marks says how many, which a screen reader says in full, such as
+  **2 pull requests, 1 branch**, and the thread's head lists them.
 - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
   leaving out those under a folded header, as **Select all** does. It stays in view as the list
   scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
@@ -249,12 +250,12 @@ it alone, with no other filter on, showing everything there in the order and gro
 list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row does,
 and a stranded thread says why its session has not read your latest messages: it stopped, and how,
 its agent last checked in when, or never, or its bridge is not connected, or, for a session its
-bridge can nudge, what came of the nudge, such as its agent checking in without reading the thread,
-with what its terminal shows where its bridge monitors it; a session with no active credential says
-so in a notice under the head. **Threads** stays marked in the navigation. The head holds **Jump to
-unread** while anything is unread or an ask is open to you. The messages open on the newest ones, or
-on the first one you had not read after those you archived when that comes before them, and show
-earlier and later ones when you ask.
+bridge can nudge, what came of the nudge; an ignored one says when its agent checked in without
+reading it; each with what its terminal shows where its bridge monitors it; a session with no active
+credential says so in a notice under the head. **Threads** stays marked in the navigation. The head
+holds **Jump to unread** while anything is unread or an ask is open to you. The messages open on the
+newest ones, or on the first one you had not read after those you archived when that comes before
+them, and show earlier and later ones when you ask.
 
 - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it, each
   an icon over a short word: **Threads**, back to the list as you left it, with its filters, order,
@@ -495,25 +496,26 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   short line, and until some agent has a session it explains instead how a registration arrives.
 - Everything in the view that stands for threads is a link opening the thread list on those threads
   alone, with no other filter on: a group's, an agent's or a session's name, a count of threads, the
-  envelope, **Blocked on you**, open asks and stranded threads, each within the header or row it
-  sits on, and a group's or a tag's chip, on the threads in that group or carrying that tag wherever
-  they are. Following one never folds anything: the chevron before a name folds what it heads, as a
-  click anywhere else on the header or the row does but on a link or a button.
+  envelope, **Blocked on you**, open asks and stranded and ignored threads, each within the header
+  or row it sits on, and a group's or a tag's chip, on the threads in that group or carrying that
+  tag wherever they are. Following one never folds anything: the chevron before a name folds what it
+  heads, as a click anywhere else on the header or the row does but on a link or a button.
 - **Agents** holds each agent under a header that folds, as the thread list's group headers do, with
   how many sessions it has and what they add up to: how many of them need you, such as **2 need
   you**, flagged in the warning's color while any do, which lists just those sessions, as **Needs
   you** below says; their threads' roll-up and unread updates as each session's row shows them,
-  their open asks as each row shows its own, their stranded threads, and the agent's tags. At the
-  header's end, its threads open the thread list on the agent's threads; how many of them are
-  stranded, flagged while any are, opens it on those, as the **Stranded** filter does; and the **⋯**
-  button opens **Tags**. Once you have put any session in a group, the agents fold under their
-  groups, groups in your order and **No group** last, each group's head showing what its sessions
-  add up to, how many of them need you, with **Blocked on you** when an ask in them blocks an
-  agent's work on your answer, and a link opening the thread list on the group's threads. An agent
-  with sessions in two groups shows under each with that group's sessions, and its threads' links
-  open its threads, and its stranded threads, in that group. This browser keeps the groups you fold,
-  a group however you rename it. Under each agent, each session is a folded row, so that many fit on
-  a screen. Its first line holds the session's name, the title its agent gave this line of work, cut
+  their open asks as each row shows its own, their stranded and ignored threads, and the agent's
+  tags. At the header's end, its threads open the thread list on the agent's threads; how many of
+  them are stranded, flagged while any are, opens it on those, as the **Stranded** filter does, and
+  how many are ignored likewise, as the **Ignored** filter does; and the **⋯** button opens
+  **Tags**. Once you have put any session in a group, the agents fold under their groups, groups in
+  your order and **No group** last, each group's head showing what its sessions add up to, how many
+  of them need you, with **Blocked on you** when an ask in them blocks an agent's work on your
+  answer, and a link opening the thread list on the group's threads. An agent with sessions in two
+  groups shows under each with that group's sessions, and its threads' links open its threads, and
+  its stranded and ignored threads, in that group. This browser keeps the groups you fold, a group
+  however you rename it. Under each agent, each session is a folded row, so that many fit on a
+  screen. Its first line holds the session's name, the title its agent gave this line of work, cut
   to fit, and its percent toward the goal; the second, where the session is as Agention knows it,
   apart from what its agent reports:
   - **Connected** while its bridge is, and **Not connected** once it is not, in the warning's color
@@ -558,10 +560,11 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   - **No credential**, when it has no active credential;
   - its group, in a chip with a dashed border, and its tags, each led by **#**;
   - its threads' roll-up, as the thread list's headers show theirs: how many threads you have not
-    archived, which opens the thread list on the session; how many are stranded, flagged as on an
-    agent's header, which opens it on those alone; the closed envelope with how many are unread, or
-    the open envelope when none is, the closed one opening it on the session's unread threads.
-    **Blocked on you** shows once, before its open asks, as on an agent's header;
+    archived, which opens the thread list on the session; how many are stranded, and how many
+    ignored, each flagged as on an agent's header and opening it on those alone; the closed envelope
+    with how many are unread, or the open envelope when none is, the closed one opening it on the
+    session's unread threads. **Blocked on you** shows once, before its open asks, as on an agent's
+    header;
   - its unread updates, such as **2 new updates**;
   - and its latest update's note, cut to fit, with none after the server marked it working.
 
