@@ -106,6 +106,11 @@ every check that can be made before each key.
   warning stays in the input, never submitted.
 - A harness with no profile of its own is monitored but never nudged; nudging it waits on a profile
   captured from its screens.
+- `stranded` on the operator API's version 1 changes what it means in place, by the maintainer's
+  decision under [ADR 0005](0005-operator-api-meaning-before-1-0.md), and is marked breaking: for a
+  session that can be nudged it follows the nudge rather than the session being quiet or stopped,
+  and a thread whose agent checked in without reading it is ignored, a status of its own, rather
+  than stranded.
 - Check-ins are stamped to the minute, so a check-in up to a minute after the operator writes can
   leave a nudge due for a message the agent already saw; the agent reading the thread ends it.
 - Other nudge types, such as a host's SDK, can join behind the same server rule, claim and outcome;
