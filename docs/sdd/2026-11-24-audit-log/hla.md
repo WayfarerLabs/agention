@@ -178,10 +178,11 @@ uids, and knows the reuse for a rollback. The operator guide's "Backing up" says
 
 ### Events
 
-Every event is an OCSF 1.9.0 object, built by one module from typed inputs only, with its keys in a
-fixed order. No request body reaches it; the one string a client chooses, the user agent, is cut to
-256 characters. A success's path is the routed path, whose parameters the operation's schemas
-accepted; a failure's is the matched route pattern (`c.req.routePath`), never the raw path.
+Every event is an OCSF 1.9.0 object, built by one module from typed inputs only. No request body
+reaches it; besides bounded, grammar-checked names and media types, the only text a client chooses
+freely, the user agent, is cut to 256 characters. A success's path is the routed path, whose
+parameters the operation's schemas accepted; a failure's is the matched route pattern
+(`c.req.routePath`), never the raw path.
 
 - `class_uid`, `category_uid`, `activity_id`, `type_uid`, `class_name`, `activity_name`;
 - `time` (epoch milliseconds), `severity_id` (1 Informational, 2 Low for a failure), `status_id` (1
@@ -266,21 +267,14 @@ one line, without the indentation.
 ### Dispatcher and sinks
 
 ```ts
+// A sink is named by its kind, which its cursor and stderr lines carry.
 interface Sink {
-  readonly name: string;
-  // Delivers events in sequence order. Resolves with the last sequence the
-  // destination accepted, which may be short of the batch's end.
-  deliver(batch: readonly AuditRecord[], signal: AbortSignal): Promise<Delivery>;
+  readonly kind: "stdout" | "file";
+  // Delivers events in sequence order. Resolves once the destination took
+  // the whole batch; throws when it did not, and the batch is sent again.
+  deliver(batch: readonly AuditRecord[]): Promise<void>;
   close(): Promise<void>;
 }
-// accepted: the destination took the batch through `through`.
-// retry: a failure that may pass, such as an outage; sent again later.
-// paused: the destination refused the request for good; sent again only
-// once the operator restarts the server.
-type Delivery =
-  | { outcome: "accepted"; through: number }
-  | { outcome: "retry"; retryAfterMs?: number; reason: string }
-  | { outcome: "paused"; reason: string };
 interface AuditRecord {
   seq: number;
   uid: string;
@@ -295,11 +289,15 @@ One loop per sink, in `agention serve` only:
 loop:
   batch <- events after the sink's cursor, at most 100 events or 1 MiB
   if empty: wait for a wake (a commit that recorded events) or 30 seconds
-  result <- deliver(batch)
-  accepted: cursor <- result.through, in a short transaction; backoff reset
-  retry:    note the failure; wait max(retryAfter, backoff); backoff doubles, 1 s to 5 min, jittered
-  paused:   note the failure as refused, with its status; this sink's loop ends until the next start
+  deliver(batch)
+  resolved: cursor <- the batch's last sequence, in a short transaction
+  threw:    note the failure; wait 5 seconds, then send the batch again
 ```
+
+P3 adds what the OTLP sink needs beside resolving and throwing: a failure that may pass carrying the
+destination's `Retry-After`, waited out with a backoff that doubles from 1 second to 5 minutes,
+jittered; and a pause, for a destination that refused the request for good, which ends that sink's
+loop until the next start. The rest of this section describes the outcomes as P3 has them.
 
 - **Never dropped, never resent against the protocol.** A failure that may pass is `retry`: for
   OTLP, a 429, 502, 503, or 504, a timeout, or a network error; for stdout and a file, any failed

@@ -1,7 +1,8 @@
 # Audit log: P1 Low-Level Design
 
 - Status: Following the accepted FRD and the HLA, which matches it; the lead's rulings and the
-  reviews of 2026-11-26 are applied ([Rulings](#rulings)).
+  reviews of 2026-11-26 are applied ([Rulings](#rulings)), and the details settled while building P1
+  recorded ([Settled in building](#settled-in-building)).
 - Date: 2026-11-26
 - Requirements: [FRD](frd.md) R1 to R17 and its rulings; architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md), whose sections 5 and 6 hold this design's evidence on OCSF
@@ -21,8 +22,8 @@ words, without requirement numbers or pointers here.
 
 | Where                                         | Holds                                                                                 |
 | --------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `S/audit/actions.ts` (new)                    | the action table: each action's class, activity, and input type                       |
-| `S/audit/events.ts` (new)                     | the builder: typed inputs to the OCSF object, keys in a fixed order                   |
+| `S/audit/actions.ts` (new)                    | the action table: each action's class, activity, and `build`, which types its input   |
+| `S/audit/events.ts` (new)                     | the builder: what every event shares, around what the action's `build` names          |
 | `S/audit/record.ts` (new)                     | `recordAudit`, inside the caller's transaction, and `recordFailure`, in its own       |
 | `S/audit/dispatcher.ts`, `S/audit/sinks/`     | the dispatcher and the stdout and file sinks (HLA "Dispatcher and sinks")             |
 | `S/audit/retention.ts` (new)                  | pruning, run at start and with the upload sweep                                       |
@@ -89,10 +90,10 @@ tests check those three beside the schema ([Testing](#testing-notes)).
 
 ## The event
 
-### Keys, in order
+### Keys
 
-The builder writes every event's keys in this order, leaving out those that do not apply, and
-nothing else. `JSON.stringify` keeps insertion order for keys that are not integers, which none is.
+An event holds these keys, leaving out those that do not apply, and nothing else; their order is not
+part of the format.
 
 1. `class_uid`, `category_uid`, `activity_id`, `type_uid`, `class_name`, `activity_name`
 2. `time`; for a coalesced failure `count`, `start_time`, `end_time`; then `severity_id`,
@@ -217,8 +218,9 @@ key id maps there too).
   any schema reading the path, so its raw path is whatever the client sent. `c.req.routePath`, read
   in the route's handler where every recorded failure is caught, is the pattern the server declared
   with the mount's prefix, such as `/api/operator/v1/s/:agent/:session/threads/:thread/messages`
-  (checked with Hono 4.13.19, the locked version). The user agent, bounded, stays the only string a
-  client chooses that reaches an event.
+  (checked with Hono 4.13.19, the locked version). Beside it, what clients chose reaches an event
+  only as bounded, grammar-checked names and an upload's media type; the user agent, cut to 256
+  units, is the only free-form text a client chooses that reaches one.
 - Command-line events carry no `http_request`.
 
 ### Resources and entities
@@ -426,20 +428,23 @@ malformed, or unknown key carries none, and records nothing (FRD R1).
 Anyone who can reach the server can cause failures, and the rate budgets bound their CPU, not their
 storage (HLA). So every failure event is coalesced:
 
-- **Its kind** is its action, its credential, and its `status_detail`: `signIn` and `usePasskeyLink`
-  with neither, `authenticateApiKey` with each key and `key_revoked` or `key_expired`, and
-  `authorizeScope` with each key and `scope`. A key's revoked and expired refusals never fold
-  together. A coalesced event's `src_endpoint`, `http_request`, and for a scope refusal
-  `api.operation` and activity, are its first failure's, as its origin is (FRD R2).
+- **Its kind** is its action, its credential, its `status_detail`, and the status its caller was
+  answered with (`http_response.code`): `signIn` and `usePasskeyLink` with neither credential nor
+  code, `authenticateApiKey` with each key and `key_revoked` or `key_expired`, and `authorizeScope`
+  with each key and `scope`. A key's revoked and expired refusals never fold together, and a key
+  refused partway through a download, which records no status, counts apart from one answered 401. A
+  coalesced event's `src_endpoint`, `http_request`, and for a scope refusal `api.operation` and
+  activity, are its first failure's, as its origin is (FRD R2).
 - **Its minute** is the UTC minute of its first failure: `open_until` is the end of that minute,
   `(floor(time / 60000) + 1) * 60000`.
 - **The first failure** of a kind in a minute inserts an event with `count` 1, `start_time` and
   `end_time` its `time`, and `open_until` set.
 - **A later failure** of that kind while `open_until` is after the store's clock rebuilds the
   event's JSON with `count` one higher and `end_time` its time, and updates the row: `JSON.parse`,
-  set the two fields, `JSON.stringify`, which keeps every other byte, key order included. The update
-  trigger allows exactly that ([below](#the-migration)).
-- **Once the minute ends** the event is final. The next failure of the kind opens a new one.
+  set the two fields, and write it again as the builder does, which keeps every other field. The
+  update trigger allows exactly that ([below](#the-migration)).
+- **Once the minute ends**, or once delivery takes it, the event is final. The next failure of the
+  kind opens a new one.
 
 **`start_time` and `end_time` at a count of 1** depart from `ocsf:events/base_event.json`, which
 asks them only of an aggregate with `count` above 1 and says not to populate them for a discrete
@@ -453,8 +458,11 @@ most one per kind is open:
 
 ```sql
 SELECT seq, event FROM audit_events INDEXED BY audit_events_open
-WHERE open_until > :now AND action = :action AND credential_kind = :kind
-  AND credential_id IS :id AND json_extract(event, '$.status_detail') IS :detail
+WHERE open_until > :now AND open_until <= :now + 60000 AND action = :action
+  AND credential_kind = :kind AND credential_id IS :id
+  AND json_extract(event, '$.status_detail') IS :detail
+  AND json_extract(event, '$.http_response.code') IS :answer
+  AND seq > (SELECT coalesce(max(delivered_seq), 0) FROM audit_sinks)
 ```
 
 **The bound.** One event per kind per minute, whatever the rate. The two kinds without a credential
@@ -533,9 +541,16 @@ END;
 
 -- An event never changes, but for an open coalesced failure, which no sink
 -- has received: its count rises and its end_time moves on, within its
--- minute, both staying integers, and nothing else changes.
+-- minute, both staying integers, and nothing else changes; or it closes,
+-- open_until becoming null and nothing else changing, as delivery closes it
+-- once it takes it.
 CREATE TRIGGER audit_events_fixed BEFORE UPDATE ON audit_events
-WHEN old.open_until IS NULL
+WHEN NOT (old.open_until IS NOT NULL AND new.open_until IS NULL
+    AND new.seq IS old.seq AND new.uid IS old.uid AND new.time IS old.time
+    AND new.class_uid IS old.class_uid AND new.action IS old.action
+    AND new.outcome IS old.outcome AND new.credential_kind IS old.credential_kind
+    AND new.credential_id IS old.credential_id AND new.event IS old.event)
+AND (old.open_until IS NULL
   OR EXISTS (SELECT 1 FROM audit_sinks WHERE delivered_seq >= old.seq)
   OR new.seq IS NOT old.seq OR new.uid IS NOT old.uid OR new.time IS NOT old.time
   OR new.class_uid IS NOT old.class_uid OR new.action IS NOT old.action
@@ -547,9 +562,9 @@ WHEN old.open_until IS NULL
     IS NOT json_remove(old.event, '$.count', '$.end_time')
   OR json_extract(new.event, '$.count') <= json_extract(old.event, '$.count')
   OR json_extract(new.event, '$.end_time') < json_extract(old.event, '$.end_time')
-  OR json_extract(new.event, '$.end_time') >= old.open_until
+  OR json_extract(new.event, '$.end_time') >= old.open_until)
 BEGIN
-  SELECT RAISE(ABORT, 'an audit event changes only as an open failure counts another');
+  SELECT RAISE(ABORT, 'an audit event changes only as an open failure counts another or closes');
 END;
 
 -- Only the oldest event is ever removed, and only once every sink has it.
@@ -680,20 +695,25 @@ run until it deletes nothing, yielding between transactions as the sweep's vacuu
 
 ### Reading for delivery
 
-A sink's batch, at most 100 events or 1 MiB, in exactly this form:
+A sink's batch, at most 100 events or 1 MiB, in exactly this form, read in a transaction that also
+closes each coalesced failure in it, setting its `open_until` to null, so nothing counts into an
+event once it is copied for a destination:
 
 ```sql
 SELECT seq, uid, time, event FROM audit_events
 WHERE seq > :delivered
   AND seq < coalesce(
-    (SELECT min(seq) FROM audit_events INDEXED BY audit_events_open WHERE open_until > :now),
+    (SELECT min(seq) FROM audit_events INDEXED BY audit_events_open
+      WHERE open_until > :now AND open_until <= :now + 60000 AND seq > :delivered),
     9223372036854775807)
 ORDER BY seq LIMIT 100
 ```
 
-The subquery has no `seq > :delivered`: an open event is never behind a cursor, since no sink is
-delivered past one. On 300,000 events with the last few failures open, with no `ANALYZE`, this form
-searches the index (`SEARCH audit_events USING COVERING INDEX audit_events_open (open_until>?)`) and
+The subquery carries `seq > :delivered`, as does the wait for the first open event's end. Since
+delivery closes every event it takes, none behind a cursor is open; the bound, like the lookup's and
+the update trigger's by the cursors, is defense in depth. On 300,000 events with the last few
+failures open, with no `ANALYZE`, this form searches the index
+(`SEARCH audit_events USING COVERING INDEX audit_events_open (open_until>? AND open_until<?)`) and
 answers in about 0.03 ms; without `INDEXED BY`, the same subquery walks the primary key
 (`SEARCH audit_events`) and takes about 6 ms, growing with the backlog. `INDEXED BY` also fails the
 statement if the index is ever missing, rather than slowing it. A sink new to the database is
@@ -963,11 +983,11 @@ agention serve ... --audit-dir /var/lib/agention-audit --audit-group agention-au
 What P1's tests need from this design, beyond the plan's list:
 
 - **Fixtures.** The three class schemas from schema.ocsf.io's export without profiles, for the
-  pinned version, under `apps/server/src/audit/fixtures/`, with a note of their URL, the tag they
-  match, and the date fetched; and the tag's `ocsf:` source files this design cites, for a reviewer
-  to check them against. `ajv` validates every action's event against its class's schema, and the
-  same test checks `type_uid`, `ip` (`net.isIP`, at most 40 characters), and `metadata.uid` (a
-  UUID).
+  pinned version, under `apps/server/src/audit/fixtures/`, kept as fetched, with a note of their
+  URL, the date fetched, and the `ocsf/ocsf-schema` tag and commit they are built from, which a
+  reviewer checks this design's `ocsf:` citations against. `ajv` validates every action's event
+  against its class's schema, and the same test checks `type_uid`, `ip` (`net.isIP`, at most 40
+  characters), and `metadata.uid` (a UUID).
 - **Samples.** Each action's event in the tests is built from the store's own rows by driving the
   action, never written by hand, so the fixture checks what the code emits. One sample per shape was
   validated while writing this design, against both 1.9.0 and 1.10.0: each class and activity, every
@@ -982,6 +1002,102 @@ What P1's tests need from this design, beyond the plan's list:
   refusal, `approveRegistration`'s group or tags refused to a key without `sessions:write`, a key
   revoked during a long poll, and a revoked or expired key presented; and the two budgets' refusals
   of a key at authentication are never recorded twice.
+
+## Settled in building
+
+Details this design left open, or stated in a way the code could not follow exactly, settled while
+building P1:
+
+- **`activateApiKey`'s path is its route.** A key's first use is recorded where the key is
+  authenticated, before any schema has read the path, so the path is whatever the client sent. The
+  event names the route's pattern, as a failure does, and no `http_response`, since the answer is
+  not yet known.
+- **The route's pattern** is read with Hono's `routePath(c)` from `hono/route`, the supported form
+  of `c.req.routePath` at the locked version, in the handler that authenticates. On the agent mount
+  the identity is built in middleware declared for `/s/*`, so its pattern is that wildcard; nothing
+  recorded for an agent is a failure, so no event carries it.
+- **Actors with no identity.** Beside an identity, the command line, and a request with none, the
+  recorder takes two actors of its own: a registration's key, for `register`, which has no identity
+  yet, and a refused API key, by its id, for a revoked or expired key at authentication.
+- **3002's `service`** is the server's name, as the instance row stores it, and its origin, which
+  `RequestOrigin` carries as `serverOrigin`, set where each mount reads the request. The first start
+  to serve stores the name before it answers a request, so a sign-in always finds it; the test
+  fixtures store it as `serve` does.
+- **A message's `data`** always carries `replaces` and `status`, `null` when the message replaces
+  none or reports none, so every message event has the same keys. `approveRegistration`'s `group`
+  and `tags` are left out when the approval sets none, and `group` is `null` when it clears one.
+- **Ended sessions** are the live ones only, by both expiries; a session already expired is not
+  ended by the action. `removePasskey` reads them, and records, before the deletion that ends them.
+- **The sweep.** `S/store/file-sweep.ts` becomes `S/store/sweep.ts`, whose `sweepRegularly` runs the
+  audit prune and then the upload sweep, at start and every 10 minutes; a prune that fails is logged
+  and the upload sweep still runs.
+- **P1's `Sink.deliver(batch)` resolves or throws**: resolving delivers the whole batch, and
+  throwing fails it, to be sent again after a fixed 5 seconds. There is no partial acceptance, no
+  abort signal, and no `Delivery` type; the pause, `retryAfterMs`, and the backoff arrive with the
+  OTLP sink in P3, the only sink that can answer them. A sink is named by its `kind` (`stdout` or
+  `file`), the name its cursor and stderr lines use.
+- **The file sink rotates lazily**: at the first write of a later UTC day, the current file is
+  renamed for the day of its last write, to the first of `audit-DAY.jsonl`, `audit-DAY.1.jsonl`, and
+  so on that does not exist (as after a clock stepped back), and the rotated files beyond
+  `--audit-keep-days` are removed, oldest first.
+- **The file holds whole lines.** Opening a current file that does not end with a newline, as a
+  crash mid-write leaves it, writes one first; a write or sync that fails is cut back to the size
+  before the batch. The directory is synced after a file is made or renamed in it. Before each write
+  the sink compares the path's inode with its descriptor's and starts a new file when the one it
+  holds has moved, as logrotate or a collector's delete moves it. `close` waits for the write under
+  way, so no write outlives its descriptor.
+- **`packages/private-files`** gains `appendToPrivateFile`, which opens or makes a file for
+  appending under the rule, and a reading group's id, `gid`, for each of its checks: with one, the
+  directory must be exactly 0750 and a file exactly 0640, in that group; without one, the rule as it
+  was, no access for group or other. A file or directory it makes takes its group before its mode,
+  since changing the group can clear mode bits.
+- **The group lookup** runs `getent group -- NAME`, so a name beginning with `-` is never read as an
+  option, with 10 seconds to answer. `getent` also resolves a numeric gid, so `--audit-group`
+  accepts one.
+- **`agention audit forget-sink`** reports the sequence the cursor had delivered on standard output.
+  The command line's output takes a write callback, which the stdout sink delivers a batch by, so
+  the sink writes to the same stream the command's tests capture, and an error listener, which
+  `serve` gives standard output when it carries the log. No lock keeps `forget-sink` from a running
+  server, so the dispatcher moves a cursor with an update that answers whether the row exists, and
+  stops a sink whose cursor is gone, saying so on stderr, until the next start.
+- **A failure is open while its minute's end is ahead and no more than a minute ahead.** One further
+  ahead was recorded before the clock stepped back; it neither holds back delivery nor takes another
+  count. Since delivery closes every event it takes (below), none a sink has passed is open; the
+  coalescing lookup's bound by the greatest cursor, delivery's by the sink's own, and the update
+  trigger's are kept as defense in depth.
+- **Delivery closes a failure as it takes it.** In the transaction that selects a batch, each
+  coalesced failure in it has its `open_until` set to null, which the update trigger allows as the
+  one other change an open failure may make. Nothing counts into it after, so a failure recorded
+  while its batch is in flight, as after a step back, starts an event of its own, and every
+  destination and the database hold the same count for each event.
+- **A key refused partway through a download is recorded.** The first chunk is read before the
+  answer starts, so its refusal propagates and is recorded as any other; a later chunk's refusal
+  cuts the connection, and the operation's input carries `refused`, which records it with the same
+  recorder and within the budget the request already spent. Its event has no `http_response`, since
+  the client was answered 200 or 206 and then cut off, and a failure's kind includes the status its
+  caller was answered with, so such refusals count apart from those answered 401. Uploads and long
+  polls let a refusal propagate, so the mount records theirs.
+- **A stalled delivery is named.** The dispatcher keeps when each sink's delivery began, and a check
+  every 5 seconds names on stderr one under way longer than 60 seconds, every 15 minutes while it
+  stays so, without ending it, and says when it completes.
+- **Stopping delivers what is pending**, within the 5-second grace. The loops stop, then the sweep
+  and the database close, whatever failed before, and the sinks close last, since a file sink's
+  close waits for its write under way.
+- **`S/audit/serve-options.ts`** reads `serve`'s audit options and opens their sinks, beside
+  `S/cli-flags.ts`, which holds the usage error and the whole-number reader the commands share.
+- **`agention serve` opens the sinks before the database**, so a directory the private-file rule
+  refuses stops it first, and gives each configured sink its cursor before the first prune, so a
+  sink new to the database receives what retention would remove.
+- **Events are written on one line for every reader**: NEL, LINE SEPARATOR, and PARAGRAPH SEPARATOR,
+  which JSON leaves as they are, are escaped in the stored JSON and so in every sink.
+- **The command line's user** is the one `os.userInfo()` names; a uid with no entry in the user
+  database, as a container run with a bare uid has, is named by its uid alone, with no name and no
+  `os_user` in the credential.
+- **`archiveThread`** carries the status its write logged (`statusOnWrite`), as a message does, in
+  its thread's `data.status`.
+- **The action table** holds one entry per success action, `{ class, activity, build }`, with each
+  input's type taken from its `build`; `authenticateApiKey` and `authorizeScope`, which only fail,
+  are built by `buildFailure` and have no entry.
 
 ## Rulings
 

@@ -28,90 +28,92 @@ Design:
       `actor.session`, the unknown user of a failed sign-in, and required objects such as 6003's
       `src_endpoint` when the peer is unknown); the fixed `status_detail` codes; coalescing; the
       table, its indexes and triggers; how the store records inside its transactions; the options;
-      whether packaged Vector and Grafana Alloy run as their own users.
+      whether packaged Vector and Grafana Alloy run as their own users. (#187)
 - [x] The OCSF version: the lead confirmed 1.9.0 on 2026-11-26, before 1.10.0 was eligible under the
       seven-day hold-back (2026-11-27), on consumers' lag, since 1.10.0 changes nothing P1 uses;
-      recorded in the LLD, to move when a later phase needs a 1.10.0 attribute.
+      recorded in the LLD, to move when a later phase needs a 1.10.0 attribute. (#187)
 
 Server:
 
-- [ ] Migration: `audit_events` (`seq` `AUTOINCREMENT`, `uid` unique, the filter columns, `event`,
+- [x] Migration: `audit_events` (`seq` `AUTOINCREMENT`, `uid` unique, the filter columns, `event`,
       `open_until`), its triggers (no update but an open failure's count; delete only the oldest
       row, and only once every sink has passed it), the open-failure index, `audit_sinks` (each
       sink's cursor alone), `instance.uid`, and `browser_sessions.id` with existing sessions given
-      one; its frozen hash.
-- [ ] `Credential` carries a browser session's id and passkey id; `Identity` carries the request's
+      one; its frozen hash. (#187)
+- [x] `Credential` carries a browser session's id and passkey id; `Identity` carries the request's
       origin (peer address, user agent cut to 256 characters), set where each mount authenticates;
-      the writes with no identity take an origin of their own.
-- [ ] The event builder: typed inputs only, keys in a fixed order, a random uid, the sequence, the
-      instance id; the OCSF class schemas kept as test fixtures and `ajv` added to the server's
-      development dependencies at its locked version.
-- [ ] `recordAudit` in every mutating store function, in its transaction, waking the dispatcher with
-      `queueMicrotask`; the web-only routes record theirs.
-- [ ] Sign-in, sign-out and passkey link use; failures recorded in their own transaction once they
-      have spent their rate budget, coalesced per kind per minute with a count.
-- [ ] API keys: create, revoke, revocation by a passkey link (in its transaction), and first use,
-      recorded in one transaction with the `last_used_at` update `authenticateApiKey` makes.
-- [ ] Registrations: submit, approve, reject and revoke.
-- [ ] Passkeys added, renamed and removed, and replaced by a passkey link, as Entity Management 3004
-      like API keys; voice settings set and cleared, never with the key.
-- [ ] Failures after authentication (FRD R1): a live key refused for scope, and a revoked or expired
+      the writes with no identity take an origin of their own. (#187)
+- [x] The event builder: typed inputs only, a random uid, the sequence, the instance id; the OCSF
+      class schemas kept as test fixtures and `ajv` added to the server's development dependencies
+      at its locked version. (#187)
+- [x] `recordAudit` in every mutating store function, in its transaction, waking the dispatcher with
+      `queueMicrotask`; the web-only routes record theirs. (#187)
+- [x] Sign-in, sign-out and passkey link use; failures recorded in their own transaction once they
+      have spent their rate budget, coalesced per kind per minute with a count. (#187)
+- [x] API keys: create, revoke, revocation by a passkey link (in its transaction), and first use,
+      recorded in one transaction with the `last_used_at` update `authenticateApiKey` makes. (#187)
+- [x] Registrations: submit, approve, reject and revoke. (#187)
+- [x] Passkeys added, renamed and removed, and replaced by a passkey link, as Entity Management 3004
+      like API keys; voice settings set and cleared, never with the key. (#187)
+- [x] Failures after authentication (FRD R1): a live key refused for scope, and a revoked or expired
       key found by its hash, each recorded once its budget is spent and coalesced per key and code,
       with the caller's answer unchanged; the same two refused inside the store
       (`approveRegistration`'s group or tags, a key revoked or expired mid-request), recorded once
-      the transaction has rolled back; an unknown key records nothing.
-- [ ] `agention passkey-link` records the link it issues in the same transaction.
-- [ ] The dispatcher: a loop per sink from its cursor, woken after a transaction that recorded
+      the transaction has rolled back; an unknown key records nothing. (#187)
+- [x] `agention passkey-link` records the link it issues in the same transaction. (#187)
+- [x] The dispatcher: a loop per sink from its cursor, woken after a transaction that recorded
       events and by a 30-second poll; an open coalesced failure held until its minute ends; a new
-      sink from the oldest retained event; a short fixed retry; 5 seconds at shutdown.
-- [ ] Each sink's cursor in `audit_sinks` and its state in the dispatcher's memory, and stderr lines
+      sink from the oldest retained event; a short fixed retry; 5 seconds at shutdown. (#187)
+- [x] Each sink's cursor in `audit_sinks` and its state in the dispatcher's memory, and stderr lines
       when a sink starts failing, every 15 minutes while it fails, and when it recovers, naming the
       sink by kind; the cursor of a sink no longer configured kept, and named on stderr at start and
-      every 15 minutes.
-- [ ] `agention audit forget-sink --data DIR KIND`: removes a cursor and records its event.
-- [ ] The stdout sink (`--audit-stdout`), acknowledging once a write has drained.
-- [ ] The file sink (`--audit-dir`): `audit.jsonl` rotated daily, `--audit-keep-days` (30), the
+      every 15 minutes. (#187)
+- [x] `agention audit forget-sink --data DIR KIND`: removes a cursor and records its event. (#187)
+- [x] The stdout sink (`--audit-stdout`), acknowledging once a write has drained. (#187)
+- [x] The file sink (`--audit-dir`): `audit.jsonl` rotated daily, `--audit-keep-days` (30), the
       directory 0700 and files 0600 through `packages/private-files`, or 0750 and 0640 with
       `--audit-group` (the package learning a group-readable mode), `fsync` before acknowledging.
-- [ ] `--audit-retention-days` (365, 0 for forever); pruning at start and with the upload sweep, in
-      bounded batches; the usage text in `apps/server/src/cli.ts`.
+      (#187)
+- [x] `--audit-retention-days` (365, 0 for forever); pruning at start and with the upload sweep, in
+      bounded batches; the usage text in `apps/server/src/cli.ts`. (#187)
 
 Tests:
 
-- [ ] Coverage: every declared `POST` on the web, operator and agent mounts, and every web-only
+- [x] Coverage: every declared `POST` on the web, operator and agent mounts, and every web-only
       route, produces exactly its one primary event with the right credential, or none when
-      declared.
-- [ ] Every action's event validates against the pinned class schemas.
-- [ ] Failures before and after authentication recorded only within their budgets, a minute of them
-      one event with its count, and an unknown key never.
-- [ ] Atomicity: a failed write leaves no event; a failed audit insert fails the write.
-- [ ] Triggers: they refuse an update other than an open count (its `count` and `end_time` kept
-      integers), a delete out of order, and a delete a sink has not passed.
-- [ ] A marker planted in every secret and content field (session cookie and its hash, CSRF token,
+      declared. (#187)
+- [x] Every action's event validates against the pinned class schemas. (#187)
+- [x] Failures before and after authentication recorded only within their budgets, a minute of them
+      one event with its count, and an unknown key never. (#187)
+- [x] Atomicity: a failed write leaves no event; a failed audit insert fails the write. (#187)
+- [x] Triggers: they refuse an update other than an open count (its `count` and `end_time` kept
+      integers), a delete out of order, and a delete a sink has not passed. (#187)
+- [x] A marker planted in every secret and content field (session cookie and its hash, CSRF token,
       key secret, link token, passkey material, the instance's challenge key, an agent's
       `Authorization` token, the transcription key and audio, message and answer text, title, file
-      name and bytes) appears in no event, stderr line or `audit_sinks` row.
-- [ ] Dispatcher and sinks: resume from the cursor after a restart; the cursor of a sink no longer
+      name and bytes) appears in no event, stderr line or `audit_sinks` row. (#187)
+- [x] Dispatcher and sinks: resume from the cursor after a restart; the cursor of a sink no longer
       configured kept and `forget-sink` removing it; stdout under backpressure; file rotation,
-      permissions, the group option and keep; options refused when malformed.
+      permissions, the group option and keep; options refused when malformed. (#187)
 
 Collateral:
 
-- [ ] A new ADR: the audit log, OCSF 1.9.0, the table as system of record and outbox, off-box
+- [x] A new ADR: the audit log, OCSF 1.9.0, the table as system of record and outbox, off-box
       delivery as the tamper evidence and its limit, pluggable sinks, and what it records and never
       records. It reconciles two existing statements of ADR 0001: pruning the log is the first
       deletion of append-only history ("history is retained"), and delivering to sinks is the
-      server's first outbound channel of its own ("No push"), each scoped to the audit log.
-- [ ] SECURITY.md: what is recorded and never recorded, credentials by non-secret ids, the files'
+      server's first outbound channel of its own ("No push"), each scoped to the audit log. (#187)
+- [x] SECURITY.md: what is recorded and never recorded, credentials by non-secret ids, the files'
       modes and the group option, addresses behind a proxy, the delivered copy as the evidence and
       what it does not cover, reads of the log not recorded, and that a restore rolls the log back.
-- [ ] Operator guide: an "Audit log" section (what is recorded, the format, stdout and files,
+      (#187)
+- [x] Operator guide: an "Audit log" section (what is recorded, the format, stdout and files,
       retention, which sink fits which setting), the options table, the `agention audit forget-sink`
-      command under "Commands", and "Backing up" on restoring the log.
-- [ ] Architecture document: recording, the table, the dispatcher and sinks.
-- [ ] Review checklist: the audit check (each write records its event in its own transaction;
-      nothing secret or content-bearing reaches the builder).
-- [ ] Live testing guide: checking delivery to stdout and a file on a live instance.
+      command under "Commands", and "Backing up" on restoring the log. (#187)
+- [x] Architecture document: recording, the table, the dispatcher and sinks. (#187)
+- [x] Review checklist: the audit check (each write records its event in its own transaction;
+      nothing secret or content-bearing reaches the builder). (#187)
+- [x] Live testing guide: checking delivery to stdout and a file on a live instance. (#187)
 
 **Done when:** the coverage test lists every write; on a live instance, an API key's writes appear
 in an audit file, read by a local collector tailing it, and on standard output, with the key's id
