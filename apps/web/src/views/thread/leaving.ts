@@ -67,7 +67,7 @@ const findingTries = 3;
 // An Archive all under way: where it goes once archived, staying only for a
 // send that says so, what the send that started it sent, if one did, and the
 // message it archives through at least, the one that send wrote, which can
-// lie past the latest the page has loaded.
+// lie past the latest the page has loaded, as a stale send's retry places it.
 interface Archiving {
   to: Destination;
   sent: string | undefined;

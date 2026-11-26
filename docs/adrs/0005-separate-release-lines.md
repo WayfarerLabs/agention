@@ -12,7 +12,7 @@ plugins, are released on lines of their own.
 ## Context
 
 Agention ships three things: the server, with the web UI it serves; the agent bridge; and the Claude
-Code and Codex plugins that run the bridge. Through 0.6.0 one version covered all three, so every
+Code and Codex plugins that run the bridge. Through 0.7.0 one version covered all three, so every
 release gave the plugins a new version and pinned a new bridge, even when only the server changed.
 Every operator was then asked to update the plugin on each agent host and restart their sessions, or
 to work out from the release notes that they could skip it. As the bridge settles, most changes land
@@ -34,7 +34,7 @@ excluded directory; a file at the repository's root cannot be excluded.
   the web UI it serves, tagged `agention-vX.Y.Z`, with `CHANGELOG.md`. The agent line releases
   `@wayfarerlabs/agention-mcp` and both plugins, which share its version and run the bridge of the
   same version, tagged `agention-mcp-vX.Y.Z`, with `apps/bridge/CHANGELOG.md`. Both start from
-  0.6.0, the last combined release, and every combined release also carries both lines' tags, so
+  0.7.0, the last combined release, and every combined release also carries both lines' tags, so
   each line's history and every gate reads one prefix per line.
 - **One release-please configuration per line.** Each line is the root package of its own
   configuration, so a change to shared code (`packages/api`, `packages/build`,

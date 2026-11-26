@@ -43,7 +43,7 @@ and two root packages in two configurations route shared and root changes to bot
 holds one root package, `"."`, since only a root package sees commits outside every package's
 directory (`CommitSplit.split`, `src/util/commit-split.ts`, skips `.`, and
 `Manifest.buildPullRequests` in `src/manifest.ts` hands the root package every commit), and both
-manifests start at `0.6.0`.
+manifests start at `0.7.0`.
 
 **What each line ships, and so excludes.** A line excludes the directories only the other line
 ships, and the directories that ship nothing:
@@ -61,15 +61,15 @@ lines, the safe failure.
 **Options, each read at 17.6.0.** `parseConfig` and `extractReleaserConfig` in `src/manifest.ts`
 read every option used:
 
-| Option                   | Where                 | Why                                                                                                                                                                                                                                                                                               |
-| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `release-type`           | package               | `node` for the server line, which writes the root `package.json` and the lockfile's root entries (`src/strategies/node.ts`, `src/updaters/node/package-lock-json.ts`); `simple` for the agent line, whose only own file, `version.txt`, is written only if it exists (`src/strategies/simple.ts`) |
-| `component`              | package               | The tag `<component>-v<version>` (`src/util/tag-name.ts`, `include-component-in-tag` defaulting to true in `src/strategies/base.ts`), the release branch `release-please--branches--main--components--<component>`, and the release pull request's title                                          |
-| `changelog-path`         | package, agent line   | `apps/bridge/CHANGELOG.md`; the server line keeps the default, `CHANGELOG.md`                                                                                                                                                                                                                     |
-| `exclude-paths`          | package               | Above                                                                                                                                                                                                                                                                                             |
-| `extra-files`            | package               | Every other place the line's version appears: the server's `package.json` and lockfile entry; the bridge's `package.json` and lockfile entry, the plugin definition, both generated manifests, and the bridge's package spec in both generated `.mcp.json` files                                  |
-| `label`, `release-label` | top level, agent line | `autorelease-agent: pending` and `autorelease-agent: tagged`; the server line keeps the defaults, `autorelease: pending` and `autorelease: tagged` (`DEFAULT_LABELS` and `DEFAULT_RELEASE_LABELS` in `src/manifest.ts`)                                                                           |
-| `bump-minor-pre-major`   | package               | As before, both lines                                                                                                                                                                                                                                                                             |
+| Option                   | Where                 | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `release-type`           | package               | `node` for the server line, which writes the root `package.json` and the lockfile's root entries (`src/strategies/node.ts`, `src/updaters/node/package-lock-json.ts`); `simple` for the agent line, whose only own file, `version.txt`, is written only if it exists (`src/strategies/simple.ts`)                                                                                                                                                                                                                               |
+| `component`              | package               | The tag `<component>-v<version>` (`src/util/tag-name.ts`, `include-component-in-tag` defaulting to true in `src/strategies/base.ts`), the release branch `release-please--branches--main--components--<component>`, and the release pull request's title                                                                                                                                                                                                                                                                        |
+| `changelog-path`         | package, agent line   | `apps/bridge/CHANGELOG.md`; the server line keeps the default, `CHANGELOG.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `exclude-paths`          | package               | Above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `extra-files`            | package               | Every other place the line's version appears: the server's `package.json` and lockfile entry; the bridge's `package.json` and lockfile entry, the plugin definition, both generated manifests, the bridge's package spec in both generated `.mcp.json` files, and, as a `generic` file, `docs/operator-guide.md`, whose `x-release-please-start-version` blocks pin only the plugin's and the bridge's version (`src/updaters/generic.ts`); `exclude-paths` limits only which commits release, not which files a release writes |
+| `label`, `release-label` | top level, agent line | `autorelease-agent: pending` and `autorelease-agent: tagged`; the server line keeps the defaults, `autorelease: pending` and `autorelease: tagged` (`DEFAULT_LABELS` and `DEFAULT_RELEASE_LABELS` in `src/manifest.ts`)                                                                                                                                                                                                                                                                                                         |
+| `bump-minor-pre-major`   | package               | As before, both lines                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 `include-component-in-tag: false` goes, so tags carry the component, and so does `package-name`:
 once `component` is set, the component, tag, branch and title no longer read it, and the `node`
@@ -86,13 +86,13 @@ line's merged, untagged release pull request stop the other line's updates, and 
 other line's tagging, which its component check would then skip. The labels are top-level options:
 `parseConfig` reads them into the manifest's options, which both searches use.
 
-**Legacy tags.** Releases tagged `v0.1.0` to `v0.6.0` parse with no component (`TagName.parse`,
+**Legacy tags.** Releases tagged `v0.1.0` to `v0.7.0` parse with no component (`TagName.parse`,
 `src/util/tag-name.ts`), which neither configuration has, so both skip them (`getLatestReleases` in
-`src/manifest.ts`) and fall back to the tag the manifest's version names, `agention-v0.6.0` or
-`agention-mcp-v0.6.0` (`backfillReleasesFromTags`), as F6 says. Without that tag a line walks back
+`src/manifest.ts`) and fall back to the tag the manifest's version names, `agention-v0.7.0` or
+`agention-mcp-v0.7.0` (`backfillReleasesFromTags`), as F6 says. Without that tag a line walks back
 up to 500 commits, which is why the operator seeds the tags first.
 
-**The agent line's changelog** is new, with a heading `[0.6.0 and earlier]` that points at the
+**The agent line's changelog** is new, with a heading `[0.7.0 and earlier]` that points at the
 root's changelog. release-please inserts each entry before the first `## [` or `## <digit>` heading
 (`Changelog.updateContent`, `src/updaters/changelog.ts`), so entries land above it. It is ignored by
 Prettier and cspell as `CHANGELOG.md` already is (their patterns match at any depth), and added to
@@ -156,7 +156,7 @@ by version order wins over the newest by name order; a release sorts above its o
 contract line written another way fails; a tag HEAD does not reach counts; a legacy `v` tag is no
 server release. The fixture test runs in a "Release order tests" step that needs no network.
 
-Until the operator creates the seed tags, `agention-mcp-v0.6.0` does not exist, so on this
+Until the operator creates the seed tags, `agention-mcp-v0.7.0` does not exist, so on this
 delivery's own pull request the gate acts and fails for want of an `agention-v*` tag, as the agent
 compatibility gate fails for want of an `agention-mcp-v*` one. Both pass once the tags exist.
 
