@@ -29,8 +29,9 @@ import { type Organizing, SessionFolds, SessionsHead } from "./sessions/SessionF
 // moves, and no group last, an agent with sessions in two groups coming under
 // each with that group's sessions alone; until then, and grouped by agent,
 // each agent folds under its header, rolling up its sessions' threads, open
-// asks, unread updates and stranded threads, with links to its threads and
-// its stranded threads, its tags and a menu setting them, over a folded row
+// asks, unread updates and stranded and ignored threads, with links to its
+// threads and to its stranded and its ignored threads, its tags and a menu
+// setting them, over a folded row
 // for each of its sessions; grouped by session, the rows stand alone. Every
 // chip that stands for threads, the names of groups, agents and sessions
 // among them, links to those threads on the thread list, and following one

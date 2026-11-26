@@ -1,6 +1,7 @@
 import type { SessionSummary, ThreadsView } from "@wayfarerlabs/agention-api";
 import { plural } from "../../format.tsx";
 import { FilterLink, type Scope, UnreadLink } from "../filter-links.tsx";
+import { agentReadLabel } from "../list/Chips.tsx";
 
 // What the sessions view shows of the sessions under a session's row, an
 // agent's header or a group's head: their threads' roll-up, as the thread
@@ -100,16 +101,16 @@ export function ThreadsLink({
 
 // AgentReadLink opens the thread list on the stranded threads, or the
 // ignored ones, among those a ThreadsLink beside it opens, flagging how many
-// there are, such as "2 stranded", or only "Stranded" while that is not
-// known, as a ThreadsLink does.
+// there are, such as "2 stranded", or only its filter's name, such as
+// "Stranded", while that is not known, as a ThreadsLink does.
 export function AgentReadLink({
   read,
   count,
   narrowing,
   label,
 }: {
-  // Which threads it opens on, as the thread list's filter names them.
-  read: "stranded" | "ignored";
+  // Which threads it opens on, by the thread list's filter.
+  read: Exclude<NonNullable<ThreadsView["agent_read"]>, "unread">;
   // How many there are, or undefined while that is not known, as when
   // sessions were left out.
   count: number | undefined;
@@ -118,11 +119,12 @@ export function AgentReadLink({
   // What the link's threads are of, as a ThreadsLink's label is.
   label: string;
 }) {
-  const named = `${read.charAt(0).toUpperCase()}${read.slice(1)}`;
+  const named = agentReadLabel[read];
+  const word = named.toLowerCase();
   const [shown, spoken] =
     count === undefined
       ? [named, `${named} threads`]
-      : [`${count} ${read}`, plural(count, `${read} thread`)];
+      : [`${count} ${word}`, plural(count, `${word} thread`)];
   return (
     <FilterLink
       className="agent-read-link"

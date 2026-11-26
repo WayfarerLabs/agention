@@ -35,8 +35,9 @@ export const impactShown: Record<(typeof impactFilter.options)[number], string> 
   assuming: "Assuming",
 };
 
-// What the agent has not read, as its chip says it.
-const agentReadLabel: Record<(typeof agentReadFilter.options)[number], string> = {
+// What the agent has not read, as its chip and the sessions view's links name
+// it.
+export const agentReadLabel: Record<(typeof agentReadFilter.options)[number], string> = {
   unread: "Unread by agent",
   stranded: "Stranded",
   ignored: "Ignored",

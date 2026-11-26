@@ -117,9 +117,10 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // otherwise, muted, that its asks were answered or withdrawn; whether it is
 // stranded or ignored, and why; and whether this browser keeps a draft of a
 // reply to it. The link records the list on screen as it is followed, so the
-// thread page returns to it. While its live messages name several pull requests and
-// branches, a mark among the others counts them; while they name one,
-// beneath the link, that entry, which adds its filter to the list on screen.
+// thread page returns to it. While its live messages name several pull
+// requests and branches, a mark among the others counts them; while they name
+// one, beneath the link, that entry, which adds its filter to the list on
+// screen.
 //
 // Side by side, the row of the thread open beside the list is marked current,
 // and opening it again moves focus to where opening it lands, in the

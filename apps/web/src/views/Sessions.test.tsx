@@ -298,10 +298,9 @@ describe("the sessions view", () => {
     const stranded = screen.getByRole("link", { name: "1 stranded thread of builder" });
     expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&agent=builder");
     expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
-    const ignored = within(bar(builder))
-      .getAllByRole("link")
-      .find((link) => link.getAttribute("href") === "/?agent_read=ignored&agent=builder");
-    expect(ignored?.querySelector(".flag.warning")?.textContent).toMatch(/^2\b/);
+    const ignored = screen.getByRole("link", { name: "2 ignored threads of builder" });
+    expect(ignored.getAttribute("href")).toBe("/?agent_read=ignored&agent=builder");
+    expect(ignored.querySelector(".flag.warning")?.textContent).toMatch(/^2\b/);
     expect(screen.queryByRole("link", { name: /stranded threads? of reviewer$/ })).toBeNull();
     expect(builder.getAttribute("aria-expanded")).toBe("true");
     expect(fold("side", folded(builder))).toBeTruthy();
@@ -380,15 +379,10 @@ describe("the sessions view", () => {
     expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
     expect(within(row("review")).queryByRole("link", { name: /stranded/ })).toBeNull();
     // Its ignored threads likewise.
-    const ignored = within(main)
-      .getAllByRole("link")
-      .find((link) => link.getAttribute("href") === "/?agent_read=ignored&session=builder/main");
-    expect(ignored?.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
-    expect(
-      within(row("review"))
-        .getAllByRole("link")
-        .some((link) => link.getAttribute("href")?.includes("agent_read=ignored")),
-    ).toBe(false);
+    const ignored = within(main).getByRole("link", { name: "1 ignored thread of builder/main" });
+    expect(ignored.getAttribute("href")).toBe("/?agent_read=ignored&session=builder/main");
+    expect(ignored.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    expect(within(row("review")).queryByRole("link", { name: /ignored/ })).toBeNull();
     const unread = within(main).getByTitle("1 unread").closest("a");
     expect(unread?.getAttribute("href")).toBe("/?unread=true&session=builder/main");
     expect(main.querySelectorAll(".flag.danger")).toHaveLength(1);
