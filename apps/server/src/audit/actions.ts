@@ -4,9 +4,10 @@ import type { Color, Scope, WorkOutcome, WorkState } from "@wayfarerlabs/agentio
 // under its stable name, with the OCSF class and activity its event takes and
 // how its event names what the action did, from the typed input it is built
 // from. An input holds ids, numbers, flags, and the names the operator and
-// agents chose for agents, sessions, groups, tags, keys, and passkeys, read
-// from rows the store holds. No input takes a request body, message or answer
-// text, a title, a file name, or a secret, so none can reach an event.
+// agents chose for agents, sessions, groups, tags, saved views, keys, and
+// passkeys, read from rows the store holds. No input takes a request body,
+// message or answer text, a title, a saved view's list, a file name, or a
+// secret, so none can reach an event.
 
 // JSON as events hold it; a key whose value is undefined is left out, as
 // JSON.stringify leaves it out.
@@ -55,7 +56,8 @@ export interface GroupRef {
   name: string;
 }
 
-// A key's or a passkey's id and the name the operator gave it.
+// A saved view's, a key's, or a passkey's id and the name the operator gave
+// it.
 export interface NamedRef {
   id: number;
   name: string;
@@ -205,6 +207,13 @@ const tagResource = (tag: string, data?: JsonObject): JsonObject => ({
   data,
 });
 
+const savedViewResource = (view: NamedRef, data?: JsonObject): JsonObject => ({
+  type: "saved_view",
+  uid: `saved_view:${view.id}`,
+  name: view.name,
+  data,
+});
+
 const voiceResource = (data?: JsonObject): JsonObject => ({
   type: "voice_settings",
   uid: "voice_settings",
@@ -325,6 +334,12 @@ export const auditActions = {
     tagResource(input.tag, { color: input.color }),
   ]),
   removeTag: write(4, (input: { tag: string }) => [tagResource(input.tag)]),
+  createSavedView: write(1, (input: { view: NamedRef }) => [savedViewResource(input.view)]),
+  renameSavedView: write(3, (input: { view: NamedRef; previousName: string }) => [
+    savedViewResource(input.view, { previous_name: input.previousName }),
+  ]),
+  replaceSavedView: write(3, (input: { view: NamedRef }) => [savedViewResource(input.view)]),
+  removeSavedView: write(4, (input: { view: NamedRef }) => [savedViewResource(input.view)]),
   setSessionGroup: write(3, (input: { session: SessionRef; group: number | null }) => [
     sessionResource(input.session, {
       group: input.group === null ? null : `group:${input.group}`,

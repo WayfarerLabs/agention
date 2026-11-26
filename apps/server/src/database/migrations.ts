@@ -804,4 +804,17 @@ export const migrations: readonly string[] = [
     SELECT RAISE(ABORT, 'a browser session''s id never changes');
   END;
   `,
+  `
+  -- The operator's saved views, each a name and one thread list. view is the
+  -- list as the API reads it, a JSON object holding every part, those at
+  -- their default when it was saved included. A view is updated in place, as
+  -- a group is. Names are unique ignoring the case of ASCII letters, and ids
+  -- never repeat, so nothing naming a removed view reaches a later one.
+  CREATE TABLE saved_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    view TEXT NOT NULL CHECK (json_valid(view) AND json_type(view) = 'object'),
+    created_at INTEGER NOT NULL
+  ) STRICT;
+  `,
 ];

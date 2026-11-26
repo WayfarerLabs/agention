@@ -225,11 +225,12 @@ describe("the instance and its browser sessions", () => {
     const file = path.join(root, "earlier.db");
     const connection = new DatabaseSync(file);
     connection.exec(`PRAGMA application_id = ${applicationId}`);
-    for (const migration of migrations.slice(0, -1)) {
+    // The migrations before the audit log's, the eleventh.
+    for (const migration of migrations.slice(0, 10)) {
       connection.exec(migration);
     }
     connection.exec(`
-      PRAGMA user_version = ${migrations.length - 1};
+      PRAGMA user_version = 10;
       INSERT INTO people (name, created_at) VALUES ('operator', 1);
       INSERT INTO passkeys (person_id, credential_id, name, data, created_at)
         VALUES (1, 'c', 'p', '{}', 1);

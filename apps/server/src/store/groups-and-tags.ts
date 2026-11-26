@@ -10,20 +10,19 @@ import {
   maxGroups,
   maxListed,
   maxTagsKept,
-  type Scope,
   type SessionGroupInput,
   type TagCreateInput,
   type TagNameInput,
   type TagRead,
   type TagsInput,
 } from "@wayfarerlabs/agention-api";
-import type { AuditAction, AuditInput, GroupRef } from "../audit/actions.ts";
-import { recordAudit } from "../audit/record.ts";
+import type { GroupRef } from "../audit/actions.ts";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notFound } from "../errors.ts";
-import { authorizeScope, type Identity } from "../identity.ts";
+import type { Identity } from "../identity.ts";
 import { findAgentId, resolveSession } from "./directory.ts";
-import type { Store } from "./store.ts";
+import { renameTagInSavedViews } from "./saved-views.ts";
+import { operate, type Store } from "./store.ts";
 import type { SessionTarget } from "./threads.ts";
 
 // The operator's session groups and tags. Only the operator reaches them,
@@ -36,33 +35,14 @@ import type { SessionTarget } from "./threads.ts";
 // name by a foreign key, so renaming one renames it everywhere it is carried
 // and removing one takes it off everything, by cascades; a tag exists until it
 // is removed, and setting an agent's or a session's tags creates any it names
-// that does not exist yet.
+// that does not exist yet. Saved views name tags by name too, so renaming one
+// renames it in them; removing one leaves them naming it, which keeps no
+// threads, rather than showing more.
 
 // conflict refuses a name another group or tag already has.
 function conflict(what: string): ApiError {
   return new ApiError("conflict", `another ${what} already has this name`, { field: "name" });
 }
-
-// operate runs fn in a transaction once the identity is found to hold the
-// scope, with the time, and record, which records the change's audit event
-// in the same transaction.
-function operate<T>(
-  store: Store,
-  identity: Identity,
-  scope: Scope,
-  fn: (db: Database, record: Recorder) => T,
-): T {
-  const { db } = store;
-  return db.transaction(() => {
-    const now = store.clock();
-    authorizeScope(db, identity, scope, now);
-    return fn(db, (action, input) => {
-      recordAudit(store, now, { kind: "identity", identity }, action, input);
-    });
-  });
-}
-
-type Recorder = <A extends AuditAction>(action: A, input: AuditInput<A>) => void;
 
 // colorInTurn is the color a group or a tag created without one takes: the
 // palette's colors in turn, by how many of its kind there are before it.
@@ -269,8 +249,8 @@ export function createTag(store: Store, identity: Identity, input: TagCreateInpu
   });
 }
 
-// renameTag renames a tag, and so everywhere it is carried, onto a name no tag
-// has.
+// renameTag renames a tag, and so everywhere it is carried and in every saved
+// view naming it, onto a name no tag has.
 export function renameTag(
   store: Store,
   identity: Identity,
@@ -288,6 +268,7 @@ export function renameTag(
       throw conflict("tag");
     }
     db.prepare("UPDATE tags SET name = ? WHERE name = ?").run(input.name, tag);
+    renameTagInSavedViews(db, tag, input.name);
     record("renameTag", { tag: input.name, previousName: tag });
   });
 }

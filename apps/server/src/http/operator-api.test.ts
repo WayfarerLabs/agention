@@ -130,6 +130,16 @@ async function requests(): Promise<Record<string, Call>> {
     setSessionGroup: ["POST", "/s/builder/main/group", { group: null }],
     setSessionTags: ["POST", "/s/builder/main/tags", { tags: ["infra"] }],
     setAgentTags: ["POST", "/agents/builder/tags", { tags: [] }],
+    // The view saved first, which the others then change and remove.
+    listSavedViews: ["GET", "/saved-views", undefined],
+    createSavedView: [
+      "POST",
+      "/saved-views",
+      { name: "Blocking me", view: { impact: "blocking" } },
+    ],
+    renameSavedView: ["POST", "/saved-views/1/name", { name: "Blocked" }],
+    replaceSavedView: ["POST", "/saved-views/1/view", { view: { unread: true } }],
+    removeSavedView: ["POST", "/saved-views/1/remove", undefined],
     listRegistrations: ["GET", "/registrations", undefined],
     approveRegistration: [
       "POST",
@@ -155,6 +165,8 @@ const granting: Record<Scope, Scope[]> = {
   "sessions:read": ["sessions:read", "sessions:write", "sessions:approve"],
   "sessions:write": ["sessions:write"],
   "sessions:approve": ["sessions:approve"],
+  "saved-views:read": ["saved-views:read", "saved-views:write"],
+  "saved-views:write": ["saved-views:write"],
 };
 
 describe("the operator mount", () => {
