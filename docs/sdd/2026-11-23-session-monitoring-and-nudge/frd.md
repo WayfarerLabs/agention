@@ -127,8 +127,9 @@ A thread is ignored instead (ruling 8) when its session can be nudged and the ag
 after the operator's earliest message it has not read, without reading the thread, and the quiet
 time passed with nothing more to bring it there. Stranded can be normal, as when a session stopped;
 ignored says the session is not doing what it should, so it is a status of its own. An ignored
-thread is not stranded, says when the agent checked in, and counts toward what needs the operator.
-No second nudge comes for it; a message the operator writes after that check-in makes one due.
+thread is not stranded, says when the agent checked in, and is counted and flagged beside stranded
+threads, with a filter of its own. No second nudge comes for it; a message the operator writes after
+that check-in makes one due, and the thread is then judged by that nudge.
 
 Both are worked out from what the bridge reports, never stored.
 
