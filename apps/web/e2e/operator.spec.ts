@@ -750,7 +750,9 @@ test("the keyboard moves through the list with j and k, its focus ring showing, 
   await expect(rows.nth(0)).toBeFocused();
   await page.keyboard.press("j");
   await expect(rows.nth(1)).toBeFocused();
-  await expect(rows.nth(1)).toHaveCSS("outline-style", "solid");
+  // The ring is the row's, around its card (selection.spec.ts).
+  await expect(rows.nth(1).locator("..")).toHaveCSS("outline-style", "solid");
+  await expect(rows.nth(1)).toHaveCSS("outline-style", "none");
   const title = (await rows.nth(1).getByRole("heading").textContent()) ?? "";
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);

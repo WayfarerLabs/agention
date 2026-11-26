@@ -2,6 +2,7 @@ import type { ThreadGroups, ThreadSummary } from "@wayfarerlabs/agention-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLanded } from "../api.ts";
+import { enterSendsChoice } from "../keyboard.tsx";
 import { leaveNotice } from "../notice.ts";
 import {
   FakeApi,
@@ -13,7 +14,7 @@ import {
   titleOf,
 } from "../test-support.tsx";
 import { autoAdvanceChoice } from "./thread/neighbor-thread.ts";
-import { textBox } from "./thread/thread-test-support.tsx";
+import { textBox, written } from "./thread/thread-test-support.tsx";
 
 // The Threads tab at a desktop's width, where the list and the thread open
 // stand side by side, and across the breakpoint.
@@ -231,6 +232,17 @@ describe("side by side", () => {
     window.history.back();
     await waitFor(() => expect(window.location.pathname).toBe("/"));
     expect(document.activeElement).toBe(rowLink("First"));
+  });
+
+  it("returns to the list on the row of the thread left, not the first, once Enter sends", async () => {
+    window.localStorage.setItem(enterSendsChoice, "true");
+    await openList();
+    await openFromList("Third");
+    api.on("POST", `${threadPath(3)}/messages`, written(2));
+    fireEvent.change(textBox(), { target: { value: "Seen." } });
+    fireEvent.keyDown(textBox(), { key: "Enter" });
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    expect(document.activeElement).toBe(rowLink("Third"));
   });
 
   it("goes back from one thread to the one before, each at its own address", async () => {

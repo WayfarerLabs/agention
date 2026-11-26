@@ -1136,8 +1136,12 @@ button.picker[aria-expanded="true"] .icon {
   list-style: none;
 }
 
+/* A row's card. Brought into view (ThreadRow.tsx), it keeps its focus
+   ring's reach, the ring's width and offset, and a pixel for rounding clear
+   of its scroller's edges. */
 .thread-row {
   margin-bottom: var(--space-3);
+  scroll-margin: 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
   background: var(--color-surface);
@@ -1246,6 +1250,20 @@ button.picker[aria-expanded="true"] .icon {
 .thread-row.selected {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
+}
+
+/* A row's link with focus from the keyboard rings the whole row, as a pick
+   list's control does: the link covers only part of the row, beside its
+   checkbox and above its pull request or branch. While focus is there, the
+   ring stands in for the current and selected rings, so this rule stays
+   after the current row's, which weighs the same. */
+.thread-row:has(> .thread-link:focus-visible) {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.thread-row > .thread-link:focus-visible {
+  outline: none;
 }
 
 @media (pointer: coarse) {
