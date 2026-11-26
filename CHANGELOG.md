@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.7.0](https://github.com/WayfarerLabs/agention/compare/v0.6.0...v0.7.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **server:** On the agent API and operator API v1, a thread's `files` totals and its file list (`GET /threads/:thread/files`) cover only the files its live messages carry: a file that only a replaced message carries no longer counts or lists, though the replaced message still reads back with it, and a kept file lists with the replacement that carries it rather than the message that first brought it.
+* **server:** On operator API v1, group=session and group=session_group no longer split sessions by topic or carry topics in their roll-ups; group=topic gives what group=session gave before.
+
+### Features
+
+* **api:** carry files on the operator's start of a thread ([9d78584](https://github.com/WayfarerLabs/agention/commit/9d78584de631373c294e1b1a968f4d2b04b12a0f))
+* **bridge:** report a status beside thread_create and message_send ([4b38320](https://github.com/WayfarerLabs/agention/commit/4b38320b54739fc87366047bcce43300ec1f2feb))
+* filter the thread list by pull request and branch, and show them on rows ([4549858](https://github.com/WayfarerLabs/agention/commit/45498584286f672f791a189ece6ee315d72114cd))
+* name pull requests and branches on messages, rolled up for the thread ([a401c58](https://github.com/WayfarerLabs/agention/commit/a401c581e92fa3640188e282b12e3542e5286404)), closes [#146](https://github.com/WayfarerLabs/agention/issues/146)
+* select threads in the list and act on them together ([0f4d5c2](https://github.com/WayfarerLabs/agention/commit/0f4d5c29c85957c297dde42182bd7eeb4156605e))
+* **server:** color and order groups, keep tags as rows, and group a session on approval ([b228786](https://github.com/WayfarerLabs/agention/commit/b228786b7117d962753ace7564fe97466da4d1ae))
+* **server:** group the thread list by session alone, and add a topic grouping ([fd0693a](https://github.com/WayfarerLabs/agention/commit/fd0693a5785b8434b9f183f92708570b5099e8b9)), closes [#134](https://github.com/WayfarerLabs/agention/issues/134)
+* **server:** mark an idle session working when it writes, and take a status beside a write ([dcb8850](https://github.com/WayfarerLabs/agention/commit/dcb88503ba56a8d458afe0fc9ad99196f9c33ebe))
+* **server:** name the operator API guide in the API documentation ([ef2076f](https://github.com/WayfarerLabs/agention/commit/ef2076fb9f54187fa83644f943a3e332ed72a787))
+* **voice:** call the voice prompt Additional context, and drop a prompt Whisper only echoes ([0eb2770](https://github.com/WayfarerLabs/agention/commit/0eb2770646c4cb31f5de46a230557ebf1f530941))
+* **web:** add a search box atop the thread list ([b90d14d](https://github.com/WayfarerLabs/agention/commit/b90d14d6023f67e6e908e51b6c52171f79022365))
+* **web:** add keyboard shortcuts, listed by ?, with an off switch in Settings ([ad3e526](https://github.com/WayfarerLabs/agention/commit/ad3e5264dec0aa59129d678de9caba06d7b81ef2))
+* **web:** attach and dictate wherever a message is written ([2662f82](https://github.com/WayfarerLabs/agention/commit/2662f822ff3412c2c151d4dabd6065745f9a5130))
+* **web:** choose where a send goes from an icon, and archive with a toggle beside it ([2f91ff5](https://github.com/WayfarerLabs/agention/commit/2f91ff57c67ce8f8a90e9154f2d01393a73d5a71))
+* **web:** copy a message's Markdown from its head ([dcbac06](https://github.com/WayfarerLabs/agention/commit/dcbac06cc7fc26c7680e4fa986afe5cf0e123a94)), closes [#124](https://github.com/WayfarerLabs/agention/issues/124)
+* **web:** divide a thread's archived messages from the later ones ([c69a6b1](https://github.com/WayfarerLabs/agention/commit/c69a6b1fe092f9b26be1f7080772b3839571066b))
+* **web:** draw the icons from Material Symbols, a little heavier ([0175108](https://github.com/WayfarerLabs/agention/commit/017510864f05e7bb4b0aea5733fba705f8b5e119))
+* **web:** fill a desktop's width and tighten spacing with a mouse ([5140810](https://github.com/WayfarerLabs/agention/commit/5140810fe77196a31061625525c8be195caf88b7))
+* **web:** group and sort the sessions view, moving groups in their manual order ([ec72f7b](https://github.com/WayfarerLabs/agention/commit/ec72f7b79553a720b2a6238dd36594f2ca70f40b))
+* **web:** keep each thread's draft in the browser ([76943db](https://github.com/WayfarerLabs/agention/commit/76943dbe44f383599fbb8bc760bfa9b73a499f59)), closes [#66](https://github.com/WayfarerLabs/agention/issues/66)
+* **web:** keep the list's bulk actions in a bar at its foot ([d06821f](https://github.com/WayfarerLabs/agention/commit/d06821f269af20da257c8e17c2437da0f32c27c2))
+* **web:** keys to mark threads read or unread and to open the list's head ([25a9cc9](https://github.com/WayfarerLabs/agention/commit/25a9cc9af011183996e5d1eddd2bd0e53f1fb07c))
+* **web:** lead the list's head with one row of icons ([6d5e256](https://github.com/WayfarerLabs/agention/commit/6d5e256d59730f5d41c1580a5ccc70447521eaca))
+* **web:** let Enter send, with Shift+Enter for a new line ([ea55be9](https://github.com/WayfarerLabs/agention/commit/ea55be9a8691a44232f564d119d6c8c7a80abc0c))
+* **web:** link header chips to their threads' filters ([9610e49](https://github.com/WayfarerLabs/agention/commit/9610e49160799f1df18f243b8a31a8c2d0ef1c53))
+* **web:** move to the thread above or below, and choose where archiving takes you ([156346c](https://github.com/WayfarerLabs/agention/commit/156346c913ef37277ad99f677c86d2e443154293))
+* **web:** pick groups and tags in a labels picker, color them, and order groups in Settings ([4203dad](https://github.com/WayfarerLabs/agention/commit/4203dade15036d93ab81e0e86732087c40cfbbc5))
+* **web:** put the list's and the thread's actions in bars at their feet ([fd9c248](https://github.com/WayfarerLabs/agention/commit/fd9c248eac51d0028ef153b7612873c7b7d46980))
+* **web:** show the thread list and the open thread side by side at a desktop's width ([2709fd7](https://github.com/WayfarerLabs/agention/commit/2709fd7c36aa4282eb9246276e3375ffa3c41fe1))
+* write notes beside any answer on an ask's card ([1f4ed67](https://github.com/WayfarerLabs/agention/commit/1f4ed672de5b9442b2ae5f43ced44ff1efd00814))
+
+
+### Bug Fixes
+
+* **server:** bound the operator's waits across sessions one credential holds ([b4e2c84](https://github.com/WayfarerLabs/agention/commit/b4e2c847ca867d5af5c3aaea5f2a1975cfc11725))
+* **server:** log a file read cut short and drop its connection ([f40f527](https://github.com/WayfarerLabs/agention/commit/f40f527f115c2f7ebdd8f5f15af0fcad5eba8f0d)), closes [#52](https://github.com/WayfarerLabs/agention/issues/52)
+* **server:** refuse a local-use NAT64 address as a transcription base URL ([0f04db0](https://github.com/WayfarerLabs/agention/commit/0f04db030f9576359248de6b545c4fd1756e1a26))
+* **server:** roll a thread's files up from its live messages only ([92e7412](https://github.com/WayfarerLabs/agention/commit/92e7412b1631527f970577c309bfbca730ad3ab4)), closes [#141](https://github.com/WayfarerLabs/agention/issues/141)
+* **web:** ask nothing that needs the session once ending it starts ([1336a63](https://github.com/WayfarerLabs/agention/commit/1336a638c08151a40cfc479d61821bbfca0db20b)), closes [#92](https://github.com/WayfarerLabs/agention/issues/92)
+* **web:** count a draft left in the composer from the message a write lands as ([ba819cf](https://github.com/WayfarerLabs/agention/commit/ba819cfc0d304c8058937d912403d80bacd278c4)), closes [#56](https://github.com/WayfarerLabs/agention/issues/56)
+* **web:** drop a pending search when the list's view is replaced ([c988484](https://github.com/WayfarerLabs/agention/commit/c98848468e49a232e0e3c061106a26c0ba1b61a0)), closes [#159](https://github.com/WayfarerLabs/agention/issues/159)
+* **web:** judge a change of answers by what the page learned while its asks loaded ([d93dfa2](https://github.com/WayfarerLabs/agention/commit/d93dfa2d183111d85ad0a343688bb736bf1e0f8b)), closes [#75](https://github.com/WayfarerLabs/agention/issues/75)
+* **web:** judge a stale write by what is staged when its answer comes ([2eb0755](https://github.com/WayfarerLabs/agention/commit/2eb075529267843b06c1a5614cd85a586d60d4ef)), closes [#57](https://github.com/WayfarerLabs/agention/issues/57)
+* **web:** judge what is staged by what a landed write did ([c127cb7](https://github.com/WayfarerLabs/agention/commit/c127cb73a1df6b243444b05dade5b74504412645)), closes [#57](https://github.com/WayfarerLabs/agention/issues/57)
+* **web:** keep a write's remainder only while its page owns the draft ([f6502b4](https://github.com/WayfarerLabs/agention/commit/f6502b4c4dbe0be31ee43b273965691cdd356c2b)), closes [#108](https://github.com/WayfarerLabs/agention/issues/108)
+* **web:** keep focus on Go back after sending as dictation moves it ([7334f48](https://github.com/WayfarerLabs/agention/commit/7334f48dd3087249dc36287b03bd1f93c69d8d9b))
+* **web:** keep saying a restored draft left something behind ([89402df](https://github.com/WayfarerLabs/agention/commit/89402dff4731925a6d27f4bf79b06ee264dea75e)), closes [#81](https://github.com/WayfarerLabs/agention/issues/81)
+* **web:** keep the approvals section to a line while none waits ([9f8f4f6](https://github.com/WayfarerLabs/agention/commit/9f8f4f6d7b090e1b548167a50e53ef232d0b32d3))
+* **web:** keep what a write leaves over an older render's draft ([ec0847b](https://github.com/WayfarerLabs/agention/commit/ec0847b768fdd71c3725bbe3a5df09b2085345a3))
+* **web:** land on the thread's heading once it loads ([8ce8487](https://github.com/WayfarerLabs/agention/commit/8ce8487b28df9eace4fa47c158d91ce8e3086cb6)), closes [#130](https://github.com/WayfarerLabs/agention/issues/130)
+* **web:** mark a message read once the archive mark covers it ([580b43f](https://github.com/WayfarerLabs/agention/commit/580b43fa7cce01ff23d376bd1f8a4286a2261de4)), closes [#122](https://github.com/WayfarerLabs/agention/issues/122)
+* **web:** read what the composer holds as rendered when a write lands ([532159b](https://github.com/WayfarerLabs/agention/commit/532159bf798079aa6fe147c125fd4b307b5d715d))
+* **web:** remove a writer's unsent uploads when it goes away ([221a68b](https://github.com/WayfarerLabs/agention/commit/221a68b52830ad62ec08455ac7d73b2e2184cac7)), closes [#136](https://github.com/WayfarerLabs/agention/issues/136)
+
 ## [0.6.0](https://github.com/WayfarerLabs/agention/compare/v0.5.0...v0.6.0) (2026-11-23)
 
 
