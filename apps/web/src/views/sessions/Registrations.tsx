@@ -4,11 +4,13 @@ import type {
   RegistrationsPage,
   SessionSummary,
 } from "@wayfarerlabs/agention-api";
-import { type RefObject, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
 import { type Agents, query, readWhole, request } from "../../api.ts";
 import { Confirmation, Failure, Status } from "../../components.tsx";
 import { useAction } from "../../data.ts";
 import { absoluteTime } from "../../format.tsx";
+import { Link, sessionHref } from "../../router.tsx";
+import { useArranged } from "./arrangement.ts";
 
 // The registrations the sessions view shows: those waiting for approval,
 // which the operator approves after matching the code the agent relayed
@@ -84,17 +86,33 @@ export function DecidedRegistration({
   const [revoking, setRevoking] = useState(false);
   const granted = registration.granted;
   const grantedName = granted === undefined ? undefined : `${granted.agent}/${granted.session}`;
+  const arranged = useArranged();
   // Each time is its own event's: approval and rejection at decided_at,
   // revocation at revoked_at, expiry at expires_at.
   const on = (time: string | undefined) => (time === undefined ? "" : ` on ${absoluteTime(time)}`);
-  const approved = `Approved as ${grantedName ?? "?"}${on(registration.decided_at)}`;
-  let summary: string;
+  // The session it granted leads to its page.
+  const approved = (
+    <>
+      Approved as{" "}
+      {granted === undefined ? (
+        "?"
+      ) : (
+        <Link to={`${sessionHref(granted.agent, granted.session)}${arranged}`}>{grantedName}</Link>
+      )}
+      {on(registration.decided_at)}
+    </>
+  );
+  let summary: ReactNode;
   switch (registration.status) {
     case "approved":
-      summary = `${approved}.`;
+      summary = <>{approved}.</>;
       break;
     case "revoked":
-      summary = `${approved}, and revoked${on(registration.revoked_at)}.`;
+      summary = (
+        <>
+          {approved}, and revoked{on(registration.revoked_at)}.
+        </>
+      );
       break;
     case "rejected":
       summary = `Rejected${on(registration.decided_at)}.`;

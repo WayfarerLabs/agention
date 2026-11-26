@@ -1957,6 +1957,16 @@ Settings' lists.
   registrations waiting and the sessions have reloaded, approving replaces the page's address with
   the granted session's, and rejecting with the rows', unless the address is no longer the
   registration's.
+- **Links to a session.** Where the UI names a session and that name leads elsewhere, a small link
+  beside it leads to the session's address (`src/views/session-page-link.tsx`): beside the session
+  in a thread's head, whose name opens the list narrowed to it, on the thread list's chip naming one
+  session, whose button removes the filter, and on a session's header in the grouped list, after its
+  label and beside the fold's button, the link always standing beside the other control so neither
+  holds the other; the thread page's notice of a session without a credential links the session's
+  name. These carry no arrangement, since another view's query is not the tab's, and the rows open
+  as by default. Within the view, a registration's existing session and a past request's granted
+  session link by name, carrying the arrangement as every link in the view does (`useArranged` in
+  `arrangement.ts`).
 - **Loading.** It loads the agents whole, at most 500 in pages of 100, since the approval form
   chooses among them, and a session's log only while the session is open, one entry more than it
   shows, so what the oldest entry shown changed can be read against the one before it.

@@ -1,6 +1,7 @@
 import { type GroupRef, noGroup, type SessionSummary } from "@wayfarerlabs/agention-api";
 import type { Agents } from "../../api.ts";
 import { nameKey } from "../../organizing.tsx";
+import { useLocation } from "../../router.tsx";
 
 // How the sessions view arranges its sessions, as the thread list arranges
 // its threads: how it groups them, how it sorts them at every level, and in
@@ -65,6 +66,13 @@ export function sessionsQuery(view: SessionsView): string {
   }
   const text = parts.toString();
   return text === "" ? "" : `?${text}`;
+}
+
+// useArranged gives the arrangement the address on screen names, as its
+// query, which every link within the sessions view carries, so what it opens
+// leaves the rows as they are.
+export function useArranged(): string {
+  return sessionsQuery(sessionsViewOf(useLocation().searchParams));
 }
 
 // regrouped gives the arrangement another grouping leaves: the sort and its

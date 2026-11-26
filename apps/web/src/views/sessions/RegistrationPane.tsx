@@ -3,7 +3,8 @@ import type { AgentList } from "../../api.ts";
 import { Loadable, PageHeading } from "../../components.tsx";
 import type { Resource } from "../../data.ts";
 import { Since, Time } from "../../format.tsx";
-import { navigate, registrationHref, sessionHref } from "../../router.tsx";
+import { Link, navigate, registrationHref, sessionHref } from "../../router.tsx";
+import { useArranged } from "./arrangement.ts";
 import { ApproveForm } from "./ApproveForm.tsx";
 import { type Proposal, proposalOf, type WaitingList } from "./Registrations.tsx";
 import { PaneBar } from "./SessionPane.tsx";
@@ -114,13 +115,14 @@ function PendingRegistration({
 }
 
 // Proposed says what a registration proposes, the agent and the session,
-// each new or there already, an existing session with when it was last seen
-// and the credentials it has, which approving onto it adds to, and when the
-// registration was submitted and when it expires.
+// each new or there already, an existing session leading to its page, with
+// when it was last seen and the credentials it has, which approving onto it
+// adds to, and when the registration was submitted and when it expires.
 function Proposed({ registration, proposal }: { registration: Registration; proposal: Proposal }) {
   const existing = proposal.kind === "existing" ? proposal.session : undefined;
   const codes = existing?.registrations.map((each) => each.code) ?? [];
   const seen = existing?.presence.last_seen_at;
+  const arranged = useArranged();
   return (
     <dl className="registration-facts">
       <dt>Agent</dt>
@@ -130,7 +132,15 @@ function Proposed({ registration, proposal }: { registration: Registration; prop
       </dd>
       <dt>Session</dt>
       <dd>
-        <span className="code small">{registration.proposed_session}</span>,{" "}
+        {existing === undefined ? (
+          <span className="code small">{registration.proposed_session}</span>
+        ) : (
+          // A session there already leads to its page.
+          <Link to={`${sessionHref(registration.proposed_agent, existing.session)}${arranged}`}>
+            <span className="code small">{existing.session}</span>
+          </Link>
+        )}
+        ,{" "}
         {existing === undefined ? (
           "a new session"
         ) : (

@@ -90,10 +90,12 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   answer, and the priority those with an ask at that priority or higher. While a filter on open asks
   is on, **Blocked on you** and the priority link nowhere, since they count every open ask of the
   threads shown while those filters keep a thread for one ask meeting them all. **No topic**, which
-  no filter names, the archive box and **last seen** link nowhere. The chevron before a header's
-  name collapses everything under it or expands it again, as a click anywhere else on the header
-  does but on a link. Every header starts expanded, and this browser keeps the ones you collapse,
-  for each way of grouping, a session group's however you rename it.
+  no filter names, the archive box and **last seen** link nowhere. A session's header, whichever way
+  the list is grouped, follows its name with a small arrow of its own, which opens the session's
+  page in the sessions view; an agent's, a topic's and a group's have none. The chevron before a
+  header's name collapses everything under it or expands it again, as a click anywhere else on the
+  header does but on a link. Every header starts expanded, and this browser keeps the ones you
+  collapse, for each way of grouping, a session group's however you rename it.
 - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
   others keep; several values chosen in one filter, such as two agents, each keep their own threads.
   **Filters** opens a sheet holding them all, each a row of choices whose first turns it off, and
@@ -159,8 +161,9 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   shows beside an icon of two lines merging into one, by its short form, or as **2 pull requests**
   or **2 branches**. A long label is cut short, at its front for an agent, session, topic, pull
   request, or branch, so its end stays; holding the pointer over a chip says it whole. Choosing a
-  chip removes its filter. The grouping, the order and its direction are no filters, so they stay
-  when filters go.
+  chip removes its filter. A chip naming one session ends in an arrow of its own, which opens the
+  session's page in the sessions view; the rest of the chip still removes the filter. The grouping,
+  the order and its direction are no filters, so they stay when filters go.
 - The page's address holds the filters, the order, its direction and the grouping, so a list you
   bookmark or share opens as you left it.
 - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -241,13 +244,14 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
 number, as a row's does, and shows the archive box beside it while the thread is archived for you.
 Under it, its agent, session and topic say where the thread is, and each opens the list narrowed to
 it alone, with no other filter on, showing everything there in the order and grouping you left the
-list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row does,
-and a stranded thread says why its session has not read your latest messages: it stopped, and how,
-or its agent was last seen when, or never; a session with no active credential says so in a notice
-under the head. **Threads** stays marked in the navigation. The head holds **Jump to unread** while
-anything is unread or an ask is open to you. The messages open on the newest ones, or on the first
-one you had not read after those you archived when that comes before them, and show earlier and
-later ones when you ask.
+list in. A small arrow just after the session opens the session's own page in the sessions view, and
+**Back** returns to the thread. Beneath, muted, a thread whose asks were answered or withdrawn says
+so, as its row does, and a stranded thread says why its session has not read your latest messages:
+it stopped, and how, or its agent was last seen when, or never; a session with no active credential
+says so in a notice under the head, its name opening the session's page. **Threads** stays marked in
+the navigation. The head holds **Jump to unread** while anything is unread or an ask is open to you.
+The messages open on the newest ones, or on the first one you had not read after those you archived
+when that comes before them, and show earlier and later ones when you ask.
 
 - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it, each
   an icon over a short word: **Threads**, back to the list as you left it, with its filters, order,
@@ -594,7 +598,8 @@ From the top:
   no other; one another browser made stale is refused, and the groups show as they are.
 
 - **Credentials and past requests**, folded until you open it, holds every registration already
-  decided.
+  decided, each one approved, revoked or not, naming the session it granted, which opens that
+  session.
 
 ## Settings
 
