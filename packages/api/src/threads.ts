@@ -555,7 +555,8 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // message in any of the session's threads that the session has neither read
 // nor archived, written after its agent last checked in, goes the quiet time
 // with no nudge claimed since that check-in, since such a message makes a
-// nudge due at the session's prompt that brings the agent to every thread;
+// nudge due at the session's prompt that brings the agent to every thread
+// holding a message it has neither read nor archived;
 // otherwise once the latest nudge since the earliest message it has not read
 // was not sent, or was sent and the quiet time has passed since, even where
 // the agent checked in after it without reading the thread, or none was sent

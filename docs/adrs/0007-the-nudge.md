@@ -89,9 +89,9 @@ every check that can be made before each key.
   reading the thread is not nudged for it again, since one nudge is due per check-in and only for a
   message written after it, so nothing more will bring it, and the operator sees that the agent
   checked in without reading the thread. A message the operator writes after that check-in, in any
-  thread of the session, makes a nudge due again, and the thread then waits on that nudge as it
-  would for a first message, since a nudge brings the agent to every thread. Its other causes, no
-  active credential and no connection, stand as before.
+  thread of the session, makes a nudge due again if none already is, and the thread then waits on
+  that nudge, since a nudge brings the agent to every thread it has neither read nor archived. Its
+  other causes, no active credential and no connection, stand as before.
 
 ## Consequences
 

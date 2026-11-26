@@ -509,16 +509,16 @@ From those the reads derive, against the request's clock and never stored:
   latest one. A nudge is due at the session's prompt where none was claimed since the agent last
   checked in and any of the session's threads holds a message by anyone but the agent that the agent
   has neither read nor archived, written after that check-in; that nudge brings the agent to every
-  thread, so the thread is stranded once the earliest such message is older than the quiet time.
-  Otherwise the latest nudge since the earliest message the agent has not read was not sent, or was
-  sent, or its outcome is not known, and was claimed longer ago than the quiet time, even where the
-  agent checked in since without reading the thread; or none was claimed since and that message is
-  older than the quiet time, whether or not the agent checked in since it was written. A session
-  that can be nudged is not stranded for waiting at its prompt, since a nudge will bring it. An
-  agent that checks in after the nudge without reading the thread is not nudged for it again, since
-  a nudge is due only for a message written after the last check-in, so the quiet time after the
-  nudge is all the thread waits until the operator writes again, in it or any other thread of the
-  session.
+  thread holding a message it has neither read nor archived, so such a thread is stranded once the
+  earliest such message is older than the quiet time. Otherwise the latest nudge since the earliest
+  message the agent has not read was not sent, or was sent, or its outcome is not known, and was
+  claimed longer ago than the quiet time, even where the agent checked in since without reading the
+  thread; or none was claimed since and that message is older than the quiet time, whether or not
+  the agent checked in since it was written. A session that can be nudged is not stranded for
+  waiting at its prompt, since a nudge will bring it. An agent that checks in after the nudge
+  without reading the thread is not nudged for it again, since a nudge is due only for a message
+  written after the last check-in, so the quiet time after the nudge is all the thread waits until
+  the operator writes again, in it or any other thread of the session.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as

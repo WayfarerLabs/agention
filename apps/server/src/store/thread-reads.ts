@@ -135,7 +135,8 @@ export function connectedOf(sessions: string): string {
 // and any thread of the session holds a live message by anyone but its
 // agent that the agent has neither read nor archived, written after that
 // check-in (nudge_due, the messages nudgeDue in monitors.ts looks for). That
-// nudge brings the agent to every thread, so the thread is stranded once the
+// nudge brings the agent to every thread holding a message it has neither
+// read nor archived (nudge_brings), so such a thread is stranded once the
 // earliest of those messages was written before the quiet cut-off.
 // Otherwise it is once the latest nudge since the earliest message the other
 // party has not read was not sent, or was sent, or its outcome is not known,
@@ -279,6 +280,12 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
             WHERE m.actor_id = base.other_actor_id AND m.thread_id = base.id
           ), 0)
         ) AS unread_by_other_since,
+        EXISTS (
+          SELECT 1 FROM live_messages l
+          LEFT JOIN thread_marks m ON m.actor_id = base.other_actor_id AND m.thread_id = base.id
+          WHERE l.thread_id = base.id AND l.actor_id = :viewer
+            AND l.seq > max(COALESCE(m.read_seq, 0), COALESCE(m.archived_seq, 0))
+        ) AS nudge_brings,
         due.since AS nudge_due_since
       FROM base
       LEFT JOIN open_summary r ON r.thread_id = base.id
@@ -298,7 +305,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           OR IIF(
             joined.connected IS 1 AND joined.nudge IS 1,
             IIF(
-              joined.nudge_due_since IS NOT NULL
+              joined.nudge_due_since IS NOT NULL AND joined.nudge_brings
                 AND (joined.nudged_at IS NULL OR joined.nudged_at <= joined.last_seen_at),
               joined.nudge_due_since < :quiet_before,
               IIF(

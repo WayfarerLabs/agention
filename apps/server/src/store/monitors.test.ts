@@ -737,6 +737,22 @@ describe("stranded, for a session that can be nudged", () => {
     expect(stranded()).toBe(true);
   });
 
+  it("is where the agent archived it without reading it, though a nudge is due for another thread", async () => {
+    await claimed(true);
+    fixture.seen(agent);
+    fixture.advance(quiet);
+    followedUp();
+    const target = threadTarget(agent, 1);
+    archiveThread(fixture.store, agent.identity, target, { through: fixture.lastSeq(target) });
+    fixture.seen(agent);
+    fixture.advance(1);
+    fixture.startThread(agent);
+    expect((await poll(first, { wait: "0" })).nudge).toBe(true);
+    // The nudge brings the agent to the other thread, never to an archived one.
+    expect(stranded()).toBe(true);
+    expect(stranded(2)).toBe(false);
+  });
+
   it("is not where the agent read the thread after the nudge, however long since", async () => {
     await claimed(true);
     fixture.seen(agent);
