@@ -98,7 +98,9 @@ export const agentReadFilter = z
       "and the quiet time has passed since, or none was sent within the quiet time; ignored, " +
       "in place of stranded, for one on a session that can be nudged and has an active " +
       "credential, whose agent checked in at or after both your earliest message there it has " +
-      "not read and its latest nudge, without reading the thread, so nothing more will bring it.",
+      "not read and its latest nudge, without reading the thread, with no nudge due that would " +
+      "bring it there; a thread waiting on a nudge due is stranded once none was sent within " +
+      "the quiet time, never ignored.",
   );
 
 // The filters on the pull requests and branches a thread's live messages

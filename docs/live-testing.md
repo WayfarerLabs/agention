@@ -95,8 +95,8 @@ disagreement is the finding.
   whose nudge went unanswered shown as not responding; and a thread whose agent checked in after the
   nudge without reading it ignored, not stranded, once the quiet time passes, saying so, listed by
   the Ignored filter and counted in the sessions view, and waiting on a new nudge, neither, when the
-  operator then writes to it or another thread of the session (`docs/operator-guide.md` "The
-  nudge").
+  operator then writes to it or another thread of the session, stranded, not ignored, if that nudge
+  is not sent within the quiet time (`docs/operator-guide.md` "The nudge").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.
@@ -251,10 +251,10 @@ On top of the method's failure classes, look for:
   check-ins, across a takeover or a restart included, a draft at the prompt submitted with the
   nudge's message, a nudge shown not responding after the agent checked in, a thread on a session
   that can be nudged stranded while the nudge is still to come, a thread both stranded and ignored,
-  or not ignored, or nudged again, once the quiet time has passed since a nudge the agent checked in
-  after without reading the thread, a tag on an agent against the threads of each of its sessions,
-  an archived thread that another party's later message failed to bring back to the list, and one
-  the caller's own message brought back.
+  or ignored while it waits on a nudge due, or not ignored, or nudged again, once the quiet time has
+  passed since a nudge the agent checked in after without reading the thread, a tag on an agent
+  against the threads of each of its sessions, an archived thread that another party's later message
+  failed to bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them

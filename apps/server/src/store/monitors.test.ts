@@ -725,7 +725,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
       },
     ],
   ])(
-    "is neither, where the operator wrote again %s, until the quiet time passes after that with no nudge",
+    "is neither, where the operator wrote again %s, until the quiet time passes after that with no nudge, then stranded",
     async (_, checkedIn) => {
       await checkedIn();
       fixture.advance(quiet);
@@ -737,8 +737,9 @@ describe("stranded and ignored, for a session that can be nudged", () => {
       fixture.advance(quiet - 1);
       expect(standing()).toBe("neither");
       fixture.advance(1);
-      // The agent still checked in after the earliest message it has not read.
-      expect(standing()).toBe("ignored");
+      // The nudge due never came, which is the nudge failing, not the agent
+      // ignoring the thread, though it checked in after the earlier message.
+      expect(standing()).toBe("stranded");
     },
   );
 
@@ -755,9 +756,21 @@ describe("stranded and ignored, for a session that can be nudged", () => {
     fixture.advance(quiet - 1);
     expect(standing()).toBe("neither");
     fixture.advance(1);
-    expect(standing()).toBe("ignored");
-    // The agent never checked in after the other thread began.
+    // The nudge due for both never came.
+    expect(standing()).toBe("stranded");
     expect(standing(2)).toBe("stranded");
+  });
+
+  it("is stranded, never ignored, where the agent passed a message over and a nudge due for a later one goes the quiet time unclaimed", async () => {
+    fixture.advance(seenStep);
+    fixture.seen(agent);
+    followedUp();
+    expect((await poll(first, { wait: "0" })).nudge).toBe(true);
+    for (const step of [quiet - 1, 1, quiet]) {
+      fixture.advance(step);
+      expect(standing()).not.toBe("ignored");
+    }
+    expect(standing()).toBe("stranded");
   });
 
   it("is ignored once the agent archives the operator's later message without reading the thread", async () => {
@@ -800,6 +813,10 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   it("lists and counts the ignored threads apart from the stranded ones", async () => {
     await claimed(true);
     fixture.seen(agent);
+    // The agent archives the first thread unread, so the nudge due for the
+    // second never brings it there.
+    const target = threadTarget(agent, 1);
+    archiveThread(fixture.store, agent.identity, target, { through: fixture.lastSeq(target) });
     fixture.advance(1);
     fixture.startThread(agent);
     fixture.advance(quiet);

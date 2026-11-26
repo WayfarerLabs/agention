@@ -149,14 +149,14 @@ your earliest message it has not read, and after its latest nudge, the thread is
 instead: the agent was there and left it unread, which says the session is not doing what it should,
 where stranded says only that it is not there. Writing again after the agent's last check-in, in
 that thread or any other of the session, makes a nudge due if none already is, and the thread then
-waits on it, stranded or ignored once none was sent within `--quiet-minutes` of the earliest message
-it is due for. A thread the agent archived without reading it is not brought by a nudge, so it does
-not wait on one. A session that reports it stopped says how, as **completed**, **withdrawn** (you
-called it off) or **stalled** (it cannot go on), and stays stopped until it reports working or idle.
-An idle session that writes to its threads without reporting a state or note, by a message, a new
-thread, or marking one read, unread or archived, is working from then on: the server marks it so
-itself and logs that it did, with no note. Checking for your answers changes nothing, and neither
-does anything you write.
+waits on it alone: it is stranded, not ignored, once none was sent within `--quiet-minutes` of the
+earliest message it is due for, since then the nudge failed. A thread the agent archived without
+reading it is not brought by a nudge, so it does not wait on one. A session that reports it stopped
+says how, as **completed**, **withdrawn** (you called it off) or **stalled** (it cannot go on), and
+stays stopped until it reports working or idle. An idle session that writes to its threads without
+reporting a state or note, by a message, a new thread, or marking one read, unread or archived, is
+working from then on: the server marks it so itself and logs that it did, with no note. Checking for
+your answers changes nothing, and neither does anything you write.
 
 The data directory and the database must be private to the user running Agention, under the rule in
 [SECURITY.md](../SECURITY.md#private-files). `agention serve` creates a missing data directory, and

@@ -516,16 +516,18 @@ From those the reads derive, against the request's clock and never stored:
   the earliest message the agent has not read was not sent, or was sent, or its outcome is not
   known, and was claimed longer ago than the quiet time; or once none was claimed since and that
   message is older than the quiet time. A session that can be nudged is not stranded for waiting at
-  its prompt, since a nudge will bring it.
-- **Ignored**: a thread the nudge misses, on a session that can be nudged and has an active
-  credential, whose agent last checked in at or after both the earliest message of the operator's it
-  has not read and its latest nudge, if any: the agent was there and left the thread unread. Where
-  stranded follows from a session that stopped, went quiet or lost its connection, ignored says the
-  agent is not doing what it should. An agent that checks in without reading the thread is not
-  nudged for it again, since a nudge is due only for a message written after the last check-in, so
-  nothing more brings it until the operator writes again, in it or any other thread of the session.
-  A thread is never both stranded and ignored, and a session that cannot be nudged has no ignored
-  threads.
+  its prompt, since a nudge will bring it. A thread waiting on a nudge due is judged by that nudge
+  alone, so it is stranded once the nudge goes the quiet time unclaimed and never ignored, since
+  that is the nudge failing, not the agent passing the thread over.
+- **Ignored**: a thread the latest nudge misses, with no nudge due that brings the agent to it, on a
+  session that can be nudged and has an active credential, whose agent last checked in at or after
+  both the earliest message of the operator's it has not read and its latest nudge, if any: the
+  agent was there and left the thread unread. Where stranded follows from a session that stopped,
+  went quiet or lost its connection, ignored says the agent is not doing what it should. An agent
+  that checks in without reading the thread is not nudged for it again, since a nudge is due only
+  for a message written after the last check-in, so nothing more brings it until the operator writes
+  again, in it or any other thread of the session. A thread is never both stranded and ignored, and
+  a session that cannot be nudged has no ignored threads.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as

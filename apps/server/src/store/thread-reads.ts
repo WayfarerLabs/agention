@@ -129,25 +129,25 @@ export function connectedOf(sessions: string): string {
 // nothing will bring such a message to the other party soon. That holds while
 // the session has no active credential or is not connected; while it cannot
 // be nudged, which takes a connected bridge whose report says it can, and it
-// is quiet or has stopped; and while it can be, once the nudge misses it
-// (nudge_missed), by the nudge due for the session or, where none is, the
-// latest one. A nudge is due, at the session's prompt, where none was claimed
-// since the agent last checked in and any thread of the session holds a live
-// message by anyone but its agent that the agent has neither read nor
-// archived, written after that check-in (nudge_due, the messages nudgeDue in
-// monitors.ts looks for). That nudge brings the agent to every thread holding
-// a message it has neither read nor archived (nudge_brings), so it misses
-// such a thread once the earliest of those messages was written before the
-// quiet cut-off. Otherwise it misses the thread once the latest nudge since
-// the earliest message the other party has not read was not sent, or was
-// sent, or its outcome is not known, before the quiet cut-off, whether or not
-// the agent checked in since, or, with none claimed since, that message was
-// written before the quiet cut-off. A thread the nudge misses is ignored,
-// not stranded, where the session has an active credential and its agent
-// checked in at or after that earliest message and its latest nudge, if any
-// (checked_in_since): the agent was there and left the thread unread.
-// Last comes the operator's group for its session, which only the operator's
-// list shows.
+// is quiet or has stopped; and while it can be, by the nudge due for the
+// session or, where none is, the latest one. A nudge is due, at the
+// session's prompt, where none was claimed since the agent last checked in
+// and any thread of the session holds a live message by anyone but its
+// agent that the agent has neither read nor archived, written after that
+// check-in (nudge_due, the messages nudgeDue in monitors.ts looks for). That
+// nudge brings the agent to every thread holding a message it has neither
+// read nor archived (nudge_brings), so such a thread waits on it
+// (nudge_waits) and is stranded once the earliest of those messages was
+// written before the quiet cut-off: the nudge failed to come. Otherwise the
+// latest nudge misses the thread (latest_missed) once, since the earliest
+// message the other party has not read, it was not sent, or was sent, or its
+// outcome is not known, before the quiet cut-off, or, with none claimed
+// since, that message was written before the quiet cut-off. A thread the
+// latest nudge misses is ignored, not stranded, where the session has an
+// active credential and its agent checked in at or after that earliest
+// message and its latest nudge, if any (checked_in_since): the agent was
+// there and left the thread unread. Last comes the operator's group for its
+// session, which only the operator's list shows.
 //
 // scope reads the threads as t, their sessions as s and their agents as g.
 // Callers bind a ViewerAndCutoff and whatever lead's conditions name, and
@@ -299,16 +299,16 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
     judged AS (
       SELECT joined.*,
         joined.connected IS 1 AND joined.nudge IS 1 AS can_nudge,
-        IIF(
+        COALESCE(
           joined.nudge_due_since IS NOT NULL AND joined.nudge_brings
             AND (joined.nudged_at IS NULL OR joined.nudged_at <= joined.last_seen_at),
-          joined.nudge_due_since < :quiet_before,
-          IIF(
-            joined.nudged_at >= joined.unread_by_other_since,
-            joined.nudge_sent IS 0 OR joined.nudged_at < :quiet_before,
-            joined.unread_by_other_since < :quiet_before
-          )
-        ) AS nudge_missed,
+          0
+        ) AS nudge_waits,
+        IIF(
+          joined.nudged_at >= joined.unread_by_other_since,
+          joined.nudge_sent IS 0 OR joined.nudged_at < :quiet_before,
+          joined.unread_by_other_since < :quiet_before
+        ) AS latest_missed,
         COALESCE(
           joined.last_seen_at >= joined.unread_by_other_since
             AND (joined.nudged_at IS NULL OR joined.last_seen_at >= joined.nudged_at),
@@ -328,12 +328,17 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           NOT judged.credential_active OR judged.connected IS 0
           OR IIF(
             judged.can_nudge,
-            judged.nudge_missed AND NOT judged.checked_in_since,
+            IIF(
+              judged.nudge_waits,
+              judged.nudge_due_since < :quiet_before,
+              judged.latest_missed AND NOT judged.checked_in_since
+            ),
             judged.quiet OR judged.session_state IS 'stopped'
           )
         ) AS stranded,
         judged.unread_by_other_since IS NOT NULL AND judged.credential_active
-          AND judged.can_nudge AND judged.nudge_missed AND judged.checked_in_since AS ignored
+          AND judged.can_nudge AND NOT judged.nudge_waits AND judged.latest_missed
+          AND judged.checked_in_since AS ignored
       FROM judged
     )`;
 }

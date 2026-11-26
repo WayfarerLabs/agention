@@ -558,10 +558,12 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // holding a message it has neither read nor archived; otherwise once the
 // latest nudge since the earliest message it has not read was not sent, or
 // was sent and the quiet time has passed since, or none was sent within the
-// quiet time. A thread the nudge misses is ignored, not stranded, where the
-// session has an active credential and its agent checked in at or after both
-// that earliest message and its latest nudge, if any, so it was there and
-// left the thread unread; every other such thread is stranded. links counts
+// quiet time. A thread the latest nudge misses, with no nudge due that brings
+// the agent to it, is ignored, not stranded, where the session has an active
+// credential and its agent checked in at or after both that earliest message
+// and its latest nudge, if any, so it was there and left the thread unread;
+// every other such thread is stranded, a thread waiting on a nudge due among
+// them, since that nudge not coming is the nudge failing. links counts
 // the pull requests and branches its live messages name, giving the one
 // entry when there is exactly one.
 export const threadSummary = z.object({
@@ -595,8 +597,9 @@ export const threadSummary = z.object({
     .optional()
     .describe(
       "Whether the session's agent checked in at or after your earliest message here that it has " +
-        "not read, and after its latest nudge, without reading the thread, and nothing more will " +
-        "bring it there, as the agent_read filter's ignored says; never true with stranded.",
+        "not read, and after its latest nudge, without reading the thread, and no nudge is due " +
+        "that would bring it there, as the agent_read filter's ignored says; never true with " +
+        "stranded.",
     ),
 });
 export type ThreadSummary = z.infer<typeof threadSummary>;

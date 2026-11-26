@@ -94,8 +94,11 @@ every check that can be made before each key.
   is supposed to, which is different enough to be a status of its own, with its own filter and
   counts, and never both at once. A message the operator writes after that check-in, in any thread
   of the session, makes a nudge due again if none already is, and the thread then waits on that
-  nudge, since a nudge brings the agent to every thread it has neither read nor archived. Its other
-  causes, no active credential and no connection, stand as before, and strand it, never ignore it.
+  nudge, since a nudge brings the agent to every thread it has neither read nor archived. While it
+  waits it is judged by that nudge alone: stranded once the nudge goes the quiet time unclaimed,
+  never ignored, since a nudge due but never sent is the nudge failing, not the agent ignoring the
+  operator. Its other causes, no active credential and no connection, stand as before, and strand
+  it, never ignore it.
 
 ## Consequences
 

@@ -158,7 +158,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, so nothing more will bring it.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, with no nudge due that would bring it there; a thread waiting on a nudge due is stranded once none was sent within the quiet time, never ignored.",
             "schema": {
               "type": "string",
               "enum": [
@@ -504,7 +504,7 @@
                           },
                           "ignored": {
                             "type": "boolean",
-                            "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and nothing more will bring it there, as the agent_read filter's ignored says; never true with stranded."
+                            "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and no nudge is due that would bring it there, as the agent_read filter's ignored says; never true with stranded."
                           },
                           "group": {
                             "$ref": "#/components/schemas/GroupRef"
@@ -778,7 +778,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, so nothing more will bring it.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, with no nudge due that would bring it there; a thread waiting on a nudge due is stranded once none was sent within the quiet time, never ignored.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1587,7 +1587,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, so nothing more will bring it.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, with no nudge due that would bring it there; a thread waiting on a nudge due is stranded once none was sent within the quiet time, never ignored.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1910,7 +1910,7 @@
                         },
                         "ignored": {
                           "type": "boolean",
-                          "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and nothing more will bring it there, as the agent_read filter's ignored says; never true with stranded."
+                          "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and no nudge is due that would bring it there, as the agent_read filter's ignored says; never true with stranded."
                         },
                         "group": {
                           "$ref": "#/components/schemas/GroupRef"
@@ -2057,7 +2057,7 @@
                         },
                         "ignored": {
                           "type": "boolean",
-                          "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and nothing more will bring it there, as the agent_read filter's ignored says; never true with stranded."
+                          "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and no nudge is due that would bring it there, as the agent_read filter's ignored says; never true with stranded."
                         },
                         "group": {
                           "$ref": "#/components/schemas/GroupRef"
@@ -3955,7 +3955,7 @@
                           "stranded",
                           "ignored"
                         ],
-                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, so nothing more will bring it."
+                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread; stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged, and the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time; ignored, in place of stranded, for one on a session that can be nudged and has an active credential, whose agent checked in at or after both your earliest message there it has not read and its latest nudge, without reading the thread, with no nudge due that would bring it there; a thread waiting on a nudge due is stranded once none was sent within the quiet time, never ignored."
                       },
                       "agent": {
                         "minItems": 1,
@@ -9447,7 +9447,7 @@
           },
           "ignored": {
             "type": "boolean",
-            "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and nothing more will bring it there, as the agent_read filter's ignored says; never true with stranded."
+            "description": "Whether the session's agent checked in at or after your earliest message here that it has not read, and after its latest nudge, without reading the thread, and no nudge is due that would bring it there, as the agent_read filter's ignored says; never true with stranded."
           }
         },
         "required": [
