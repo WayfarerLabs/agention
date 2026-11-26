@@ -392,7 +392,12 @@ export class AgentApi {
 
   // send makes one request through the origin's agent, which never follows a
   // redirect: write sends its body, and read reads the answer once it
-  // arrives.
+  // arrives. A request whose signal has already aborted is never made: Node
+  // would still open a connection for it and hand that connection, unused
+  // and still opening, to the agent to keep alive. While a host name with
+  // several addresses is still being tried, that connection can hold the
+  // process open until it idles out, so a bridge whose host has gone would
+  // not exit.
   #send<T>(
     url: URL,
     options: { method: string; headers: OutgoingHttpHeaders; signal: AbortSignal },
@@ -400,6 +405,7 @@ export class AgentApi {
     read: (response: IncomingMessage) => Promise<T>,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
+      options.signal.throwIfAborted();
       const outgoing = httpsRequest(url, { ...options, agent: this.#agent }, (response) => {
         read(response).then(resolve, reject);
       });
