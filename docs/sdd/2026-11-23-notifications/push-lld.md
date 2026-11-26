@@ -2,14 +2,13 @@
 
 <!-- cspell:ignore VAPID vapid aes128gcm p256dh ECDH HKDF renotify unixepoch notificationclick -->
 
-- Status: Following the HLA. The FRD is accepted with its open choices as recommended; rules are
-  still drafted as filter sets until the operator accepts requirements revised so a rule can follow
-  a saved view (FRD ruling 7).
+- Status: Following the HLA and the FRD as accepted, a rule being a saved view that notifies (FRD
+  rulings 7, 9, and 10).
 - Date: 2026-11-23
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md); plan item: "`push-lld.md`" under Design in [the plan](plan.md)
-- Base: `main` at c0ee2ff. Every `file:line` below is at that commit, except where one is stated as
-  on `main` at ef3439f.
+- Base: `main` at ef3439f, and saved views (agention#184) at 11c48418, which PR 2 builds on. Every
+  `file:line` below is at ef3439f unless it names agention#184, whose are at 11c48418.
 
 This design fills in PR 2 of the plan: the schema and migration, the check, the mark, the push keys
 and token, the encryption, the endpoint rule, the sender, the routes, and how the service worker
@@ -20,17 +19,20 @@ section prices.
 
 | Where                                          | Holds                                                                     |
 | ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `packages/api/src/notifications.ts` (new)      | the rule filters schema, the route inputs and answers, the push payload   |
+| `packages/api/src/notifications.ts` (new)      | the refused filters, the route inputs and answers, the push payload       |
 | `apps/server/src/database/migrations.ts`       | the notifications migration, appended after the last on `main`            |
-| `apps/server/src/store/notifications.ts` (new) | rules, subscriptions and the check, each in its own transaction           |
+| `apps/server/src/store/notifications.ts` (new) | On and Off, subscriptions, and the check, each in its own transaction     |
+| `apps/server/src/store/saved-views.ts`         | `readView`, exported; `replaceSavedView` ending a view's notifying        |
 | `apps/server/src/store/thread-lists.ts`        | `totalOf` taking its scope; `threadKept`, exported                        |
 | `apps/server/src/store/threads.ts`             | the hook after an agent's write; `raiseReadMark` clearing the mark        |
-| `apps/server/src/store/marks.ts`               | `archiveThrough` clearing the mark                                        |
+| `apps/server/src/store/marks.ts`               | `archiveFound` clearing the mark                                          |
 | `apps/server/src/push/` (new)                  | `vapid.ts`, `encryption.ts`, `endpoint.ts`, `sender.ts`                   |
 | `apps/server/src/http/web-api.ts`              | the notification routes, beside the API keys' at `:233-240`               |
 | `apps/server/src/auth/browser-sessions.ts`     | `signOut` removing the session's subscription                             |
 | `packages/build/src/bundle.ts`                 | `bundleScript` taking a fixed name                                        |
 | `apps/web/src/push/` (new)                     | the device intent, subscribe and refresh, and the page's message listener |
+| `apps/web/src/views/settings/SavedViews.tsx`   | each row's Notify switch; Remove's question                               |
+| `apps/web/src/views/list/SavedViews.tsx`       | Replace's question                                                        |
 | `apps/web/src/service-worker.ts` (new)         | `push` and `notificationclick`                                            |
 | `apps/web/src/routes.ts` (new)                 | the route table, moved from `router.tsx`, its callers importing it here   |
 
@@ -40,25 +42,39 @@ sender lives apart because it does network I/O, which no store function does.
 ## Data model: the migration
 
 Migrations run forward only, in order, each in its own transaction with the bump of `user_version`,
-and one that has shipped never changes (`migrations.ts:5-11`). This one is appended after the last
-migration on `main` when it lands, whatever number that makes it (ten are frozen on `main` today,
-and other efforts may append theirs first), and its hash joins `frozen` in `migrations.test.ts` in
-the same change, since every migration is frozen, released or not (`migrations.test.ts:5-10` on
-`main` at ef3439f).
+and one that has shipped never changes (`apps/server/src/database/migrations.ts:5-8`). This one is
+appended after the last migration on `main` when it lands, whatever number that makes it (ten are
+frozen on `main` today, and other efforts may append theirs first), always after saved views' own
+(agention#184, `apps/server/src/database/migrations.ts:681-693`), and its hash joins `frozen` in
+`migrations.test.ts` in the same change, since every migration is frozen, released or not
+(`migrations.test.ts:5-10`).
 
 ```sql
--- The operator's notification rules: each a set of the thread list's
--- filters, as the JSON object the rule schema writes, which the server reads
--- back through that schema. An agent's message notifies when its thread then
--- matches any rule. ids never repeat, so an id names one rule for good. The
--- starting rule keeps the threads holding a blocking open ask.
-CREATE TABLE notification_rules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  filters TEXT NOT NULL CHECK (json_valid(filters) AND json_type(filters) = 'object'),
-  created_at INTEGER NOT NULL
-) STRICT;
-INSERT INTO notification_rules (filters, created_at)
-  VALUES ('{"impact":"blocking"}', unixepoch() * 1000);
+-- Whether a saved view notifies the operator: an agent's message notifies
+-- when its thread then matches the list of any view that does, by its
+-- filters alone. It follows the view: a rename keeps it, a replaced list is
+-- what the next check matches, and removing the view removes it. No view
+-- that notifies has search, overdue, or the agent's reading on, which the
+-- store keeps so. Only the web UI's notification routes read or write it; no
+-- saved views operation selects it.
+ALTER TABLE saved_views ADD COLUMN notifies INTEGER NOT NULL DEFAULT 0
+  CHECK (notifies IN (0, 1));
+
+-- The starting view, Blocking asks, which notifies: added once, numbered
+-- past a name a view already has, ignoring the case of ASCII letters as the
+-- name's uniqueness does, and not added while 200 views, the most there can
+-- be, exist. Its list is the impact filter alone, every part stored as saved
+-- views store one.
+INSERT INTO saved_views (name, view, created_at, notifies)
+SELECT name, '<the starting list>', unixepoch() * 1000, 1
+FROM (
+  WITH RECURSIVE n (i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200)
+  SELECT IIF(i = 1, 'Blocking asks', 'Blocking asks ' || i) AS name, i FROM n
+)
+WHERE name COLLATE NOCASE NOT IN (SELECT name FROM saved_views)
+  AND (SELECT count(*) FROM saved_views) < 200
+ORDER BY i
+LIMIT 1;
 
 -- The devices the operator turned notifications on for: each browser push
 -- subscription, by the endpoint its push service issued, with the keys that
@@ -103,75 +119,109 @@ END;
 
 Notes on the constraints:
 
-- Rules may repeat: two rules with the same filters match the same threads, which notify once all
-  the same (FRD N1), and the operator removes the one they do not want.
+- A view notifies or does not, and the rules need no bound of their own: saved views' 200 bounds
+  them (agention#184, `packages/api/src/saved-views.ts:23`). Two views of the same filters may both
+  notify; their threads notify once all the same (FRD N1).
+- E2 keeps which views notify off the operator API. Every saved views read names its columns,
+  `id, name, view` (agention#184, `apps/server/src/store/saved-views.ts:24-44`, `:62`, `:75`), so
+  adding `notifies` changes no answer of theirs, and a test holds that a view listed through the
+  operator API carries no such field.
+- `'<the starting list>'` is `JSON.stringify(threadsView.parse({ impact: "blocking" }))` on the base
+  the migration lands on, written out in its text, since a frozen migration never changes. The
+  migration's test holds that the stored list reads back through `readView` equal to that parse. A
+  later change to the list's view that would refuse it ships with a migration rewriting the stored
+  views, as review check A19 asks of every saved view (agention#184). Such a migration also sets
+  `notifies` to 0 for a view its rewrite gives a refused filter, since only On and Replace keep that
+  none has one on; A19 says so (PR 2's review checklist change).
+- At most 199 views exist when the view is inserted, so at most 199 names are taken and one of the
+  first 200 is free. `x COLLATE NOCASE NOT IN (...)` compares as the `name` column's `UNIQUE` does,
+  so a view named "blocking ASKS" makes the starting view "Blocking asks 2".
 - `session_hash` is `UNIQUE`: a browser session is one browser, so it holds at most one
   subscription, and Settings mark "this device" as the one the browser session holds, so no endpoint
   travels in a URL.
-- `thread_marks` is `STRICT, WITHOUT ROWID` (`migrations.ts:322-328`); SQLite allows `ADD COLUMN`
+- `thread_marks` is `STRICT, WITHOUT ROWID` (`migrations.ts:323-329`); SQLite allows `ADD COLUMN`
   with a `CHECK` on both. Its comment there is in migration 1, which has shipped, so the new
   column's comment lives in this one.
 - `instance` follows its `name` column's pattern, the one-way trigger included
-  (`migrations.ts:86-99`).
-- The caps (20 rules, 10 subscriptions) are checked in the store with a typed error, as the API
-  keys' cap is (`apps/server/src/auth/api-keys.ts:132-142`), and tested.
+  (`migrations.ts:87-101`).
+- The cap of 10 subscriptions is checked in the store with a typed error, as the API keys' cap is
+  (`apps/server/src/auth/api-keys.ts:132-142`), and tested.
 
 ## Rules
 
-### Schema
+### The refused filters
 
-In `packages/api/src/notifications.ts`, derived from the list's filters (`thread-lists.ts:181-196`,
-`threadFilters` at `:207`):
+In `packages/api/src/notifications.ts`, beside the list's filters
+(`packages/api/src/thread-lists.ts:235-252`, `threadFilters` at `:269`):
 
 ```ts
-// The list's filters a rule refuses: those that change with time alone
-// (overdue, the agent's reading), that every agent message meets (unread),
-// and that act on what messages say (search). The thread list's Notify me
-// reads it too, to say which filter keeps it off.
-export const ruleRefusedFilters = ["search", "unread", "overdue", "agent_read"] as const;
+// The filters that keep a saved view from notifying while they are on:
+// search, since a notification never acts on what messages say, and overdue
+// and the agent's reading, which change with time alone (FRD R1). Unread and
+// including archived threads are not among them, since every agent message
+// leaves its thread unread and not archived.
+const refusedFilters = ["search", "overdue", "agent_read"] as const;
+export type NotifyRefusedFilter = (typeof refusedFilters)[number];
 
-// A rule's filters: every other filter of the operator's list, at least one
-// of them on. Including archived threads means nothing to a rule, since an
-// agent's message always brings a thread back (FRD R1), so a rule takes the
-// flag and drops it.
-export const notificationRuleFilters = z
-  .strictObject({
-    ...threadFilters.omit({
-      search: true,
-      unread: true,
-      overdue: true,
-      agent_read: true,
-      include_archived: true,
-    }).shape,
-    include_archived: includeArchivedFilter.optional().transform(() => undefined),
-  })
-  .refine((filters) => Object.values(filters).some((value) => value !== undefined), {
-    message: "a rule needs at least one filter",
-  });
-export const maxNotificationRules = 20;
+// refusedFiltersOn names the refused filters a list has on. A saved view is
+// stored whole, so a filter at its default is present but off: overdue is
+// on only when true, search and agent_read whenever set.
+export function refusedFiltersOn(filters: ThreadFilters): NotifyRefusedFilter[] {
+  return refusedFilters.filter((name) =>
+    name === "overdue" ? filters.overdue : filters[name] !== undefined,
+  );
+}
 ```
 
-- `strictObject` refuses a refused filter as an unknown key, and zod's issue names it, so the error
-  says which filter (`invalidInputBody`, `packages/api/src/errors.ts:66-76`), with the issue on
-  `filters`.
-- The `omit` is written out beside `ruleRefusedFilters`, and the schema's test refuses a rule of
-  each filter that list names, so the web UI never says a filter keeps **Notify me** off that a rule
-  takes.
-- `include_archived` is taken and dropped, so **Notify me** stays on for a list that includes
-  archived threads, and the stored JSON never holds it.
-- The schema reads the stored JSON back too, as the API keys' scopes are read (`api-keys.ts:48-52`):
-  persisted state is checked, not trusted. A stored rule that fails it is an internal error, never
-  silently skipped.
-- The thread list's address takes the same filters with query encoding (`queryList`,
-  `queryBoolean`); the rule body is JSON, so the route reads the object form of each filter.
-- The server stores `JSON.stringify` of the parsed filters.
+- The server refuses and ends a view's notifying by it, and the web UI names the filter that keeps a
+  view's Notify switch off by it, so the two never disagree. Only the function and the type are
+  exported, so nothing reads the list apart from it.
+- `threadsView` holds every filter of `threadFilters` (agention#184,
+  `packages/api/src/thread-lists.ts:275-280`), so a saved view's list is passed as it is.
+
+### Turning notifying on and off
+
+In `store/notifications.ts`, each a transaction that starts with `signedInSession`, as the
+subscriptions' do. Neither needs a recent sign-in.
+
+- **On** (`notifyView`): reads the view's row, `not_found` with field `view` when there is none,
+  through `readView` (agention#184, `apps/server/src/store/saved-views.ts:38`, exported for this),
+  and refuses a view with a refused filter on as `invalid_input` with field `view`, naming the first
+  ("its search is on, and a view with search on cannot notify"). Then
+  `UPDATE saved_views SET notifies = 1 WHERE id = :view`. Turning on a view that already notifies
+  changes nothing.
+- **Off** (`stopNotifying`): `UPDATE saved_views SET notifies = 0 WHERE id = :view`, `not_found`
+  with field `id` only when no saved view has that id. Turning off a view that does not notify
+  changes nothing.
+
+### What saved views' writes do to notifying
+
+- **Replace**: `replaceSavedView` (agention#184, `saved-views.ts:131-146`) turns `notifies` off in
+  its own update when the new list has a refused filter on:
+
+  ```ts
+  const replaced = db
+    .prepare("UPDATE saved_views SET view = ?, notifies = IIF(?, 0, notifies) WHERE id = ?")
+    .run(JSON.stringify(input.view), refusedFiltersOn(input.view).length > 0 ? 1 : 0, id);
+  if (replaced.changes !== 1) throw notFound("id");
+  ```
+
+  Both mounts run the same handler (agention#184, `docs/architecture.md`'s scopes). It is the write
+  across resources under `saved-views:write` that review check A18 records beside the tag rename's,
+  and `replaceSavedView`'s comment says so, as `renameTagInSavedViews`'s says its own
+  (`saved-views.ts:158-164`).
+
+- **Remove**: `removeSavedView` (`saved-views.ts:150-156`) deletes the view, and its notifying with
+  the row; its comment says that removing a view that notifies ends its notifying.
+- **Rename** and the tag rename (`renameTagInSavedViews`, `:165-178`) write only the name or the
+  list, so the view keeps notifying, and a renamed tag keeps what it matches.
 
 ## The check
 
 ### Where it runs
 
 Both agent write paths call it after their transaction commits, beside the wake of long polls:
-thread start (`apps/server/src/store/threads.ts:528-530`) and message append (`:643-645`). Only an
+thread start (`apps/server/src/store/threads.ts:534-536`) and message append (`:659-661`). Only an
 agent's write, which is an identity authenticated by a registration
 (`apps/server/src/identity.ts:14-17`):
 
@@ -184,9 +234,9 @@ if (outcome.appended) {
 }
 ```
 
-- Both outcomes gain `threadId`: `addThread` has it as `id` (`threads.ts:513-518`), `sendMessage` as
-  `thread.id` (`:582-641`). A replay (`appended: false`) never notifies.
-- `Store` (`apps/server/src/store/store.ts:13-19`) gains
+- Both outcomes gain `threadId`: `addThread` has it as `id` (`threads.ts:518-523`), `sendMessage` as
+  `thread.id` (`:589-657`). A replay (`appended: false`) never notifies.
+- `Store` (`apps/server/src/store/store.ts:15-22`) gains
   `afterAgentMessage(message: { threadId: number; seq: number }): void`. `createStore` defaults it
   to doing nothing, which every store test and `agention passkey-link` (`cli.ts:415`) keep;
   `agention serve` passes the one that runs the check and hands its result to the sender
@@ -198,11 +248,11 @@ if (outcome.appended) {
 
 ### The statement
 
-The check asks the operator's list whether it would keep this thread under a rule's filters: the
-list's own total, scoped to the thread. `totalOf` (`thread-lists.ts:498-504`) takes its scope as a
-parameter, the list's reach (`reached`, `:191-192`) by default, and the check passes the scope
-`readThread` already gives `threadsSeen` for one thread
-(`apps/server/src/store/thread-reads.ts:372`):
+The check asks the operator's list whether it would keep this thread under a notifying view's
+filters: the list's own total, scoped to the thread. `totalOf`
+(`apps/server/src/store/thread-lists.ts:554-560`) takes its scope as a parameter, the list's reach
+(`reached`, `:226-227`) by default, and the check passes the scope `readThread` already gives
+`threadsSeen` for one thread (`apps/server/src/store/thread-reads.ts:375`):
 
 ```ts
 // totalOf counts the threads a query's list holds, of those scope admits:
@@ -230,20 +280,24 @@ export function threadKept(
 }
 ```
 
-- `where` (`:145-149`), `leadOf` (`:170-172`), `parametersOf` (`:198-220`) and `listStatement`
-  (`:222-226`) stay private to the list, and no part of the statement is written twice.
-- `filters` is `threadFilters.parse(rule)`, which fills the refused filters with their defaults, so
-  `include_archived` is false and the list's `not_archived` part is on (`thread-lists.ts:86`): a
-  thread archived for the operator matches no rule. An agent's message ends that, since a thread is
-  archived only while the mark reaches its latest message (`thread-reads.ts:199`).
+- `where` (`:171-174`), `leadOf` (`:196-198`), `parametersOf` (`:233-253`), and `listStatement`
+  (`:259-263`) stay private to the list, and no part of the statement is written twice.
+- `filters` is the view as `readView` gives it, passed as it is: a `ThreadsView` is a
+  `ThreadFilters` with `sort`, `reverse`, and `group` beside, and `where`, `parametersOf`, and
+  `leadOf` read only the filters, so order and grouping play no part (FRD R1). `unread` and
+  `include_archived` run as the list runs them: the agent's message leaves the thread unread for the
+  operator, and not archived, since a thread is archived only while the mark reaches its latest
+  message (`thread-reads.ts:201`), so neither changes a match.
 - `leadOf` matters: with a filter on asks on, the list keeps only a thread leading with an open ask
-  that meets every one (`thread-lists.ts:121`, `askKeeps` at `:132-137`), and the lead comes from
-  `threadsSeen`'s `placed` CTE (`thread-reads.ts:139-147`).
-- `listStatement` allows the parameters a query does not name (`thread-lists.ts:218-226`), so the
+  that meets every one (`thread-lists.ts:147`, `askKeeps` at `:158-163`), and the lead comes from
+  `threadsSeen`'s `placed` CTE (`thread-reads.ts:141-149`). A thread leads with such an ask whenever
+  it holds one, and the order only picks which (`leadOf` at `:196-198`), so the check's
+  `defaultSort` keeps the same threads as the view's own order would.
+- `listStatement` allows the parameters a query does not name (`thread-lists.ts:255-263`), so the
   unused ones `parametersOf` binds are harmless, as they are in the list.
 - The viewer is the operator's actor, from `findOperator`
   (`apps/server/src/store/directory.ts:15-25`), the audience of every agent thread
-  (`threads.ts:551`).
+  (`threads.ts:557`).
 
 ### Its transaction
 
@@ -253,8 +307,12 @@ export function threadKept(
    turned on later is not denied a thread already marked.
 2. `SELECT notified_seq FROM thread_marks WHERE actor_id = :operator AND thread_id = :thread`; set:
    return nothing. It notified since the operator last read or archived it (FRD N1).
-3. Read every rule, `ORDER BY id`, each through the rule schema, and run `threadKept` for each until
-   one keeps the thread. None: return nothing.
+3. Read the views that notify, `SELECT view FROM saved_views WHERE notifies ORDER BY id`, each
+   through `readView`, and run `threadKept` with each until one keeps the thread, skipping one with
+   a refused filter on (`if (refusedFiltersOn(view).length > 0) continue;`), which On and Replace
+   already keep from notifying. None: return nothing. `threadKept` works out the viewer's cut-off on
+   each call; the check may work it out once instead.
+
 4. Set the mark:
 
    ```sql
@@ -263,7 +321,7 @@ export function threadKept(
    ```
 
    A new row takes `read_seq` and `archived_seq` at their default 0, which is what a missing row
-   means today (`thread-reads.ts:117-118`).
+   means today (`thread-reads.ts:119-120`).
 
 5. Read the thread with `readThread(store, threadId, operator, now)` and the subscriptions'
    `id, endpoint, p256dh, auth`, and return the payload and the subscriptions.
@@ -272,16 +330,17 @@ export function threadKept(
 between, since the store is synchronous and the hook runs straight after the commit.
 
 The reason the payload gives (`why`) comes from the thread's open asks as `readThread` summarizes
-them (`packages/api/src/threads.ts:477-486`): `blocking` when any open ask blocks, else `urgent`
+them (`packages/api/src/threads.ts:518-527`): `blocking` when any open ask blocks, else `urgent`
 when the highest priority is urgent, else `open` while any is open, else `message`.
 
 ### The mark cleared
 
 The operator reads or archives through the notified message, and the mark clears (FRD N1, R2):
 
-- `raiseReadMark` (`apps/server/src/store/threads.ts:150-156`), which every read writer calls
-  (`markRead` and `bulkRead` through `readThrough`, `apps/server/src/store/marks.ts:42-55`) and so
-  does a writer's own message (`threads.ts:268`):
+- `raiseReadMark` (`apps/server/src/store/threads.ts:158-164`), which every read writer calls
+  (`markRead` and `bulkRead` through `readThrough`, `apps/server/src/store/marks.ts:44-56`, and the
+  operator's actions on many threads, `apps/server/src/store/thread-actions.ts:58` and `:89`) and so
+  does a writer's own message (`threads.ts:278`):
 
   ```sql
   INSERT INTO thread_marks (actor_id, thread_id, read_seq) VALUES (?, ?, ?)
@@ -290,15 +349,17 @@ The operator reads or archives through the notified message, and the mark clears
         notified_seq = IIF(notified_seq <= max(read_seq, excluded.read_seq), NULL, notified_seq)
   ```
 
-- `archiveThrough`'s upsert (`marks.ts:139-143`), the same with `archived_seq`. `archiveThread` and
-  `bulkArchive` both go through it.
+- `archiveFound`'s upsert (`marks.ts:165-169`), the same with `archived_seq`. `archiveThread` and
+  `bulkArchive` reach it through `archiveThrough`, and the actions on many threads directly
+  (`thread-actions.ts:53`).
 
 In an `UPDATE ... SET`, every right-hand side reads the row as it was, so both terms use the old
 mark; a `NULL` `notified_seq` compares as unknown and stays `NULL`. Only the operator's rows ever
 hold a mark, so the agents' rows are unchanged. The operator replying clears it too, since their
-message raises their read mark through it (`threads.ts:268`). `markUnread` (`marks.ts:86-89`) leaves
+message raises their read mark through it (`threads.ts:278`). `markUnread`, and the actions on many
+threads marking unread, lower the read mark with `lowerReadMark` (`marks.ts:77-82`), which leaves
 the mark alone: it was cleared when the thread was read, so the next agent message after marking
-unread notifies again. `keepArchived` (`threads.ts:162-168`) moves only the writer's own archive
+unread notifies again. `keepArchived` (`threads.ts:170-176`) moves only the writer's own archive
 mark and needs no change.
 
 ## Push keys and the token
@@ -372,7 +433,7 @@ The plaintext is one JSON object, in `packages/api/src/notifications.ts` as `pus
 - Names are 1 to 63 of `a-z`, `0-9`, `_` and `-` (`packages/api/src/names.ts:7-8`), so they need no
   escaping in JSON.
 - The thread number is a safe integer (`packages/api/src/bounds.ts:5-8`), at most 16 digits.
-- The title is 1 to 200 code points (`packages/api/src/threads.ts:57`), well formed
+- The title is 1 to 200 code points (`packages/api/src/threads.ts:67`), well formed
   (`packages/api/src/text.ts:31-34`) and without control characters (`text.ts:21`), so
   `JSON.stringify` escapes nothing but `"` and `\`, 2 bytes each. Every other code point is at most
   4 bytes, so the title is at most 800 bytes in the JSON.
@@ -434,7 +495,7 @@ byte for byte against the appendix, copied into the test from the RFC as publish
 
 One pure function in `push/endpoint.ts`, which the route runs on registration and the sender again
 before each send. It never resolves a name: HTTPS and the push service's certificate bind it, as the
-transcription base URL rule reasons (`apps/server/src/transcription/base-url.ts:4-12`).
+transcription base URL rule reasons (`apps/server/src/transcription/base-url.ts:4-13`).
 
 ```ts
 // The push services' hosts: those exactly, and any host under those with a
@@ -504,9 +565,9 @@ For each subscription the check returned, in parallel, each try of the schedule 
    - `Urgency: high`;
    - no `Topic`, which travels in clear (research 1.1);
    - `redirect: "manual"`, so a redirect is answered as it is and never followed, as the
-     transcription provider does (`apps/server/src/transcription/provider.ts:157-165`);
+     transcription provider does (`apps/server/src/transcription/provider.ts:168-176`);
    - a signal of `AbortSignal.any([shutdown, AbortSignal.timeout(10_000)])`, as the provider
-     combines its own (`provider.ts:142-143`).
+     combines its own (`provider.ts:153-154`).
 6. Cancel the response body unread.
 
 ### Still wanted
@@ -630,7 +691,7 @@ On the web API only, beside the API keys' (`apps/server/src/http/web-api.ts:233-
 is where operations go). They follow the web routes' shape: a `GET` for the page's state, and `POST`
 for each change, a removal by id as `POST /:id/remove` like the passkeys' (`:208-214`). Bodies are
 read with `parseBody` and ids with a helper like `passkeyOf` (`apps/server/src/http/input.ts:42-61`,
-`:65-71`). Errors are the API's one shape (`packages/api/src/errors.ts:6-36`, body at `:52-60`).
+`:65-71`). Errors are the API's one shape (`packages/api/src/errors.ts:6-39`, body at `:54-63`).
 
 Every route answers `unauthenticated` (401) without a live session, and every `POST` answers it for
 a missing or wrong CSRF token or origin, as every web route does.
@@ -652,9 +713,7 @@ The Settings page's state.
       "current": true
     }
   ],
-  "rules": [
-    { "id": 1, "filters": { "impact": "blocking" }, "created_at": "2026-11-23T09:00:00.000Z" }
-  ]
+  "notifying": [1]
 }
 ```
 
@@ -664,6 +723,9 @@ The Settings page's state.
   (`packages/api/src/api-keys.ts:85`).
 - `current`: the device whose subscription this browser session holds; at most one is.
 - `accepted_at` is absent until a push service first accepts a send.
+- `notifying`: the ids of the saved views that notify, at most 200. Settings' Saved views set each
+  row's Notify switch from it, and the thread list's Saved views sheet reads it for Replace's
+  question.
 
 ### `POST /api/web/notifications/devices`
 
@@ -698,20 +760,20 @@ and `not_found` with field `endpoint` when the server does not store the endpoin
 Answers `{}` (`done`, `packages/api/src/routes.ts:33`). `not_found` with field `id` for a device
 that is not there; `not_allowed` for another device's without a recent sign-in.
 
-### `POST /api/web/notifications/rules`
+### `POST /api/web/notifications/views`
 
-Saves the thread list's filters as a rule: `{ "filters": { ... } }`, the list's filters as JSON.
-Answers `{ "rule": { "id": 4, "filters": { ... }, "created_at": "..." } }`. Errors:
+**On** for a saved view: `{ "view": 4 }`, the view's id. Answers `{}`. Errors:
 
-| Code            | Field              | When                                          |
-| --------------- | ------------------ | --------------------------------------------- |
-| `invalid_input` | `filters`          | a filter rules refuse, named, or no filter on |
-| `invalid_input` | `filters.<filter>` | a filter's value out of its bounds            |
-| `invalid_input` | none               | 20 rules already: "remove one first"          |
+| Code            | Field  | When                                |
+| --------------- | ------ | ----------------------------------- |
+| `invalid_input` | `view` | not a saved view's id in its bounds |
+| `invalid_input` | `view` | a refused filter on, named          |
+| `not_found`     | `view` | no saved view has that id           |
 
-### `POST /api/web/notifications/rules/:id/remove`
+### `POST /api/web/notifications/views/:id/remove`
 
-Answers `{}`. `not_found` with field `id` for a rule that is not there.
+**Off** for the saved view `:id`. Answers `{}`, also when the view does not notify. `not_found` with
+field `id` only when no saved view has that id.
 
 ## The web UI
 
@@ -719,8 +781,8 @@ Answers `{}`. `not_found` with field `id` for a rule that is not there.
 
 - **Source and build.** `apps/web/src/service-worker.ts`, built as one classic script in its own
   pass after the Vite build, as the diagram frame's is (`apps/web/build-frame.ts:1-26`), with
-  `bundleScript` (`packages/build/src/bundle.ts:65-111`). That names its output
-  `assets/<name>-<hash>` (`:74`), so it gains an option for a fixed name at the build's root.
+  `bundleScript` (`packages/build/src/bundle.ts:67-113`). That names its output
+  `assets/<name>-<hash>` (`:76`), so it gains an option for a fixed name at the build's root.
 - **Served at `/service-worker.js`.** The server serves the web build's files at `/`
   (`apps/server/src/http/web-ui.ts:80`), so the worker's default scope is `/`, the whole web UI, and
   no `Service-Worker-Allowed` header is needed. A fixed name keeps one registration across releases;
@@ -803,7 +865,7 @@ function showsWebUi(client: WindowClient): boolean {
 ```
 
 - `openTarget` is the payload's `agent`, `session`, and `thread` with their schemas. `threadHref`
-  (`apps/web/src/router.tsx:265-267`) builds the route from the identifiers alone, never from a URL
+  (`apps/web/src/router.tsx:325-327`) builds the route from the identifiers alone, never from a URL
   in the payload, and the result is always on the worker's own origin.
 - **Only a web UI window is chosen.** `matchAll` with `includeUncontrolled` returns every window
   client of the worker's origin, controlled or not (W3C Service Workers, `Clients.matchAll`,
@@ -815,13 +877,13 @@ function showsWebUi(client: WindowClient): boolean {
   whose URL is a route of the UI, and when none is, the click opens a new window at the thread
   rather than telling a page that cannot hear it.
 - The route table moves from `router.tsx` to `routes.ts`, which imports neither React nor the DOM,
-  so the worker bundles it: the `Route` type (`router.tsx:15-25`), the two patterns `matchRoute`
-  reads (`:27-29`), `matchRoute` (`:31-59`), and `threadHref` (`:265-267`). `router.tsx` re-exports
+  so the worker bundles it: the `Route` type (`router.tsx:16-26`), the two patterns `matchRoute`
+  reads (`:28-30`), `matchRoute` (`:32-60`), and `threadHref` (`:325-327`). `router.tsx` re-exports
   none of them, so each name has one home: in the same change, every caller's import moves to
-  `routes.ts`. On `main` at ef3439f those are `App.tsx`, `App.test.tsx`, `views/ThreadList.tsx`,
-  `views/Threads.tsx`, `views/list/ThreadRow.tsx`, `views/sessions/NewThreadSheet.tsx`, and
-  `views/thread/leaving.ts`, all under `apps/web/src/`, and `router.tsx` imports `matchRoute` and
-  `threadHref` for its own uses. The worker and the UI then share one route table.
+  `routes.ts`. Those are `App.tsx`, `App.test.tsx`, `views/ThreadList.tsx`, `views/Threads.tsx`,
+  `views/list/ThreadRow.tsx`, `views/sessions/NewThreadSheet.tsx`, and `views/thread/leaving.ts`,
+  all under `apps/web/src/`, and `router.tsx` imports `matchRoute` and `threadHref` for its own
+  uses. The worker and the UI then share one route table.
 - A web UI window already open is focused and told which thread to open, rather than navigated by
   URL: `Client.url` does not follow a single-page app's route changes everywhere (research Q6,
   "Click URLs"). Whichever URL a browser reports, it is a route of the UI, since the UI moves only
@@ -848,10 +910,10 @@ navigator.serviceWorker?.addEventListener("message", (event) => {
 navigator.serviceWorker?.startMessages();
 ```
 
-- `navigate` (`router.tsx:128-139`) pushes a history entry and announces it, so the shell renders
+- `navigate` (`router.tsx:146-157`) pushes a history entry and announces it, so the shell renders
   the thread and moves focus to it as any navigation does. With no `from` in the entry's state, the
   thread returns to the list with no filters, as a thread opened any other way does
-  (`router.tsx:168-171`).
+  (`router.tsx:196-199`).
 - **It listens on every route of the UI.** Every path `showsWebUi` accepts gets the UI's page
   (`apps/server/src/http/web-ui.ts:6-8`), and so runs `main.tsx`, which installs the listener
   outside the shell and before it picks a view. The listener therefore runs on the sign-in and link
@@ -871,7 +933,7 @@ navigator.serviceWorker?.startMessages();
 ### Device intent, subscribe and refresh
 
 - The intent is a device choice beside the others (`useDeviceChoice`,
-  `apps/web/src/device.ts:43-56`), under `agention.notifications`.
+  `apps/web/src/device.ts:72-84`), under `agention.notifications`.
 - **On** (from Settings' switch, a tap, with a recent sign-in): `Notification.requestPermission()`;
   if the browser holds a subscription whose `options.applicationServerKey` is not the server's
   public key, `unsubscribe()` it first, since a browser refuses a second subscription under another
@@ -890,6 +952,21 @@ navigator.serviceWorker?.startMessages();
 - **Off** and **sign-out**: `unsubscribe()` in the browser, the remove route for this device's own
   row (Off) or the sign-out route, which removes it, and the intent cleared.
 
+### Settings and the saved views sheet
+
+- **Settings, Saved views** (agention#184, `apps/web/src/views/settings/SavedViews.tsx`): each row
+  gains a Notify switch beside Rename and Remove, on while `GET /notifications` lists the view, and
+  turning it on or off posts the `views` routes. For a view with a refused filter on it is off and
+  disabled, its description naming the filter by `refusedFiltersOn`, as the thread list's filters
+  name it.
+- **Remove's question** (`SavedViews.tsx:126-131`) says, for a view that notifies, that removing it
+  ends its notifying.
+- **Replace with this list's question** in the thread list's Saved views sheet
+  (`apps/web/src/views/list/SavedViews.tsx:106-112`) says, for a view that notifies when the list on
+  screen has a refused filter on, that replacing ends its notifying, naming the filter.
+- **Settings, Notifications** keeps this device's switch and the device list, and says that which
+  views notify is set in Saved views, linking there.
+
 ## Tests
 
 As the HLA's Testing section lists them, with the shape this design gives them:
@@ -901,14 +978,21 @@ As the HLA's Testing section lists them, with the shape this design gives them:
   `exp` and `sub`; two parallel first sends to one origin sign once; a send within 11 hours reuses
   the token, one after does not.
 - **Payload**: the largest payload is 1005 bytes and fits.
-- **Rule schema**: each filter `ruleRefusedFilters` names refused, its name in the issue on
-  `filters`; a rule with no filter on refused; `include_archived` taken and dropped, so the stored
-  JSON never holds it.
+- **Refused filters**: `refusedFiltersOn` naming each refused filter when on and not when at its
+  default, and naming neither `unread` nor `include_archived` when on.
+- **Rules**: On refusing a view with each refused filter on, naming it, and `not_found` for a view
+  that is not there; On for a view that already notifies answering `{}`; Off answering `{}` for a
+  view that notifies and for one that does not, and `not_found` for an id no saved view has; an API
+  key holding `saved-views:write` replacing a notifying view's list, ending its notifying when the
+  new list has a refused filter on and keeping it otherwise; removing the view ending it; a rename
+  and a tag rename keeping it; a view listed through the operator API carrying no `notifies`.
 - **Endpoint rule**: the table above, accepted or refused.
 - **The check**: through the store with a recording `afterAgentMessage` sink and the real check: a
-  rule keeps its thread and not a sibling in the session, for an ask filter and a name filter; the
-  starting rule; a removed session's name and a removed group; no device, no mark; the operator's
-  own writes (browser session and API key) never reach the hook; a replay never notifies.
+  notifying view keeps its thread and not a sibling in the session, for an ask filter and a name
+  filter; the starting view; a removed session's name and a removed group; a view's order,
+  direction, and grouping changing no match; a view with `unread` and one including archived threads
+  matching; a replaced list matching from the next message; no device, no mark; the operator's own
+  writes (browser session and API key) never reach the hook; a replay never notifies.
 - **The mark**: notifies once; not again before the operator reads; again after a read or an archive
   through it, including after marking unread; a reply clears it; a read short of it leaves it.
 - **Sender**, against a local test push service through the transport: headers, one body size, no
@@ -925,9 +1009,12 @@ As the HLA's Testing section lists them, with the shape this design gives them:
   a new session, deleting that session's older row; removing this device without a recent sign-in
   and another device only with one; sign-out removing it and a new sign-in not; passkey removal by
   both paths; expiry leaving it; the routes absent from the operator API.
-- **Migration**: a database at the migration before this one holding threads, marks, and an instance
-  row, migrated forward: its rows intact, the starting rule present once, the new columns empty; the
-  key's trigger refusing a change.
+- **Migration**: a database at the migration before this one holding threads, marks, an instance
+  row, and saved views, migrated forward: its rows intact and not notifying, the starting view
+  present once, notifying, with its list reading back through `readView` as
+  `threadsView.parse({ impact: "blocking" })`, the new columns empty; with a view named "blocking
+  ASKS", the starting view named "Blocking asks 2"; with 200 views, no view added; the key's trigger
+  refusing a change.
 - **Browser (Chromium)**: as the HLA says, with `push` and `notificationclick` delivered to the
   worker, a window already open receiving `open-thread` and showing the thread, and a refresh
   answered `not_found` showing "Stopped". A click with the API's documentation page focused beside a

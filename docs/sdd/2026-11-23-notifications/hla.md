@@ -2,17 +2,16 @@
 
 <!-- cspell:ignore VAPID vapid aes128gcm webmanifest -->
 
-- Status: The FRD is accepted with the operator's rulings, its open choices as recommended, and this
-  HLA follows them. Rules are still drafted here as filter sets. Ruling 7 accepts that a rule can
-  follow a saved view; the FRD's requirements are revised for it first, and this HLA is updated once
-  the operator accepts them (a plan item, before building).
+- Status: Follows the FRD as the operator accepted it, with its rulings: a rule is a saved view that
+  notifies (rulings 7, 9, and 10). It builds on saved views (agention#184), which ships in the same
+  release (ruling 10).
 - Date: 2026-11-23
 - Requirements: [FRD](frd.md), R1 to R3, N1 and N2, D1 to D5, E1 to E3
 - Research: [prior-art research](prior-art-research.md)
 
 This effort adds Web Push notifications to the Agention server and web UI:
 
-- rules, each a set of the thread list's filters, saved from the thread list;
+- rules, each a saved view the operator switched to notify, matched by its filters;
 - a check, when an agent's message is saved, of whether its thread now needs the operator;
 - a sender that encrypts and posts each notification to the device's browser push service;
 - an installable web UI with a service worker that shows a notification and opens its thread.
@@ -24,8 +23,21 @@ No agent route, tool or answer changes.
 - **Only an agent's message notifies** (R2). The check runs right after an agent's write commits,
   beside the existing wake of long polls. Nothing runs on a timer, so ADR 0001's "no server action
   on deadlines" holds.
-- **A rule is matched by the thread list's own statement**, scoped to one thread. A rule can never
-  mean something the list does not show.
+- **A rule is a saved view that notifies** (R1): a flag on the view and nothing else, so it follows
+  the view: a rename keeps it, a replaced list is what the next check matches, and removing the view
+  ends it. The operator keeps one list, not two in step.
+- **A rule is matched by the thread list's own statement** from its view's filters, scoped to one
+  thread. A rule can never mean something its view does not show, and the view's order and grouping,
+  which only arrange threads, play no part.
+- **No notifying view has a refused filter on.** Turning notifying on refuses a view with search,
+  overdue, or the agent's reading on, and replacing a notifying view's list with one that has one on
+  ends its notifying, so a notification never names a thread its view would not show and no view
+  sits paused.
+- **`saved-views:write` changes what notifies** (E2, ruling 9). Replacing or removing a view that
+  notifies changes or ends its notifying, a write across resources that review check A18 records as
+  a second intended crossing beside the tag rename. No saved views read shows the flag, so the
+  operator API never says which views notify. Saved views and notifications ship in one release
+  (ruling 10), so no key already issued with that scope gains it.
 - **One mark per thread** records the message that last notified, beside the operator's read and
   archive marks. Reading or archiving through it clears it (N1).
 - **Web Push on `jose` and `node:crypto`**, with no new dependency. `jose`, already bundled, signs
@@ -48,7 +60,10 @@ No agent route, tool or answer changes.
   checklist's rule that derived signals never trigger actions. Rules never key on what messages say.
 - **The service worker is push-only**: `push` and `notificationclick`, no fetch handler, no cache.
 - **A new ADR** records Web Push to the operator and marks ADR 0001's "No push" line superseded for
-  the operator; reaching an agent only when it checks stays.
+  the operator; reaching an agent only when it checks stays. It amends ADR 0006's "One crossing is
+  intended" with the second crossing, and says that "never changes what an existing scope grants"
+  (review check A18, `SECURITY.md`) holds because saved views and notifications ship in one release
+  (ruling 10).
 
 ## Where it runs
 
@@ -73,16 +88,27 @@ agent --message_send--> server: write commits
 
 ### Server
 
-**Rules store.** A table of rules, each its filters as a JSON object read back through a strict
-schema. The schema lives in `packages/api` beside `threadFilters`, derived from it with `search`,
-`unread`, `overdue` and `agent_read` refused and `include_archived` taken and dropped (FRD R1), so a
-filter added to the list is one a rule can take unless it is deliberately left out. A rule needs at
-least one filter, and there are at most 20, like the other bounded collections. The migration that
-creates the table inserts the starting rule, `{"impact": "blocking"}`, once (R3).
+**Rules.** A `notifies` column on `saved_views`, off by default: a rule is a view with it on. It
+holds no filters of its own and needs no bound of its own, since saved views' 200 bounds it.
+Removing a view ends its notifying with the row, a rename changes nothing, and a replaced list is
+what the next check matches. No saved views read selects the column, so neither mount's saved views
+operations show it (E2). A view naming something that no longer exists matches as its list does
+(saved views R9): a session, tag or topic once one by that name exists, and a removed group, whose
+id is never reused, never again.
 
-A rule naming something that no longer exists keeps its filters as written and the list's statement
-decides: a session, tag or topic matches again once one by that name exists, and a removed group,
-whose id is never reused, never matches again.
+**The refused filters.** One predicate in `packages/api` names the filters a view has on that cannot
+notify (R1): `search` set, `overdue` true, and `agent_read` set. Views are stored whole, so a filter
+at its default is present but off. Turning notifying on refuses a view with one on, naming it, and
+replacing a notifying view's list with one that has one on turns `notifies` off in the same update,
+so no notifying view ever has one on. The check skips one all the same, and a later migration that
+rewrites stored views turns `notifies` off for a view its rewrite gives a refused filter. The web UI
+names a view's refused filter with the same predicate.
+
+**The starting view.** The migration, appended after saved views' own, inserts a saved view of
+`{"impact": "blocking"}` as `threadsView` parses it, every part stored as saved views store one,
+with `notifies` on (R3). Its name is the first of "Blocking asks", "Blocking asks 2", and so on that
+is not taken, compared as the name column's uniqueness compares, ignoring the case of ASCII letters.
+It is added even beside a view of the same filters, and skipped when 200 views exist.
 
 **The check.** It runs in the post-commit blocks of the store's thread start and message append
 (`store/threads.ts`, where `appended` wakes long polls), only when the writer is an agent session.
@@ -91,13 +117,21 @@ Never in `SessionNotifier.notify`, which revocations also call. In one transacti
 1. returns when no device is on, so a device turned on later is not denied a thread already marked;
 2. returns when the thread's mark is set, meaning it notified and the operator has not read or
    archived through that message since;
-3. runs the list's statement once per rule, scoped to this thread, until one matches;
+3. runs the list's statement once per notifying view, from the view's filters and scoped to this
+   thread, until one matches;
 4. on a match, sets the mark to the thread's latest message and returns the payload's parts.
 
 The statement is the list's own: `threadsSeen` already takes its scope as an argument, and
 `readThread` already scopes it to one thread, so the check is the list's total with the thread's id
-as its scope and the rule's filters through the list's `where` and parameters. No filter is written
+as its scope and the view's filters through the list's `where` and parameters. No filter is written
 twice.
+
+The view is read through saved views' strict read of a stored view and passed to the statement as it
+is. The list's `where`, its parameters, and the lead of a thread read only the view's filters, and
+the check counts with the list's default order, so the view's order, direction, and grouping change
+no match: with a filter on asks on, a thread leads with an ask meeting every one whenever it holds
+one, and the order only picks which. Unread and including archived threads run as the list runs
+them, and an agent's message leaves its thread unread and not archived for the operator.
 
 The check never fails the write it follows: the write has committed, so an error is logged and the
 agent's answer stands.
@@ -172,15 +206,17 @@ the name. A new browser's push service needs the list extended, which the operat
 operator API (E2):
 
 - `GET /api/web/notifications`: the public key, the devices (label, made, last accepted send, and
-  which is this one), and the rules;
+  which is this one), and the views that notify;
 - `POST /api/web/notifications/devices` (on and refresh) and
   `POST /api/web/notifications/devices/:id/remove`;
-- `POST /api/web/notifications/rules` (from the thread list's filters) and
-  `POST /api/web/notifications/rules/:id/remove`.
+- `POST /api/web/notifications/views` (a view's id, turning its notifying on) and
+  `POST /api/web/notifications/views/:id/remove` (turning it off).
 
-Every change is a `POST`, and a removal is `POST .../:id/remove`, as the web API's other routes are.
-The check runs from a store hook called after an agent's write commits, which only `agention serve`
-sets, so the store does no network work itself.
+The operator API's saved views operations keep their shapes; their replace and remove end a view's
+notifying as above, which is the crossing under `saved-views:write`. Every change is a `POST`, and a
+removal is `POST .../:id/remove`, as the web API's other routes are. The check runs from a store
+hook called after an agent's write commits, which only `agention serve` sets, so the store does no
+network work itself.
 
 ### Web UI
 
@@ -204,10 +240,11 @@ sets, so the store does no network work itself.
 - **Settings, Notifications.** This device's switch, asking the browser's permission from the tap,
   with a recent sign-in, and its state ("On", "Off", "Stopped" with why, "Blocked by the browser").
   The device list, each with its label, when it was turned on and when it last received a send, and
-  Remove. The rules, each as the list's filter chips, opening the list filtered by it, with Remove.
-- **The thread list's bar** gains **Notify me** while a filter a rule can take is on, saving those
-  filters as a rule. While a filter a rule cannot take is on, the action is off and its description
-  says which.
+  Remove. For which views notify, it points to Settings' Saved views.
+- **Settings, Saved views.** Each row, beside Rename and Remove, gains a Notify switch, off with its
+  reason for a view with a refused filter on. Remove's question there, and the question of Replace
+  with this list in the thread list's Saved views sheet, say when the change ends the view's
+  notifying.
 
 ### Agents
 
@@ -218,13 +255,14 @@ they set them honestly. No route, tool or answer changes, and the agent API vers
 
 | Where                        | Holds                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------- |
-| `notification_rules` (new)   | id, filters (strict JSON), created_at; the starting rule inserted once    |
+| `saved_views.notifies`       | whether the view notifies, off by default; on for the starting view       |
 | `push_subscriptions` (new)   | endpoint (unique), keys, passkey (cascade), session hash, label, made and |
 |                              | last-accepted times                                                       |
 | `thread_marks.notified_seq`  | the message that last notified, cleared by the operator's read or archive |
 | `instance.vapid_private_key` | made at serve start when absent                                           |
 
-One migration adds them, with its frozen hash, and rolls back as a whole like the others.
+One migration adds them and the starting view, with its frozen hash, and rolls back as a whole like
+the others.
 
 ## Security model additions
 
@@ -239,7 +277,9 @@ One migration adds them, with its frozen hash, and rolls back as a whole like th
   backups, which are already private files.
 - **Who can subscribe:** only a signed-in browser with a recent sign-in, through the web API with
   CSRF. Every device that receives notifications is listed and removable from any device. An API key
-  can neither subscribe nor change rules.
+  can neither subscribe, turn a view's notifying on or off, nor read which views notify. One holding
+  `saved-views:write` can replace or remove a view that notifies, which changes what notifies (E2),
+  and that scope's description says so.
 - **The service worker** takes no URL from a payload and has no fetch handler.
 - **Review checklist:** a new check for push: outbound limits, padding, no per-thread value in
   clear, nothing from a payload used as a URL, and notifications never keyed on message content.
@@ -248,9 +288,16 @@ One migration adds them, with its frozen hash, and rolls back as a whole like th
 
 - **Crypto:** the RFC 8291 worked example, byte for byte; the VAPID token verified with `jose`
   against the public key, with its `aud`, `exp` and `sub`.
-- **Matching:** a rule keeps its own thread and not a sibling in the same session, for an ask filter
-  and a name filter; the starting rule; a rule naming a removed session and a removed group; an
-  empty rule refused.
+- **Matching:** a notifying view keeps its own thread and not a sibling in the same session, for an
+  ask filter and a name filter; the starting view; a view naming a removed session and a removed
+  group; a view's order and grouping changing no match; a view with unread or including archived
+  threads on matching.
+- **Rules:** turning on a view with each refused filter on refused, naming it; turning off a view
+  that does not notify answering as done; an API key holding `saved-views:write` replacing a
+  notifying view's list with one that has one on ending its notifying, and with one that has none
+  keeping it; removing the view ending it; a rename and a tag rename keeping it; a view listed
+  through the operator API carrying no `notifies`; the starting view numbered past a name taken in
+  another case, added beside a view of the same filters, and skipped at 200 views.
 - **Volume:** an agent's message notifies once; another before the operator reads does not; after a
   read or archive, the next one does, including after marking unread again; the operator's own
   writes never notify; no device on, no mark.
@@ -265,10 +312,11 @@ One migration adds them, with its frozen hash, and rolls back as a whole like th
   second sign-in moving one; a refresh of an endpoint the server does not store stopping the device.
 - **Browser (Chromium, Playwright):** headless Chromium has no push service and Playwright cannot
   click a system notification, so these run against a stubbed `pushManager` and by delivering `push`
-  and `notificationclick` events to the worker directly: the switch's states, the device list,
-  Notify me, rules in Settings, and a click opening the right thread, in a web UI window and never
-  in the API's documentation page. The manifest's install check runs through Chromium's own
-  installability report where the headless shell offers it.
+  and `notificationclick` events to the worker directly: the device switch's states, the device
+  list, the Notify switch in Settings' Saved views with a refused filter's reason, the questions of
+  Replace and Remove for a view that notifies, and a click opening the right thread, in a web UI
+  window and never in the API's documentation page. The manifest's install check runs through
+  Chromium's own installability report where the headless shell offers it.
 - **Devices (operator):** Android Chrome installed and screen off, and Windows Edge and Chrome, as
   the FRD's definition of done says. Apple browsers are built to their documented rules and stated
   as untested; Apple's declarative Web Push is not adopted, for the same reason.
@@ -282,14 +330,23 @@ Two pull requests, each usable on its own:
    worker after all, this folds into the second PR rather than shipping one that does nothing.
 2. **Notifications:** everything else here, with its collateral: the operator guide, the usage
    skill, SECURITY.md, the architecture document, the new ADR, the review checklist, the live
-   testing guide, and the development contract's optional integrations.
+   testing guide, and the development contract's optional integrations. That collateral includes
+   what `saved-views:write` grants: the scope's description in `packages/api/src/scopes.ts` (and so
+   `docs/api/openapi.json`), the API key form, the operator guide's and `docs/architecture.md`'s
+   scope tables and the sentence under `docs/architecture.md`'s that one operation reaches across
+   resources, `SECURITY.md`'s API keys, whose "and nothing more" no longer holds, review check A18's
+   crossing sentence and its look-for of a write across resources beyond the tag rename's, the new
+   ADR's amendment of ADR 0006's one crossing, `docs/web-ui.md`'s Saved views and Settings, and the
+   live testing guide's saved views operations. It builds on saved views (agention#184), and the two
+   ship in the same release (ruling 10).
 
 ## Settled with the operator
 
 The operator accepted the FRD's five choices and the Web Push library as recommended (FRD rulings 1
-to 6). Each other answer would have changed this design only locally:
+to 6), and a rule as a saved view that notifies, shipping in one release with saved views (rulings 9
+and 10). Each other answer to the first six would have changed this design only locally:
 
-- **A starting rule of "any open ask", or none:** the migration's insert.
+- **A starting view of "any open ask", or none:** the migration's insert.
 - **A reminder:** a periodic job and a reminded mark, which could also notify when an answer-by
   passes; it would need its own line in the new ADR, since ADR 0001 rules out server action on
   deadlines.

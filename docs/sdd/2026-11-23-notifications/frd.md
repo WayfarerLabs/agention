@@ -1,12 +1,10 @@
 # Notifications: Functional Requirements
 
-- Status: Accepted by the operator on 2026-11-25, with the rulings recorded under
-  [Operator rulings](#operator-rulings-2026-11-23-onward). Ruling 7 accepts that a rule can follow a
-  saved view. The requirements this touches (R1, R3, E2, the out-of-scope line on sort and grouping,
-  and Why this exists) are to be revised, and nothing is built until the operator accepts the
-  revision, recorded as a ruling, except the installable web UI, which ruling 8 releases ahead of
-  it. One question on it is open for the operator (see
-  [Open question](#open-question-for-the-operator)).
+- Status: Accepted by the operator, with the rulings recorded under
+  [Operator rulings](#operator-rulings-2026-11-23-onward): on 2026-11-25 (rulings 1 to 7), and, as
+  revised so a rule is a saved view that notifies, on 2026-11-27 (rulings 9 and 10). Notifications
+  ship in the same release as saved views (ruling 10). The installable web UI went ahead of the
+  revision (ruling 8).
 - Date: 2026-11-23
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -23,8 +21,8 @@ summary. Away from the desk, above all on a phone with Agention closed, nothing 
 blocked on them stays blocked until they happen to look.
 
 The operator should be told when something needs them, and only then. What counts as "needs me" is
-theirs to say, in the same terms the thread list already filters by, so a rule reads like a saved
-filter.
+theirs to say, as a saved view: a list they keep can tell them when an agent writes in a thread it
+holds.
 
 ## Who this is for
 
@@ -45,24 +43,29 @@ notification (R2), so nothing notifies because time passed.
 
 ### Rules
 
-**R1. A rule is a thread-list filter.** A notification rule is a set of the thread list's filters,
-made from the thread list: with filters on, the operator saves them as a rule. Settings show each
-rule's filters as the thread list would and open the thread list filtered by it, and a rule can be
-removed there. A rule takes every filter but four: overdue and the agent's reading (unread by the
-agent, stranded), which change with time alone; unread, which every agent message meets; and search,
-since a notification never acts on what messages say. Including archived threads means nothing to a
-rule, since an agent's message always brings a thread back. A rule naming a session, tag or topic
-that no longer exists matches no thread until one by that name exists again; one naming a removed
-group never matches again, as the thread list behaves.
+**R1. A rule is a saved view that notifies.** The operator turns notifying on or off for any saved
+view with the Notify switch on its row in Settings' Saved views, which is where Settings show which
+views notify. A view notifies by its filters alone; its order and grouping play no part. The rule
+follows the view: a rename keeps it, replacing the view's list changes what notifies from then on,
+and removing the view ends it. Three filters cannot notify when they are on: search, since a
+notification never acts on what messages say, and overdue and the agent's reading (unread by the
+agent, stranded), which change with time alone. A view with one on cannot be turned on, and
+replacing a notifying view's list with one that has one on ends its notifying, as removing the view
+does. Replacing or removing a view that notifies says, when it asks, if notifying ends. Unread and
+including archived threads change nothing, since every agent message leaves its thread unread and
+not archived. A view naming something that no longer exists matches as its list does (saved views
+R9).
 
 **R2. An agent's message notifies.** When an agent's message is saved and leaves its thread matching
 any rule, the thread notifies, unless it has already notified since the operator last read or
 archived it. The operator's own actions (reading, marking unread, tagging, grouping, a script using
 the operator API) never notify, and neither does time passing.
 
-**R3. A starting rule, stored once.** Agention starts with one stored rule, which the operator may
-change or remove like any other; once removed, it does not return. The starting rule is a thread
-with an open ask whose impact is blocking (ruling 1).
+**R3. A starting view, stored once.** Agention adds one saved view that notifies, Blocking asks: the
+threads with an open ask whose impact is blocking (ruling 1), its name numbered if a view already
+has it. It is added even beside a view of the same filters, and not at all when the operator already
+keeps 200 views, the most there can be. The operator changes, stops, or removes it like any other
+view, and Agention never adds it again.
 
 ### Volume
 
@@ -117,8 +120,12 @@ notify the operator's devices.
 - Nothing readable reaches the push service: what it sees in clear names no thread, and a
   notification's size does not reveal its content's length. The server identifies itself to the push
   service without naming any person.
-- A device's subscription is made only from the operator's sign-in on it. Rules and notification
-  settings change only through the web UI, never through the operator API.
+- A device's subscription is made only from the operator's sign-in on it. Only the web UI turns a
+  view's notifying on or off and manages the devices; the operator API does neither and does not
+  show them.
+
+  Replacing or removing a view that notifies through the operator API, which `saved-views:write`
+  allows, changes what notifies; the API key form and the operator guide say so of that scope.
 
 **E3. Collateral.** The operator guide, the usage skill, SECURITY.md, the architecture document, the
 development contract's optional integrations, the review checklist and ADRs describe rules,
@@ -133,7 +140,7 @@ them.
 - Registrations awaiting approval. They block an agent too, but rules are thread filters; a
   registration notification can follow as its own change.
 - Batching notifications across threads, and holding them back while the operator is using Agention.
-- Notifications from the thread list's sort or grouping; only its filters define a rule.
+- Notifying by a view's order or grouping; only its filters decide what notifies.
 
 ## Definition of done
 
@@ -180,11 +187,15 @@ answer its own thread too." The operator picked "Saved views (#170)", "Notificat
    "Go ahead (Recommended)" ("It's unaffected by the reshape; I record your release as a ruling and
    open it stacked on #96."). So the plan's PR 1 is built and merged on its own, ahead of the
    revision ruling 7 calls for.
-
-## Open question for the operator
-
-**A rule following a view, and the operator API.** Saved views R8 puts views on the operator API,
-under scopes of their own (its HLA names `saved-views:write`). E2 says rules and notification
-settings change only through the web UI, never through the operator API. A rule that follows a view
-would let a program change what notifies. Does E2 give way for that, or does the revision keep
-programs from changing what notifies? The revised requirements carry the answer.
+9. The revision ruling 7 calls for: answered in Agention on 2026-11-27 (thread 19, message 13,
+   2026-11-27T18:14:19Z), to ask 14 in message 11 (2026-11-26T12:09Z): "Accept the reshaped
+   notifications design (rules are saved views switched to notify) as drafted in PR #188?" The
+   operator picked "Accept as drafted (Recommended)" ("Rules follow views live; a saved-views:write
+   key can change what notifies, recorded as a second exception."). So Why this exists, R1, R3, E2's
+   last point, and the out-of-scope line on order and grouping read as drafted, and E2 gives way as
+   the draft proposed: replacing or removing a view that notifies through the operator API, under
+   `saved-views:write`, changes what notifies.
+10. Release order: answered in the same message, to ask 15 in message 11: "Should saved views and
+    notifications ship in the same release?" The operator picked "One release (Recommended)" ("No
+    key you've already issued ever widens."). So saved views and notifications ship in the same
+    release, and no key issued with `saved-views:write` gains what notifies after it was issued.
