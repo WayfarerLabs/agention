@@ -11,6 +11,7 @@ import {
 import type { Database } from "../database/database.ts";
 import type { Identity } from "../identity.ts";
 import type { Store } from "./store.ts";
+import { nudgeDueSince } from "./thread-reads.ts";
 import { authorizeSession, type SessionTarget } from "./threads.ts";
 import { longPoll } from "./wait.ts";
 
@@ -75,13 +76,13 @@ export async function pollMonitor(
 // never writing. One is due when its bridge last reported that it can be
 // nudged and that it is at its prompt, not stopped by a usage limit whose
 // reset is unknown or still to come, so a session busy, at any other screen
-// or limited is due none; one of its threads holds a live message by anyone
-// but its agent that its agent has not read, by the rule its own unread
-// count follows, written after the agent last checked in; and no nudge was
-// claimed since that check-in. The session's own rows decide it, so it holds
-// across a server restart, a bridge restart and a takeover alike.
-// markCheckedIn stamps any check-in before the latest claim, so the agent
-// checking in while the nudge is under way counts as answering it.
+// or limited is due none; and a message makes one due, as nudgeDueSince
+// says: one of its threads holds a live message by anyone but its agent that
+// its agent has not read, written after the agent last checked in, and no
+// nudge was claimed since that check-in. The session's own rows decide it,
+// so it holds across a server restart, a bridge restart and a takeover
+// alike. markCheckedIn stamps any check-in before the latest claim, so the
+// agent checking in while the nudge is under way counts as answering it.
 function nudgeDue(db: Database, sessionId: number, now: number): boolean {
   return (
     db
@@ -90,17 +91,7 @@ function nudgeDue(db: Database, sessionId: number, now: number): boolean {
          JOIN monitor_reports r ON r.session_id = s.id AND r.nudge = 1
            AND r.condition = 'at_prompt'
            AND NOT (r.stopped_by IS 'usage_limit' AND COALESCE(r.resets_at > :now, 1))
-         JOIN actors own ON own.session_id = s.id
-         WHERE s.id = :session
-           AND (s.nudged_at IS NULL OR s.nudged_at <= s.last_seen_at)
-           AND EXISTS (
-             SELECT 1 FROM threads t
-             JOIN live_messages l ON l.thread_id = t.id AND l.actor_id <> own.id
-             LEFT JOIN thread_marks mark ON mark.actor_id = own.id AND mark.thread_id = t.id
-             WHERE t.session_id = s.id
-               AND l.seq > max(COALESCE(mark.read_seq, 0), COALESCE(mark.archived_seq, 0))
-               AND (s.last_seen_at IS NULL OR l.created_at > s.last_seen_at)
-           )`,
+         WHERE s.id = :session AND ${nudgeDueSince("s")} IS NOT NULL`,
       )
       .get({ session: sessionId, now }) !== undefined
   );
