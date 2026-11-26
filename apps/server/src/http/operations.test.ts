@@ -11,7 +11,7 @@ import {
   submitRegistration,
   writeChunk,
 } from "../store/index.ts";
-import { type Agent, Fixture, newPublicKey } from "../store/test-fixture.ts";
+import { type Agent, Fixture, newPublicKey, testOrigin } from "../store/test-fixture.ts";
 import { asOf, listThreads } from "../store/thread-lists.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
 import { parse } from "./input.ts";
@@ -111,6 +111,7 @@ describe("an operation a read scope grants", () => {
         request: requestFor(operation),
         log,
         dropConnection: undefined,
+        refused: () => undefined,
       });
       expect(changes()).toBe(before);
     },
@@ -215,6 +216,7 @@ async function run(operation: Operation, identity: Identity): Promise<string> {
       request: requestFor(operation),
       log,
       dropConnection: undefined,
+      refused: () => undefined,
     });
   } catch (error) {
     if (error instanceof ApiError) {
@@ -240,7 +242,12 @@ describe("the store work of an operation", () => {
   beforeEach(() => {
     createGroup(fixture.store, fixture.operator, { name: "Work" });
     setSessionTags(fixture.store, fixture.operator, agent.target, { tags: ["infra"] });
-    submitRegistration(fixture.store, newPublicKey(), { agent: "builder", session: "second" });
+    submitRegistration(
+      fixture.store,
+      newPublicKey(),
+      { agent: "builder", session: "second" },
+      testOrigin,
+    );
   });
 
   it.each([

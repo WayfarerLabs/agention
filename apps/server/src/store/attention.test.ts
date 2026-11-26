@@ -9,7 +9,14 @@ import {
   rejectRegistration,
   submitRegistration,
 } from "./registrations.ts";
-import { type Agent, Fixture, hour, newPublicKey, threadTarget } from "./test-fixture.ts";
+import {
+  type Agent,
+  Fixture,
+  hour,
+  newPublicKey,
+  threadTarget,
+  testOrigin,
+} from "./test-fixture.ts";
 import { listThreads } from "./thread-lists.ts";
 
 let fixture: Fixture;
@@ -34,7 +41,7 @@ const unreadListed = () =>
 // submit submits a registration for a new key, giving its id.
 function submit(session = "side"): number {
   const key = newPublicKey();
-  submitRegistration(fixture.store, key, { agent: "builder", session });
+  submitRegistration(fixture.store, key, { agent: "builder", session }, testOrigin);
   return findRegistrationByKey(fixture.db, key)?.id ?? 0;
 }
 

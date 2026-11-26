@@ -9,6 +9,7 @@ import {
   type VoiceSettings,
   type VoiceSettingsInput,
 } from "@wayfarerlabs/agention-api";
+import { recordAudit } from "../audit/record.ts";
 import { requireRecentSignIn, signedInSession } from "../auth/browser-sessions.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";
@@ -55,10 +56,15 @@ export interface TranscriptionConfig {
 // so it never reaches a provider and the operator can clear it.
 type Saved = { row: VoiceRow | undefined; invalid: boolean };
 
-function readRow(db: Database): Saved {
-  const row = db
+// storedRow reads the row as it is, checked or not.
+function storedRow(db: Database): VoiceRow | undefined {
+  return db
     .prepare("SELECT base_url, model, prompt, api_key FROM voice_settings WHERE id = 1")
     .get() as VoiceRow | undefined;
+}
+
+function readRow(db: Database): Saved {
+  const row = storedRow(db);
   if (row === undefined) {
     return { row: undefined, invalid: false };
   }
@@ -145,7 +151,8 @@ export function saveVoiceSettings(
 ): SettingsResult {
   const { db } = store;
   return db.transaction(() => {
-    requireRecentSignIn(signedInSession(db, identity, store.clock()));
+    const now = store.clock();
+    requireRecentSignIn(signedInSession(db, identity, now));
     for (const field of fieldsFrom(environment)) {
       if (input[field] !== undefined) {
         throw invalidInput(field, "is set by the server's environment, so leave it out");
@@ -175,12 +182,24 @@ export function saveVoiceSettings(
     if (preset !== undefined && key === null && environment.api_key === undefined) {
       throw invalidInput("api_key", `${preset.name} needs a key`);
     }
+    const before = storedRow(db);
+    const saved: VoiceRow = {
+      base_url: baseUrl,
+      model,
+      prompt: input.prompt ?? null,
+      api_key: key,
+    };
     db.prepare(
       `INSERT INTO voice_settings (id, base_url, model, prompt, api_key)
        VALUES (1, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET base_url = excluded.base_url, model = excluded.model,
          prompt = excluded.prompt, api_key = excluded.api_key`,
-    ).run(baseUrl, model, input.prompt ?? null, key);
+    ).run(saved.base_url, saved.model, saved.prompt, saved.api_key);
+    // Which fields changed, never their values: the key's least of all.
+    const changed = (["base_url", "model", "prompt", "api_key"] as const).filter(
+      (field) => (before?.[field] ?? null) !== saved[field],
+    );
+    recordAudit(store, now, { kind: "identity", identity }, "setVoiceSettings", { changed });
     return settingsOf(db, environment);
   });
 }
@@ -195,8 +214,10 @@ export function clearVoiceSettings(
 ): SettingsResult {
   const { db } = store;
   return db.transaction(() => {
-    requireRecentSignIn(signedInSession(db, identity, store.clock()));
+    const now = store.clock();
+    requireRecentSignIn(signedInSession(db, identity, now));
     db.prepare("DELETE FROM voice_settings").run();
+    recordAudit(store, now, { kind: "identity", identity }, "clearVoiceSettings", {});
     return settingsOf(db, environment);
   });
 }

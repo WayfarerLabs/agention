@@ -12,5 +12,9 @@ out/
 # fails when it differs from what generation writes.
 docs/api/openapi.json
 
+# The OCSF schemas the audit log's tests validate against, kept exactly as
+# fetched (apps/server/src/audit/fixtures/README.md).
+apps/server/src/audit/fixtures/*.json
+
 # Lockfile, owned by npm.
 package-lock.json

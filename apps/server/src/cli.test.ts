@@ -12,7 +12,7 @@ import { openBrowserSession } from "./auth/browser-sessions.ts";
 import { hashOfSecret } from "./auth/secrets.ts";
 import { type AgentKey, newAgentKey } from "./http/test-harness.ts";
 import { identityForBrowserSession } from "./identity.ts";
-import { insertTestPasskey } from "./store/test-fixture.ts";
+import { insertTestPasskey, testOrigin } from "./store/test-fixture.ts";
 import { testDirectory } from "./test-directory.ts";
 import {
   approveRegistration,
@@ -137,9 +137,13 @@ describe("agention serve and passkey-link", () => {
           Date.now(),
         ),
       );
-      const identity = identityForBrowserSession(db, hashOfSecret(token) ?? Buffer.alloc(0));
+      const identity = identityForBrowserSession(
+        db,
+        hashOfSecret(token) ?? Buffer.alloc(0),
+        testOrigin,
+      );
       const key = newAgentKey();
-      submitRegistration(store, key.publicKey, { agent: "builder", session: "main" });
+      submitRegistration(store, key.publicKey, { agent: "builder", session: "main" }, testOrigin);
       approveRegistration(
         store,
         identity ?? (undefined as never),

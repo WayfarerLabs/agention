@@ -18,6 +18,8 @@ import {
   type WriteStatus,
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import type { LoggedStatus } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notAllowed } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";
@@ -108,10 +110,17 @@ function toUpdate(row: UpdateRow): SessionUpdate {
   };
 }
 
+// An entry a status change logged: its place in the session's log and the
+// status after it.
+interface Logged {
+  seq: number;
+  status: Status;
+}
+
 // logStatus merges an update into the session's current status and logs the
-// result, as the registration's, answering with the status after it. An
-// update that changes nothing and carries no note logs nothing. inferred marks
-// an entry the session did not report.
+// result, as the registration's, answering with the status after it and the
+// entry it logged. An update that changes nothing and carries no note logs
+// nothing. inferred marks an entry the session did not report.
 function logStatus(
   db: Database,
   sessionId: number,
@@ -119,12 +128,13 @@ function logStatus(
   input: SessionUpdateInput,
   now: number,
   inferred: boolean,
-): SessionStatus {
+): { status: SessionStatus; logged: Logged | undefined } {
   const current = latestUpdate(db, sessionId);
   const status = merged(current, input);
   if (current !== undefined && sameStatus(current, status) && input.note === undefined) {
-    return toStatus(status);
+    return { status: toStatus(status), logged: undefined };
   }
+  const seq = (current?.seq ?? 0) + 1;
   db.prepare(
     `INSERT INTO session_updates (session_id, seq, registration_id, state, outcome, title, goal,
        percent, note, inferred, created_at)
@@ -132,14 +142,14 @@ function logStatus(
        :note, :inferred, :created_at)`,
   ).run({
     session_id: sessionId,
-    seq: (current?.seq ?? 0) + 1,
+    seq,
     registration_id: registrationId,
     ...status,
     note: input.note ?? null,
     inferred: Number(inferred),
     created_at: now,
   });
-  return toStatus(status);
+  return { status: toStatus(status), logged: { seq, status } };
 }
 
 // updateSession merges a session's update into its status and logs the
@@ -164,7 +174,17 @@ export function updateSession(
     if (registrationId === undefined) {
       throw notOwnStatus();
     }
-    return logStatus(db, sessionId, registrationId, input, now, false);
+    const { status, logged } = logStatus(db, sessionId, registrationId, input, now, false);
+    if (logged !== undefined) {
+      recordAudit(store, now, { kind: "identity", identity }, "updateSession", {
+        session: { id: sessionId, agent: target.agent, session: target.session },
+        update: logged.seq,
+        state: logged.status.state,
+        outcome: logged.status.outcome,
+        percent: logged.status.percent,
+      });
+    }
+    return status;
   });
 }
 
@@ -190,14 +210,15 @@ function notOwnStatus() {
 // since a session that writes is doing something, and logs that change as an
 // inferred entry; a stopped session stays stopped, since one that writes was
 // started again and says so itself. The operator's writes say nothing of the
-// session's status, and may report none.
+// session's status, and may report none. It answers the status it logged, for
+// the write's audit event, or null when it logged none.
 export function statusOnWrite(
   db: Database,
   identity: Identity,
   sessionId: number,
   report: WriteStatus,
   now: number,
-): void {
+): LoggedStatus | null {
   const reported =
     report.state !== undefined || report.outcome !== undefined || report.note !== undefined;
   const registrationId = ownRegistration(db, identity, sessionId);
@@ -205,13 +226,17 @@ export function statusOnWrite(
     if (reported) {
       throw notOwnStatus();
     }
-    return;
+    return null;
   }
+  let logged: Logged | undefined;
   if (reported) {
-    logStatus(db, sessionId, registrationId, report, now, false);
+    ({ logged } = logStatus(db, sessionId, registrationId, report, now, false));
   } else if (latestUpdate(db, sessionId)?.state === "idle") {
-    logStatus(db, sessionId, registrationId, { state: "working" }, now, true);
+    ({ logged } = logStatus(db, sessionId, registrationId, { state: "working" }, now, true));
   }
+  return logged === undefined
+    ? null
+    : { state: logged.status.state, outcome: logged.status.outcome };
 }
 
 // authorizeLogReader authorizes the identity for the session's log, which

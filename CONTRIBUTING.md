@@ -300,6 +300,14 @@ gate, which needs the network.
   version, so its license notice ships and the vulnerability check covers it, and pin no others.
   Those pins move only with the package that carries them inlined, so `.github/dependabot.yml`
   ignores them, and upgrading that package means updating them in the same change.
+- The server's tests validate the audit log's events against OCSF's JSON Schemas with `ajv`, pinned
+  under the server's `devDependencies` at 8.20.0, the newest release past the seven-day wait when it
+  was added (2026-11-26), with a verified registry signature and no provenance attestation. The
+  bridge's own `ajv` pin, at the version the MCP SDK carries inlined, stays where it is, so the tree
+  holds a copy of each. Dependabot's ignore for the bridge's pin also covers the server's, so a
+  deliberate update moves the server's by hand, under the same wait. Only the tests run it, on the
+  schemas in their fixtures, so the residual `fast-uri` advisories below reach nothing through it
+  either.
 - Every package a bundle includes ships with its license text, and the build fails for one whose
   notice would carry none. When a package's own files do not give the build what its notice needs,
   `suppliedNotices` in `packages/build/src/supplied-notices.ts` holds that text for its version,

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey } from "../auth/api-keys.ts";
 import { listThreads } from "../store/index.ts";
 import { asOf } from "../store/thread-lists.ts";
-import { hour } from "../store/test-fixture.ts";
+import { hour, testOrigin } from "../store/test-fixture.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { uploaded } from "./file-test-support.ts";
 import { defaultRates } from "./rates.ts";
@@ -317,7 +317,7 @@ describe("a key's credential", () => {
   it("is refused by an operation that runs after a revocation it authenticated before", async () => {
     const { key, secret } = await harness.createKey(["threads:read"]);
     const { store } = harness.fixture;
-    const { identity } = authenticateApiKey(store, `Bearer ${secret}`);
+    const { identity } = authenticateApiKey(store, `Bearer ${secret}`, testOrigin);
     await harness.web("POST", `/keys/${key.id}/revoke`);
     expect(() => listThreads(store, identity, threadsQuery.parse({}))).toThrow(
       expect.objectContaining({ code: "unauthenticated" }),
