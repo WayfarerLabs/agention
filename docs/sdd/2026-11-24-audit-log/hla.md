@@ -1,6 +1,6 @@
 # Audit log: High-Level Architecture
 
-- Status: Draft, following the FRD's draft, with the operator's answers to its open choices
+- Status: The FRD is accepted with the operator's rulings; this HLA follows them.
 - Date: 2026-11-24
 - Requirements: [FRD](frd.md), R1 to R17
 - Research: [prior-art research](prior-art-research.md)

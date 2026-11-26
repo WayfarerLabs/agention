@@ -2,7 +2,7 @@
 
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md)
-- Building starts once the operator accepts the FRD, whose open choices the operator has answered.
+- The operator accepted the FRD on 2026-11-25; building starts with P1.
 - Vehicle: one pull request per phase, each merged and released before the next starts, not stacked;
   each phase is usable alone. The development contract lists no `sdd:` label, so the pull requests
   cite this directory by path instead.
@@ -14,8 +14,10 @@
       and four open choices (#123).
 - [x] Requirements, HLA and plan reviewed (project review and complexity pass), findings disposed
       (#123).
-- [ ] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
-      for any choice answered otherwise.
+- [x] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
+      for any choice answered otherwise (#123).
+- [x] On acceptance, the development contract names this effort as active alongside pull request and
+      branch links (#123).
 
 ## P1: the log, stdout and files
 

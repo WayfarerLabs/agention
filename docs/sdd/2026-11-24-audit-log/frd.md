@@ -1,8 +1,7 @@
 # Audit log: Functional Requirements
 
-- Status: Draft for the operator's acceptance. The operator has answered its four open choices
-  (rulings below); everything else is the lead's proposal, which the operator may change on
-  accepting.
+- Status: Accepted by the operator on 2026-11-25, with the rulings recorded under
+  [Operator rulings](#operator-rulings-2026-11-24-onward).
 - Date: 2026-11-24
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -259,3 +258,25 @@ picked:
 
 Asked before answering: "So can you do OCSF over OTLP?" Answered yes: each OCSF event is the body of
 an OpenTelemetry log record, as R6 and R10 state.
+
+**2026-11-25, accepting these requirements.** Agention thread 28, message 1, asked: "Accept the
+audit log requirements (with the defaults listed) so phase 1 can start?" Its detail, "What accepting
+covers":
+
+> Your four answers, plus these defaults, which you can still change:
+>
+> - **Not recorded:** read marks, and reads of the audit log itself.
+> - **Kept out of events:** thread titles and file names.
+> - **No hash chain.** The copy delivered off the box is the evidence.
+> - **Phase order:** the viewer comes before OTLP.
+> - **Behind a proxy:** the address recorded is the proxy's. Trusting a named proxy is tracked
+>   separately in #127.
+> - **Configuration:** sinks are set with `serve` options, and any network credential comes from the
+>   environment only.
+
+The operator did not answer in thread 28. Answered in Agention on 2026-11-25, local time (thread 35,
+message 7, 2026-11-26T05:28Z). The question: "Which designs should I build for the next release?
+Picking one accepts its requirements as drafted, with the recommendations." The operator picked
+"Saved views (#170)", "Notifications (#96)", and "Audit log (#123)". Picking the audit log accepted
+these requirements with the defaults above, and thread 28's ask was withdrawn as "Settled in thread
+35: accepted with the defaults."
