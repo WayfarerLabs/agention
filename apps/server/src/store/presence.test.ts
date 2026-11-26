@@ -265,7 +265,7 @@ describe("stranded", () => {
     expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([true, false, false]);
     expect(stranded()).toEqual(["written to"]);
     const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
-    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1, ignored: 0 });
     fixture.report(agent, { state: "working" });
     expect(stranded()).toEqual([]);
   });
@@ -275,6 +275,6 @@ describe("stranded", () => {
     expect(thread(1)).toMatchObject({ stranded: true, presence: { quiet: false } });
     expect(stranded()).toEqual(["written to"]);
     const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
-    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1, ignored: 0 });
   });
 });

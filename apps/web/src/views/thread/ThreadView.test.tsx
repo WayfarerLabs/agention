@@ -689,25 +689,6 @@ describe("the head", () => {
         );
       },
     ],
-    [
-      "checked in after the operator wrote without reading the thread, saying when it checked in",
-      {
-        presence: {
-          last_seen_at: "2026-10-27T12:00:00.000Z",
-          quiet: false,
-          connected: true,
-          monitor: { ...observed("running"), nudge: true },
-          last_nudge: { at: "2026-10-27T11:59:00.000Z", sent: true, answered: true },
-        },
-        unread_by_agent_since: "2026-10-27T11:50:00.000Z",
-      },
-      (line: Element | null) => {
-        expect(line?.querySelector("time")?.getAttribute("datetime")).toBe(
-          "2026-10-27T12:00:00.000Z",
-        );
-        expect(line?.textContent).toContain(conditionWords(observed("running")));
-      },
-    ],
   ])(
     "says, muted under where it is, why the thread is stranded when its session %s",
     async (_, why, says) => {
@@ -715,19 +696,42 @@ describe("the head", () => {
         thread: threadSummary({ unread: 0, stranded: true, ...why }),
         messages: [message(1), operatorMessage(2)],
       });
-      const line = threadHeader().querySelector(".stranded");
+      const line = threadHeader().querySelector(".why-unread");
       expect(line?.previousElementSibling?.classList.contains("where")).toBe(true);
       expect(line?.classList.contains("muted")).toBe(true);
       says(line);
     },
   );
 
+  it("says, muted under where it is, when the agent of an ignored thread checked in, with what its terminal shows", async () => {
+    await page.open({
+      thread: threadSummary({
+        unread: 0,
+        stranded: false,
+        ignored: true,
+        presence: {
+          last_seen_at: "2026-10-27T12:00:00.000Z",
+          quiet: false,
+          connected: true,
+          monitor: { ...observed("running"), nudge: true },
+          last_nudge: { at: "2026-10-27T11:59:00.000Z", sent: true, answered: true },
+        },
+      }),
+      messages: [message(1), operatorMessage(2)],
+    });
+    const line = threadHeader().querySelector(".why-unread");
+    expect(line?.previousElementSibling?.classList.contains("where")).toBe(true);
+    expect(line?.classList.contains("muted")).toBe(true);
+    expect(line?.querySelector("time")?.getAttribute("datetime")).toBe("2026-10-27T12:00:00.000Z");
+    expect(line?.textContent).toContain(conditionWords(observed("running")));
+  });
+
   it("leaves a session with no active credential that is not yet quiet to its tag", async () => {
     await page.open({
       thread: threadSummary({ unread: 0, stranded: true, credential_active: false }),
       messages: [message(1), operatorMessage(2)],
     });
-    expect(threadHeader().querySelector(".stranded")).toBeNull();
+    expect(threadHeader().querySelector(".why-unread")).toBeNull();
     expect(within(threadHeader()).getByText("No active credential")).toBeTruthy();
   });
 
@@ -741,13 +745,13 @@ describe("the head", () => {
       }),
       messages: [message(1), operatorMessage(2)],
     });
-    expect(threadHeader().querySelector(".stranded time")).not.toBeNull();
+    expect(threadHeader().querySelector(".why-unread time")).not.toBeNull();
     expect(within(threadHeader()).getByText("No active credential")).toBeTruthy();
   });
 
   it("says nothing of a thread that is not stranded", async () => {
     await page.openWith([message(1)], { presence: { quiet: true } });
-    expect(threadHeader().querySelector(".stranded")).toBeNull();
+    expect(threadHeader().querySelector(".why-unread")).toBeNull();
   });
 
   it.each([

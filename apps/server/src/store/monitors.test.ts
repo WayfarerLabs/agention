@@ -5,6 +5,7 @@ import {
   monitorPollQuery,
   monitorReport,
   sessionsQuery,
+  threadFilters,
   threadsQuery,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ import { revokeRegistration } from "./registrations.ts";
 import { listSessions } from "./sessions.ts";
 import { createStore, defaultQuietAfter, type Store } from "./store.ts";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
-import { listThreads } from "./thread-lists.ts";
+import { countThreads, listThreads } from "./thread-lists.ts";
 
 let fixture: Fixture;
 let agent: Agent;
@@ -578,7 +579,7 @@ describe("the nudge", () => {
   });
 });
 
-describe("stranded, for a session that can be nudged", () => {
+describe("stranded and ignored, for a session that can be nudged", () => {
   const canBeNudged = { ...running, condition: "at_prompt", nudge: true };
   const quiet = defaultQuietAfter + seenStep + 1;
 
@@ -598,7 +599,19 @@ describe("stranded, for a session that can be nudged", () => {
       (each) => each.number === number,
     );
   };
-  const stranded = (number = 1) => thread(number)?.stranded;
+
+  // standing says whether the thread numbered number is stranded or ignored,
+  // never both, or neither.
+  const standing = (number = 1) => {
+    const shown = thread(number);
+    if (shown?.stranded === true && shown.ignored === true) {
+      throw new Error(`thread ${number} is both stranded and ignored`);
+    }
+    if (shown?.stranded === true) {
+      return "stranded";
+    }
+    return shown?.ignored === true ? "ignored" : "neither";
+  };
 
   // claimed claims the nudge due, and reports its outcome where one is given.
   const claimed = async (sent?: boolean) => {
@@ -609,64 +622,85 @@ describe("stranded, for a session that can be nudged", () => {
     }
   };
 
-  it("is not for waiting at its prompt or having stopped, until the quiet time passes", () => {
+  it("is neither for waiting at its prompt or having stopped, until the quiet time passes", () => {
     fixture.report(agent, { state: "stopped", outcome: "completed" });
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     fixture.advance(quiet - 2);
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     // No nudge was tried since the message within the quiet time.
     fixture.advance(2);
-    expect(stranded()).toBe(true);
+    expect(standing()).toBe("stranded");
   });
 
-  it("is, once the quiet time passes after the message, where the agent checked in since without reading it", () => {
+  it("is ignored, once the quiet time passes after the message, where the agent checked in since without reading it", () => {
     fixture.advance(seenStep);
     fixture.seen(agent);
     // The agent checked in after the message, so no nudge is due for it.
     fixture.advance(quiet - seenStep - 1);
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     fixture.advance(1);
     expect(presence()?.quiet).toBe(false);
-    expect(stranded()).toBe(true);
+    expect(standing()).toBe("ignored");
   });
 
-  it("is once the latest nudge since the message was not sent", async () => {
+  it("is stranded once the latest nudge since the message was not sent", async () => {
     await claimed(false);
-    expect(stranded()).toBe(true);
+    expect(standing()).toBe("stranded");
   });
 
   it.each([
     ["a sent nudge", true],
     ["a claimed nudge whose outcome never came", undefined],
-  ])("is once %s goes the quiet time, until the agent reads the thread", async (_, sent) => {
-    await claimed(sent);
-    fixture.advance(quiet - 1);
-    expect(stranded()).toBe(false);
-    fixture.advance(1);
-    expect(stranded()).toBe(true);
-    // Checking in late, without reading the thread, does not bring it.
-    fixture.seen(agent);
-    expect(stranded()).toBe(true);
-    markRead(fixture.store, agent.identity, threadTarget(agent, 1), { through: 1 });
-    expect(stranded()).toBe(false);
-  });
+  ])(
+    "is stranded once %s goes the quiet time, and ignored once the agent checks in without reading the thread, until it does",
+    async (_, sent) => {
+      await claimed(sent);
+      fixture.advance(quiet - 1);
+      expect(standing()).toBe("neither");
+      fixture.advance(1);
+      expect(standing()).toBe("stranded");
+      // Checking in late, without reading the thread, does not bring it.
+      fixture.seen(agent);
+      expect(standing()).toBe("ignored");
+      markRead(fixture.store, agent.identity, threadTarget(agent, 1), { through: 1 });
+      expect(standing()).toBe("neither");
+    },
+  );
 
-  it("is once a sent nudge goes the quiet time, where the agent checked in after it without reading the thread, and is not nudged again", async () => {
-    const written = fixture.now;
+  it("is ignored once a sent nudge goes the quiet time, where the agent checked in after it without reading the thread, and is not nudged again", async () => {
     fixture.advance(1);
     await claimed(true);
     fixture.seen(agent);
     expect(presence()?.last_nudge).toMatchObject({ sent: true, answered: true });
     fixture.advance(quiet - 1);
     fixture.seen(agent);
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     fixture.advance(1);
     expect(presence()?.quiet).toBe(false);
-    expect(stranded()).toBe(true);
-    // The thread says when its unread message was written, so the check-in
-    // reads as one that passed it over.
-    expect(thread()?.unread_by_agent_since).toBe(new Date(written).toISOString());
+    expect(standing()).toBe("ignored");
     expect((await poll(first, { wait: "0" })).nudge).toBe(false);
+  });
+
+  it("is stranded, not ignored, where the agent checked in after the message but not since a later nudge", async () => {
+    fixture.advance(seenStep);
+    fixture.seen(agent);
+    fixture.advance(1);
+    fixture.startThread(agent);
+    await claimed(true);
+    fixture.advance(quiet);
+    // The agent is not responding to the nudge, which would bring it here too.
+    expect(presence()?.last_nudge).toMatchObject({ sent: true, answered: false });
+    expect(standing()).toBe("stranded");
+    expect(standing(2)).toBe("stranded");
+  });
+
+  it("is stranded, not ignored, where the session has no active credential", () => {
+    fixture.advance(seenStep);
+    fixture.seen(agent);
+    fixture.advance(quiet);
+    expect(standing()).toBe("ignored");
+    revokeRegistration(fixture.store, fixture.operator, agent.registrationId);
+    expect(standing()).toBe("stranded");
   });
 
   // followedUp has the operator write again in the thread, a millisecond on.
@@ -691,53 +725,55 @@ describe("stranded, for a session that can be nudged", () => {
       },
     ],
   ])(
-    "is not, where the operator wrote again %s, until the quiet time passes after that with no nudge",
+    "is neither, where the operator wrote again %s, until the quiet time passes after that with no nudge",
     async (_, checkedIn) => {
       await checkedIn();
       fixture.advance(quiet);
-      expect(stranded()).toBe(true);
+      expect(standing()).toBe("ignored");
       followedUp();
       // A nudge is due for the later message, so it will bring the thread.
-      expect(stranded()).toBe(false);
+      expect(standing()).toBe("neither");
       expect((await poll(first, { wait: "0" })).nudge).toBe(true);
       fixture.advance(quiet - 1);
-      expect(stranded()).toBe(false);
+      expect(standing()).toBe("neither");
       fixture.advance(1);
-      expect(stranded()).toBe(true);
+      // The agent still checked in after the earliest message it has not read.
+      expect(standing()).toBe("ignored");
     },
   );
 
-  it("is not, where the operator started another thread after the agent checked in since a nudge, until the quiet time passes after that with no nudge", async () => {
+  it("is neither, where the operator started another thread after the agent checked in since a nudge, until the quiet time passes after that with no nudge", async () => {
     await claimed(true);
     fixture.seen(agent);
     fixture.advance(quiet);
-    expect(stranded()).toBe(true);
+    expect(standing()).toBe("ignored");
     fixture.advance(1);
     fixture.startThread(agent);
     // The nudge due for the other thread brings the agent to this one too.
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     expect((await poll(first, { wait: "0" })).nudge).toBe(true);
     fixture.advance(quiet - 1);
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     fixture.advance(1);
-    expect(stranded()).toBe(true);
-    expect(stranded(2)).toBe(true);
+    expect(standing()).toBe("ignored");
+    // The agent never checked in after the other thread began.
+    expect(standing(2)).toBe("stranded");
   });
 
-  it("is once the agent archives the operator's later message without reading the thread", async () => {
+  it("is ignored once the agent archives the operator's later message without reading the thread", async () => {
     await claimed(true);
     fixture.seen(agent);
     fixture.advance(quiet);
     followedUp();
-    expect(stranded()).toBe(false);
+    expect(standing()).toBe("neither");
     const target = threadTarget(agent, 1);
     archiveThread(fixture.store, agent.identity, target, { through: fixture.lastSeq(target) });
     // No nudge is due for an archived message, so nothing will bring it.
     expect((await poll(first, { wait: "0" })).nudge).toBe(false);
-    expect(stranded()).toBe(true);
+    expect(standing()).toBe("ignored");
   });
 
-  it("is where the agent archived it without reading it, though a nudge is due for another thread", async () => {
+  it("is ignored where the agent archived it without reading it, though a nudge is due for another thread", async () => {
     await claimed(true);
     fixture.seen(agent);
     fixture.advance(quiet);
@@ -749,29 +785,55 @@ describe("stranded, for a session that can be nudged", () => {
     fixture.startThread(agent);
     expect((await poll(first, { wait: "0" })).nudge).toBe(true);
     // The nudge brings the agent to the other thread, never to an archived one.
-    expect(stranded()).toBe(true);
-    expect(stranded(2)).toBe(false);
+    expect(standing()).toBe("ignored");
+    expect(standing(2)).toBe("neither");
   });
 
-  it("is not where the agent read the thread after the nudge, however long since", async () => {
+  it("is neither where the agent read the thread after the nudge, however long since", async () => {
     await claimed(true);
     fixture.seen(agent);
     markRead(fixture.store, agent.identity, threadTarget(agent, 1), { through: 1 });
     fixture.advance(quiet);
-    expect(stranded()).toBe(false);
-    expect(thread()).not.toHaveProperty("unread_by_agent_since");
+    expect(standing()).toBe("neither");
   });
 
-  it("follows the rule of a session that cannot be nudged once its bridge says so", () => {
+  it("lists and counts the ignored threads apart from the stranded ones", async () => {
+    await claimed(true);
+    fixture.seen(agent);
+    fixture.advance(1);
+    fixture.startThread(agent);
+    fixture.advance(quiet);
+    expect([standing(1), standing(2)]).toEqual(["ignored", "stranded"]);
+    const listed = (agent_read: string) =>
+      listThreads(fixture.store, fixture.operator, threadsQuery.parse({ agent_read })).threads.map(
+        (each) => each.number,
+      );
+    expect(listed("ignored")).toEqual([1]);
+    expect(listed("stranded")).toEqual([2]);
+    expect(listed("unread").sort()).toEqual([1, 2]);
+    const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
+    expect(counts.agent_read).toEqual({ any: 2, unread: 2, stranded: 1, ignored: 1 });
+    const session = listSessions(fixture.store, fixture.operator, sessionsQuery.parse({})).agents[0]
+      ?.sessions[0];
+    expect(session?.threads).toEqual({ total: 2, unread: 0, stranded: 1, ignored: 1 });
+  });
+
+  it("follows the rule of a session that cannot be nudged once its bridge says so, never ignored", () => {
+    fixture.advance(seenStep);
+    fixture.seen(agent);
     report(first, { ...canBeNudged, nudge: false });
-    expect(stranded()).toBe(false);
+    fixture.advance(quiet);
+    fixture.seen(agent);
+    expect(standing()).toBe("neither");
     fixture.report(agent, { state: "stopped", outcome: "completed" });
-    expect(stranded()).toBe(true);
+    expect(standing()).toBe("stranded");
   });
 
-  it("is while its bridge is not connected, whatever it last said", () => {
+  it("is stranded while its bridge is not connected, whatever it last said", () => {
+    fixture.advance(seenStep);
+    fixture.seen(agent);
     fixture.advance(connectedFor + 1);
     const thread = listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).threads[0];
-    expect(thread?.stranded).toBe(true);
+    expect(thread).toMatchObject({ stranded: true, ignored: false });
   });
 });

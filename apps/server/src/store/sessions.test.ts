@@ -293,7 +293,7 @@ describe("a stopped session", () => {
       stranded: true,
       presence: { quiet: false, state: "stopped", outcome: "completed" },
     });
-    expect(summary().threads).toEqual({ total: 1, unread: 0, stranded: 1 });
+    expect(summary().threads).toEqual({ total: 1, unread: 0, stranded: 1, ignored: 0 });
   });
 
   it("strands nothing once it resumes, or once it has read the message", () => {
@@ -343,7 +343,7 @@ describe("listSessions", () => {
             presence: { quiet: true, connected: false },
             registrations: [],
             unread_updates: 0,
-            threads: { total: 0, unread: 0, stranded: 0 },
+            threads: { total: 0, unread: 0, stranded: 0, ignored: 0 },
             open_asks: { count: 0, blocking_count: 0 },
           },
           {
@@ -367,7 +367,7 @@ describe("listSessions", () => {
               updated_at: formatTimestamp(fixture.now),
             },
             unread_updates: 1,
-            threads: { total: 0, unread: 0, stranded: 0 },
+            threads: { total: 0, unread: 0, stranded: 0, ignored: 0 },
             open_asks: { count: 0, blocking_count: 0 },
           },
         ],
@@ -435,15 +435,20 @@ describe("listSessions", () => {
     fixture.seen(other);
     fixture.connect(agent);
     fixture.connect(other);
-    expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 0 });
+    expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 0, ignored: 0 });
     fixture.advance(defaultQuietAfter + seenStep + 1);
-    expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 2 });
+    expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 2, ignored: 0 });
     fixture.thread(agent.identity, threadTarget(agent, 1));
     fixture.write(agent.identity, threadTarget(agent, 1), { text: "Read." });
     // The session's answer is unread by the operator.
-    expect(summary().threads).toEqual({ total: 2, unread: 1, stranded: 1 });
+    expect(summary().threads).toEqual({ total: 2, unread: 1, stranded: 1, ignored: 0 });
     const page = listSessions(fixture.store, fixture.operator, sessionsQuery.parse({}));
-    expect(page.agents[1]?.sessions[0]?.threads).toEqual({ total: 1, unread: 1, stranded: 0 });
+    expect(page.agents[1]?.sessions[0]?.threads).toEqual({
+      total: 1,
+      unread: 1,
+      stranded: 0,
+      ignored: 0,
+    });
     // Reading it, or archiving a thread, leaves nothing unread there.
     markRead(fixture.store, fixture.operator, threadTarget(agent, 1), { through: 3 });
     expect(summary().threads.unread).toBe(0);

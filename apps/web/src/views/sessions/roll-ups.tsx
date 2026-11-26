@@ -98,30 +98,35 @@ export function ThreadsLink({
   );
 }
 
-// StrandedLink opens the thread list on the stranded threads among those a
-// ThreadsLink beside it opens, flagging how many there are, or only
-// "Stranded" while that is not known, as a ThreadsLink does.
-export function StrandedLink({
-  stranded,
+// AgentReadLink opens the thread list on the stranded threads, or the
+// ignored ones, among those a ThreadsLink beside it opens, flagging how many
+// there are, such as "2 stranded", or only "Stranded" while that is not
+// known, as a ThreadsLink does.
+export function AgentReadLink({
+  read,
+  count,
   narrowing,
   label,
 }: {
-  // How many are stranded, or undefined while that is not known, as when
+  // Which threads it opens on, as the thread list's filter names them.
+  read: "stranded" | "ignored";
+  // How many there are, or undefined while that is not known, as when
   // sessions were left out.
-  stranded: number | undefined;
+  count: number | undefined;
   // The narrowing of the ThreadsLink beside it.
   narrowing: Partial<ThreadsView>;
   // What the link's threads are of, as a ThreadsLink's label is.
   label: string;
 }) {
+  const named = `${read.charAt(0).toUpperCase()}${read.slice(1)}`;
   const [shown, spoken] =
-    stranded === undefined
-      ? ["Stranded", "Stranded threads"]
-      : [`${stranded} stranded`, plural(stranded, "stranded thread")];
+    count === undefined
+      ? [named, `${named} threads`]
+      : [`${count} ${read}`, plural(count, `${read} thread`)];
   return (
     <FilterLink
-      className="stranded-link"
-      narrowing={{ ...narrowing, agent_read: "stranded" }}
+      className="agent-read-link"
+      narrowing={{ ...narrowing, agent_read: read }}
       spoken={`${spoken} of ${label}`}
     >
       <span className="flag warning">{shown}</span>

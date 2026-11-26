@@ -900,7 +900,7 @@ function ThreadPage({
         {settledWords(thread) !== undefined && (
           <p className="muted thread-status">{settledWords(thread)}</p>
         )}
-        {thread.stranded === true && <Stranded thread={thread} />}
+        {(thread.stranded === true || thread.ignored === true) && <WhyUnread thread={thread} />}
         {tags.length > 0 && <Tags tags={tags} />}
         {jumpTo !== undefined && (
           <div className="actions">
@@ -1003,20 +1003,20 @@ function ThreadPage({
   );
 }
 
-// Stranded says, on a stranded thread, why its session has not read the
-// operator's latest messages, as absenceOf finds: it stopped, with its
+// WhyUnread says, on a stranded or ignored thread, why its session has not
+// read the operator's latest messages, as absenceOf finds: its agent checked
+// in without reading the thread, for an ignored one; it stopped, with its
 // outcome; it is quiet, with when its agent last checked in; its bridge is
 // not connected; or, for a session its bridge can nudge, what came of the
-// nudge, its agent checking in after it without reading the thread among
-// them. A session with no active credential is explained by the notice
+// nudge. A session with no active credential is explained by the notice
 // under the head.
-function Stranded({ thread }: { thread: ThreadSummary }) {
+function WhyUnread({ thread }: { thread: ThreadSummary }) {
   const absence = absenceOf(threadWhereabouts(thread));
   if (absence === undefined || absence.kind === "credential") {
     return null;
   }
   return (
-    <p className="muted stranded">
+    <p className="muted why-unread">
       Its session has not read your latest messages: <AbsenceReason absence={absence} />.
     </p>
   );

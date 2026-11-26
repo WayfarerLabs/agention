@@ -189,9 +189,9 @@ describe("why a session that can be nudged is away", () => {
     });
   });
 
-  // checkedIn is a stranded thread's session that checked in at seen, with
-  // the operator's earliest message it has not read written at since.
-  const checkedIn = (seen: string, since?: string, last_nudge?: NudgeState) =>
+  // ignored is an ignored thread's session, whose agent checked in at seen.
+  const seen = "2026-10-27T12:00:00.000Z";
+  const ignored = (last_nudge?: NudgeState) =>
     absenceOf({
       presence: {
         last_seen_at: seen,
@@ -201,45 +201,18 @@ describe("why a session that can be nudged is away", () => {
         ...(last_nudge === undefined ? {} : { last_nudge }),
       },
       credential_active: true,
-      stranded: true,
-      ...(since === undefined ? {} : { unread_by_agent_since: since }),
+      ignored: true,
     });
-  const before = "2026-10-27T11:58:00.000Z";
-  const seen = "2026-10-27T12:00:00.000Z";
-  const after = "2026-10-27T12:01:00.000Z";
 
-  it("says the agent passed a stranded thread over once it checked in at or after the message, with when", () => {
-    const answered = { at, sent: true, answered: true };
-    for (const since of [before, seen]) {
-      expect(checkedIn(seen, since, answered)).toEqual({
-        kind: "passed_over",
-        last_seen_at: seen,
-        observed: canBeNudged,
-      });
-    }
-    // Checking in before the message, or with none unread, passed nothing over.
-    expect(checkedIn(seen, after, answered)).toMatchObject({ kind: "no_nudge" });
-    expect(checkedIn(seen, undefined, answered)).toMatchObject({ kind: "no_nudge" });
-    expect(away({ stranded: true, unread_by_agent_since: before }, answered)).toMatchObject({
-      kind: "no_nudge",
-    });
-    // A nudge with no check-in since comes first.
-    expect(checkedIn(seen, before, { ...answered, answered: false })).toMatchObject({
-      kind: "nudge",
-    });
+  it("says when the agent of an ignored thread checked in, whatever its latest nudge", () => {
+    const shown = { kind: "ignored", last_seen_at: seen, observed: canBeNudged };
+    expect(ignored()).toEqual(shown);
+    expect(ignored({ at, sent: true, answered: true })).toEqual(shown);
   });
 
-  it("says the agent passed a stranded thread over where it checked in with no nudge since", () => {
-    expect(checkedIn(seen, before)).toEqual({
-      kind: "passed_over",
-      last_seen_at: seen,
-      observed: canBeNudged,
-    });
-  });
-
-  it("reads a thread passed over apart from every other outcome, with the check-in's time", () => {
+  it("reads an ignored thread apart from every other outcome, with the check-in's time", () => {
     const answered = { at, sent: true, answered: true };
-    const passed = checkedIn(seen, before, answered);
+    const passed = ignored(answered);
     const none = away({ stranded: true });
     if (passed === undefined || none === undefined) {
       throw new Error("not away");

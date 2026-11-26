@@ -230,8 +230,8 @@ export type SessionPresence = z.infer<typeof sessionPresence>;
 // A session's presence as a thread's summary shows it to the thread's
 // audience, the operator: as the sessions view shows it, with the state and
 // outcome the session last reported, both absent until it first reports, so
-// the audience can tell why a thread is stranded, and what its terminal shows
-// while its bridge is connected.
+// the audience can tell why a thread is stranded or ignored, and what its
+// terminal shows while its bridge is connected.
 export const threadPresence = sessionPresence.extend({
   state: workState.optional(),
   outcome: workOutcome.optional(),
@@ -243,12 +243,12 @@ export type ThreadPresence = z.infer<typeof threadPresence>;
 // entry's note and when that entry was written, absent until it first reports;
 // how many of its log's entries the operator has not read; how many of its
 // threads the operator has not archived, how many of those hold messages the
-// operator has not read, and how many are stranded; and how many asks are open
-// in all its threads, and how many of those are blocking, which is what waits
-// on the operator. The operator can never archive a thread holding an ask open
-// to them, so their thread list shows every thread these asks are in. It also
-// carries the operator's group for it, absent when it is in none, and its tags,
-// in name order.
+// operator has not read, how many are stranded and how many ignored; and how
+// many asks are open in all its threads, and how many of those are blocking,
+// which is what waits on the operator. The operator can never archive a
+// thread holding an ask open to them, so their thread list shows every thread
+// these asks are in. It also carries the operator's group for it, absent when
+// it is in none, and its tags, in name order.
 export const sessionSummary = z.object({
   session: name,
   created_at: z.string(),
@@ -260,7 +260,12 @@ export const sessionSummary = z.object({
   ),
   status: sessionStatus.extend({ note: z.string().optional(), updated_at: z.string() }).optional(),
   unread_updates: sequence,
-  threads: z.object({ total: sequence, unread: sequence, stranded: sequence }),
+  threads: z.object({
+    total: sequence,
+    unread: sequence,
+    stranded: sequence,
+    ignored: sequence,
+  }),
   open_asks: z.object({ count: sequence, blocking_count: sequence }),
 });
 export type SessionSummary = z.infer<typeof sessionSummary>;

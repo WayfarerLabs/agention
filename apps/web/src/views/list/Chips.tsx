@@ -1,4 +1,5 @@
 import type {
+  agentReadFilter,
   Color,
   GroupsAndTags,
   impactFilter,
@@ -32,6 +33,13 @@ export const priorityAtLeast: Record<(typeof priorityFilter.options)[number], Te
 export const impactShown: Record<(typeof impactFilter.options)[number], string> = {
   blocking: "Blocking",
   assuming: "Assuming",
+};
+
+// What the agent has not read, as its chip says it.
+const agentReadLabel: Record<(typeof agentReadFilter.options)[number], string> = {
+  unread: "Unread by agent",
+  stranded: "Stranded",
+  ignored: "Ignored",
 };
 
 // A filter that is on, as its chip shows it: its label, as shown and as
@@ -164,7 +172,7 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
     })),
     ...chip(view.agent_read, (read) => ({
       key: "agent_read",
-      label: plain(read === "stranded" ? "Stranded" : "Unread by agent"),
+      label: plain(agentReadLabel[read]),
       remove: { agent_read: undefined },
     })),
     ...chip(view.agent, (agents) => ({

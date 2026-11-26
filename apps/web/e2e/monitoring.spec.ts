@@ -210,7 +210,7 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
   await reply.getByRole("textbox", { name: "Message" }).fill("Postgres.");
   await reply.getByRole("button", { name: "Send" }).click();
   // The thread says why it is stranded, naming the prompt.
-  await expect(page.locator(".thread-header .stranded")).toContainText(
+  await expect(page.locator(".thread-header .why-unread")).toContainText(
     /stalled.*permission prompt/,
   );
   // So does its row on the thread list.
@@ -239,7 +239,7 @@ test("a session whose nudge was not sent shows it, and strands the thread writte
   await expect(reply.getByRole("textbox", { name: "Message" })).toHaveValue("");
   // Waiting for the nudge, the thread is not stranded.
   await page.reload();
-  await expect(page.locator(".thread-header .stranded")).toHaveCount(0);
+  await expect(page.locator(".thread-header .why-unread")).toHaveCount(0);
 
   // The bridge is told a nudge is due, claims it, and says it was not sent.
   const path = `/s/builder/review/monitor?bridge=${sessions.review.bridge}`;
@@ -251,7 +251,7 @@ test("a session whose nudge was not sent shows it, and strands the thread writte
   const done = await agent.send("POST", claim, { phase: "done", sent: false });
   expect(done.status).toBe(200);
   await page.reload();
-  await expect(page.locator(".thread-header .stranded")).toBeVisible();
+  await expect(page.locator(".thread-header .why-unread")).toBeVisible();
 
   // The sessions view shows the nudge in the warning's tone, its line
   // fitting a phone's width.

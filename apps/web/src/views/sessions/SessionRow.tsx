@@ -35,7 +35,7 @@ import { sessionNeedsYou } from "./arrangement.ts";
 import { type Change, type LogLine, logLines } from "./log.ts";
 import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
 import { NeedsYouFlag, type ViewShown } from "./needs-you.tsx";
-import { OpenAsksLink, rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
+import { AgentReadLink, OpenAsksLink, rollupOfSession, ThreadsLink } from "./roll-ups.tsx";
 import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of three short lines, its
@@ -263,10 +263,10 @@ function Condition({ observed }: { observed: Observed }) {
 // open ask blocks its work, linking to its blocked threads, and its open
 // asks, linking to its open threads; whether it has no credential; the
 // operator's group and tags for it, each linking to its threads; its
-// threads' roll-up, linking to them, and how many are stranded, linking to
-// those, but for blocked, which leads its open asks already, and the
-// envelope, linking to its unread threads; its unread updates; and its
-// latest note, cut to fit, which its log holds whole.
+// threads' roll-up, linking to them, and how many are stranded and how many
+// ignored, each linking to those, but for blocked, which leads its open asks
+// already, and the envelope, linking to its unread threads; its unread
+// updates; and its latest note, cut to fit, which its log holds whole.
 function SessionFacts({
   agent,
   session,
@@ -316,7 +316,12 @@ function SessionFacts({
       </li>
       {threads.stranded > 0 && (
         <li className="bare">
-          <StrandedLink stranded={threads.stranded} {...scope} />
+          <AgentReadLink read="stranded" count={threads.stranded} {...scope} />
+        </li>
+      )}
+      {threads.ignored > 0 && (
+        <li className="bare">
+          <AgentReadLink read="ignored" count={threads.ignored} {...scope} />
         </li>
       )}
       <li className="bare">

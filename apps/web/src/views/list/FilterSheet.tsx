@@ -492,7 +492,8 @@ export function FilterSheet({
           ]}
           choose={(value) => choose({ unread: value === "unread" })}
         />
-        {/* Stranded: unread by an agent that is not there to read it. */}
+        {/* Stranded: unread by an agent that is not there to read it; ignored:
+            unread by one that checked in without reading it. */}
         <Segmented
           legend="Read by agent"
           value={view.agent_read ?? ""}
@@ -500,6 +501,7 @@ export function FilterSheet({
             { value: "", label: anyLabel, count: counts?.agent_read.any },
             { value: "unread", label: plain("Unread"), count: counts?.agent_read.unread },
             { value: "stranded", label: plain("Stranded"), count: counts?.agent_read.stranded },
+            { value: "ignored", label: plain("Ignored"), count: counts?.agent_read.ignored },
           ]}
           choose={(value) => choose({ agent_read: agentReadFilter.safeParse(value).data })}
         />

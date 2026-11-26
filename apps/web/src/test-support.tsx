@@ -64,7 +64,7 @@ export const noCounts: ThreadCounts = {
   overdue: { any: 0, overdue: 0 },
   effort: { any: 0, quick: 0, under_15m: 0, under_1h: 0 },
   unread: { any: 0, unread: 0 },
-  agent_read: { any: 0, unread: 0, stranded: 0 },
+  agent_read: { any: 0, unread: 0, stranded: 0, ignored: 0 },
   include_archived: { hide: 0, show: 0 },
   agent: { agents: [], truncated: false },
   session: { sessions: [], truncated: false },
@@ -315,6 +315,7 @@ export function threadSummary(overrides: Partial<ThreadSummary> = {}): ThreadSum
     credential_active: true,
     presence: { last_seen_at: time, quiet: false },
     stranded: false,
+    ignored: false,
     ...overrides,
   };
 }
@@ -425,7 +426,7 @@ export function sessionSummary(overrides: Partial<SessionSummary> = {}): Session
     presence: { last_seen_at: time, quiet: false },
     registrations: [{ id: 1, code: "7KQ2M-X9DPA" }],
     unread_updates: 0,
-    threads: { total: 0, unread: 0, stranded: 0 },
+    threads: { total: 0, unread: 0, stranded: 0, ignored: 0 },
     open_asks: { count: 0, blocking_count: 0 },
     ...overrides,
   };

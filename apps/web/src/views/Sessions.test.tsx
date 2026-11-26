@@ -258,12 +258,12 @@ describe("the sessions view", () => {
         sessionSummary({
           open_asks: { count: 2, blocking_count: 1 },
           unread_updates: 3,
-          threads: { total: 4, unread: 2, stranded: 1 },
+          threads: { total: 4, unread: 2, stranded: 1, ignored: 2 },
         }),
         sessionSummary({
           session: "side",
           open_asks: { count: 1, blocking_count: 0 },
-          threads: { total: 1, unread: 1, stranded: 0 },
+          threads: { total: 1, unread: 1, stranded: 0, ignored: 0 },
         }),
       ]),
       agent("reviewer", [sessionSummary()]),
@@ -284,6 +284,7 @@ describe("the sessions view", () => {
       "/?status=open&agent=builder",
       "/?agent=builder",
       "/?agent_read=stranded&agent=builder",
+      "/?agent_read=ignored&agent=builder",
     ]);
     expect(within(bar(builder)).getAllByRole("button").at(-1)).toBe(options("builder"));
     // Its heading goes by the button's name alone.
@@ -291,12 +292,16 @@ describe("the sessions view", () => {
     expect(bar(builder).querySelectorAll(".flag.danger")).toHaveLength(1);
     expect(bar(builder).querySelector(".flag.attention")?.textContent).toMatch(/^3\b/);
     // Its threads are a link to them on the thread list, and its stranded
-    // threads a link to those.
+    // and ignored threads each a link to those.
     const threads = screen.getByRole("link", { name: "5 threads of builder" });
     expect(threads.getAttribute("href")).toBe("/?agent=builder");
     const stranded = screen.getByRole("link", { name: "1 stranded thread of builder" });
     expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&agent=builder");
     expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    const ignored = within(bar(builder))
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href") === "/?agent_read=ignored&agent=builder");
+    expect(ignored?.querySelector(".flag.warning")?.textContent).toMatch(/^2\b/);
     expect(screen.queryByRole("link", { name: /stranded threads? of reviewer$/ })).toBeNull();
     expect(builder.getAttribute("aria-expanded")).toBe("true");
     expect(fold("side", folded(builder))).toBeTruthy();
@@ -326,7 +331,7 @@ describe("the sessions view", () => {
           },
           open_asks: { count: 3, blocking_count: 2 },
           unread_updates: 2,
-          threads: { total: 4, unread: 1, stranded: 1 },
+          threads: { total: 4, unread: 1, stranded: 1, ignored: 1 },
         }),
         sessionSummary({ session: "review", status: { state: "idle", updated_at: time } }),
         sessionSummary({
@@ -374,6 +379,16 @@ describe("the sessions view", () => {
     expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&session=builder/main");
     expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
     expect(within(row("review")).queryByRole("link", { name: /stranded/ })).toBeNull();
+    // Its ignored threads likewise.
+    const ignored = within(main)
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href") === "/?agent_read=ignored&session=builder/main");
+    expect(ignored?.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    expect(
+      within(row("review"))
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.includes("agent_read=ignored")),
+    ).toBe(false);
     const unread = within(main).getByTitle("1 unread").closest("a");
     expect(unread?.getAttribute("href")).toBe("/?unread=true&session=builder/main");
     expect(main.querySelectorAll(".flag.danger")).toHaveLength(1);
@@ -429,7 +444,7 @@ describe("the sessions view", () => {
       agent("builder", [
         sessionSummary({
           open_asks: { count: 1, blocking_count: 1 },
-          threads: { total: 2, unread: 1, stranded: 0 },
+          threads: { total: 2, unread: 1, stranded: 0, ignored: 0 },
         }),
       ]),
     ]);
@@ -597,7 +612,7 @@ describe("monitoring", () => {
           {
             ...watched("main", observed("at_prompt")),
             open_asks: { count: 1, blocking_count: 1 },
-            threads: { total: 2, unread: 0, stranded: 1 },
+            threads: { total: 2, unread: 0, stranded: 1, ignored: 0 },
           },
           watched("asking", observed("permission_prompt")),
         ]),
@@ -845,7 +860,7 @@ describe("folded by group", () => {
     sessionSummary({
       session,
       ...(group === undefined ? {} : { group }),
-      threads: { total: threads, unread: 0, stranded: 0 },
+      threads: { total: threads, unread: 0, stranded: 0, ignored: 0 },
       ...more,
     });
   // builder has sessions in Billing, in archive and in no group; reviewer
@@ -854,14 +869,14 @@ describe("folded by group", () => {
     agent("builder", [
       sessionIn(billing, "main", 2, {
         unread_updates: 1,
-        threads: { total: 2, unread: 0, stranded: 1 },
+        threads: { total: 2, unread: 0, stranded: 1, ignored: 0 },
       }),
       sessionIn(undefined, "side", 3),
       sessionIn(archive, "old", 1),
     ]),
     agent("reviewer", [
       sessionIn(billing, "main", 1, {
-        threads: { total: 1, unread: 1, stranded: 0 },
+        threads: { total: 1, unread: 1, stranded: 0, ignored: 0 },
         open_asks: { count: 1, blocking_count: 1 },
       }),
     ]),

@@ -67,18 +67,20 @@ function askTags(ask: AskSummary, asks: OpenAsks): { label: ReactNode; tone?: st
   ];
 }
 
-// strandedTags mark a stranded thread with why its session is not there to
+// absenceTags mark a stranded thread with why its session is not there to
 // read it, as absenceOf finds: it stopped, with its outcome; it is quiet,
 // with when it last checked in; its bridge is not connected; what came of
-// the nudge of a session its bridge can nudge, its agent checking in after it
-// without reading the thread among them; or it has no active credential,
-// which the credential's own tag says of any thread, stranded or not, unless
-// the stranded mark already does.
-function strandedTags(thread: ThreadSummary): { label: ReactNode; tone?: string }[] {
-  const absence = thread.stranded === true ? absenceOf(threadWhereabouts(thread)) : undefined;
-  const stranded = absence === undefined ? "Stranded" : `Stranded · ${absenceWords(absence)}`;
+// the nudge of a session its bridge can nudge; or it has no active
+// credential, which the credential's own tag says of any thread, stranded or
+// not, unless the stranded mark already does. An ignored thread is marked
+// so, in the same tone, with when its agent checked in without reading it.
+function absenceTags(thread: ThreadSummary): { label: ReactNode; tone?: string }[] {
+  const mark =
+    thread.stranded === true ? "Stranded" : thread.ignored === true ? "Ignored" : undefined;
+  const absence = mark === undefined ? undefined : absenceOf(threadWhereabouts(thread));
+  const label = absence === undefined ? mark : `${mark} · ${absenceWords(absence)}`;
   return [
-    ...(thread.stranded === true ? [{ label: stranded, tone: "warning" }] : []),
+    ...(label === undefined ? [] : [{ label, tone: "warning" }]),
     ...(thread.credential_active || absence?.kind === "credential"
       ? []
       : [{ label: "No active credential" }]),
@@ -112,10 +114,10 @@ function MessageCount({ unread, total }: { unread: number; total: number }) {
 // each behind its badge, and when it last changed; for a thread with asks
 // open, which the operator as its audience answers, the question of the one
 // it leads with: the first in the list's order among those the filters keep;
-// otherwise, muted, that its asks were answered or withdrawn; and whether it
-// is stranded, and why; and whether this browser keeps a draft of a reply to
-// it. The link records the list on screen as it is followed, so the thread
-// page returns to it. While its live messages name several pull requests and
+// otherwise, muted, that its asks were answered or withdrawn; whether it is
+// stranded or ignored, and why; and whether this browser keeps a draft of a
+// reply to it. The link records the list on screen as it is followed, so the
+// thread page returns to it. While its live messages name several pull requests and
 // branches, a mark among the others counts them; while they name one,
 // beneath the link, that entry, which adds its filter to the list on screen.
 //
@@ -193,7 +195,7 @@ export function ThreadRow({
   const ask = asks.lead;
   const Heading = headings[level];
   const status = ask === undefined ? settledWords(thread) : undefined;
-  const notes = strandedTags(thread);
+  const notes = absenceTags(thread);
   const classes = ["thread-row", thread.unread > 0 ? "unread" : "", selected ? "selected" : ""];
   return (
     <li
