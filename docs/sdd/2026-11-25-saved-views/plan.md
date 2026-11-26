@@ -2,24 +2,25 @@
 
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md); research:
   [prior art](prior-art-research.md)
-- The FRD awaits the operator's acceptance; building starts once it is accepted, with this plan
-  updated for any open choice answered otherwise.
+- The operator accepted the FRD on 2026-11-25, each open choice at its first option; building starts
+  with P1.
 - Vehicle: one pull request for the feature, after this SDD's own. The development contract lists no
   `sdd:` label, so the pull requests cite this directory by path. The HLA carries the design without
   an LLD.
 
 ## Design
 
-- [ ] Requirements, prior-art research, HLA, and plan drafted, with the operator's direction quoted
-      and the open choices asked in Agention (thread 34).
-- [ ] Requirements, HLA, and plan reviewed, findings disposed.
-- [ ] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
-      for any choice answered otherwise.
-- [ ] On acceptance, the development contract names this effort as active alongside pull request and
+- [x] Requirements, prior-art research, HLA, and plan drafted, with the operator's direction quoted
+      and the open choices asked in Agention (thread 34; #170).
+- [x] Requirements, HLA, and plan reviewed, findings disposed (#170).
+- [x] The operator accepts the FRD; rulings recorded verbatim in it, and the HLA and plan updated
+      for any choice answered otherwise (#170).
+- [x] On acceptance, the development contract names this effort as active alongside pull request and
       branch links: its "SDD location" entry's "active effort: pull request and branch links
       (`docs/sdd/2026-11-25-pr-and-branch-links/`), accepted 2026-11-25" becomes "active efforts:
       pull request and branch links (`docs/sdd/2026-11-25-pr-and-branch-links/`), accepted
-      2026-11-25, and saved views (`docs/sdd/2026-11-25-saved-views/`), accepted" with its date.
+      2026-11-25, and saved views (`docs/sdd/2026-11-25-saved-views/`), accepted" with its date
+      (#170).
 
 ## P1: saved views
 

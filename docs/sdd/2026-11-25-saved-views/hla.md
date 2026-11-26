@@ -1,9 +1,8 @@
 # Saved views: High-Level Architecture
 
 - Requirements: [FRD](frd.md); research: [prior art](prior-art-research.md); plan: [plan](plan.md)
-- Status: Draft beside the FRD, which awaits the operator's acceptance. It assumes the first option
-  of each open choice (FRD [Open choices](frd.md#open-choices)); where an answer would change it,
-  the section says how.
+- Status: The FRD is accepted with the operator's rulings, each open choice at its first option;
+  this HLA follows them.
 
 ## Decisions at a glance
 
@@ -27,9 +26,6 @@ take, so opening a view navigates to the list its address would show (FRD R3). N
 part of it: not `cursor` or `limit`, which `threadsQuery` adds, nor the selection, scroll, folds, or
 the thread open (FRD R1). `overdue` is judged by the server at query time, so a view holding it is
 judged when it opens.
-
-Answered "filters only" (open choice 1), the value is `threadFilters` (`thread-lists.ts:269`)
-instead, and opening a view keeps the order and grouping on screen; nothing else here changes.
 
 ## Data model
 
@@ -176,7 +172,7 @@ a key holding `sessions:write` rewrites the views naming it, as it renames the t
 
 ## Decision record
 
-- **Filters only** was the alternative to saving the whole list (open choice 1). The research favors
+- **Filters only** was the alternative to saving the whole list (FRD ruling 1). The research favors
   the whole presentation, and Jira's filters-only saves draw recurring complaints in its tracker.
 - **Storing only the parts not at their default** was set aside: a view would follow a changed
   default, and the read would need the address's tolerant reader.
@@ -187,9 +183,9 @@ a key holding `sessions:write` rewrites the views naming it, as it renames the t
 - **Browser storage** was set aside: the operator asked for views on the server.
 - **A changed mark** with an update action, tracking the view a list was opened from in the history
   entry, was set aside: replacing a view from the sheet does the same with nothing to track.
-- **A row of views in sight, a fold, and a manual order** were set aside for now (open choice 4):
-  the web UI has no sidebar (`apps/web/src/App.tsx:128-159`), and the head's button gives one way in
-  at every width.
+- **A row of views in sight, a fold, and a manual order** were set aside for now (FRD ruling 4): the
+  web UI has no sidebar (`apps/web/src/App.tsx:128-159`), and the head's button gives one way in at
+  every width.
 - **Counts** were set aside (FRD out of scope); they can come as a new response field.
 - **A default view** was set aside (FRD R7), and **agents' access** (FRD R8): an agent lists its own
   session's threads with its own filters.

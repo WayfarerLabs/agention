@@ -1,8 +1,7 @@
 # Saved views: Functional Requirements
 
-- Status: Draft, awaiting the operator's acceptance. Four choices are open with the operator, listed
-  under [Open choices](#open-choices); these drafts assume the first option of each and say so where
-  it matters.
+- Status: Accepted by the operator on 2026-11-25, with the rulings recorded under
+  [Operator rulings](#operator-rulings-2026-11-25-onward).
 - Date: 2026-11-25
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA and plan, and
@@ -39,32 +38,13 @@ Verbatim:
 > into it and investigate prior art and best practices and lmk what you'd suggest. I think these
 > should be server-side, too.
 
-## Open choices
-
-The first three are asked in Agention thread 34; the fourth arose in review. The drafts assume the
-first option of each.
-
-1. **What a view saves.** Filters, order, and grouping, everything the list's address holds
-   (assumed); or filters only. Prior art leans to the whole presentation (Linear, GitHub Projects,
-   Notion, Zendesk, and Todoist), and Jira's filters-only saves draw recurring complaints in its
-   tracker ([prior art](prior-art-research.md)). Answered "filters only", R1 drops the order and
-   grouping, and opening a view keeps the order and grouping on screen.
-2. **Notification rules on views.** Later notification rules build on saved views (assumed); or
-   rules stay separate; or decide later. Nothing here depends on the answer, which shapes only the
-   notifications effort.
-3. **This SDD first.** A short SDD before building (assumed, and this is it).
-4. **A place always in sight.** One way in, a control at the top of the list that opens the views
-   (assumed: two clicks to a view); or also a row of views beside the list on a wide screen, in an
-   order the operator sets (one click). The research favors a persistent place; it costs the row,
-   its fold past a handful of views, and a manual order.
-
 ## Functional requirements
 
 **R1. A name and one list.** A saved view is a name and one thread list: every filter, the order and
-its direction, and the grouping, everything the list's address holds (assumes open choice 1). It
-keeps the list as it was saved, every part included, even one then at its default, so a later change
-to a default does not change a view. Nothing passing is saved: not the page of threads loaded, a
-selection, the scroll, which groups are folded, or the thread open.
+its direction, and the grouping, everything the list's address holds (ruling 1). It keeps the list
+as it was saved, every part included, even one then at its default, so a later change to a default
+does not change a view. Nothing passing is saved: not the page of threads loaded, a selection, the
+scroll, which groups are folded, or the thread open.
 
 **R2. Saved from the list.** With the list as they want it, the operator saves it as a new view and
 names it. A view's name is one line, and no two views share a name, comparing the letters A to Z
@@ -108,7 +88,7 @@ or renamed to it, the view matches that tag.
 - Colors, icons, and a manual order for views, which are listed by name.
 - Counts on views. They can be added later as a new response field, without breaking the operator
   API.
-- Notifications: their own effort decides whether and how a rule names a view.
+- Notifications: their own effort builds its rules on saved views (ruling 2).
 - Agents reading or writing views (R8).
 
 ## Definition of done
@@ -122,4 +102,14 @@ or renamed to it, the view matches that tag.
 
 ## Operator rulings, 2026-11-25 onward
 
-None yet. Answers to the open choices are recorded here verbatim when they come.
+Answered in Agention on 2026-11-25, local time (thread 35, message 7, 2026-11-26T05:28Z). The
+question: "Which designs should I build for the next release? Picking one accepts its requirements
+as drafted, with the recommendations." The operator picked "Saved views (#170)", "Notifications
+(#96)", and "Audit log (#123)". Picking saved views accepted these requirements as drafted, with the
+recommendations as offered: the four open choices its draft listed, each at its first option.
+
+1. What a view saves: a view saves filters, order, and grouping (R1).
+2. Notification rules on views: notification rules later build on saved views.
+3. This SDD first: a short SDD first.
+4. A place always in sight: no persistent row of views (the **Saved views** button plus `g v` are
+   enough; R6).
