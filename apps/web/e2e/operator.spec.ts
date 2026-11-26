@@ -50,7 +50,15 @@ import type {
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { expect, hostName, resize, secondServerName, serverName, test } from "./fixtures.ts";
+import {
+  expect,
+  hostName,
+  reportPolicyRefusals,
+  resize,
+  secondServerName,
+  serverName,
+  test,
+} from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -65,6 +73,7 @@ const requestedHosts = new Set<string>();
 
 test.beforeAll(async ({ browser, agention }) => {
   context = await browser.newContext({ baseURL: agention.origin });
+  await reportPolicyRefusals(context);
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: agention.origin,
   });
