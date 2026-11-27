@@ -111,16 +111,16 @@ an observer with one. It goes through these steps:
 It resolves to `{ outcome, step }`, the step it ended at and one of four outcomes:
 
 - **`deferred`**: nothing of the nudge's stayed in the pane, so it may be tried again. Nothing was
-  pasted, at `not-ready`, with `nudgeTextLeft: true` where the input line held nudge text, as
-  `isNudgeText` says; or, at the confirmation after the warning's wait or before Enter, the line
-  held exactly the nudge's own text but the rest of the screen had changed since it was pasted, as
-  when the harness starts a turn or redraws, and the nudge took its text back, one confirmed
-  Backspace at a time; or the screen beside the line changed while the warning was removed, before
-  the message went in. Where a reading finds the line empty, or finds no input line, as under a
-  dialog or with a second pane, or the pane fails to be read or written, nothing yet shows the text
-  is gone, since a paste can show late: it reads the pane again, half a second later or at once, and
-  defers only where that reading finds the line empty with no key typed, once it has taken back its
-  own text where the line holds exactly it.
+  pasted, at `not-ready`, with `nudgeTextLeft` where it read the input line: `true` where the line
+  held nudge text, as `isNudgeText` says, and `false` where it did not; or, at the confirmation
+  after the warning's wait or before Enter, the line held exactly the nudge's own text but the rest
+  of the screen had changed since it was pasted, as when the harness starts a turn or redraws, and
+  the nudge took its text back, one confirmed Backspace at a time; or the screen beside the line
+  changed while the warning was removed, before the message went in. Where a reading finds the line
+  empty, or finds no input line, as under a dialog or with a second pane, or the pane fails to be
+  read or written, nothing yet shows the text is gone, since a paste can show late: it reads the
+  pane again, half a second later or at once, and defers only where that reading finds the line
+  empty with no key typed, once it has taken back its own text where the line holds exactly it.
 - **`stopped`**: someone at the terminal stopped it: a key was typed since the nudge began, or the
   line held something other than the warning, or the nudge's text altered once confirmed.
 - **`failed`**: the signal stopped it once something was pasted; the pane could not be read or

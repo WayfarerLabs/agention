@@ -86,12 +86,18 @@ const autoProfile = "auto";
 export const nudgeTypes: readonly string[] = ["tmux"];
 
 // A source of the reports the bridge sends while it acts for its session,
-// each yielded report replacing the one before, and of the nudges it tries.
-// A report says why the session cannot be monitored or nudged where the
-// configuration or the pane is why, and comes again whenever that changes.
-// None of its methods throws.
+// each yielded report replacing the one before, and of the nudges it tries,
+// with why the configuration or the pane keeps the session from being
+// monitored or nudged, if either does, which the reporter adds to each
+// report. None of its methods throws.
 export interface Monitor {
   reports(signal: AbortSignal): AsyncIterable<MonitorReport>;
+  // unable says why the session cannot be monitored or nudged, with since
+  // when, where the configuration or the pane is why, the first that applies
+  // in the order of MonitorReason; and onUnableChange names what to call
+  // whenever that changes, as it can while the condition stays the same.
+  unable(): MonitorUnable | undefined;
+  onUnableChange(listener: () => void): void;
   // canNudge says whether the session can be nudged now: the nudge is on,
   // the pane can be read and runs the harness, and the profile can tell when
   // it is at its prompt, as a harness's own profile can and a generic one
@@ -141,7 +147,7 @@ function sessionPane(socket: string): Pane {
 // marker, so never through a generic one, which cannot tell a draft at the
 // prompt from an empty one.
 //
-// Each report says why the session cannot be monitored or nudged, where it
+// Its unable says why the session cannot be monitored or nudged, where it
 // cannot, with since when, in the order of MonitorReason: no socket; a pane
 // that cannot be read, or holds more than one pane or one not this
 // session's, from when that began; and then, from when the bridge started,
@@ -164,7 +170,9 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
   if (socket === undefined) {
     const unable: MonitorUnable = { reason: "no_socket", since: started };
     return {
-      reports: (signal) => unmonitored(unable, signal),
+      reports: (signal) => unmonitored(signal),
+      unable: () => unable,
+      onUnableChange: () => undefined,
       canNudge: () => Promise.resolve(false),
       nudge: () => Promise.resolve(notReady),
     };
@@ -189,10 +197,6 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
     }
     return profileOf().knowsMarker ? undefined : "generic_profile";
   };
-  const unableNow = (): MonitorUnable | undefined => {
-    const reason = configured();
-    return pane.unable ?? (reason === undefined ? undefined : { reason, since: started });
-  };
   // The observer while the reports are being read, which nudges.
   let observer: Observer | undefined;
   return {
@@ -200,51 +204,22 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
       const profile = profileOf();
       const watching = observe(pane, profile);
       observer = watching;
-      const observations = watching.observations(signal)[Symbol.asyncIterator]();
-      let next = observations.next();
-      let latest: Observation | undefined;
-      let yielded: string | undefined;
-      // Whether why the pane cannot be read changed since the last report,
-      // which may happen while the observation stays unknown, and what wakes
-      // the wait for one.
-      let changed = false;
-      let wake: (() => void) | undefined;
-      pane.onUnableChange = () => {
-        changed = true;
-        wake?.();
-      };
       try {
-        for (;;) {
-          const unable = changed
-            ? Promise.resolve("unable" as const)
-            : new Promise<"unable">((resolve) => (wake = () => resolve("unable")));
-          const step = await Promise.race([next, unable]);
-          changed = false;
-          wake = undefined;
-          if (step !== "unable") {
-            if (step.done === true) {
-              return;
-            }
-            latest = step.value;
-            next = observations.next();
-          }
-          if (latest === undefined) {
-            continue;
-          }
-          const report = withUnable(reportOf(profile.name, latest, nudges()), unableNow());
-          const written = JSON.stringify(report);
-          if (written !== yielded) {
-            yielded = written;
-            yield report;
-          }
+        for await (const observation of watching.observations(signal)) {
+          yield reportOf(profile.name, observation, nudges());
         }
       } finally {
-        pane.onUnableChange = undefined;
         if (observer === watching) {
           observer = undefined;
         }
-        void observations.return?.();
       }
+    },
+    unable() {
+      const reason = configured();
+      return pane.unable ?? (reason === undefined ? undefined : { reason, since: started });
+    },
+    onUnableChange(listener) {
+      pane.onUnableChange = listener;
     },
     async canNudge() {
       if (!nudges()) {
@@ -287,25 +262,13 @@ function nudgeConfigured(settings: MonitoringSettings, log: Log): boolean {
   return true;
 }
 
-async function* unmonitored(
-  unable: MonitorUnable,
-  signal: AbortSignal,
-): AsyncIterable<MonitorReport> {
-  yield { monitored: false, unable };
+async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
+  yield { monitored: false };
   if (!signal.aborted) {
     await new Promise<void>((resolve) =>
       signal.addEventListener("abort", () => resolve(), { once: true }),
     );
   }
-}
-
-// withUnable gives a report why the session cannot be monitored or nudged,
-// where it cannot.
-export function withUnable(
-  report: MonitorReport,
-  unable: MonitorUnable | undefined,
-): MonitorReport {
-  return unable === undefined ? report : { ...report, unable };
 }
 
 // reportOf is the report of an observation: the profile's name, the

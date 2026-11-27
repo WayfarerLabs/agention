@@ -38,6 +38,8 @@ const texts: NudgeTexts = {
 const sent = { outcome: "sent", step: "submitted" } as const;
 const ended = (outcome: "deferred" | "stopped" | "failed", step: NudgeStep) => ({ outcome, step });
 const notReady = ended("deferred", "not-ready");
+// Not ready, having read the input line and found no nudge text there.
+const readNotReady = { ...notReady, nudgeTextLeft: false };
 
 class FakeClock implements Clock {
   time = Date.parse("2026-11-25T12:00:00Z");
@@ -258,7 +260,7 @@ describe("nudge", () => {
   it("sends nothing where begin answers false", async () => {
     const pane = new FakePane(new FakeClock());
     const options = { ...pane.options(), begin: () => Promise.resolve(false) };
-    expect(await nudge(pane, scriptedProfile, texts, options)).toEqual(notReady);
+    expect(await nudge(pane, scriptedProfile, texts, options)).toEqual(readNotReady);
     expect(pane.writes).toEqual([]);
   });
 
@@ -277,7 +279,7 @@ describe("nudge", () => {
           return Promise.resolve(true);
         },
       };
-      expect(await nudge(pane, scriptedProfile, texts, options), why).toEqual(notReady);
+      expect(await nudge(pane, scriptedProfile, texts, options), why).toEqual(readNotReady);
       expect(pane.writes, why).toEqual([]);
     }
   });
@@ -357,7 +359,8 @@ describe("nudge", () => {
       }
       const { observer, stop } = await observed(pane);
       arrange(pane);
-      expect(await observer.nudge(texts, pane.options()), why).toEqual(notReady);
+      // Where the line cannot be read, it says nothing of nudge text.
+      expect(await observer.nudge(texts, pane.options()), why).toMatchObject(notReady);
       expect(pane.writes, why).toEqual([]);
       await stop();
     }
@@ -375,7 +378,7 @@ describe("nudge", () => {
     expect(await nudge(dialog)).toEqual(notReady);
     // The line is 80 columns, "> " takes 2 and the cursor 1 after the text.
     const long = { ...texts, warning: "w".repeat(78), message: "m" };
-    expect(await nudge(new FakePane(new FakeClock()), scriptedProfile, long)).toEqual(notReady);
+    expect(await nudge(new FakePane(new FakeClock()), scriptedProfile, long)).toEqual(readNotReady);
     const fits = { ...texts, warning: "w".repeat(77), message: "m" };
     expect(await nudge(new FakePane(new FakeClock()), scriptedProfile, fits)).toEqual(sent);
   });
@@ -390,7 +393,7 @@ describe("nudge", () => {
     });
     const clock = new FakeClock();
     for (const resetsAt of [undefined, new Date(clock.now() + 3_600_000)]) {
-      expect(await nudge(new FakePane(clock), limitedUntil(resetsAt))).toEqual(notReady);
+      expect(await nudge(new FakePane(clock), limitedUntil(resetsAt))).toEqual(readNotReady);
     }
     const reset = new Date(clock.now() - 1000);
     expect(await nudge(new FakePane(clock), limitedUntil(reset))).toEqual(sent);
@@ -435,7 +438,7 @@ describe("nudge", () => {
           : screen;
       },
     };
-    expect(await nudge(pane, astray)).toEqual(notReady);
+    expect(await nudge(pane, astray)).toEqual(readNotReady);
     expect(pane.writes).toEqual([]);
   });
 
@@ -536,7 +539,7 @@ describe("nudge", () => {
     // A draft of anyone's is no nudge text.
     const drafted = new FakePane(new FakeClock());
     drafted.draft("Nudge me later");
-    expect(await nudge(drafted)).toEqual(notReady);
+    expect(await nudge(drafted)).toEqual(readNotReady);
   });
 
   it("fails at cleared after the first Backspace that does not delete", async () => {

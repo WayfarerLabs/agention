@@ -130,19 +130,31 @@ export class Reporter {
   #refused: ErrorCode | undefined;
   // Whether the server last said a nudge is due, which the next poll tells
   // it the bridge knows, until the nudge's tries clear it once an attempt is
-  // claimed and settles, or a claim is refused; whether a nudge's tries are
+  // claimed and settles, or a claim is refused, a poll saying none is due
+  // while an attempt is under way, for its own claim's sake, leaving it; whether a nudge's tries are
   // running; since when nudging has stopped for the life of the process, the
   // server having refused a claim or an outcome as invalid
   // (turnNudgingOff); and since when nudge text left at the prompt has held
   // the nudge off, while it does.
   #due = false;
   #nudging = false;
+  // Whether an attempt the server let go ahead is under way, from its
+  // claim's answer until its outcome is sent.
+  #attempting = false;
   #nudgeOff: MonitorUnable | undefined;
   #textLeft: MonitorUnable | undefined;
   // The pause before the next claim once the server refused one or it was
   // given up, since the next poll learns at once that the nudge is still
   // due, until a claim is answered go.
   readonly #claimBackoff: Backoff;
+  // The pause before the next try once a claimed attempt was deferred, as
+  // when the rest of the screen keeps changing, a status line or a clock,
+  // so the warning is not typed and taken back every few seconds for as long
+  // as that goes on, with a claim and its release each time: from
+  // nudgeEvery, doubling with each in a row up to retryMost, or nudgeEvery
+  // where that is longer, and from
+  // nudgeEvery again after any other outcome or once a nudge is newly due.
+  readonly #deferBackoff: Backoff;
   // The number of the latest report the bridge made, which counts up with
   // each for the life of the process, so the server ignores a report that
   // arrives after a later one.
@@ -156,6 +168,11 @@ export class Reporter {
     this.#timing = options.timing;
     this.#log = options.log;
     this.#claimBackoff = new Backoff(options.timing);
+    this.#deferBackoff = new Backoff({
+      retryFirst: options.timing.nudgeEvery,
+      retryMost: Math.max(options.timing.nudgeEvery, options.timing.retryMost),
+    });
+    options.monitor.onUnableChange(() => this.#requeue());
   }
 
   // start runs the reporter, which reads the registration until it is
@@ -264,7 +281,15 @@ export class Reporter {
           // rather than at the end of its pause.
           this.#retryWake?.abort();
         }
-        this.#due = answer.nudge;
+        // While an attempt it claimed is under way, the server finds no nudge
+        // due for that claim's sake alone, which the attempt's outcome, not
+        // the poll, settles; a nudge newly due starts its deferrals afresh.
+        if (answer.nudge && !this.#due) {
+          this.#deferBackoff.reset();
+        }
+        if (answer.nudge || !this.#attempting) {
+          this.#due = answer.nudge;
+        }
         if (answer.nudge) {
           this.#startNudging();
         }
@@ -380,34 +405,40 @@ export class Reporter {
   // its own, while the server says one is due, so a poll that says the next
   // is due while the last one's outcome is still being sent has it tried
   // once that ends. While the session is not ready, the observer reads only
-  // the pane, so the tries cost the server nothing; where nudge text left at
-  // the prompt is what holds it off, the bridge says so in its report until
-  // the line clears or the tries end. Once it is ready, the observer asks
-  // begin, which claims the nudge by the attempt's id, sending the claim
-  // again while it fails in a way that may pass, for claimWithin at most,
-  // and reads the pane again once the claim is answered. A nudge the server
-  // does not let go ahead is not tried. One it claimed is logged by its id,
-  // outcome and step alone, never its text, and its outcome sent: sent,
-  // stopped or failed settle it, and deferred releases the claim, so the
-  // nudge is tried again while it is still due. Where a claim was sent
-  // again, since one that failed may have reached the server, and is
-  // answered no or given up, that attempt is sent as deferred, since nothing
-  // was typed for it. After a claim the server refused or that was given up,
-  // the next waits claimBackoff. The signal ends the tries, and stops a
-  // nudge under way without another key, and without its outcome, since
-  // another bridge may be nudging the session now.
+  // the pane, so the tries, about one a second, cost the server nothing;
+  // where nudge text left at the prompt is what holds it off, the bridge
+  // says so in its report until a reading finds the line without it or the
+  // tries end. Once it is ready, the observer asks begin, which claims the
+  // nudge by the attempt's id, sending the claim again while it fails in a
+  // way that may pass, for claimWithin at most, and reads the pane again
+  // once the claim is answered. A nudge the server does not let go ahead is
+  // not tried. One it claimed is logged by its id, outcome and step alone,
+  // never its text, and its outcome sent: sent, stopped or failed settle it,
+  // and deferred releases the claim, so the nudge is tried again while it is
+  // still due, after a pause that backs off while claimed attempts keep
+  // being deferred. Where a claim was sent again, since one that failed may
+  // have reached the server, and is answered no or given up, that attempt is
+  // sent as deferred, since nothing was typed for it. After a claim the
+  // server refused or that was given up, the next waits claimBackoff. The
+  // signal ends the tries, and stops a nudge under way without another key;
+  // an attempt it stopped is logged as abandoned, and its outcome sent only
+  // where nothing was typed, as deferred, once, since another bridge may be
+  // nudging the session now, and the server settles a claim its bridge left.
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
     try {
       while (this.#due && !signal.aborted && this.#nudgeOff === undefined) {
         const texts = nudgeTexts();
         // The observer calls begin, if at all, before it resolves.
         let claim = undefined as NudgeAnswer | undefined;
-        const outcome = await this.#monitor.nudge(texts, {
-          begin: async () =>
-            (claim = await this.#nudgeRequest({ phase: "start", id: texts.id }, signal)).go,
+        const result = await this.#monitor.nudge(texts, {
+          begin: async () => {
+            claim = await this.#nudgeRequest({ phase: "start", id: texts.id }, signal);
+            this.#attempting = claim.go;
+            return claim.go;
+          },
           signal,
         });
-        this.#noteTextLeft(outcome, texts.id);
+        this.#noteTextLeft(result);
         if (claim === undefined) {
           await pause(this.#timing.nudgeEvery, signal);
           continue;
@@ -415,21 +446,27 @@ export class Reporter {
         if (claim.go) {
           this.#claimBackoff.reset();
           if (signal.aborted) {
+            this.#log(`nudge ${texts.id}: abandoned at the ${result.step} step`);
+            if (result.step === "not-ready") {
+              await this.#releaseUntyped(texts.id);
+            }
             return;
           }
-          this.#log(`nudge ${texts.id}: ${outcome.outcome} at the ${outcome.step} step`);
+          this.#log(`nudge ${texts.id}: ${result.outcome} at the ${result.step} step`);
           // A settled nudge is due no more, until a poll says the next one is,
           // which may come while its outcome is still being sent.
-          const deferred = outcome.outcome === "deferred";
+          const deferred = result.outcome === "deferred";
           if (!deferred) {
             this.#due = false;
+            this.#deferBackoff.reset();
           }
           await this.#nudgeRequest(
-            { phase: "done", id: texts.id, outcome: outcome.outcome },
+            { phase: "done", id: texts.id, outcome: result.outcome },
             signal,
           );
+          this.#attempting = false;
           if (deferred) {
-            await pause(this.#timing.nudgeEvery, signal);
+            await pause(this.#deferBackoff.next(), signal);
             continue;
           }
         } else {
@@ -444,22 +481,42 @@ export class Reporter {
       }
     } finally {
       this.#nudging = false;
+      this.#attempting = false;
       this.#noteTextLeft(undefined);
     }
   }
 
+  // releaseUntyped sends, once and as best it can, an attempt the bridge
+  // claimed and stopped before it typed anything as deferred, so its claim
+  // is released at once rather than when another bridge next acts for the
+  // session. It sends it with a signal of its own, since the attempt's has
+  // aborted, for claimWithin at most, and makes nothing of the answer: a
+  // bridge replaced meanwhile is refused, and the server has settled the
+  // claim already.
+  async #releaseUntyped(id: string): Promise<void> {
+    const body: MonitorNudge = { phase: "done", id, outcome: "deferred" };
+    await this.#monitorRequest(
+      AbortSignal.timeout(this.#timing.claimWithin),
+      (path) => ({ method: "POST", path: `${path}/nudge`, query: { bridge: this.#id }, body }),
+      monitorNudgeAnswer,
+    ).catch(() => undefined);
+  }
+
   // noteTextLeft keeps whether nudge text left at the prompt holds the nudge
-  // off, as an attempt's outcome says, logging it, by the attempt's id alone,
-  // when it starts, and sending the report again whenever it changes. Any
-  // other outcome, or none once the tries end, clears it.
-  #noteTextLeft(outcome: NudgeResult | undefined, id?: string): void {
-    const left = outcome?.outcome === "deferred" && outcome.nudgeTextLeft === true;
+  // off, logging it when that starts and sending the report again whenever
+  // it changes. An attempt held off by it starts it; one that read the input
+  // line without it ends it, as does the tries ending, with no result. An
+  // attempt not ready for another reason, which may not have read the line,
+  // changes nothing.
+  #noteTextLeft(result: NudgeResult | undefined): void {
+    const read = result?.outcome === "deferred" ? result.nudgeTextLeft : false;
+    const left = read ?? this.#textLeft !== undefined;
     if (left === (this.#textLeft !== undefined)) {
       return;
     }
     if (left) {
       this.#textLeft = { reason: "nudge_text_left", since: formatTimestamp(this.#clock()) };
-      this.#log(`nudge ${id ?? ""} is held off by nudge text left at the prompt`);
+      this.#log("the nudge is held off by nudge text left at the prompt");
     } else {
       this.#textLeft = undefined;
     }
@@ -530,17 +587,19 @@ export class Reporter {
 
   // queue makes the bridge's report of the monitor's latest the latest,
   // numbered after the one before, and sends it. It says the session cannot
-  // be nudged once nudging is off, and, where the monitor gives no reason the
-  // session cannot be monitored or nudged, gives the reporter's own, if any.
+  // be nudged once nudging is off, and why the session cannot be monitored or
+  // nudged, where it cannot: the first reason that applies, in the order of
+  // MonitorReason, the monitor's, from the configuration or the pane, before
+  // the reporter's own.
   #queue(observed: MonitorReport): void {
     this.#observed = observed;
     let report = observed;
     if (this.#nudgeOff !== undefined && report.monitored) {
       report = { ...report, nudge: false };
     }
-    const own = this.#nudgeOff ?? this.#textLeft;
-    if (report.unable === undefined && own !== undefined) {
-      report = { ...report, unable: own };
+    const unable = this.#monitor.unable() ?? this.#nudgeOff ?? this.#textLeft;
+    if (unable !== undefined) {
+      report = { ...report, unable };
     }
     this.#latest = { report, seq: ++this.#seq };
     this.#unsent = true;
@@ -548,7 +607,7 @@ export class Reporter {
   }
 
   // requeue sends the monitor's latest report again, once what the reporter
-  // adds to it changed.
+  // adds to it changed, the monitor's reason among it.
   #requeue(): void {
     if (this.#observed !== undefined && this.#acting !== undefined) {
       this.#queue(this.#observed);
@@ -697,10 +756,10 @@ interface NudgeAnswer {
 // Backoff is a pause that doubles with each failure in a row, from the
 // timing's retryFirst up to its retryMost.
 class Backoff {
-  readonly #timing: ReporterTiming;
+  readonly #timing: Pick<ReporterTiming, "retryFirst" | "retryMost">;
   #next: number;
 
-  constructor(timing: ReporterTiming) {
+  constructor(timing: Pick<ReporterTiming, "retryFirst" | "retryMost">) {
     this.#timing = timing;
     this.#next = timing.retryFirst;
   }

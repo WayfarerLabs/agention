@@ -14,16 +14,17 @@ export const nudgeTextLimit = 72;
 
 // The marker every nudge's texts carry, followed by the attempt's id, so
 // nudge text is known for what it is wherever it is seen, and an attempt
-// takes only text bearing its own id as its own.
+// takes only its own texts, which bear its own id, as its own.
 export const nudgeMarker = "Agention nudge";
 
 // The attempt id's length in hex digits: 48 random bits, so two attempts
 // never share one.
 const idDigits = 12;
 
-// markedBy matches the marker and an attempt id, as the start of either text,
-// and of what is left of one that was partly removed or typed after.
-export const markedBy = new RegExp(`^${nudgeMarker} [0-9a-f]{${idDigits}}\\b`);
+// markedBy matches nudge text: whatever starts with the marker, as either
+// text does, and so does what is left of one partly removed from its end or
+// typed after, however little of its id is left.
+export const markedBy = new RegExp(`^${nudgeMarker}`);
 
 // The texts of one nudge attempt, with the id they carry.
 export interface AttemptTexts extends NudgeTexts {
@@ -35,8 +36,10 @@ export interface AttemptTexts extends NudgeTexts {
 // and that typing anything stops it; the message, the same every time beyond
 // its id, tells the agent to check in with Agention, names no thread, and
 // keeps the id, so the harness's transcript records which attempt woke it.
-// Nudge text, any attempt's, is whatever markedBy matches, so the observer
-// never pastes over what an earlier attempt, or anyone, left at the prompt.
+// No nudge pastes over any text, since the observer nudges only at an empty
+// input line; nudge text, any attempt's, is whatever markedBy matches, which
+// decides only that a line holding it is reported as nudge text left at the
+// prompt, which the operator is to clear, rather than as not ready.
 export function nudgeTexts(): AttemptTexts {
   const id = randomBytes(idDigits / 2).toString("hex");
   const mark = `${nudgeMarker} ${id}`;

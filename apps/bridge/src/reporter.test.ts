@@ -206,6 +206,8 @@ describe("the reporter", () => {
         yield { monitored: false };
         await new Promise((resolve) => signal.addEventListener("abort", resolve));
       },
+      unable: () => undefined,
+      onUnableChange: () => undefined,
       canNudge: () => Promise.resolve(false),
       nudge: () => Promise.resolve(notReady),
     };

@@ -30,8 +30,9 @@ export interface NudgeOptions {
 //
 // - deferred: nothing of the nudge's stayed in the pane, so it is no nudge
 //   and may be tried again. Either nothing was pasted, at "not-ready", with
-//   nudgeTextLeft where the input line held nudge text, as the texts'
-//   isNudgeText says; or, at a confirmation, the line held exactly the
+//   nudgeTextLeft where the nudge read the input line: true where it held
+//   nudge text, as the texts' isNudgeText says, and false where it did not,
+//   absent where the nudge never read it, as with the harness busy; or, at a confirmation, the line held exactly the
 //   nudge's own text but the rest of the screen had changed, as when the
 //   harness starts a turn or redraws, and the nudge took its text back, or
 //   the screen beside the line changed while the warning was removed, before
@@ -58,7 +59,7 @@ export type NudgeResult =
   | {
       readonly outcome: "deferred";
       readonly step: NudgeStep;
-      readonly nudgeTextLeft?: true;
+      readonly nudgeTextLeft?: boolean;
     }
   | { readonly outcome: "stopped" | "failed"; readonly step: NudgeStep }
   | { readonly outcome: "sent"; readonly step: "submitted" };
@@ -157,10 +158,12 @@ export class Nudge {
     try {
       const ready = await this.#ready(latest, texts);
       if (!("look" in ready)) {
-        return ready.nudgeTextLeft ? { outcome: "deferred", step, nudgeTextLeft: true } : notReady;
+        return ready.nudgeTextLeft === undefined
+          ? notReady
+          : { outcome: "deferred", step, nudgeTextLeft: ready.nudgeTextLeft };
       }
       if (!(await begin()) || !(await this.#stillReady(ready.look))) {
-        return notReady;
+        return { outcome: "deferred", step, nudgeTextLeft: false };
       }
 
       step = "warning";
@@ -227,12 +230,13 @@ export class Nudge {
   // limit before its reset; a fresh reading shows the same screen, with keys
   // reaching the harness, no key from any client for quietFor, and an empty
   // input line with the cursor at its end and room for the longer text.
-  // Otherwise it says whether that reading found nudge text on the line.
+  // Otherwise it says, where it read the input line, whether that held nudge
+  // text.
   async #ready(
     latest: LatestReading | undefined,
     texts: NudgeTexts,
-  ): Promise<{ look: Look } | { nudgeTextLeft: boolean }> {
-    const notYet = { nudgeTextLeft: false };
+  ): Promise<{ look: Look } | { nudgeTextLeft?: boolean }> {
+    const notYet = {};
     if (latest === undefined) {
       return notYet;
     }
@@ -248,6 +252,7 @@ export class Nudge {
     if (input.text !== "" && texts.isNudgeText(input.text)) {
       return { nudgeTextLeft: true };
     }
+    const read = { nudgeTextLeft: false };
     const typedLately =
       snapshot.lastTyped !== undefined && snapshot.at - snapshot.lastTyped < quietFor;
     if (
@@ -258,7 +263,7 @@ export class Nudge {
       input.text !== "" ||
       input.room < Math.max(texts.warning.length, texts.message.length)
     ) {
-      return notYet;
+      return read;
     }
     this.#typed = snapshot.lastTyped;
     return { look };

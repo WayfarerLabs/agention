@@ -1862,23 +1862,30 @@ of it.
   observer removes and never submits, and a message telling the agent to check in with Agention,
   each fixed words after the nudge marker, `Agention nudge`, and the attempt's id, 6 random bytes in
   hex from `crypto.randomBytes`, each one line of printable ASCII. Nothing from the server or the
-  screen reaches either. Nudge text is whatever starts with the marker and an id (`markedBy`), which
-  the observer never pastes over. While the session is not ready, the reporter asks again about once
-  a second, which reads only the pane and makes no request, until it is ready or a poll says no
-  nudge is due; while nudge text left at the prompt is what holds it off, its reports say
-  `nudge_text_left` until the line clears or the tries end, logged once with the attempt's id.
+  screen reaches either. The observer pastes only into an empty input line, so never over any text;
+  nudge text, whatever starts with the marker (`markedBy`), however little of an id is left after
+  it, decides only that a line holding it is reported as nudge text left. While the session is not
+  ready, the reporter asks again about once a second, which reads only the pane and makes no
+  request, until it is ready or a poll says no nudge is due.
 - **Claiming a nudge.** Once ready, the observer asks it to claim the nudge,
   `POST .../monitor/nudge` with `{phase: "start", id}`, and goes on only where the server answers
   `go` and the pane still shows the same screen; one it answers no is not tried. An attempt it
   claimed is logged by its id, outcome and step, never a text, and its outcome sent as
   `{phase: "done", id, outcome}`: `deferred`, which releases the claim, so the reporter tries again
-  while the nudge is due, or `stopped`, `failed` or `sent`, which settle it. A claim or an outcome
-  is sent again after a pause that backs off from 1 to 60 seconds, doubling, while it fails to reach
-  the server or the server fails on or rate limits it, a claim within the one try, before the
-  observer reads the pane again, and for 10 seconds at most, after which it is given up as not
-  claimed. Where a claim was sent again, since one that failed may have left the server holding it,
-  and is answered no or given up, the reporter sends that attempt as `deferred`, so a nudge never
-  typed is never shown.
+  while the nudge is due, after a pause that backs off from about a second to 60, doubling, while
+  claimed attempts keep being deferred, as when a status line or a clock keeps the screen changing,
+  and starts again from a second after any other outcome or once a nudge is newly due; or `stopped`,
+  `failed` or `sent`, which settle it. While an attempt it claimed is under way, a poll that says no
+  nudge is due, for that claim's sake, leaves the reporter's knowledge that one is due as it was;
+  the attempt's outcome decides. A claim the same attempt sends again, its answer lost, the server
+  answers `go` again. A claim or an outcome is sent again after a pause that backs off from 1 to 60
+  seconds, doubling, while it fails to reach the server or the server fails on or rate limits it, a
+  claim within the one try, before the observer reads the pane again, and for 10 seconds at most,
+  after which it is given up as not claimed. Where a claim was sent again, since one that failed may
+  have left the server holding it, and is answered no or given up, the reporter sends that attempt
+  as `deferred`, so a nudge never typed is never shown. While nudge text left at the prompt holds
+  the nudge off, its reports say `nudge_text_left`, logged once naming no attempt, until a try reads
+  the input line without it or the tries end; a try that did not read the line changes nothing.
 - **After a refusal.** After a claim the server refuses, or one given up, the reporter waits before
   it acts on a due answer again, since the next poll learns at once that the nudge is still due,
   backing off from 1 to 60 seconds, doubling, until a claim is answered `go`. A poll that says a
@@ -1886,12 +1893,17 @@ of it.
   outcome the server refuses as `invalid_input` stops nudging for the life of the process, logged by
   the code alone, and from then on its reports say the session cannot be nudged, as
   `claims_refused`, and `register` says `check`; any other refusal is the poll's to deal with. A
-  takeover or the bridge closing stops a nudge under way with no key more, and sends no outcome.
+  takeover or the bridge closing stops a nudge under way with no key more, logging the attempt as
+  abandoned at its step; one stopped before anything was typed it sends as `deferred`, once and as
+  best it can, and any other sends no outcome, the server settling its claim when another bridge
+  next acts for the session ([Nudges](#nudges)).
 - **Why it cannot.** Each report carries why the session cannot be monitored or nudged, where it
-  cannot, as `unable`: monitoring's reason, from the configuration or the pane, where it has one,
-  and otherwise the reporter's own, `claims_refused` or `nudge_text_left`. The agent is never told:
-  no tool's answer carries it, and `register`'s says only how answers reach the agent, as it found
-  when called.
+  cannot, as `unable`, which the reporter adds, the first that applies: monitoring's reason, from
+  the configuration or the pane, where it has one, and otherwise the reporter's own,
+  `claims_refused` or `nudge_text_left`. Monitoring says when its reason changes, as it can while
+  the condition stays the same, and the reporter sends its latest report again with the new one. The
+  agent is never told: no tool's answer carries it, and `register`'s says only how answers reach the
+  agent, as it found when called.
 
 ### Monitoring
 
