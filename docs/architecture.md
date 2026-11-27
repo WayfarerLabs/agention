@@ -88,8 +88,8 @@ the form of one ending in a content hash.
 
 Beside each bundle the build writes `THIRD-PARTY-NOTICES.txt`, the license of every npm package the
 bundle includes and, for the server, of every package in the web build, which Vite and the frame's
-pass report, and of the Material Symbols whose path data the web UI's icons copy, with the license
-copied beside them.
+and the service worker's passes report, and of the Material Symbols whose path data the web UI's
+icons copy, with the license copied beside them.
 
 - **Inlined packages.** An included package whose own build inlined other npm packages names them in
   its files' region or path comments. The notices include those too, read from copies the bundling
@@ -181,6 +181,10 @@ A newer bridge never relies on that ([Agent API version](#agent-api-version)).
 The registration code, which the bridge and the server both derive from a session key, has its own
 entry point, `@wayfarerlabs/agention-api/registration-code`, because it uses `node:crypto` and must
 stay out of the web bundle. It takes a key the `publicKey` schema has accepted.
+
+The name grammar, `namePattern`, has one as well, `@wayfarerlabs/agention-api/name-pattern`, a
+module that imports nothing, so the web UI's route table, which the service worker shares, loads it
+without the schemas or Zod. The package's main entry point exports it too.
 
 The schemas' JSON Schema, for the API's documentation, has its own entry point too,
 `@wayfarerlabs/agention-api/json-schemas`, which only the server imports, so the web bundle never
@@ -300,6 +304,8 @@ letters, as a group's is, and one thread list, `view`, the JSON object the list'
 (`threadsView`) parsed it into, every part included, those at their default when it was saved among
 them. A check holds `view` to a JSON object. A view is the operator's configuration, not a log, so
 it changes in place, and ids never repeat, so nothing naming a removed view reaches a later one.
+`notifies`, off by default, says whether the view notifies the operator's devices
+([Notifications](#notifications)); no saved views operation reads it.
 
 ### File tables
 
@@ -763,6 +769,11 @@ A thread is archived for the caller exactly while its archive mark reaches its l
 another party's new message brings it back, and the caller's own keeps it archived; no party ever
 sees the other's archive mark.
 
+The operator's mark row also holds `notified_seq`, the message that last notified them of the
+thread, which the server sets, never a party. Raising the read or archive mark to it or past it
+clears it, so the thread notifies again after the operator reads it, marking it unread later
+included ([Notifications](#notifications)).
+
 Unread messages are the live ones by another actor after both the read and the archive mark: an
 archived message is never unread, so an agent that archives a thread without reading it is not woken
 for it again. Since an answer is never retracted and every new ask arrives after the mark, a thread
@@ -1016,12 +1027,15 @@ scope, so both mounts run the same handlers.
 | `sessions:write`    | The log's read mark and the groups' and tags' writes, each a POST naming its action (`/groups`, `/groups/order`, `/groups/:id/name`, `/groups/:id/color`, `/groups/:id/remove`, `/tags`, `/tags/:tag/name`, `/tags/:tag/color`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and `/agents/:agent/tags`)               |
 | `sessions:approve`  | Approving, rejecting and revoking a registration, with `sessions:write` too for an approval that gives the session's group or tags                                                                                                                                                                                                                  |
 | `saved-views:read`  | The saved views (`GET /saved-views`)                                                                                                                                                                                                                                                                                                                |
-| `saved-views:write` | Saving, renaming, replacing and removing a saved view (`POST /saved-views`, `/saved-views/:id/name`, `/saved-views/:id/view` and `/saved-views/:id/remove`)                                                                                                                                                                                         |
+| `saved-views:write` | Saving, renaming, replacing and removing a saved view (`POST /saved-views`, `/saved-views/:id/name`, `/saved-views/:id/view` and `/saved-views/:id/remove`), which changes what notifies when the view notifies                                                                                                                                     |
 
-A write or approve scope includes its resource's read, and neither includes the other. One operation
-reaches across resources, as intended: renaming a tag, under `sessions:write`, renames it in the
-saved views naming it too, so they keep their meaning. A test over the list holds every operation a
-read scope grants to a `GET` without a body whose store work writes nothing.
+A write or approve scope includes its resource's read, and neither includes the other. Two writes
+reach across resources, as intended: renaming a tag, under `sessions:write`, renames it in the saved
+views naming it too, so they keep their meaning; and replacing or removing a view that notifies,
+under `saved-views:write`, changes what notifies, ending its notifying when the new list has a
+filter on that a notifying view refuses or the view goes ([Notifications](#notifications)). A test
+over the list holds every operation a read scope grants to a `GET` without a body whose store work
+writes nothing.
 
 ### Agent operations
 
@@ -1063,7 +1077,11 @@ Web-only routes are plain routes on the web mount, which no key can call:
   and `POST /settings/voice/clear`;
 - `POST /transcriptions`, whose body is a recording sent as `audio/webm`, `audio/mp4` or
   `audio/ogg`, at least 1,000 bytes, under the same body cap as every other ([Voice](#voice));
-- the API keys: `GET /keys`, `POST /keys` and `POST /keys/:id/revoke`.
+- the API keys: `GET /keys`, `POST /keys` and `POST /keys/:id/revoke`;
+- notifications: `GET /notifications`, the devices' `POST /notifications/devices`,
+  `/notifications/devices/refresh` and `/notifications/devices/:id/remove`, and a view's notifying,
+  `POST /notifications/views` and `/notifications/views/:id/remove`
+  ([Notifications](#notifications)).
 
 `provider_failed` comes only from the web mount, and transcriptions spend no rate budget.
 
@@ -1156,8 +1174,8 @@ The build's files under `assets/`, which are named for their content, are cached
 (`public, max-age=31536000, immutable`). Each is served as the Brotli copy the package's build wrote
 beside it when the browser accepts Brotli, as browsers do over HTTPS, and otherwise as it is, with
 `Vary: Accept-Encoding`. The index page, like every file outside `assets/`, is neither cached nor
-encoded. The server compresses nothing as it runs, so the sizes of compressed answers tell nothing
-about private content.
+encoded, the service worker's script, `/service-worker.js`, among them. The server compresses
+nothing as it runs, so the sizes of compressed answers tell nothing about private content.
 
 The index page links the web app manifest, `/manifest.webmanifest`, which makes the UI installable
 as an app: on a phone's home screen or a desktop's, opening `standalone` at `/`, scoped to the whole
@@ -1166,7 +1184,7 @@ file, with its own name as the manifest's `name` and `short_name`, so two server
 device are told apart as their pages are, and serves it as `application/manifest+json`. Chromium
 installs it from its menu without a service worker (Chrome 108 on Android, 112 on desktops);
 Chrome's own install prompt, which the operator guide's install steps do not rely on, still needs a
-service worker with a `fetch` handler
+service worker with a `fetch` handler, which the web UI's push-only worker does not have
 ([Revisiting Chrome's installability criteria](https://developer.chrome.com/blog/update-install-criteria)).
 
 ### The diagram frame
@@ -1526,6 +1544,105 @@ before it arrives whole is logged as cancelled too.
 A transcript that is the prompt sent, ignoring case, punctuation and the spacing between words, is
 answered as empty, since Whisper sometimes answers silence with its prompt.
 
+## Notifications
+
+<!-- cspell:ignore VAPID aes128gcm -->
+
+The server notifies the operator's devices through Web Push to the web UI
+([ADR 0008](adrs/0008-web-push-to-the-operator.md)): when an agent's message leaves a thread that a
+saved view which notifies keeps, it encrypts the thread's title and why it needs the operator to
+every device that turned notifications on, once until the operator reads or archives the thread.
+
+### Rules
+
+A rule is a saved view whose `notifies` is on (`apps/server/src/store/notifications.ts`). It follows
+the view: a rename keeps it, a replaced list is what the next check matches, and removing the view
+ends it. The migration that added notifying added one starting view, Blocking asks, notifying, with
+the impact filter alone, numbered past a name already taken and skipped beside 200 views.
+
+- **Refused filters.** `refusedFiltersOn` in `packages/api/src/notifications.ts` names the filters a
+  notifying view cannot have on: search, overdue, and the agent's reading. Turning notifying on
+  refuses a view with one on, naming it, and `replaceSavedView` turns `notifies` off in its own
+  update when the new list has one on, so no notifying view ever has one. A migration that rewrites
+  stored views does the same for a view its rewrite gives one.
+- **Who sets them.** Only the web mount's `POST /notifications/views` and its remove; no saved views
+  operation reads `notifies`, so the operator API never says which views notify. A key holding
+  `saved-views:write` changes what notifies only by replacing or removing a view, the second write
+  across resources of [Operator operations](#operator-operations).
+
+### The check
+
+`agention serve` gives the store an `afterAgentMessage` hook, which thread start and message append
+call after their transaction commits, only for an agent's write and never for a replay; elsewhere it
+does nothing, so the store does no network work. The check, one transaction, returns at once while
+no device is on (so a device turned on later is not denied a thread already marked) or while the
+thread's mark is set; otherwise it asks the list whether each notifying view's filters keep the
+thread, through the list's own count scoped to the thread (`threadKept` in
+`apps/server/src/store/thread-lists.ts`), so a rule never means what its view would not show, and
+its order and grouping play no part. On a match it sets the operator's `notified_seq` to the message
+and returns the payload and the devices; it never fails the write it follows, logging an error
+instead.
+
+The payload is the thread's agent, session and number, its title, and why it needs the operator:
+`blocking`, `urgent`, `open`, or `message`, from its open asks. Never a message's text.
+
+### Push keys and the sender
+
+`push/vapid.ts` makes the server's P-256 key at the first start that finds none, keeps it in the
+instance row, where a trigger stops it changing, and derives its public half, which browsers
+subscribe with. It signs each push service's token (RFC 8292) with `jose`, whose subject is the
+project's URL, reusing it for 11 of its 12 hours. `push/encryption.ts` encrypts with `aes128gcm`
+(RFC 8291) on `node:crypto`, padding every record to 1024 octets, so every body is 1126 bytes; its
+test matches RFC 8291's worked example byte for byte, and an independent implementation, `http_ece`,
+decrypts what it makes.
+
+`push/sender.ts` sends to every device in parallel, after checking the endpoint again
+(`push/endpoint.ts`: HTTPS, the default port, no user information, a known push service's host at a
+dot boundary), with `TTL` one day, `Urgency: high`, no `Topic`, no redirect followed, and a
+10-second timeout. A 5xx, a 429, a timeout, or a failed request is tried again 10 and then 45
+seconds later. Before each try it checks, in one read with no wait before the request, that the
+device's row still has the keys it found and the thread's mark still names the message, so a device
+removed or re-keyed meanwhile, or a thread read or notified anew, gets nothing. A 2xx records when
+the device last received a send; a 404 or 410 removes the device. When no device accepted, the mark
+is cleared while it still names the message, so the next agent message tries again. Log lines name a
+device by its id and its push service's host, never its endpoint's path, keys or token.
+
+### Devices
+
+`push_subscriptions` holds each device's endpoint (unique, in the canonical form of the WHATWG URL
+parser, so one subscription is never stored twice under two spellings), its `p256dh` and `auth`
+keys, the passkey that signed it in (cascading), the id of the browser session that registered or
+last refreshed it, with no foreign key so the session's expiry leaves it, a label from the browser
+and platform, when it was turned on, and when a push service last accepted a send. At most 10.
+
+- **On** (`POST /notifications/devices`) needs a recent sign-in, refuses an endpoint the server will
+  not send to and keys that do not decode to a P-256 point and 16 octets, updates an endpoint it
+  already holds as Refresh does, and otherwise takes the place of this browser session's device.
+- **Refresh** (`POST /notifications/devices/refresh`), which the web UI sends as it starts and after
+  an in-app sign-in, updates only an endpoint the server holds, moving it to this browser session;
+  any other is `not_found`, and the web UI shows the device as stopped.
+- **Remove** (`POST /notifications/devices/:id/remove`) needs a recent sign-in for another device's,
+  not for this browser's own, which is turning it off.
+- Signing out removes the device its session holds; a new sign-in on the same browser does not, and
+  its next refresh moves it. Removing a passkey removes its devices by the cascade.
+
+### The service worker
+
+The web UI's service worker (`apps/web/src/service-worker/service-worker.ts`), built in a pass of
+its own to `/service-worker.js` and registered at every start, is push-only: no `fetch` handler and
+no cache. Its script keeps one name in every release, since a browser keeps one registration per
+script address, and browsers fetch it whole as the web UI starts, to look for a new release, so it
+loads no schema library and stays a few kilobytes: it checks a push's payload by hand, its thread by
+the route the web UI has for it. It shows each push with the thread's title, why in words ("Blocking
+ask", "Urgent ask", "Open ask", "New message"), and a tag of the thread, so a later one replaces it;
+one it cannot read shows a generic notification. A click focuses a window on a route of the web UI,
+the focused one first, and posts it the thread to open, which `apps/web/src/push/open-thread.ts`
+navigates to; with none, it opens a window at the thread's route. The route is built from the
+identifiers with the router's own `threadHref`, and windows are judged by its `matchRoute`
+(`apps/web/src/routes.ts`), so another page of the origin, such as the API's documentation, is never
+chosen. The web UI keeps whether the operator turned this device on in the browser's storage, and
+refreshes only while it is set.
+
 ## Rate budgets
 
 Token buckets in `apps/server/src/http/rates.ts` keep one kind of traffic from starving another, and
@@ -1570,10 +1687,11 @@ what never is.
   the synchronous transaction has committed or rolled back.
 - **Typed inputs only.** The action table (`audit/actions.ts`) holds one entry per action: its
   class, its activity, and its `build`, whose parameter types the action's input: ids, numbers,
-  flags, and the names the operator and agents chose, read from rows the store holds. No input has a
-  field for a request body, message or answer text, a title, a file name, a saved view's list, or a
-  secret. The builder (`audit/events.ts`) adds what every event shares, and writes each event as one
-  line, escaping the characters some readers take for a line's end.
+  flags, and the names the operator and agents chose and the devices' labels, read from rows the
+  store holds. No input has a field for a request body, message or answer text, a title, a file
+  name, a saved view's list, or a secret. The builder (`audit/events.ts`) adds what every event
+  shares, and writes each event as one line, escaping the characters some readers take for a line's
+  end.
 - **Failures in a transaction of their own.** A failed sign-in or link, and a refusal of an API key
   the server found, are recorded by `recordFailure` once the refusal has spent its rate budget:
   `spendOnFailure` passes it to a recorder once its token is spent, and `addOperations` catches the
@@ -1687,12 +1805,13 @@ after its answer started, or after it finished, has its connection destroyed.
 On `SIGINT` or `SIGTERM` the server ends its long polls, answers every request still open with
 `Connection: close`, closes idle connections, and exits once the open requests finish. Three seconds
 after it starts stopping it closes every connection still open, whatever its state, a TLS handshake
-that never finished included. The audit log's sinks then have 5 seconds to deliver what is pending;
-what is still undelivered waits in the database for the next start. The dispatcher's loops stop,
-then the sweep and the database close, and the sinks close last. A file sink's close waits for its
-write under way, so a write a stalled disk holds keeps the process from exiting until the service
-manager kills it; the database is closed by then, and since that write's cursor never moved, no
-event is lost.
+that never finished included. Push sends under way are aborted, and the mark of each notification
+they were sending is cleared, so the thread's next agent message notifies. The audit log's sinks
+then have 5 seconds to deliver what is pending; what is still undelivered waits in the database for
+the next start. The dispatcher's loops stop, then the sweep and the database close, and the sinks
+close last. A file sink's close waits for its write under way, so a write a stalled disk holds keeps
+the process from exiting until the service manager kills it; the database is closed by then, and
+since that write's cursor never moved, no event is lost.
 
 ## Agent bridge
 
@@ -1949,24 +2068,27 @@ binds its files to each other, and the security and accessibility rules a review
 [operator guide](operator-guide.md) the settings each feature needs, and each file's comments what
 that file does and why.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `src/action-bar.tsx` | The bars at the foot of a pane, which the thread list, the thread page and a session share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`), and the sessions' rows and a session, which share the Sessions tab's (`Sessions.tsx`), each over the two panes of `side-by-side.tsx`; `views/list/` holds the thread list's head, search, sheet, chips, rows, groups, and selection, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, saved views, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/icons.tsx`      | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `public/`            | The files the build copies as they are: the favicon, the web app manifest, and the app icons in `public/icons/`, which `generate-icons.ts` draws from the favicon and `icons/maskable.svg` ([CONTRIBUTING.md](../CONTRIBUTING.md#app-icons))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Path                  | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/routes.ts`       | The routes the web UI has, which the service worker also judges windows by                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/router.tsx`      | Navigation between the routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/session.tsx`     | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/data.ts`         | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/api.ts`          | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/keyboard.tsx`    | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/action-bar.tsx`  | The bars at the foot of a pane, which the thread list, the thread page and a session share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/passkeys.ts`     | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/voice/`          | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/attach/`         | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/markdown/`       | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/diagram-frame/`  | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `src/service-worker/` | The service worker's script, push-only, which shows a notification and opens its thread, and its hand checks of what it reads                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `src/push/`           | This device's push subscription, turned on, refreshed and stopped, and the page's side of opening a notification's thread                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/views/`          | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`), and the sessions' rows and a session, which share the Sessions tab's (`Sessions.tsx`), each over the two panes of `side-by-side.tsx`; `views/list/` holds the thread list's head, search, sheet, chips, rows, groups, and selection, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, saved views, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/icons.tsx`       | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/styles.css`      | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `e2e/`                | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `public/`             | The files the build copies as they are: the favicon, the web app manifest, and the app icons in `public/icons/`, which `generate-icons.ts` draws from the favicon and `icons/maskable.svg` ([CONTRIBUTING.md](../CONTRIBUTING.md#app-icons))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page
 ([The web UI's files](#the-web-uis-files)), in `src/server-name.ts`, and shows it as the banner's

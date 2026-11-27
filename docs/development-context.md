@@ -39,8 +39,11 @@ index of those docs.
   `AGENTION_SESSION`, or Agentworks's own `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, only default
   the session's names (`docs/operator-guide.md` "Agents"), a transcription provider for voice, off
   until the operator chooses one, reached through the OpenAI-compatible API
-  (`docs/operator-guide.md` "Voice", ADR 0002), and programs the operator runs that call the
-  operator API with an API key they created (`docs/operator-guide.md` "API keys", ADR 0003)
+  (`docs/operator-guide.md` "Voice", ADR 0002), programs the operator runs that call the operator
+  API with an API key they created (`docs/operator-guide.md` "API keys", ADR 0003), and the
+  browsers' push services (Google's, Mozilla's, Apple's, and Microsoft's), which the server sends
+  notifications to, with no account, only once the operator turns notifications on for a device
+  (`docs/operator-guide.md` "Notifications", ADR 0008)
 - Product shape, which selects the `project-review` conditional checks: long-lived managed entities
   agents, sessions, registrations and threads (ADR 0001 "Agents, sessions and threads";
   `docs/architecture.md` "Store"; `docs/operator-guide.md` "Approving agents"); persisted state and
@@ -102,7 +105,7 @@ index of those docs.
 
 - Trust model, security checklist, and invariants reviewers check clause by clause: `SECURITY.md`
   "Security model", with "Voice", "API keys", "Audit log", "Attachments", "Private files" and "The
-  agent bridge"; the project checks A1 to A20 in `docs/review-checklist.md`; the deliberate limits
+  agent bridge"; the project checks A1 to A21 in `docs/review-checklist.md`; the deliberate limits
   in ADR 0001 "Not doing"
 - Collateral to keep in sync: docs `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/architecture.md`, `docs/operator-guide.md`, `docs/web-ui.md`, `docs/operator-api.md`,
@@ -164,7 +167,13 @@ index of those docs.
   and on Codex is verified only as far as `docs/architecture.md` "Generated plugins" says; dictation
   runs in no automated browser but Chromium, the only one with a fake microphone, so dictation in
   Apple browsers is untested; a PDF attachment's safety in Firefox's viewer and in Apple browsers is
-  untested (`SECURITY.md` "Attachments")
+  untested (`SECURITY.md` "Attachments"); Web Push in Apple browsers is untested, the operator
+  having no Apple device; Web Push through Edge on Windows is unaccepted, since on the operator's
+  machine Windows' own push client refused Edge a channel before any request left it, while Chrome
+  on Windows and on Android are accepted; and the browser tests stub the page's push subscription
+  and record what the service worker shows, since the headless shell has no push service and shows
+  no notification, so delivery through a real push service is checked only on the operator's devices
+  (`docs/live-testing.md`)
 
 ## Process
 

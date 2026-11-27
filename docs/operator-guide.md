@@ -511,7 +511,8 @@ The web UI has four views:
   [waiting for your approval](#approving-agents), and is where you sort sessions into groups and
   give them tags. On a desktop's screen the sessions' rows stay beside the session you open.
 - **Settings** holds your passkeys, [API keys](#api-keys), your
-  [groups and tags](web-ui.md#groups-and-tags), [voice](#voice), storage and the
+  [groups and tags](web-ui.md#groups-and-tags), your [saved views](web-ui.md#saved-views),
+  [notifications](#notifications), [voice](#voice), storage and the
   [keyboard shortcuts](web-ui.md#keyboard-shortcuts).
 
 [The web UI](web-ui.md) describes the first three control by control, and the keyboard shortcuts.
@@ -532,6 +533,74 @@ name, so a work server and a personal one installed on one device are told apart
 origin installs as an app of its own. It is the same web UI, signed in as the browser is, and loads
 the server's current UI each time it opens, so it needs no upgrading of its own. Safari on an iPhone
 or iPad adds it from **Share**, **Add to Home Screen**, which is untested.
+
+## Notifications
+
+Agention can notify your phone and your desktop browsers when an agent needs you, through the
+browser's own push service, with no account anywhere. Nothing is sent until you turn notifications
+on for a device.
+
+### Turning them on for a device
+
+On each device, open **Settings**, **Notifications**, and turn on **Notifications on this device**,
+then allow notifications when the browser asks. Turning a device on needs a sign-in within the last
+10 minutes, which the section offers first. The section lists every device that receives
+notifications, with when it was turned on and when the server last sent to it, and **Remove** on
+each: removing this device turns it off, and removing another needs a recent sign-in, as revoking an
+API key does.
+
+- **Android, in Chrome:** notifications arrive with or without Agention
+  [added to the home screen](#adding-it-to-a-phone-or-a-desktop), and with the screen off.
+- **A desktop, in Chrome or Edge:** notifications arrive while the browser is running.
+- **Apple's browsers** deliver them only to Agention added to the Home Screen, opened from there;
+  this is built to Apple's documented rules and untested.
+
+A device's notifications end when you turn them off, sign that browser out, or remove the passkey
+that signed it in, or when you remove it from another device. They do not end when the browser's
+sign-in expires, so a phone left alone for a week still notifies. When they stop on their own, as
+when the browser dropped them or you removed the device elsewhere, the device's **Settings** say
+**Stopped** and why, and turning them on again needs a recent sign-in, as the first time did. If the
+browser blocks them, its state says **Blocked by the browser**: allow notifications for the server's
+origin in the browser's site settings, then turn them on again.
+
+### Which saved views notify
+
+A [saved view](web-ui.md#saved-views) can notify: when an agent's message leaves a thread that its
+list keeps, that thread notifies your devices, once, until you read or archive it. Turn it on or off
+with **Notify** on the view's row in **Settings**, **Saved views**. Agention starts you with one
+view that notifies, **Blocking asks**: the threads with an open ask that blocks the agent's work.
+Change, stop or remove it like any other.
+
+- A view notifies by its filters; its order and grouping play no part. Renaming it keeps it
+  notifying, and replacing its list changes what notifies from then on.
+- A view with **Search**, **Overdue** or **Read by agent** on cannot notify: a notification never
+  acts on what messages say, and the others change with time alone. Replacing a notifying view's
+  list with one that has one on ends its notifying, and removing the view ends it; each question
+  says so.
+- Only an agent's message notifies: your own actions, a program using an API key, and time passing
+  never do. A key holding `saved-views:write` can replace or remove a view that notifies, which
+  changes what notifies, but cannot see or set which views notify.
+
+### What a notification shows
+
+The thread's title and why it needs you: **Blocking ask**, **Urgent ask**, **Open ask**, or **New
+message** when no ask is open. Never what a message says. Opening it opens the thread in Agention,
+in a window already showing it if one is open, signing in first if the browser is signed out. A
+later notification of the same thread replaces the earlier one.
+
+There are no quiet hours in Agention: use your phone's **Do Not Disturb**. On Android, find **Do Not
+Disturb** in the phone's settings (under **Notifications** on most phones, **Sounds** on some), set
+a schedule for the hours you want quiet, and add Chrome, or the installed Agention app, to its
+exceptions if you want its notifications to come through anyway.
+
+### The push services it sends to
+
+The server sends only to the push services of the browsers that receive them, by name, over HTTPS:
+Google's (`fcm.googleapis.com`), Mozilla's (`updates.push.services.mozilla.com`), Apple's
+(`push.apple.com` and hosts under it), and Microsoft's (hosts under `notify.windows.com`). A browser
+whose push service is not among them cannot turn notifications on; the list grows with the server.
+The push service sees which device is notified and when, but nothing it can read: no title, no
+names, and every notification the same size.
 
 ## Attachments
 
@@ -725,7 +794,7 @@ keys**. **Create an API key** asks for:
   | `sessions:write`    | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, a tag's rename reaching the saved views naming it, and setting a session's group and an agent's or a session's tags |
   | `sessions:approve`  | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                                                                       |
   | `saved-views:read`  | Reading your saved views, each with its thread list                                                                                                                                                                                                                                                  |
-  | `saved-views:write` | Also saving, renaming, replacing and removing saved views                                                                                                                                                                                                                                            |
+  | `saved-views:write` | Also saving, renaming, replacing and removing saved views, which changes what notifies you when a view notifies (see [Notifications](#notifications))                                                                                                                                                |
 
   A write or approve scope includes its resource's read; `sessions:write` and `sessions:approve`
   include neither the other. `sessions:approve` lets whoever holds the key let an agent into your
@@ -763,9 +832,10 @@ already run.
 ### What it records
 
 - **Every write**, on the web UI, the operator API and the agent API: starting threads, messages and
-  answers, archiving, files uploaded and removed, groups and tags and their assignment, saved views,
-  a session's status updates, voice settings set and cleared, and the decisions on agents'
-  registrations. Marking threads read or unread and marking a session's log read are not recorded.
+  answers, archiving, files uploaded and removed, groups and tags and their assignment, saved views
+  and which of them notify, the devices that receive notifications, a session's status updates,
+  voice settings set and cleared, and the decisions on agents' registrations. Marking threads read
+  or unread and marking a session's log read are not recorded.
 - **Sign-ins**: a passkey's sign-in, a sign-out, and a passkey link's use, with the browser sessions
   each ended. A failed sign-in or link is recorded with no one as its actor.
 - **Credentials**: an API key created, revoked, or revoked by a passkey link, and its first use; a
@@ -780,10 +850,10 @@ already run.
 Each event names its credential by an id that is not secret: a browser session by its own id and the
 passkey that signed it in, an API key by its id and name, and an agent by its registration's id,
 with its agent and session. It names what was acted on by id, with the names you and your agents
-chose for agents, sessions, groups, tags, saved views, keys, and passkeys. It names a thread by its
-agent, session and number, never its title, a file by its id, never its name, and a saved view by
-its id and name, never its list. No event holds a message's or an answer's text, a file's bytes, a
-transcription, or any secret.
+chose for agents, sessions, groups, tags, saved views, keys, and passkeys, and the devices' labels.
+It names a thread by its agent, session and number, never its title, a file by its id, never its
+name, and a saved view by its id and name, never its list. No event holds a message's or an answer's
+text, a file's bytes, a transcription, or any secret.
 
 The address recorded is the connection's peer. Behind `tailscale serve` or a platform's router that
 is the proxy's address, often the loopback, since the server reads no forwarded header. The user
@@ -1088,8 +1158,10 @@ codex plugin add agention@agention
 ## Backing up
 
 The database, `agention.db` in the data directory, is the whole of an instance's state: its own key,
-your passkeys' records, every thread and every session's log, every file attached to a message, and
-voice's settings with a key saved in Settings. Voice settings from the environment are not in it.
+its push key and the devices that receive notifications, your passkeys' records, every thread and
+every session's log, every file attached to a message, and voice's settings with a key saved in
+Settings. A restore keeps every device's notifications working. Voice settings from the environment
+are not in it.
 
 `agention backup` writes a consistent copy of it to a new file, while the server runs or not, then
 checks the copy and prints its path, size and schema version:

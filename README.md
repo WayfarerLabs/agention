@@ -98,7 +98,9 @@ Agention records and shows. The agent decides what to do with an answer.
 - It grants no permissions, and it does not reach into an agent's session: agents come to it and
   check for your answers.
 - It never holds up an agent's work, and never acts on a deadline.
-- It sends no notifications or email. You look when you choose to.
+- It sends no email, and notifies only the devices you turn notifications on for, when an agent
+  writes in a thread that a saved view you chose to notify keeps. Otherwise you look when you choose
+  to.
 
 It also works on the honor system: it cannot stop an agent from misreporting. What it enforces is
 that every message is attributed to whoever wrote it, that sessions see only their own threads, and

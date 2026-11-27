@@ -19,7 +19,10 @@ approval and the Threads tab the unread threads, as [docs/architecture.md](../ar
 UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates. Its
 "No push" and "history is retained" are narrowed for the audit log by [ADR 0006](0006-audit-log.md):
 the server delivers that log to the sinks the operator configures, and removes its events after
-their retention.
+their retention. Its "No push" is superseded for the operator by
+[ADR 0008](0008-web-push-to-the-operator.md): the server notifies the operator's devices through Web
+Push to the web UI when a saved view that notifies matches an agent's message; it still reaches an
+agent only when the agent checks.
 
 ## Context
 
@@ -354,7 +357,9 @@ These are deliberate limits, not gaps to fill later without a new decision:
   Standard MCP notifications reach neither host's model; waking an idle agent takes each host's own
   mechanism, which exists on both hosts, and is left for a later release so that polling, which
   every host supports, works well first. (Narrowed by [ADR 0006](0006-audit-log.md): the server
-  delivers the audit log, and only it, to the sinks the operator configures.)
+  delivers the audit log, and only it, to the sinks the operator configures. Superseded for the
+  operator by [ADR 0008](0008-web-push-to-the-operator.md): the server notifies the operator's
+  devices through Web Push to the web UI; reaching an agent only when it checks stays.)
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
   agent's conversation, or control an agent harness.
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through
