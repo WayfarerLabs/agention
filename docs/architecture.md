@@ -2267,8 +2267,10 @@ comments give the document's handler and its rules, among them `modified`, for A
   rows and a session, `useFieldShortcuts` for the composer, whose keys act within its fields from
   its form's key handler, and the provider for those that act anywhere), so a place binds exactly
   its declared shortcuts, and no shortcut listed goes without an action. Only one component holds a
-  shortcut's action at a time; a second registering one throws. Each action does what a control on
-  the page does, only while that control could, and otherwise nothing.
+  shortcut's action at a time; a second registering one throws. The actions, and the document's
+  handler, go on in layout effects, in the commit that shows the page, so a key pressed once the
+  page shows always reaches its action. Each action does what a control on the page does, only while
+  that control could, and otherwise nothing.
 - **The browser's keys.** A matching key is always taken from the browser: no key bound does
   anything of the browser's own where it acts, apart from `/` on the thread list, which takes
   Firefox's Quick Find, deliberately; `Enter` on a row is left out, since the row is a link the

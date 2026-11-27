@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -370,7 +371,9 @@ function useRegistered<P extends ShortcutPlace>(
   const latest = useRef(actions);
   latest.current = actions;
   const ids = Object.keys(actions).sort().join(" ");
-  useEffect(() => {
+  // In the commit that shows the view, as the handler is, so a key pressed
+  // the moment the view shows reaches its action.
+  useLayoutEffect(() => {
     const removals = (ids.split(" ") as IdsIn<P>[]).map((id) =>
       register(id, () => latest.current[id], area),
     );
@@ -442,7 +445,9 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     goSavedViews: openSavedViews,
   });
 
-  useEffect(() => {
+  // The handler goes on in the commit that shows a signed-in page, not after
+  // it, so no key pressed once the page shows is lost.
+  useLayoutEffect(() => {
     if (!on) {
       return;
     }

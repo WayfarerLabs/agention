@@ -1,13 +1,16 @@
 import type { Message } from "@wayfarerlabs/agention-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   enterSendsChoice,
+  KeyboardProvider,
   prefixTimeout,
   type Shortcut,
   type ShortcutPlace,
   shortcuts,
   shortcutsChoice,
+  useShortcuts,
 } from "./keyboard.tsx";
 import {
   ask,
@@ -610,6 +613,40 @@ describe("anywhere", () => {
     fireEvent.click(within(help).getByRole("link", { name: /Settings/ }));
     await screen.findByRole("heading", { level: 2, name: "Keyboard" });
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+  });
+});
+
+describe("a page as it shows", () => {
+  // Rendered outside act, as the browser renders, so React leaves the effects
+  // it may run later until after the page shows; the key is pressed the moment
+  // it does, as a quick hand can, before them.
+  it("acts on a key pressed the moment the page shows", async () => {
+    const pressed: string[] = [];
+    function SessionPage() {
+      useShortcuts("Session", { backToSessions: (key) => pressed.push(key) });
+      return <h1>A session</h1>;
+    }
+    const container = document.body.appendChild(document.createElement("div"));
+    const root = createRoot(container);
+    const shows = new MutationObserver(() => {
+      if (container.querySelector("h1") !== null) {
+        shows.disconnect();
+        press("u");
+      }
+    });
+    shows.observe(container, { childList: true, subtree: true });
+    try {
+      root.render(
+        <KeyboardProvider>
+          <SessionPage />
+        </KeyboardProvider>,
+      );
+      await waitFor(() => expect(container.querySelector("h1")).not.toBeNull());
+      expect(pressed).toEqual(["u"]);
+    } finally {
+      root.unmount();
+      container.remove();
+    }
   });
 });
 
