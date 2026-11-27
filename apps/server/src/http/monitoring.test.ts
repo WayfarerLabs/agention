@@ -328,6 +328,8 @@ describe("the nudge", () => {
     const claimed = harness.fixture.now;
     expect((await nudgeClaim(start)).body).toEqual({ replaced: false, go: true });
     expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
+    // Under way, it shows nothing, since it may yet be deferred.
+    expect(await presence()).not.toHaveProperty("last_nudge");
     harness.fixture.advance(6_000);
     expect((await nudgeClaim(done("sent"))).body).toEqual({
       replaced: false,
@@ -342,6 +344,7 @@ describe("the nudge", () => {
     });
     const listed = (await harness.operator(secret, "GET", "/threads")).body as ThreadPage;
     expect(listed.threads[0]?.presence?.last_nudge).toEqual(shown);
+    expect(listed.threads[0]?.nudged_since_unread).toBe(true);
     // The agent's reply to it shows at once, whatever the minute.
     await list(agentApi.version);
     expect((await presence())?.last_nudge).toMatchObject({ answered: true });
@@ -352,6 +355,25 @@ describe("the nudge", () => {
     expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
     expect((await nudgeClaim(done("deferred"))).body).toEqual({ replaced: false, go: false });
     expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: true });
+    expect(await presence()).not.toHaveProperty("last_nudge");
+  });
+
+  it("is due again once another bridge acts for the session while a claim is under way", async () => {
+    expect((await nudgeClaim(start)).body).toEqual({ replaced: false, go: true });
+    const asSecond = (method: string, query: string, body?: unknown) =>
+      harness.agent(
+        approved,
+        method,
+        `/s/builder/main/monitor?bridge=${second}&${query}`,
+        body,
+        nudging,
+      );
+    await asSecond("GET", "claim=true&wait=0");
+    await asSecond("POST", "seq=1", canBeNudged);
+    expect((await asSecond("GET", "wait=0")).body).toEqual({ replaced: false, nudge: true });
+    expect(await presence()).not.toHaveProperty("last_nudge");
+    // The left claim's outcome, late from its replaced bridge, changes nothing.
+    expect((await nudgeClaim(done("sent"))).body).toEqual({ replaced: true, go: false });
     expect(await presence()).not.toHaveProperty("last_nudge");
   });
 
@@ -450,6 +472,7 @@ describe("the nudge", () => {
         "outcome",
         "unable",
         "stranded",
+        "nudged_since_unread",
       ]) {
         expect(text).not.toContain(`"${field}"`);
       }

@@ -227,8 +227,8 @@ export function ConditionClause({ observed }: { observed: Observed }) {
 // detail say it, after "Can't be monitored: " or "Can't be nudged: ".
 const unableWords: Record<MonitorReason, { cannot: "monitored" | "nudged"; why: string }> = {
   no_socket: { cannot: "monitored", why: "no tmux socket configured" },
-  pane_unreachable: { cannot: "monitored", why: "tmux socket unreachable" },
-  not_one_pane: { cannot: "monitored", why: "the tmux server holds more than this session's pane" },
+  pane_unreachable: { cannot: "monitored", why: "the tmux pane cannot be read" },
+  not_one_pane: { cannot: "monitored", why: "the tmux server's pane is not this session's alone" },
   unknown_profile: { cannot: "nudged", why: "harness profile unknown" },
   unknown_nudge_type: { cannot: "nudged", why: "nudge type unknown" },
   nudge_off: { cannot: "nudged", why: "the nudge is off" },
@@ -256,7 +256,8 @@ export const unableNeedsYou = (reason: MonitorReason): boolean => reason === "nu
 // stopped one gave; its presence, with what its bridge last observed of its
 // terminal and its latest nudge; whether it has an active credential; and,
 // for a thread's session, whether the server finds the thread stranded or
-// ignored.
+// ignored, and whether the latest nudge came since the earliest message of
+// the operator's the session has not read in it.
 export interface Whereabouts {
   state?: WorkState | undefined;
   outcome?: WorkOutcome | undefined;
@@ -264,6 +265,7 @@ export interface Whereabouts {
   credential_active: boolean;
   stranded?: boolean | undefined;
   ignored?: boolean | undefined;
+  nudged_since_unread?: boolean | undefined;
 }
 
 // Why a session is not likely to see what the operator writes, with what its
@@ -283,10 +285,11 @@ export type Absence = (
 // agent checked in, when it last did, without reading the thread. A session
 // its bridge can nudge is away only once that will not bring it: it has no
 // active credential; or its latest nudge has had no check-in since, so it is
-// not responding to the nudge, or failed or was stopped at the terminal; or,
-// of a stranded thread, its latest nudge failed or was stopped, or no nudge
-// came, as when its terminal never showed it ready or nudge text left at the
-// prompt held it off, which it says. Waiting at its prompt, quiet or
+// not responding to the nudge; or, of a stranded thread, its latest nudge,
+// come since the earliest message the session has not read there, failed or
+// was stopped at the terminal, or no nudge came since, as when its terminal
+// never showed it ready or nudge text left at the prompt held it off, which
+// it says. Waiting at its prompt, quiet or
 // stopped, it is not away, since the nudge will bring it.
 // Any other session is away when it stopped, with its outcome; or it is
 // quiet, with when its agent last checked in; or it has no active credential;
@@ -306,10 +309,11 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
     if (!session.credential_active) {
       return { kind: "credential", ...beside };
     }
-    if (
-      nudge !== undefined &&
-      (!nudge.answered || (session.stranded === true && nudge.outcome !== "sent"))
-    ) {
+    const strandedBy =
+      session.stranded === true &&
+      session.nudged_since_unread === true &&
+      nudge?.outcome !== "sent";
+    if (nudge !== undefined && (!nudge.answered || strandedBy)) {
       return { kind: "nudge", nudge, ...beside };
     }
     return session.stranded === true
@@ -472,6 +476,7 @@ export function threadWhereabouts(thread: ThreadSummary): Whereabouts {
     credential_active: thread.credential_active,
     stranded: thread.stranded,
     ignored: thread.ignored,
+    nudged_since_unread: thread.nudged_since_unread,
   };
 }
 

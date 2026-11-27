@@ -30,16 +30,21 @@ export const connectedFor = 60_000;
 // its last check-in a minute or more, when its last check-in is after now,
 // so a clock stepped back never holds it still, when the version differs
 // from the last one's, so a session pinned to an older bridge is read by its
-// rule at once, or when its last check-in is before the claim of a nudge
-// under way (claimNudge) or the latest nudge, so a check-in during a nudge,
-// or in reply to one, always shows, at the cost of one stamp more for each
-// claim. A stamp wakes
-// no poll, though it can end a nudge being due: a claim checks again that
-// one is. The agent mount calls it on every call by an approved key but its
-// bridge's background ones, before the call's own work, in a transaction of
-// its own, so a call refused later still counts. A registration that is not
-// approved as it runs, pending or revoked since its token was verified,
-// stamps nothing.
+// rule at once, or when its last check-in is before any of these: the latest
+// message someone other than the agent wrote in one of its threads, the
+// claim of a nudge under way (claimNudge) or the latest nudge. So a call
+// after a message always counts as checking in since it, and a check-in
+// during a nudge, or in reply to one, always shows, at the cost of one stamp
+// more for each message and claim; an orphan a bridge left (settleOrphan)
+// needs no clause of its own, since its claim came after a message the
+// check-in was before. The latest message is found from the newest of the
+// session's messages back, by its log's index, past only the agent's own. A
+// stamp wakes no poll, though it can end a nudge being due: a claim checks
+// again that one is. The agent mount calls it on every call by an approved
+// key but its bridge's background ones, before the call's own work, in a
+// transaction of its own, so a call refused later still counts. A
+// registration that is not approved as it runs, pending or revoked since its
+// token was verified, stamps nothing.
 export function markCheckedIn(store: Store, registrationId: number, version: number): void {
   const { db } = store;
   db.transaction(() => {
@@ -50,7 +55,13 @@ export function markCheckedIn(store: Store, registrationId: number, version: num
          )
          AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
            OR last_seen_version IS NOT :version OR last_seen_at < nudge_claimed_at
-           OR last_seen_at < nudged_at)`,
+           OR last_seen_at < nudged_at
+           OR last_seen_at < (
+             SELECT m.created_at FROM messages m
+             WHERE m.session_id = sessions.id
+               AND m.actor_id IS NOT (SELECT a.id FROM actors a WHERE a.session_id = sessions.id)
+             ORDER BY m.session_pos DESC LIMIT 1
+           ))`,
     ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
   });
 }
@@ -117,22 +128,12 @@ export function monitorStateOf(row: MonitorRow): MonitorState {
   };
 }
 
-// latestNudgeOf selects, for the sessions read as sessions, their latest
-// nudge as the operator sees it: the claim under way where there is one,
-// which reads as sent, as one whose outcome never arrives counts; otherwise
-// the latest claim that settled. Its columns are null until a bridge first
-// claims one.
-export function latestNudgeOf(sessions: string): string {
-  return `COALESCE(${sessions}.nudge_claimed_at, ${sessions}.nudged_at) AS nudged_at,
-    COALESCE(${sessions}.nudge_claim_id, ${sessions}.nudge_id) AS nudge_id,
-    IIF(${sessions}.nudge_claimed_at IS NULL, ${sessions}.nudge_outcome, 'sent')
-      AS nudge_outcome`;
-}
-
 // The columns of a session's presence, as a read selects them: when its
 // agent last checked in, whether it is quiet and connected, as quietOf and
-// connectedOf say, its bridge's latest report, and its latest nudge, as
-// latestNudgeOf says.
+// connectedOf say, its bridge's latest report, and its latest nudge: the
+// latest claim that settled, its columns null until one first does. A claim
+// under way is never selected, since it may yet be deferred, which is no
+// nudge.
 export interface PresenceRow extends MonitorRow {
   last_seen_at: number | null;
   quiet: number;

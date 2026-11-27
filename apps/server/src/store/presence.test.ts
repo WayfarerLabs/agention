@@ -54,6 +54,25 @@ describe("last seen", () => {
     expect(lastSeen()).toBe(first + seenStep);
   });
 
+  it("is stamped on the first call after a message someone else wrote, however soon, never for the agent's own", () => {
+    fixture.seen(agent);
+    const first = fixture.now;
+    fixture.advance(1_000);
+    fixture.createThread(agent);
+    fixture.advance(1_000);
+    fixture.seen(agent);
+    expect(lastSeen()).toBe(first);
+    fixture.advance(1_000);
+    fixture.startThread(agent);
+    fixture.advance(1_000);
+    fixture.seen(agent);
+    expect(lastSeen()).toBe(fixture.now);
+    // Checked in since that message, the next call within the minute is not.
+    fixture.advance(1_000);
+    fixture.seen(agent);
+    expect(lastSeen()).toBe(fixture.now - 1_000);
+  });
+
   it("moves back with a clock stepped back, so it never holds still", () => {
     fixture.seen(agent);
     fixture.advance(-5 * seenStep);

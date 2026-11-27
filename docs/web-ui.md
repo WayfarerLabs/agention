@@ -182,18 +182,19 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   threads, saying why: its session **stopped**, with how; it is quiet, **last check-in** when, or
   **never checked in**; it has **no active credential**; or its bridge is **not connected**. For a
   session its bridge can nudge, it says what came of the nudge instead: **not responding to the
-  nudge at 14:05**, **nudge failed at 14:05**, **nudge stopped at the terminal at 14:05**, or **not
-  nudged**, with why where it can say, as **not nudged: nudge text left at the prompt**. An ignored
-  thread shows an **Ignored** tag in the same color instead, saying when its agent checked in
-  without reading it: **Ignored · checked in at 14:05 without reading this**. Where the session's
-  bridge monitors its terminal, either tag also says what the terminal shows, in the words of the
-  sessions view's rows, such as **last check-in 14:02 · stopped at a permission prompt**. A session
-  with no active credential also shows its own tag, unless the stranded tag already says so. When
-  the thread's messages name one GitHub pull request or branch, it shows beneath, beside the same
-  icon of two lines merging into one, by its short form, which adds it to the filters on, keeping
-  the others, the order and the grouping; its link to GitHub is on the thread's page. When they name
-  two or more, that icon among the row's marks says how many, which a screen reader says in full,
-  such as **2 pull requests, 1 branch**, and the thread's head lists them.
+  nudge at 14:05**, **nudge failed at 14:05** or **nudge stopped at the terminal at 14:05** for a
+  nudge since your message the agent has not read, or **not nudged**, with why where it can say, as
+  **not nudged: nudge text left at the prompt**. An ignored thread shows an **Ignored** tag in the
+  same color instead, saying when its agent checked in without reading it: **Ignored · checked in at
+  14:05 without reading this**. Where the session's bridge monitors its terminal, either tag also
+  says what the terminal shows, in the words of the sessions view's rows, such as **last check-in
+  14:02 · stopped at a permission prompt**. A session with no active credential also shows its own
+  tag, unless the stranded tag already says so. When the thread's messages name one GitHub pull
+  request or branch, it shows beneath, beside the same icon of two lines merging into one, by its
+  short form, which adds it to the filters on, keeping the others, the order and the grouping; its
+  link to GitHub is on the thread's page. When they name two or more, that icon among the row's
+  marks says how many, which a screen reader says in full, such as **2 pull requests, 1 branch**,
+  and the thread's head lists them.
 - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
   leaving out those under a folded header, as **Select all** does. It stays in view as the list
   scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
@@ -535,9 +536,9 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
     unfolded, as how it was set up
     ([Monitoring a session's terminal](operator-guide.md#monitoring-a-sessions-terminal));
   - once its bridge has claimed a nudge, what came of the latest, with the attempt's id, which the
-    agent's transcript shows too: **nudged** and when; **not responding to the nudge at** when,
-    sent, or under way or with no outcome, with no check-in since; **nudge stopped at the terminal
-    at** when; or **nudge failed at** when, the second and the last in the warning's color
+    agent's transcript shows too: **nudged** and when; **not responding to the nudge at** when, sent
+    with no check-in since; **nudge stopped at the terminal at** when; or **nudge failed at** when,
+    the second and the last in the warning's color, and nothing while one is under way
     ([The nudge](operator-guide.md#the-nudge));
   - **Last check-in** and when its agent last called Agention, or **Never checked in**, in the
     warning's color while the session is quiet and has not stopped, so a session can show

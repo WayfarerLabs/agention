@@ -721,15 +721,16 @@ describe("a session's nudges", () => {
       .run(...Object.values(columns));
 
   it("hold a claim and the latest nudge apart, each with its time and id", () => {
-    nudged({ nudge_claimed_at: 2, nudge_claim_id: "0123456789ab" });
+    nudged({ nudge_claimed_at: 2, nudge_claim_id: "0123456789ab", nudge_claim_bridge: "b" });
     nudged({
       nudge_claimed_at: null,
       nudge_claim_id: null,
+      nudge_claim_bridge: null,
       nudged_at: 2,
       nudge_id: "0123456789ab",
       nudge_outcome: "stopped",
     });
-    nudged({ nudge_claimed_at: 4, nudge_claim_id: "ba9876543210" });
+    nudged({ nudge_claimed_at: 4, nudge_claim_id: "ba9876543210", nudge_claim_bridge: "b" });
     expect(
       database.prepare("SELECT nudge_claim_id, nudge_id, nudge_outcome FROM sessions").get(),
     ).toEqual({
@@ -740,8 +741,10 @@ describe("a session's nudges", () => {
   });
 
   it.each([
-    ["a claim without its id", { nudge_claimed_at: 2 }],
+    ["a claim without its id", { nudge_claimed_at: 2, nudge_claim_bridge: "b" }],
+    ["a claim without its bridge", { nudge_claimed_at: 2, nudge_claim_id: "0123456789ab" }],
     ["a claim's id without its time", { nudge_claim_id: "0123456789ab" }],
+    ["a claim's bridge without its time", { nudge_claim_bridge: "b" }],
     ["a nudge without its outcome", { nudged_at: 2, nudge_id: "0123456789ab" }],
     ["a nudge without its id", { nudged_at: 2, nudge_outcome: "sent" }],
     ["an outcome without a nudge", { nudge_outcome: "failed" }],
@@ -805,6 +808,8 @@ describe("a database an earlier release wrote", () => {
           background_at: null,
           nudge_claimed_at: null,
           nudge_claim_id: null,
+          nudge_claim_bridge: null,
+          nudge_orphan_claimed_at: null,
           nudged_at: null,
           nudge_id: null,
           nudge_outcome: null,

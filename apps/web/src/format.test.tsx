@@ -184,17 +184,23 @@ describe("why a session that can be nudged is away", () => {
   });
 
   it("says, of a stranded thread, that its latest nudge failed or was stopped, though answered since", () => {
+    const since = { stranded: true, nudged_since_unread: true };
     for (const outcome of ["stopped", "failed"] as const) {
       const nudge = { at, id, outcome, answered: true };
-      expect(away({ stranded: true }, nudge)).toEqual({
-        kind: "nudge",
-        nudge,
-        observed: canBeNudged,
-      });
+      expect(away(since, nudge)).toEqual({ kind: "nudge", nudge, observed: canBeNudged });
     }
-    expect(away({ stranded: true }, { at, id, outcome: "sent", answered: true })).toMatchObject({
+    expect(away(since, { at, id, outcome: "sent", answered: true })).toMatchObject({
       kind: "no_nudge",
     });
+  });
+
+  it("never names, of a stranded thread, a nudge from before the earliest message it has not read", () => {
+    for (const outcome of ["stopped", "failed"] as const) {
+      const nudge = { at, id, outcome, answered: true };
+      expect(away({ stranded: true, nudged_since_unread: false }, nudge)).toMatchObject({
+        kind: "no_nudge",
+      });
+    }
   });
 
   it("says why no nudge came to a stranded thread where nudge text left at the prompt held it off", () => {

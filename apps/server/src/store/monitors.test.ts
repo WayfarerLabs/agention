@@ -366,13 +366,15 @@ describe("the nudge", () => {
   const nudgeRow = () =>
     fixture.db
       .prepare(
-        `SELECT nudge_claimed_at, nudge_claim_id, nudged_at, nudge_id, nudge_outcome
+        `SELECT nudge_claimed_at, nudge_claim_id, nudge_claim_bridge, nudged_at, nudge_id,
+           nudge_outcome
          FROM sessions WHERE id = ?`,
       )
       .get(agent.sessionId);
   const none = {
     nudge_claimed_at: null,
     nudge_claim_id: null,
+    nudge_claim_bridge: null,
     nudged_at: null,
     nudge_id: null,
     nudge_outcome: null,
@@ -397,6 +399,14 @@ describe("the nudge", () => {
   it("is never due for a message written before the agent last checked in", async () => {
     written();
     fixture.advance(seenStep);
+    fixture.seen(agent);
+    expect(await due()).toBe(false);
+  });
+
+  it("is never due for a message the agent checked in after, however soon after its last check-in", async () => {
+    fixture.advance(1_000);
+    written();
+    fixture.advance(1);
     fixture.seen(agent);
     expect(await due()).toBe(false);
   });
@@ -482,8 +492,26 @@ describe("the nudge", () => {
       ...none,
       nudge_claimed_at: fixture.now,
       nudge_claim_id: latestId,
+      nudge_claim_bridge: second,
     });
     expect(claim(second)).toEqual({ replaced: false, go: false });
+  });
+
+  it("goes ahead again, changing nothing, for the claim under way sent again with its id", () => {
+    written();
+    expect(claim(first)).toEqual({ replaced: false, go: true });
+    const claimed = nudgeRow();
+    fixture.advance(1_000);
+    // The answer was lost, so the bridge sends the same claim again.
+    expect(claim(first, undefined, agent, fixture.store, latestId)).toEqual({
+      replaced: false,
+      go: true,
+    });
+    expect(nudgeRow()).toEqual(claimed);
+    expect(lastNudge()).toBeUndefined();
+    // Its outcome then settles it as any claim's does.
+    claim(first, "sent");
+    expect(lastNudge()).toMatchObject({ id: latestId, outcome: "sent" });
   });
 
   it("is due at most once until the agent checks in, sent or not", async () => {
@@ -506,18 +534,11 @@ describe("the nudge", () => {
     expect(await due()).toBe(true);
   });
 
-  it("is due to none once claimed, across a takeover and a server restart, until a check-in", async () => {
+  it("is due to none once claimed, across a server restart, until a check-in", async () => {
     written();
     expect(claim(first)).toMatchObject({ go: true });
-    // Another bridge takes over mid-nudge, as a restarted one does.
-    expect(await poll(second, { claim: "true", wait: "0" })).toEqual({
-      replaced: false,
-      nudge: false,
-    });
-    report(second, canBeNudged, 1);
-    expect(await due(second)).toBe(false);
-    expect(claim(second)).toEqual({ replaced: false, go: false });
     const restarted = createStore(fixture.db, { clock: () => fixture.now });
+    // The claim's own bridge comes back to the restarted server.
     expect(await due(first, restarted)).toBe(false);
     expect(claim(first, undefined, agent, restarted)).toEqual({ replaced: false, go: false });
     fixture.advance(1);
@@ -527,6 +548,103 @@ describe("the nudge", () => {
     expect(await due(first, restarted)).toBe(true);
   });
 
+  // takenOver has the second bridge take the session over and report it
+  // ready, as a restarted bridge does.
+  const takenOver = async () => {
+    await poll(second, { claim: "true", wait: "0" });
+    report(second, canBeNudged, 1);
+  };
+
+  it("releases a claim its bridge left under way once another bridge acts for the session, so the nudge is due again", async () => {
+    written();
+    expect(claim(first)).toMatchObject({ go: true });
+    const left = latestId;
+    // A poll of the bridge taking over, waiting already, wakes at once.
+    await takenOver();
+    expect(nudgeRow()).toEqual(none);
+    expect(lastNudge()).toBeUndefined();
+    expect(await due(second)).toBe(true);
+    // The left claim's late outcome, from its bridge, is refused.
+    expect(claim(first, "sent", agent, fixture.store, left)).toEqual({
+      replaced: true,
+      go: false,
+    });
+    expect(claim(second)).toEqual({ replaced: false, go: true });
+    claim(second, "sent");
+    expect(lastNudge()).toMatchObject({ id: latestId, outcome: "sent", answered: false });
+  });
+
+  it.each([
+    ["poll", (store: Store) => poll(first, { wait: "0" }, undefined, agent, store)],
+    [
+      "report",
+      (store: Store) =>
+        reportMonitor(
+          store,
+          agent.identity,
+          agent.target,
+          { bridge: first, seq: 1 },
+          {
+            ...canBeNudged,
+            monitored: true,
+            profile: "claude-code",
+            condition: "at_prompt",
+          },
+        ),
+    ],
+    ["nudge's claim", (store: Store) => claim(first, undefined, agent, store)],
+  ])(
+    "settles a claim another bridge left under way at the %s of the bridge that acts for the session",
+    async (_, acts) => {
+      written();
+      await takenOver();
+      expect(claim(second)).toMatchObject({ go: true });
+      // The server restarts, and the first bridge is the first to call.
+      await acts(createStore(fixture.db, { clock: () => fixture.now }));
+      // Released, so the nudge's claim goes ahead as the first bridge's own.
+      expect(nudgeRow()).not.toMatchObject({ nudge_claim_bridge: second });
+      expect(lastNudge()).toBeUndefined();
+    },
+  );
+
+  it("settles a second claim left under way since the agent last checked in as failed, which strands it", async () => {
+    written();
+    expect(claim(first)).toMatchObject({ go: true });
+    await takenOver();
+    expect(claim(second)).toMatchObject({ go: true });
+    const failed = latestId;
+    const failedAt = new Date(fixture.now).toISOString();
+    // The first bridge takes the session back, leaving the second's claim.
+    await poll(first, { claim: "true", wait: "0" });
+    report(first, canBeNudged);
+    expect(nudgeRow()).toMatchObject({ nudge_claimed_at: null, nudge_outcome: "failed" });
+    expect(lastNudge()).toEqual({ at: failedAt, id: failed, outcome: "failed", answered: false });
+    expect(await due()).toBe(false);
+    // A check-in ends it: a claim left after it is released again.
+    fixture.advance(1);
+    fixture.seen(agent);
+    fixture.advance(1);
+    written();
+    expect(claim(first)).toMatchObject({ go: true });
+    await takenOver();
+    expect(nudgeRow()).toMatchObject({ nudge_claimed_at: null, nudge_id: failed });
+    expect(await due(second)).toBe(true);
+  });
+
+  it("counts a check-in after a released orphan as one since it, so the next orphan is released", async () => {
+    written();
+    expect(claim(first)).toMatchObject({ go: true });
+    await takenOver();
+    // Within the minute a check-in stamps otherwise, the agent checks in.
+    fixture.advance(1);
+    fixture.seen(agent);
+    fixture.advance(1);
+    written();
+    expect(claim(second)).toMatchObject({ go: true });
+    await poll(first, { claim: "true", wait: "0" });
+    expect(nudgeRow()).toEqual(none);
+  });
+
   it.each(["sent", "stopped", "failed"] as const)(
     "settles a claim whose attempt ended %s as the latest nudge, once, and shows it to the operator",
     (outcome) => {
@@ -534,9 +652,9 @@ describe("the nudge", () => {
       const claimed = fixture.now;
       claim(first);
       const id = latestId;
-      // Under way, it shows as sent.
+      // Under way, it shows nothing, since it may yet be deferred.
       const shownAt = new Date(claimed).toISOString();
-      expect(lastNudge()).toEqual({ at: shownAt, id, outcome: "sent", answered: false });
+      expect(lastNudge()).toBeUndefined();
       fixture.advance(8_000);
       expect(claim(first, outcome)).toEqual({ replaced: false, go: false });
       expect(lastNudge()).toEqual({ at: shownAt, id, outcome, answered: false });
@@ -596,20 +714,33 @@ describe("the nudge", () => {
     expect(await due()).toBe(false);
   });
 
-  it("settles a claim whose outcome never came as sent, once a later one is claimed", () => {
+  it("releases its own claim whose outcome never came, once it claims a later one, and takes no late outcome for it", () => {
     written();
     claim(first);
-    const lost = latestId;
-    const lostAt = fixture.now;
+    claim(first, "stopped");
+    const settled = nudgeRow();
     fixture.advance(seenStep);
     fixture.seen(agent);
     fixture.advance(1);
     written();
     claim(first);
-    expect(nudgeRow()).toMatchObject({ nudged_at: lostAt, nudge_id: lost, nudge_outcome: "sent" });
-    // Deferred, the later one leaves the lost one as the latest nudge.
-    claim(first, "deferred");
-    expect(lastNudge()).toMatchObject({ id: lost, outcome: "sent", answered: true });
+    const lost = latestId;
+    fixture.advance(seenStep);
+    fixture.seen(agent);
+    fixture.advance(1);
+    written();
+    claim(first);
+    // The lost claim is no nudge: the latest is the one that settled before.
+    expect(nudgeRow()).toMatchObject({
+      nudge_claim_id: latestId,
+      nudged_at: (settled as { nudged_at: number }).nudged_at,
+    });
+    // Its outcome, arriving late, changes nothing, the later claim included.
+    expect(claim(first, "sent", agent, fixture.store, lost)).toEqual({
+      replaced: false,
+      go: false,
+    });
+    expect(nudgeRow()).toMatchObject({ nudge_claim_id: latestId, nudge_outcome: "stopped" });
   });
 
   it("takes no outcome before any claim", () => {
@@ -758,8 +889,28 @@ describe("stranded and ignored, for a session that can be nudged", () => {
       await claimed(outcome);
       expect(standing()).toBe("stranded");
       expect(thread()?.presence?.last_nudge).toMatchObject({ outcome });
+      expect(thread()?.nudged_since_unread).toBe(true);
     },
   );
+
+  it("says the latest nudge is not the one a later thread waits on, as when nudge text left holds the next off", async () => {
+    await claimed("failed");
+    fixture.advance(seenStep);
+    fixture.seen(agent);
+    fixture.advance(1);
+    fixture.startThread(agent);
+    // The failed nudge's warning, left at the prompt, holds every attempt off.
+    report(first, {
+      ...canBeNudged,
+      unable: { reason: "nudge_text_left", since: running.since },
+    });
+    fixture.advance(quiet);
+    expect(standing(2)).toBe("stranded");
+    expect(thread(2)).toMatchObject({
+      nudged_since_unread: false,
+      presence: { last_nudge: { outcome: "failed" } },
+    });
+  });
 
   it("waits on the nudge, neither, while an attempt deferred leaves it due, and is stranded once it goes the quiet time", async () => {
     await claimed("deferred");
@@ -783,7 +934,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
 
   it.each([
     ["a sent nudge", "sent" as const],
-    ["a claimed nudge whose outcome never came", undefined],
+    ["a claimed nudge still under way, which is none sent", undefined],
   ])(
     "is stranded once %s goes the quiet time, and ignored once the agent checks in without reading the thread, until it does",
     async (_, sent) => {

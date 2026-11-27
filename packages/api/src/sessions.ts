@@ -213,7 +213,7 @@ export type SessionsQuery = z.infer<typeof sessionsQuery>;
 
 // A session's presence as the operator's sessions view shows it: with its
 // bridge's latest report while it is connected, absent until one reports, and
-// its latest nudge, absent until its bridge first claims one.
+// its latest nudge, absent until one first settles.
 export const sessionPresence = presence.extend({
   monitor: monitorState
     .optional()
@@ -223,7 +223,10 @@ export const sessionPresence = presence.extend({
     ),
   last_nudge: nudgeState
     .optional()
-    .describe("The session's latest nudge; absent until its bridge first claims one."),
+    .describe(
+      "The session's latest nudge whose outcome came; absent until one first does, so a nudge " +
+        "under way shows nothing until it settles.",
+    ),
 });
 export type SessionPresence = z.infer<typeof sessionPresence>;
 

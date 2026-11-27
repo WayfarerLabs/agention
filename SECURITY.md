@@ -311,25 +311,26 @@ sends only what its tools are given.
 - **The nudge.** Only with `--nudge tmux` or `AGENTION_NUDGE=tmux`, and the socket monitoring reads,
   does the bridge put anything in the pane, and only when the server's poll says a nudge is due, an
   answer that carries nothing else, and the server then grants the bridge's claim of it, one claim
-  until the agent checks in ([ADR 0007](docs/adrs/0007-the-nudge.md)). It nudges only through a
-  harness's own profile, which knows its prompt marker: a generic profile cannot tell a draft at the
-  prompt from an empty one, so a session read with one is never nudged, and no draft of the
-  operator's is submitted with the message. It puts two texts there, both its own constants after
-  the nudge marker and an id drawn from a cryptographic random source for that attempt: a warning,
-  which it removes and never submits, and one fixed message telling the agent to check in with
-  Agention, which it submits. Nothing from the server, a message or the screen reaches either, so no
-  one's text reaches the agent's prompt through a nudge, and the id the server records for the
-  attempt is the bridge's own. Nudge text already on the input line is never pasted over or removed,
-  so an attempt removes only its own exact text. Text reaches the pane only as a paste, through a
-  tmux buffer of the bridge's own, of printable ASCII alone, and the only keys are Backspace, to
-  remove its own text, and Enter, to submit its message, each straight after a reading that
-  confirmed the input line holds exactly what the nudge put there, in a pane that takes keys; a
-  nudge starts only with the session at rest at its prompt and once no one has typed at an attached
-  terminal for ten seconds. Anyone at the terminal stops a nudge by typing over its warning, and a
-  bridge another has taken over from sends no key more. The screen can imitate a prompt, so a
-  nudge's checks narrow what a key can reach to an input line that looked like one the moment
-  before, and are no boundary against whatever runs in the pane. The bridge logs each attempt's id,
-  outcome and step, never a text.
+  until the agent checks in, or two where the first's bridge left it under way and another came to
+  act for the session, the second left so settling as failed
+  ([ADR 0007](docs/adrs/0007-the-nudge.md)). It nudges only through a harness's own profile, which
+  knows its prompt marker: a generic profile cannot tell a draft at the prompt from an empty one, so
+  a session read with one is never nudged, and no draft of the operator's is submitted with the
+  message. It puts two texts there, both its own constants after the nudge marker and an id drawn
+  from a cryptographic random source for that attempt: a warning, which it removes and never
+  submits, and one fixed message telling the agent to check in with Agention, which it submits.
+  Nothing from the server, a message or the screen reaches either, so no one's text reaches the
+  agent's prompt through a nudge, and the id the server records for the attempt is the bridge's own.
+  Nudge text already on the input line is never pasted over or removed, so an attempt removes only
+  its own exact text. Text reaches the pane only as a paste, through a tmux buffer of the bridge's
+  own, of printable ASCII alone, and the only keys are Backspace, to remove its own text, and Enter,
+  to submit its message, each straight after a reading that confirmed the input line holds exactly
+  what the nudge put there, in a pane that takes keys; a nudge starts only with the session at rest
+  at its prompt and once no one has typed at an attached terminal for ten seconds. Anyone at the
+  terminal stops a nudge by typing over its warning, and a bridge another has taken over from sends
+  no key more. The screen can imitate a prompt, so a nudge's checks narrow what a key can reach to
+  an input line that looked like one the moment before, and are no boundary against whatever runs in
+  the pane. The bridge logs each attempt's id, outcome and step, never a text.
 - **Files it reads.** `file_upload` reads only the path the agent gives it, as the user the bridge
   runs as, and refuses anything but a regular file, a file over 100 MiB, and anything whose real
   path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a

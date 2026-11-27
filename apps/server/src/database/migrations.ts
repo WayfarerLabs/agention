@@ -725,15 +725,23 @@ export const migrations: readonly string[] = [
   ALTER TABLE monitor_reports ADD COLUMN unable_since INTEGER
     CHECK ((unable IS NULL) = (unable_since IS NULL));
 
-  -- A session's nudges. The claim is the attempt its bridge claimed and has
-  -- not yet said the outcome of: claimed_at, by the server's clock, and the
-  -- attempt's id, both null while there is none. The latest nudge is the
-  -- latest claim that settled: when it was claimed, its id, and how it ended,
-  -- sent, stopped or failed, all null until one first settles. A deferred
-  -- attempt releases its claim and leaves the latest nudge as it was.
+  -- A session's nudges. The claim is the attempt a bridge claimed and has
+  -- not yet said the outcome of, so under way: claimed_at, by the server's
+  -- clock, the attempt's id and the id of the bridge that claimed it, all
+  -- null while there is none. The latest nudge is the latest claim that
+  -- settled: when it was claimed, its id, and how it ended, sent, stopped or
+  -- failed, all null until one first settles. A deferred attempt releases its
+  -- claim and leaves the latest nudge as it was. An orphan is a claim whose
+  -- bridge left it under way, as another bridge came to act for the session;
+  -- nudge_orphan_claimed_at is when the latest orphan released was claimed,
+  -- null until one is, so a second orphan since the agent last checked in
+  -- settles as failed instead.
   ALTER TABLE sessions ADD COLUMN nudge_claimed_at INTEGER;
   ALTER TABLE sessions ADD COLUMN nudge_claim_id TEXT
     CHECK ((nudge_claim_id IS NULL) = (nudge_claimed_at IS NULL));
+  ALTER TABLE sessions ADD COLUMN nudge_claim_bridge TEXT
+    CHECK ((nudge_claim_bridge IS NULL) = (nudge_claimed_at IS NULL));
+  ALTER TABLE sessions ADD COLUMN nudge_orphan_claimed_at INTEGER;
   ALTER TABLE sessions ADD COLUMN nudged_at INTEGER;
   ALTER TABLE sessions ADD COLUMN nudge_id TEXT CHECK ((nudge_id IS NULL) = (nudged_at IS NULL));
   ALTER TABLE sessions ADD COLUMN nudge_outcome TEXT

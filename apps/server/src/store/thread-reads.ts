@@ -26,7 +26,7 @@ import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
-import { connectedFor, latestNudgeOf, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
+import { connectedFor, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -100,10 +100,10 @@ export function quietOf(sessions: string): string {
 // live message in any of the session's threads, by anyone but its agent,
 // that its agent has not read, by the rule its own unread count follows,
 // written after the agent last checked in, where no nudge was claimed since
-// that check-in: none under way, and none settled, since an attempt deferred
-// releases its claim and leaves the nudge due. It reads the session's own rows alone, never its bridge's
-// report, so whether the session can be nudged and is ready for it is the
-// caller's to check.
+// that check-in: none under way, and none settled, since an attempt deferred,
+// like an orphan released, releases its claim and leaves the nudge due. It
+// reads the session's own rows alone, never its bridge's report, so whether
+// the session can be nudged and is ready for it is the caller's to check.
 export function nudgeDueSince(sessions: string): string {
   return `(
     SELECT min(due.created_at) FROM threads due_thread
@@ -171,10 +171,10 @@ export function connectedOf(sessions: string): string {
 //  5. Otherwise it is neither until the latest nudge since the earliest such
 //     message failed or was stopped at the terminal, which strands it at
 //     once, the reason the operator sees being that nudge's outcome; or was
-//     sent (or is under way, or its outcome never came) before the quiet
-//     cut-off; or, with none claimed since, that message was written before
-//     it. latestNudgeOf gives the latest nudge, a claim under way reading as
-//     sent, and an attempt deferred being none.
+//     sent before the quiet cut-off; or, with none settled since, as while
+//     one is claimed and under way, that message was written before it. The
+//     latest nudge is the latest claim that settled: a claim under way is
+//     none yet, never sent, and an attempt deferred is none.
 //  6. Then it is ignored where the agent checked in at or after both that
 //     message and the latest nudge, if any, and that message was written
 //     before the quiet cut-off: the agent was there and left the thread
@@ -206,7 +206,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         ${quietOf("s")} AS quiet,
         ${connectedOf("s")} AS connected,
         mr.monitored, mr.profile, mr.condition, mr.since, mr.stopped_by, mr.resets_at, mr.nudge,
-        mr.unable, mr.unable_since, ${latestNudgeOf("s")},
+        mr.unable, mr.unable_since, s.nudged_at, s.nudge_id, s.nudge_outcome,
         reported.state AS session_state, reported.outcome AS session_outcome,
         member.group_id, grouped.name AS group_name
       FROM threads t
@@ -351,6 +351,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         judged.unread_by_other_since IS NOT NULL AS unread_by_other,
         judged.left_unread IS 'stranded' AS stranded,
         judged.left_unread IS 'ignored' AS ignored,
+        COALESCE(judged.nudged_at >= judged.unread_by_other_since, 0) AS nudged_since_unread,
         IIF(judged.status = 'withdrawn', (
           SELECT json_object('ask', w.ask, 'seq', w.seq, 'reason', w.reason) FROM withdrawals w
           JOIN live_messages lw ON lw.thread_id = w.thread_id AND lw.seq = w.seq
@@ -404,6 +405,7 @@ export interface ThreadRow extends PresenceRow {
   latest_withdrawal: string | null;
   stranded: number;
   ignored: number;
+  nudged_since_unread: number;
 }
 
 function askSummaryOf(json: string, now: number): AskSummary {
@@ -432,7 +434,8 @@ function askSummaryOf(json: string, now: number): AskSummary {
 // is overdue once its answer-by time is before now. The thread's audience
 // also sees its session's presence, with whether it is connected, its
 // bridge's latest report while it is, and the state and outcome it last
-// reported, and whether the thread is stranded or ignored.
+// reported, whether the thread is stranded or ignored, and whether the
+// latest nudge came since the earliest message the session has not read.
 export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks): ThreadSummary {
   const rank = row.ask_priority_rank === null ? undefined : priority.options[row.ask_priority_rank];
   return {
@@ -478,6 +481,7 @@ export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks
           },
           stranded: row.stranded === 1,
           ignored: row.ignored === 1,
+          nudged_since_unread: row.nudged_since_unread === 1,
         }
       : {}),
   };

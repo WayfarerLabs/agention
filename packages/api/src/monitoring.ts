@@ -253,19 +253,19 @@ export const monitorState = z.discriminatedUnion("monitored", [
 ]);
 export type MonitorState = z.infer<typeof monitorState>;
 
-// A session's latest nudge as the operator sees it: when its bridge claimed
-// it, by the server's clock; its attempt's id; how it ended, sent too while it
-// is under way or where its outcome never arrived, since an attempt deferred
-// is no nudge; and whether the agent has checked in since. A nudge sent with
-// no check-in since is one the agent is not responding to.
+// A session's latest nudge as the operator sees it, the latest claim that
+// settled: when its bridge claimed it, by the server's clock; its attempt's
+// id; how it ended, since an attempt deferred is no nudge; and whether the
+// agent has checked in since. A claim under way shows nothing until it
+// settles, since it may yet be deferred. A nudge sent with no check-in since
+// is one the agent is not responding to.
 export const nudgeState = z.object({
   at: z.string().describe("When the bridge claimed the nudge, by the server's clock."),
   id: nudgeId,
   outcome: nudgeOutcome
     .exclude(["deferred"])
     .describe(
-      "How the nudge ended: sent, the agent's host took the message, which it also reads while " +
-        "the nudge is under way or where its outcome never came; stopped by someone at the " +
+      "How the nudge ended: sent, the agent's host took the message; stopped by someone at the " +
         "terminal; or failed.",
     ),
   answered: z

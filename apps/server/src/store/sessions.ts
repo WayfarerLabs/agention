@@ -24,7 +24,7 @@ import { authorizeScope, type Identity } from "../identity.ts";
 import { findOperator, sessionActorId } from "./directory.ts";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 import type { Store } from "./store.ts";
-import { latestNudgeOf, type PresenceRow, presenceOf } from "./presence.ts";
+import { type PresenceRow, presenceOf } from "./presence.ts";
 import { connectedOf, pageOf, quietOf, threadsSeen, viewerAndCutoff } from "./thread-reads.ts";
 import { authorizeSession, type SessionTarget } from "./threads.ts";
 
@@ -358,7 +358,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
              ${quietOf("s")} AS quiet,
              ${connectedOf("s")} AS connected,
              r.monitored, r.profile, r.condition, r.since, r.stopped_by, r.resets_at, r.nudge,
-             r.unable, r.unable_since, ${latestNudgeOf("s")},
+             r.unable, r.unable_since, s.nudged_at, s.nudge_id, s.nudge_outcome,
              u.seq AS latest_seq, u.state, u.outcome, u.title, u.goal, u.percent, u.note,
              u.created_at AS updated_at,
              COALESCE(m.read_seq, 0) AS read_seq,

@@ -506,6 +506,10 @@
                             "type": "boolean",
                             "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
                           },
+                          "nudged_since_unread": {
+                            "type": "boolean",
+                            "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
+                          },
                           "group": {
                             "$ref": "#/components/schemas/GroupRef"
                           }
@@ -1912,6 +1916,10 @@
                           "type": "boolean",
                           "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
                         },
+                        "nudged_since_unread": {
+                          "type": "boolean",
+                          "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
+                        },
                         "group": {
                           "$ref": "#/components/schemas/GroupRef"
                         }
@@ -2058,6 +2066,10 @@
                         "ignored": {
                           "type": "boolean",
                           "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
+                        },
+                        "nudged_since_unread": {
+                          "type": "boolean",
+                          "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
                         },
                         "group": {
                           "$ref": "#/components/schemas/GroupRef"
@@ -8888,7 +8900,7 @@
               "failed",
               "sent"
             ],
-            "description": "How the nudge ended: sent, the agent's host took the message, which it also reads while the nudge is under way or where its outcome never came; stopped by someone at the terminal; or failed."
+            "description": "How the nudge ended: sent, the agent's host took the message; stopped by someone at the terminal; or failed."
           },
           "answered": {
             "type": "boolean",
@@ -9155,7 +9167,7 @@
           },
           "last_nudge": {
             "$ref": "#/components/schemas/NudgeState",
-            "description": "The session's latest nudge; absent until its bridge first claims one."
+            "description": "The session's latest nudge whose outcome came; absent until one first does, so a nudge under way shows nothing until it settles."
           }
         },
         "required": [
@@ -9414,7 +9426,7 @@
           },
           "last_nudge": {
             "$ref": "#/components/schemas/NudgeState",
-            "description": "The session's latest nudge; absent until its bridge first claims one."
+            "description": "The session's latest nudge whose outcome came; absent until one first does, so a nudge under way shows nothing until it settles."
           },
           "state": {
             "$ref": "#/components/schemas/WorkState"
@@ -9560,6 +9572,10 @@
           "ignored": {
             "type": "boolean",
             "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
+          },
+          "nudged_since_unread": {
+            "type": "boolean",
+            "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
           }
         },
         "required": [

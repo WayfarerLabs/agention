@@ -532,7 +532,7 @@ is logged once, and the strict generic profile reads the terminal instead.
 
 The sessions view shows why a session cannot be monitored or nudged, with since when, as its bridge
 reports it whenever that arises, not only as it starts, so trouble that begins later shows too: for
-example **Can't be monitored: tmux socket unreachable since 14:05**. The agent is not told: the
+example **Can't be monitored: the tmux pane cannot be read since 14:05**. The agent is not told: the
 reasons are yours. The bridge reports the first of these that applies:
 
 | Reason               | When                                                                                    |
@@ -628,24 +628,27 @@ Nudge text left in the input line, by an earlier attempt or anyone else, is neve
 pasted over: it holds the nudge off, and the session shows **Can't be nudged: nudge text left at the
 prompt** until you clear the line, when the nudge goes ahead. A bridge that another takes over from,
 or that closes, mid-nudge presses no key more, so it can leave the warning, or the message not yet
-submitted, in the input line. Its claim still stands, so no further nudge comes until the agent
-checks in, and then not until the line is clear.
+submitted, in the input line. Its claim is then under way, and shows nothing, until a bridge next
+acts for the session: the first such claim since the agent last checked in is released, so the nudge
+is due again, and held off while the text it left stays on the line; a second is settled as failed.
+A bridge that closes before it typed anything releases its claim as it goes.
 
 A session is nudged at most once until its agent next checks in, whatever that nudge's outcome; an
-attempt deferred does not count. Check-ins count to the minute, so an agent that checks in within a
-minute after you write, without reading the thread, can still be nudged for it once. The sessions
+attempt deferred does not count. An agent's first call after you write counts as checking in since
+your message, however soon, so it is never nudged for a message it checked in after. The sessions
 view's line shows what came of the latest, with its attempt's id: **nudged** and when, once the
-agent checked in; **not responding to the nudge** while it was sent, or is under way or its outcome
-never came, and the agent has not checked in since; **nudge stopped at the terminal**; or **nudge
-failed**. A failed nudge and one not responded to show in the warning's color; one stopped at the
-terminal does not. A thread whose latest nudge since your message failed or was stopped is stranded
-at once, saying which. An agent that checks in after a nudge without reading the thread it came for
-is not nudged for it again, so once `--quiet-minutes` pass after the nudge, the thread is ignored
-and says when the agent **checked in** without reading it, as it does for an agent that checked in
-at or after your message with no nudge due. An unfolded row says whether the session can be nudged.
-With these and **Connected** and its last check-in, you can tell a session that is offline, one that
-is online but not checking in, and one that did not respond to a nudge. The bridge logs each attempt
-it claimed by its id, outcome and step, never what was on the screen or what it typed.
+agent checked in; **not responding to the nudge** while it was sent and the agent has not checked in
+since; **nudge stopped at the terminal**; or **nudge failed**. A nudge under way shows nothing until
+its outcome comes, since it may yet be deferred. A failed nudge and one not responded to show in the
+warning's color; one stopped at the terminal does not. A thread whose latest nudge since your
+message failed or was stopped is stranded at once, saying which. An agent that checks in after a
+nudge without reading the thread it came for is not nudged for it again, so once `--quiet-minutes`
+pass after the nudge, the thread is ignored and says when the agent **checked in** without reading
+it, as it does for an agent that checked in at or after your message with no nudge due. An unfolded
+row says whether the session can be nudged. With these and **Connected** and its last check-in, you
+can tell a session that is offline, one that is online but not checking in, and one that did not
+respond to a nudge. The bridge logs each attempt it claimed by its id, outcome and step, never what
+was on the screen or what it typed.
 
 ### Reaching the server through a tunnel
 
