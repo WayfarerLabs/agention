@@ -336,13 +336,13 @@ change, and its diff is reviewed as the contract change it is; the server's suit
 committed document differs from the code's (`CONTRIBUTING.md` "Generated API document";
 `docs/architecture.md` "API documentation"). A saved view stores the list's view schema
 (`threadsView`) whole and reads it back strictly, so a change to that schema that would refuse a
-stored view ships with a migration rewriting the stored views (`docs/architecture.md` "Saved
-views"). Look for a contract change whose document was not regenerated, a change to the list's view
-schema without that migration, a regenerated document whose diff removes or narrows anything a
-served version or the agent API (A12) carries, a document that describes more than the server checks
-(it may describe less: a rule enforced only in code answers `invalid_input`, naming the field when
-the rule concerns one), and documentation served with anything beyond the contract or without
-`--api-docs`.
+stored view, or change what one keeps, ships with a migration rewriting the stored views
+(`docs/architecture.md` "Saved views"). Look for a contract change whose document was not
+regenerated, a change to the list's view schema without that migration, a regenerated document whose
+diff removes or narrows anything a served version or the agent API (A12) carries, a document that
+describes more than the server checks (it may describe less: a rule enforced only in code answers
+`invalid_input`, naming the field when the rule concerns one), and documentation served with
+anything beyond the contract or without `--api-docs`.
 
 ## A20. The audit log
 

@@ -1,17 +1,17 @@
-import type {
-  Color,
-  GroupsAndTags,
-  impactFilter,
-  priorityFilter,
-  SessionGroupsFilter,
-  ThreadsView,
+import {
+  type Color,
+  type GroupsAndTags,
+  type impactFilter,
+  priority as priorities,
+  type SessionGroupsFilter,
+  type ThreadsView,
 } from "@wayfarerlabs/agention-api";
 import { PathBadge, type PathKind, pathWord } from "../../components.tsx";
 import {
   effortLabel,
   plain,
   plural,
-  priorityLabel,
+  priorityShown,
   statusLabel,
   type TerseLabel,
 } from "../../format.tsx";
@@ -22,13 +22,6 @@ import { groupNamed, removedGroup, sessionOf, tagKept, topicShown } from "./list
 
 // The filters that are on, each a chip beneath the list's head that removes
 // it.
-
-// The priority a filter keeps asks at or above.
-export const priorityAtLeast: Record<(typeof priorityFilter.options)[number], TerseLabel> = {
-  normal: { shown: "Normal+", spoken: `${priorityLabel.normal} or more` },
-  high: { shown: "High+", spoken: `${priorityLabel.high} or more` },
-  urgent: { shown: "Urgent", spoken: priorityLabel.urgent },
-};
 
 export const impactShown: Record<(typeof impactFilter.options)[number], string> = {
   blocking: "Blocking",
@@ -137,9 +130,16 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
       label: plain(`Status: ${statusLabel[status].shown}`),
       remove: { status: undefined },
     })),
-    ...chip(priority, (level) => ({
+    ...chip(priority, (levels) => ({
       key: "priority",
-      label: priorityAtLeast[level],
+      // The priorities chosen, most pressing first, however the address
+      // orders them.
+      label: plain(
+        `Priority: ${priorities.options
+          .filter((level) => levels.includes(level))
+          .map((level) => priorityShown[level])
+          .join(", ")}`,
+      ),
       remove: { priority: undefined },
     })),
     ...chip(impact, (level) => ({

@@ -5,8 +5,6 @@ import {
   keepsAsks,
   noGroup,
   type Presence,
-  type Priority,
-  priorityFilter,
   type Rollup,
   type ThreadGroups,
   type ThreadGrouping,
@@ -23,7 +21,7 @@ import {
 } from "../../components.tsx";
 import { type Folds, useFolds } from "../../device.ts";
 import { Swatch, usePalette } from "../../organizing.tsx";
-import { plural, priorityLabel, priorityTone, Since } from "../../format.tsx";
+import { plural, priorityLabel, priorityShown, priorityTone, Since } from "../../format.tsx";
 import { Mark, UnreadCount } from "../../icons.tsx";
 import {
   BlockedFlag,
@@ -55,7 +53,7 @@ import { ThreadRow } from "./ThreadRow.tsx";
 // order and grouping kept: the label and the count to the group's threads,
 // the envelope to its unread, and, while no filter on open asks is on,
 // Blocked on you to its blocking and the priority to its asks at that
-// priority or higher. No topic, which no filter names, links nothing. A
+// priority, low included. No topic, which no filter names, links nothing. A
 // session's header, and only a session's, also leads to the session's own
 // page; an agent has no page, and a topic's or a group's names no one
 // session.
@@ -101,12 +99,6 @@ const bare = (text: string, narrowing?: Partial<ThreadsView>): Headed => ({
   spoken: text,
   narrowing,
 });
-
-const priorityShown = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" } as const;
-
-// The priorities a filter keeps asks at or above.
-const filtered = (level: Priority): level is (typeof priorityFilter.options)[number] =>
-  priorityFilter.safeParse(level).success;
 
 // RollupMarks shows a roll-up: how many threads, the closed envelope with how
 // many are unread or the open envelope when none is, whether any is blocked
@@ -157,9 +149,13 @@ function RollupMarks({
       {rollup.blocked &&
         (scope === undefined || asks ? <BlockedFlag /> : <BlockedLink {...scope} />)}
       {priority !== undefined &&
-        (filtered(priority) && !asks
-          ? linked({ priority }, `${priorityLabel[priority]} threads of ${spoken}`, priorityMark)
-          : priorityMark)}
+        (asks
+          ? priorityMark
+          : linked(
+              { priority: [priority] },
+              `${priorityLabel[priority]} threads of ${spoken}`,
+              priorityMark,
+            ))}
       {rollup.archived && <Mark icon="archive" label="Archived" />}
       {presence?.quiet === true && (
         <span className="last-seen warning">

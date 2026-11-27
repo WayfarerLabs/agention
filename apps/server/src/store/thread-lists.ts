@@ -16,7 +16,6 @@ import {
   parseBranch,
   parsePullRequest,
   priority,
-  priorityFilter,
   type Rollup,
   type SessionThreadsQuery,
   shortFormKey,
@@ -47,7 +46,6 @@ import {
   type Lead,
   noAnswerBy,
   pageOf,
-  priorityRank,
   type ThreadRow,
   threadsSeen,
   toThreadSummary,
@@ -154,9 +152,9 @@ type Parts = Record<keyof typeof listParts, Part>;
 const sessionParts: Parts = { ...listParts, search: { keeps: titleSearch, on: searching } };
 
 // What each filter on asks keeps of open asks, over open_asks as o, at the
-// value the query binds for it.
+// value the query binds for it: priority binds its set as a JSON array.
 const askKeeps: Record<AskFilter, string> = {
-  priority: `${priorityRank("o.priority")} <= ${priorityRank(":priority")}`,
+  priority: "o.priority IN (SELECT value FROM json_each(:priority))",
   impact: "o.impact = :impact",
   overdue: "o.answer_by < :now",
   effort: `${effortRank("o.effort")} <= ${effortRank(":effort")}`,
@@ -237,7 +235,7 @@ function parametersOf(query: ThreadFilters, viewing: ViewerAndCutoff, now: numbe
     search: query.search === undefined ? null : ftsQuery(query.search),
     status: query.status ?? null,
     agent_read: query.agent_read ?? null,
-    priority: query.priority ?? null,
+    priority: JSON.stringify(query.priority ?? []),
     impact: query.impact ?? null,
     effort: query.effort ?? null,
     agent: JSON.stringify(query.agent ?? []),
@@ -848,7 +846,7 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
       },
       priority: {
         any: total({ priority: undefined }),
-        ...each(priorityFilter.options, (priority) => askChosen({ priority })),
+        ...each(priority.options, (level) => askChosen({ priority: [level] })),
       },
       impact: {
         any: total({ impact: undefined }),

@@ -10,7 +10,7 @@ import {
   noGroup,
   parseBranch,
   parsePullRequest,
-  priorityFilter,
+  priority,
   type SessionGroupsFilter,
   shortForm,
   shortFormKey,
@@ -29,10 +29,18 @@ import {
   useState,
 } from "react";
 import { LeftOut, PathBadge, type PathKind, pathWord, useTapOutside } from "../../components.tsx";
-import { effortLabel, plain, plural, Spoken, statusLabel, type TerseLabel } from "../../format.tsx";
+import {
+  effortLabel,
+  plain,
+  plural,
+  priorityShown,
+  Spoken,
+  statusLabel,
+  type TerseLabel,
+} from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { Swatch, usePalette } from "../../organizing.tsx";
-import { impactShown, priorityAtLeast } from "./Chips.tsx";
+import { impactShown } from "./Chips.tsx";
 import { groupNamed, removedGroup, sessionOf, topicShown } from "./listing.ts";
 import { SearchBox, type SearchText } from "./search.tsx";
 
@@ -40,8 +48,8 @@ import { SearchBox, type SearchText } from "./search.tsx";
 // bottom on a phone, a panel on a wide screen. The list behind it follows
 // each change. Every value not chosen shows how many threads it keeps with
 // every other filter as it is, from the counts loaded while the sheet is
-// open; every option of Agent, Session, Topic, Group and Tag shows its
-// count, chosen or not, since choosing one changes no other's.
+// open; every priority, and every option of Agent, Session, Topic, Group and
+// Tag, shows its count, chosen or not, since choosing one changes no other's.
 
 // The words a value is said in beside its count.
 const threads = (count: number) => plural(count, "thread");
@@ -94,6 +102,57 @@ function Segmented({
                 label={option.label}
                 count={value === option.value ? undefined : option.count}
               />
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+const anyLabel = plain("Any");
+
+// SegmentedSet chooses any of a filter's few values from a row of segments
+// as Segmented draws them, each a checkbox, after Any, which is checked
+// while none is and unchecks every one. Each value shows its count, chosen
+// or not, and Any its own while it is not checked.
+function SegmentedSet<V extends string>({
+  legend,
+  values,
+  any,
+  chosen,
+  choose,
+}: {
+  legend: string;
+  // The values in the order they are offered, each with its label and count.
+  values: { value: V; label: TerseLabel; count: number | undefined }[];
+  any: number | undefined;
+  chosen: V[];
+  choose: (chosen: V[]) => void;
+}) {
+  const toggle = (value: V) =>
+    choose(chosen.includes(value) ? chosen.filter((each) => each !== value) : [...chosen, value]);
+  const none = chosen.length === 0;
+  return (
+    <fieldset className="segmented">
+      <legend>{legend}</legend>
+      <div className="segments">
+        <label>
+          {/* Checked, Any stays so, since unchecking it would choose nothing. */}
+          <input type="checkbox" checked={none} onChange={() => none || choose([])} />
+          <span className="segment">
+            <Counted label={anyLabel} count={none ? undefined : any} />
+          </span>
+        </label>
+        {values.map((option) => (
+          <label key={option.value}>
+            <input
+              type="checkbox"
+              checked={chosen.includes(option.value)}
+              onChange={() => toggle(option.value)}
+            />
+            <span className="segment">
+              <Counted label={option.label} count={option.count} />
             </span>
           </label>
         ))}
@@ -290,8 +349,6 @@ function MultiSelect({
   );
 }
 
-const anyLabel = plain("Any");
-
 // FilterSheet's dialog closes by its button or Escape, which returns focus to
 // the button that opened it; a popup open within it closes first.
 export function FilterSheet({
@@ -434,18 +491,16 @@ export function FilterSheet({
           }}
         />
         <div className="sub-filters">
-          <Segmented
+          <SegmentedSet
             legend="Priority"
-            value={view.priority ?? ""}
-            options={[
-              { value: "", label: anyLabel, count: counts?.priority.any },
-              ...priorityFilter.options.map((level) => ({
-                value: level,
-                label: priorityAtLeast[level],
-                count: counts?.priority[level],
-              })),
-            ]}
-            choose={(value) => chooseAsk({ priority: priorityFilter.safeParse(value).data })}
+            values={priority.options.map((level) => ({
+              value: level,
+              label: plain(priorityShown[level]),
+              count: counts?.priority[level],
+            }))}
+            any={counts?.priority.any}
+            chosen={view.priority ?? []}
+            choose={(chosen) => chooseAsk({ priority: narrowing(chosen) })}
           />
           <Segmented
             legend="Impact"

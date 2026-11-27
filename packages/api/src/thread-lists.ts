@@ -73,8 +73,9 @@ export const unreadFilter = z
   .describe(
     "Only threads with messages from the other party that you have neither read nor archived.",
   );
-// The filters on an open ask's impact, priority and effort each take some of
-// its levels, in the order the operator is offered them.
+// The filters on an open ask's impact and effort each take one of some of
+// its levels, in the order the operator is offered them; the filter on its
+// priority takes any of its levels, each once, matching each exactly.
 export const impactFilter = impact
   .extract(["blocking", "assuming"])
   .describe("Only threads holding an open ask with this impact.");
@@ -82,9 +83,12 @@ export const overdueFilter = z
   .boolean()
   .default(false)
   .describe("Only threads holding an open ask past its answer-by time.");
-export const priorityFilter = priority
-  .extract(["normal", "high", "urgent"])
-  .describe("Only threads holding an open ask at this priority or higher.");
+export const priorityFilter = distinctValues(
+  z.array(priority).min(1).max(priority.options.length),
+).describe(
+  "Only threads holding an open ask at one of these priorities, each named once. Each " +
+    "priority matches exactly; name every priority to keep.",
+);
 export const effortFilter = effort
   .extract(["quick", "under_15m", "under_1h"])
   .describe("Only threads holding an open ask that states this effort or less.");
@@ -235,7 +239,7 @@ export const branchesFilter = distinctEntries(
 const listFilters = {
   search: messageSearchFilter.optional(),
   status: statusFilter.optional(),
-  priority: priorityFilter.optional(),
+  priority: queryList(priorityFilter).optional(),
   impact: impactFilter.optional(),
   overdue: queryBoolean(overdueFilter),
   effort: effortFilter.optional(),
@@ -349,9 +353,11 @@ function valueCounts<T extends string>(values: readonly T[]) {
 // with the value chosen. Any status, and every status but open, is counted
 // with the properties of open asks off, as choosing it turns them off; a
 // property's value is counted with status open, as choosing it chooses open,
-// and its any with the status as it is. agent, session and topic list
-// each one holding a thread, each with its own count whatever that filter's
-// own choices are; threads without a topic are no value of topic. Each lists
+// and its any with the status as it is. Each priority is counted chosen
+// alone, so its count holds whatever that filter's own choices are. agent,
+// session and topic list each one holding a thread, each with its own count
+// whatever that filter's own choices are; threads without a topic are no
+// value of topic. Each lists
 // in name order: agents by name, sessions by their name then their agent's,
 // topics by their session's name, their own, then their agent's.
 // session_group lists each group holding a thread, in the operator's order, each with
@@ -365,7 +371,7 @@ function valueCounts<T extends string>(values: readonly T[]) {
 // reset is what the list holds with no filter on.
 export const threadCounts = z.object({
   status: valueCounts(threadStatus.options),
-  priority: valueCounts(priorityFilter.options),
+  priority: valueCounts(priority.options),
   impact: valueCounts(impactFilter.options),
   overdue: z.object({ any: sequence, overdue: sequence }),
   effort: valueCounts(effortFilter.options),

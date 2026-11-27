@@ -268,7 +268,7 @@ describe("acting on many threads", () => {
       threads: [{ agent: "builder", number: 1 }],
     });
     expect(codeOf(await matching({}, { csrf: null }))).toBe("unauthenticated");
-    const refused = await matching({ priority: "low" });
+    const refused = await matching({ priority: ["high", "high"] });
     expect(codeOf(refused)).toBe("invalid_input");
     expect((refused.body as ErrorBody).error.field).toBe("filters.priority");
     for (let count = 0; count < maxActionThreads; count++) {
@@ -318,7 +318,8 @@ describe("the operator's views", () => {
       total: 0,
     });
     for (const [query, field] of [
-      ["priority=low", "priority"],
+      ["priority=lowest", "priority.0"],
+      ["priority=high&priority=high", "priority"],
       ["impact=none", "impact"],
       ["status=closed", "status"],
       ["agent_read=yes", "agent_read"],

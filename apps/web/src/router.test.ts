@@ -15,14 +15,14 @@ const roundTrip = (address: string) =>
 describe("a list's address", () => {
   it("names every part of the list as the API's query does, and is written back as it was", () => {
     const address =
-      "/?search=release+notes&status=open&priority=high&impact=blocking&overdue=true" +
-      "&effort=quick&unread=true&agent_read=stranded&agent=builder&agent=reviewer" +
+      "/?search=release+notes&status=open&priority=urgent&priority=high&impact=blocking" +
+      "&overdue=true&effort=quick&unread=true&agent_read=stranded&agent=builder&agent=reviewer" +
       "&session=builder/main&topic=builder/main/auth&topic=reviewer/side/billing" +
       "&include_archived=true&sort=due&reverse=true&group=session";
     expect(listViewOf(new URL(address, "https://agention.test").searchParams)).toEqual({
       search: "release notes",
       status: "open",
-      priority: "high",
+      priority: ["urgent", "high"],
       impact: "blocking",
       overdue: true,
       effort: "quick",
@@ -42,7 +42,7 @@ describe("a list's address", () => {
 
   const agents = Array.from({ length: 51 }, (_, i) => `agent=agent-${i}`).join("&");
   it.each([
-    ["an unknown value", "/?priority=low&sort=oldest&group=tag&unread=true", "/?unread=true"],
+    ["an unknown value", "/?priority=lowest&sort=oldest&group=tag&unread=true", "/?unread=true"],
     ["a malformed name", "/?agent=Builder&unread=true", "/?unread=true"],
     ["a name given twice", "/?agent=builder&agent=builder&unread=true", "/?unread=true"],
     ["more names than the list takes", `/?${agents}&unread=true`, "/?unread=true"],
