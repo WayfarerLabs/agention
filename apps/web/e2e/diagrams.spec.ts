@@ -11,7 +11,7 @@ import type { BrowserContext, Frame, Locator, Page, Request } from "@playwright/
 import type { PublicKey, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, resize, test } from "./fixtures.ts";
+import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -45,6 +45,7 @@ const fenced = (source: string) => ["```mermaid", source, "```"].join("\n");
 test.beforeAll(async ({ browser, diagramsServer }) => {
   server = diagramsServer;
   context = await browser.newContext({ baseURL: server.origin });
+  await reportPolicyRefusals(context);
   page = await context.newPage();
   page.on("console", (message) => {
     if (message.type() === "error") {

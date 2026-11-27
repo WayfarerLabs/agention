@@ -32,6 +32,11 @@ async function startThread(request: string, title: string, asks: string[] = []) 
 
 test.beforeAll(async ({ browser, selectionServer }) => {
   ({ context, page, agent } = await signIn(browser, selectionServer));
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      problems.push(message.text());
+    }
+  });
   page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
   cdp = await context.newCDPSession(page);
   await startThread("select-1", "Notes");
@@ -351,6 +356,6 @@ test("side by side, each pane's bar keeps to its pane, the list's on the screen 
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(pane.y + pane.height - 1);
 });
 
-test("the pages ran without a page error", () => {
+test("the pages ran without a console error or a page error", () => {
   expect(problems).toEqual([]);
 });

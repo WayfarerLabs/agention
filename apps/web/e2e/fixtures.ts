@@ -12,7 +12,7 @@
 // by its public key (--ignore-certificate-errors-spki-list). Trusting that one
 // key makes the page a real secure context, where ignoring certificate errors
 // altogether would only bypass them.
-import { test as base, type CDPSession, type Page } from "@playwright/test";
+import { test as base, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -248,6 +248,20 @@ export const test = base.extend<
 });
 
 export { expect } from "@playwright/test";
+
+// reportPolicyRefusals has every page of a context, and each frame within
+// one, log each content security policy refusal as a console error, which the
+// tests collect as a problem. A refusal the page catches, as Zod catches its
+// probe for eval, otherwise reaches no console.
+export async function reportPolicyRefusals(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      console.error(
+        `content security policy refused ${event.violatedDirective} from ${event.sourceFile}`,
+      );
+    });
+  });
+}
 
 // Below the web UI's phone breakpoint (40rem, styles.css).
 const phoneWidth = 640;
