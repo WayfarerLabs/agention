@@ -293,8 +293,9 @@ Delivery 2 bumps the agent API to version 9:
   the agent checked in since without reading it (ruling 8), one ordered decision in the thread read
   so a thread is never both. The report gains only whether the session can be nudged.
 
-On a due answer, the reporter calls `observer.nudge()` with the warning (fixed words and a token
-from a cryptographic random source), the message (fixed words), the claim as `begin`, and a signal
+On a due answer, the reporter calls `observer.nudge()` with the warning and the message, each fixed
+words plus the nudge marker and the attempt's id, drawn from a cryptographic random source (N2), the
+claim as `begin`, and a signal
 it aborts when it is replaced or stops. It retries `not-ready` about once a second from the pane
 alone until the observer is ready or a poll says the nudge lapsed, then sends the outcome; a
 `not-ready` outcome is not a nudge and is not reported. The bridge's log names the step a nudge
@@ -314,8 +315,10 @@ skill can point at it; it and the skill come with this delivery.
 | `--nudge`           | `AGENTION_NUDGE`           | `tmux`; absent means off                                                      |
 
 An option wins over its variable. The bridge never reads `TMUX` or `TMUX_PANE`. The plugin
-definition forwards the three variables on both hosts (CF3), and Agentworks sets them through its
-templating once it exposes the socket path; until then, by hand.
+definition forwards the three variables on both hosts (CF3), and the execution platform running the
+session sets them. They are named for what they configure, never for a platform; Agentworks, the
+first platform, sets them through its templating once it exposes the socket path, and until then
+they are set by hand.
 
 What goes wrong, and where it shows (CF4):
 
@@ -337,8 +340,8 @@ The tools work as without monitoring in every case.
   honor system. The screen can imitate a condition, so a report is never authority for anything but
   what the operator sees; only `nudge()`'s own checks, at the moment of each key, let one be
   pressed.
-- **The nudge's texts** are constants in the bridge plus a random token; nothing from the server or
-  the screen reaches them (N2). The due answer carries no thread, message or presence.
+- **The nudge's texts** are constants in the bridge plus the marker and a random attempt id; nothing
+  from the server or the screen reaches them (N2). The due answer carries no thread, message or presence.
 - **Rights.** The bridge runs as the account that owns the tmux server; it gains no access it
   lacked.
 
@@ -394,7 +397,7 @@ The tools work as without monitoring in every case.
   it. Claude Code and Codex both do, and only their profiles nudge; a profile added for a harness
   that does not must be checked for it, since that harness would receive each text as typed keys.
 - **Keys go to tmux's default target**, as reads do. Each key follows a reading that found one pane,
-  and Agentworks sessions hold one pane, so only a pane created in the milliseconds between could
+  and the platform's sessions hold one pane, as Agentworks's do, so only a pane created in the milliseconds between could
   receive it.
-- **A restarted bridge outside Agentworks** starts reporting only at the agent's next tool call,
+- **A restarted bridge whose platform names no default session** starts reporting only at the agent's next tool call,
   since it learns its session's names then; until then the session shows disconnected.

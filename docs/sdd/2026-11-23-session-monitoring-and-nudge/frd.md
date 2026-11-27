@@ -21,8 +21,8 @@ limit, so the operator finds out by going to each terminal.
 And an agent at its prompt learns of what the operator writes only when something wakes it. No host
 offers a plugin a way to wake an open session on every host, but a terminal does.
 
-Under Agentworks every session runs in a tmux pane of its own, and the bridge runs inside it. So the
-bridge can **monitor** the session, reading its pane to say what condition it is in, and, where the
+Where an execution platform runs every session in a tmux pane of its own, as Agentworks does, the
+bridge runs inside that pane. So the bridge can **monitor** the session, reading its pane to say what condition it is in, and, where the
 operator turns it on, **nudge** an agent sitting at its prompt by typing one fixed message.
 Monitoring only reads, so it comes first and stands on its own; the nudge acts only on what
 monitoring finds, behind checks of its own. ADR 0001 holds that Agention never injects text into an
@@ -34,7 +34,9 @@ submit it, become the only exception.
 - **The operator**, who wants to see at a glance which sessions need them, and why, and have an
   agent see what they wrote without going to its terminal.
 - **Agents**, which should be woken to check in rather than keep a waiter running.
-- **Agentworks**, which runs every session in a tmux server it owns and can tell the bridge where.
+- **Execution platforms**, which run each session's host in a tmux server they own and can tell the
+  bridge where. Agentworks is the first, and the one this effort tests against; nothing here assumes
+  it.
 - **Maintainers**, who ship one bridge for harnesses that differ in what their screens show and what
   a plugin can do, and change from version to version.
 
@@ -159,13 +161,18 @@ not approved, or whose session cannot be nudged, nudges nothing.
 
 **N2. A warning, then one canned message.** A nudge puts two texts in the pane, one after the other.
 First a warning, saying a nudge is coming and that typing anything stops it, which the bridge
-removes and never submits; it carries a token unique to that nudge, made by the bridge, so the
-bridge can tell its own warning from anything else on the screen. Then the message, the same every
-time, telling the agent to check in with Agention: read its unread threads and bring its session's
-status up to date. Neither names a thread or carries anything from the server, so nothing the
-operator, an agent or anyone else wrote reaches the agent's prompt through a nudge, and the bridge
-submits only the message. The messages, their authors and what was read reach the agent only through
-Agention's tools, as today.
+removes and never submits. Then the message, telling the agent to check in with Agention: read its
+unread threads and bring its session's status up to date. Both carry two marks, made so that the
+odds of either appearing in the pane any other way are effectively nil: a **marker** that every
+Agention nudge carries, so the bridge knows nudge text when it sees it, whoever left it; and an
+**attempt id**, drawn at random by the bridge for each attempt, so an attempt takes only its own
+text as its own and never an earlier attempt's. The id stays in the submitted message, so the
+harness's transcript records which attempt woke the agent, and the bridge gives it with the attempt
+(N6), so the operator can match the two. Beyond its marks the message is the same every time.
+Neither text names a thread or carries anything from the server, so nothing the operator, an agent
+or anyone else wrote reaches the agent's prompt through a nudge, and the bridge submits only the
+message. The messages, their authors and what was read reach the agent only through Agention's
+tools, as today.
 
 **N3. Once until the agent checks in.** A session is nudged at most once until the agent next checks
 in, whether that nudge was sent or not (N6).
@@ -201,16 +208,19 @@ type; others may follow, such as a nudge through a host's SDK.
 **CF2. The pane is named, never guessed.** The bridge monitors a pane only where its configuration
 gives the tmux socket, as an option or environment variable. It never infers it from an inherited
 `TMUX` or from a known socket location. The socket is a path, named for tmux rather than for
-Agentworks, so other tmux setups, a named socket among them, need nothing more. The tmux server
+any platform, so other tmux setups, a named socket among them, need nothing more. The tmux server
 holds one pane, as Agentworks's sessions do (ruling 2); one with more is reported as unknown and
 never nudged, and the configuration leaves room for naming a pane later. Monitoring needs only this;
 the nudge needs this and CF1. The profile (M5) is one more setting, naming a harness's profile or a
 generic one.
 
-**CF3. Agentworks supplies it.** The plugins forward the environment variables of CF1 and CF2 to the
-bridge, which is the route a host's plugin configuration allows, and Agentworks sets them through
-its templating, so every Agentworks session is monitored, and nudged where turned on, without setup.
-That change is Agentworks's; this effort states what it needs and tests against it.
+**CF3. The execution platform supplies it.** The plugins forward the environment variables of CF1
+and CF2 to the bridge, which is the route a host's plugin configuration allows, and the platform
+that runs the session sets them, so every session it runs is monitored, and nudged where turned on,
+without setup. The interface is the same for any platform: Agention's own options and variables,
+named for what they configure and never for a platform. Agentworks is the first platform and sets
+them through its templating; that change is Agentworks's, and this effort states what it needs and
+tests against it.
 
 **CF4. Misconfiguration is visible, never fatal.** A pane the bridge cannot reach, a profile or
 nudge type it does not know, or a nudge type without a socket, shows in the bridge's log and in the
