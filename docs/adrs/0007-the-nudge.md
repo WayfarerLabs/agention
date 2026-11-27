@@ -80,26 +80,27 @@ every check that can be made before each key.
 - **Watched, and the outcome reported.** Each attempt ends in one of four outcomes, which the bridge
   sends by the attempt's id, again until it reaches the server, and logs with the step it ended at,
   never a text: **deferred**, nothing of it left in the pane, because nothing was pasted, it took
-  its text back, or a second reading, half a second after one that lost sight of its text, found the
-  line empty with no one typing, since a paste can show late and a line under a dialog can still
-  hold it; **stopped** by someone at the terminal typing into or over its text, which reads as their
-  choice, not a failure; **failed**, a pane it could not read or write with no reading after showing
-  the line empty, an input line still out of sight on that second reading, a Backspace that did not
-  remove one character, a message that did not show exactly, or a harness that did not take it; and
-  **sent**. The server fills in only the claim the id names: a deferred attempt releases it, and the
-  others settle it as the latest nudge. It stamps the agent's next check-in after a claim, or after
-  a message someone else wrote to the session, at once, so the operator sees a session **not
-  responding to the nudge** only while a nudge has had no check-in since. A claim whose outcome has
-  not arrived is under way, never sent, and the operator sees nothing of it until it settles, since
-  it may yet be deferred. The server records which bridge made it; when another bridge comes to act
-  for the session while it is under way, as after a restart or a takeover, nothing proves its text
-  reached the pane, so the server releases it as deferred, the first time since the agent last
-  checked in, and settles it as failed the next, so a bridge that keeps stopping mid-nudge raises a
-  problem rather than warning the agent again and again. A nudge that failed or was stopped strands
-  the thread it was for at once; only a failed nudge, and nudge text left at the prompt, read as
-  problems. A nudge the observer finds the session not ready for puts nothing in the pane, is not
-  claimed and is no nudge: the bridge tries again about a second later while one is due, reading
-  only the pane.
+  its text back, or, before Enter, a second reading, half a second after one that lost sight of its
+  text, found the line empty with no one typing, since a paste can show late and a line under a
+  dialog can still hold it; **stopped** by someone at the terminal typing into or over its text,
+  which reads as their choice, not a failure; **failed**, a pane it could not read or write with no
+  reading after showing the line empty, an input line still out of sight on that second reading, a
+  Backspace that did not remove one character, a message that did not show exactly, anything that
+  went wrong once Enter was sent, since the harness may have taken the message, or a harness that
+  did not take it; and **sent**. The server fills in only the claim the id names: a deferred attempt
+  releases it, and the others settle it as the latest nudge. It stamps the agent's next check-in
+  after a claim, or after a message someone else wrote to the session, at once, so the operator sees
+  a session **not responding to the nudge** only while a nudge has had no check-in since. A claim
+  whose outcome has not arrived is under way, never sent, and the operator sees nothing of it until
+  it settles, since it may yet be deferred. The server records which bridge made it; when another
+  bridge comes to act for the session while it is under way, as after a restart or a takeover,
+  nothing proves its text reached the pane, so the server releases it as deferred, the first time
+  since the agent last checked in, and settles it as failed the next, so a bridge that keeps
+  stopping mid-nudge raises a problem rather than warning the agent again and again. A nudge that
+  failed or was stopped strands the thread it was for at once; only a failed nudge, and nudge text
+  left at the prompt, read as problems. A nudge the observer finds the session not ready for puts
+  nothing in the pane, is not claimed and is no nudge: the bridge tries again about a second later
+  while one is due, reading only the pane.
 - **Why it cannot, on the session, for the operator alone.** The bridge's report says why the
   session cannot be monitored or nudged, where it cannot, as one reason from a fixed list with since
   when: no socket, a pane it cannot read or that is not the session's alone, a profile or nudge type

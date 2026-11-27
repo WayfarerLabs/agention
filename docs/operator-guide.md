@@ -617,17 +617,18 @@ Each attempt ends in one of four ways:
   minute, so a screen that never stops changing, such as a clock in a status line, is not warned
   over every few seconds. It put nothing there; or the rest of the screen changed while its warning
   or message stood, or while it removed the warning, as when the host starts a turn or redraws, and
-  it took its text back; or the line came empty with no one typing, or the terminal could not be
-  read for a moment and it took its text back, and a second look, half a second later, found the
-  line empty. You see nothing of it.
+  it took its text back; or, before it pressed Enter, the line came empty with no one typing, or the
+  terminal could not be read for a moment and it took its text back, and a second look, half a
+  second later, found the line empty. You see nothing of it.
 - **Stopped at the terminal**: someone typed into or over its text. That is the choice of whoever is
   at the terminal, not a failure.
 - **Failed**: the terminal could not be read or written, and no look after found the line empty; the
   input line went from the screen, as under a dialog, and was still out of sight half a second
   later, since a line it cannot see may still hold its text; a Backspace did not remove one
   character, as in Claude Code's vim normal mode, where Backspace moves the cursor; the message did
-  not show exactly; or the host did not take it. It leaves what it could not remove in the input
-  line, never submitted, and removes its message where the line still holds exactly that.
+  not show exactly; anything went wrong once it pressed Enter, since the host may have taken the
+  message; or the host did not take it. It leaves what it could not remove in the input line, never
+  submitted, and removes its message where the line still holds exactly that.
 - **Sent**: the host took the message.
 
 Nudge text left in the input line, by an earlier attempt or anyone else, is never removed and never

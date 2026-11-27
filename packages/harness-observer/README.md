@@ -116,18 +116,20 @@ It resolves to `{ outcome, step }`, the step it ended at and one of four outcome
   after the warning's wait or before Enter, the line held exactly the nudge's own text but the rest
   of the screen had changed since it was pasted, as when the harness starts a turn or redraws, and
   the nudge took its text back, one confirmed Backspace at a time; or the screen beside the line
-  changed while the warning was removed, before the message went in. Where a reading finds the line
-  empty, or finds no input line, as under a dialog or with a second pane, or the pane fails to be
-  read or written, nothing yet shows the text is gone, since a paste can show late: it reads the
-  pane again, half a second later or at once, and defers only where that reading finds the line
-  empty with no key typed, once it has taken back its own text where the line holds exactly it.
+  changed while the warning was removed, before the message went in. Before Enter, where a reading
+  finds the line empty, or finds no input line, as under a dialog or with a second pane, or the pane
+  fails to be read or written, nothing yet shows the text is gone, since a paste can show late: it
+  reads the pane again, and where it may have text in the line and finds it empty, again half a
+  second later, and defers only where a reading finds the line empty with no key typed, once it has
+  taken back its own text where the line holds exactly it.
 - **`stopped`**: someone at the terminal stopped it: a key was typed since the nudge began, or the
   line held something other than the warning, or the nudge's text altered once confirmed.
 - **`failed`**: the signal stopped it once something was pasted; the pane could not be read or
   written, or the profile failed on a screen, and no reading after showed the line empty; the input
   line went from the screen and was still gone half a second later; a Backspace did not shorten the
   line by one, such as in vim's normal mode, where Backspace moves the cursor; the message did not
-  show exactly; or the harness did not take it after Enter.
+  show exactly; anything went wrong once Enter was sent, or tried, since the harness may have taken
+  the message; or the harness did not take it after Enter.
 - **`sent`**: the harness took the message.
 
 Only the input line and the cursor are compared for the texts themselves: a change elsewhere on the

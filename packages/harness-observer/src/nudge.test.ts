@@ -708,6 +708,60 @@ describe("nudge", () => {
     },
   );
 
+  it("fails, never deferring, where the pane cannot be read once Enter is sent", async () => {
+    const pane = new FakePane(new FakeClock());
+    const key = pane.key.bind(pane);
+    pane.key = async (pressed) => {
+      await key(pressed);
+      if (pressed === "Enter") {
+        pane.failSnapshotsAfter = 0;
+      }
+    };
+    expect(await nudge(pane)).toEqual(ended("failed", "submitted"));
+  });
+
+  it("fails, never deferring, where the Enter write throws once delivered", async () => {
+    const pane = new FakePane(new FakeClock());
+    const key = pane.key.bind(pane);
+    pane.key = async (pressed) => {
+      await key(pressed);
+      if (pressed === "Enter") {
+        throw new Error("the pane's answer was lost");
+      }
+    };
+    expect(await nudge(pane)).toEqual(ended("failed", "submitted"));
+    expect(pane.text).toBe("");
+  });
+
+  it("takes back a warning whose paste threw and shows a reading later, never deferring with it left", async () => {
+    const pane = new FakePane(new FakeClock());
+    const paste = pane.paste.bind(pane);
+    pane.paste = async (line) => {
+      pane.pasteShowsAfter = 1;
+      await paste(line);
+      throw new Error("tmux timed out");
+    };
+    expect(await nudge(pane)).toEqual(ended("deferred", "warning"));
+    expect(pane.text).toBe("");
+    expectConfirmedWrites(pane.log);
+  });
+
+  it("takes back the rest of the warning, and defers, where the pane fails once while it is removed", async () => {
+    const pane = new FakePane(new FakeClock());
+    const key = pane.key.bind(pane);
+    let backspaces = 0;
+    pane.key = async (pressed) => {
+      await key(pressed);
+      if (pressed === "Backspace" && ++backspaces === 3) {
+        pane.failNext = 1;
+      }
+    };
+    expect(await nudge(pane)).toEqual(ended("deferred", "cleared"));
+    expect(pane.text).toBe("");
+    expect(pane.writes.filter((write) => write.kind === "paste")).toHaveLength(1);
+    expectConfirmedWrites(pane.log);
+  });
+
   it("reports the failure it stopped for where removing its text fails too", async () => {
     const pane = new FakePane(new FakeClock());
     const paste = pane.paste.bind(pane);
