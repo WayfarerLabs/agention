@@ -242,16 +242,17 @@ export function ApproveForm({
     await decide(approve, "approve", input);
   };
 
-  // The server names the field at fault as agent.name or session.name; a
-  // refusal of the session the operator approved onto by its button has no
-  // field to show by, so it shows as the form's.
+  // A refusal of agent.name or session.name shows by that name's field. Any
+  // other, as of a group removed meanwhile, shows as the form's, and so does
+  // a refusal of the session the operator approved onto by its button, which
+  // has no field to show by.
   const failure = approve.failure;
-  const serverField = failure instanceof ApiFailure ? (failure.field ?? "") : "";
+  const serverField = failure instanceof ApiFailure ? failure.field : undefined;
   const agentError =
-    problems.agent ?? (serverField.startsWith("agent") ? describeFailure(failure) : undefined);
+    problems.agent ?? (serverField === "agent.name" ? describeFailure(failure) : undefined);
   const sessionError =
     problems.session ??
-    (serverField.startsWith("session") && !sentOntoProposed ? describeFailure(failure) : undefined);
+    (serverField === "session.name" && !sentOntoProposed ? describeFailure(failure) : undefined);
   const formFailure = agentError === undefined && sessionError === undefined ? failure : undefined;
   const forced = agentError !== undefined || (!buttonsDecide && sessionError !== undefined);
   if (forced && !changing) {

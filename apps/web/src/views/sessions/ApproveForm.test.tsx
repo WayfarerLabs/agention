@@ -878,6 +878,43 @@ describe("the approval form", () => {
     expect(approvals()).toHaveLength(1);
   });
 
+  it("ties the server's refusal of the new session's name, by its button, to that name", async () => {
+    open({
+      registrations: [registration()],
+      sessions: [{ agent: "builder", session: "main", credential_active: true }],
+    });
+    api.on(
+      "POST",
+      "/registrations/1/approve",
+      failure("invalid_input", "names a session the agent already has", { field: "session.name" }),
+    );
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const name = await within(pending).findByRole("textbox", { name: "New session name" });
+    await refusesFor(name, () =>
+      fireEvent.click(within(pending).getByRole("button", { name: "Approve as a new session" })),
+    );
+    expect(name.getAttribute("aria-invalid")).toBe("true");
+    expect(approvals()).toHaveLength(1);
+  });
+
+  it("shows the server's refusal of a field other than the names as the form's", async () => {
+    open({ registrations: [registration()], sessions: [] });
+    api.on(
+      "POST",
+      "/registrations/1/approve",
+      failure("not_found", "not found", { field: "session.group" }),
+    );
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await within(pending).findByRole("alert");
+    // The names stay folded, neither of them refused.
+    const change = within(pending).getByRole("button", { name: "Change agent or session" });
+    expect(change.getAttribute("aria-expanded")).toBe("false");
+    for (const name of ["New agent name", "New session name"]) {
+      expect(within(pending).getByLabelText(name).getAttribute("aria-invalid")).toBeNull();
+    }
+  });
+
   it("moves focus to the confirming button as it asks, and back when cancelled", async () => {
     open({ registrations: [registration()], sessions: [] });
     const pending = await pendingCard();
