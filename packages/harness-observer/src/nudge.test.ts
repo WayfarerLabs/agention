@@ -284,6 +284,31 @@ describe("nudge", () => {
     }
   });
 
+  it("sends nothing where the line reads as a draft once begin answered, though the screen's text is the same", async () => {
+    // A hint drawn faint turned into a draft of the same text: only the
+    // screen's attributes, which sameScreen does not compare, changed.
+    let draft = false;
+    const turning: Profile = {
+      ...scriptedProfile,
+      screen: (snapshot) => {
+        const screen = scriptedProfile.screen(snapshot);
+        return draft && screen.kind === "input"
+          ? { ...screen, input: { ...screen.input, text: "a draft", cursorAtEnd: false } }
+          : screen;
+      },
+    };
+    const pane = new FakePane(new FakeClock());
+    const options = {
+      ...pane.options(),
+      begin: () => {
+        draft = true;
+        return Promise.resolve(true);
+      },
+    };
+    expect(await nudge(pane, turning, texts, options)).toEqual(readNotReady);
+    expect(pane.writes).toEqual([]);
+  });
+
   it("sends nothing more once its signal aborts, at every write, not even to remove its text", async () => {
     const whole = new FakePane(new FakeClock());
     await nudge(whole);
@@ -742,6 +767,8 @@ describe("nudge", () => {
       throw new Error("tmux timed out");
     };
     expect(await nudge(pane)).toEqual(ended("deferred", "warning"));
+    // A paste still on its way would show at this reading.
+    await pane.snapshot();
     expect(pane.text).toBe("");
     expectConfirmedWrites(pane.log);
   });

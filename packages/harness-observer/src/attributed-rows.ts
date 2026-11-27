@@ -4,10 +4,12 @@ import type { FaintRun } from "./pane.ts";
 // with their attributes, as tmux's `capture-pane -e` does: the text of each
 // row, its trailing spaces trimmed, and the runs of faint text on them, drawn
 // with SGR 2 until SGR 22 or 0 ends it. Every other escape sequence is left
-// out of the text: a CSI sequence, an OSC string ended by BEL or ST, or any
-// other escape sequence, such as one choosing a character set. A color's own parameters, such as the
-// 2 of 38;2;r;g;b, never read as faint. Attributes run on from one row to
-// the next, as the server's output does.
+// out of the text: a CSI sequence, an OSC string ended by BEL or ST, any
+// other escape sequence, and any other C0 control character, such as the
+// shift-out and shift-in tmux puts around line-drawing characters, so a
+// row's text is what `capture-pane -p` prints for it. A color's own
+// parameters, such as the 2 of 38;2;r;g;b, never read as faint. Attributes
+// run on from one row to the next, as the server's output does.
 export function readAttributedRows(rows: readonly string[]): {
   lines: string[];
   faint: FaintRun[];
@@ -20,6 +22,10 @@ export function readAttributedRows(rows: readonly string[]): {
     const dimmed: boolean[] = [];
     let i = 0;
     while (i < row.length) {
+      if (row[i] !== "\u001b" && row.charCodeAt(i) < 0x20) {
+        i++;
+        continue;
+      }
       if (row[i] !== "\u001b") {
         const character = String.fromCodePoint(row.codePointAt(i)!);
         characters.push(character);

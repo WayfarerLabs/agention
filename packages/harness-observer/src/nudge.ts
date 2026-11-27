@@ -205,18 +205,18 @@ export class Nudge {
     }
   }
 
-  // ended says how a nudge ends at an error. A check that ended it says how,
-  // and the message goes where it is still exactly there. Otherwise the pane
-  // could not be read or written, the profile failed on a screen, which is
-  // untrusted input, the caller's isNudgeText failed, or the signal stopped
-  // the nudge: before anything was pasted that defers it, and once Enter was
-  // sent, or tried, it fails, since the harness may have taken the message.
-  // Between, a stopped nudge sends nothing more and fails, leaving its text
+  // ended says how a nudge ends at an error. Once Enter was sent, or tried,
+  // it fails, whatever ended it, since the harness may have taken the
+  // message. Before that, a check that ended it says how, and the message
+  // goes where it is still exactly there. Otherwise the pane could not be
+  // read or written, the profile failed on a screen, which is untrusted
+  // input, the caller's isNudgeText failed, or the signal stopped the nudge:
+  // before anything was pasted that defers it. Between, a stopped nudge sends nothing more and fails, leaving its text
   // where it is; otherwise it takes back whichever of its texts the line
   // holds, as abandon does, and defers where a reading then confirms the
   // line holds nothing of the nudge's, and fails where none can.
   async #ended(error: unknown, message: string, step: NudgeStep): Promise<Unsent> {
-    if (this.#entered && !(error instanceof Ended)) {
+    if (this.#entered) {
       return "failed";
     }
     if (error instanceof Ended) {
@@ -280,13 +280,14 @@ export class Nudge {
 
   // stillReady reads the pane again once begin has answered, which may have
   // taken a while, and says whether keys still reach the harness and it shows
-  // the very screen the nudge was ready at, so the same input line, with no
-  // key typed since.
+  // the very screen the nudge was ready at, so the same input line, still
+  // empty, since the screen's text alone cannot show a hint drawn faint
+  // turned into a draft, with no key typed since.
   async #stillReady(ready: Look): Promise<boolean> {
     this.#signal.throwIfAborted();
     const look = await this.#look();
     return (
-      look.input !== undefined &&
+      look.input?.text === "" &&
       sameScreen(ready.snapshot, look.snapshot) &&
       look.snapshot.lastTyped === this.#typed
     );

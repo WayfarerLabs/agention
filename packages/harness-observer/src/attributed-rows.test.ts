@@ -38,6 +38,13 @@ describe("reading rows with their attributes", () => {
     expect(faint).toEqual([]);
   });
 
+  it("leaves out the control characters tmux puts around line-drawing characters", () => {
+    expect(readAttributedRows([`\u000eqqq\u000f ${escape}2m\u000eq\u000fx`])).toEqual({
+      lines: ["qqq qx"],
+      faint: [{ row: 0, from: 4, to: 6 }],
+    });
+  });
+
   it("counts a row's runs in code points", () => {
     expect(readAttributedRows([`❯ ${escape}2m𝑥y`]).faint).toEqual([{ row: 0, from: 2, to: 4 }]);
   });
