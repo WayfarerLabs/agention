@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ask, message } from "../../test-support.tsx";
 import { detailOf, ThreadPageTest } from "./thread-test-support.tsx";
@@ -38,10 +38,14 @@ function heldClipboard() {
 const copyButton = (seq: number) =>
   screen.getByRole<HTMLButtonElement>("button", { name: `Copy message ${seq}` });
 const article = (seq: number) => document.getElementById(`message-${seq}`) as HTMLElement;
-// What the copy's live region says, empty while it says nothing.
-const confirmation = (seq: number) => article(seq).querySelector("[aria-live]")?.textContent ?? "";
-// Whether the message says the copy was refused.
-const refused = (seq: number) => within(article(seq)).queryByRole("status") !== null;
+// What the live region beside the message's Copy, among its head's
+// controls, says, empty while it says nothing.
+const confirmation = (seq: number) =>
+  article(seq).querySelector(".head-controls [aria-live]")?.textContent ?? "";
+// Whether the message says the copy was refused, in the note that follows its
+// head rather than any its content holds.
+const refused = (seq: number) =>
+  article(seq).querySelector('.message-head ~ [role="status"]') !== null;
 
 describe("copying a message", () => {
   let page: ThreadPageTest;
