@@ -3,7 +3,7 @@
 - Requirements: [FRD](frd.md); research and spikes:
   [prior art and host research](prior-art-research.md)
 - Date: 2026-11-25
-- Status: Draft, written while the FRD awaits acceptance
+- Status: Draft, the lead's response to the FRD the operator accepted on 2026-11-27 (ruling 10)
 - Ownership: the effort lead
 
 ## Shape
@@ -260,8 +260,11 @@ API" says.
   and the time of the latest background request; in a table of its own, the latest report, which a
   claim by another bridge deletes and which a report numbered no higher than the last accepted one
   never replaces. A check-in is stamped to the minute, as today, and also whenever the stamp is
-  older than the session's latest nudge (delivery 2), so a reply to a nudge always shows. Background
-  requests are stamped on each one, every 25 seconds at most. A migration adds the columns.
+  older than a nudge's claim, the latest nudge (delivery 2), or the latest message someone else
+  wrote in one of the session's threads, so a check-in's order against each message and attempt is
+  exact: a reply to a nudge always shows, and a call after a message always counts as checking in
+  since it. Background requests are stamped on each one, every 25 seconds at most. A migration adds
+  the columns.
 - **Derived in queries**, never stored (review checklist A8): **connected**, a background request
   within the last 60 seconds; **quiet**, no check-in within `--quiet-minutes`; **stranded**, by M6;
   and the condition, shown only while connected, so a dead bridge's last report is never shown as
@@ -299,16 +302,23 @@ Delivery 2 bumps the agent API to version 9:
   released, so a nudge never typed never reads as one. The same route takes the outcome, filling
   only the claim it names: **sent**, **stopped** or **failed** settle the claim as the session's
   latest nudge, which then counts (N3); **deferred** releases it, leaving the latest nudge as it
-  was, so the nudge is due again. A claim whose outcome never arrives, because its bridge died,
-  counts as sent. The claim and the latest nudge are columns of their own on the session, so a
-  release needs nothing remembered. The check-in stamp moves whenever it is older than the latest
-  nudge, so an agent that checks in while the nudge is under way counts as answering it. The server
-  shows "not responding to the nudge" while a nudge it recorded has no check-in after it (N6), and
-  applies M6's nudge branches, which strand the thread once the quiet time passes, or mark it
-  ignored where the agent checked in since without reading it (ruling 8), one ordered decision in
-  the thread read so a thread is never both. A nudge that failed or was stopped at the terminal
-  strands the thread at once, with that reason; one that failed reads as a problem, one stopped as
-  the choice of whoever was at the terminal.
+  was, so the nudge is due again. A claim whose outcome has not arrived is **under way**, never
+  sent: the server records which bridge made it, and the operator sees the nudge under way. When
+  another bridge comes to act for the session while a claim is under way, as after a restart or a
+  takeover, nothing proves the claim's text reached the pane, so the server settles it: as deferred,
+  releasing it, the first time since the agent last checked in, so the wake it was for comes; and as
+  failed if an earlier claim was settled that way since that check-in, so a bridge that keeps
+  stopping mid-nudge raises a problem rather than warning the agent again and again. A message
+  submitted just before its bridge died wakes the agent, whose check-in ends the nudge being due, so
+  this never doubles a nudge the agent answered. The claim and the latest nudge are columns of their
+  own on the session, so a release needs nothing remembered. The check-in stamp moves whenever it is
+  older than the claim or the latest nudge, so an agent that checks in while the nudge is under way
+  counts as answering it. The server shows "not responding to the nudge" while a nudge it recorded
+  has no check-in after it (N6), and applies M6's nudge branches, which strand the thread once the
+  quiet time passes, or mark it ignored where the agent checked in since without reading it (ruling
+  8), one ordered decision in the thread read so a thread is never both. A nudge that failed or was
+  stopped at the terminal strands the thread at once, with that reason; one that failed reads as a
+  problem, one stopped as the choice of whoever was at the terminal.
 - **Reasons on the session (CF4).** The report gains whether the session can be nudged and, where it
   cannot be monitored or nudged, one reason from a fixed list, with since when: `nudge_off`,
   `unknown_nudge_type`, `no_socket`, `pane_unreachable`, `not_one_pane`, `unknown_profile`,
@@ -414,8 +424,6 @@ every case.
 - **Several bridges on Codex**: the takeover rule is checked live (FRD definition of done).
 - **Generic profiles cannot be nudged**, since they cannot tell a draft from a prompt marker. A
   harness gains the nudge with its own profile; until then its sessions are monitored only.
-- **Check-ins are stamped to the minute**, so a check-in up to a minute after an operator message
-  can still leave one nudge due for it: an extra nudge at worst, never a missed one.
 - **Claude Code's vim normal mode** looks the same on screen as the normal editor's prompt at an
   empty input, and there Backspace moves the cursor rather than deleting. Accepted: the clear step
   then finds the line not shortened and abandons at `cleared` (or at `warning`, where the cursor
