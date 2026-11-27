@@ -607,15 +607,15 @@ and a replaced bridge is never told one is due.
   `stopped` or `failed` settle the claim as the session's latest nudge; `deferred` releases it,
   leaving the latest nudge as it was, and wakes the session's channel, since the nudge is due again.
 - **Orphans.** A claim under way is never taken as sent. When a bridge other than the one that made
-  it acts for the session, by its poll, report or nudge's claim or outcome, as after a restart or a
-  takeover mid-nudge, the claim is an orphan, and nothing proves its text reached the pane
-  (`settleOrphan`): the first since the agent last checked in is released, as deferred, and its
-  claim's time kept, so the nudge it was for is due again; a second since that check-in settles as
-  `failed`, which strands the thread, so a bridge that keeps stopping mid-nudge raises a problem
-  rather than warning the agent again and again. A bridge's own earlier claim still under way when
-  it claims again, which a nudge being due shows the agent checked in after, is released the same
-  way. A message submitted just before its bridge went wakes the agent, whose check-in ends the
-  nudge being due, so this never doubles a nudge the agent answered.
+  it takes the session, by the poll, report or nudge's claim or outcome that makes it the one
+  acting, as after a restart or a takeover mid-nudge, the claim is an orphan, and nothing proves its
+  text reached the pane (`settleOrphan`): the first since the agent last checked in is released, as
+  deferred, and its claim's time kept, so the nudge it was for is due again; a second since that
+  check-in settles as `failed`, which strands the thread, so a bridge that keeps stopping mid-nudge
+  raises a problem rather than warning the agent again and again. A bridge whose claim's answer was
+  lost sends the same claim again, so it never leaves a claim of its own under way. A message
+  submitted just before its bridge went wakes the agent, whose check-in ends the nudge being due, so
+  this never doubles a nudge the agent answered.
 
 A session is nudged at most once until its agent checks in, even where its bridge restarts or
 another takes over mid-nudge.

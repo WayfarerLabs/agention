@@ -92,14 +92,14 @@ every check that can be made before each key.
   operator sees a session **not responding to the nudge** only while a nudge has had no check-in
   since. A claim whose outcome has not arrived is under way, never sent, and the operator sees
   nothing of it until it settles, since it may yet be deferred. The server records which bridge made
-  it; when another bridge comes to act for the session while it is under way, as after a restart or
-  a takeover, nothing proves its text reached the pane, so the server releases it as deferred, the
-  first time since the agent last checked in, and settles it as failed the next, so a bridge that
-  keeps stopping mid-nudge raises a problem rather than warning the agent again and again. A nudge
-  that failed or was stopped strands the thread it was for at once; only a failed nudge, and nudge
-  text left at the prompt, read as problems. A nudge the observer finds the session not ready for
-  puts nothing in the pane, is not claimed and is no nudge: the bridge tries again about a second
-  later while one is due, reading only the pane.
+  it; when another bridge takes the session while it is under way, as after a restart or a takeover,
+  nothing proves its text reached the pane, so the server releases it as deferred, the first time
+  since the agent last checked in, and settles it as failed the next, so a bridge that keeps
+  stopping mid-nudge raises a problem rather than warning the agent again and again. A nudge that
+  failed or was stopped strands the thread it was for at once; only a failed nudge, and nudge text
+  left at the prompt, read as problems. A nudge the observer finds the session not ready for puts
+  nothing in the pane, is not claimed and is no nudge: the bridge tries again about a second later
+  while one is due, reading only the pane.
 - **Why it cannot, on the session, for the operator alone.** The bridge's report says why the
   session cannot be monitored or nudged, where it cannot, as one reason from a fixed list with since
   when: no socket, a pane it cannot read or that is not the session's alone, a profile or nudge type

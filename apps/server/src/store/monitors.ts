@@ -18,7 +18,10 @@ import { longPoll } from "./wait.ts";
 
 // Monitoring: the background connection a session's bridge holds, the
 // latest report it sends of what it observes, and the nudges it claims. One
-// bridge acts for a session at a time (BridgeHolders).
+// bridge acts for a session at a time (BridgeHolders). Whichever request
+// makes a bridge take the session, a poll, a report or a nudge's claim or
+// outcome, first settles a nudge another bridge left under way, as
+// settleOrphan says.
 
 // pollMonitor is a bridge's background long poll on its own session. It
 // answers once its wait ends; at once when another bridge acts for the
@@ -30,9 +33,7 @@ import { longPoll } from "./wait.ts";
 // one is due. Working out the answer writes nothing. A claim takes the
 // session from any other bridge, deletes the session's report, so nothing
 // stale shows until this bridge reports, and ends the other bridge's open
-// poll. A poll from the bridge that acts for the session settles a nudge
-// another bridge left under way, as settleOrphan says, before it waits. The
-// poll ends too when the credential is revoked, the client disconnects or the
+// poll. The poll ends too when the credential is revoked, the client disconnects or the
 // server shuts down, as an agent's wait does. What can make a nudge due
 // notifies the session's channel, which wakes the poll to look again: a
 // report that leaves the session ready for one, a message, and an attempt
@@ -56,7 +57,7 @@ export async function pollMonitor(
     if (takes && query.claim) {
       db.prepare("DELETE FROM monitor_reports WHERE session_id = ?").run(sessionId);
     }
-    const released = admission !== "replaced" && settleOrphan(db, sessionId, query.bridge);
+    const released = takes && settleOrphan(db, sessionId, query.bridge);
     return { sessionId, takes, released };
   });
   if (takes) {
@@ -113,10 +114,7 @@ function nudgeDue(db: Database, sessionId: number, now: number): boolean {
 // bridge's, its outcome not yet known, so none is due again until the agent
 // checks in or the attempt is deferred, whatever bridge asks or however the
 // server restarts. The bridge's claim under way, sent again with its id, as
-// when its answer was lost, goes ahead again and changes nothing. Another
-// claim under way, whose outcome never came, is settled first as an orphan,
-// as settleOrphan says, which releases it, since a nudge is due only once the
-// agent checked in after it.
+// when its answer was lost, goes ahead again and changes nothing.
 export function claimNudge(
   store: Store,
   identity: Identity,
@@ -136,7 +134,6 @@ export function claimNudge(
     }
     const go = nudgeDue(db, sessionId, now);
     if (go) {
-      settleOrphan(db, sessionId);
       db.prepare(
         `UPDATE sessions SET nudge_claimed_at = ?, nudge_claim_id = ?, nudge_claim_bridge = ?
          WHERE id = ?`,
@@ -201,9 +198,8 @@ function releaseClaim(db: Database, sessionId: number, id: string): boolean {
 }
 
 // settleOrphan settles the session's claim under way where its bridge left
-// it: a claim made by a bridge other than the one now acting for the session,
-// as after a restart or a takeover mid-nudge, or, given no bridge, any claim
-// under way. Nothing proves an orphan's text reached the pane. The first
+// it: a claim made by a bridge other than the one taking the session, as
+// after a restart or a takeover mid-nudge. Nothing proves an orphan's text reached the pane. The first
 // orphan since the agent last checked in is released, as deferred, so the
 // nudge it was for is due again, and its claim's time is kept as the latest
 // orphan's; another since that check-in settles as failed, so a bridge that
@@ -212,15 +208,15 @@ function releaseClaim(db: Database, sessionId: number, id: string): boolean {
 // agent, whose check-in ends the nudge being due, so this never doubles a
 // nudge the agent answered. It says whether it released one, which may make
 // a nudge due again.
-function settleOrphan(db: Database, sessionId: number, actingBridge?: string): boolean {
+function settleOrphan(db: Database, sessionId: number, taking: string): boolean {
   const orphan = db
     .prepare(
       `SELECT nudge_claim_id AS id, nudge_orphan_claimed_at > COALESCE(last_seen_at, -1) AS again
        FROM sessions
        WHERE id = :session AND nudge_claim_id IS NOT NULL
-         AND (:bridge IS NULL OR nudge_claim_bridge IS NOT :bridge)`,
+         AND nudge_claim_bridge IS NOT :bridge`,
     )
-    .get({ session: sessionId, bridge: actingBridge ?? null }) as
+    .get({ session: sessionId, bridge: taking }) as
     { id: string; again: number | null } | undefined;
   if (orphan === undefined) {
     return false;
@@ -236,10 +232,9 @@ function settleOrphan(db: Database, sessionId: number, actingBridge?: string): b
 }
 
 // forActingBridge runs a nudge's write in one transaction, only where the
-// bridge asking acts for the session, once it has settled a nudge another
-// bridge left under way, as settleOrphan says, and answers whether the write
-// lets it go ahead, waking the bridge's poll where the writes made a nudge
-// due. A replaced bridge's request changes nothing.
+// bridge asking acts for the session, and answers whether the write lets it
+// go ahead, waking the bridge's poll where the writes made a nudge due. A
+// replaced bridge's request changes nothing.
 function forActingBridge(
   store: Store,
   identity: Identity,
@@ -251,10 +246,11 @@ function forActingBridge(
   const outcome = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
-    if (bridges.admission(sessionId, query.bridge, false) === "replaced") {
+    const admission = bridges.admission(sessionId, query.bridge, false);
+    if (admission === "replaced") {
       return "replaced";
     }
-    const released = settleOrphan(db, sessionId, query.bridge);
+    const released = admission === "takes" && settleOrphan(db, sessionId, query.bridge);
     const { go, wakes } = write(db, sessionId, now);
     return { sessionId, go, wakes: wakes || released };
   });
@@ -274,9 +270,7 @@ function forActingBridge(
 // another has replaced, and ignores a report that arrives after a later one.
 // A bridge that is the first to call since the server started acts for the
 // session from then on. A report that says the session can be nudged at its
-// prompt wakes the bridge's poll, so a nudge due already is told at once. A
-// report from the bridge that acts for the session, a late one included,
-// settles a nudge another bridge left under way, as settleOrphan says.
+// prompt wakes the bridge's poll, so a nudge due already is told at once.
 export function reportMonitor(
   store: Store,
   identity: Identity,
@@ -291,10 +285,10 @@ export function reportMonitor(
     if (admission === "replaced") {
       return "replaced";
     }
-    const released = settleOrphan(db, sessionId, query.bridge);
     if (admission === "holds" && !bridges.newer(sessionId, query.seq)) {
-      return { sessionId, stale: true, wakes: released };
+      return { sessionId, stale: true, wakes: false };
     }
+    const released = admission === "takes" && settleOrphan(db, sessionId, query.bridge);
     const observed =
       report.monitored === false
         ? {

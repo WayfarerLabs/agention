@@ -635,10 +635,10 @@ Nudge text left in the input line, by an earlier attempt or anyone else, is neve
 pasted over: it holds the nudge off, and the session shows **Can't be nudged: nudge text left at the
 prompt** until you clear the line, when the nudge goes ahead. A bridge that another takes over from,
 or that closes, mid-nudge presses no key more, so it can leave the warning, or the message not yet
-submitted, in the input line. Its claim is then under way, and shows nothing, until a bridge next
-acts for the session: the first such claim since the agent last checked in is released, so the nudge
-is due again, and held off while the text it left stays on the line; a second is settled as failed.
-A bridge that closes before it typed anything releases its claim as it goes.
+submitted, in the input line. Its claim is then under way, and shows nothing, until another bridge
+takes the session, as one that starts again does: the first such claim since the agent last checked
+in is released, so the nudge is due again, and held off while the text it left stays on the line; a
+second is settled as failed.
 
 A session is nudged at most once until its agent next checks in, whatever that nudge's outcome; an
 attempt deferred does not count. An agent's first call after you write counts as checking in since

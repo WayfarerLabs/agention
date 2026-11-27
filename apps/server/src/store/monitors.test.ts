@@ -558,7 +558,7 @@ describe("the nudge", () => {
     report(second, canBeNudged, 1);
   };
 
-  it("releases a claim its bridge left under way once another bridge acts for the session, so the nudge is due again", async () => {
+  it("releases a claim its bridge left under way once another bridge takes the session, so the nudge is due again", async () => {
     written();
     expect(claim(first)).toMatchObject({ go: true });
     const left = latestId;
@@ -597,7 +597,7 @@ describe("the nudge", () => {
     ],
     ["nudge's claim", (store: Store) => claim(first, undefined, agent, store)],
   ])(
-    "settles a claim another bridge left under way at the %s of the bridge that acts for the session",
+    "settles a claim another bridge left under way at the %s of the bridge that takes the session",
     async (_, acts) => {
       written();
       await takenOver();

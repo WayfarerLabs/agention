@@ -358,7 +358,7 @@ describe("the nudge", () => {
     expect(await presence()).not.toHaveProperty("last_nudge");
   });
 
-  it("is due again once another bridge acts for the session while a claim is under way", async () => {
+  it("is due again once another bridge takes the session while a claim is under way", async () => {
     expect((await nudgeClaim(start)).body).toEqual({ replaced: false, go: true });
     const asSecond = (method: string, query: string, body?: unknown) =>
       harness.agent(

@@ -732,7 +732,7 @@ export const migrations: readonly string[] = [
   -- settled: when it was claimed, its id, and how it ended, sent, stopped or
   -- failed, all null until one first settles. A deferred attempt releases its
   -- claim and leaves the latest nudge as it was. An orphan is a claim whose
-  -- bridge left it under way, as another bridge came to act for the session;
+  -- bridge left it under way, as another bridge took the session;
   -- nudge_orphan_claimed_at is when the latest orphan released was claimed,
   -- null until one is, so a second orphan since the agent last checked in
   -- settles as failed instead.
