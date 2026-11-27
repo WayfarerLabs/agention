@@ -1,6 +1,6 @@
 # Session monitoring and nudge: Functional Requirements
 
-- Status: Draft, for the operator's acceptance
+- Status: Accepted by the operator, 2026-11-27, with rulings 1 to 10
 - Date: 2026-11-23, restructured with rulings 3 and 4
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -468,6 +468,8 @@ an account label, was dropped by ruling 4.
    session, "Separate PR (recommended)". Taken: CF3 for any execution platform, N2's marker and
    attempt id, N3 and N6's outcomes, CF4 and M1's reasons on the session, and C1's hard dependency;
    the default session's names are out of scope.
+10. (2026-11-27) Asked in Agention to accept this FRD with ruling 9 applied, the operator chose
+    "Accept". Taken: the FRD is accepted.
 
 ## Definition of done
 
