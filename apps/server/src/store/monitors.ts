@@ -40,7 +40,8 @@ import { longPoll } from "./wait.ts";
 // deferred after its claim or an orphan released, which make the nudge due
 // again. What ends one being due, a check-in, a mark of the agent's own or a
 // claim, wakes nothing, so a bridge told one is due learns it lapsed when its
-// claim is refused, since a claim checks again, or when its poll's wait ends.
+// claim is refused, since a claim checks again, or when its poll's wait ends,
+// whose answer is worked out again then.
 export async function pollMonitor(
   store: Store,
   identity: Identity,
@@ -66,19 +67,23 @@ export async function pollMonitor(
   if (takes || released) {
     store.notifier.notify(sessionId);
   }
-  return longPoll(
+  const current = () =>
+    db.transaction(() => {
+      const replaced = bridges.admission(authorized(), query.bridge, false) === "replaced";
+      return { replaced, nudge: !replaced && nudgeDue(db, sessionId, store.clock()) };
+    });
+  const changed = (answer: MonitorPollAnswer) => answer.replaced || answer.nudge !== query.nudge;
+  const waited = await longPoll(
     store,
     query.wait,
-    () => ({
-      result: db.transaction(() => {
-        const replaced = bridges.admission(authorized(), query.bridge, false) === "replaced";
-        return { replaced, nudge: !replaced && nudgeDue(db, sessionId, store.clock()) };
-      }),
-      channel: sessionId,
-    }),
+    () => ({ result: current(), channel: sessionId }),
     signal,
-    (answer) => answer.replaced || answer.nudge !== query.nudge,
+    changed,
   );
+  // A wait that ended with nothing changed answers as things stand then,
+  // never as it last found them, since what ends a nudge being due, such as
+  // a claim, wakes nothing.
+  return changed(waited) ? waited : current();
 }
 
 // nudgeDue says whether a nudge is due for the session now, reading and
@@ -114,7 +119,10 @@ function nudgeDue(db: Database, sessionId: number, now: number): boolean {
 // bridge's, its outcome not yet known, so none is due again until the agent
 // checks in or the attempt is deferred, whatever bridge asks or however the
 // server restarts. The bridge's claim under way, sent again with its id, as
-// when its answer was lost, goes ahead again and changes nothing.
+// when its answer was lost, goes ahead again and changes nothing while the
+// agent has not checked in since it; after a check-in, that id is claimed
+// afresh, at a new time, only where a nudge is due again, so no nudge is
+// ever dated before a check-in that came after it was claimed.
 export function claimNudge(
   store: Store,
   identity: Identity,
@@ -126,7 +134,8 @@ export function claimNudge(
     const again = db
       .prepare(
         `SELECT 1 FROM sessions
-         WHERE id = ? AND nudge_claim_id IS ? AND nudge_claim_bridge IS ?`,
+         WHERE id = ? AND nudge_claim_id IS ? AND nudge_claim_bridge IS ?
+           AND (last_seen_at IS NULL OR nudge_claimed_at > last_seen_at)`,
       )
       .get(sessionId, id, query.bridge);
     if (again !== undefined) {

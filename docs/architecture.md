@@ -596,16 +596,20 @@ and a replaced bridge is never told one is due.
   be nudged at its prompt, a message, and an attempt deferred after its claim or an orphan released.
   What ends one, a check-in, a mark of the session's own or a claim, wakes nothing, since a claim
   checks again that one is due, so a bridge told of one that lapsed learns it when its claim is
-  refused or its poll's wait ends.
+  refused or its poll's wait ends, since a poll whose wait ends with nothing woken works out its
+  answer again then.
 - **The claim.** The bridge claims a nudge on `POST .../monitor/nudge` (`recordNudge`) before it
   puts anything in the pane, by the attempt's `id`. `start`, in one transaction, goes ahead only
   from the bridge that acts for the session while a nudge is due, recording the claim, its time by
   the server's clock, the attempt's id and the bridge's, and answers `go`; the same claim sent again
-  by its bridge, as when its answer was lost, answers `go` again and changes nothing. `done` carries
-  the attempt's id and its `outcome` and fills only the claim under way that id names, so sending it
-  again, or for a claim the server never took or has settled since, changes nothing: `sent`,
-  `stopped` or `failed` settle the claim as the session's latest nudge; `deferred` releases it,
-  leaving the latest nudge as it was, and wakes the session's channel, since the nudge is due again.
+  by its bridge, as when its answer was lost, answers `go` again and changes nothing while the agent
+  has not checked in since it was claimed; after a check-in, that id is claimed afresh, at a new
+  time, only where a nudge is due again, so no nudge is dated before a check-in that came after its
+  claim. `done` carries the attempt's id and its `outcome` and fills only the claim under way that
+  id names, so sending it again, or for a claim the server never took or has settled since, changes
+  nothing: `sent`, `stopped` or `failed` settle the claim as the session's latest nudge; `deferred`
+  releases it, leaving the latest nudge as it was, and wakes the session's channel, since the nudge
+  is due again.
 - **Orphans.** A claim under way is never taken as sent. When a bridge other than the one that made
   it takes the session, by the poll, report or nudge's claim or outcome that makes it the one
   acting, as after a restart or a takeover mid-nudge, the claim is an orphan, and nothing proves its

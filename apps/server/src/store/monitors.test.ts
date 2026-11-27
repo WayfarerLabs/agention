@@ -450,9 +450,18 @@ describe("the nudge", () => {
     expect(await settled(pending)).toBe(false);
     expect(claim(first)).toEqual({ replaced: false, go: false });
     expect(nudgeRow()).toEqual(none);
-    // Ended, the poll answers what it last found.
+    // Ended, the poll answers as things stand: none due.
     controller.abort();
-    expect(await pending).toEqual({ replaced: false, nudge: true });
+    expect(await pending).toEqual({ replaced: false, nudge: false });
+  });
+
+  it("answers, once a wait ends with nothing woken, whether one is due as it stands then", async () => {
+    written();
+    const pending = poll(first, { nudge: "true", wait: "1" });
+    expect(await settled(pending)).toBe(false);
+    // The claim wakes nothing, so the poll learns of it only as it ends.
+    expect(claim(first)).toMatchObject({ go: true });
+    expect(await pending).toEqual({ replaced: false, nudge: false });
   });
 
   it("writes nothing to say whether one is due", async () => {
@@ -498,6 +507,52 @@ describe("the nudge", () => {
       nudge_claim_bridge: second,
     });
     expect(claim(second)).toEqual({ replaced: false, go: false });
+  });
+
+  it("claims a claim's id sent again after a check-in afresh, never dating a nudge before that check-in", () => {
+    written();
+    expect(claim(first)).toEqual({ replaced: false, go: true });
+    const held = latestId;
+    // The agent checks in, and the operator writes again, while the server
+    // still holds the claim.
+    fixture.advance(1_000);
+    fixture.seen(agent);
+    const checkedIn = fixture.now;
+    // Sent again with no nudge due, it is refused.
+    expect(claim(first, undefined, agent, fixture.store, held)).toEqual({
+      replaced: false,
+      go: false,
+    });
+    fixture.advance(1_000);
+    written();
+    // With one due, it is claimed afresh, at a time after the check-in.
+    expect(claim(first, undefined, agent, fixture.store, held)).toEqual({
+      replaced: false,
+      go: true,
+    });
+    expect(nudgeRow()).toMatchObject({ nudge_claim_id: held, nudge_claimed_at: fixture.now });
+    claim(first, "sent", agent, fixture.store, held);
+    const nudged = lastNudge();
+    expect(Date.parse(nudged?.at ?? "")).toBeGreaterThan(checkedIn);
+    expect(nudged).toMatchObject({ outcome: "sent", answered: false });
+  });
+
+  it("reads the latest claim as the later of a claim under way and the latest nudge, a clock stepped back included", async () => {
+    written();
+    const claimedAt = fixture.now;
+    fixture.advance(1);
+    fixture.seen(agent);
+    fixture.advance(1);
+    written();
+    // A nudge settled after the check-in, beside a claim under way that a
+    // clock stepped back dated before it.
+    fixture.db
+      .prepare(
+        `UPDATE sessions SET nudged_at = ?, nudge_id = ?, nudge_outcome = 'sent',
+           nudge_claimed_at = ?, nudge_claim_id = ?, nudge_claim_bridge = ? WHERE id = ?`,
+      )
+      .run(fixture.now + 1, newId(), claimedAt, newId(), first, agent.sessionId);
+    expect(await due()).toBe(false);
   });
 
   it("goes ahead again, changing nothing, for the claim under way sent again with its id", () => {

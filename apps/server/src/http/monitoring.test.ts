@@ -377,6 +377,34 @@ describe("the nudge", () => {
     expect(await presence()).not.toHaveProperty("last_nudge");
   });
 
+  it("settles a second claim left under way since the agent checked in as failed, which the operator sees", async () => {
+    expect((await nudgeClaim(start)).body).toEqual({ replaced: false, go: true });
+    const as = (bridge: string, method: string, query: string, body?: unknown) =>
+      harness.agent(
+        approved,
+        method,
+        `/s/builder/main/monitor?bridge=${bridge}&${query}`,
+        body,
+        nudging,
+      );
+    // The second bridge takes over, which releases the first's claim, and
+    // claims the nudge again under an id of its own.
+    await as(second, "GET", "claim=true&wait=0");
+    await as(second, "POST", "seq=1", canBeNudged);
+    const other = "ba9876543210";
+    const claimedAt = harness.fixture.now;
+    expect((await nudgeClaim({ phase: "start", id: other }, second)).body).toEqual({
+      replaced: false,
+      go: true,
+    });
+    // The first takes the session back, leaving the second's claim.
+    await as(first, "GET", "claim=true&wait=0");
+    expect(await presence()).toMatchObject({
+      last_nudge: { at: formatTimestamp(claimedAt), id: other, outcome: "failed", answered: false },
+    });
+    expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
+  });
+
   it("shows the operator why the session cannot be nudged, with since when, on its session reads", async () => {
     const unable = { reason: "nudge_text_left", since: canBeNudged.since };
     await nudgeReport({ ...canBeNudged, unable });
