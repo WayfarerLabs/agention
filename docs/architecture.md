@@ -1589,7 +1589,8 @@ global agent. The agent opens every connection at the origin's host and port, or
 certificate is checked against, while each request's `Host` header names the origin too. A
 connection that has not opened within 10 seconds, its TLS handshake included, fails as unreachable.
 A connection that fails is reported naming `AGENTION_CONNECT` and its address when that is set,
-since the tunnel or forward there is the operator's.
+since the tunnel or forward there is the operator's. A request whose call was cancelled before it
+started, as when the host closes the bridge's input, is never made.
 
 ### Time limits
 
