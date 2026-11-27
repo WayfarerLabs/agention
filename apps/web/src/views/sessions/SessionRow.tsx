@@ -29,7 +29,7 @@ import {
   Spoken,
   Time,
   terminalNeedsYou,
-  unableNeedsYou,
+  unableOf,
   unableReasonWords,
   workStateWords,
 } from "../../format.tsx";
@@ -210,7 +210,7 @@ function PresenceLine({ session }: { session: SessionSummary }) {
     );
   }
   const unable = presence.connected === true ? presence.monitor?.unable : undefined;
-  if (unable !== undefined && !setUp.has(unable.reason)) {
+  if (unable !== undefined && unableOf(unable.reason).tone !== "setup") {
     parts.push(<Unable unable={unable} />);
   }
   const nudge = presence.last_nudge;
@@ -258,16 +258,16 @@ function PresenceLine({ session }: { session: SessionSummary }) {
   );
 }
 
-// The reasons a session cannot be monitored or nudged that say how it was set
-// up, which its line leaves to its unfolded detail.
-const setUp: ReadonlySet<string> = new Set(["no_socket", "nudge_off"]);
-
 // Unable says why a session's bridge cannot monitor or nudge, and since when,
 // as in "Can't be nudged: nudge text left at the prompt since 14:05", in the
 // warning's tone where that needs the operator.
 function Unable({ unable }: { unable: { reason: MonitorReason; since: string } }) {
   return (
-    <span className={unableNeedsYou(unable.reason) ? "session-unable warning" : "session-unable"}>
+    <span
+      className={
+        unableOf(unable.reason).tone === "trouble" ? "session-unable warning" : "session-unable"
+      }
+    >
       {unableReasonWords(unable.reason)} since <Since value={unable.since} />
     </span>
   );

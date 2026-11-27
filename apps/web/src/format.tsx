@@ -223,33 +223,51 @@ export function ConditionClause({ observed }: { observed: Observed }) {
   );
 }
 
-// Why a session's bridge cannot monitor or nudge, as its sessions line and
-// detail say it, after "Can't be monitored: " or "Can't be nudged: ".
-const unableWords: Record<MonitorReason, { cannot: "monitored" | "nudged"; why: string }> = {
-  no_socket: { cannot: "monitored", why: "no tmux socket configured" },
-  pane_unreachable: { cannot: "monitored", why: "the tmux pane cannot be read" },
-  not_one_pane: { cannot: "monitored", why: "the tmux server's pane is not this session's alone" },
-  unknown_profile: { cannot: "nudged", why: "harness profile unknown" },
-  unknown_nudge_type: { cannot: "nudged", why: "nudge type unknown" },
-  nudge_off: { cannot: "nudged", why: "the nudge is off" },
-  generic_profile: { cannot: "nudged", why: "a generic harness profile" },
-  claims_refused: { cannot: "nudged", why: "the server refused its nudges" },
-  nudge_text_left: { cannot: "nudged", why: "nudge text left at the prompt" },
+// How a session's sessions line and detail say why its bridge cannot monitor
+// or nudge: what it cannot be, and why, after "Can't be monitored: " or
+// "Can't be nudged: "; and its tone: setup for how the session was set up,
+// which only the unfolded detail shows; trouble for what the operator is to
+// look at, nudge text left at the prompt, which holds the nudge off until
+// someone clears it, in the warning's color; and plain for the rest, the
+// configuration's choice or what shows as the session's condition.
+interface UnableShown {
+  readonly cannot: "monitored" | "nudged";
+  readonly why: string | undefined;
+  readonly tone: "setup" | "trouble" | "plain";
+}
+
+const unableShown: Record<MonitorReason, UnableShown> = {
+  no_socket: { cannot: "monitored", why: "no tmux socket configured", tone: "setup" },
+  pane_unreachable: { cannot: "monitored", why: "the tmux pane cannot be read", tone: "plain" },
+  not_one_pane: {
+    cannot: "monitored",
+    why: "the tmux server's pane is not this session's alone",
+    tone: "plain",
+  },
+  unknown_profile: { cannot: "nudged", why: "harness profile unknown", tone: "plain" },
+  unknown_nudge_type: { cannot: "nudged", why: "nudge type unknown", tone: "plain" },
+  nudge_off: { cannot: "nudged", why: "the nudge is off", tone: "setup" },
+  generic_profile: { cannot: "nudged", why: "a generic harness profile", tone: "plain" },
+  claims_refused: { cannot: "nudged", why: "the server refused its nudges", tone: "plain" },
+  nudge_text_left: { cannot: "nudged", why: "nudge text left at the prompt", tone: "trouble" },
 };
+
+// unableOf says how a reason is shown, and a reason a newer server gives that
+// this page does not know as one it cannot be nudged for, with no why, in
+// the plain tone.
+export function unableOf(reason: MonitorReason): UnableShown {
+  return Object.hasOwn(unableShown, reason)
+    ? unableShown[reason]
+    : { cannot: "nudged", why: undefined, tone: "plain" };
+}
 
 // unableReasonWords says why a session's bridge cannot monitor or nudge, as
 // in "Can't be nudged: nudge text left at the prompt", or "Can't be nudged"
-// alone for a reason a newer server gives that this page does not know.
+// alone for a reason this page does not know.
 export function unableReasonWords(reason: MonitorReason): string {
-  const words = Object.hasOwn(unableWords, reason) ? unableWords[reason] : undefined;
-  return words === undefined ? "Can't be nudged" : `Can't be ${words.cannot}: ${words.why}`;
+  const { cannot, why } = unableOf(reason);
+  return why === undefined ? `Can't be ${cannot}` : `Can't be ${cannot}: ${why}`;
 }
-
-// unableNeedsYou says whether why a session cannot be nudged is trouble for
-// the operator to look at: nudge text left at the prompt, which holds the
-// nudge off until someone clears it. Every other reason is the
-// configuration's choice or shows as the session's condition.
-export const unableNeedsYou = (reason: MonitorReason): boolean => reason === "nudge_text_left";
 
 // What the operator knows of a session that says whether it is there to see
 // what they write: the state it last reported, if any, and the outcome a
@@ -366,8 +384,7 @@ function absenceWhyWords(absence: Absence): string {
 }
 
 // whyNot says why a session cannot be nudged, after "not nudged: ".
-const whyNot = (reason: MonitorReason): string =>
-  Object.hasOwn(unableWords, reason) ? unableWords[reason].why : "it cannot be";
+const whyNot = (reason: MonitorReason): string => unableOf(reason).why ?? "it cannot be";
 
 // nudgeWords says briefly what came of a session's latest nudge, as a part of
 // its line says it: "not responding to the nudge at 14:05" for one sent with
