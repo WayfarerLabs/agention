@@ -263,12 +263,10 @@ API" says.
 - **Stored**: on the session, the agent's last check-in, with the agent API version of that request,
   and the time of the latest background request; in a table of its own, the latest report, which a
   claim by another bridge deletes and which a report numbered no higher than the last accepted one
-  never replaces. A check-in is stamped to the minute, as today, and also whenever the stamp is
-  older than a nudge's claim, the latest nudge (delivery 2), or the latest message someone else
-  wrote in one of the session's threads, so a check-in's order against each message and attempt is
-  exact: a reply to a nudge always shows, and a call after a message always counts as checking in
-  since it. Background requests are stamped on each one, every 25 seconds at most. A migration adds
-  the columns.
+  never replaces. Every approved agent request stamps the check-in, so a check-in's order against
+  each message and attempt is exact: a reply to a nudge always shows, and a call after a message
+  always counts as checking in since it. Background requests are stamped on each one, every 25
+  seconds at most. A migration adds the columns.
 - **Derived in queries**, never stored (review checklist A8): **connected**, a background request
   within the last 60 seconds; **quiet**, no check-in within `--quiet-minutes`; **stranded**, by M6;
   and the condition, shown only while connected, so a dead bridge's last report is never shown as
@@ -308,24 +306,22 @@ Delivery 2 bumps the agent API to version 9:
   latest nudge, which then counts (N3); **deferred** releases it, leaving the latest nudge as it
   was, so the nudge is due again. A claim whose outcome has not arrived is **under way**, never
   sent: the server records which bridge made it, and the operator sees nothing of it until it
-  settles, since it may yet be deferred (N6). A bridge that stops an attempt it claimed reports the
-  outcome it can still prove, deferred where it typed nothing and failed otherwise. When another
-  bridge comes to act for the session while a claim is under way, as after a restart or a takeover,
-  or the same bridge claims anew under another id, having lost the earlier one, nothing proves the
-  claim's text reached the pane, so the server settles it: as deferred, releasing it, the first time
-  since the agent last checked in, so the wake it was for comes; and as failed if an earlier claim
-  was settled that way since that check-in, so a bridge that keeps stopping mid-nudge raises a
-  problem rather than warning the agent again and again. A message submitted just before its bridge
-  died wakes the agent, whose check-in ends the nudge being due, so this never doubles a nudge the
-  agent answered. The claim and the latest nudge are columns of their own on the session, so a
-  release needs nothing remembered. The check-in stamp moves whenever it is older than the claim or
-  the latest nudge, so an agent that checks in while the nudge is under way counts as answering it.
-  The server shows "not responding to the nudge" while a nudge it recorded has no check-in after it
-  (N6), and applies M6's nudge branches, which strand the thread once the quiet time passes, or mark
-  it ignored where the agent checked in since without reading it (ruling 8), one ordered decision in
-  the thread read so a thread is never both. A nudge that failed or was stopped at the terminal
-  strands the thread at once, with that reason; one that failed reads as a problem, one stopped as
-  the choice of whoever was at the terminal.
+  settles, since it may yet be deferred (N6). A bridge whose claim's answer was lost sends the same
+  claim again, which the server answers as before. When another bridge comes to act for the session
+  while a claim is under way, as after a restart or a takeover, nothing proves the claim's text
+  reached the pane, so the server settles it: as deferred, releasing it, the first time since the
+  agent last checked in, so the wake it was for comes; and as failed if an earlier claim was settled
+  that way since that check-in, so a bridge that keeps stopping mid-nudge raises a problem rather
+  than warning the agent again and again. A message submitted just before its bridge died wakes the
+  agent, whose check-in ends the nudge being due, so this never doubles a nudge the agent answered.
+  The claim and the latest nudge are columns of their own on the session, so a release needs nothing
+  remembered. Since every check-in is stamped, an agent that checks in while the nudge is under way
+  counts as answering it. The server shows "not responding to the nudge" while a nudge it recorded
+  has no check-in after it (N6), and applies M6's nudge branches, which strand the thread once the
+  quiet time passes, or mark it ignored where the agent checked in since without reading it (ruling
+  8), one ordered decision in the thread read so a thread is never both. A nudge that failed or was
+  stopped at the terminal strands the thread at once, with that reason; one that failed reads as a
+  problem, one stopped as the choice of whoever was at the terminal.
 - **Reasons on the session (CF4).** The report gains whether the session can be nudged and, where it
   cannot be monitored or nudged, one reason from a fixed list, with since when: `nudge_off`,
   `unknown_nudge_type`, `no_socket`, `pane_unreachable`, `not_one_pane`, `unknown_profile`,
