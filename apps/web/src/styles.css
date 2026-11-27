@@ -66,6 +66,11 @@
   --touch-small: 24px;
   --icon-size: 1em;
   --content-width: 46rem;
+  /* How far a focus ring reaches past what it rings: its width and offset
+     (:focus-visible), and a pixel for rounding. What the keyboard brings
+     into view keeps this much clear of its scroller's edges and of a header
+     stuck above it. */
+  --ring-reach: 6px;
   /* The layers that lie over the page as it scrolls: the sticky headers of
      folds, and above them an open options menu. */
   --layer-sticky: 3;
@@ -385,6 +390,9 @@ main:has(> .side-by-side) {
   overscroll-behavior: contain;
   padding: var(--space-2);
   margin: calc(-1 * var(--space-2));
+  /* A group's header sticks within that padding, so what scrolls into view
+     keeps clear of the padding too, as it keeps clear of the header. */
+  scroll-padding-top: var(--space-2);
 }
 
 /* Controls */
@@ -1137,11 +1145,10 @@ button.picker[aria-expanded="true"] .icon {
 }
 
 /* A row's card. Brought into view (ThreadRow.tsx), it keeps its focus
-   ring's reach, the ring's width and offset, and a pixel for rounding clear
-   of its scroller's edges. */
+   ring's reach clear of its scroller's edges. */
 .thread-row {
   margin-bottom: var(--space-3);
-  scroll-margin: 6px;
+  scroll-margin: var(--ring-reach);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
   background: var(--color-surface);
@@ -1591,6 +1598,15 @@ a > :is(.flag, .group-chip, .tag-chip) {
   top: 0;
   z-index: var(--layer-sticky);
   background: var(--color-bg);
+}
+
+/* What the keyboard brings into view under an outer header, as a row a key
+   moves to (ThreadRow.tsx) or a control Tab reaches, keeps clear of the
+   header stuck above it: by the header's height, which Fold measures, and by
+   a focus ring's reach. A control a click focuses scrolls no further than
+   before. */
+.group > .fold-body :is(.thread-row, :focus-visible) {
+  scroll-margin-top: calc(var(--fold-head-height, 0px) + var(--ring-reach));
 }
 
 .group-head,

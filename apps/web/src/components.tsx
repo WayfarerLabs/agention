@@ -229,29 +229,35 @@ export function Loadable<T>({
   );
 }
 
-// useScrollClearOf keeps what the page scrolls into view, as the caret while
-// typing or a control focused from the keyboard, clear of a bar stuck at the
-// foot of the screen, such as the composer's Send row, however tall what it
-// holds makes it: it gives the root's property the bar's height while the
-// bar is shown, for the stylesheet, whose scroll padding keeps that much
-// clear and which may stand other bars above it, as the Send row stands
-// above the thread's bar.
-export function useScrollClearOf(bar: RefObject<HTMLElement | null>, property: string): void {
+// useScrollClearOf keeps what scrolls into view, as the caret while typing
+// or a control focused from the keyboard, clear of a bar stuck at an edge of
+// its scroller, such as the composer's Send row at the foot of the screen or
+// a group's header at the top of the list, however tall what it holds makes
+// it: it gives the property the bar's height while the bar is shown, on the
+// root or else on holder, for the stylesheet, whose scroll padding or scroll
+// margins keep that much clear and which may stand other bars above it, as
+// the Send row stands above the thread's bar. With no bar, as for a header
+// that scrolls with what it heads, it gives the property nothing.
+export function useScrollClearOf(
+  bar: RefObject<HTMLElement | null> | null,
+  property: string,
+  holder?: RefObject<HTMLElement | null>,
+): void {
   useEffect(() => {
-    const element = bar.current;
-    if (element === null || typeof ResizeObserver === "undefined") {
+    const element = bar?.current ?? null;
+    const target = holder === undefined ? document.documentElement : holder.current;
+    if (element === null || target === null || typeof ResizeObserver === "undefined") {
       return;
     }
-    const root = document.documentElement;
     const observer = new ResizeObserver(() => {
-      root.style.setProperty(property, `${element.offsetHeight}px`);
+      target.style.setProperty(property, `${element.offsetHeight}px`);
     });
     observer.observe(element);
     return () => {
       observer.disconnect();
-      root.style.removeProperty(property);
+      target.style.removeProperty(property);
     };
-  }, [bar, property]);
+  }, [bar, property, holder]);
 }
 
 // focusLeftWith says whether focus is where a pressed control left it: on
@@ -418,6 +424,11 @@ const foldClasses: Record<FoldDepth, [section: string, head: string]> = {
   innermost: ["subgroup innermost", "subgroup-head"],
 };
 
+// The property of an outer fold holding how tall its header is, which stays
+// at the top of the list over what scrolls under it, so what scrolls into
+// view in the fold keeps clear of it (styles.css, .fold-body).
+const foldHeadHeight = "--fold-head-height";
+
 // What takes a drop, as a fold's head can: the handlers it takes one by.
 export type DropProps = Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
 
@@ -430,15 +441,17 @@ type FoldLabel = { name?: undefined; label: string } | { name: string; label: Re
 // Fold is what a header folds: a bar holding a heading, then any marks,
 // wrapping where the width ends, and any actions, kept together at the
 // bar's right end, and beneath it what it holds, shown only while unfolded,
-// so nothing folded away loads or reads. Its depth sets the bar's style. The
-// heading leads with the fold's disclosure button, its chevron turned while
-// folded, and goes by the button's name alone, so a linked label beside the
-// button does not say it twice. The marks can hold links, and the actions
-// controls, such as an options menu. The button stretches under the bar, so
-// a click anywhere on it but on a link or a control folds or unfolds it, as
-// on a plain label or a plain mark; keyboards and assistive technology use
-// the button. A fold can take a class of its own beside its depth's, and
-// what takes a drop on its head.
+// so nothing folded away loads or reads. Its depth sets the bar's style, and
+// an outer bar, which stays at the top of the list, keeps what scrolls into
+// view beneath it clear of it, however tall it wraps. The heading leads with
+// the fold's disclosure button, its chevron turned while folded, and goes by
+// the button's name alone, so a linked label beside the button does not say
+// it twice. The marks can hold links, and the actions controls, such as an
+// options menu. The button stretches under the bar, so a click anywhere on it
+// but on a link or a control folds or unfolds it, as on a plain label or a
+// plain mark; keyboards and assistive technology use the button. A fold can
+// take a class of its own beside its depth's, and what takes a drop on its
+// head.
 export function Fold({
   level,
   depth,
@@ -467,9 +480,14 @@ export function Fold({
   const [section, head] = foldClasses[depth];
   const shown = <span className="group-label">{labelled.label}</span>;
   const plain = labelled.name === undefined;
+  const fold = useRef<HTMLElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  // Only an outer header stays at the top of the list; an inner one scrolls
+  // with its fold, so it measures nothing.
+  useScrollClearOf(depth === "outer" ? bar : null, foldHeadHeight, fold);
   return (
-    <section className={className === undefined ? section : `${section} ${className}`}>
-      <div className="fold-head" {...drop}>
+    <section ref={fold} className={className === undefined ? section : `${section} ${className}`}>
+      <div ref={bar} className="fold-head" {...drop}>
         <div className={head}>
           <div className="fold-main">
             <Heading className="fold-title" aria-labelledby={plain ? undefined : button}>
@@ -492,7 +510,7 @@ export function Fold({
           {actions !== undefined && <span className="fold-actions">{actions}</span>}
         </div>
       </div>
-      <div id={body} hidden={folded}>
+      <div id={body} className="fold-body" hidden={folded}>
         {!folded && children}
       </div>
     </section>
