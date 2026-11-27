@@ -1,9 +1,10 @@
 # Session monitoring and nudge: Plan
 
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md)
-- Vehicles: the SDD lands first, in agention#120. Each pull request below branches from `main`, and
-  checks its boxes when they are built, reviewed and green. 1b and 1c each need only 1a merged, so
-  1c runs whenever its captures arrive; pull request 2 needs 1b.
+- Vehicles: the SDD is agention#120, at the base of the stack. The pull requests below stack on it
+  in order (1a on the SDD, 1b on 1a, 2 on 1b), so the stack merges from the top down and reaches
+  `main` at once, and each checks its boxes when they are built, reviewed and green. 1b and 1c each
+  need only 1a merged, so 1c runs whenever its captures arrive; pull request 2 needs 1b.
 
 ## Delivery 1: monitoring
 
