@@ -684,7 +684,7 @@ anywhere to list them all.
 | Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone                                                                   |
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                                                                                                |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                                                                                          |
-| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                                                                                                |
+| The thread list | `o`                         | Opens the thread of the row that has focus, as `Enter` on its link does                                                                                                                     |
 | The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                                                                                   |
 | The thread list | `I` and `U`                 | Marks read or unread the threads selected, as **Read** and **Unread** in the bar do, or with none selected, the thread                                                                      |
 | The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                                                                                      |
@@ -706,14 +706,15 @@ on a thread looks only at the messages the page has loaded, so on a thread you h
 last wrote before the newest 50 messages, `U` does nothing until you focus a message or show earlier
 ones. Moving through the list moves focus from row to row, so a screen reader reads each row as it
 is reached. With the list and a thread side by side, the list's keys act wherever focus is, and
-moving through the list starts from the open thread's row and opens nothing until `o`; the thread's
-keys act only while focus is outside the list, as after clicking the thread; `I` from the thread
-marks it read in the list and leaves focus in the thread; and `n` and `U`, which both use, act in
-the list while focus is in it, and in the thread otherwise. A screen reader in its browse mode keeps
-single keys for its own navigation, so the shortcuts act only once it passes keys through, as in its
-focus mode. To turn the shortcuts listed here off in this browser, if they get in the way of a
-screen reader, voice control or another tool, clear **Keyboard shortcuts** in **Settings**, under
-**Keyboard**, which also lists them. The diagram viewer's own keys stay on.
+moving through the list starts from the open thread's row and opens nothing until `o`, which opens
+only the row that has focus, so from the thread it does nothing; the thread's keys act only while
+focus is outside the list, as after clicking the thread; `I` from the thread marks it read in the
+list and leaves focus in the thread; and `n` and `U`, which both use, act in the list while focus is
+in it, and in the thread otherwise. A screen reader in its browse mode keeps single keys for its own
+navigation, so the shortcuts act only once it passes keys through, as in its focus mode. To turn the
+shortcuts listed here off in this browser, if they get in the way of a screen reader, voice control
+or another tool, clear **Keyboard shortcuts** in **Settings**, under **Keyboard**, which also lists
+them. The diagram viewer's own keys stay on.
 
 **Enter sends**, also under **Keyboard**, is off until you turn it on in a browser, which keeps the
 choice. On, `Enter` in the composer's message or **Details** box sends, once there is something to
