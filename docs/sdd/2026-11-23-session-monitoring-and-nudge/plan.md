@@ -4,7 +4,8 @@
 - Vehicles: the SDD is agention#120, at the base of the stack. The pull requests below stack on it
   in order (1a on the SDD, 1b on 1a, 2 on 1b), so the stack merges from the top down and reaches
   `main` at once, and each checks its boxes when they are built, reviewed and green. 1b and 1c each
-  need only 1a merged, so 1c runs whenever its captures arrive; pull request 2 needs 1b.
+  need only 1a merged, so 1c runs whenever its captures arrive; pull request 2 needs 1b. None of
+  them merges before the first releases on the split release lines (C1, ruling 9).
 
 ## Delivery 1: monitoring
 
@@ -104,4 +105,21 @@
       stranded, and neither once the agent reads it.
 - [x] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
       when the pull request records the live evidence as `docs/live-testing.md` describes.
+- [ ] Ruling 9's nudge: both texts carry N2's marker and an attempt id, which the claim records and
+      the operator sees on the latest nudge; each attempt ends deferred, stopped, failed or sent
+      (N6), a deferred one releasing its claim and the warning's check comparing only the input
+      line; and the report carries CF4's reasons, shown on the session as they arise. Done when the
+      observer's, bridge's, store's, HTTP and web tests show each outcome and reason, a screen
+      change while the warning stands defers rather than fails, and nudge text left at the prompt
+      holds the nudge off until cleared.
+- [ ] Permanent docs name Agentworks as the first execution platform, never an assumption (CF3,
+      ruling 9). Done when the project review finds none that assumes it.
+- [ ] Live again on the same bed on Claude Code and Codex, for ruling 9's cases of the definition of
+      done: the attempt id in the transcript and on the latest nudge, a typed-over warning reading
+      as stopped at the terminal, and nudge text left at the prompt holding the nudge off until
+      cleared. Done when the pull request records the live evidence as `docs/live-testing.md`
+      describes.
+- [ ] The release lines split: the first releases on both lines are out before this stack merges
+      (C1, ruling 9). Done when they are, and the stack is brought up to date with main on top of
+      them.
 - [ ] `locked.md` in this directory, with the final merge.
