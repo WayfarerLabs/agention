@@ -244,6 +244,7 @@ used: older consumers know `entity` and `data`.
 | group          | `group:<id>`                | the group's name                              |
 | tag            | `tag:<name>`                | the tag's name                                |
 | saved view     | `saved_view:<id>`           | the view's name                               |
+| push device    | `push_device:<id>`          | the label its browser reported                |
 | voice settings | `voice_settings`            | none                                          |
 | audit sink     | `audit_sink:<kind>`         | the kind                                      |
 | API key        | `api_key:<id>`              | the key's name                                |
@@ -256,8 +257,10 @@ used: older consumers know `entity` and `data`.
   changes when it is renamed. `renameTag`'s event names the tag by its new name, with the old in
   `data.previous_name`, which is how a consumer follows a tag across a rename.
 - A thread is never named by its title, nor a file by its name (FRD R5), nor a saved view by its
-  list, whose search is text the operator typed. A passkey link has no identifier but its token's
-  hash, which is derived from a secret, so it has none in an event.
+  list, whose search is text the operator typed. A device that receives notifications is never named
+  by its push subscription's endpoint or keys, which are secrets the server holds. A passkey link
+  has no identifier but its token's hash, which is derived from a secret, so it has none in an
+  event.
 
 ### Service, for Authentication
 
@@ -295,8 +298,13 @@ Every action, its class and activity, and what it names.
 | `removeTag`              | 4 Delete | web, operator | the tag                                                                                   |
 | `createSavedView`        | 1 Create | web, operator | the saved view                                                                            |
 | `renameSavedView`        | 3 Update | web, operator | the saved view, `data.previous_name`                                                      |
-| `replaceSavedView`       | 3 Update | web, operator | the saved view                                                                            |
-| `removeSavedView`        | 4 Delete | web, operator | the saved view                                                                            |
+| `replaceSavedView`       | 3 Update | web, operator | the saved view, `data.ended_notifying`                                                    |
+| `removeSavedView`        | 4 Delete | web, operator | the saved view, `data.ended_notifying`                                                    |
+| `notifyView`             | 3 Update | web           | the saved view, `data.notifies` true                                                      |
+| `stopNotifying`          | 3 Update | web           | the saved view, `data.notifies` false                                                     |
+| `addPushDevice`          | 1 Create | web           | the push device, `data.replaced`: the `push_device:<id>` of each it took the place of     |
+| `refreshPushDevice`      | 3 Update | web           | the push device, `data.replaced`, as `addPushDevice`                                      |
+| `removePushDevice`       | 4 Delete | web           | the push device                                                                           |
 | `setSessionGroup`        | 3 Update | web, operator | the session, `data.group` (`group:<id>` or null)                                          |
 | `setSessionTags`         | 3 Update | web, operator | the session, `data` `{ tags, created_tags }`                                              |
 | `setAgentTags`           | 3 Update | web, operator | the agent, `data` `{ tags, created_tags }`                                                |
@@ -317,6 +325,16 @@ Every action, its class and activity, and what it names.
   and which may carry the substance of its work, as a thread's title may. An agent write's status
   report rides in its message's `data.status`, and the entry that marks an idle session working
   (`statusOnWrite`, `S/store/sessions.ts:194-215`) is part of that write.
+- `replaceSavedView` and `removeSavedView` say in `data.ended_notifying` whether the write ended the
+  view's notifying (notifications, agention#96): a replace whose list has a filter on that a
+  notifying view refuses, or the removal of a view that notified.
+- `notifyView` and `stopNotifying` record only a change: turning on a view that already notifies, or
+  off one that does not, records nothing. `refreshPushDevice` likewise records only a refresh that
+  changed the device's keys, label, passkey, or session, and turning on an endpoint the server
+  already holds is such a refresh: `addPushDevice` records only a device added. Sign-out and a
+  passkey's removal end the devices they end within their own events, naming none. The server's own
+  work for notifications, the notified mark, a push service's acceptance, and removing a device its
+  push service says is gone, is housekeeping and records nothing.
 - `api.service.name` is `web`, `operator/v1`, `agent`, or `cli`.
 
 ### Sign-ins: Authentication 3002

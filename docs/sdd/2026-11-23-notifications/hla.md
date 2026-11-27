@@ -147,22 +147,22 @@ and a restore keeps every device's subscription working. The public key is deriv
 stored apart. The private key never leaves the server and is never logged.
 
 **Subscriptions.** A table of device subscriptions, at most 10: the endpoint URL (unique), its
-`p256dh` and `auth` keys, the passkey that signed the device in (`ON DELETE CASCADE`), the hash of
-the browser session that registered or last refreshed it (no foreign key, so expiry leaves it), a
-label from the browser and platform the device reported, when it was made, and when a push service
-last accepted a send to it. They are secrets the server holds and are kept like the others: in the
+`p256dh` and `auth` keys, the passkey that signed the device in (`ON DELETE CASCADE`), the id of the
+browser session that registered or last refreshed it (no foreign key, so expiry leaves it), a label
+from the browser and platform the device reported, when it was made, and when a push service last
+accepted a send to it. They are secrets the server holds and are kept like the others: in the
 database, never logged, carried by backups. A device is "this device" by the browser session that
 registered or last refreshed it, one subscription per session, so no endpoint travels in a URL.
 
 - **On** (with a recent sign-in): the endpoint must be `https`, port 443 or none, no user
   information, and a host matched below, or the request is refused with a typed error. An existing
-  endpoint is updated, not duplicated, taking the current session's hash and passkey; a new one
+  endpoint is updated, not duplicated, taking the current session's id and passkey; a new one
   replaces the subscription this browser session holds, if any.
 - **Refresh** (from the web UI on start and after an in-app sign-in, no recent sign-in needed): only
-  updates an endpoint the server stores, its keys, passkey and session hash. For any other, the web
-  UI unsubscribes, clears the device's intent and shows it as stopped, and turning it on again is
-  **On**. That covers a device removed from another one and a browser that dropped its subscription
-  and made a new one.
+  updates an endpoint the server stores, its keys, passkey and browser session. For any other, the
+  web UI unsubscribes, clears the device's intent and shows it as stopped, and turning it on again
+  is **On**. That covers a device removed from another one and a browser that dropped its
+  subscription and made a new one.
 - **Off** removes this device's subscription, with no recent sign-in. Removing another device's from
   the list needs one, as revoking an API key does.
 - A row whose browser no longer holds its subscription ends at the push service's 404 or 410, at
@@ -253,13 +253,13 @@ they set them honestly. No route, tool or answer changes, and the agent API vers
 
 ## Data model additions
 
-| Where                        | Holds                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| `saved_views.notifies`       | whether the view notifies, off by default; on for the starting view       |
-| `push_subscriptions` (new)   | endpoint (unique), keys, passkey (cascade), session hash, label, made and |
-|                              | last-accepted times                                                       |
-| `thread_marks.notified_seq`  | the message that last notified, cleared by the operator's read or archive |
-| `instance.vapid_private_key` | made at serve start when absent                                           |
+| Where                        | Holds                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `saved_views.notifies`       | whether the view notifies, off by default; on for the starting view             |
+| `push_subscriptions` (new)   | endpoint (unique), keys, passkey (cascade), browser session id, label, made and |
+|                              | last-accepted times                                                             |
+| `thread_marks.notified_seq`  | the message that last notified, cleared by the operator's read or archive       |
+| `instance.vapid_private_key` | made at serve start when absent                                                 |
 
 One migration adds them and the starting view, with its frozen hash, and rolls back as a whole like
 the others.
@@ -315,8 +315,9 @@ the others.
   and `notificationclick` events to the worker directly: the device switch's states, the device
   list, the Notify switch in Settings' Saved views with a refused filter's reason, the questions of
   Replace and Remove for a view that notifies, and a click opening the right thread, in a web UI
-  window and never in the API's documentation page. The manifest's install check runs through
-  Chromium's own installability report where the headless shell offers it.
+  window and never in the API's documentation page. The manifest is checked by Chromium's parse of
+  it and its icons' decoded sizes, since the headless shell's installability report answers no
+  errors even for a page with no manifest; the operator's Android acceptance shows it installs.
 - **Devices (operator):** Android Chrome installed and screen off, and Windows Edge and Chrome, as
   the FRD's definition of done says. Apple browsers are built to their documented rules and stated
   as untested; Apple's declarative Web Push is not adopted, for the same reason.
@@ -337,8 +338,9 @@ Two pull requests, each usable on its own:
    resources, `SECURITY.md`'s API keys, whose "and nothing more" no longer holds, review check A18's
    crossing sentence and its look-for of a write across resources beyond the tag rename's, the new
    ADR's amendment of ADR 0007's one crossing, `docs/web-ui.md`'s Saved views and Settings, and the
-   live testing guide's saved views operations. It builds on saved views (agention#184), and the two
-   ship in the same release (ruling 10).
+   live testing guide's saved views operations. It builds on saved views (agention#184), which
+   merged first, on 2026-11-27, so no release is cut until this PR merges and the two ship in the
+   same release (ruling 10).
 
 ## Settled with the operator
 
