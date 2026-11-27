@@ -22,11 +22,18 @@ export interface GivenNames {
   session?: string | undefined;
 }
 
-// The variables an agent host may set to name the session it runs.
-export interface SessionEnvironment {
-  AGENTWORKS_AGENT?: string | undefined;
-  AGENTWORKS_SESSION?: string | undefined;
-}
+// The variables an agent host may set to name the session it runs, for each
+// name in the order the bridge reads them: the AGENTION_ variable, then the
+// AGENTWORKS_ one, still read for hosts that set it. An empty variable counts
+// as unset.
+export const sessionVariables = {
+  agent: ["AGENTION_AGENT", "AGENTWORKS_AGENT"],
+  session: ["AGENTION_SESSION", "AGENTWORKS_SESSION"],
+} as const satisfies Record<keyof SessionNames, readonly string[]>;
+
+type SessionVariable = (typeof sessionVariables)[keyof SessionNames][number];
+
+export type SessionEnvironment = { [variable in SessionVariable]?: string | undefined };
 
 export interface SessionOptions {
   api: AgentApi;
@@ -150,12 +157,12 @@ export class Session {
       }
       return this.#proposed;
     }
-    const agent = given.agent ?? this.#fromEnvironment("AGENTWORKS_AGENT");
-    const session = given.session ?? this.#fromEnvironment("AGENTWORKS_SESSION");
+    const agent = given.agent ?? this.#fromEnvironment("agent");
+    const session = given.session ?? this.#fromEnvironment("session");
     if (agent === undefined || session === undefined) {
       const unset = [
-        ...(agent === undefined ? ["AGENTWORKS_AGENT"] : []),
-        ...(session === undefined ? ["AGENTWORKS_SESSION"] : []),
+        ...(agent === undefined ? [sessionVariables.agent[0]] : []),
+        ...(session === undefined ? [sessionVariables.session[0]] : []),
       ];
       throw new BridgeError(
         `Call register with agent and session names, since ${unset.join(" and ")} ` +
@@ -167,20 +174,26 @@ export class Session {
     return this.#proposed;
   }
 
-  #fromEnvironment(variable: keyof SessionEnvironment): string | undefined {
-    const value = this.#environment[variable];
-    if (value === undefined || value === "") {
-      return undefined;
+  // fromEnvironment reads a name from the first of its variables that is set.
+  // A set variable whose value is not a name is an error rather than a reason
+  // to read the next, so the variable the operator meant is the one corrected.
+  #fromEnvironment(field: keyof SessionNames): string | undefined {
+    for (const variable of sessionVariables[field]) {
+      const value = this.#environment[variable];
+      if (value === undefined || value === "") {
+        continue;
+      }
+      const parsed = name.safeParse(value);
+      if (!parsed.success) {
+        const message = parsed.error.issues[0]?.message ?? "is not a name";
+        throw new BridgeError(
+          `Call register with agent and session names, or correct ${variable}, whose value ` +
+            `${quoted(value)} ${message}.`,
+        );
+      }
+      return parsed.data;
     }
-    const parsed = name.safeParse(value);
-    if (!parsed.success) {
-      const message = parsed.error.issues[0]?.message ?? "is not a name";
-      throw new BridgeError(
-        `Call register with agent and session names, or correct ${variable}, whose value ` +
-          `${quoted(value)} ${message}.`,
-      );
-    }
-    return parsed.data;
+    return undefined;
   }
 
   async #submit(

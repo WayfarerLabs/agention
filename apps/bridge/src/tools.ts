@@ -102,10 +102,17 @@ const thread = threadNumber.describe("The thread's number in this session.");
 const limit = pageLimit.describe("The most elements to return, 1 to 100; by default 50.");
 
 const registerInput = z.object({
-  agent: name.optional().describe("The agent's name, such as claude; by default AGENTWORKS_AGENT."),
+  agent: name
+    .optional()
+    .describe(
+      "The agent's name, such as claude; by default AGENTION_AGENT, else AGENTWORKS_AGENT.",
+    ),
   session: name
     .optional()
-    .describe("This session's name, unique to the agent; by default AGENTWORKS_SESSION."),
+    .describe(
+      "This session's name, unique to the agent; by default AGENTION_SESSION, else " +
+        "AGENTWORKS_SESSION.",
+    ),
 });
 
 const priorityText = `Priority: ${priority.description ?? ""}`;

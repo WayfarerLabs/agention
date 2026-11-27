@@ -18,7 +18,9 @@
     "name": "agention",
     "package": "@wayfarerlabs/agention-mcp",
     "environment": [
+      "AGENTION_AGENT",
       "AGENTION_CONNECT",
+      "AGENTION_SESSION",
       "AGENTION_URL",
       "AGENTWORKS_AGENT",
       "AGENTWORKS_SESSION",

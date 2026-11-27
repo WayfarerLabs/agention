@@ -30,12 +30,17 @@ AGENTION_URL=https://agention.example.com npx -y @wayfarerlabs/agention-mcp
 | ------------------ | ------------------------------------------------------------------------------------------- |
 | `AGENTION_URL`     | The Agention server's origin; required                                                      |
 | `AGENTION_CONNECT` | A host and port, such as `127.0.0.1:8443`, to connect to in place of the origin's; optional |
+| `AGENTION_AGENT`   | The agent's name, unless the agent's `register` call gives one; optional                    |
+| `AGENTION_SESSION` | The session's name, unless the agent's `register` call gives one; optional                  |
 | `--version`        | Prints the version                                                                          |
 | `--help`           | Prints the usage                                                                            |
 
 `AGENTION_CONNECT` is the way to a server reached through a tunnel: the certificate the bridge
 checks, its requests and its tokens still name the origin. The bridge connects directly and takes no
 HTTP proxy settings, such as `HTTPS_PROXY`.
+
+The bridge also reads `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, which Agentworks sets, for a name
+whose `AGENTION_` variable is unset or empty.
 
 The bridge needs Node.js 24 or later. It keeps each session's key under `~/.config/agention/`, and
 you approve a new key with the code the agent relays to you.

@@ -34,9 +34,10 @@ index of those docs.
 - Load-bearing dependencies and optional integrations: ADR 0001 "Repository and supply chain", and
   `docs/architecture.md` "API contract" and "Web UI"; optional: Tailscale, one documented way to
   publish the server (`docs/operator-guide.md` "Publishing it with `tailscale serve`", ADR 0001
-  "Transport independence"), Agentworks, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only
-  default the session's names (`docs/operator-guide.md` "Agents"), a transcription provider for
-  voice, off until the operator chooses one, reached through the OpenAI-compatible API
+  "Transport independence"), an execution platform such as Agentworks, whose `AGENTION_AGENT` and
+  `AGENTION_SESSION`, or Agentworks's own `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, only default
+  the session's names (`docs/operator-guide.md` "Agents"), a transcription provider for voice, off
+  until the operator chooses one, reached through the OpenAI-compatible API
   (`docs/operator-guide.md` "Voice", ADR 0002), and programs the operator runs that call the
   operator API with an API key they created (`docs/operator-guide.md` "API keys", ADR 0003)
 - Product shape, which selects the `project-review` conditional checks: long-lived managed entities
