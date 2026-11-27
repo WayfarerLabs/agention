@@ -2004,10 +2004,11 @@ which the files of `src/views/list/` implement.
   list's source of truth: opening a view follows a link to its list's address, a new history entry
   as any link to a list makes, and the head's button and the sheet work out which views are current,
   never storing it, by comparing the list on screen, as `listViewOf` reads it, with each view's,
-  part by part, a part taking several values compared as a set. The list loads the views as it loads
-  its threads, refreshing them alike, so its button can name the current views. `g v` opens the
-  sheet through the list while it is mounted, on its page and beside a thread, and otherwise goes to
-  the list first, the one a thread page returns to, which opens it as it mounts.
+  part by part, a part taking several values compared as a set, and pull requests and branches by
+  their keys, as the filter matches them. The list loads the views as it loads its threads,
+  refreshing them alike, so its button can name the current views. `g v` opens the sheet through the
+  list while it is mounted, on its page and beside a thread, and otherwise goes to the list first,
+  the one a thread page returns to, which opens it as it mounts.
 - **Selection and the bar.** The list selects threads to act on together (`selection.tsx`, whose
   header comment says what the selection holds and how long it lasts), and its body ends, while it
   has rows, in one bar (`ListBar.tsx`), whose element stays as its two states give way to each

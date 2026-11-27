@@ -1,6 +1,9 @@
 import {
+  parseBranch,
+  parsePullRequest,
   type SavedView,
   type SavedViewList,
+  shortFormKey,
   type ThreadsView,
   threadsView,
 } from "@wayfarerlabs/agention-api";
@@ -25,10 +28,20 @@ function sameValue(one: unknown, other: unknown): boolean {
   return one === other;
 }
 
+// keyed gives a view whose pull requests and branches are the keys of the
+// entries they name, so each compares by its entry, as the filter matches
+// them: the repository ignoring case, the rest exactly.
+const keyed = (view: ThreadsView): ThreadsView => ({
+  ...view,
+  pull_request: view.pull_request?.map((text) => shortFormKey(text, parsePullRequest)),
+  branch: view.branch?.map((text) => shortFormKey(text, parseBranch)),
+});
+
 // sameList says whether two lists are the same list: every part alike.
 function sameList(one: ThreadsView, other: ThreadsView): boolean {
+  const [these, those] = [keyed(one), keyed(other)];
   return (Object.keys(threadsView.shape) as (keyof ThreadsView)[]).every((part) =>
-    sameValue(one[part], other[part]),
+    sameValue(these[part], those[part]),
   );
 }
 
