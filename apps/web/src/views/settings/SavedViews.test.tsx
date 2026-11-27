@@ -1,7 +1,7 @@
 import { type SavedView, threadsView } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FakeApi, failure, renderAt } from "../../test-support.tsx";
+import { FakeApi, failure, noNotifications, renderAt } from "../../test-support.tsx";
 
 let api: FakeApi;
 
@@ -137,5 +137,46 @@ describe("Settings' saved views", () => {
       expect(screen.queryByRole("article", { name: "Saved view Blocking me" })).toBeNull(),
     );
     expect(row("Overdue")).toBeTruthy();
+  });
+
+  it("turns a view's notifying on and off with its Notify switch", async () => {
+    const notifying = { ids: [] as number[] };
+    api.on("GET", "/notifications", () => ({
+      body: { ...noNotifications, notifying: notifying.ids },
+    }));
+    api.on("POST", "/notifications/views", () => {
+      notifying.ids = [1];
+      return { body: {} };
+    });
+    api.on("POST", "/notifications/views/1/remove", () => {
+      notifying.ids = [];
+      return { body: {} };
+    });
+    await open();
+    const notify = () => within(row("Blocking me")).getByRole("checkbox", { name: "Notify" });
+    await waitFor(() => expect((notify() as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(notify());
+    await waitFor(() => expect((notify() as HTMLInputElement).checked).toBe(true));
+    expect(posted("/notifications/views")).toEqual([{ view: 1 }]);
+    fireEvent.click(notify());
+    await waitFor(() => expect((notify() as HTMLInputElement).checked).toBe(false));
+    expect(posted("/notifications/views/1/remove")).toEqual([undefined]);
+  });
+
+  it("keeps Notify off for a view with a filter on that cannot notify, saying which", async () => {
+    await open();
+    const notify = within(row("Overdue")).getByRole("checkbox", {
+      name: "Notify",
+    }) as HTMLInputElement;
+    expect(notify.disabled).toBe(true);
+    expect(notify.checked).toBe(false);
+    const reason = document.getElementById(notify.getAttribute("aria-describedby") ?? "");
+    expect(reason?.textContent).toMatch(/Overdue/);
+  });
+
+  it("says when which views notify cannot be read", async () => {
+    api.on("GET", "/notifications", { status: 502, text: "bad gateway" });
+    await open();
+    await screen.findByRole("alert");
   });
 });

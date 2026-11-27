@@ -4,7 +4,9 @@ import { ErrorBoundary, PageFailed } from "./boundary.tsx";
 import { Failure, focusLanding, PageHeading } from "./components.tsx";
 import { plural, Spoken } from "./format.tsx";
 import { KeyboardProvider } from "./keyboard.tsx";
-import { Link, matchRoute, navigate, type Route, safeReturnPath, useLocation } from "./router.tsx";
+import { refreshDevice } from "./push/subscription.ts";
+import { Link, navigate, safeReturnPath, useLocation } from "./router.tsx";
+import { matchRoute, type Route } from "./routes.ts";
 import { serverName } from "./server-name.ts";
 import { SessionProvider, useSession } from "./session.tsx";
 import { LinkPage } from "./views/LinkPage.tsx";
@@ -62,6 +64,17 @@ function Shell() {
       navigate(redirect, { replace: true });
     }
   }, [redirect]);
+
+  // While this device's notifications are on, its subscription is refreshed
+  // with the server once signed in, as the page starts and after each in-app
+  // sign-in, each of which brings a new CSRF token. A refresh that fails is
+  // tried again at the next.
+  const { csrf } = session;
+  useEffect(() => {
+    if (csrf !== undefined) {
+      refreshDevice(csrf).catch(() => undefined);
+    }
+  }, [csrf]);
 
   if (session.status.status === "unreachable") {
     return (

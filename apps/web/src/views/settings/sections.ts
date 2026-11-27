@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { ApiKeysSection } from "./ApiKeys.tsx";
 import { GroupsAndTagsSection } from "./GroupsAndTags.tsx";
 import { KeyboardSection } from "./Keyboard.tsx";
+import { NotificationsSection } from "./Notifications.tsx";
 import { PasskeysSection } from "./Passkeys.tsx";
 import { SavedViewsSection } from "./SavedViews.tsx";
 import { SignOutSection } from "./SignOut.tsx";
@@ -48,6 +49,12 @@ export const settingsSections: readonly SettingsSection[] = [
     component: GroupsAndTagsSection,
   },
   { slug: "saved-views", title: "Saved views", group: "Features", component: SavedViewsSection },
+  {
+    slug: "notifications",
+    title: "Notifications",
+    group: "Features",
+    component: NotificationsSection,
+  },
   { slug: "voice", title: "Voice", group: "Features", component: VoiceSection },
   { slug: "storage", title: "Storage", group: "Features", component: StorageSection },
   { slug: "keyboard", title: "Keyboard", group: "Features", component: KeyboardSection },

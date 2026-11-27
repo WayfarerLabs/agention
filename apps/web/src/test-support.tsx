@@ -6,6 +6,7 @@ import {
   type ErrorCode,
   type GroupsAndTags,
   type Message,
+  type NotificationsState,
   type Registration,
   type SessionState,
   type SessionSummary,
@@ -79,6 +80,16 @@ export const noAttention: AttentionCounts = { unread_threads: 0, pending_registr
 
 export const noGroupsOrTags: GroupsAndTags = { groups: [], tags: [], truncated: false };
 
+// No device receives notifications and no view notifies, with a recent
+// sign-in. The public key is the base64url of three bytes, 4, 0 and 0.
+// cspell:ignore BAAA
+export const noNotifications: NotificationsState = {
+  public_key: "BAAA",
+  recent: true,
+  devices: [],
+  notifying: [],
+};
+
 // The settings of a server without voice or files.
 export const noSettings: SettingsResult = { voice: null, storage: { count: 0, bytes: 0 } };
 
@@ -106,8 +117,8 @@ export class FakeApi {
   readonly #routes = new Map<string, Handler>();
 
   // Signed in, with an empty thread list, no sessions, nothing waiting on
-  // the operator, and no groups, tags or saved views, unless a test registers
-  // other answers.
+  // the operator, no groups, tags or saved views, and no device or view that
+  // notifies, unless a test registers other answers.
   constructor() {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
@@ -117,6 +128,7 @@ export class FakeApi {
     this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
     this.on("GET", "/saved-views", { body: { views: [] } });
     this.on("GET", "/settings", { body: noSettings });
+    this.on("GET", "/notifications", { body: noNotifications });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),
     );

@@ -1,11 +1,8 @@
 import { z } from "zod";
+import { nameBody, namePattern } from "./name-pattern.ts";
 
-// Agent, session and topic names: 1 to 63 lowercase ASCII letters, digits,
-// hyphens and underscores, starting with a letter or digit. Names appear
-// unescaped in URL paths and directory names, so the grammar admits nothing
-// that needs escaping in either.
-const nameBody = "[a-z0-9][a-z0-9_-]{0,62}";
-export const namePattern = new RegExp(`^${nameBody}$`);
+// The name grammar lives in its own module, which imports nothing.
+export { namePattern };
 
 // A session as the operator's list names it: its agent's name and its own,
 // as agent/session.

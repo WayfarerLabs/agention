@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && node build-frame.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
+    "build": "vite build && node build-frame.ts && node build-service-worker.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e && tsc --noEmit -p src/service-worker",
     "test": "vitest run",
     "test:browser": "playwright test"
   },

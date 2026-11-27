@@ -4,11 +4,11 @@ import {
   currentListView,
   listHref,
   listViewOf,
-  matchRoute,
   showList,
   useListView,
   useLocation,
 } from "../router.tsx";
+import { matchRoute } from "../routes.ts";
 import { Panes, useSideBySide } from "./side-by-side.tsx";
 import { ThreadList } from "./ThreadList.tsx";
 import { ThreadView } from "./thread/ThreadView.tsx";

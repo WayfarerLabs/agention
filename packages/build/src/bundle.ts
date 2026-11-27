@@ -58,7 +58,9 @@ export async function bundle(
 // includes all of its code, every dynamic import inlined, so it loads as one
 // file wherever it runs, a frame whose origin is opaque included. The script
 // is written into dir as assets/<name>-<hash>.js, named for its content, so
-// it can be cached for good. It returns that path, relative to dir, and the
+// it can be cached for good, or, with fixedName, as <name>.js at dir's root,
+// for a script whose address must stay the same across releases, as a
+// service worker's does. It returns that path, relative to dir, and the
 // license notices of every npm package the script includes, counting those an
 // included package inlined in its own build, for the package that ships it.
 // The script opens with a comment that says where those notices ship, given
@@ -69,11 +71,12 @@ export async function bundleScript(
   dir: string,
   name: string,
   noticesAt: string,
+  { fixedName = false }: { fixedName?: boolean } = {},
 ): Promise<{ file: string; packages: PackageNotice[] }> {
   const options = {
     entryPoints: [entry],
     outdir: dir,
-    entryNames: `assets/${name}-[hash]`,
+    entryNames: fixedName ? name : `assets/${name}-[hash]`,
     bundle: true,
     platform: "browser",
     format: "iife",

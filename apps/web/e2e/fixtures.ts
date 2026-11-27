@@ -3,7 +3,7 @@
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
 // and so do servers of the diagram, voice, API key, attachment, selection,
-// session link, and saved views tests' own.
+// session link, saved views, and notifications tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -53,6 +53,9 @@ export const selectionServerName = "Selection";
 export const sessionLinksServerName = "Session links";
 // The name of the server the saved views tests start for themselves.
 export const savedViewsServerName = "Saved views";
+// The name of the server the notifications tests start for themselves, which
+// also serves the API's documentation.
+export const notificationsServerName = "Notifications";
 
 // The name of the server the README's screenshots are taken of.
 export const screenshotsServerName = "Agention";
@@ -106,6 +109,7 @@ function freePort(): Promise<number> {
 async function startServer(
   name: string,
   certificate: HostCertificate,
+  extraArgs: readonly string[] = [],
 ): Promise<{ agention: Agention; stop(): Promise<void> }> {
   if (!existsSync(serverBundle)) {
     throw new Error("the server is not built; run npm run -w apps/server build first");
@@ -137,6 +141,7 @@ async function startServer(
       keyFile,
       "--name",
       name,
+      ...extraArgs,
     ],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
@@ -191,15 +196,15 @@ async function startServer(
   return { agention, stop };
 }
 
-// serving starts a server under a name for a worker's tests, and stops it
-// after them.
+// serving starts a server under a name, with any other arguments of agention
+// serve, for a worker's tests, and stops it after them.
 const serving =
-  (name: string) =>
+  (name: string, extraArgs: readonly string[] = []) =>
   async (
     { certificate }: { certificate: HostCertificate },
     use: (agention: Agention) => Promise<void>,
   ) => {
-    const { agention, stop } = await startServer(name, certificate);
+    const { agention, stop } = await startServer(name, certificate, extraArgs);
     await use(agention);
     await stop();
   };
@@ -218,6 +223,7 @@ export const test = base.extend<
     selectionServer: Agention;
     sessionLinksServer: Agention;
     savedViewsServer: Agention;
+    notificationsServer: Agention;
     screenshotsServer: Agention;
   }
 >({
@@ -237,6 +243,7 @@ export const test = base.extend<
   selectionServer: [serving(selectionServerName), { scope: "worker" }],
   sessionLinksServer: [serving(sessionLinksServerName), { scope: "worker" }],
   savedViewsServer: [serving(savedViewsServerName), { scope: "worker" }],
+  notificationsServer: [serving(notificationsServerName, ["--api-docs"]), { scope: "worker" }],
   screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {

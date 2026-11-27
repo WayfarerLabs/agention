@@ -335,6 +335,22 @@ describe("bundleScript", () => {
     ]);
   });
 
+  it("names the script as given at the directory's root when its name is fixed", async () => {
+    const root = tempDir();
+    put(join(root, "src/main.ts"), 'console.log("worker");\n');
+
+    const { file } = await bundleScript(
+      join(root, "src/main.ts"),
+      join(root, "dist"),
+      "service-worker",
+      "x",
+      { fixedName: true },
+    );
+
+    expect(file).toBe("service-worker.js");
+    expect(existsSync(join(root, "dist", "service-worker.js"))).toBe(true);
+  });
+
   it("opens the script with a comment that keeps the supplied notices of the EPL packages it includes", async () => {
     const root = tempDir();
     const { name, version, lines } = noticedPackage();

@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  listHref,
-  listViewOf,
-  matchRoute,
-  registrationHref,
-  safeReturnPath,
-  sessionHref,
-} from "./router.tsx";
+import { listHref, listViewOf, registrationHref, safeReturnPath, sessionHref } from "./router.tsx";
+import { matchRoute } from "./routes.ts";
 
 // roundTrip reads the list an address names and writes its address again.
 const roundTrip = (address: string) =>
