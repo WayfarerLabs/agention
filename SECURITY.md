@@ -68,16 +68,16 @@ the server's part of them on every request, and the web UI renders content inert
   knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict security
   level. Where a browser runs the frame on the page's own thread, a diagram that sends Mermaid into
   a busy loop can still freeze the page; the size cap and Mermaid's own limits are the defense
-  there. The content security policy lets the web UI load only its own scripts, styles, images and
-  media, and the `blob:` images it makes from the frame's answers, and frame only the diagram frame,
-  as a second line. No text can break the web UI: a field that fails to render shows as its text,
-  and text nested too deeply shows as text without being parsed. Text can still slow it: some
-  Markdown parses in more than linear time, milliseconds for a message's text, which holds at most
-  1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A thread page
-  renders the text of up to 50 messages at a time and parses a detail once each time it is opened,
-  not as the page refreshes, so a deliberately hostile detail can stall one thread's page for that
-  long each time it is opened. The lists render no Markdown, so the operator can still reach the
-  sessions view and revoke the session's credential.
+  there. The content security policy lets the web UI load only its own scripts, styles, images,
+  media, web app manifest, and workers, and the `blob:` images it makes from the frame's answers,
+  and frame only the diagram frame, as a second line. No text can break the web UI: a field that
+  fails to render shows as its text, and text nested too deeply shows as text without being parsed.
+  Text can still slow it: some Markdown parses in more than linear time, milliseconds for a
+  message's text, which holds at most 1,000 characters, but up to about 2.5 seconds for a detail at
+  its bound of 20,000. A thread page renders the text of up to 50 messages at a time and parses a
+  detail once each time it is opened, not as the page refreshes, so a deliberately hostile detail
+  can stall one thread's page for that long each time it is opened. The lists render no Markdown, so
+  the operator can still reach the sessions view and revoke the session's credential.
 - **No network identity.** No authentication decision or rate limit depends on source address,
   forwarded headers or network identity, so Agention does not rely on its network path for security.
   The server answers only for its configured origin's host, and plain HTTP is refused on a

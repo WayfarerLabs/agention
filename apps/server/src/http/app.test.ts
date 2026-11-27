@@ -221,6 +221,22 @@ describe("the web UI", () => {
     }
   });
 
+  it("serves the web app manifest with its type, named for the server, on any case of its path", async () => {
+    const manifest = { id: "/", name: "Agention", short_name: "Agention", display: "standalone" };
+    writeFileSync(path.join(dir, "manifest.webmanifest"), JSON.stringify(manifest));
+    writeFileSync(path.join(dir, "MANIFEST.WEBMANIFEST"), JSON.stringify(manifest));
+    harness.close();
+    const name = `Work <&"'> & co`;
+    harness = new Harness({ webRoot: dir, name });
+    for (const target of ["/manifest.webmanifest", "/MANIFEST.WEBMANIFEST"]) {
+      const response = await harness.request("GET", target);
+      expect([target, response.status]).toEqual([target, 200]);
+      expect(response.headers.get("content-type")).toBe("application/manifest+json");
+      expect(response.headers.get("content-security-policy")).toBe(contentSecurityPolicy(origin));
+      expect(response.body).toEqual({ ...manifest, name, short_name: name });
+    }
+  });
+
   it("finds each slot for the name exactly once in the web UI's source page", () => {
     const source = readFileSync(
       fileURLToPath(new URL("../../../web/index.html", import.meta.url)),
@@ -377,6 +393,8 @@ describe("the diagram frame", () => {
     expect(policy.get("frame-src")).toEqual([`${origin}/diagram-frame`]);
     expect(policy.get("img-src")).toEqual(["'self'", "blob:"]);
     expect(policy.get("media-src")).toEqual(["'self'"]);
+    expect(policy.get("manifest-src")).toEqual(["'self'"]);
+    expect(policy.get("worker-src")).toEqual(["'self'"]);
     expect(policy.get("frame-ancestors")).toEqual(["'none'"]);
   });
 

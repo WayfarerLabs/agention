@@ -1045,9 +1045,10 @@ Every request's `Host` must be the origin's host, so a page on another name that
 server cannot reach it, and no forwarded header is read.
 
 Every response carries the security headers: a content security policy that allows only the server's
-own scripts, styles, images, media and connections, `blob:` images and the diagram frame as its only
-frame, and no framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and
-`no-store`.
+own scripts, styles, images, media, web app manifest, workers, and connections, `blob:` images and
+the diagram frame as its only frame, and no framing of its own pages, HSTS, `nosniff`, `DENY`
+framing, no referrer, and `no-store`. `worker-src 'self'` states what `script-src 'self'` already
+implies for workers, so a later change to scripts cannot widen them.
 
 The security headers middleware sets every one of them after the route has run, replacing what the
 route set, except those the route declared its own for its response with `ownHeaders`
@@ -1113,6 +1114,16 @@ beside it when the browser accepts Brotli, as browsers do over HTTPS, and otherw
 `Vary: Accept-Encoding`. The index page, like every file outside `assets/`, is neither cached nor
 encoded. The server compresses nothing as it runs, so the sizes of compressed answers tell nothing
 about private content.
+
+The index page links the web app manifest, `/manifest.webmanifest`, which makes the UI installable
+as an app: on a phone's home screen or a desktop's, opening `standalone` at `/`, scoped to the whole
+origin, with the app icons in `/icons/`. The server prepares it once, as it starts, from the build's
+file, with its own name as the manifest's `name` and `short_name`, so two servers installed on one
+device are told apart as their pages are, and serves it as `application/manifest+json`. Chromium
+installs it from its menu without a service worker (Chrome 108 on Android, 112 on desktops);
+Chrome's own install prompt, which the operator guide's install steps do not rely on, still needs a
+service worker with a `fetch` handler
+([Revisiting Chrome's installability criteria](https://developer.chrome.com/blog/update-install-criteria)).
 
 ### The diagram frame
 
@@ -1908,6 +1919,7 @@ that file does and why.
 | `src/icons.tsx`      | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `public/`            | The files the build copies as they are: the favicon, the web app manifest, and the app icons in `public/icons/`, which `generate-icons.ts` draws from the favicon and `icons/maskable.svg` ([CONTRIBUTING.md](../CONTRIBUTING.md#app-icons))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page
 ([The web UI's files](#the-web-uis-files)), in `src/server-name.ts`, and shows it as the banner's

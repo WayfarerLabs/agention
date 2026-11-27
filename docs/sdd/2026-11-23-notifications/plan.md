@@ -5,7 +5,7 @@
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md)
 - The operator accepted the FRD on 2026-11-25, its open choices as recommended. Building starts once
   the operator accepts the requirements revised so a rule can follow a saved view, recorded as an
-  FRD ruling (FRD ruling 7; the last two items under Design).
+  FRD ruling (FRD ruling 7; the last two items under Design). PR 1 goes ahead of it (FRD ruling 8).
 
 ## Design
 
@@ -28,16 +28,23 @@
 
 ## PR 1: installable web UI
 
-- [ ] Web app manifest (name, icons in the sizes Android and desktop install need,
-      `display: standalone`, start URL and scope `/`), served with the right content type.
-- [ ] Content security policy adds `manifest-src 'self'` and states `worker-src 'self'`; the policy
-      test updated.
-- [ ] If Chromium's install check needs a service worker, this PR folds into PR 2 instead.
-- [ ] Operator guide: adding Agention to a phone's home screen and to a desktop.
-- [ ] Architecture document: the manifest and the content security policy's additions.
+- [x] Web app manifest (name, icons in the sizes Android and desktop install need,
+      `display: standalone`, start URL and scope `/`), served with the right content type
+      (agention#193).
+- [x] Content security policy adds `manifest-src 'self'` and states `worker-src 'self'`; the policy
+      test updated (agention#193).
+- [x] If Chromium's install check needs a service worker, this PR folds into PR 2 instead. It does
+      not: Chrome installs from its menu without one, since 108 on Android and 112 on desktops
+      (`docs/architecture.md` "The web UI's files"; agention#193).
+- [x] Operator guide: adding Agention to a phone's home screen and to a desktop (agention#193).
+- [x] Architecture document: the manifest and the content security policy's additions
+      (agention#193).
 
-**Done when:** Chromium's installability check passes in the browser tests; the operator adds
-Agention to their Android phone's home screen and it opens standalone; gates and CI pass.
+**Done when:** the browser tests show Chromium parses the manifest with the server's name,
+standalone display, the root as id, start URL, and scope, and 192 and 512 icons for any use that
+decode at their declared sizes (the headless shell's installability report answers no errors even
+for a page with no manifest, so it cannot stand as the check); the operator adds Agention to their
+Android phone's home screen and it opens standalone; gates and CI pass.
 
 ## PR 2: notifications
 
