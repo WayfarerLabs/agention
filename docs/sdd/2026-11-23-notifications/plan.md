@@ -5,7 +5,7 @@
 - Requirements: [FRD](frd.md); architecture: [HLA](hla.md)
 - The operator accepted the FRD on 2026-11-25, its open choices as recommended. Building starts once
   the operator accepts the requirements revised so a rule can follow a saved view, recorded as an
-  FRD ruling (FRD ruling 7; the last two items under Design).
+  FRD ruling (FRD ruling 7; the last two items under Design). PR 1 goes ahead of it (FRD ruling 8).
 
 ## Design
 

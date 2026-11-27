@@ -4,7 +4,8 @@
   [Operator rulings](#operator-rulings-2026-11-23-onward). Ruling 7 accepts that a rule can follow a
   saved view. The requirements this touches (R1, R3, E2, the out-of-scope line on sort and grouping,
   and Why this exists) are to be revised, and nothing is built until the operator accepts the
-  revision, recorded as a ruling. One question on it is open for the operator (see
+  revision, recorded as a ruling, except the installable web UI, which ruling 8 releases ahead of
+  it. One question on it is open for the operator (see
   [Open question](#open-question-for-the-operator)).
 - Date: 2026-11-23
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
@@ -173,6 +174,12 @@ answer its own thread too." The operator picked "Saved views (#170)", "Notificat
    E2, the out-of-scope line saying only filters define a rule (saved views carry order and grouping
    too), and Why this exists. Building starts once the operator accepts those revised requirements,
    recorded here as a ruling.
+8. The installable web UI ahead of the revision: answered in Agention on 2026-11-27 (thread 19,
+   message 13, 2026-11-27T18:14Z), to the question in message 12: "May the installable web UI
+   (notifications PR 1) go ahead as its own PR before you accept the reshape?" The operator picked
+   "Go ahead (Recommended)" ("It's unaffected by the reshape; I record your release as a ruling and
+   open it stacked on #96."). So the plan's PR 1 is built and merged on its own, ahead of the
+   revision ruling 7 calls for.
 
 ## Open question for the operator
 
