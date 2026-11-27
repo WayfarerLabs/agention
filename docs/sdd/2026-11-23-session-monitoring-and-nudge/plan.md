@@ -110,6 +110,12 @@
       observer's, bridge's, store's, HTTP and web tests show each outcome and reason, a screen
       change while the warning stands defers rather than fails, and nudge text left at the prompt
       holds the nudge off until cleared.
+- [ ] A check-in is stamped whenever it is older than the latest message someone else wrote in
+      the session's threads, and a claim whose outcome never came reads as under way, settling as
+      deferred when another bridge comes to act, or as failed if one already was since the last
+      check-in (HLA "The nudge"). Done when the store's, HTTP and web tests show a call just after
+      a message counting as a check-in since it, an under-way claim shown and never read as sent,
+      and both settlements.
 - [ ] Permanent docs name Agentworks as the first execution platform, never an assumption (CF3,
       ruling 9). Done when the project review finds none that assumes it.
 - [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
