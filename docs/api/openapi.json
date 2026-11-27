@@ -7868,7 +7868,7 @@
       "apiKey": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An API key the operator created in Agention's Settings, as Authorization: Bearer with the secret Settings showed once. A request carrying a cookie is refused. The scope an operation lists is the one it requires; a write scope includes its resource's read, and sessions:approve includes sessions:read."
+        "description": "An API key the operator created in Agention's Settings, as Authorization: Bearer with the secret Settings showed once. A request carrying a cookie is refused. The scope an operation lists is the one it requires. What each scope grants: threads:read: Read the thread list and its counts, any thread with its messages and files, and wait for new messages. threads:write: Also start threads, write in them, answer asks, upload files to attach and remove those not yet sent, and mark threads read, unread, or archived. Includes threads:read. sessions:read: Read the sessions view with its agents, groups, and tags, each session's log, and agents' registrations. sessions:write: Also mark a session's log read, and manage groups and tags, a tag's rename reaching the saved views that name it. Includes sessions:read. sessions:approve: Also approve, reject, and revoke agents' registrations, and, with sessions:write too, set the group and tags of a session it approves: whoever holds the key can let any agent it chooses in. Includes sessions:read. saved-views:read: Read the saved views, each with its thread list. saved-views:write: Also save, rename, replace, and remove saved views. Includes saved-views:read."
       },
       "agentToken": {
         "type": "http",

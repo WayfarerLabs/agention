@@ -6,6 +6,7 @@ import {
   holdsScope,
   maxApiKeyLifetimeDays,
   type Scope,
+  scopeDescription,
   scopes,
 } from "@wayfarerlabs/agention-api";
 import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
@@ -19,25 +20,6 @@ import { needingRecent } from "./RecentSignIn.tsx";
 // scope that another chosen scope includes, as threads:write includes
 // threads:read, shows as chosen with it and is not sent, since the key holds
 // it through the other. Choosing no expiry shows a warning.
-
-// What each scope lets the key's holder do, beside what it includes, which
-// the form says from the shared scope rules.
-const grants: Record<Scope, string> = {
-  "threads:read": "Read the thread list and its counts, and any thread with its messages.",
-  "threads:write":
-    "Also start threads, write in them, answer asks, and mark threads read, unread or archived.",
-  "sessions:read":
-    "Read the sessions view with its agents, groups and tags, each session's log, and agents' registrations.",
-  "sessions:write": "Also mark a session's log read, and manage groups and tags.",
-  "sessions:approve":
-    "Also approve, reject and revoke agents' registrations: whoever holds the key can let an agent into your sessions.",
-  "saved-views:read": "Read your saved views, each with its thread list.",
-  "saved-views:write": "Also save, rename, replace and remove saved views.",
-};
-
-// The scopes a scope includes besides itself.
-const includes = (scope: Scope) =>
-  scopes.filter((other) => other !== scope && holdsScope([scope], other));
 
 // The expiry choices: a number of days, a date, or none.
 type ExpiryChoice = `${(typeof apiKeyDays)[number]}` | "date" | "none";
@@ -207,7 +189,6 @@ export function ApiKeyForm({
         <ul className="choices">
           {scopes.map((scope) => {
             const by = includedBy(scope);
-            const also = includes(scope);
             return (
               <li key={scope}>
                 <label>
@@ -225,8 +206,7 @@ export function ApiKeyForm({
                       <code>{scope}</code>
                     </span>
                     <span className="choice-description" id={`${id}-${scope}-grants`}>
-                      {grants[scope]}
-                      {also.length > 0 && <> Includes {also.join(", ")}.</>}
+                      {scopeDescription(scope)}
                       {by !== undefined && <> Included with {by}.</>}
                     </span>
                   </span>

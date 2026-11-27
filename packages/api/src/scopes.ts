@@ -4,31 +4,43 @@ import { z } from "zod";
 // resource adds scopes without changing these. A browser session holds every
 // scope, an agent's registration holds threads:write over its own session,
 // and an API key holds the scopes the operator chose for it.
-export const scope = z
-  .enum([
-    "threads:read",
-    "threads:write",
-    "sessions:read",
-    "sessions:write",
-    "sessions:approve",
-    "saved-views:read",
-    "saved-views:write",
-  ])
-  .describe(
-    "threads:read reads the thread list, its counts, and any thread with its messages and " +
-      "its files; threads:write also starts threads, writes in them, answers asks, uploads " +
-      "files to attach and removes those not yet sent, and marks threads read, unread and " +
-      "archived; sessions:read reads the sessions view, a session's log, groups and tags, and " +
-      "agents' registrations; " +
-      "sessions:write also marks a session's log read and manages groups and tags; " +
-      "sessions:approve also approves, rejects and revokes agents' registrations, and with " +
-      "sessions:write gives an approved session its group and tags; saved-views:read reads " +
-      "the saved views; saved-views:write also saves, renames, replaces and removes them",
-  );
+export const scope = z.enum([
+  "threads:read",
+  "threads:write",
+  "sessions:read",
+  "sessions:write",
+  "sessions:approve",
+  "saved-views:read",
+  "saved-views:write",
+]);
 export type Scope = z.infer<typeof scope>;
 
 // Every scope, in the enum's order.
 export const scopes: readonly Scope[] = scope.options;
+
+// What each scope lets its holder do, beside the scopes it includes: the one
+// place each grant is written, which the API key form shows and the API
+// reference lists with its API key scheme, through scopeDescription.
+const scopeGrants: Record<Scope, string> = {
+  "threads:read":
+    "Read the thread list and its counts, any thread with its messages and files, and wait " +
+    "for new messages.",
+  "threads:write":
+    "Also start threads, write in them, answer asks, upload files to attach and remove those " +
+    "not yet sent, and mark threads read, unread, or archived.",
+  "sessions:read":
+    "Read the sessions view with its agents, groups, and tags, each session's log, and " +
+    "agents' registrations.",
+  "sessions:write":
+    "Also mark a session's log read, and manage groups and tags, a tag's rename reaching the " +
+    "saved views that name it.",
+  "sessions:approve":
+    "Also approve, reject, and revoke agents' registrations, and, with sessions:write too, set " +
+    "the group and tags of a session it approves: whoever holds the key can let any agent it " +
+    "chooses in.",
+  "saved-views:read": "Read the saved views, each with its thread list.",
+  "saved-views:write": "Also save, rename, replace, and remove saved views.",
+};
 
 // The scopes each scope includes besides itself: a write includes its
 // resource's read, and approving registrations includes reading sessions,
@@ -43,6 +55,14 @@ const included: Record<Scope, readonly Scope[]> = {
   "saved-views:read": [],
   "saved-views:write": ["saved-views:read"],
 };
+
+// scopeDescription says what a scope grants, and the scopes it includes.
+export function scopeDescription(granting: Scope): string {
+  const includes = included[granting];
+  return includes.length === 0
+    ? scopeGrants[granting]
+    : `${scopeGrants[granting]} Includes ${includes.join(", ")}.`;
+}
 
 // holdsScope says whether the scopes held grant the one required, directly or
 // by inclusion.
