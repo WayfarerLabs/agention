@@ -1,4 +1,4 @@
-import type { NudgeOutcome } from "@wayfarerlabs/agention-harness-observer";
+import type { NudgeResult } from "@wayfarerlabs/agention-harness-observer";
 import {
   type ErrorCode,
   formatTimestamp,
@@ -452,7 +452,7 @@ export class Reporter {
   // off, as an attempt's outcome says, logging it, by the attempt's id alone,
   // when it starts, and sending the report again whenever it changes. Any
   // other outcome, or none once the tries end, clears it.
-  #noteTextLeft(outcome: NudgeOutcome | undefined, id?: string): void {
+  #noteTextLeft(outcome: NudgeResult | undefined, id?: string): void {
     const left = outcome?.outcome === "deferred" && outcome.nudgeTextLeft === true;
     if (left === (this.#textLeft !== undefined)) {
       return;

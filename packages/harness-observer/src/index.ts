@@ -3,7 +3,7 @@ export { genericStrict } from "./generic-profiles.ts";
 export {
   notReady,
   type NudgeOptions,
-  type NudgeOutcome,
+  type NudgeResult,
   type NudgeStep,
   type NudgeTexts,
 } from "./nudge.ts";

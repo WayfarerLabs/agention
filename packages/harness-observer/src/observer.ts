@@ -4,7 +4,7 @@ import {
   notReady,
   Nudge,
   type NudgeOptions,
-  type NudgeOutcome,
+  type NudgeResult,
   type NudgeTexts,
   refuseNudgeText,
 } from "./nudge.ts";
@@ -44,7 +44,7 @@ export interface Observer {
   // Error where the observer's profile does not know its harness's prompt
   // marker, since such a profile cannot tell a draft someone left at the
   // prompt from an empty one.
-  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeOutcome>;
+  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeResult>;
 }
 
 // The time source an observer samples by; tests pass one that needs no
@@ -144,7 +144,7 @@ export class PaneObserver implements Observer {
     }
   }
 
-  async nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeOutcome> {
+  async nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeResult> {
     refuseNudgeText(texts.warning);
     refuseNudgeText(texts.message);
     if (!this.#profile.knowsMarker) {

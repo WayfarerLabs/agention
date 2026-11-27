@@ -54,7 +54,7 @@ export interface NudgeOptions {
 // "warning" pasted the warning and waited; "cleared" removed it; "message"
 // pasted the message; and "submitted" confirmed it before Enter and saw
 // whether the harness took it after.
-export type NudgeOutcome =
+export type NudgeResult =
   | {
       readonly outcome: "deferred";
       readonly step: NudgeStep;
@@ -66,7 +66,7 @@ export type NudgeOutcome =
 export type NudgeStep = "not-ready" | "warning" | "cleared" | "message" | "submitted";
 
 // The outcome of a nudge that pasted nothing.
-export const notReady: NudgeOutcome = { outcome: "deferred", step: "not-ready" };
+export const notReady: NudgeResult = { outcome: "deferred", step: "not-ready" };
 
 // How long no client may have typed before a nudge starts.
 export const quietFor = 10_000;
@@ -109,7 +109,7 @@ interface Look {
 }
 
 // How a nudge ends before it is sent.
-type Unsent = Exclude<NudgeOutcome["outcome"], "sent">;
+type Unsent = Exclude<NudgeResult["outcome"], "sent">;
 
 // Ended stops a nudge before it is sent, with how it ended.
 class Ended extends Error {
@@ -151,7 +151,7 @@ export class Nudge {
     latest: LatestReading | undefined,
     texts: NudgeTexts,
     begin: () => Promise<boolean>,
-  ): Promise<NudgeOutcome> {
+  ): Promise<NudgeResult> {
     const { warning, message } = texts;
     let step: NudgeStep = "not-ready";
     try {

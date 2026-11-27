@@ -4,7 +4,7 @@ import {
   type Key,
   notReady,
   type NudgeOptions,
-  type NudgeOutcome,
+  type NudgeResult,
   type NudgeTexts,
   type Observation,
   type Observer,
@@ -100,7 +100,7 @@ export interface Monitor {
   // nudge has the observer nudge the agent with the texts given, while the
   // reports are being read and the session can be nudged; otherwise it puts
   // nothing in the pane, never asks options.begin, and answers not-ready.
-  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeOutcome>;
+  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeResult>;
 }
 
 export interface PaneMonitorOptions {
