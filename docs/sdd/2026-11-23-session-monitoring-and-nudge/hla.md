@@ -109,7 +109,7 @@ interface Observation {
 
 interface Observer {
   observations(signal: AbortSignal): AsyncIterable<Observation>; // yields on change
-  // Delivery 2 adds nudge({ warning, message }, { begin, signal }): Promise<NudgeOutcome>.
+  // Delivery 2 adds nudge({ warning, message }, { begin, signal }): Promise<NudgeResult>.
 }
 ```
 
@@ -428,9 +428,9 @@ every case.
 - **Claude Code's vim normal mode** looks the same on screen as the normal editor's prompt at an
   empty input, and there Backspace moves the cursor rather than deleting. Accepted: the clear step
   then finds the line not shortened and abandons at `cleared` (or at `warning`, where the cursor
-  sits on the text's last character) and reports not sent, so the warning stays in the input, where
-  the operator sees it and nothing submits it. Learning the mode another way waits until it proves
-  common.
+  sits on the text's last character) and reports failed, since its own text cannot be taken back, so
+  the warning stays in the input, where the operator sees it, nothing submits it, and it holds later
+  nudges off until someone clears it. Learning the mode another way waits until it proves common.
 - **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
   told from typed text only by the captured patterns, since captures carry no color; an unknown hint
   leaves the nudge not ready, which is safe. Reading text attributes waits until a hint is missed.
@@ -440,6 +440,12 @@ every case.
 - **Keys go to tmux's default target**, as reads do. Each key follows a reading that found one pane,
   and the platform's sessions hold one pane, as Agentworks's do, so only a pane created in the
   milliseconds between could receive it.
+- **A turn starting just as the message goes in** is caught only in part. Before the message is
+  pasted, the screen beside the input line must match the one the warning was typed into, and before
+  Enter the screen must stay as it was when the message showed. A turn that starts in between, after
+  the warning's erasure is confirmed and before the message shows, usually one reading and at most
+  two seconds, is not seen, since both harnesses change their hint rows once the line holds text.
+  Closing it needs each profile to name those rows; accepted until it proves to happen.
 - **A restarted bridge whose platform names no default session** starts reporting only at the
   agent's next tool call, since it learns its session's names then; until then the session shows
   disconnected.
