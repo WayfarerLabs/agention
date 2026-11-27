@@ -13,12 +13,15 @@ import type {
   SignInFinishInput,
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
+import type { NamedRef } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput, unauthenticated } from "../errors.ts";
-import type { Identity } from "../identity.ts";
+import { type Identity, identityForBrowserSession, type RequestOrigin } from "../identity.ts";
 import { everySession, findOperator, insertOperator, type Store } from "../store/index.ts";
 import {
   closeBrowserSession,
+  liveSessionsOf,
   type OpenedBrowserSession,
   openBrowserSession,
   requireRecentSignIn,
@@ -63,6 +66,16 @@ export interface Ceremony {
 export interface SignedIn {
   session: OpenedBrowserSession;
   operatorName: string;
+}
+
+// signedInAs builds the identity of a browser session a sign-in just opened,
+// inside its transaction, for the events it records.
+function signedInAs(db: Database, opened: OpenedBrowserSession, origin: RequestOrigin): Identity {
+  const identity = identityForBrowserSession(db, opened.hash, origin);
+  if (identity === undefined) {
+    throw new Error("a browser session just opened has no identity");
+  }
+  return identity;
 }
 
 // What a passkeys row's data column holds. The user handle is the WebAuthn
@@ -140,6 +153,7 @@ export async function finishSignIn(
   sealedChallenge: string | undefined,
   input: SignInFinishInput,
   previousSession: string | undefined,
+  origin: RequestOrigin,
 ): Promise<SignedIn> {
   const { db } = store;
   const challenge = openChallenge(db, store.clock(), "signin", sealedChallenge);
@@ -204,13 +218,18 @@ export async function finishSignIn(
     if (operator === undefined) {
       throw notVerified();
     }
-    return {
-      signedIn: {
-        session: openBrowserSession(db, stored.person_id, stored.id, now),
-        operatorName: operator.name,
+    const session = openBrowserSession(db, stored.person_id, stored.id, now);
+    const identity = signedInAs(db, session, origin);
+    recordAudit(store, now, { kind: "identity", identity }, "signIn", {
+      session: {
+        id: session.id,
+        passkeyId: stored.id,
+        createdAt: now,
+        expiresAt: session.expiresAt,
       },
-      closed,
-    };
+      endedSessions: closed === undefined ? [] : [closed],
+    });
+    return { signedIn: { session, operatorName: operator.name }, closed: closed !== undefined };
   });
   if (closed) {
     store.notifier.notify(everySession);
@@ -410,6 +429,7 @@ export async function finishLink(
   rp: RelyingParty,
   sealedChallenge: string | undefined,
   input: NewPasskeyInput,
+  origin: RequestOrigin,
 ): Promise<SignedIn> {
   const { db } = store;
   const challenge = openChallenge(db, store.clock(), "link", sealedChallenge);
@@ -434,26 +454,50 @@ export async function finishLink(
     }
     let operator = findOperator(db);
     const replaced = operator !== undefined;
+    let effects: { passkeys: NamedRef[]; keys: NamedRef[]; ended: string[] } | undefined;
     if (operator === undefined) {
       operator = insertOperator(db, operatorName, now);
     } else {
-      db.prepare("DELETE FROM passkeys WHERE person_id = ?").run(operator.personId);
+      const ended = liveSessionsOf(db, { personId: operator.personId }, now);
+      const passkeys = db
+        .prepare("DELETE FROM passkeys WHERE person_id = ? RETURNING id, name")
+        .all(operator.personId) as unknown as NamedRef[];
       // Recovery assumes the old passkeys' holder may be someone else, who
       // could have created keys, so every live key is revoked with them; a key
       // that already expired keeps its own end.
-      db.prepare(
-        `UPDATE api_keys SET revoked_at = ?
-         WHERE person_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`,
-      ).run(now, operator.personId, now);
+      const keys = db
+        .prepare(
+          `UPDATE api_keys SET revoked_at = ?
+           WHERE person_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+           RETURNING id, name`,
+        )
+        .all(now, operator.personId, now) as unknown as NamedRef[];
+      const byId = (a: NamedRef, b: NamedRef) => a.id - b.id;
+      effects = { passkeys: passkeys.sort(byId), keys: keys.sort(byId), ended };
     }
     const passkeyId = insertPasskey(db, operator.personId, passkey, name, now, now);
-    return {
-      signedIn: {
-        session: openBrowserSession(db, operator.personId, passkeyId, now),
-        operatorName: operator.name,
-      },
-      replaced,
-    };
+    const session = openBrowserSession(db, operator.personId, passkeyId, now);
+    // The link's events, in order: the sign-in, then what it replaced or
+    // created, then the passkey it added. They share the new session.
+    const actor = { kind: "identity", identity: signedInAs(db, session, origin) } as const;
+    recordAudit(store, now, actor, "usePasskeyLink", {
+      session: { id: session.id, passkeyId, createdAt: now, expiresAt: session.expiresAt },
+      endedSessions: effects?.ended ?? [],
+    });
+    if (effects === undefined) {
+      recordAudit(store, now, actor, "createOperator", {
+        operator: { id: operator.personId, name: operator.name },
+      });
+    } else {
+      for (const replacedPasskey of effects.passkeys) {
+        recordAudit(store, now, actor, "replacePasskey", { passkey: { ...replacedPasskey } });
+      }
+      for (const key of effects.keys) {
+        recordAudit(store, now, actor, "revokeApiKey", { key: { ...key } });
+      }
+    }
+    recordAudit(store, now, actor, "addPasskey", { passkey: { id: passkeyId, name } });
+    return { signedIn: { session, operatorName: operator.name }, replaced };
   });
   if (replaced) {
     store.notifier.notify(everySession);
@@ -515,6 +559,9 @@ export async function finishAdding(
     if (!markChallengeUsed(db, challenge, now)) {
       throw challengeGone();
     }
-    insertPasskey(db, session.personId, passkey, name, now, null);
+    const id = insertPasskey(db, session.personId, passkey, name, now, null);
+    recordAudit(store, now, { kind: "identity", identity }, "addPasskey", {
+      passkey: { id, name },
+    });
   });
 }

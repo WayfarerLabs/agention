@@ -12,6 +12,7 @@ import {
 import { anyMenuOpen, Sheet } from "./components.tsx";
 import { useDeviceChoice } from "./device.ts";
 import { Link, navigate, useLocation } from "./router.tsx";
+import { openSavedViews } from "./saved-views.ts";
 
 // Keyboard shortcuts: single keys, in the manner of mail and code-review
 // tools, that act only while focus is outside a text field, an open menu and
@@ -46,11 +47,22 @@ import { Link, navigate, useLocation } from "./router.tsx";
 // never acts on the thread while the operator is in the list. A key both
 // places bind, as both bind n and U, acts in the place whose area holds
 // focus, or, with focus in neither, in the later place in shortcutPlaces:
-// the thread.
+// the thread. The Sessions tab's rows and the session open beside them are
+// two places the same way: the rows' keys reach across, j and k moving
+// through the rows from the session's pane, though o acts only on a row
+// that holds focus, and the session's keys do not.
 
 // Where a shortcut acts: anywhere, on the thread list, on a thread's page,
-// or within the composer's text fields.
-const shortcutPlaces = ["Anywhere", "Thread list", "Thread", "Composer"] as const;
+// on the sessions' rows, on a session's page, or within the composer's text
+// fields.
+const shortcutPlaces = [
+  "Anywhere",
+  "Thread list",
+  "Thread",
+  "Session list",
+  "Session",
+  "Composer",
+] as const;
 export type ShortcutPlace = (typeof shortcutPlaces)[number];
 
 // Whether a place's keys act while focus is in another place's area.
@@ -58,6 +70,8 @@ const reachesAcross: Record<ShortcutPlace, boolean> = {
   Anywhere: true,
   "Thread list": true,
   Thread: false,
+  "Session list": true,
+  Session: false,
   Composer: false,
 };
 
@@ -81,6 +95,7 @@ export const shortcuts = {
   goThreads: { place: "Anywhere", keys: ["g t"], description: "Go to Threads" },
   goSessions: { place: "Anywhere", keys: ["g s"], description: "Go to Sessions" },
   goSettings: { place: "Anywhere", keys: ["g ,"], description: "Go to Settings" },
+  goSavedViews: { place: "Anywhere", keys: ["g v"], description: "Go to saved views" },
   nextThread: { place: "Thread list", keys: ["j"], description: "Move to the next thread" },
   previousThread: { place: "Thread list", keys: ["k"], description: "Move to the previous thread" },
   nextNeeding: {
@@ -156,6 +171,26 @@ export const shortcuts = {
     keys: ["1-9"],
     description:
       "Choose a suggested answer by its number, on the ask that has focus or else the first open ask",
+  },
+  nextSession: {
+    place: "Session list",
+    keys: ["j"],
+    description: "Move to the next session or registration waiting",
+  },
+  previousSession: {
+    place: "Session list",
+    keys: ["k"],
+    description: "Move to the previous session or registration waiting",
+  },
+  openSession: {
+    place: "Session list",
+    keys: ["o"],
+    description: "Open the session or registration",
+  },
+  backToSessions: {
+    place: "Session",
+    keys: ["u", "Escape"],
+    description: "Back to the sessions",
   },
   send: { place: "Composer", keys: ["Control+Enter", "Meta+Enter"], description: "Send" },
   leaveComposer: { place: "Composer", keys: ["Escape"], description: "Leave the composer" },
@@ -320,7 +355,7 @@ export function useKeyboard(): Pick<
 // useShortcuts gives a place's shortcuts their actions, all of them, while
 // the calling component, the place's view, is mounted. The actions may change
 // on every render; the latest given acts.
-export function useShortcuts<P extends "Thread list" | "Thread">(
+export function useShortcuts<P extends Exclude<ShortcutPlace, "Anywhere" | "Composer">>(
   _place: P,
   actions: PlaceActions<P>,
 ): void {
@@ -404,6 +439,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     goThreads: () => navigate("/"),
     goSessions: () => navigate("/sessions"),
     goSettings: () => navigate("/settings"),
+    goSavedViews: openSavedViews,
   });
 
   useEffect(() => {

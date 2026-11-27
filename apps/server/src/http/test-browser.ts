@@ -8,7 +8,7 @@ import path from "node:path";
 import { expect } from "vitest";
 import { type Answer, TestAuthenticator } from "../auth/test-authenticator.ts";
 import { openTestDatabase } from "../database/test-database.ts";
-import { createStore, type Store } from "../store/index.ts";
+import { createStore, type Store, storeName } from "../store/index.ts";
 import { start } from "../store/test-fixture.ts";
 import { createApp } from "./app.ts";
 import { defaultRates, type Rates } from "./rates.ts";
@@ -24,6 +24,7 @@ export class TestServer {
   constructor(origin = "https://agention.test", rates: Rates = defaultRates, name = "Agention") {
     this.origin = origin;
     this.store = createStore(this.db, { clock: () => this.now });
+    storeName(this.db, name);
     this.app = createApp({ store: this.store, origin, name, webRoot: undefined, rates });
   }
 
@@ -48,14 +49,21 @@ export const codeOf = (reply: Reply) =>
 
 export type Options = Record<string, unknown>;
 
+// What a browser talks to: a server's app, at its origin, such as a
+// TestServer or a Harness.
+export interface BrowsedServer {
+  readonly origin: string;
+  readonly app: Hono;
+}
+
 // TestBrowser keeps cookies and the CSRF token the way a browser on the
 // server's origin would.
 export class TestBrowser {
   readonly cookies = new Map<string, string>();
   csrf: string | undefined;
-  readonly #server: TestServer;
+  readonly #server: BrowsedServer;
 
-  constructor(server: TestServer) {
+  constructor(server: BrowsedServer) {
     this.#server = server;
   }
 

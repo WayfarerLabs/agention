@@ -66,6 +66,11 @@
   --touch-small: 24px;
   --icon-size: 1em;
   --content-width: 46rem;
+  /* How far a focus ring reaches past what it rings: its width and offset
+     (:focus-visible), and a pixel for rounding. What the keyboard brings
+     into view keeps this much clear of its scroller's edges and of a header
+     stuck above it. */
+  --ring-reach: 6px;
   /* The layers that lie over the page as it scrolls: the sticky headers of
      folds, and above them an open options menu. */
   --layer-sticky: 3;
@@ -356,13 +361,14 @@ main {
   max-width: 32rem;
 }
 
-/* The Threads tab side by side, as the view renders it at a desktop's width
-   (Threads.tsx), takes the window's whole width: the list's pane 30% of it,
-   from 20rem to 36rem, and the thread's the rest, list first. The thread
-   keeps the page's own scroll, so it never scrolls within a box; the list's
-   pane stays in view, sticky at the top once the banner scrolls away, and
-   scrolls on its own, its padding leaving room for the rows' focus rings,
-   which its edge would otherwise cut. */
+/* A tab side by side, as the Threads tab and the Sessions tab render at a
+   desktop's width (side-by-side.tsx), takes the window's whole width: the
+   list's pane 30% of it, from 20rem to 36rem, and the pane of what is open,
+   a thread or a session, the rest, list first. What is open keeps the
+   page's own scroll, so it never scrolls within a box; the list's pane stays
+   in view, sticky at the top once the banner scrolls away, and scrolls on
+   its own, its padding leaving room for the rows' focus rings, which its
+   edge would otherwise cut. */
 main:has(> .side-by-side) {
   max-width: none;
 }
@@ -378,13 +384,16 @@ main:has(> .side-by-side) {
   position: sticky;
   top: 0;
   /* Until the page scrolls the banner away, the pane starts below it, so
-     its height leaves that out, which Threads.tsx measures, and the bar at
-     its foot stays on the screen. */
+     its height leaves that out, which side-by-side.tsx measures, and the bar
+     at its foot stays on the screen. */
   max-height: calc(100dvh - var(--pane-top, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-2);
   margin: calc(-1 * var(--space-2));
+  /* A group's header sticks within that padding, so what scrolls into view
+     keeps clear of the padding too, as it keeps clear of the header. */
+  scroll-padding-top: var(--space-2);
 }
 
 /* Controls */
@@ -576,12 +585,15 @@ legend {
    their place. A control shows its words beside its icon only where the head
    has room for them, which it measures as its own container, so the list
    beside a thread, as narrow as a phone, keeps its icons alone: a pick list's
-   words, what it holds, from 28rem; every control's from 41rem, past the
-   widest that row gets by touch with every control set in the widest font
-   measured, DejaVu Sans, a common Linux system font (about 40.2rem; Arial
-   about 36.6rem). The browser tests hold the row to it in the system's own
-   font and in Arial. The row wraps rather than scroll sideways should a wider
-   font leave it no room. */
+   words, what it holds, from 28rem; every other control's from 44rem, past
+   the widest that row gets by touch with every control set in the widest
+   font measured, DejaVu Sans, a common Linux system font (about 43.7rem;
+   Arial about 39.8rem), which is the widest the head gets alone, in the
+   page's content, by touch. Saved views shows its icon alone: its words
+   would take that row to about 49.5rem, wider than the head ever is by
+   touch. The browser tests hold the row to it in the system's own font and
+   in Arial. The row wraps rather than scroll sideways should a wider font
+   leave it no room. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
@@ -623,7 +635,7 @@ legend {
   }
 }
 
-@container list-head (min-width: 41rem) {
+@container list-head (min-width: 44rem) {
   .control-label {
     display: inline;
   }
@@ -769,6 +781,27 @@ legend {
   gap: var(--space-2);
 }
 
+/* The narrowest phones keep the head's controls closer, and draw Filters'
+   count on its corner, as a set control's mark is, so the count takes no
+   room from the row and its six touch targets still share one row at 320
+   pixels with every control set. */
+@media (max-width: 22.5rem) {
+  .list-head,
+  .sort-control {
+    gap: var(--space-1);
+  }
+
+  .list-head .icon-control .badge {
+    position: absolute;
+    top: -0.375rem;
+    right: -0.375rem;
+    min-width: 1.125rem;
+    padding: 0 0.1875rem;
+    line-height: 1.125rem;
+    box-shadow: 0 0 0 2px var(--color-bg);
+  }
+}
+
 /* The search field in the row's place, beside the button closing it, with
    why the text cannot search beneath them, in a live region that takes no
    room while it is empty. */
@@ -855,21 +888,56 @@ legend {
   margin: 0 0 var(--space-3);
 }
 
-button.chip {
+button.chip,
+a.chip {
   min-width: var(--touch-small);
   min-height: 1.75rem;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0 var(--space-2);
-  border-color: var(--color-accent);
+  border: 1px solid var(--color-accent);
   border-radius: var(--radius-small);
   background: var(--color-accent-bg);
   color: var(--color-accent);
+}
+
+button.chip {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 var(--space-2);
   font-size: var(--text-tag);
   font-weight: 600;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A chip naming one session is split in two, joined as one chip: its button,
+   removing the filter, then a link to the session's page, set apart by a
+   line. */
+.chip-split {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chip-split > button.chip {
+  border-inline-end-width: 0;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.chip-split > a.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-1);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+/* The small link to a session's page, beside a name, sits on the text's
+   middle. */
+.session-page-link {
+  vertical-align: middle;
 }
 
 /* The filter sheet: a modal dialog rising from the bottom on a phone, and a
@@ -941,6 +1009,57 @@ button.chip {
     margin: auto;
     border-radius: var(--radius-large);
   }
+}
+
+/* A link a sheet's foot holds beside its buttons, such as Saved views'
+   Manage saved views. */
+.sheet-foot .sheet-link {
+  align-self: center;
+}
+
+/* The Saved views sheet: each view on a line of its own, its name after a
+   column that checks the current one, as a picker marks its choice, and
+   Replace with this list at the line's end where there is room, beneath it
+   otherwise, its question taking the whole line. */
+.saved-views {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.saved-views > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.saved-view-line {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--touch);
+}
+
+.saved-view-line a {
+  overflow-wrap: anywhere;
+}
+
+.saved-view-check {
+  display: inline-flex;
+  flex: none;
+  width: 1.25rem;
+  color: var(--color-accent);
+}
+
+.saved-views .confirm {
+  flex: 1 1 100%;
+  margin: var(--space-1) 0;
 }
 
 /* The keyboard shortcuts' overlay: each place's shortcuts, the keys beside
@@ -1136,8 +1255,11 @@ button.picker[aria-expanded="true"] .icon {
   list-style: none;
 }
 
+/* A row's card. Brought into view (ThreadRow.tsx), it keeps its focus
+   ring's reach clear of its scroller's edges. */
 .thread-row {
   margin-bottom: var(--space-3);
+  scroll-margin: var(--ring-reach);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
   background: var(--color-surface);
@@ -1248,6 +1370,20 @@ button.picker[aria-expanded="true"] .icon {
   outline-offset: -2px;
 }
 
+/* A row's link with focus from the keyboard rings the whole row, as a pick
+   list's control does: the link covers only part of the row, beside its
+   checkbox and above its pull request or branch. While focus is there, the
+   ring stands in for the current and selected rings, so this rule stays
+   after the current row's, which weighs the same. */
+.thread-row:has(> .thread-link:focus-visible) {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.thread-row > .thread-link:focus-visible {
+  outline: none;
+}
+
 @media (pointer: coarse) {
   .thread-link,
   .row-code-links a {
@@ -1274,13 +1410,13 @@ button.picker[aria-expanded="true"] .icon {
   margin: 0;
 }
 
-/* The bars at the foot of a pane (action-bar.tsx): the thread list's and the
-   thread page's. Each is a strip docked to the foot of the screen, or beside
-   a thread to the foot of the list's pane, floating over what scrolls
-   beneath it on the Send row's surface, and in the flow after the last of
-   what it acts on, so it never covers that once scrolled to. One pane at a
-   time it reaches the screen's edges and its foot; side by side it keeps to
-   its pane. */
+/* The bars at the foot of a pane (action-bar.tsx): the thread list's, the
+   thread page's and a session's. Each is a strip docked to the foot of the
+   screen, or, for the thread list's side by side, to the foot of its pane.
+   It floats over what scrolls beneath it, on the Send row's surface, and
+   stands in the flow after the last of what it acts on, so it never covers
+   that once scrolled to. One pane at a time it reaches the screen's edges
+   and its foot; side by side it keeps to its pane. */
 .action-bar {
   position: sticky;
   bottom: 0;
@@ -1575,6 +1711,15 @@ a > :is(.flag, .group-chip, .tag-chip) {
   background: var(--color-bg);
 }
 
+/* What the keyboard brings into view under an outer header, as a row a key
+   moves to (ThreadRow.tsx) or a control Tab reaches, keeps clear of the
+   header stuck above it: by the header's height, which Fold measures, and by
+   a focus ring's reach. A control a click focuses scrolls no further than
+   before. */
+.group > .fold-body :is(.thread-row, :focus-visible) {
+  scroll-margin-top: calc(var(--fold-head-height, 0px) + var(--ring-reach));
+}
+
 .group-head,
 .subgroup-head {
   /* The height a row of the bar takes in its flow, a touch's height less
@@ -1690,6 +1835,28 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   overflow-wrap: anywhere;
 }
 
+/* A session's header ends its label in the link to the session's page,
+   which keeps to the end of the label's first row however long a name wraps
+   the label beside it, so the link's target never covers the label's text;
+   nor does it reach back over the label's last letter, as the bar's links
+   reach into the space beside them. */
+.group-label:has(> a.session-page-link) {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* The label's own link wraps between the parts of where its threads are,
+   as the label does without the link beside it, before breaking a name. */
+.group-label:has(> a.session-page-link) > a:not(.session-page-link) {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.group-label > a.session-page-link {
+  flex: none;
+  margin-inline-start: 0;
+}
+
 .fold-end {
   margin-left: auto;
 }
@@ -1802,6 +1969,15 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   text-decoration: none;
 }
 
+/* The small link to the session's page sits close against the session's
+   name, so it reads as the session's own rather than as a step between the
+   parts, its target the 24-pixel minimum across, as a chip's is. */
+.thread-header .where a.session-page-link {
+  min-width: var(--touch-small);
+  margin-left: calc(var(--space-1) * -1);
+  padding: 0;
+}
+
 /* A part of the thread's path underlines its name, not its badge or the
    space after it. */
 .thread-header .where .path-name {
@@ -1898,10 +2074,11 @@ article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .
    focused from the keyboard, stops a little above the Send row and the
    thread's bar stuck at the foot of the screen, whose heights the composer
    and the bar measure as they change; above the Send row alone while the
-   bar rests. */
+   bar rests. A session's page has its bar alone, and keeps clear of that. */
 :root:has(article > .action-bar) {
   scroll-padding-bottom: calc(
-    var(--send-row-height, 0px) + var(--thread-bar-height, 0px) + var(--space-2)
+    var(--send-row-height, 0px) + var(--thread-bar-height, 0px) + var(--session-bar-height, 0px) +
+      var(--space-2)
   );
 }
 
@@ -2068,8 +2245,8 @@ button.detail-fold[aria-expanded="false"] > .icon {
   margin: 0;
 }
 
-/* An options button, and a message's Copy beside it: an icon alone, quiet
-   until hovered. */
+/* An options button, and a Copy, a message's beside it or a code block's:
+   an icon alone, quiet until hovered. */
 button.options-button,
 button.copy-button {
   display: inline-flex;
@@ -2588,7 +2765,7 @@ ul.staged li {
 
 /* The sessions view */
 
-/* An agent's sessions, a folded row each, in one card under its header. */
+/* An agent's sessions, a row each, in one card under its header. */
 .session-rows {
   margin: 0 0 var(--space-3);
   padding: 0;
@@ -2602,13 +2779,30 @@ ul.staged li {
   border-top: 1px solid var(--color-border);
 }
 
-/* A folded row: the session's name, title and percent on a line beside its
+/* A row's corners follow its card's, for what the row draws on its edge. */
+.session-row:first-child {
+  border-top-left-radius: var(--radius-large);
+  border-top-right-radius: var(--radius-large);
+}
+
+.session-row:last-child {
+  border-bottom-right-radius: var(--radius-large);
+  border-bottom-left-radius: var(--radius-large);
+}
+
+/* A row with a registration waiting for approval, ruled at its left edge in
+   the attention tone, as an open ask's card is. */
+.session-row.waiting {
+  box-shadow: inset 4px 0 0 var(--color-attention);
+}
+
+/* A row: the session's name, title and percent on a line beside its
    options, when it was last seen beneath, then what stands out about it,
-   wrapping where the width ends. The fold's button, its chevron, stretches
-   over all three, so a tap anywhere on them folds or unfolds the row, while
-   the links and the controls among them sit above it and take their own
-   taps. Names and titles are cut to fit, but for an unfolded row's title,
-   which wraps whole. */
+   wrapping where the width ends. The row's chevron, the link that opens its
+   session, stretches over all three, so a tap anywhere on them opens it,
+   while the other links and the controls among them sit above it and take
+   their own taps. Names and titles are cut to fit, but for the title of the
+   session open, which wraps whole. */
 .session-summary {
   position: relative;
   padding: 0 var(--space-1) var(--space-1) var(--space-3);
@@ -2620,7 +2814,7 @@ ul.staged li {
   gap: var(--space-1);
 }
 
-.session-head :is(h4, h5) {
+.session-head :is(h1, h3, h4, h5) {
   display: flex;
   flex: 1;
   align-items: center;
@@ -2633,11 +2827,11 @@ ul.staged li {
   font-weight: 400;
 }
 
-.unfolded .session-head :is(h4, h5) {
+.session-open .session-head h1 {
   align-items: baseline;
 }
 
-button.session-fold {
+.session-lead {
   display: flex;
   flex: none;
   align-items: center;
@@ -2649,19 +2843,27 @@ button.session-fold {
   color: var(--color-text);
 }
 
-button.session-fold::after {
+.session-lead::after {
   content: "";
   position: absolute;
   inset: 0;
 }
 
-button.session-fold[aria-expanded="false"] > .icon {
+/* The chevron points along the line, to where its link opens the session. */
+.session-lead > .icon {
   transform: rotate(-90deg);
 }
 
-.session-head a {
+.session-head a:not(.session-lead) {
   position: relative;
   z-index: 1;
+}
+
+/* The row of the session open beside the rows, side by side: ringed as the
+   row of the thread open beside the thread list is. */
+.session-row:has(.session-lead[aria-current="page"]) {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
 }
 
 /* The session's name links to its threads, reading as the name still until
@@ -2698,7 +2900,7 @@ a.session-name:hover {
   white-space: nowrap;
 }
 
-.unfolded .session-title {
+.session-open .session-title {
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -2758,11 +2960,40 @@ a.session-name:hover {
   margin: 0 var(--space-3) var(--space-3);
 }
 
-/* A row unfolded: its goal over a thin bar of how far it has come, its
-   credentials, then its log, set in under its name. */
+/* A session in its own pane, or alone at its address: what its row shows,
+   the registrations waiting for it, and its detail, under the page's
+   heading, with no chevron to stand clear of and no card around it, in a
+   column no wider than reads well. */
+.session-page {
+  max-width: var(--content-width);
+}
+
+.session-open .session-summary {
+  padding: 0;
+}
+
+.session-head h1 {
+  flex-wrap: wrap;
+  font-size: 1.1875rem;
+}
+
+.session-head h1 .session-name {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.session-open :is(.session-seen, .session-facts) {
+  padding-left: 0;
+}
+
+.session-open > :is(.confirm, .notice, .status) {
+  margin: var(--space-3) 0 0;
+}
+
+/* A session's detail: its goal over a thin bar of how far it has come, its
+   credentials, then its log. */
 .session-detail {
-  padding: 0 var(--space-3) var(--space-3)
-    calc(var(--space-3) + var(--icon-size) * 1.25 + var(--space-2));
+  padding: var(--space-3) 0;
   font-size: var(--text-small);
 }
 
@@ -2899,6 +3130,51 @@ button.older[aria-disabled="true"] {
   letter-spacing: 0.06em;
 }
 
+/* A registration waiting, on its own page: its code, the warning, what it
+   proposes, a term beside its words, then its approval, Approve and Reject
+   first among its actions. */
+.registration-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.registration-facts dt {
+  color: var(--color-muted);
+}
+
+.registration-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* What Approve grants, beside the button that shows the other choices. */
+.approve-as {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.approve-as p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* When a registration proposes a session the agent has, after the group
+   and tags: the warning of its history and the new session's name, which the
+   buttons in place of Approve grant one or the other of. */
+.decision {
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+.decision .actions button {
+  overflow-wrap: anywhere;
+}
+
 .registration-head {
   display: flex;
   flex-wrap: wrap;
@@ -2943,6 +3219,30 @@ button.older[aria-disabled="true"] {
 .markdown pre {
   white-space: pre;
   overflow-wrap: normal;
+}
+
+/* A code block with its copy button: the button has a column of its own at
+   the block's top right, so it never covers the code, and stays in place
+   while the code scrolls sideways beside it. The gap, as wide as the code's
+   own padding, keeps a clipped line clear of the icon. The block's
+   background spans both. */
+.code-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: start;
+  margin: 0 0 var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.code-block > pre {
+  margin: 0;
+  background: transparent;
+}
+
+.code-block > button.copy-button:hover {
+  background: var(--color-surface);
 }
 
 .markdown :not(pre) > code {

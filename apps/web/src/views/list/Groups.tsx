@@ -32,7 +32,8 @@ import {
   type ListShown,
   UnreadLink,
 } from "../filter-links.tsx";
-import type { ListedThread } from "./listing.ts";
+import { SessionPageLink } from "../session-page-link.tsx";
+import { type ListedThread, sessionOf } from "./listing.ts";
 import { ThreadRow } from "./ThreadRow.tsx";
 
 // The list grouped, folding the rows loaded inline under headers: by session
@@ -54,7 +55,10 @@ import { ThreadRow } from "./ThreadRow.tsx";
 // order and grouping kept: the label and the count to the group's threads,
 // the envelope to its unread, and, while no filter on open asks is on,
 // Blocked on you to its blocking and the priority to its asks at that
-// priority or higher. No topic, which no filter names, links nothing.
+// priority or higher. No topic, which no filter names, links nothing. A
+// session's header, and only a session's, also leads to the session's own
+// page; an agent has no page, and a topic's or a group's names no one
+// session.
 
 type SessionGroup = ThreadGroups["sessions"][number];
 
@@ -190,11 +194,14 @@ function under({ level, depth }: Placement): Placement {
 // GroupFold is a group under its header, named for what it heads, with the
 // group's roll-up, and a session's or an agent's presence, when the list
 // carries them. A header with a filter links its label to the group's
-// threads. A collapsed header hides everything under it.
+// threads. A header of one session follows its label with a link to the
+// session's page, beside the fold's button as the label is, never within
+// it. A collapsed header hides everything under it.
 function GroupFold({
   header,
   at,
   label,
+  session,
   rollup,
   presence,
   folds,
@@ -204,6 +211,8 @@ function GroupFold({
   header: string;
   at: Placement;
   label: Headed;
+  // The one session the header heads, if it heads one.
+  session?: { agent: string; session: string } | undefined;
   rollup: Rollup | undefined;
   presence?: Presence | undefined;
   folds: Folds;
@@ -220,9 +229,12 @@ function GroupFold({
         : {
             name: label.spoken,
             label: (
-              <FilterLink list={list} narrowing={narrowing} spoken={`Threads of ${label.spoken}`}>
-                {label.shown}
-              </FilterLink>
+              <>
+                <FilterLink list={list} narrowing={narrowing} spoken={`Threads of ${label.spoken}`}>
+                  {label.shown}
+                </FilterLink>
+                {session !== undefined && <SessionPageLink {...session} />}
+              </>
             ),
           })}
       marks={
@@ -335,6 +347,7 @@ export function GroupedRows({
               ],
               { session: [path] },
             )}
+            session={sessionOf(path)}
             rollup={session?.rollup}
             presence={session?.presence}
             folds={folds}
@@ -427,6 +440,7 @@ export function GroupedRows({
                 header={sessionHeader(path)}
                 at={inner}
                 label={located([["session", inSession[0]?.session ?? ""]], { session: [path] })}
+                session={sessionOf(path)}
                 rollup={heads.session(path)?.rollup}
                 presence={heads.session(path)?.presence}
                 folds={folds}

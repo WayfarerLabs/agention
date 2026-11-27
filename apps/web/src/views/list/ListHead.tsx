@@ -11,13 +11,17 @@ import { unfiltered } from "../../router.tsx";
 import { HeadButton, ReverseCheckbox } from "../list-head.tsx";
 import { SearchBox, type SearchText } from "./search.tsx";
 
-// The thread list's head: one row of icon controls, Search, Filters, the
-// order beside the checkbox reversing it, and the grouping, each marked while
-// it is set to anything but its default, Filters with how many filters are
-// on, and the checkbox by its own box. Search, whose name says the search on, opens the search field holding
-// it in place of the row, until it is closed, the one way to edit it; the
-// search applied shows beneath, with the other filters, as a chip that
-// removes it.
+// The thread list's head: one row of icon controls, Saved views, Search,
+// Filters, the order beside the checkbox reversing it, and the grouping, each
+// marked while it is set to anything but its default, Filters with how many
+// filters are on, and the checkbox by its own box. Saved views, whose name
+// says the views whose list is on screen, opens their sheet; it holds no
+// choice, so it carries no mark, and it shows its icon alone, since no width
+// the head reaches has room for its words beside every other control's with
+// every control set (styles.css, .list-head). Search, whose name says the search on, opens
+// the search field holding it in place of the row, until it is closed, the
+// one way to edit it; the search applied shows beneath, with the other
+// filters, as a chip that removes it.
 
 const sortLabel: Record<ThreadSort, string> = {
   priority: "Priority",
@@ -96,10 +100,19 @@ export function useHeadSearch(search: SearchText, applied: string | undefined): 
   return { open, show, close, button, box };
 }
 
+// The head's Saved views: its name, a hold on it, and what pressing it
+// does, opening the sheet.
+export interface HeadSavedViews {
+  name: string;
+  button: RefObject<HTMLButtonElement | null>;
+  open: () => void;
+}
+
 // ListHead is the thread list's head. Choosing another order takes it in its
 // own direction.
 export function ListHead({
   view,
+  saved,
   choose,
   search,
   field,
@@ -111,6 +124,7 @@ export function ListHead({
   grouping,
 }: {
   view: ThreadsView;
+  saved: HeadSavedViews;
   choose: (change: Partial<ThreadsView>) => void;
   search: SearchText;
   field: HeadSearch;
@@ -142,6 +156,13 @@ export function ListHead({
   }
   return (
     <div className="list-head">
+      <HeadButton
+        icon="bookmark"
+        name={saved.name}
+        button={saved.button}
+        popup="dialog"
+        onClick={saved.open}
+      />
       <HeadButton
         icon="search"
         shown="Search"

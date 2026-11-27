@@ -4,7 +4,9 @@
 // read, beside a thread too, and declining their asks before archiving them,
 // which the agent reads; on a phone, holding a row down to select it, a tap
 // selecting another in place of opening it, and the bar fitting the
-// screen as it archives them.
+// screen as it archives them; and the focus ring around a whole row, beside
+// its checkbox and its pull request, which j and k bring into view whole,
+// below the header a grouped list keeps at its top.
 import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
 import type { ThreadGetResult } from "@wayfarerlabs/agention-api";
 import type { Agent } from "./agent.ts";
@@ -32,6 +34,11 @@ async function startThread(request: string, title: string, asks: string[] = []) 
 
 test.beforeAll(async ({ browser, selectionServer }) => {
   ({ context, page, agent } = await signIn(browser, selectionServer));
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      problems.push(message.text());
+    }
+  });
   page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
   cdp = await context.newCDPSession(page);
   await startThread("select-1", "Notes");
@@ -351,6 +358,193 @@ test("side by side, each pane's bar keeps to its pane, the list's on the screen 
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(pane.y + pane.height - 1);
 });
 
-test("the pages ran without a page error", () => {
+// ringsRow says the one focus ring that the row or an element in it draws
+// outlines the row's card, as far beyond it on every side.
+async function ringsRow(row: Locator): Promise<void> {
+  const { rings, card } = await row.evaluate((shown) => {
+    const box = (element: Element) => element.getBoundingClientRect();
+    const rings = [shown, ...shown.querySelectorAll("*")].flatMap((element) => {
+      const style = getComputedStyle(element);
+      if (style.outlineStyle === "none" || parseFloat(style.outlineWidth) === 0) {
+        return [];
+      }
+      const out = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+      const { left, top, right, bottom } = box(element);
+      return [{ left: left - out, top: top - out, right: right + out, bottom: bottom + out }];
+    });
+    const { left, top, right, bottom } = box(shown);
+    return { rings, card: { left, top, right, bottom } };
+  });
+  expect(rings).toHaveLength(1);
+  const ring = rings[0] ?? card;
+  const beyond = [
+    card.left - ring.left,
+    card.top - ring.top,
+    ring.right - card.right,
+    ring.bottom - card.bottom,
+  ];
+  expect(beyond[0]).toBeGreaterThan(0);
+  for (const side of beyond) {
+    expect(Math.abs(side - (beyond[0] ?? 0))).toBeLessThanOrEqual(0.5);
+  }
+}
+
+test("side by side, the focus ring outlines the whole row, the current one and a selected one too, and j and k bring the ring into view within the pane, above its bar", async () => {
+  // Rows with a pull request beneath their link, enough to fill the pane.
+  for (let index = 1; index <= 6; index += 1) {
+    const answer = await agent.send("POST", threads, {
+      request_id: `ring-${index}`,
+      title: `Ring ${index}`,
+      text: "Have a look.",
+      pull_requests: [{ repo: "acme/agention", number: 100 + index }],
+    });
+    expect(answer.status, JSON.stringify(answer.body)).toBe(200);
+  }
+  const wide = page.viewportSize() ?? { width: 1280, height: 800 };
+  try {
+    await resize(page, { width: 1280, height: 600 });
+    await page.goto("/");
+    const rows = page.locator("ul.threads > li");
+    const first = rows.first();
+    await first.locator("a.thread-link").click();
+    await expect(first.locator("a.thread-link")).toHaveAttribute("aria-current", "page");
+    await first.locator("input.row-select").focus();
+    await page.keyboard.press("Tab");
+    await expect(first.locator("a.thread-link")).toBeFocused();
+    await ringsRow(first);
+    await page.keyboard.press("x");
+    await expect(first).toHaveClass(/selected/);
+    await ringsRow(first);
+
+    // Each row j and then k reach shows its whole ring in the pane, above
+    // its bar.
+    const focused = page.locator("ul.threads > li:has(> a.thread-link:focus)");
+    const count = await rows.count();
+    const steps = [
+      ...Array.from({ length: count - 1 }, (_, index) => ["j", index + 1] as const),
+      ...Array.from({ length: count - 1 }, (_, index) => ["k", count - 2 - index] as const),
+    ];
+    for (const [key, step] of steps) {
+      await page.keyboard.press(key);
+      await expect(rows.nth(step).locator("a.thread-link")).toBeFocused();
+      await ringsRow(focused);
+      const [card, pane, bar] = await Promise.all([
+        boxOf(focused),
+        boxOf(list()),
+        boxOf(listBar()),
+      ]);
+      expect(card.y - 5).toBeGreaterThanOrEqual(pane.y);
+      expect(card.y + card.height + 5).toBeLessThanOrEqual(bar.y);
+    }
+  } finally {
+    await resize(page, wide);
+  }
+});
+
+// belowHeader says how far the focus ring of what has focus, the row's
+// around a row whose link has it, lies below its group's header, stuck at
+// the top of the list or in its place; and whether that header is stuck, its
+// group's top scrolled away above it.
+async function belowHeader(): Promise<{ header: number; stuck: boolean }> {
+  return page.evaluate(() => {
+    const focus = document.activeElement;
+    if (!(focus instanceof HTMLElement)) {
+      throw new Error("nothing has focus");
+    }
+    const ringed = focus.closest(".thread-row:has(> .thread-link:focus-visible)") ?? focus;
+    const style = getComputedStyle(ringed);
+    const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+    const ring = ringed.getBoundingClientRect().top - reach;
+    const group = focus.closest(".group");
+    const head = group?.querySelector(":scope > .fold-head")?.getBoundingClientRect();
+    return {
+      header: ring - (head?.bottom ?? -Infinity),
+      stuck: group !== null && head !== undefined && group.getBoundingClientRect().top < head.top,
+    };
+  });
+}
+
+test("grouped, j, k, and Shift+Tab keep what they reach clear of the header stuck at the top, beside a thread and one at a time", async () => {
+  // A session's threads under two topics, so the list folds topics under the
+  // session, and the keys cross both.
+  for (let index = 1; index <= 6; index += 1) {
+    const answer = await agent.send("POST", threads, {
+      request_id: `sticky-${index}`,
+      title: `Sticky ${index}`,
+      text: "Have a look.",
+      topic: index % 2 === 0 ? "even" : "odd",
+      pull_requests: [{ repo: "acme/agention", number: 200 + index }],
+    });
+    expect(answer.status, JSON.stringify(answer.body)).toBe(200);
+  }
+  const wide = page.viewportSize() ?? { width: 1280, height: 800 };
+  const clear = async () => {
+    const below = await belowHeader();
+    expect(below.header).toBeGreaterThanOrEqual(0);
+    return below.stuck ? 1 : 0;
+  };
+  try {
+    // How many controls a row holds for Shift+Tab: with a mouse, its link,
+    // checkbox, and pull request; on a phone, which resize gives a touch
+    // screen, its link and pull request, since a row's checkbox shows there
+    // only once a held row starts a selection.
+    for (const { controls, ...size } of [
+      { width: 1280, height: 600, controls: 3 },
+      { width: 360, height: 600, controls: 2 },
+    ]) {
+      await resize(page, size);
+      await page.goto("/?group=topic");
+      const links = page.locator("ul.threads > li > a.thread-link");
+      await expect(links).not.toHaveCount(0);
+      const count = await links.count();
+
+      // Down with j to the last row, then up with k to the first.
+      await links.first().focus();
+      for (let index = 1; index < count; index += 1) {
+        await page.keyboard.press("j");
+        await expect(links.nth(index)).toBeFocused();
+        await clear();
+      }
+      let stuck = 0;
+      for (let index = count - 2; index >= 0; index -= 1) {
+        await page.keyboard.press("k");
+        await expect(links.nth(index)).toBeFocused();
+        stuck += await clear();
+      }
+      expect(stuck).toBeGreaterThan(0);
+
+      // Back with Shift+Tab from the last row's pull request until focus
+      // leaves the groups, through each row's controls and the topics'
+      // headers.
+      await links.last().locator("..").locator(".row-code-links a").focus();
+      let reached = 0;
+      stuck = 0;
+      for (let presses = 0; presses < 10 * count; presses += 1) {
+        await page.keyboard.press("Shift+Tab");
+        const where = await page.evaluate(() => {
+          const focus = document.activeElement;
+          return focus?.closest(".group > .fold-body")
+            ? "body"
+            : focus?.closest(".group")
+              ? "head"
+              : "out";
+        });
+        if (where === "out") {
+          break;
+        }
+        if (where === "body") {
+          reached += 1;
+          stuck += await clear();
+        }
+      }
+      expect(reached).toBeGreaterThanOrEqual(controls * count - 1);
+      expect(stuck).toBeGreaterThan(0);
+    }
+  } finally {
+    await resize(page, wide);
+  }
+});
+
+test("the pages ran without a console error or a page error", () => {
   expect(problems).toEqual([]);
 });

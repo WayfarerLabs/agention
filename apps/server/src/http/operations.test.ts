@@ -1,4 +1,10 @@
-import { holdsScope, type Scope, scopes, threadsQuery } from "@wayfarerlabs/agention-api";
+import {
+  holdsScope,
+  type Scope,
+  scopes,
+  threadsQuery,
+  threadsView,
+} from "@wayfarerlabs/agention-api";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
@@ -7,11 +13,12 @@ import {
   beginUpload,
   completeUpload,
   createGroup,
+  createSavedView,
   setSessionTags,
   submitRegistration,
   writeChunk,
 } from "../store/index.ts";
-import { type Agent, Fixture, newPublicKey } from "../store/test-fixture.ts";
+import { type Agent, Fixture, newPublicKey, testOrigin } from "../store/test-fixture.ts";
 import { asOf, listThreads } from "../store/thread-lists.ts";
 import { agentOperations, registration } from "./agent-operations.ts";
 import { parse } from "./input.ts";
@@ -111,6 +118,7 @@ describe("an operation a read scope grants", () => {
         request: requestFor(operation),
         log,
         dropConnection: undefined,
+        refused: () => undefined,
       });
       expect(changes()).toBe(before);
     },
@@ -173,6 +181,9 @@ const bodies: Record<string, unknown> = {
   setSessionGroup: { group: 1 },
   setSessionTags: { tags: [] },
   setAgentTags: { tags: [] },
+  createSavedView: { name: "Overdue", view: { overdue: true } },
+  renameSavedView: { name: "Blocked" },
+  replaceSavedView: { view: { unread: true } },
   approveRegistration: {
     agent: { name: "builder", existing: true },
     session: { name: "second", existing: false },
@@ -215,6 +226,7 @@ async function run(operation: Operation, identity: Identity): Promise<string> {
       request: requestFor(operation),
       log,
       dropConnection: undefined,
+      refused: () => undefined,
     });
   } catch (error) {
     if (error instanceof ApiError) {
@@ -239,8 +251,17 @@ const holding = (identity: Identity, chosen: readonly Scope[]): Identity => ({
 describe("the store work of an operation", () => {
   beforeEach(() => {
     createGroup(fixture.store, fixture.operator, { name: "Work" });
+    createSavedView(fixture.store, fixture.operator, {
+      name: "Blocking me",
+      view: threadsView.parse({ impact: "blocking" }),
+    });
     setSessionTags(fixture.store, fixture.operator, agent.target, { tags: ["infra"] });
-    submitRegistration(fixture.store, newPublicKey(), { agent: "builder", session: "second" });
+    submitRegistration(
+      fixture.store,
+      newPublicKey(),
+      { agent: "builder", session: "second" },
+      testOrigin,
+    );
   });
 
   it.each([

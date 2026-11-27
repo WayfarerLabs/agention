@@ -5,7 +5,15 @@ import { z } from "zod";
 // scope, an agent's registration holds threads:write over its own session,
 // and an API key holds the scopes the operator chose for it.
 export const scope = z
-  .enum(["threads:read", "threads:write", "sessions:read", "sessions:write", "sessions:approve"])
+  .enum([
+    "threads:read",
+    "threads:write",
+    "sessions:read",
+    "sessions:write",
+    "sessions:approve",
+    "saved-views:read",
+    "saved-views:write",
+  ])
   .describe(
     "threads:read reads the thread list, its counts, and any thread with its messages and " +
       "its files; threads:write also starts threads, writes in them, answers asks, uploads " +
@@ -14,7 +22,8 @@ export const scope = z
       "agents' registrations; " +
       "sessions:write also marks a session's log read and manages groups and tags; " +
       "sessions:approve also approves, rejects and revokes agents' registrations, and with " +
-      "sessions:write gives an approved session its group and tags",
+      "sessions:write gives an approved session its group and tags; saved-views:read reads " +
+      "the saved views; saved-views:write also saves, renames, replaces and removes them",
   );
 export type Scope = z.infer<typeof scope>;
 
@@ -31,6 +40,8 @@ const included: Record<Scope, readonly Scope[]> = {
   "sessions:read": [],
   "sessions:write": ["sessions:read"],
   "sessions:approve": ["sessions:read"],
+  "saved-views:read": [],
+  "saved-views:write": ["saved-views:read"],
 };
 
 // holdsScope says whether the scopes held grant the one required, directly or

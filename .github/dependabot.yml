@@ -28,7 +28,8 @@ updates:
       # The agent bridge pins these to the versions that @modelcontextprotocol/server
       # carries inlined in its own build, so their license notices ship with the
       # bridge. They move only with that package, and the build names any that
-      # falls behind.
+      # falls behind. Ignoring ajv also holds the server's own test pin, which is
+      # updated by hand, as CONTRIBUTING.md says.
       - dependency-name: ajv
       - dependency-name: ajv-formats
       - dependency-name: content-type

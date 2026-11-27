@@ -111,7 +111,8 @@ check_package() {
 
 # check_server_serves runs the server installed by check_package on a free
 # loopback port and checks that it serves the web UI its package ships, not
-# the placeholder for a build without one, and begins a passkey sign-in.
+# the placeholder for a build without one, sends that UI's script as Brotli to
+# be kept for good, and begins a passkey sign-in.
 check_server_serves() {
     local dir="$package_dir" pid port="" status=0
     if [[ ! -f "$dir/package/web/index.html" ]]; then
@@ -130,24 +131,39 @@ check_server_serves() {
         sleep 0.1
     done
     node -e '
+        const { readFileSync } = require("node:fs");
         const http = require("node:http");
-        const [port, index] = process.argv.slice(1);
+        const { brotliDecompressSync } = require("node:zlib");
+        const [port, web] = process.argv.slice(1);
         const send = (method, path, headers = {}) => new Promise((resolve, reject) => {
             const request = http.request(
                 { host: "127.0.0.1", port, method, path,
                   headers: { host: "agention.invalid", ...headers } },
                 (response) => {
-                    let body = "";
-                    response.on("data", (chunk) => (body += chunk));
-                    response.on("end", () => resolve({ response, body }));
+                    const chunks = [];
+                    response.on("data", (chunk) => chunks.push(chunk));
+                    response.on("end", () => resolve({ response, body: Buffer.concat(chunks) }));
                 });
             request.on("error", reject);
             request.end();
         });
         (async () => {
             const page = await send("GET", "/s/agent/session/threads/1");
-            if (page.body !== require("node:fs").readFileSync(index, "utf8")) {
+            const index = readFileSync(`${web}/index.html`, "utf8");
+            if (page.body.toString() !== index) {
                 throw new Error("the server did not serve the web UI it ships");
+            }
+            const script = /<script [^>]*src="([^"]+)"/.exec(index)?.[1];
+            if (script === undefined) {
+                throw new Error("the web UI it ships loads no script");
+            }
+            const sent = await send("GET", script, { "accept-encoding": "br" });
+            const { "content-encoding": encoding, "cache-control": caching } = sent.response.headers;
+            if (encoding !== "br" || !/\bimmutable\b/.test(caching)
+                || !brotliDecompressSync(sent.body).equals(readFileSync(web + script))) {
+                throw new Error(
+                    `the server did not send ${script} as Brotli, to be kept for good: ` +
+                        `content-encoding ${encoding}, cache-control ${caching}`);
             }
             // Beginning a passkey sign-in runs the bundled WebAuthn library and
             // seals the challenge with the instance key.
@@ -160,7 +176,7 @@ check_server_serves() {
                 throw new Error(`passkey sign-in did not begin: ${begin.body}`);
             }
         })().catch((error) => { console.error(error.message); process.exit(1); });
-    ' "$port" "$dir/package/web/index.html" || status=$?
+    ' "$port" "$dir/package/web" || status=$?
     kill "$pid" && wait "$pid" || true
     if [[ $status -ne 0 || -z "$port" ]]; then
         echo "apps/server: the installed server did not serve its web UI or begin a sign-in:" >&2

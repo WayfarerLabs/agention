@@ -53,16 +53,16 @@ The rest of this document uses these terms:
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                        |
+| Component                | State                                                                                                                                                                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation.                                                             |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                                                              |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                                                                     |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store, and delivers the audit log; `backup` copies the database; `audit forget-sink` removes an audit sink's cursor. |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                                                                      |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                                                             |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                                                                  |
+| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                                                                                    |
 
 ## Source and packages
 
@@ -79,7 +79,10 @@ its own for its npm page.
 The server's build first runs the web UI's build and copies it into the package's `web/` directory.
 The web UI's build is Vite's, followed by a pass of its own that builds the diagram frame's script
 with esbuild, through `packages/build`, as one classic script named for its content's hash, which
-`web/diagram-frame.json` names for the server ([The diagram frame](#the-diagram-frame)).
+`web/diagram-frame.json` names for the server ([The diagram frame](#the-diagram-frame)). Beside each
+file in `web/assets/` the server's build then writes a Brotli copy, which the server serves
+([The web UI's files](#the-web-uis-files)), and it fails on a file there whose name does not have
+the form of one ending in a content hash.
 
 ### License notices
 
@@ -126,6 +129,9 @@ inferred types the server, the bridge and the web UI share:
 - the operator's session groups and tags: the list of them, creating, renaming, recoloring, ordering
   and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
   group and an agent's or a session's tags, on their own or with an approval;
+- the operator's saved views (`packages/api/src/saved-views.ts`): a view's id and name, the bound on
+  how many an instance holds, a view as read, with its whole thread list, the list of them, and
+  saving, renaming and replacing one;
 - the agent API's version, the header that carries it and the oldest version the server serves;
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
@@ -205,9 +211,10 @@ string, so both ends must spell it alike.
 ## Private files
 
 [SECURITY.md](../SECURITY.md#private-files) states the private-file rule that the server's data
-directory and database and the bridge's key files obey. `packages/private-files` holds the functions
-that apply it and the `PrivateFileError` they refuse with, which each caller words in its own error;
-the server and the bridge bundle it.
+directory and database, the audit log's directory and files, and the bridge's key files obey.
+`packages/private-files` holds the functions that apply it, private or shared with a reading group,
+and the `PrivateFileError` they refuse with, which each caller words in its own error; the server
+and the bridge bundle it.
 
 ## Database
 
@@ -286,6 +293,14 @@ whose cascades rename it everywhere it is carried and take it off everything whe
 check holds each color to the palette. Agents and sessions are never deleted, so no membership or
 tag outlives what it is on.
 
+### Saved views' table
+
+The operator's saved views are rows of `saved_views`, each a name unique ignoring the case of ASCII
+letters, as a group's is, and one thread list, `view`, the JSON object the list's view schema
+(`threadsView`) parsed it into, every part included, those at their default when it was saved among
+them. A check holds `view` to a JSON object. A view is the operator's configuration, not a log, so
+it changes in place, and ids never repeat, so nothing naming a removed view reaches a later one.
+
 ### File tables
 
 Files have three tables:
@@ -326,6 +341,32 @@ expiry, and otherwise after its creation), when it was last used, kept to the ho
 revoked. A revoked or expired key keeps its row, so the operator's list can show it, until the
 cleanup [Browser sessions, stored secrets and cleanup](#browser-sessions-stored-secrets-and-cleanup)
 describes. Ids never repeat, so an id names one key for good.
+
+### Audit tables
+
+`audit_events` holds the [audit log](#audit-log), one row per event: `seq`, its place in the log's
+one order, `AUTOINCREMENT`, so a sequence is never reused while the database lives, even once
+retention empties the table; `uid`, a random UUID; `event`, the OCSF JSON as the builder wrote it;
+copies of its time, class, action, outcome and credential for filtering; and `open_until`, the end
+of a coalesced failure's minute. Its triggers hold the log to its rules:
+
+- each insert takes the next sequence, and its JSON carries its own `seq` and `uid`;
+- no update, except an open failure's, before any sink has it: its `count` rises and its `end_time`
+  moves on within its minute, both staying integers, and nothing else changes; or it closes, its
+  `open_until` becoming null and nothing else changing;
+- a delete only of the oldest row, and only once every sink's cursor has passed it.
+
+`audit_events_open`, a partial index on `open_until`, holds only the coalesced failures; the three
+queries that look for open ones, coalescing's and delivery's two, name it with `INDEXED BY`, since
+without `ANALYZE`, which the server never runs, SQLite would answer their `min(seq)` by walking the
+primary key, the whole backlog. A failure is open while its minute's end is ahead and at most a
+minute ahead: one further ahead was recorded before the clock stepped back, and counts as closed.
+
+`audit_sinks` holds each sink's cursor, keyed by its kind, the last sequence it delivered, which a
+trigger lets move only forward. `instance.uid` is the instance's random id, made once by the
+migration and never changed, which every event carries. `browser_sessions.id` is each browser
+session's random id, which names it where its cookie must not; the migration rebuilt the table to
+add it as a unique, constrained column, giving every open session one.
 
 ### Incremental vacuuming
 
@@ -579,6 +620,34 @@ holds, so to an agent none exists.
   holds, and every tag, at most 500, in name order, with its color and how many agents and how many
   sessions carry it, none for a tag nothing carries, saying when it leaves any out.
 
+### Saved views
+
+A saved view (`apps/server/src/store/saved-views.ts`; [ADR 0007](adrs/0007-saved-views.md)) is a
+name and one thread list: every filter, the order, its direction and the grouping, the value the web
+UI's address names a list by. Listing them needs `saved-views:read` and every change
+`saved-views:write`, scopes no agent's registration holds, so to an agent none exists.
+
+- **Names.** A view's name is plain text on one line, trimmed, 1 to 100 code points, unique ignoring
+  the case of ASCII letters. A name another view already has is refused as `conflict`, naming
+  `name`, whether the view is saved or renamed. Views are listed by name, in the same collation.
+- **Bound.** An instance holds at most 200, past which saving one is `invalid_input`; a bound that
+  keeps the list's answer bounded, not one real use reaches.
+- **Writing** parses the view with `threadsView`, so a list the thread list would refuse is
+  `invalid_input`, naming the part, and stores the parsed value whole, its defaults included. A view
+  so keeps the list as it was saved: should a release change a default, a view keeps its own, while
+  the address, which leaves defaults out, follows the new one.
+- **Reading** parses the stored text with `threadsView.strict()`: persisted state, checked rather
+  than trusted, so a view the schema refuses, or holding a part it does not have, fails loudly as a
+  server error, never a guess. A change to `threadsView` that would refuse a stored view ships with
+  a migration rewriting the stored views, so the strict read never meets one.
+- **What a view names.** Groups are named by id, which a rename keeps and a removal never gives to
+  another, so a view naming a removed group keeps no threads. Tags are named by name, so `renameTag`
+  rewrites the `tag` list of every view naming the tag in its own transaction, keeping a name the
+  rename would give twice once, where it first stood; removing a tag rewrites nothing, so a view
+  naming it keeps no threads, until a tag of that name exists again, which it then matches, as the
+  list's address would. Agents and sessions are never renamed or removed, and a topic, pull request
+  or branch no thread carries keeps no threads: every filter by name narrows, never widens.
+
 ### Threads the operator starts
 
 The operator starts a thread on a session with a title and a first message of text, with its detail
@@ -665,12 +734,13 @@ in the roll-up; its replacement counts when it names an entry again.
   entry's key, which are exactly those whose roll-up lists it; the filter, the roll-up and the
   summary all read the same live mentions (`liveLinks`).
 
-### The upload sweep
+### The sweep
 
-The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those past their expiry
-([Uploads](#uploads)), and those left incomplete that are not in the set of uploads in flight.
+The sweep (`store/sweep.ts`) removes what the server keeps no longer: the audit log's events past
+their retention ([Retention](#retention)), then the uploads no message will name, those past their
+expiry ([Uploads](#uploads)) and those left incomplete that are not in the set of uploads in flight.
 `agention serve` runs it once before it listens, when nothing is in flight, so every incomplete
-upload goes, and then every 10 minutes; a pass that fails is logged and the next tries again.
+upload goes, and then every 10 minutes; a part that fails is logged and the next pass tries again.
 
 When a pass freed pages on a database using incremental vacuuming, it returns them to the disk 2,048
 pages, 8 MiB, at a time. The set of uploads in flight is in the process, so one server serves a
@@ -936,17 +1006,20 @@ the one scope it requires. Being in the list is what puts an operation on the op
 left out is not there. The web mount serves the same list to the browser session, which holds every
 scope, so both mounts run the same handlers.
 
-| Scope              | Grants                                                                                                                                                                                                                                                                                                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `threads:read`     | The thread list (`GET /threads`), its counts (`GET /threads/counts`), the threads above and below one in it (`GET /s/:agent/:session/threads/:thread/neighbors`), the wait across sessions (`GET /wait`), a thread with its messages, a thread's files and the file a message carries                                                               |
-| `threads:write`    | Starting a thread on a session, sending a message, marking a thread read or unread and archiving it, bulk read and archive (`POST /reads` and `POST /archives`), the actions on many threads, named (`POST /threads/actions`) or matching the list's filters (`POST /threads/actions/matching`), and uploading a file and removing a pending upload |
-| `sessions:read`    | The sessions view (`GET /sessions`), a session's log (`GET /s/:agent/:session/updates`), the groups and tags (`GET /groups-and-tags`) and the registrations (`GET /registrations`)                                                                                                                                                                  |
-| `sessions:write`   | The log's read mark and the groups' and tags' writes, each a POST naming its action (`/groups`, `/groups/order`, `/groups/:id/name`, `/groups/:id/color`, `/groups/:id/remove`, `/tags`, `/tags/:tag/name`, `/tags/:tag/color`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and `/agents/:agent/tags`)               |
-| `sessions:approve` | Approving, rejecting and revoking a registration, with `sessions:write` too for an approval that gives the session's group or tags                                                                                                                                                                                                                  |
+| Scope               | Grants                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threads:read`      | The thread list (`GET /threads`), its counts (`GET /threads/counts`), the threads above and below one in it (`GET /s/:agent/:session/threads/:thread/neighbors`), the wait across sessions (`GET /wait`), a thread with its messages, a thread's files and the file a message carries                                                               |
+| `threads:write`     | Starting a thread on a session, sending a message, marking a thread read or unread and archiving it, bulk read and archive (`POST /reads` and `POST /archives`), the actions on many threads, named (`POST /threads/actions`) or matching the list's filters (`POST /threads/actions/matching`), and uploading a file and removing a pending upload |
+| `sessions:read`     | The sessions view (`GET /sessions`), a session's log (`GET /s/:agent/:session/updates`), the groups and tags (`GET /groups-and-tags`) and the registrations (`GET /registrations`)                                                                                                                                                                  |
+| `sessions:write`    | The log's read mark and the groups' and tags' writes, each a POST naming its action (`/groups`, `/groups/order`, `/groups/:id/name`, `/groups/:id/color`, `/groups/:id/remove`, `/tags`, `/tags/:tag/name`, `/tags/:tag/color`, `/tags/:tag/remove`, `/s/:agent/:session/group`, `/s/:agent/:session/tags` and `/agents/:agent/tags`)               |
+| `sessions:approve`  | Approving, rejecting and revoking a registration, with `sessions:write` too for an approval that gives the session's group or tags                                                                                                                                                                                                                  |
+| `saved-views:read`  | The saved views (`GET /saved-views`)                                                                                                                                                                                                                                                                                                                |
+| `saved-views:write` | Saving, renaming, replacing and removing a saved view (`POST /saved-views`, `/saved-views/:id/name`, `/saved-views/:id/view` and `/saved-views/:id/remove`)                                                                                                                                                                                         |
 
-A write or approve scope includes its resource's read, and neither includes the other. A test over
-the list holds every operation a read scope grants to a `GET` without a body whose store work writes
-nothing.
+A write or approve scope includes its resource's read, and neither includes the other. One operation
+reaches across resources, as intended: renaming a tag, under `sessions:write`, renames it in the
+saved views naming it too, so they keep their meaning. A test over the list holds every operation a
+read scope grants to a `GET` without a body whose store work writes nothing.
 
 ### Agent operations
 
@@ -1014,16 +1087,18 @@ Every request's `Host` must be the origin's host, so a page on another name that
 server cannot reach it, and no forwarded header is read.
 
 Every response carries the security headers: a content security policy that allows only the server's
-own scripts, styles, images, media and connections, `blob:` images and the diagram frame as its only
-frame, and no framing of its own pages, HSTS, `nosniff`, `DENY` framing, no referrer, and
-`no-store`.
+own scripts, styles, images, media, web app manifest, workers, and connections, `blob:` images and
+the diagram frame as its only frame, and no framing of its own pages, HSTS, `nosniff`, `DENY`
+framing, no referrer, and `no-store`. `worker-src 'self'` states what `script-src 'self'` already
+implies for workers, so a later change to scripts cannot widen them.
 
 The security headers middleware sets every one of them after the route has run, replacing what the
 route set, except those the route declared its own for its response with `ownHeaders`
-(`apps/server/src/http/own-headers.ts`). Three kinds of response do:
+(`apps/server/src/http/own-headers.ts`). Four kinds of response do:
 
-- the diagram frame's page and script, their policy, framing and caching
-  ([The diagram frame](#the-diagram-frame));
+- the diagram frame's page, its policy and framing ([The diagram frame](#the-diagram-frame));
+- the files under `assets/` in the web UI's build, their caching
+  ([The web UI's files](#the-web-uis-files));
 - a file's response, its policy and caching ([Files](#files));
 - the API documentation's page, its policy ([API documentation](#api-documentation)).
 
@@ -1066,13 +1141,31 @@ serve is unknown, as any unknown API route is.
 ### The web UI's files
 
 Every path that is not an API route serves the web UI: a file of the Vite build, or the UI's index
-page for any other path, whose router shows the route. The exception is every path under `/docs/api`
-while the API's documentation is not served, which answers `not_found`.
+page for any other path, whose router shows the route. The exceptions answer `not_found`: every path
+under `/assets` that names no file of the build, since the UI has no route there, and every path
+under `/docs/api` while the API's documentation is not served.
 
 The server prepares the index page once, as it starts, writing its name, HTML-escaped, into the
 page's title and its `application-name` and `apple-mobile-web-app-title` metadata, and never serves
-the page's file as it is; a build whose page lacks one of those stops the server from starting. A
-server built without the UI serves a placeholder page instead.
+the page's file as it is. A test holds that the web UI's source page carries each of those places
+exactly once. A server built without the UI serves a placeholder page instead.
+
+The build's files under `assets/`, which are named for their content, are cached for good
+(`public, max-age=31536000, immutable`). Each is served as the Brotli copy the package's build wrote
+beside it when the browser accepts Brotli, as browsers do over HTTPS, and otherwise as it is, with
+`Vary: Accept-Encoding`. The index page, like every file outside `assets/`, is neither cached nor
+encoded. The server compresses nothing as it runs, so the sizes of compressed answers tell nothing
+about private content.
+
+The index page links the web app manifest, `/manifest.webmanifest`, which makes the UI installable
+as an app: on a phone's home screen or a desktop's, opening `standalone` at `/`, scoped to the whole
+origin, with the app icons in `/icons/`. The server prepares it once, as it starts, from the build's
+file, with its own name as the manifest's `name` and `short_name`, so two servers installed on one
+device are told apart as their pages are, and serves it as `application/manifest+json`. Chromium
+installs it from its menu without a service worker (Chrome 108 on Android, 112 on desktops);
+Chrome's own install prompt, which the operator guide's install steps do not rely on, still needs a
+service worker with a `fetch` handler
+([Revisiting Chrome's installability criteria](https://developer.chrome.com/blog/update-install-criteria)).
 
 ### The diagram frame
 
@@ -1082,8 +1175,8 @@ names; a manifest that names no script of the build stops the server from starti
 
 The page's response carries its own content security policy, `sandbox allow-scripts`, nothing
 allowed but that script, named by its full URL, and inline styles, and `frame-ancestors` naming the
-server's origin, with `X-Frame-Options: SAMEORIGIN`. The script's name carries its content's hash,
-so its response is cached for good.
+server's origin, with `X-Frame-Options: SAMEORIGIN`. The script is served as the build's other files
+under `assets/` are ([The web UI's files](#the-web-uis-files)).
 
 ### Files
 
@@ -1321,7 +1414,8 @@ the key is created.
   stops within a chunk ([Uploads](#uploads), [Reading a file](#reading-a-file)).
 - **Refusals.** Every refusal of a key is the same `unauthenticated`, telling the client to check
   the key or create a new one in Settings, so it never says whether a key existed.
-- **Use.** A key's use is recorded at most hourly.
+- **Use.** A key's use is recorded at most hourly, and its first use in the audit log too, in the
+  same transaction.
 - **Reach.** A key acts as the operator over every session, within its scopes; the API keys,
   passkeys, settings and transcription are [web-only routes](#web-only-routes), so no key reaches
   them.
@@ -1332,6 +1426,9 @@ A finished sign-in or link opens a session in the `__Host-agention-<port>-sessio
 `HttpOnly`, `SameSite=Strict`), closing the one the browser held before. The session ends after
 seven days without use or thirty days after it opened. Every web mutation also needs the session's
 CSRF token in `X-CSRF-Token` and an `Origin` equal to the origin.
+
+Each browser session also has an id of its own, 128 random bits in hexadecimal, which is not a
+secret and names it in the audit log, where its cookie and the cookie's hash must not appear.
 
 Browser sessions, links and API keys are 256 random bits, stored only as their SHA-256. Expired
 sessions, links and used challenges are deleted whenever their table is next written, and so are
@@ -1446,6 +1543,102 @@ An exhausted budget answers `rate_limited`, with a `Retry-After` header, as does
 sessions past its credential's limit ([Waits](#waits)). The
 [operator guide](operator-guide.md#rate-budgets) lists the rates.
 
+## Audit log
+
+Every write, sign-in and credential change records an event, an OCSF 1.9.0 JSON object, in
+`audit_events` ([Audit tables](#audit-tables)), which is both the log's system of record and every
+sink's outbox. The operator guide's "Audit log" says what is recorded, and SECURITY.md "Audit log"
+what never is.
+
+### Recording
+
+- **An identity carries its request.** `Identity` (`apps/server/src/identity.ts`) carries the
+  request it arrived as, `RequestOrigin`, which `requestOrigin` (`http/origin.ts`) reads where each
+  mount authenticates: the connection's peer address, the user agent cut to 256 code units, the
+  method, the routed path, the matched route's pattern, the mount, and the server's origin, which a
+  sign-in's event names as its service with the server's stored name. A browser session's credential
+  carries its id and passkey beside its hash, which only the store's lookups use. The writes with no
+  identity yet, a sign-in, a link and an agent's registration, take an origin of their own.
+- **In the change's transaction.** Every store function that writes calls `recordAudit`
+  (`audit/record.ts`) inside its transaction, after its change, with the action and its typed input,
+  so neither the change nor its event exists without the other, and a failed insert fails the write.
+  It reads the actor's names, the instance's id and name, and the next sequence, builds the event
+  (`audit/events.ts`), inserts it, and wakes the dispatcher with `queueMicrotask`, which runs once
+  the synchronous transaction has committed or rolled back.
+- **Typed inputs only.** The action table (`audit/actions.ts`) holds one entry per action: its
+  class, its activity, and its `build`, whose parameter types the action's input: ids, numbers,
+  flags, and the names the operator and agents chose, read from rows the store holds. No input has a
+  field for a request body, message or answer text, a title, a file name, a saved view's list, or a
+  secret. The builder (`audit/events.ts`) adds what every event shares, and writes each event as one
+  line, escaping the characters some readers take for a line's end.
+- **Failures in a transaction of their own.** A failed sign-in or link, and a refusal of an API key
+  the server found, are recorded by `recordFailure` once the refusal has spent its rate budget:
+  `spendOnFailure` passes it to a recorder once its token is spent, and `addOperations` catches the
+  refusals of a known key after authentication, a scope refused at the mount or in the store, or a
+  key revoked or expired since it authenticated, as `ApiError`s that name the key and why beside
+  their code, which no answer shows. A key refused partway through a download, once its answer has
+  started, is recorded through the operation's `refused`, with no `http_response`, since its client
+  was answered 200 or 206 and then cut off. The first failure of a kind in a UTC minute, its kind
+  being its action, credential, code, and the status its caller was answered with, inserts an event
+  with a count of 1, open until the minute ends; a later one raises that event's count and moves its
+  `end_time` on, unless delivery has taken that event, which starts a new one. A failure that cannot
+  be recorded is logged at most once a minute, and the answer is unchanged.
+- **Every write is covered.** `audit/coverage.test.ts` drives every `POST` declaration on the three
+  mounts and every `POST` route of the web mount's own, fails on one without a driver, holds the one
+  list of those that record nothing, the read marks, and finds exactly the events each records, each
+  valid against the pinned OCSF class schemas in `audit/fixtures/`.
+
+### Delivery
+
+The dispatcher (`audit/dispatcher.ts`) runs in `agention serve` only, one loop per configured sink.
+A sink is the small `Sink` interface: it delivers a batch, in sequence order, resolving once the
+whole batch is delivered and throwing when it failed, which sends the batch again.
+
+- **From its cursor.** Each sink's batch is the events after its cursor (`audit/cursors.ts`), at
+  most 100 or 1 MiB, stopping before the first coalesced failure still open; the loop wakes when
+  that minute ends. The transaction that reads a batch closes each coalesced failure in it, so a
+  count is final when it leaves, even once a clock stepped back. A delivered batch moves the cursor
+  in a short transaction of its own, so a restart resumes where the sink stopped, and a sink
+  receives every event at least once, in order. A sink new to the database starts from the oldest
+  retained event; `agention serve` gives each configured sink its cursor before the first prune. A
+  cursor removed while the server runs, by `agention audit forget-sink`, stops its sink, saying so
+  on stderr, until the next start gives it a new one.
+- **Waking.** A transaction that recorded events wakes every loop; a loop with nothing to deliver
+  also reads again every 30 seconds, which is how it finds what the command line records.
+- **Failing.** A failed delivery is tried again after 5 seconds. The dispatcher keeps each sink's
+  state in memory, and says on stderr, naming the sink by its kind, when it starts failing, every 15
+  minutes while it goes on failing, with how far behind it is and its oldest undelivered event, and
+  when it recovers. A delivery still under way after 60 seconds is named on stderr as stalled, every
+  15 minutes while it stays so, without being ended, and again once it completes. Nothing waits for
+  a sink: a write only inserts its row.
+- **A cursor no sink is configured for** stays, so retention waits for it, and is named on stderr at
+  start and every 15 minutes. `agention audit forget-sink` removes it, in one transaction with the
+  event that records it.
+
+The two sinks (`audit/sinks/`):
+
+- **stdout** writes each event's JSON as a line to standard output, which `agention serve` writes
+  nothing else to, and delivers a batch once the write has drained to the stream.
+- **file** appends the lines to `audit.jsonl` in `--audit-dir` and `fsync`s it before delivering,
+  and `fsync`s the directory whenever a file in it is made or renamed. At the first write of a later
+  UTC day it renames the file for the day it held, `audit-YYYY-MM-DD.jsonl`, or with `.1`, `.2` and
+  so on when that name is taken, starts a new one, and removes the renamed files beyond
+  `--audit-keep-days`. Every line is whole: a file left ending partway through a line is ended
+  before the next write, and a write that fails is cut back off. A file moved or removed from under
+  it, as by logrotate, is let go, and the next write starts a new one. Closing waits for the write
+  under way. The directory and files follow the private-file rule, or its variant shared with
+  `--audit-group`'s group, which `agention serve` resolves at start through `getent`, run without a
+  shell and given 10 seconds, refusing a group its user is not in. `agention serve` opens the sinks
+  before the database, so a directory the rule refuses stops it before anything else.
+
+### Retention
+
+The sweep removes events older than `--audit-retention-days` ([The sweep](#the-sweep)), oldest
+first, once every cursor has passed them, in transactions of at most 1,000 deletions, yielding
+between them. Each deletion removes the oldest row alone, as the delete trigger checks every row a
+statement deletes, and pruning stops at the first row too new to remove, so removal follows the
+sequence even where a clock stepped back. A retention of 0 removes nothing.
+
 ## Serving
 
 ### Starting
@@ -1463,8 +1656,9 @@ feeds the index page, the relying party and new passkeys' user names.
 The server listens on `--listen`, an IP address and port. With `--tls-cert` and `--tls-key` it
 terminates TLS 1.3 itself; without them it serves plain HTTP, which it refuses on a non-loopback
 address unless `--allow-plain-http` is given. Before it listens, it runs the first sweep of uploads
-([The upload sweep](#the-upload-sweep)). A client gets 10 seconds to send its request headers,
-checked every second, and an idle keep-alive connection closes after 120 seconds.
+([The sweep](#the-sweep)), once the [audit log's dispatcher](#delivery) has started with the sinks
+its options configure. A client gets 10 seconds to send its request headers, checked every second,
+and an idle keep-alive connection closes after 120 seconds.
 
 ### Request deadlines
 
@@ -1490,7 +1684,12 @@ after its answer started, or after it finished, has its connection destroyed.
 On `SIGINT` or `SIGTERM` the server ends its long polls, answers every request still open with
 `Connection: close`, closes idle connections, and exits once the open requests finish. Three seconds
 after it starts stopping it closes every connection still open, whatever its state, a TLS handshake
-that never finished included.
+that never finished included. The audit log's sinks then have 5 seconds to deliver what is pending;
+what is still undelivered waits in the database for the next start. The dispatcher's loops stop,
+then the sweep and the database close, and the sinks close last. A file sink's close waits for its
+write under way, so a write a stalled disk holds keeps the process from exiting until the service
+manager kills it; the database is closed by then, and since that write's cursor never moved, no
+event is lost.
 
 ## Agent bridge
 
@@ -1579,7 +1778,8 @@ global agent. The agent opens every connection at the origin's host and port, or
 certificate is checked against, while each request's `Host` header names the origin too. A
 connection that has not opened within 10 seconds, its TLS handshake included, fails as unreachable.
 A connection that fails is reported naming `AGENTION_CONNECT` and its address when that is set,
-since the tunnel or forward there is the operator's.
+since the tunnel or forward there is the operator's. A request whose call was cancelled before it
+started, as when the host closes the bridge's input, is never made.
 
 ### Time limits
 
@@ -1746,23 +1946,24 @@ binds its files to each other, and the security and accessibility rules a review
 [operator guide](operator-guide.md) the settings each feature needs, and each file's comments what
 that file does and why.
 
-| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/action-bar.tsx` | The bars at the foot of a pane, which the thread list and the thread page share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`); `views/list/` holds the thread list's head, search, sheet, chips, rows, groups, and selection, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, voice, storage, keyboard, signing out and the recent sign-in they share |
-| `src/icons.tsx`      | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Path                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/router.tsx`     | The routes, over the History API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/session.tsx`    | The browser's sign-in, as `GET /session` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/data.ts`        | The data hooks: loading, live refresh, answers out of order, an ended sign-in, and marking read what a view shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `src/api.ts`         | The web API's client                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/keyboard.tsx`   | The keyboard shortcuts: their declarations, the document's key handler and the help overlay                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/action-bar.tsx` | The bars at the foot of a pane, which the thread list, the thread page and a session share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/passkeys.ts`    | The passkey ceremonies, through the browser's WebAuthn JSON helpers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/voice/`         | Dictation, which records, has the server transcribe and puts the text in a message's boxes, and reading aloud through the browser's speech synthesis                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/attach/`        | Attaching files to a message as the operator writes it: Attach, the files' list and their uploads, which a thread's composer and the new-thread sheet share                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/markdown/`      | The inert Markdown renderer, and diagrams: the page's diagram frame, the image it makes from the frame's answer, and the viewer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/diagram-frame/` | The diagram frame's script, which only the frame runs, and the messages it exchanges with the page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `src/views/`         | One view per route, but for the thread list and a thread, which share the Threads tab's (`Threads.tsx`), and the sessions' rows and a session, which share the Sessions tab's (`Sessions.tsx`), each over the two panes of `side-by-side.tsx`; `views/list/` holds the thread list's head, search, sheet, chips, rows, groups, and selection, `views/thread/` the thread page and its writes, with `views/thread/files/` its attachments, `views/sessions/` the sessions view's arrangement, folds, rows, log, registrations, groups and tags, and new-thread sheet, `views/settings/` the Settings sections, declared in `sections.ts`, with passkeys, API keys, groups and tags, saved views, voice, storage, keyboard, signing out and the recent sign-in they share |
+| `src/icons.tsx`      | The icons, Material Symbols copied as path data, as its header describes; filled in the text's color, they follow forced colors as text does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/styles.css`     | The design tokens and styles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `e2e/`               | The browser tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `public/`            | The files the build copies as they are: the favicon, the web app manifest, and the app icons in `public/icons/`, which `generate-icons.ts` draws from the favicon and `icons/maskable.svg` ([CONTRIBUTING.md](../CONTRIBUTING.md#app-icons))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The UI reads the server's name from the `application-name` metadata the server writes into its page
 ([The web UI's files](#the-web-uis-files)), in `src/server-name.ts`, and shows it as the banner's
@@ -1801,6 +2002,15 @@ which the files of `src/views/list/` implement.
   thread link, never in it, so no link holds another. The filter sheet's options come from the
   counts, each by its short form as last written; one the address names in another case is checked
   as the counted one it matches by key.
+- **Saved views** (`src/saved-views.ts`, with the sheet in `SavedViews.tsx`) keep the address as the
+  list's source of truth: opening a view follows a link to its list's address, a new history entry
+  as any link to a list makes, and the head's button and the sheet work out which views are current,
+  never storing it, by comparing the list on screen, as `listViewOf` reads it, with each view's,
+  part by part, a part taking several values compared as a set, and pull requests and branches by
+  their keys, as the filter matches them. The list loads the views as it loads its threads,
+  refreshing them alike, so its button can name the current views. `g v` opens the sheet through the
+  list while it is mounted, on its page and beside a thread, and otherwise goes to the list first,
+  the one a thread page returns to, which opens it as it mounts.
 - **Selection and the bar.** The list selects threads to act on together (`selection.tsx`, whose
   header comment says what the selection holds and how long it lasts), and its body ends, while it
   has rows, in one bar (`ListBar.tsx`), whose element stays as its two states give way to each
@@ -1819,10 +2029,11 @@ with what it then shows.
 
 At a desktop's width, `64rem` and up, the Threads tab shows the list and the thread open side by
 side, on `/` and on each thread's address alike; below it, one at a time, as on a phone. The shell
-mounts both routes as one view, `src/views/Threads.tsx`, whose comments, with `src/styles.css`, give
-the sizes and the reasons for them: the list's pane, then the thread's, the thread's in the same
-place at every width, so crossing the breakpoint keeps the thread mounted, with its draft files,
-staged answers, folds and focus.
+mounts both routes as one view, `src/views/Threads.tsx`, over the two panes the Sessions tab shares
+(`Panes` in `src/views/side-by-side.tsx`, whose comments, with `src/styles.css`, give the sizes and
+the reasons for them; [The sessions view](#the-sessions-view) says what that tab does with them):
+the list's pane, then the thread's, the thread's in the same place at every width, so crossing the
+breakpoint keeps the thread mounted, with its draft files, staged answers, folds and focus.
 
 The width is read in the script, with a media query, since it decides what is mounted: one at a
 time, the list is not mounted while a thread is open. Side by side, the list stays mounted with its
@@ -1883,12 +2094,12 @@ describes them for the operator.
 
 ### Folds and focus
 
-Every fold, the thread list's headers, the sessions view's and its session rows, is a disclosure
-button holding the chevron, with a plain label inside it and a linked one beside it, so no link sits
-in a button; a header's heading takes the button's name alone, so a linked label does not repeat it.
-The button's box stretches under the whole header or row, beneath its links and controls, so a
-pointer anywhere else on it folds or unfolds it while keyboards and assistive technology use the
-button.
+Every fold, the thread list's headers and the sessions view's, is a disclosure button holding the
+chevron, with a plain label inside it and a linked one beside it, so no link sits in a button; a
+header's heading takes the button's name alone, so a linked label does not repeat it. The button's
+box stretches under the whole header, beneath its links and controls, so a pointer anywhere else on
+it folds or unfolds it while keyboards and assistive technology use the button. A session's or a
+registration's row is built the same way around the link that opens it.
 
 After a navigation the shell moves focus to where it lands (`focusLanding` in `src/components.tsx`),
 the place a view marks with `data-landing`, its heading or else the place itself: side by side the
@@ -1911,17 +2122,56 @@ run by the time `waitFor` resolves.
 ### The sessions view
 
 The sessions view answers `/sessions`, and `/registrations`, the path released bridges send the
-operator to. [The sessions view](web-ui.md#the-sessions-view) describes its rows, headers and links,
-and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists; the files of
-`src/views/sessions/` implement the pickers, and those of `src/views/settings/` Settings' lists.
+operator to, each session's own address, `/sessions/<agent>/<session>`, and each registration
+waiting's, `/registrations/<id>`, which the shell mounts with them as one view
+(`src/views/Sessions.tsx`). [The sessions view](web-ui.md#the-sessions-view) describes its rows,
+headers and links, and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists;
+the files of `src/views/sessions/` implement the pickers, and those of `src/views/settings/`
+Settings' lists.
 
+- **Side by side.** The view uses the Threads tab's panes
+  ([The list and a thread side by side](#the-list-and-a-thread-side-by-side)): the rows' pane stays
+  mounted while sessions open and close beside it. Every row's chevron is a link to its address,
+  carrying the arrangement's query, so each session or registration opened is a history entry; the
+  open one's row is `aria-current="page"`, opening it again moves focus into its pane, and returning
+  to the rows lands on the row left. The arrangement on screen is the layout's own, as the thread
+  list is: going back or forward corrects the query of the entry gone to (`correctPoppedEntry`). The
+  session's pane (`SessionPane.tsx`) shows the session from the view's one reading of the sessions,
+  under the page's one level-one heading, and says so when that reading does not list it. One pane
+  at a time, as on a phone, what a row opens shows alone, as a thread does.
+- **Registrations waiting.** The view reads them whole, at most 500 in pages of 100, as it reads the
+  agents (`readWhole` in `src/api.ts`), and shows no rows until both have loaded, so nothing moves
+  as they arrive. They fold together above the agents in every arrangement (`WaitingFold`, the one
+  place that places them), each a row named by the agent and the session it proposes, with whether
+  approving it makes a new agent, a new session, or approves onto a session there is (`proposalOf`),
+  which that session's own row links to (`WaitingRegistrations`). The rows wait for the sessions, or
+  their failure, since what each proposes is told from them. A registration's page
+  (`RegistrationPane.tsx`) holds its approval (`ApproveForm.tsx`), the choice of another agent or
+  session folded until asked for or a name in it is refused. When the agent has the proposed
+  session, the form never chooses it for the operator: two buttons grant it, warning of its history,
+  or a new session under a name the agent has not, and the group and tags picked apply to whichever
+  is approved, starting from a session's own once one is chosen. Approve and Reject are the form's
+  own actions, both unavailable while either is under way; Reject needs no agents, so it stands
+  while they load or after they fail. Each decision, or its refusal, reloads the view, and once the
+  registrations waiting and the sessions have reloaded, approving replaces the page's address with
+  the granted session's, and rejecting with the rows', unless the address is no longer the
+  registration's.
+- **Links to a session.** Where the UI names a session and that name leads elsewhere, a small link
+  beside it leads to the session's address (`src/views/session-page-link.tsx`): beside the session
+  in a thread's head, whose name opens the list narrowed to it, on the thread list's chip naming one
+  session, whose button removes the filter, and on a session's header in the grouped list, after its
+  label and beside the fold's button, the link always standing beside the other control so neither
+  holds the other; the thread page's notice of a session without a credential links the session's
+  name. These carry no arrangement, since another view's query is not the tab's, and the rows open
+  as by default. Within the view, a registration's existing session and a past request's granted
+  session link by name, carrying the arrangement as every link in the view does (`useArranged` in
+  `arrangement.ts`).
 - **Loading.** It loads the agents whole, at most 500 in pages of 100, since the approval form
-  chooses among them, and a session's log only while its row is unfolded under an unfolded agent,
-  since what a fold hides is not rendered: one entry more than it shows, so what the oldest entry
-  shown changed can be read against the one before it.
-- **The log.** While the page is visible, an unfolded log marks the operator's read through its
-  newest entry whenever that is beyond their mark, with the read marking the thread page uses for
-  its messages (`useReading` in `src/data.ts`).
+  chooses among them, and a session's log only while the session is open, one entry more than it
+  shows, so what the oldest entry shown changed can be read against the one before it.
+- **The log.** While the page is visible, an open session's log marks the operator's read through
+  its newest entry whenever that is beyond their mark, with the read marking the thread page uses
+  for its messages (`useReading` in `src/data.ts`).
 - **Arrangement.** The view arranges what it loaded in the browser (`arrangement.ts`, whose header
   comment gives the groupings and the sorts). The arrangement lives in the address, as
   `/sessions?group=agent&sort=registered&reverse=true`, each part left out at its default, and a
@@ -1998,7 +2248,8 @@ sight, so Mermaid can measure text, and draws its diagrams there one at a time, 
   its stage sets `touch-action: none`.
 
 Diagrams are drawn again when the color scheme changes. The Markdown renderer's output itself holds
-no frame, SVG or image: the frame belongs to the page.
+no frame or image, and no SVG but the icon of the copy button each code block carries
+(`src/markdown/CodeBlock.tsx`): the frame belongs to the page.
 
 ### Keyboard shortcuts
 
@@ -2010,12 +2261,12 @@ comments give the document's handler and its rules, among them `modified`, for A
 `composing`, for an input method.
 
 - **Binding.** While it is mounted, each place's view gives every shortcut of its place its action,
-  through a hook typed by the place (`useShortcuts` for the thread list and a thread,
-  `useFieldShortcuts` for the composer, whose keys act within its fields from its form's key
-  handler, and the provider for those that act anywhere), so a place binds exactly its declared
-  shortcuts, and no shortcut listed goes without an action. Only one component holds a shortcut's
-  action at a time; a second registering one throws. Each action does what a control on the page
-  does, only while that control could, and otherwise nothing.
+  through a hook typed by the place (`useShortcuts` for the thread list, a thread, the sessions'
+  rows and a session, `useFieldShortcuts` for the composer, whose keys act within its fields from
+  its form's key handler, and the provider for those that act anywhere), so a place binds exactly
+  its declared shortcuts, and no shortcut listed goes without an action. Only one component holds a
+  shortcut's action at a time; a second registering one throws. Each action does what a control on
+  the page does, only while that control could, and otherwise nothing.
 - **The browser's keys.** A matching key is always taken from the browser: no key bound does
   anything of the browser's own where it acts, apart from `/` on the thread list, which takes
   Firefox's Quick Find, deliberately; `Enter` on a row is left out, since the row is a link the
@@ -2024,11 +2275,16 @@ comments give the document's handler and its rules, among them `modified`, for A
   its view's (`ShortcutArea`), which clicking within a pane gives focus. The list's keys reach
   across from the thread beside it, and the thread's do not (`reachesAcross`). A key both bind, `n`
   or `U`, acts in the place whose area holds focus, or else in the later place declared, the thread.
-- **The list's keys** act through what a pointer would use (`src/views/list/shortcuts.ts`): the
-  current row is the row whose link has focus, or, side by side with focus on no row, the open
-  thread's; `I` and `U` act through the bar at the list's foot, whose state gives them its action
-  (`useMarkKeys` in `ListBar.tsx`); and `s` and `b` open the head's pick lists with `showPicker`
-  where the browser allows it (`openPicker` in `src/icon-controls.tsx`).
+  The sessions' rows and a session are two places the same way: `j` and `k` reach across from the
+  session's pane, `o` acts only on the row that holds focus, and `u` and `Escape` do not act from
+  the rows.
+- **The list's keys** act through what a pointer would use (`src/views/list/shortcuts.ts`, over
+  `src/views/row-keys.ts`, which the sessions' rows share): the current row is the row holding
+  focus, or, side by side with focus on no row, the open thread's, though `o` opens only the row
+  holding focus, so from the thread it takes no focus away; `I` and `U` act through the bar at the
+  list's foot, whose state gives them its action (`useMarkKeys` in `ListBar.tsx`); and `s` and `b`
+  open the head's pick lists with `showPicker` where the browser allows it (`openPicker` in
+  `src/icon-controls.tsx`).
 - **A thread's `U`** marks unread only once every read mark the page started has settled
   (`useReading` counts them), so no read can undo it.
 
@@ -2059,7 +2315,9 @@ the origin separating servers.
   the choice an earlier release kept, going back or staying, stands in its place.
 - **Folds:** the thread list's headers and the sessions view's groups and agents, and whether it
   shows the past requests. A group's fold is kept by the group's id, and an agent's under a group by
-  the group's id and the agent's name, and by its name alone otherwise.
+  the group's id and the agent's name, and by its name alone otherwise. Every part of a page that
+  folds under one key shares one set of names (`useFolds`), so the folds of one group never
+  overwrite another's.
 - **Drafts:** a thread's draft (`src/views/thread/kept-draft.ts`), under the thread's agent, session
   and number: its text and details, and the message the draft was started from, which the
   stale-write check counts from. The thread list marks a thread with a kept draft from the same
@@ -2094,6 +2352,9 @@ focus to the open section's heading.
   Done dismisses it. Create an API key is unavailable while the keys are at their limit
   (Authentication's [API keys](#api-keys)), and creating and revoking while the sign-in is not
   recent, each saying why.
+- **Saved views** (`SavedViews.tsx`) lists the views as the server does and renames and removes
+  them, with the name form Groups and tags uses (`Organizer.tsx`); saving a view and replacing its
+  list are the thread list's.
 - **Storage** (`Storage.tsx`) reads the settings' `storage` and changes nothing;
   [Attachments](operator-guide.md#attachments) says what it shows.
 

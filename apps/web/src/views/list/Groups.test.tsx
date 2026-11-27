@@ -105,11 +105,17 @@ function serve(threads: ThreadSummary[], cuts: number[] = [], rolled: ThreadGrou
 const header = (label: string) => screen.getByRole("button", { name: label });
 // bar is the header's bar, holding its label and its roll-up.
 const bar = (label: string) => header(label).closest(".group-head, .subgroup-head") as HTMLElement;
-// targets lists where the links on a header's bar lead, in order.
-const targets = (label: string) =>
+// filterLinks lists the links on a header's bar that filter the list, in
+// order, leaving out the link to a session's page (sessionPage); targets
+// lists where they lead.
+const filterLinks = (label: string) =>
   within(bar(label))
     .queryAllByRole("link")
-    .map((link) => link.getAttribute("href"));
+    .filter((link) => !link.classList.contains("session-page-link"));
+const targets = (label: string) => filterLinks(label).map((link) => link.getAttribute("href"));
+// sessionPage is the link on a header's bar to a session's page, if any.
+const sessionPage = (label: string) =>
+  within(bar(label)).queryByRole("link", { name: /^Open session / });
 // rows lists the threads' headings at a level.
 const rows = (level: number) =>
   screen
@@ -379,7 +385,7 @@ describe("a header's links", () => {
     renderAt("/?unread=true&sort=due&group=session");
     await screen.findByRole("heading", { name: titled("Auth one") });
     const entries = window.history.length;
-    const blocked = within(bar("Agent builder Session main")).getAllByRole("link")[3];
+    const blocked = filterLinks("Agent builder Session main")[3];
     fireEvent.click(blocked as HTMLElement);
     // The list's filters change in place, as choosing one does, so going
     // back leaves the list.
@@ -424,6 +430,37 @@ describe("a header's links", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Agent builder Session main" }),
     ).toBeTruthy();
+  });
+});
+
+describe("a header's link to a session's page", () => {
+  // pages lists, for each header's button named, where its session's page
+  // link leads, or null for none.
+  const pages = (names: string[]) =>
+    names.map((name) => sessionPage(name)?.getAttribute("href") ?? null);
+
+  it("follows a session's label", async () => {
+    serve(bySession, [], sessionsAlone(groups));
+    renderAt("/?group=session");
+    await screen.findByRole("heading", { name: titled("Auth one") });
+    expect(pages(outerHeaders())).toEqual([
+      "/sessions/builder/main",
+      "/sessions/reviewer/main",
+      "/sessions/builder/side",
+    ]);
+    const [label] = filterLinks("Agent builder Session main");
+    expect(label?.nextElementSibling).toBe(sessionPage("Agent builder Session main"));
+  });
+
+  it("stands on a session's header under its agent, not on the agent's", async () => {
+    const byAgent = [bySession[0], bySession[1], bySession[2], bySession[4], bySession[3]].filter(
+      (each) => each !== undefined,
+    );
+    serve(byAgent);
+    renderAt("/?group=agent");
+    await screen.findByRole("heading", { name: titled("Side") });
+    expect(pages(outerHeaders())).toEqual([null, null]);
+    expect(pages(innerHeaders())).toEqual(["/sessions/builder/main", "/sessions/builder/side"]);
   });
 });
 

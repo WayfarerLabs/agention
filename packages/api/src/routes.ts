@@ -4,6 +4,7 @@ import { fileRef } from "./files.ts";
 import { groupId, tagName } from "./groups-and-tags.ts";
 import { name } from "./names.ts";
 import { registrationId } from "./registrations.ts";
+import { savedViewId } from "./saved-views.ts";
 
 // What the routes share: the parameters their paths carry, each read from the
 // path's text, and the answer of a change that has nothing to report.
@@ -28,6 +29,7 @@ export const agentParams = z.object({ agent: name });
 export const registrationParams = z.object({ id: queryNumber(registrationId) });
 export const groupParams = z.object({ id: queryNumber(groupId) });
 export const tagParams = z.object({ tag: tagName });
+export const savedViewParams = z.object({ id: queryNumber(savedViewId) });
 
 // The answer of a change that has nothing to report beyond its success.
 export const done = z.object({});

@@ -29,6 +29,10 @@ const frozen = [
   "c2f5bcfd9cacfcbbb7f23688a119ed71244d4071fd77f4dcddb836329465be63",
   // 10, the pull requests and branches messages name.
   "5325889655de911ccfa4b4710b209e88db1a1930bf215eb08e9e314f13486a61",
+  // 11, the audit log, and the instance's and browser sessions' ids.
+  "c24c677d50056cafeead80814df0accad3840019ec7612366ddf475313064eac",
+  // 12, saved views.
+  "78e043925788d4ab1a76dedca1123a2d05251e206eaf3e30b8532749bee4ac51",
 ];
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");

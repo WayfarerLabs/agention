@@ -33,6 +33,7 @@
     "@wayfarerlabs/agention-api": "*",
     "@wayfarerlabs/agention-build": "*",
     "@wayfarerlabs/agention-private-files": "*",
+    "ajv": "8.20.0",
     "hono": "4.13.19",
     "jose": "6.2.17"
   }

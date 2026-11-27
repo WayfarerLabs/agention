@@ -18,17 +18,18 @@ import {
 } from "react";
 import { ErrorBoundary } from "../boundary.tsx";
 import { plainClick } from "../router.tsx";
+import { CodeBlock } from "./CodeBlock.tsx";
 import { Diagram } from "./Diagram.tsx";
 
 // Agention's Markdown: CommonMark with GitHub's tables, task lists and
 // strikethrough, rendered inert. Nothing in the text can run, load or style
 // anything: raw HTML shows as text, images show as links, only absolute https
 // links are live, besides links to the message's own files, and no class or
-// attribute comes from the text. A fenced
-// block whose language is mermaid is a diagram, which is drawn in a sandboxed
-// frame and shows as an image the page makes from the frame's answer. Bare URLs
-// stay text, since GFM's autolink literals are not enabled, and so do
-// footnotes, which would generate links and ids.
+// attribute comes from the text. A fenced block carries a button that copies
+// its text. One whose language is mermaid is a diagram, which is drawn in a
+// sandboxed frame and shows as an image the page makes from the frame's
+// answer. Bare URLs stay text, since GFM's autolink literals are not enabled,
+// and so do footnotes, which would generate links and ids.
 //
 // Nor can the text take the page down. A line that opens more blocks than
 // maxNesting is shown as text without being parsed, since the parser's cost
@@ -338,9 +339,7 @@ function renderNode(node: RootContent, context: Context, key: number): ReactNode
       return node.lang === "mermaid" ? (
         <Diagram key={key} source={node.value} />
       ) : (
-        <pre key={key}>
-          <code>{node.value}</code>
-        </pre>
+        <CodeBlock key={key} code={node.value} />
       );
     case "html":
       // Raw HTML is text; a block of it keeps its line breaks.

@@ -65,7 +65,8 @@ export interface Response {
 }
 
 export class Harness {
-  readonly fixture = new Fixture();
+  readonly origin = origin;
+  readonly fixture: Fixture;
   readonly app: Hono;
   readonly shutdown = new AbortController();
   readonly logged: string[] = [];
@@ -83,6 +84,7 @@ export class Harness {
       apiDocs?: boolean;
     } = {},
   ) {
+    this.fixture = new Fixture({ name: options.name ?? "Agention" });
     try {
       this.app = createApp({
         ...(options.apiDocs === undefined ? {} : { apiDocs: options.apiDocs }),

@@ -2,8 +2,8 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram, voice, API key, attachment and selection
-// tests' own.
+// and so do servers of the diagram, voice, API key, attachment, selection,
+// session link, and saved views tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -12,7 +12,7 @@
 // by its public key (--ignore-certificate-errors-spki-list). Trusting that one
 // key makes the page a real secure context, where ignoring certificate errors
 // altogether would only bypass them.
-import { test as base, type CDPSession, type Page } from "@playwright/test";
+import { test as base, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -49,6 +49,10 @@ export const filesServerName = "Files";
 export const linksServerName = "Links";
 // The name of the server the selection tests start for themselves.
 export const selectionServerName = "Selection";
+// The name of the server the session link tests start for themselves.
+export const sessionLinksServerName = "Session links";
+// The name of the server the saved views tests start for themselves.
+export const savedViewsServerName = "Saved views";
 
 // The name of the server the README's screenshots are taken of.
 export const screenshotsServerName = "Agention";
@@ -212,6 +216,8 @@ export const test = base.extend<
     filesServer: Agention;
     linksServer: Agention;
     selectionServer: Agention;
+    sessionLinksServer: Agention;
+    savedViewsServer: Agention;
     screenshotsServer: Agention;
   }
 >({
@@ -229,6 +235,8 @@ export const test = base.extend<
   filesServer: [serving(filesServerName), { scope: "worker" }],
   linksServer: [serving(linksServerName), { scope: "worker" }],
   selectionServer: [serving(selectionServerName), { scope: "worker" }],
+  sessionLinksServer: [serving(sessionLinksServerName), { scope: "worker" }],
+  savedViewsServer: [serving(savedViewsServerName), { scope: "worker" }],
   screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
@@ -248,6 +256,20 @@ export const test = base.extend<
 });
 
 export { expect } from "@playwright/test";
+
+// reportPolicyRefusals has every page of a context, and each frame within
+// one, log each content security policy refusal as a console error, which the
+// tests collect as a problem. A refusal the page catches, as Zod catches its
+// probe for eval, otherwise reaches no console.
+export async function reportPolicyRefusals(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      console.error(
+        `content security policy refused ${event.violatedDirective} from ${event.sourceFile}`,
+      );
+    });
+  });
+}
 
 // Below the web UI's phone breakpoint (40rem, styles.css).
 const phoneWidth = 640;
@@ -278,4 +300,21 @@ export async function resize(
   // measure nothing before they do.
   await page.waitForFunction((width) => window.innerWidth === width, size.width);
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+}
+
+// approve approves as proposed the registration waiting with a code: from
+// its row on the Sessions tab, on its page, which then goes on to the
+// session it granted.
+export async function approve(page: Page, code: string): Promise<void> {
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("link", { name: /^Sessions/ })
+    .click();
+  const row = page.getByRole("link", { name: new RegExp(`^Registration ${code} for `) });
+  await row.click();
+  await page
+    .getByRole("article", { name: `Registration ${code}` })
+    .getByRole("button", { name: "Approve" })
+    .click();
+  await base.expect(row).toHaveCount(0);
 }

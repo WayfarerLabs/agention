@@ -1,10 +1,12 @@
 import { agentApi, agentApiHeader, maxFileBytes } from "@wayfarerlabs/agention-api";
 import { Deadlines } from "@wayfarerlabs/agention/src/http/deadlines.ts";
 import { generateKeyPairSync } from "node:crypto";
+import { once } from "node:events";
 import { mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { type FileHandle, open } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer, type Server } from "node:https";
+import { connect, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
@@ -99,6 +101,38 @@ describe("a request", () => {
     expect(call.settled()).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     await expect(call.promise).rejects.toBeInstanceOf(BridgeError);
+  });
+
+  // A connection Node opens for a request cancelled before it starts goes to
+  // the agent unused, where it can hold the process open: a bridge whose host
+  // closed its input while a call was starting would not exit. So such a
+  // request opens no connection at all.
+  it("opens no connection for a call cancelled before it starts", async () => {
+    await serve(() => undefined);
+    const { port } = server?.address() as { port: number };
+    const opened: (number | undefined)[] = [];
+    server?.on("connection", (socket: Socket) => opened.push(socket.remotePort));
+    // At an IP address, so a connection the call opened would connect at
+    // once, with no lookup first.
+    const api = new AgentApi({
+      origin: `https://localhost:${port}`,
+      connectAddress: { host: "127.0.0.1", port },
+      clock: Date.now,
+    });
+    const call = api.request(key, {
+      method: "GET",
+      path: "/s/builder/main/threads",
+      signal: AbortSignal.abort(),
+    });
+    await expect(call).rejects.toBeInstanceOf(BridgeError);
+    // A connection opened once the call has failed reaches the server after
+    // any the call opened.
+    const probe = connect(port, "127.0.0.1");
+    await once(probe, "connect");
+    const probePort = probe.localPort;
+    await until(() => opened.includes(probePort));
+    probe.destroy();
+    expect(opened).toEqual([probePort]);
   });
 });
 

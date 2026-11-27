@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { type DiagramTheme, tooLongToDraw } from "../diagram-frame/protocol.ts";
 import { useMedia } from "../media.ts";
+import { CodeBlock } from "./CodeBlock.tsx";
 import { DiagramViewer } from "./DiagramViewer.tsx";
 import { drawDiagram } from "./diagrams.ts";
 import { SvgImage } from "./SvgImage.tsx";
@@ -10,9 +11,10 @@ import { SvgImage } from "./SvgImage.tsx";
 // alternative text is the title the diagram declares, and its description,
 // when it declares one, describes it. A tap opens it full screen; Source
 // shows the text it was drawn from. A diagram too long to draw, or that
-// cannot be drawn, shows its source instead, with a note saying which. It is
-// drawn again when the color scheme changes, and its SVG is kept for that
-// and for the viewer.
+// cannot be drawn, shows its source instead, with a note saying which. Its
+// source shows as a code block, whose button copies it; the drawn image has
+// no button of its own, since Source is a tap away. It is drawn again when
+// the color scheme changes, and its SVG is kept for that and for the viewer.
 
 // A dark color scheme, which a diagram is drawn in Mermaid's dark theme for.
 const darkScheme = "(prefers-color-scheme: dark)";
@@ -93,11 +95,7 @@ export function Diagram({ source }: { source: string }) {
       >
         Source
       </button>
-      {showSource && (
-        <pre>
-          <code>{source}</code>
-        </pre>
-      )}
+      {showSource && <CodeBlock code={source} />}
       {viewing && (
         <DiagramViewer
           svg={state.svg}
@@ -118,9 +116,7 @@ function Fallback({ source, note }: { source: string; note: string }) {
   return (
     <figure className="diagram">
       <p className="diagram-note">{note}, so its source shows instead.</p>
-      <pre>
-        <code>{source}</code>
-      </pre>
+      <CodeBlock code={source} />
     </figure>
   );
 }

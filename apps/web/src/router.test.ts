@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { listHref, listViewOf } from "./router.tsx";
+import {
+  listHref,
+  listViewOf,
+  matchRoute,
+  registrationHref,
+  safeReturnPath,
+  sessionHref,
+} from "./router.tsx";
 
 // roundTrip reads the list an address names and writes its address again.
 const roundTrip = (address: string) =>
@@ -46,5 +53,38 @@ describe("a list's address", () => {
     ["a topic outside the name grammar", "/?topic=builder/main/Auth&unread=true", "/?unread=true"],
   ])("leaves out %s, keeping the rest", (_, address, kept) => {
     expect(roundTrip(address)).toBe(kept);
+  });
+});
+
+describe("a session's address", () => {
+  it("is on the Sessions tab, named by its agent and session", () => {
+    expect(matchRoute(sessionHref("builder", "main"))).toEqual({
+      name: "session",
+      agent: "builder",
+      session: "main",
+    });
+    expect(matchRoute("/sessions")).toEqual({ name: "sessions" });
+  });
+
+  it("names a registration waiting by its number, beside the tab's own /registrations", () => {
+    expect(matchRoute(registrationHref(7))).toEqual({ name: "registration", id: 7 });
+    expect(matchRoute("/registrations")).toEqual({ name: "sessions" });
+    expect(matchRoute("/registrations/0").name).toBe("not-found");
+    expect(matchRoute("/registrations/1e3").name).toBe("not-found");
+  });
+
+  it.each([
+    ["a name outside the grammar", "/sessions/Builder/main"],
+    ["a session with no name", "/sessions/builder/"],
+    ["an agent alone", "/sessions/builder"],
+    ["more than a session", "/sessions/builder/main/log"],
+  ])("is no page for %s", (_, address) => {
+    expect(matchRoute(address)).toEqual({ name: "not-found" });
+  });
+
+  it("is one signing in comes back to, with its arrangement", () => {
+    expect(safeReturnPath("/sessions/builder/main?group=agent")).toBe(
+      "/sessions/builder/main?group=agent",
+    );
   });
 });

@@ -11,7 +11,7 @@ import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agen
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { StubProvider } from "../../server/src/transcription/test-provider.ts";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, resize, test } from "./fixtures.ts";
+import { type Agention, approve, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -57,6 +57,7 @@ test.beforeAll(async ({ browser, voiceServer }) => {
   stub = await StubProvider.start();
   stub.answer = () => ({ status: 200, body: JSON.stringify({ text: "SQLite" }) });
   context = await browser.newContext({ baseURL: server.origin, viewport: wide });
+  await reportPolicyRefusals(context);
   await context.grantPermissions(["microphone"], { origin: server.origin });
   page = await context.newPage();
   page.on("console", (message) => {
@@ -102,12 +103,7 @@ test.beforeAll(async ({ browser, voiceServer }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   agent = new Agent(server);
   await agent.send("POST", "/registrations", { agent: "builder", session: "main" });
-  await page.getByRole("link", { name: "Sessions" }).click();
-  const code = registrationCode(agent.publicKey as PublicKey);
-  await page
-    .getByRole("article", { name: `Registration ${code}` })
-    .getByRole("button", { name: "Approve" })
-    .click();
+  await approve(page, registrationCode(agent.publicKey as PublicKey));
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
 });
 

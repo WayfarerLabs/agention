@@ -17,8 +17,8 @@ the server's part of them on every request, and the web UI renders content inert
   authentication, never from request content.
 - **Isolation.** An agent session sees and changes only what its credential authorizes. A target the
   caller may not access produces the same response as one that does not exist. Session groups and
-  tags, and the presence signals (quiet and stranded), are the operator's alone and reach no agent,
-  and groups and tags grant nothing.
+  tags, saved views, and the presence signals (quiet and stranded), are the operator's alone: no
+  agent sees or changes them, and groups, tags, and saved views grant nothing.
 - **Append-only, attributed history.** Nothing is edited or erased: a replacement is a new message,
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.
@@ -68,16 +68,16 @@ the server's part of them on every request, and the web UI renders content inert
   knows it. A source over 10,000 characters is not drawn, and Mermaid runs at its strict security
   level. Where a browser runs the frame on the page's own thread, a diagram that sends Mermaid into
   a busy loop can still freeze the page; the size cap and Mermaid's own limits are the defense
-  there. The content security policy lets the web UI load only its own scripts, styles, images and
-  media, and the `blob:` images it makes from the frame's answers, and frame only the diagram frame,
-  as a second line. No text can break the web UI: a field that fails to render shows as its text,
-  and text nested too deeply shows as text without being parsed. Text can still slow it: some
-  Markdown parses in more than linear time, milliseconds for a message's text, which holds at most
-  1,000 characters, but up to about 2.5 seconds for a detail at its bound of 20,000. A thread page
-  renders the text of up to 50 messages at a time and parses a detail once each time it is opened,
-  not as the page refreshes, so a deliberately hostile detail can stall one thread's page for that
-  long each time it is opened. The lists render no Markdown, so the operator can still reach the
-  sessions view and revoke the session's credential.
+  there. The content security policy lets the web UI load only its own scripts, styles, images,
+  media, web app manifest, and workers, and the `blob:` images it makes from the frame's answers,
+  and frame only the diagram frame, as a second line. No text can break the web UI: a field that
+  fails to render shows as its text, and text nested too deeply shows as text without being parsed.
+  Text can still slow it: some Markdown parses in more than linear time, milliseconds for a
+  message's text, which holds at most 1,000 characters, but up to about 2.5 seconds for a detail at
+  its bound of 20,000. A thread page renders the text of up to 50 messages at a time and parses a
+  detail once each time it is opened, not as the page refreshes, so a deliberately hostile detail
+  can stall one thread's page for that long each time it is opened. The lists render no Markdown, so
+  the operator can still reach the sessions view and revoke the session's credential.
 - **No network identity.** No authentication decision or rate limit depends on source address,
   forwarded headers or network identity, so Agention does not rely on its network path for security.
   The server answers only for its configured origin's host, and plain HTTP is refused on a
@@ -174,8 +174,13 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   operator's but never a file a message carries. A leaked key holding `sessions:approve` can approve
   an agent's registration, letting an agent of its holder's choosing into the operator's sessions,
   so Settings and the operator guide say what that scope grants. Approving that also sets the
-  session's group or tags needs `sessions:write` too, which the store checks with the approval. A
-  message written with a key is the operator's, and records no key.
+  session's group or tags needs `sessions:write` too, which the store checks with the approval. The
+  operator's saved views, each a name and a thread list, have scopes of their own:
+  `saved-views:read` reads them, and a key holding `saved-views:write` can change which lists the
+  operator's views open, and nothing more, since a view grants nothing and opening one only shows a
+  list. Renaming a tag with `sessions:write` renames it in the saved views naming it too, as it
+  renames it everywhere else. A message written with a key is the operator's, and records no key;
+  the [audit log](#audit-log) records which key wrote it.
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with
@@ -188,6 +193,58 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   to anyone who reaches the origin. It describes the contract, never data, and without the flag
   nothing is served there. Its page is static HTML under a content security policy of its own that
   lets it load, run and submit nothing.
+
+### Audit log
+
+The server records every write, sign-in and credential change in an audit log, in the same
+transaction as the change, so a change is never saved without its event, and an event that cannot be
+saved fails the change. The operator guide's "Audit log" lists what it records.
+
+- **Metadata only.** An event names who acted, by credential, what they acted on, by id, with the
+  names the operator and agents chose for agents, sessions, groups, tags, saved views, keys, and
+  passkeys, the outcome, the request's origin, and the time. It never holds a message's or an
+  answer's text, a thread's title, a saved view's list, a file's name or bytes, a transcription, or
+  a secret: no session cookie or its hash, CSRF token, API key, passkey link token, passkey
+  material, the instance's own key, an agent's token, or the transcription key. The events are built
+  from typed inputs only, which have no field for any of these, and a test plants a marker in every
+  one of them and finds it in no event, no delivered line and no stderr line.
+- **Credentials by ids that are not secret.** A browser session is named by a random id of its own,
+  never its cookie or anything derived from it, with the passkey that signed it in; an API key by
+  its id and name; an agent by its registration's id.
+- **Bounded input from clients.** Beside ids and numbers, an event carries what clients chose only
+  as bounded, grammar-checked values: the names of agents, sessions, groups, tags, saved views, keys
+  and passkeys, an upload's media type, and the user agent. The user agent, cut to 256 characters,
+  is the only free-form text a client chooses that reaches an event. A refused request, and a key's
+  first use, which is recorded before the request's path is checked, record the route's pattern,
+  never the path the client sent. Every event is written on one line, with the characters some
+  readers take for a line's end escaped.
+- **Failures are bounded.** Failed sign-ins and links, which anyone who can reach the server can
+  cause, and refusals of an API key the server knows, revoked, expired or lacking a scope, are
+  recorded only once they have spent their [rate budget](docs/operator-guide.md#rate-budgets), and
+  counted as one event per kind, and per key, each minute. A key the server does not know records
+  nothing. The answer the caller gets is the same as before.
+- **Addresses are the peer's.** The address recorded is the connection's peer, as the server sees
+  it: behind `tailscale serve`, a reverse proxy or a platform's router, the proxy's. No forwarded
+  header is read, so none can fool it.
+- **Reads are not recorded**, the audit log's own included, and neither is reading a thread. OWASP
+  advises recording access to logs; Agention does not, so that every read stays free of writes.
+- **Files.** `--audit-dir` follows the [private-file rule](#private-files): the directory 0700 and
+  its files 0600, readable by the server's user alone. `--audit-group` shares them with one group,
+  for a collector that runs as its own user: the directory 0750 and its files 0640, in that group,
+  which can read them and never write them, and others still have no access. The server refuses a
+  directory or file with any other mode, and changes none.
+- **The delivered copy is the evidence.** Each event carries a random id and its place in the log's
+  sequence, so a destination can see an event missing or delivered twice. An event that has left the
+  machine holds against whoever controls the server; one not yet delivered can be removed or
+  rewritten, unseen, by whoever can write the database, and nothing on the machine proves otherwise
+  ([ADR 0006](docs/adrs/0006-audit-log.md)). Standard output and a file are on the same machine:
+  they are evidence only once whatever collects them has carried them off. A destination holds
+  metadata about the operator's activity, under its own access controls.
+- **Retention and restores.** Events older than the retention, 365 days by default, are removed,
+  oldest first, and only once every sink has received them. Restoring a backup rolls the log back
+  with the data, which a destination can see ([ADR 0006](docs/adrs/0006-audit-log.md)).
+- **Configuration.** Sinks are configured only where the server starts, by `serve` options, which
+  take no secret. No API key, agent or browser can add, change or remove one.
 
 ### Attachments
 
@@ -246,8 +303,9 @@ files in its database, so they are in every backup.
 
 ### Private files
 
-The server's data directory and database, each copy `agention backup` writes, and each agent bridge
-session's key file are private to the operating-system user that runs them, under one rule:
+The server's data directory and database, each copy `agention backup` writes, the audit log's
+directory and files, and each agent bridge session's key file are private to the operating-system
+user that runs them, under one rule:
 
 - the file is a regular file, never a symlink, that belongs to the user, with no group or other
   permissions;
@@ -266,6 +324,11 @@ path, create what is missing with modes 0700 and 0600 whatever the umask, and ne
 permissions of a path that exists: they refuse, and say what to change. A backup's copy holds all
 the database holds, so `agention backup` creates it with mode 0600, never over a file that exists,
 only in a directory that already obeys the rule.
+
+The audit log's directory may instead be shared with one group, for a log collector that runs as its
+own user: the same rule, except that the directory belongs to the user and that group with mode
+0750, and each file in it to both with mode 0640. The group can read the files and never write them,
+and others still have no access.
 
 ### The agent bridge
 

@@ -23,19 +23,16 @@ export class ApiFailure extends Error {
   readonly field: string | undefined;
   // The messages a stale write missed.
   readonly missed: Message[] | undefined;
-  // For rate_limited, how many seconds to wait.
-  readonly retryAfter: number | undefined;
 
   constructor(
     code: FailureCode,
     message: string,
-    details: { field?: string; missed?: Message[]; retryAfter?: number } = {},
+    details: { field?: string; missed?: Message[] } = {},
   ) {
     super(message);
     this.code = code;
     this.field = details.field;
     this.missed = details.missed;
-    this.retryAfter = details.retryAfter;
   }
 }
 
@@ -49,7 +46,7 @@ export interface RequestOptions {
 
 // The answer is read as an error body only when it has the API's error shape:
 // a proxy in front of the server can answer with anything.
-function failureFrom(status: number, text: string, retryAfterHeader: string | null): ApiFailure {
+function failureFrom(status: number, text: string): ApiFailure {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -61,11 +58,9 @@ function failureFrom(status: number, text: string, retryAfterHeader: string | nu
     return new ApiFailure("unexpected", `The server answered with status ${status}.`);
   }
   const { code, message, field, missed } = body.data.error;
-  const retryAfter = Number(retryAfterHeader ?? "");
   return new ApiFailure(code, message, {
     ...(field === undefined ? {} : { field }),
     ...(missed === undefined ? {} : { missed }),
-    ...(Number.isFinite(retryAfter) && retryAfter > 0 ? { retryAfter } : {}),
   });
 }
 
@@ -76,7 +71,7 @@ async function failureOf(response: Response): Promise<ApiFailure> {
   } catch {
     // An unreadable body reads as an answer other than the API's.
   }
-  return failureFrom(response.status, text, response.headers.get("retry-after"));
+  return failureFrom(response.status, text);
 }
 
 // No request waits longer than this for its answer, so one that hangs fails
@@ -239,7 +234,7 @@ export function uploadFile(
     xhr.onload = () => {
       settle();
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(failureFrom(xhr.status, xhr.responseText, xhr.getResponseHeader("retry-after")));
+        reject(failureFrom(xhr.status, xhr.responseText));
         return;
       }
       try {
@@ -365,29 +360,43 @@ export interface AgentList {
   truncated: boolean;
 }
 
-// How many agents a page of the sessions view holds.
-const agentPage = 100;
+// How many items readWhole asks for a page at a time.
+const wholePage = 100;
+
+// readWhole reads a list the API pages whole, at most maxListed of its
+// items a page at a time, saying whether it stopped with items left to read.
+// page reads one page, from its cursor, of at most limit items.
+export async function readWhole<T>(
+  page: (
+    cursor: string | undefined,
+    limit: number,
+  ) => Promise<{ items: T[]; next: string | undefined }>,
+): Promise<{ items: T[]; truncated: boolean }> {
+  const items: T[] = [];
+  let cursor: string | undefined;
+  for (let read = 0; read < maxListed / wholePage; read++) {
+    const answer = await page(cursor, wholePage);
+    items.push(...answer.items);
+    cursor = answer.next;
+    if (cursor === undefined) {
+      break;
+    }
+  }
+  return { items, truncated: cursor !== undefined };
+}
 
 // listSessions reads the agents with their sessions, as the sessions view
 // shows them, at most maxListed agents a page at a time, saying whether it
 // stopped with agents left to read. The view comes whole, as the approval
 // form's choices need it. Aborting signal stops it before its next page.
 export async function listSessions(signal?: AbortSignal): Promise<AgentList> {
-  const agents: Agents = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < maxListed / agentPage; page++) {
-    const answer = await request<SessionsPage>(
-      "GET",
-      `/sessions${query({ cursor, limit: agentPage })}`,
-      { signal },
-    );
-    agents.push(...answer.agents);
-    cursor = answer.next;
-    if (cursor === undefined) {
-      break;
-    }
-  }
-  return { agents, truncated: cursor !== undefined };
+  const { items, truncated } = await readWhole(async (cursor, limit) => {
+    const answer = await request<SessionsPage>("GET", `/sessions${query({ cursor, limit })}`, {
+      signal,
+    });
+    return { items: answer.agents, next: answer.next };
+  });
+  return { agents: items, truncated };
 }
 
 // PasskeyFailure is a passkey ceremony the browser refused or could not
@@ -412,8 +421,5 @@ export function describeFailure(failure: unknown): string {
     return "Something went wrong.";
   }
   const text = failure.message.charAt(0).toUpperCase() + failure.message.slice(1);
-  const sentence = /[.!?]$/.test(text) ? text : `${text}.`;
-  return failure.retryAfter === undefined
-    ? sentence
-    : `${sentence} Try again in ${failure.retryAfter} seconds.`;
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }

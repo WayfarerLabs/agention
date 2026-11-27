@@ -9,6 +9,8 @@ import type {
   MarksResult,
   UnreadInput,
 } from "@wayfarerlabs/agention-api";
+import type { ArchivedThread } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";
@@ -20,6 +22,7 @@ import {
   raiseReadMark,
   requireThread,
   type StoredThread,
+  threadRef,
   type ThreadTarget,
 } from "./threads.ts";
 
@@ -123,8 +126,8 @@ export function openAsksThrough(
 }
 
 // archiveThrough finds a thread of an authorized session and archives it
-// through a message (archiveFound). field names the thread in errors, when it
-// is one of several.
+// through a message (archiveFound), answering the thread and the outcome.
+// field names the thread in errors, when it is one of several.
 function archiveThrough(
   db: Database,
   identity: Identity,
@@ -132,10 +135,10 @@ function archiveThrough(
   number: number,
   through: number,
   field?: string,
-): { marks: Marks } | { openAsks: number[] } {
+): { thread: StoredThread; outcome: { marks: Marks } | { openAsks: number[] } } {
   const thread = requireThread(db, sessionId, number, field);
   checkThrough(thread, through, field);
-  return archiveFound(db, identity, thread, through);
+  return { thread, outcome: archiveFound(db, identity, thread, through) };
 }
 
 // archiveFound raises the identity's archive mark on a thread found already
@@ -188,7 +191,13 @@ export function archiveThread(
   return db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
-    const outcome = archiveThrough(db, identity, sessionId, target.thread, input.through);
+    const { thread, outcome } = archiveThrough(
+      db,
+      identity,
+      sessionId,
+      target.thread,
+      input.through,
+    );
     if ("openAsks" in outcome) {
       const [number] = outcome.openAsks;
       throw invalidInput(
@@ -196,7 +205,12 @@ export function archiveThread(
         `ask ${number} is open to you; answer or decline it before archiving`,
       );
     }
-    statusOnWrite(db, identity, sessionId, {}, now);
+    const status = statusOnWrite(db, identity, sessionId, {}, now);
+    recordAudit(store, now, { kind: "identity", identity }, "archiveThread", {
+      thread: threadRef(thread, target),
+      through: input.through,
+      status,
+    });
     return outcome;
   });
 }
@@ -232,17 +246,29 @@ export function bulkArchive(
     const now = store.clock();
     authorizeScope(db, identity, "threads:write", now);
     const result: BulkArchiveResult = { archived: [], skipped: [] };
+    const archived: ArchivedThread[] = [];
     input.threads.forEach((target, index) => {
       const field = `threads.${index}`;
       const sessionId = authorizeSession(db, identity, "threads:write", target, now, field);
-      const outcome = archiveThrough(db, identity, sessionId, target.thread, target.through, field);
+      const { thread, outcome } = archiveThrough(
+        db,
+        identity,
+        sessionId,
+        target.thread,
+        target.through,
+        field,
+      );
       const named = { agent: target.agent, session: target.session, thread: target.thread };
       if ("openAsks" in outcome) {
         result.skipped.push({ ...named, open_asks: outcome.openAsks });
       } else {
         result.archived.push({ ...named, marks: outcome.marks });
+        archived.push({ thread: threadRef(thread, target), through: target.through });
       }
     });
+    if (archived.length > 0) {
+      recordAudit(store, now, { kind: "identity", identity }, "bulkArchive", { archived });
+    }
     return result;
   });
 }

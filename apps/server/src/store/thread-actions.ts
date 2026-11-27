@@ -5,6 +5,8 @@ import {
   type ThreadActionInput,
   type ThreadActionResult,
 } from "@wayfarerlabs/agention-api";
+import type { ArchivedThread, MessageEntry } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";
@@ -14,9 +16,11 @@ import { matchingThreads, readAsOf } from "./thread-lists.ts";
 import {
   authorizeSession,
   declineAsks,
+  messageEntry,
   raiseReadMark,
   requireThread,
   type StoredThread,
+  threadRef,
 } from "./threads.ts";
 
 // The operator's actions on many threads at once: marking them read or
@@ -43,12 +47,21 @@ interface Acting {
   now: number;
   done: ThreadActionResult;
   written: Set<number>;
+  // What the call archived and declined, for its audit event.
+  archived: ArchivedThread[];
+  declines: MessageEntry[];
 }
 
 // archiveAndRead archives a thread through a message, keeping out a thread
 // holding an ask open to the caller at or before it, and marks the thread it
 // archives read through that message too.
-function archiveAndRead(acting: Acting, thread: StoredThread, named: Named, through: number): void {
+function archiveAndRead(
+  acting: Acting,
+  thread: StoredThread,
+  named: Named,
+  target: Target,
+  through: number,
+): void {
   const { db, identity, done } = acting;
   const outcome = archiveFound(db, identity, thread, through);
   if ("openAsks" in outcome) {
@@ -57,6 +70,7 @@ function archiveAndRead(acting: Acting, thread: StoredThread, named: Named, thro
   }
   raiseReadMark(db, identity.actor, thread.id, through);
   done.acted.push(named);
+  acting.archived.push({ thread: threadRef(thread, target), through });
 }
 
 // unreadFrom finds the message marking a thread unread starts from: the
@@ -98,12 +112,12 @@ function actOn(acting: Acting, action: ThreadAction, target: Target, field?: str
       return;
     }
     case "read_and_archive":
-      archiveAndRead(acting, thread, named, target.through);
+      archiveAndRead(acting, thread, named, target, target.through);
       return;
     case "decline_read_and_archive": {
       const asks = openAsksThrough(db, identity, thread, target.through);
       if (asks.length === 0) {
-        archiveAndRead(acting, thread, named, target.through);
+        archiveAndRead(acting, thread, named, target, target.through);
         return;
       }
       // A message the caller has not seen could change what it would
@@ -112,18 +126,38 @@ function actOn(acting: Acting, action: ThreadAction, target: Target, field?: str
         done.kept.push({ ...named, open_asks: asks });
         return;
       }
-      const seq = declineAsks(db, identity, thread, asks, now);
+      const { seq, messages } = declineAsks(db, identity, thread, asks, now);
       acting.written.add(sessionId);
       done.declined.push({ ...named, asks });
-      archiveAndRead(acting, { ...thread, last_seq: seq }, named, seq);
+      const ref = threadRef(thread, target);
+      for (const message of messages) {
+        acting.declines.push(
+          messageEntry(
+            ref,
+            message.seq,
+            { answers: message.declined.map((ask) => ({ ask, declined: true })) },
+            [],
+            [],
+            null,
+          ),
+        );
+      }
+      archiveAndRead(acting, { ...thread, last_seq: seq }, named, target, seq);
       return;
     }
   }
 }
 
 // act runs one call's actions in a transaction, having authorized the
-// caller, and wakes the sessions its declines wrote to once it commits.
-function act(store: Store, identity: Identity, each: (acting: Acting) => void): ThreadActionResult {
+// caller, records what an archiving action archived and declined, and wakes
+// the sessions its declines wrote to once it commits. Read marks record
+// nothing.
+function act(
+  store: Store,
+  identity: Identity,
+  operation: { action: "actOnThreads" | "actOnMatchingThreads"; archives: boolean },
+  each: (acting: Acting) => void,
+): ThreadActionResult {
   const { db } = store;
   const acting = db.transaction(() => {
     const now = store.clock();
@@ -134,8 +168,16 @@ function act(store: Store, identity: Identity, each: (acting: Acting) => void): 
       now,
       done: { acted: [], declined: [], kept: [] },
       written: new Set(),
+      archived: [],
+      declines: [],
     };
     each(started);
+    if (operation.archives && (started.archived.length > 0 || started.declines.length > 0)) {
+      recordAudit(store, now, { kind: "identity", identity }, operation.action, {
+        archived: started.archived,
+        declines: started.declines,
+      });
+    }
     return started;
   });
   for (const sessionId of acting.written) {
@@ -144,6 +186,11 @@ function act(store: Store, identity: Identity, each: (acting: Acting) => void): 
   return acting.done;
 }
 
+// archives says whether an action archives, which the audit log records, as
+// it does not a read mark.
+const archives = (action: ThreadAction) =>
+  action === "read_and_archive" || action === "decline_read_and_archive";
+
 // actOnThreads does one action to each thread named, through the message
 // given for it.
 export function actOnThreads(
@@ -151,7 +198,8 @@ export function actOnThreads(
   identity: Identity,
   input: ThreadActionInput,
 ): ThreadActionResult {
-  return act(store, identity, (acting) => {
+  const operation = { action: "actOnThreads", archives: archives(input.action) } as const;
+  return act(store, identity, operation, (acting) => {
     input.threads.forEach((target, index) => {
       actOn(acting, input.action, target, `threads.${index}`);
     });
@@ -175,7 +223,8 @@ export function actOnMatchingThreads(
   input: MatchingThreadActionInput,
 ): ThreadActionResult {
   const position = readAsOf(input.as_of, "as_of");
-  return act(store, identity, (acting) => {
+  const operation = { action: "actOnMatchingThreads", archives: archives(input.action) } as const;
+  return act(store, identity, operation, (acting) => {
     const matched = matchingThreads(
       store,
       identity,

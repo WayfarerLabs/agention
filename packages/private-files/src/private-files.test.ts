@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  chownSync,
   closeSync,
   existsSync,
   mkdirSync,
@@ -12,11 +13,13 @@ import {
   statSync,
   symlinkSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  appendToPrivateFile,
   checkAncestor,
   checkPrivateFile,
   createPrivateFile,
@@ -261,6 +264,92 @@ describe("createPrivateFile", () => {
     symlinkSync(target, path.join(root, "secret"));
     expect(createPrivateFile(path.join(root, "secret"))).toBeUndefined();
     expect(existsSync(target)).toBe(false);
+  });
+});
+
+// A group the user is in, for a directory shared with a group: another than
+// the user's own, where there is one, so a file left in the user's own group
+// is seen not to be in it.
+const ownGroup = process.getegid?.() ?? 0;
+const sharedGid = process.getgroups?.().find((gid) => gid !== ownGroup) ?? ownGroup;
+const groupOf = (target: string) => statSync(target).gid;
+
+describe("a directory shared with a group", () => {
+  it.each(["022", "077"])("is made with mode 0750 in the group under umask %s", (umask) => {
+    withUmask(umask, () => {
+      const directory = path.join(root, "audit", "files");
+      expect(ensurePrivateDirectory(directory, sharedGid)).toBe(directory);
+      for (const made of [path.join(root, "audit"), directory]) {
+        expect([mode(made), groupOf(made)]).toEqual([0o750, sharedGid]);
+      }
+    });
+  });
+
+  it("is refused, never repaired, with any other mode or as a private one", () => {
+    const directory = path.join(root, "audit");
+    mkdirSync(directory, { mode: 0o700 });
+    chmodSync(directory, 0o700);
+    expect(reasonOf(() => ensurePrivateDirectory(directory, sharedGid))).toBe(
+      "directory_not_private",
+    );
+    chownSync(directory, process.geteuid?.() ?? 0, sharedGid);
+    for (const refused of [0o700, 0o755, 0o770]) {
+      chmodSync(directory, refused);
+      expect(reasonOf(() => ensurePrivateDirectory(directory, sharedGid))).toBe(
+        "directory_not_private",
+      );
+      expect(mode(directory)).toBe(refused);
+    }
+    chmodSync(directory, 0o750);
+    expect(ensurePrivateDirectory(directory, sharedGid)).toBe(directory);
+    // Shared, it is no private directory.
+    expect(reasonOf(() => ensurePrivateDirectory(directory))).toBe("directory_not_private");
+  });
+});
+
+describe("appendToPrivateFile", () => {
+  const append = (file: string, text: string, shared?: number) => {
+    const fd = appendToPrivateFile(file, shared);
+    try {
+      writeSync(fd, text);
+    } finally {
+      closeSync(fd);
+    }
+  };
+
+  it.each(["000", "077"])(
+    "creates a file with mode 0600, or 0640 in a group, under umask %s",
+    (umask) => {
+      withUmask(umask, () => {
+        append(path.join(root, "audit.jsonl"), "one\n");
+        expect(mode(path.join(root, "audit.jsonl"))).toBe(0o600);
+        const shared = ensurePrivateDirectory(path.join(root, "shared"), sharedGid);
+        append(path.join(shared, "audit.jsonl"), "one\n", sharedGid);
+        const file = path.join(shared, "audit.jsonl");
+        expect([mode(file), groupOf(file)]).toEqual([0o640, sharedGid]);
+      });
+    },
+  );
+
+  it("appends to the file there, leaving what it held", () => {
+    const file = path.join(root, "audit.jsonl");
+    append(file, "one\n");
+    append(file, "two\n");
+    expect(readFileSync(file, "utf8")).toBe("one\ntwo\n");
+  });
+
+  it("refuses a file there with another mode, or through a symlink, changing nothing", () => {
+    const file = path.join(root, "audit.jsonl");
+    writeFileSync(file, "kept", { mode: 0o644 });
+    chmodSync(file, 0o644);
+    expect(reasonOf(() => appendToPrivateFile(file))).toBe("file_not_private");
+    chmodSync(file, 0o600);
+    const shared = ensurePrivateDirectory(path.join(root, "shared"), sharedGid);
+    const sharedFile = privateFile(path.join(shared, "audit.jsonl"));
+    expect(reasonOf(() => appendToPrivateFile(sharedFile, sharedGid))).toBe("file_not_private");
+    symlinkSync(file, path.join(root, "linked.jsonl"));
+    expect(reasonOf(() => appendToPrivateFile(path.join(root, "linked.jsonl")))).toBe("not_a_file");
+    expect(readFileSync(file, "utf8")).toBe("kept");
   });
 });
 

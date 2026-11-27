@@ -11,7 +11,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 import type { ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
 import type { Agent } from "./agent.ts";
 import { pdf, png, removeContents, signIn, threads, upload, webm } from "./files.ts";
-import { type Agention, expect, test } from "./fixtures.ts";
+import { type Agention, expect, reportPolicyRefusals, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -235,6 +235,7 @@ test("on a phone, Attach opens a menu of where files come from, each its own pic
     isMobile: true,
   });
   try {
+    await reportPolicyRefusals(phone);
     const tab = await phone.newPage();
     tab.on("console", (each) => {
       if (each.type() === "error") {

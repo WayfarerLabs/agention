@@ -2,8 +2,10 @@ import type { HttpBindings } from "@hono/node-server";
 import type { Scope } from "@wayfarerlabs/agention-api";
 import type { ApiSchema } from "@wayfarerlabs/agention-api/json-schemas";
 import type { Context, Hono } from "hono";
-import { notFound } from "../errors.ts";
-import { holds, type Identity } from "../identity.ts";
+import { refusedActivity } from "../audit/actions.ts";
+import type { FailureRecorder } from "../audit/record.ts";
+import { ApiError } from "../errors.ts";
+import { holds, type Identity, scopeRefused } from "../identity.ts";
 import type { Store } from "../store/index.ts";
 import { parse, parseBody, parseQuery, type Schema } from "./input.ts";
 
@@ -78,7 +80,10 @@ export interface Declaration {
 // the connection the request arrived on at once, for an answer of bytes that
 // fails after it started, so its client sees the answer cut short rather
 // than ended; it is undefined when the app answers in process, through
-// app.request, with no connection.
+// app.request, with no connection. refused records a refusal of a known API
+// key that such an answer meets once it has started, as a download's later
+// chunk meets a key revoked since, which its client sees only as the answer
+// cut short.
 export interface OperationInput<P, Q, B> {
   store: Store;
   identity: Identity;
@@ -89,6 +94,7 @@ export interface OperationInput<P, Q, B> {
   request: Request;
   log: (message: string) => void;
   dropConnection: (() => void) | undefined;
+  refused: (error: unknown) => void;
 }
 
 // Operation is a declaration with the handler that answers it.
@@ -133,6 +139,8 @@ export interface MountOptions<E extends IdentityEnv = IdentityEnv> {
   // authenticate establishes who is calling, before anything else the route
   // does, or throws.
   authenticate: (c: Context<E>) => Identity | Promise<Identity>;
+  // Where a refusal of a known API key is recorded.
+  recordFailure: FailureRecorder;
 }
 
 // addOperations adds a route for each operation to a mount. Each
@@ -140,41 +148,90 @@ export interface MountOptions<E extends IdentityEnv = IdentityEnv> {
 // as not_found, as if the operation did not exist, before reading any input;
 // then it reads the path, the query and a JSON body through their schemas, in
 // that order, and answers what the handler returns, as JSON unless the
-// operation answers bytes. A GET route answers HEAD too, without a body.
+// operation answers bytes. A GET route answers HEAD too, without a body. A
+// refusal of a known API key after it authenticated, for a scope or as
+// revoked or expired since, is recorded in the audit log, within the key's
+// own budget, which authenticating spent, and answered as before.
 export function addOperations<E extends IdentityEnv>(
   api: Hono<E>,
   operations: readonly Operation[],
   options: MountOptions<E>,
 ): void {
-  const { store, shutdown, log, authenticate } = options;
   for (const each of operations) {
     api.on(each.method, each.path, async (c) => {
-      const identity = await authenticate(c);
-      if (each.scope !== undefined && !holds(identity, each.scope)) {
-        throw notFound();
+      const identity = await options.authenticate(c);
+      try {
+        return await answer(c, each, identity, options);
+      } catch (error) {
+        recordRefusal(options.recordFailure, each, identity, error, true);
+        throw error;
       }
-      const params = each.params === undefined ? undefined : parse(each.params, c.req.param());
-      const query = each.query === undefined ? undefined : parseQuery(c, each.query);
-      const body =
-        each.body === undefined || isBytes(each.body) ? undefined : await parseBody(c, each.body);
-      // The adapter's bindings, which the app has only when the listener
-      // serves it.
-      const outgoing = (c.env as HttpBindings | undefined)?.outgoing;
-      const result = await each.handler({
-        store,
-        identity,
-        params,
-        query,
-        body,
-        // Built only when read, since only the operations that wait need it.
-        get signal() {
-          return AbortSignal.any([c.req.raw.signal, shutdown]);
-        },
-        request: c.req.raw,
-        log,
-        dropConnection: outgoing === undefined ? undefined : () => outgoing.destroy(),
-      });
-      return isBytes(each.response) ? (result as Response) : c.json(result);
     });
   }
+}
+
+// recordRefusal records a refusal of a known API key, for a scope or as
+// revoked or expired since it authenticated, within the key's own budget,
+// which authenticating spent. One met once the answer started was answered
+// with no status of its own.
+function recordRefusal(
+  recordFailure: FailureRecorder,
+  each: Operation,
+  identity: Identity,
+  error: unknown,
+  answered: boolean,
+): void {
+  if (!(error instanceof ApiError) || error.refusal === undefined) {
+    return;
+  }
+  const { code } = error.refusal;
+  recordFailure(
+    { kind: "identity", identity },
+    code === "scope"
+      ? {
+          action: "authorizeScope",
+          operation: each.name,
+          activity: refusedActivity(each.name, identity.origin.method),
+        }
+      : answered
+        ? { action: "authenticateApiKey", code }
+        : { action: "authenticateApiKey", code, unanswered: true },
+  );
+}
+
+// answer runs an operation for an authenticated identity: the scope, then
+// the input, then the handler.
+async function answer<E extends IdentityEnv>(
+  c: Context<E>,
+  each: Operation,
+  identity: Identity,
+  options: MountOptions<E>,
+): Promise<Response> {
+  const { store, shutdown, log } = options;
+  if (each.scope !== undefined && !holds(identity, each.scope)) {
+    throw scopeRefused(identity);
+  }
+  const params = each.params === undefined ? undefined : parse(each.params, c.req.param());
+  const query = each.query === undefined ? undefined : parseQuery(c, each.query);
+  const body =
+    each.body === undefined || isBytes(each.body) ? undefined : await parseBody(c, each.body);
+  // The adapter's bindings, which the app has only when the listener
+  // serves it.
+  const outgoing = (c.env as HttpBindings | undefined)?.outgoing;
+  const result = await each.handler({
+    store,
+    identity,
+    params,
+    query,
+    body,
+    // Built only when read, since only the operations that wait need it.
+    get signal() {
+      return AbortSignal.any([c.req.raw.signal, shutdown]);
+    },
+    request: c.req.raw,
+    log,
+    dropConnection: outgoing === undefined ? undefined : () => outgoing.destroy(),
+    refused: (error) => recordRefusal(options.recordFailure, each, identity, error, false),
+  });
+  return isBytes(each.response) ? (result as Response) : c.json(result);
 }

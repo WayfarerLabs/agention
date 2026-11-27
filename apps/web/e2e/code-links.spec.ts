@@ -15,7 +15,7 @@ import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agen
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent, callServer } from "./agent.ts";
 import { signIn, threads } from "./files.ts";
-import { type Agention, expect, resize, test } from "./fixtures.ts";
+import { type Agention, approve, expect, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -129,12 +129,7 @@ test("the list narrows to one pull request from the sheet, from a copied address
   await other.send("POST", "/registrations", { agent: "reviewer", session: "side" });
   await resize(page, { width: 1280, height: 800 });
   await page.goto("/sessions");
-  await page
-    .getByRole("article", {
-      name: `Registration ${registrationCode(other.publicKey as PublicKey)}`,
-    })
-    .getByRole("button", { name: "Approve" })
-    .click();
+  await approve(page, registrationCode(other.publicKey as PublicKey));
   await expect(page.getByRole("button", { name: /^Agent reviewer/ })).toBeVisible();
   const reviewed = await other.send<WriteResult>("POST", "/s/reviewer/side/threads", {
     request_id: "links-3",

@@ -26,7 +26,7 @@ import {
 } from "./groups-and-tags.ts";
 import { approveRegistration, findRegistrationByKey, submitRegistration } from "./registrations.ts";
 import { listSessions } from "./sessions.ts";
-import { type Agent, Fixture, newPublicKey } from "./test-fixture.ts";
+import { type Agent, Fixture, newPublicKey, testOrigin } from "./test-fixture.ts";
 import { countThreads } from "./thread-lists.ts";
 
 // The colors of groups and tags, the operator's order of groups, tags as rows
@@ -220,7 +220,7 @@ describe("approval with a group and tags", () => {
   // pending submits a registration for builder/second, answering its id.
   function pending(session = "second"): number {
     const key = newPublicKey();
-    submitRegistration(store(), key, { agent: "builder", session });
+    submitRegistration(store(), key, { agent: "builder", session }, testOrigin);
     return findRegistrationByKey(fixture.db, key)?.id ?? 0;
   }
 

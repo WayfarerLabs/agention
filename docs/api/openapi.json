@@ -5042,7 +5042,7 @@
     "/api/operator/v1/tags/{tag}/name": {
       "post": {
         "operationId": "operatorRenameTag",
-        "summary": "Rename a tag, and so on every agent and session carrying it",
+        "summary": "Rename a tag, and so on every agent and session carrying it and in every saved view",
         "tags": [
           "operator"
         ],
@@ -5441,6 +5441,270 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/saved-views": {
+      "get": {
+        "operationId": "operatorListSavedViews",
+        "summary": "List the saved views, by name, each with its thread list",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "saved-views:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "views": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SavedView"
+                      }
+                    }
+                  },
+                  "required": [
+                    "views"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "operatorCreateSavedView",
+        "summary": "Save a thread list as a view, under a name no view has",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "saved-views:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "view": {
+                    "$ref": "#/components/schemas/ViewWritten"
+                  }
+                },
+                "required": [
+                  "name",
+                  "view"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedView"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/saved-views/{id}/name": {
+      "post": {
+        "operationId": "operatorRenameSavedView",
+        "summary": "Rename a saved view",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "saved-views:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedView"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/saved-views/{id}/view": {
+      "post": {
+        "operationId": "operatorReplaceSavedView",
+        "summary": "Put another thread list in place of a saved view's",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "saved-views:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "view": {
+                    "$ref": "#/components/schemas/ViewWritten"
+                  }
+                },
+                "required": [
+                  "view"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedView"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
+    },
+    "/api/operator/v1/saved-views/{id}/remove": {
+      "post": {
+        "operationId": "operatorRemoveSavedView",
+        "summary": "Remove a saved view, leaving every list and thread as it was",
+        "tags": [
+          "operator"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "saved-views:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Done",
@@ -8451,6 +8715,203 @@
           "expires_at"
         ]
       },
+      "SavedView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "name": {
+            "type": "string"
+          },
+          "view": {
+            "type": "object",
+            "properties": {
+              "search": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Only threads whose title, or the text and detail of one of whose live messages, holds every word of this text, each as the start of a word, ignoring case and accents."
+              },
+              "status": {
+                "$ref": "#/components/schemas/ThreadStatus",
+                "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none."
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "description": "Only threads holding an open ask at this priority or higher."
+              },
+              "impact": {
+                "type": "string",
+                "enum": [
+                  "blocking",
+                  "assuming"
+                ],
+                "description": "Only threads holding an open ask with this impact."
+              },
+              "overdue": {
+                "default": false,
+                "type": "boolean",
+                "description": "Only threads holding an open ask past its answer-by time."
+              },
+              "effort": {
+                "type": "string",
+                "enum": [
+                  "quick",
+                  "under_15m",
+                  "under_1h"
+                ],
+                "description": "Only threads holding an open ask that states this effort or less."
+              },
+              "unread": {
+                "default": false,
+                "type": "boolean",
+                "description": "Only threads with messages from the other party that you have neither read nor archived."
+              },
+              "agent_read": {
+                "type": "string",
+                "enum": [
+                  "unread",
+                  "stranded"
+                ],
+                "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped."
+              },
+              "agent": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                },
+                "description": "Only threads of these agents."
+              },
+              "session": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+                },
+                "description": "Only threads of these sessions, each written agent/session."
+              },
+              "topic": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+                },
+                "description": "Only threads on these topics, each written agent/session/topic."
+              },
+              "session_group": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "const": "none"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "description": "Only threads of sessions in these groups, each by its id, or none for no group."
+              },
+              "tag": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                },
+                "description": "Only threads whose session or agent carries one of these tags."
+              },
+              "pull_request": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 157,
+                  "description": "A pull request as owner/name#number."
+                },
+                "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case."
+              },
+              "branch": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 396,
+                  "description": "A branch as owner/name:branch."
+                },
+                "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case."
+              },
+              "include_archived": {
+                "default": false,
+                "type": "boolean",
+                "description": "Also list threads you archived that nothing new has brought back."
+              },
+              "sort": {
+                "default": "priority",
+                "type": "string",
+                "enum": [
+                  "priority",
+                  "due",
+                  "effort",
+                  "latest",
+                  "created"
+                ]
+              },
+              "reverse": {
+                "default": false,
+                "type": "boolean",
+                "description": "Reverse the threads the order ranks, keeping those it does not rank after them."
+              },
+              "group": {
+                "type": "string",
+                "enum": [
+                  "session_group",
+                  "session",
+                  "topic",
+                  "agent"
+                ],
+                "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups."
+              }
+            },
+            "required": [
+              "overdue",
+              "unread",
+              "include_archived",
+              "sort",
+              "reverse"
+            ],
+            "description": "The thread list as it was saved: every filter, the order, its direction and the grouping, those at their default then included."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "view"
+        ]
+      },
       "SessionStatus": {
         "type": "object",
         "properties": {
@@ -8843,6 +9304,178 @@
           "links",
           "credential_active"
         ]
+      },
+      "ViewWritten": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Only threads whose title, or the text and detail of one of whose live messages, holds every word of this text, each as the start of a word, ignoring case and accents."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ThreadStatus",
+            "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "description": "Only threads holding an open ask at this priority or higher."
+          },
+          "impact": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "assuming"
+            ],
+            "description": "Only threads holding an open ask with this impact."
+          },
+          "overdue": {
+            "default": false,
+            "type": "boolean",
+            "description": "Only threads holding an open ask past its answer-by time."
+          },
+          "effort": {
+            "type": "string",
+            "enum": [
+              "quick",
+              "under_15m",
+              "under_1h"
+            ],
+            "description": "Only threads holding an open ask that states this effort or less."
+          },
+          "unread": {
+            "default": false,
+            "type": "boolean",
+            "description": "Only threads with messages from the other party that you have neither read nor archived."
+          },
+          "agent_read": {
+            "type": "string",
+            "enum": [
+              "unread",
+              "stranded"
+            ],
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped."
+          },
+          "agent": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            },
+            "description": "Only threads of these agents."
+          },
+          "session": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+            },
+            "description": "Only threads of these sessions, each written agent/session."
+          },
+          "topic": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}\\/[a-z0-9][a-z0-9_-]{0,62}$"
+            },
+            "description": "Only threads on these topics, each written agent/session/topic."
+          },
+          "session_group": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "none"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              ]
+            },
+            "description": "Only threads of sessions in these groups, each by its id, or none for no group."
+          },
+          "tag": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            },
+            "description": "Only threads whose session or agent carries one of these tags."
+          },
+          "pull_request": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 157,
+              "description": "A pull request as owner/name#number."
+            },
+            "description": "Only threads whose live messages name one of these pull requests, each written owner/name#number, its repository matched ignoring case."
+          },
+          "branch": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 396,
+              "description": "A branch as owner/name:branch."
+            },
+            "description": "Only threads whose live messages name one of these branches, each written owner/name:branch, its repository matched ignoring case."
+          },
+          "include_archived": {
+            "default": false,
+            "type": "boolean",
+            "description": "Also list threads you archived that nothing new has brought back."
+          },
+          "sort": {
+            "default": "priority",
+            "type": "string",
+            "enum": [
+              "priority",
+              "due",
+              "effort",
+              "latest",
+              "created"
+            ]
+          },
+          "reverse": {
+            "default": false,
+            "type": "boolean",
+            "description": "Reverse the threads the order ranks, keeping those it does not rank after them."
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "session_group",
+              "session",
+              "topic",
+              "agent"
+            ],
+            "description": "Group the list, each group's threads together: session_group by session group, then session; session by session; topic by session, then topic; agent by agent, then session. Only topic carries each session's topics in the roll-ups."
+          }
+        },
+        "description": "The thread list: every filter, the order, its direction and the grouping, as listing threads takes them, without the page. Kept whole, each part left out at its default then."
       },
       "Withdrawal": {
         "type": "object",

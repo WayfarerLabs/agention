@@ -1,5 +1,6 @@
-import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { SignJWT } from "jose";
+import { execFileSync } from "node:child_process";
 import { Agent, get } from "node:http";
 import { type AddressInfo, createServer } from "node:net";
 import path from "node:path";
@@ -9,10 +10,11 @@ import packageJson from "../package.json" with { type: "json" };
 import { run } from "./cli.ts";
 import { Database } from "./database/database.ts";
 import { openBrowserSession } from "./auth/browser-sessions.ts";
+import { issuePasskeyLink } from "./auth/passkey-links.ts";
 import { hashOfSecret } from "./auth/secrets.ts";
 import { type AgentKey, newAgentKey } from "./http/test-harness.ts";
 import { identityForBrowserSession } from "./identity.ts";
-import { insertTestPasskey } from "./store/test-fixture.ts";
+import { insertTestPasskey, testOrigin } from "./store/test-fixture.ts";
 import { testDirectory } from "./test-directory.ts";
 import {
   approveRegistration,
@@ -28,12 +30,12 @@ import {
 // The first sweep's pass, which a test may hold open to see what serve does
 // meanwhile; the real pass runs either way.
 const firstSweep = vi.hoisted(() => ({ held: Promise.resolve() }));
-vi.mock("./store/file-sweep.ts", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./store/file-sweep.ts")>();
+vi.mock("./store/sweep.ts", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./store/sweep.ts")>();
   return {
     ...real,
-    sweepFilesRegularly: (...args: Parameters<typeof real.sweepFilesRegularly>) => {
-      const sweeps = real.sweepFilesRegularly(...args);
+    sweepRegularly: (...args: Parameters<typeof real.sweepRegularly>) => {
+      const sweeps = real.sweepRegularly(...args);
       return { ...sweeps, first: sweeps.first.then(() => firstSweep.held) };
     },
   };
@@ -42,8 +44,9 @@ vi.mock("./store/file-sweep.ts", async (importOriginal) => {
 function capture() {
   return {
     text: "",
-    write(text: string) {
+    write(text: string, callback?: (error?: Error | null) => void) {
       this.text += text;
+      callback?.();
     },
   };
 }
@@ -78,6 +81,8 @@ describe("agention", () => {
     "serve --help",
     "passkey-link -h",
     "backup --help",
+    "audit --help",
+    "audit forget-sink -h",
   ])("prints help on stdout for %s", async (line) => {
     const result = await runCaptured(line.split(" "));
     expect(result.code).toBe(0);
@@ -91,6 +96,8 @@ describe("agention", () => {
     ["an extra argument", ["version", "extra"]],
     ["an unknown option", ["version", "--verbose"]],
     ["help for an unknown command", ["serve-everything", "--help"]],
+    ["audit without a command", ["audit"]],
+    ["an unknown audit command", ["audit", "forget-everything"]],
   ])("rejects %s with a usage error on stderr", async (_, args) => {
     const result = await runCaptured(args);
     expect(result.code).toBe(2);
@@ -137,9 +144,13 @@ describe("agention serve and passkey-link", () => {
           Date.now(),
         ),
       );
-      const identity = identityForBrowserSession(db, hashOfSecret(token) ?? Buffer.alloc(0));
+      const identity = identityForBrowserSession(
+        db,
+        hashOfSecret(token) ?? Buffer.alloc(0),
+        testOrigin,
+      );
       const key = newAgentKey();
-      submitRegistration(store, key.publicKey, { agent: "builder", session: "main" });
+      submitRegistration(store, key.publicKey, { agent: "builder", session: "main" }, testOrigin);
       approveRegistration(
         store,
         identity ?? (undefined as never),
@@ -168,10 +179,11 @@ describe("agention serve and passkey-link", () => {
 
   // servingWith runs agention serve as serving does, in the environment given.
   async function servingWith(env: Record<string, string>, stop: AbortSignal, ...flags: string[]) {
+    const stdout = capture();
     const stderr = capture();
     const running = run(
       ["serve", "--data", data, "--origin", `${origin}/`, "--listen", "127.0.0.1:0", ...flags],
-      { stdout: capture(), stderr, stop, env },
+      { stdout, stderr, stop, env },
     );
     let port: number | undefined;
     for (let i = 0; i < 200 && port === undefined; i++) {
@@ -179,7 +191,7 @@ describe("agention serve and passkey-link", () => {
       const match = /on http:\/\/127\.0\.0\.1:(\d+)/.exec(stderr.text)?.[1];
       port = match === undefined ? undefined : Number(match);
     }
-    return { running, port: port ?? 0 };
+    return { running, port: port ?? 0, stdout, stderr };
   }
 
   function getJson(
@@ -241,8 +253,35 @@ describe("agention serve and passkey-link", () => {
       "passkey-link given a server's --name",
       ["passkey-link", "--data", "DATA", "--origin", origin, "--name", "personal"],
     ],
+    ["an audit group without an audit directory", serve("--audit-group", "agention")],
+    ["audit files to keep without an audit directory", serve("--audit-keep-days", "3")],
+    ["an empty audit directory", serve("--audit-dir", "")],
+    ["no audit files to keep", serve("--audit-dir", "AUDIT", "--audit-keep-days", "0")],
+    ["audit files kept past 3650", serve("--audit-dir", "AUDIT", "--audit-keep-days", "3651")],
+    ["an audit retention past 36500 days", serve("--audit-retention-days", "36501")],
+    ["an audit retention that is not a whole number", serve("--audit-retention-days", "1.5")],
+    ["a negative audit retention", serve("--audit-retention-days", "-1")],
+    [
+      "an audit group that does not exist",
+      serve("--audit-dir", "AUDIT", "--audit-group", "agention-no-such-group"),
+    ],
+    // The superuser is in every group.
+    ...(process.geteuid?.() === 0
+      ? []
+      : [
+          [
+            "an audit group this user is not in",
+            serve("--audit-dir", "AUDIT", "--audit-group", "root"),
+          ] as [string, string[]],
+        ]),
+    ["forget-sink without a kind", ["audit", "forget-sink", "--data", "DATA"]],
+    ["forget-sink of an unknown kind", ["audit", "forget-sink", "--data", "DATA", "otlp"]],
   ])("refuses %s before touching the data directory", async (_, args) => {
-    const result = await runCaptured(args.map((arg) => (arg === "DATA" ? data : arg)));
+    const audit = path.join(root, "audit");
+    const result = await runCaptured(
+      args.map((arg) => (arg === "DATA" ? data : arg === "AUDIT" ? audit : arg)),
+    );
+    expect(existsSync(audit)).toBe(false);
     expect(result.code).toBe(2);
     expect(result.stderr).not.toBe("");
     expect(existsSync(data)).toBe(false);
@@ -552,6 +591,129 @@ describe("agention serve and passkey-link", () => {
       }
     },
   );
+
+  // auditLines waits until a sink's lines hold count events, and answers each
+  // line's action.
+  async function auditLines(read: () => string, count: number): Promise<string[]> {
+    const actions = () =>
+      read()
+        .split("\n")
+        .filter((line) => line !== "")
+        .map(
+          (line) => (JSON.parse(line) as { metadata: { event_code: string } }).metadata.event_code,
+        );
+    for (let i = 0; i < 200 && actions().length < count; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return actions();
+  }
+
+  it("delivers the audit log to standard output and a file, writing nothing else to stdout", async () => {
+    createDatabase(true);
+    const audit = path.join(root, "audit");
+    const stop = new AbortController();
+    const { running, stdout } = await serving(stop.signal, "--audit-stdout", "--audit-dir", audit);
+    const file = path.join(audit, "audit.jsonl");
+    const recorded = ["register", "approveRegistration"];
+    expect(await auditLines(() => stdout.text, 2)).toEqual(recorded);
+    expect(await auditLines(() => (existsSync(file) ? readFileSync(file, "utf8") : ""), 2)).toEqual(
+      recorded,
+    );
+    stop.abort();
+    expect(await running).toBe(0);
+    expect([statSync(audit).mode & 0o777, statSync(file).mode & 0o777]).toEqual([0o700, 0o600]);
+  });
+
+  it("keeps the cursor of a sink no longer configured until audit forget-sink removes it", async () => {
+    createDatabase(true);
+    const stop = new AbortController();
+    const first = await serving(stop.signal, "--audit-stdout");
+    expect(await auditLines(() => first.stdout.text, 2)).toHaveLength(2);
+    stop.abort();
+    expect(await first.running).toBe(0);
+
+    const again = new AbortController();
+    const second = await serving(again.signal);
+    expect(second.stdout.text).toBe("");
+    again.abort();
+    expect(await second.running).toBe(0);
+    const cursors = () => {
+      const db = new DatabaseSync(path.join(data, "agention.db"));
+      try {
+        return db.prepare("SELECT name, delivered_seq FROM audit_sinks").all();
+      } finally {
+        db.close();
+      }
+    };
+    expect(cursors()).toEqual([{ name: "stdout", delivered_seq: 2 }]);
+
+    const forget = ["audit", "forget-sink", "--data", data, "stdout"];
+    expect((await runCaptured(forget)).code).toBe(0);
+    expect((await runCaptured(forget)).code).toBe(2);
+    expect(cursors()).toEqual([]);
+    const db = new DatabaseSync(path.join(data, "agention.db"));
+    try {
+      expect(
+        db.prepare("SELECT action, credential_kind FROM audit_events ORDER BY seq").all(),
+      ).toEqual([
+        { action: "register", credential_kind: "registration" },
+        { action: "approveRegistration", credential_kind: "browser_session" },
+        { action: "forgetSink", credential_kind: "cli" },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("shares the audit directory with the group --audit-group names", async () => {
+    // A group this user is in, by the name the system's group database gives
+    // it.
+    const gid =
+      process.getgroups?.().find((each) => each !== process.getegid?.()) ?? process.getegid?.();
+    const name = execFileSync("getent", ["group", String(gid)], { encoding: "utf8" }).split(":")[0];
+    const audit = path.join(root, "audit");
+    const stop = new AbortController();
+    const { running } = await serving(
+      stop.signal,
+      "--audit-dir",
+      audit,
+      "--audit-group",
+      name ?? "",
+    );
+    stop.abort();
+    expect(await running).toBe(0);
+    const file = path.join(audit, "audit.jsonl");
+    expect([statSync(audit).mode & 0o777, statSync(audit).gid]).toEqual([0o750, gid]);
+    expect([statSync(file).mode & 0o777, statSync(file).gid]).toEqual([0o640, gid]);
+  });
+
+  it("refuses an audit directory others can reach, changing nothing", async () => {
+    const audit = path.join(root, "audit");
+    mkdirSync(audit, { mode: 0o755 });
+    chmodSync(audit, 0o755);
+    const args = serve("--listen", "127.0.0.1:0", "--audit-dir", audit).map((arg) =>
+      arg === "DATA" ? data : arg,
+    );
+    const result = await runCaptured(args);
+    expect([result.code, result.stderr]).toEqual([1, expect.stringContaining("--audit-dir")]);
+    expect(statSync(audit).mode & 0o777).toBe(0o755);
+    // The directory is refused before the database is opened.
+    expect(existsSync(path.join(data, "agention.db"))).toBe(false);
+  });
+
+  it("delivers to a new sink what retention would remove, before removing it", async () => {
+    const db = Database.open(path.join(data, "agention.db"));
+    try {
+      issuePasskeyLink(createStore(db, { clock: () => Date.now() - 400 * 24 * 60 * 60_000 }), "op");
+    } finally {
+      db.close();
+    }
+    const stop = new AbortController();
+    const { running, stdout } = await serving(stop.signal, "--audit-stdout");
+    expect(await auditLines(() => stdout.text, 1)).toEqual(["issuePasskeyLink"]);
+    stop.abort();
+    expect(await running).toBe(0);
+  });
 
   it("refuses --operator-name once the operator exists", async () => {
     createDatabase(true);

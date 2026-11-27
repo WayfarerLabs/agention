@@ -17,6 +17,7 @@ import {
 } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
 import { Swatch } from "../../organizing.tsx";
+import { SessionPageLink } from "../session-page-link.tsx";
 import { groupNamed, removedGroup, sessionOf, tagKept, topicShown } from "./listing.ts";
 
 // The filters that are on, each a chip beneath the list's head that removes
@@ -36,10 +37,12 @@ export const impactShown: Record<(typeof impactFilter.options)[number], string> 
 
 // A filter that is on: its chip's label, as shown and as said, what removing
 // it changes, and, for a filter on where threads are, the part of it whose
-// badge the chip shows.
+// badge the chip shows, and the one session it names, whose page a link
+// beside it opens.
 interface Chip {
   key: string;
   kind?: PathKind;
+  session?: { agent: string; session: string } | undefined;
   // The icon a chip on pull requests or branches shows before its label.
   icon?: "branch";
   // The color of the one group or tag a chip names, when known.
@@ -106,10 +109,11 @@ function entriesLabel(values: string[], kind: { one: string; several: string }):
     : plain(`${values.length} ${kind.several}`);
 }
 
-// oneOf gives the color of the one value chosen, or none for several.
-function oneOf<T>(values: T[], color: (value: T) => Color | undefined): Color | undefined {
+// oneOf gives what the one value chosen has, as its color, or nothing for
+// several.
+function oneOf<T, U>(values: T[], what: (value: T) => U | undefined): U | undefined {
   const [one] = values;
-  return values.length === 1 && one !== undefined ? color(one) : undefined;
+  return values.length === 1 && one !== undefined ? what(one) : undefined;
 }
 
 // chip gives a filter's chip while it is on: on is true, or the value it is
@@ -172,6 +176,7 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
     ...chip(view.session, (sessions) => ({
       key: "session",
       kind: "session" as const,
+      session: oneOf(sessions, sessionOf),
       label: several("session", sessions, (path) => sessionOf(path).session),
       remove: { session: undefined },
     })),
@@ -235,33 +240,48 @@ function chipText(label: string, badged: boolean): string {
 
 // Chips lists the filters that are on, each a button that removes it, in one
 // row that wraps. A chip fits its label, cut short past a generous length,
-// and carries the whole of it in words as its tooltip and in its name.
+// and carries the whole of it in words as its tooltip and in its name. A
+// chip naming one session ends in a link to the session's page, a control
+// of its own beside the button, so the chip still removes its filter.
 export function Chips({ chips, remove }: { chips: Chip[]; remove: (chip: Chip) => void }) {
   if (chips.length === 0) {
     return null;
   }
   return (
     <div className="filter-row">
-      {chips.map((chip) => (
-        <button
-          key={chip.key}
-          type="button"
-          className="chip"
-          title={chip.label.spoken}
-          aria-label={`Remove filter: ${chip.label.spoken}`}
-          onClick={() => remove(chip)}
-        >
-          {chip.kind !== undefined && (
-            <>
-              <PathBadge kind={chip.kind} />{" "}
-            </>
-          )}
-          {chip.icon !== undefined && <Icon name={chip.icon} />}
-          <Swatch color={chip.color} />
-          {chipText(chip.label.shown, chip.kind !== undefined || chip.icon !== undefined)}
-          <span aria-hidden="true"> ×</span>
-        </button>
-      ))}
+      {chips.map((chip) =>
+        chip.session === undefined ? (
+          <ChipButton key={chip.key} chip={chip} remove={remove} />
+        ) : (
+          <span key={chip.key} className="chip-split">
+            <ChipButton chip={chip} remove={remove} />
+            <SessionPageLink {...chip.session} className="chip" />
+          </span>
+        ),
+      )}
     </div>
+  );
+}
+
+// ChipButton is a chip's button, which removes its filter.
+function ChipButton({ chip, remove }: { chip: Chip; remove: (chip: Chip) => void }) {
+  return (
+    <button
+      type="button"
+      className="chip"
+      title={chip.label.spoken}
+      aria-label={`Remove filter: ${chip.label.spoken}`}
+      onClick={() => remove(chip)}
+    >
+      {chip.kind !== undefined && (
+        <>
+          <PathBadge kind={chip.kind} />{" "}
+        </>
+      )}
+      {chip.icon !== undefined && <Icon name={chip.icon} />}
+      <Swatch color={chip.color} />
+      {chipText(chip.label.shown, chip.kind !== undefined || chip.icon !== undefined)}
+      <span aria-hidden="true"> ×</span>
+    </button>
   );
 }

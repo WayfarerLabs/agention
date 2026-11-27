@@ -17,6 +17,8 @@ import {
   type WriteStatus,
 } from "@wayfarerlabs/agention-api";
 import { randomUUID } from "node:crypto";
+import type { LoggedStatus, MessageEntry, ThreadRef } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notAllowed, notFound } from "../errors.ts";
 import { authorize, type Identity } from "../identity.ts";
@@ -107,6 +109,12 @@ export function requireThread(
   return thread;
 }
 
+// threadRef names a stored thread of an authorized session target, for an
+// audit event.
+export function threadRef(thread: StoredThread, target: SessionTarget): ThreadRef {
+  return { id: thread.id, agent: target.agent, session: target.session, number: thread.number };
+}
+
 function credentialOf(identity: Identity): number | null {
   return identity.credential.kind === "registration" ? identity.credential.registrationId : null;
 }
@@ -195,8 +203,9 @@ function appendMessage(
     attachments: ResolvedAttachment[];
     now: number;
   },
-): void {
+): number[] {
   const { parts } = write;
+  const asked: number[] = [];
   const { last_pos: position } = db
     .prepare("UPDATE sessions SET last_pos = last_pos + 1 WHERE id = ? RETURNING last_pos")
     .get(thread.session_id) as { last_pos: number };
@@ -233,6 +242,7 @@ function appendMessage(
          :priority, :effort, :answer_by, :fallback)`,
     );
     parts.asks.forEach((ask, index) => {
+      asked.push(highest + index + 1);
       insert.run({
         thread_id: thread.id,
         number: highest + index + 1,
@@ -277,6 +287,32 @@ function appendMessage(
   db.prepare("UPDATE threads SET last_seq = ? WHERE id = ?").run(seq, thread.id);
   raiseReadMark(db, identity.actor, thread.id, seq);
   keepArchived(db, identity.actor, thread.id, seq);
+  return asked;
+}
+
+// messageEntry describes a message a write appended, for its audit event:
+// the numbers of the asks it put, answered, declined and withdrew, the files
+// it carries, what it replaces, and the status the write logged.
+export function messageEntry(
+  thread: ThreadRef,
+  seq: number,
+  parts: Pick<Parts, "answers" | "withdrawals" | "replaces">,
+  asked: number[],
+  attachments: ResolvedAttachment[],
+  status: LoggedStatus | null,
+): MessageEntry {
+  const answers = parts.answers ?? [];
+  return {
+    thread,
+    seq,
+    asks: asked,
+    answers: answers.filter((answer) => !answer.declined).map((answer) => answer.ask),
+    declined: answers.filter((answer) => answer.declined).map((answer) => answer.ask),
+    withdrawals: (parts.withdrawals ?? []).map((withdrawal) => withdrawal.ask),
+    files: attachments.map((attachment) => attachment.fileId),
+    replaces: parts.replaces ?? null,
+    status,
+  };
 }
 
 // checkReferences refuses a reference to a thread that is not in the session.
@@ -489,7 +525,7 @@ function addThread(
   store: Store,
   identity: Identity,
   target: SessionTarget,
-  operation: string,
+  operation: { digest: string; action: "createThread" | "startThread" },
   input: Parts & WriteStatus & { request_id: string; title: string },
   roles: (db: Database, sessionId: number) => Roles,
 ): WriteResult {
@@ -499,7 +535,11 @@ function addThread(
   const outcome = db.transaction(() => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
-    const digest = writeDigest(operation, { session: sessionId }, { title, ...parts, ...report });
+    const digest = writeDigest(
+      operation.digest,
+      { session: sessionId },
+      { title, ...parts, ...report },
+    );
     const prior = replayed(db, identity.actor, requestId, digest);
     if (prior !== undefined) {
       return { sessionId, appended: false, result: prior };
@@ -521,14 +561,21 @@ function addThread(
          VALUES (?, ?, ?, ?, ?, ?, 1) RETURNING id`,
       )
       .get(sessionId, number, requester, audience, title, now) as { id: number };
-    appendMessage(db, { id, session_id: sessionId }, 1, identity, {
+    const asked = appendMessage(db, { id, session_id: sessionId }, 1, identity, {
       requestId,
       digest,
       parts,
       attachments,
       now,
     });
-    statusOnWrite(db, identity, sessionId, report, now);
+    const status = statusOnWrite(db, identity, sessionId, report, now);
+    const session = { id: sessionId, agent: target.agent, session: target.session };
+    const thread = { ...session, id, number };
+    recordAudit(store, now, { kind: "identity", identity }, operation.action, {
+      session,
+      thread,
+      message: messageEntry(thread, 1, parts, asked, attachments, status),
+    });
     return { sessionId, appended: true, result: { number, seq: 1 } };
   });
   if (outcome.appended) {
@@ -546,7 +593,8 @@ export function createThread(
   target: SessionTarget,
   input: ThreadCreateInput,
 ): WriteResult {
-  return addThread(store, identity, target, "thread_create", input, (db, sessionId) => {
+  const operation = { digest: "thread_create", action: "createThread" } as const;
+  return addThread(store, identity, target, operation, input, (db, sessionId) => {
     if (identity.actor !== sessionActorId(db, sessionId)) {
       throw notAllowed(undefined, "only a session starts threads, and only in itself");
     }
@@ -569,7 +617,8 @@ export function startThread(
   target: SessionTarget,
   input: ThreadStartInput,
 ): WriteResult {
-  return addThread(store, identity, target, "thread_start", input, (db, sessionId) => {
+  const operation = { digest: "thread_start", action: "startThread" } as const;
+  return addThread(store, identity, target, operation, input, (db, sessionId) => {
     if (identity.actor !== findOperator(db)?.actorId) {
       throw notAllowed(undefined, "only the operator starts threads on a session");
     }
@@ -652,8 +701,19 @@ export function sendMessage(
       parts.attachments,
     );
     const seq = thread.last_seq + 1;
-    appendMessage(db, thread, seq, identity, { requestId, digest, parts, attachments, now });
-    statusOnWrite(db, identity, sessionId, report, now);
+    const asked = appendMessage(db, thread, seq, identity, {
+      requestId,
+      digest,
+      parts,
+      attachments,
+      now,
+    });
+    const status = statusOnWrite(db, identity, sessionId, report, now);
+    const ref = threadRef(thread, target);
+    recordAudit(store, now, { kind: "identity", identity }, "sendMessage", {
+      thread: ref,
+      message: messageEntry(ref, seq, parts, asked, attachments, status),
+    });
     return { sessionId, appended: true, result: { number: thread.number, seq } };
   });
   if (outcome.appended) {
@@ -665,8 +725,9 @@ export function sendMessage(
 // declineAsks appends messages from the identity declining the asks given,
 // in their order, at most maxAnswers to a message as any message holds, so
 // each stays one its author can replace, and returns the last one's
-// sequence. Its one caller, the operator's action on many threads
-// (thread-actions.ts), holds the transaction and guarantees what sendMessage
+// sequence, with each message's and the asks it declines. Its one caller, the
+// operator's action on many threads (thread-actions.ts), holds the
+// transaction and guarantees what sendMessage
 // would check: it found the thread through an authorized session, the
 // identity is the thread's audience, which the operator always is, each ask
 // is open to it, and nothing is newer than the message it acts through, so
@@ -679,11 +740,13 @@ export function declineAsks(
   thread: StoredThread,
   asks: readonly number[],
   now: number,
-): number {
+): { seq: number; messages: { seq: number; declined: number[] }[] } {
   let seq = thread.last_seq;
+  const messages: { seq: number; declined: number[] }[] = [];
   for (let start = 0; start < asks.length; start += maxAnswers) {
+    const declined = asks.slice(start, start + maxAnswers);
     const parts: Parts = {
-      answers: asks.slice(start, start + maxAnswers).map((ask) => ({ ask, declined: true })),
+      answers: declined.map((ask) => ({ ask, declined: true })),
     };
     const digest = writeDigest(
       "message_send",
@@ -698,8 +761,9 @@ export function declineAsks(
       attachments: [],
       now,
     });
+    messages.push({ seq, declined });
   }
-  return seq;
+  return { seq, messages };
 }
 
 // getThread reads a thread, a page of its messages, both parties' read

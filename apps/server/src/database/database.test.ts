@@ -641,13 +641,39 @@ describe("a database an earlier release wrote", () => {
     );
   }
 
+  // The columns a later migration fills with random values, which a test
+  // cannot know: the instance's id and each browser session's, which
+  // audit-schema.test.ts checks.
+  const randomColumns: Readonly<Record<string, readonly string[]>> = {
+    instance: ["uid"],
+    browser_sessions: ["id"],
+  };
+
   // earlier keeps the tables of rows that a database had before it was opened
-  // at HEAD.
+  // at HEAD, leaving out the random columns.
   function earlier(
     rows: Record<string, string[]>,
     before: Record<string, string[]>,
   ): Record<string, string[]> {
-    return Object.fromEntries(Object.keys(before).map((name) => [name, rows[name] ?? []]));
+    return Object.fromEntries(
+      Object.keys(before).map((name) => {
+        const random = randomColumns[name] ?? [];
+        return [
+          name,
+          (rows[name] ?? []).map((row) =>
+            random.length === 0
+              ? row
+              : JSON.stringify(
+                  Object.fromEntries(
+                    Object.entries(JSON.parse(row) as Record<string, unknown>).filter(
+                      ([column]) => !random.includes(column),
+                    ),
+                  ),
+                ),
+          ),
+        ];
+      }),
+    );
   }
 
   it("opens with migration 1's rows intact and the session log's tables empty", () => {
@@ -822,7 +848,7 @@ describe("a database an earlier release wrote", () => {
     }
   });
 
-  it("opens with every earlier row intact, and no files, API keys or message links", () => {
+  it("opens with every earlier row intact, and no files, API keys, message links, audit events, or saved views", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
       connection.exec(`PRAGMA application_id = ${applicationId}`);
@@ -862,6 +888,9 @@ describe("a database an earlier release wrote", () => {
           "message_positions",
           "tags",
           "message_links",
+          "audit_events",
+          "audit_sinks",
+          "saved_views",
         ].sort(),
       );
       expect(earlier(after, before)).toEqual(before);
@@ -871,7 +900,10 @@ describe("a database an earlier release wrote", () => {
         after.attachments,
         after.api_keys,
         after.message_links,
-      ]).toEqual([[], [], [], [], []]);
+        after.audit_events,
+        after.audit_sinks,
+        after.saved_views,
+      ]).toEqual([[], [], [], [], [], [], [], []]);
     } finally {
       database.close();
     }
@@ -1040,10 +1072,10 @@ describe("passkeys", () => {
         .run(id, `c${id}`);
       database
         .prepare(
-          `INSERT INTO browser_sessions (hash, person_id, passkey_id, csrf_token, created_at,
-             idle_expires_at, absolute_expires_at) VALUES (?, 1, ?, 't', 1, 2, 2)`,
+          `INSERT INTO browser_sessions (hash, id, person_id, passkey_id, csrf_token, created_at,
+             idle_expires_at, absolute_expires_at) VALUES (?, ?, 1, ?, 't', 1, 2, 2)`,
         )
-        .run(Buffer.alloc(32, id), id);
+        .run(Buffer.alloc(32, id), String(id).repeat(32), id);
     }
   });
 

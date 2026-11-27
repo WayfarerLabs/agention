@@ -1,7 +1,7 @@
 import { pendingLifetime } from "@wayfarerlabs/agention-api";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sweepFilesRegularly, sweepInterval } from "./file-sweep.ts";
+import { sweepInterval, sweepRegularly } from "./sweep.ts";
 import { beginUpload, completeUpload } from "./files.ts";
 import { type Agent, Fixture } from "./test-fixture.ts";
 
@@ -51,7 +51,7 @@ function passes(): () => number {
 describe("the sweep's schedule", () => {
   it("runs a pass at once, then one every interval until it stops", async () => {
     expire();
-    const sweeps = sweepFilesRegularly(fixture.store, log);
+    const sweeps = sweepRegularly(fixture.store, log, { auditRetentionDays: 365 });
     await sweeps.first;
     expect(files()).toBe(0);
     expire();
@@ -74,7 +74,7 @@ describe("the sweep's schedule", () => {
     let free = Number.MAX_SAFE_INTEGER;
     const freePages = vi.spyOn(fixture.db, "freePages").mockImplementation(() => free--);
     const counted = passes();
-    const sweeps = sweepFilesRegularly(fixture.store, log);
+    const sweeps = sweepRegularly(fixture.store, log, { auditRetentionDays: 365 });
     let firstDone = false;
     void sweeps.first.then(() => (firstDone = true));
     await vi.advanceTimersByTimeAsync(sweepInterval * 3);
@@ -95,11 +95,25 @@ describe("the sweep's schedule", () => {
     vi.spyOn(fixture.db, "transaction").mockImplementationOnce(() => {
       throw new Error("disk I/O error");
     });
-    const sweeps = sweepFilesRegularly(fixture.store, log);
+    // Keeping audit events forever, the pass's first transaction is the
+    // uploads'.
+    const sweeps = sweepRegularly(fixture.store, log, { auditRetentionDays: 0 });
     await sweeps.first;
     expect([logged.length, files()]).toEqual([1, 1]);
     await vi.advanceTimersByTimeAsync(sweepInterval);
     expect(files()).toBe(0);
+    await sweeps.stop();
+  });
+
+  it("logs a prune that fails, and still sweeps the uploads", async () => {
+    expire();
+    // With a retention, the pass's first transaction is the prune's.
+    vi.spyOn(fixture.db, "transaction").mockImplementationOnce(() => {
+      throw new Error("disk I/O error");
+    });
+    const sweeps = sweepRegularly(fixture.store, log, { auditRetentionDays: 1 });
+    await sweeps.first;
+    expect([logged.length, files()]).toEqual([1, 0]);
     await sweeps.stop();
   });
 });

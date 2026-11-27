@@ -7,9 +7,10 @@ import { ownHeaders } from "./own-headers.ts";
 // scripts only, whose one script draws Mermaid diagrams from message text and
 // answers with their SVG. Its response carries a policy of its own, which
 // sandboxes it even when it is opened on its own, lets it load nothing but
-// its script, and lets only the server's own pages frame it. Its routes
-// declare that policy, the framing and the script's caching their own, so
-// the security headers middleware leaves them in place.
+// its script, and lets only the server's own pages frame it. Its route
+// declares that policy and the framing its own, so the security headers
+// middleware leaves them in place. The script is a file of the web UI's build
+// like any other, which web-ui.ts serves.
 
 export const diagramFramePath = "/diagram-frame";
 
@@ -19,9 +20,6 @@ const manifestFile = "diagram-frame.json";
 
 // The script's path, as the build names it, for its content.
 const scriptPath = /^assets\/diagram-frame-[A-Za-z0-9]+\.js$/;
-
-// The script's name changes with its content, so a browser keeps it for good.
-const scriptCaching = "public, max-age=31536000, immutable";
 
 // diagramFramePolicy is the frame's content security policy. The script, and
 // the pages that may frame it, are named by the server's origin, so the
@@ -69,27 +67,20 @@ function readScript(root: string): string | undefined {
   return script;
 }
 
-// serveDiagramFrame adds the frame's page and its script, from the web UI's
-// build in root, before the routes that serve the rest of the build. A build
-// without the frame adds neither, so its path serves as any other.
+// serveDiagramFrame adds the frame's page, for the script the web UI's build
+// in root holds, before the routes that serve the build. A build without the
+// frame adds none, so its path serves as any other.
 export function serveDiagramFrame(app: Hono, root: string | undefined, origin: string): void {
   const script = root === undefined ? undefined : readScript(root);
-  if (root === undefined || script === undefined) {
+  if (script === undefined) {
     return;
   }
   const page = framePage(script);
   const policy = diagramFramePolicy(origin, script);
-  const content = readFileSync(path.join(root, script));
   app.get(diagramFramePath, (c) => {
     c.header("Content-Security-Policy", policy);
     c.header("X-Frame-Options", "SAMEORIGIN");
     ownHeaders(c.req.raw, ["content-security-policy", "x-frame-options"]);
     return c.html(page);
-  });
-  app.get(`/${script}`, (c) => {
-    c.header("Content-Type", "text/javascript; charset=utf-8");
-    c.header("Cache-Control", scriptCaching);
-    ownHeaders(c.req.raw, ["cache-control"]);
-    return c.body(content);
   });
 }
