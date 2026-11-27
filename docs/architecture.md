@@ -1996,7 +1996,8 @@ sight, so Mermaid can measure text, and draws its diagrams there one at a time, 
   its stage sets `touch-action: none`.
 
 Diagrams are drawn again when the color scheme changes. The Markdown renderer's output itself holds
-no frame, SVG or image: the frame belongs to the page.
+no frame or image, and no SVG but the icon of the copy button each code block carries
+(`src/markdown/CodeBlock.tsx`): the frame belongs to the page.
 
 ### Keyboard shortcuts
 

@@ -270,10 +270,17 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await expect(first.getByRole("heading", { name: "Rollback plan" })).toBeVisible();
   // Copy, beside the message's options, copies its Markdown as written, with
   // the detail while it is open.
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
   await first.getByRole("button", { name: "Copy message 1" }).click();
-  await expect
-    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe(`${text}\n\n${detail}`);
+  await expect.poll(clipboard).toBe(`${text}\n\n${detail}`);
+  // A code block's own button, beside the code rather than over it, copies
+  // just its text, from the keyboard.
+  const copyCode = first.getByRole("button", { name: "Copy code" });
+  const [code, button] = [await first.locator("pre").boundingBox(), await copyCode.boundingBox()];
+  expect(button!.x).toBeGreaterThanOrEqual(code!.x + code!.width);
+  await copyCode.focus();
+  await page.keyboard.press("Space");
+  await expect.poll(clipboard).toBe("npm run build");
   await details.focus();
   await page.keyboard.press("Space");
   await expect(details).toHaveAttribute("aria-expanded", "false");

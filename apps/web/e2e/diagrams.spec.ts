@@ -156,13 +156,17 @@ test("a mermaid block draws through the frame as an image, under the app's polic
   await expect(message.getByRole("img", { name: "Diagram" })).toBeVisible();
   // Each is an image the page made from the frame's answer, with its natural
   // size, whose URL is gone once it has loaded, and nothing the Markdown
-  // holds is a frame or an SVG.
+  // holds is a frame or an SVG, but the icons of its code blocks' copy
+  // buttons.
   for (const image of await message.locator("figure img").all()) {
     expect(await image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
     expect(await opensOnItsOwn(image)).toBe(false);
     await expect(image).toBeVisible();
   }
-  await expect(message.locator(".markdown iframe, .markdown svg")).toHaveCount(0);
+  await expect(
+    message.locator(".markdown iframe, .markdown svg:not(button.copy-button > svg)"),
+  ).toHaveCount(0);
+  await expect(message.locator(".markdown button.copy-button > svg")).toHaveCount(1);
   await expect(message.locator("pre code")).toHaveText("plain");
   // One frame drew both.
   await expect(page.locator("iframe")).toHaveCount(1);

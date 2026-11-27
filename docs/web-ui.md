@@ -326,7 +326,8 @@ later ones when you ask.
   them open. Its asks, answers, references and files are not copied. Every message with text has
   one, a replaced message too once you open it, and a message without text has none. The button
   shows a check for a moment once the message is copied. Where the browser refuses the clipboard,
-  the message says so, and you can select the text to copy it by hand.
+  the message says so, and you can select the text to copy it by hand. Each code block in a message
+  has a copy button of its own, as [Markdown and diagrams](#markdown-and-diagrams) describes.
 - A message's files show under it, and **Attach** beside **Send** adds yours, as
   [Attachments](operator-guide.md#attachments) describes. While the thread's current messages carry
   any, its head holds **Files**, folded, with how many there are and the space they take.
@@ -602,16 +603,22 @@ link whose text is not its own address shows the address's host after it. Titles
 suggested answers, the own words of an answer and other fields show exactly as written, as plain
 text.
 
+Each code block, a diagram's source included, has a copy button at its top right, beside the code
+rather than over it, so it stays in place while a long line scrolls sideways. It copies exactly the
+block's text, without the fences, and shows a check for a moment once copied. Where the browser
+refuses the clipboard, a note under the block says so, and you can select the code to copy it by
+hand.
+
 A fenced code block whose language is `mermaid` shows as a diagram, drawn by
 [Mermaid](https://mermaid.js.org/) in isolation from the page, as an image at its natural size, no
 wider than the column. Its alternative text is the title the diagram declares with `accTitle`, or
 "Diagram" without one, and a description it declares with `accDescr` describes it to a screen
-reader. **Source** under the diagram shows the text it was drawn from. A diagram over 10,000
-characters shows its source instead, with a note that it is too long to draw; one Mermaid cannot
-draw, and one not drawn within 10 seconds, show their source with a note that it could not be drawn.
-The first diagram on a page also waits for the drawing script to download, for up to a minute on a
-slow connection. Diagrams follow the light or dark color scheme, and are drawn again when it
-changes.
+reader. **Source** under the diagram shows the text it was drawn from, as a code block you can copy
+from. A diagram over 10,000 characters shows its source instead, with a note that it is too long to
+draw; one Mermaid cannot draw, and one not drawn within 10 seconds, show their source with a note
+that it could not be drawn. The first diagram on a page also waits for the drawing script to
+download, for up to a minute on a slow connection. Diagrams follow the light or dark color scheme,
+and are drawn again when it changes.
 
 Tap a diagram to open it full screen. Pinch or use the mouse wheel to zoom, drag to move it, and
 double-tap to zoom in on a point or back out to fit; the buttons and the keys `+` and `-` zoom, `0`
