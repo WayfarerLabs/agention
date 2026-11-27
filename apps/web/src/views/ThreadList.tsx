@@ -33,7 +33,7 @@ import {
   useLocation,
 } from "../router.tsx";
 import type { ListShown } from "./filter-links.tsx";
-import { ListBeside } from "./list/beside.ts";
+import { ListBeside } from "./side-by-side.tsx";
 import { Chips, chipsOf } from "./list/Chips.tsx";
 import { FilterSheet } from "./list/FilterSheet.tsx";
 import { RowFocusOwed } from "./list/focus-owed.ts";

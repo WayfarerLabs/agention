@@ -74,7 +74,7 @@ async function open(path = "/sessions", listed = agents) {
   const state = serve(listed);
   renderAt(path);
   await screen.findAllByRole("combobox", { name: "Group" });
-  await screen.findAllByRole("button", { name: /^(Agent|Session|Group) / });
+  await screen.findAllByRole("link", { name: /^Session / });
   return state;
 }
 
@@ -94,7 +94,7 @@ const heads = (level: "groups" | "agents" | "sessions", within_: HTMLElement = d
         ? ".group-head > .fold-main > h3 > .fold-toggle"
         : level === "agents"
           ? ".fold-toggle"
-          : ".session-fold",
+          : ".session-lead",
     ),
   )
     .map((each) => each.getAttribute("aria-label") ?? "")

@@ -1,120 +1,61 @@
-import { maxListed, type Registration, type SessionsPage } from "@wayfarerlabs/agention-api";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { absoluteTime } from "../../format.tsx";
+import { csrf, type Reply, registration, renderAt } from "../../test-support.tsx";
 import {
-  csrf,
-  FakeApi,
-  failure,
-  registration,
-  renderAt,
-  sessionSummary,
-} from "../../test-support.tsx";
+  agentsOf,
+  api,
+  approvals,
+  backToRows,
+  card,
+  open,
+  pendingCard,
+  waiting,
+} from "./registration-tests.tsx";
 
-let api: FakeApi;
-
-beforeEach(() => {
-  // The credentials and past requests unfolded, as these tests read them.
-  window.localStorage.setItem("agention.sessions.unfolded-sections", '["past-requests"]');
-  api = new FakeApi();
-});
-
-afterEach(() => {
-  cleanup();
-  expect(api.unhandled).toEqual([]);
-});
-
-// Every session with its agent, as a test states them.
-type Sessions = { agent: string; session: string; credential_active: boolean }[];
-
-// agentsOf gives sessions as the sessions view lists them, under their
-// agents, those named in truncated saying they left some out.
-function agentsOf(sessions: Sessions, truncated: string[] = []): SessionsPage {
-  return {
-    agents: [...new Set(sessions.map((each) => each.agent))].map((agent) => ({
-      agent,
-      tags: [],
-      sessions: sessions
-        .filter((each) => each.agent === agent)
-        .map(({ session, credential_active }) =>
-          sessionSummary({
-            session,
-            registrations: credential_active ? [{ id: 9, code: "WE26Z-8SH11" }] : [],
-          }),
-        ),
-      truncated: truncated.includes(agent),
-    })),
-  };
-}
-
-// serve answers the registrations and the sessions view from a state the
-// test can change.
-function serve(state: { registrations: Registration[]; sessions: Sessions; truncated?: string[] }) {
-  api
-    .on("GET", "/registrations", (call) => {
-      const status = call.url.searchParams.get("status");
-      return {
-        body: {
-          registrations: state.registrations.filter(
-            (entry) => status === null || entry.status === status,
-          ),
-        },
-      };
-    })
-    .on("GET", "/sessions", () => ({ body: agentsOf(state.sessions, state.truncated) }));
-  return state;
-}
-
-async function open(state: Parameters<typeof serve>[0]) {
-  serve(state);
-  renderAt("/registrations");
-  await screen.findByRole("heading", { name: "Waiting for approval" });
-  return state;
-}
-
-const card = (code: string) => screen.getByRole("article", { name: `Registration ${code}` });
-
-// The registrations waiting for approval, as their cards.
-const waiting = () =>
-  within(screen.getByRole("region", { name: "Waiting for approval" })).queryAllByRole("article");
-
-// The warning shown while approving onto an existing session.
-const historyWarning = (pending: HTMLElement) =>
-  within(pending).getByRole("group", { name: "Session" }).querySelector(".notice.warning");
-
-function approvals(): unknown[] {
-  return api.callsTo("POST", "/registrations/1/approve").map((call) => call.body);
-}
-
-// The text of each element that describes a field: the hint about names, and
-// a refusal tied to the field.
-function descriptions(field: HTMLElement): string[] {
-  return (field.getAttribute("aria-describedby") ?? "")
-    .split(" ")
-    .flatMap((id) => document.getElementById(id)?.textContent ?? []);
-}
-
-// refusesFor runs submit and waits for a refusal to be tied to the field.
-async function refusesFor(field: HTMLElement, submit: () => void): Promise<void> {
-  const before = descriptions(field);
-  submit();
-  await waitFor(() => expect(descriptions(field)).toHaveLength(before.length + 1));
-}
-
+// The sessions view's registrations: those waiting, at their addresses, and
+// those decided. The approval form's own tests are in ApproveForm.test.tsx.
 describe("the sessions view's registrations", () => {
   it("shows a pending registration's code as the agent relays it, and when it expires", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    open({ registrations: [registration()], sessions: [] });
+    const pending = await pendingCard();
     const code = within(pending).getByText("7KQ2M-X9DPA");
     expect(code.className).toBe("code");
-    expect(within(pending).getByText("builder/main")).toBeTruthy();
+    // The page is named for the session it proposes.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("builder/main");
     // It warns to approve only the code the agent showed.
     expect(pending.querySelector(".notice.warning")).not.toBeNull();
   });
 
-  it("approves onto a new agent and session under the proposed names", async () => {
-    const state = await open({ registrations: [registration()], sessions: [] });
+  it("says what a registration proposes, with the credentials of a session it has", async () => {
+    open({
+      registrations: [registration()],
+      sessions: [{ agent: "builder", session: "main", credential_active: true }],
+    });
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const facts = await waitFor(() => {
+      const list = pending.querySelector("dl");
+      expect(list).not.toBeNull();
+      return list as HTMLElement;
+    });
+    expect(within(facts).getByText("WE26Z-8SH11")).toBeTruthy();
+    // Approving onto it, or onto a new session, is a button each, the other
+    // choices folded.
+    expect(within(pending).getByRole("button", { name: "Approve as builder/main" })).toBeTruthy();
+    expect(within(pending).getByRole("button", { name: "Approve as a new session" })).toBeTruthy();
+    expect(within(pending).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(pending).queryByRole("group", { name: "Session" })).toBeNull();
+    expect(
+      within(pending)
+        .getByRole("button", { name: "Change agent or session" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  it("approves onto a new agent and session under the proposed names, going on to it", async () => {
+    const state = open({ registrations: [registration()], sessions: [] });
     api.on("POST", "/registrations/1/approve", () => {
+      state.sessions = [{ agent: "builder", session: "main", credential_active: true }];
       state.registrations = [
         registration({
           status: "approved",
@@ -124,8 +65,14 @@ describe("the sessions view's registrations", () => {
       ];
       return { body: { registration: state.registrations[0] } };
     });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const pending = await pendingCard();
+    const entries = window.history.length;
     fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    // The page goes on to the session approved, in the registration's place
+    // in the history.
+    await waitFor(() => expect(window.location.pathname).toBe("/sessions/builder/main"));
+    expect(window.history.length).toBe(entries);
+    await backToRows();
     await waitFor(() => {
       expect(waiting()).toEqual([]);
       expect(within(card("7KQ2M-X9DPA")).getByText("approved")).toBeTruthy();
@@ -136,689 +83,130 @@ describe("the sessions view's registrations", () => {
     expect(api.callsTo("POST", "/registrations/1/approve")[0]?.headers["x-csrf-token"]).toBe(csrf);
   });
 
-  it("approves with the group and tags picked, a group picked new created first", async () => {
-    const state = await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", {
-      body: {
-        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
-        tags: [{ name: "infra", color: "teal", agents: 0, sessions: 0 }],
-        truncated: false,
-      },
-    });
-    api.on("POST", "/groups", { body: { id: 6, name: "Release", color: "purple" } });
+  it("goes on to the session approved only once the view lists it", async () => {
+    const state = open({ registrations: [registration()], sessions: [] });
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
     api.on("POST", "/registrations/1/approve", () => {
       state.registrations = [];
-      return { body: { registration: registration({ status: "approved" }) } };
-    });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const options = (open: HTMLElement) =>
-      within(open)
-        .queryAllByRole("option")
-        .map((item) => item.textContent);
-    // A group picked from those there is kept for the approval, sending
-    // nothing yet.
-    fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
-    let picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    await waitFor(() => expect(options(picker)).toEqual(["Billing"]));
-    fireEvent.click(within(picker).getByRole("option", { name: "Billing" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(within(pending).getByText("Billing").closest(".group-chip")).not.toBeNull();
-    // A new one is created as it is picked, since an approval names its group
-    // by id.
-    fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
-    picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    await waitFor(() => expect(options(picker)).toHaveLength(2));
-    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "Release" } });
-    fireEvent.click(within(picker).getByRole("option", { name: "Create group “Release”" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(api.callsTo("POST", "/groups").map((call) => call.body)).toEqual([{ name: "Release" }]);
-    // Tags, a new one among them, are kept for the approval too.
-    fireEvent.click(within(pending).getByRole("button", { name: "Tags" }));
-    picker = screen.getByRole("dialog", { name: "Tags for registration 7KQ2M-X9DPA" });
-    await waitFor(() => expect(options(picker)).toEqual(["infra"]));
-    fireEvent.click(within(picker).getByRole("option", { name: "infra" }));
-    // The picker takes the next pick once that one has applied.
-    await waitFor(() =>
-      expect(
-        within(picker).getByRole("option", { name: "infra" }).hasAttribute("aria-disabled"),
-      ).toBe(false),
-    );
-    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "ops" } });
-    fireEvent.click(within(picker).getByRole("option", { name: "Create tag “ops”" }));
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(approvals()).toEqual([]);
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await waitFor(() =>
-      expect(approvals()).toEqual([
-        {
-          agent: { name: "builder", existing: false },
-          session: { name: "main", existing: false, group: 6, tags: ["infra", "ops"] },
-        },
-      ]),
-    );
-  });
-
-  it("approves into no group when Clear group was picked", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", {
-      body: {
-        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
-        tags: [],
-        truncated: false,
-      },
-    });
-    api.on("POST", "/registrations/1/approve", { body: { registration: registration() } });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const pick = async (name: string) => {
-      fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
-      const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-      fireEvent.click(await within(picker).findByRole("option", { name }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    };
-    await pick("Billing");
-    await pick("Clear group");
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await waitFor(() =>
-      expect(approvals()).toEqual([
-        {
-          agent: { name: "builder", existing: false },
-          session: { name: "main", existing: false, group: null },
-        },
-      ]),
-    );
-  });
-
-  it("starts the pickers from an existing session's own group and tags, and over for another", async () => {
-    api
-      .on("GET", "/registrations", { body: { registrations: [registration()] } })
-      .on("GET", "/sessions", {
+      state.sessions = [{ agent: "builder", session: "main", credential_active: true }];
+      // The sessions reload only when let.
+      api.on("GET", "/sessions", async () => {
+        await held;
+        return { body: agentsOf(state.sessions) };
+      });
+      api.on("GET", "/s/builder/main/updates", { body: { updates: [], read_through: 0 } });
+      return {
         body: {
-          agents: [
-            {
-              agent: "builder",
-              tags: [],
-              sessions: [
-                sessionSummary({
-                  session: "main",
-                  group: { id: 4, name: "Billing" },
-                  tags: ["infra"],
-                }),
-                sessionSummary({ session: "side" }),
-              ],
-              truncated: false,
-            },
-          ],
+          registration: registration({
+            status: "approved",
+            granted: { agent: "builder", session: "main", credential_active: true },
+          }),
         },
-      })
-      .on("GET", "/groups-and-tags", {
-        body: {
-          groups: [{ id: 4, name: "Billing", color: "blue", sessions: 1 }],
-          tags: [
-            { name: "infra", color: "teal", agents: 0, sessions: 1 },
-            { name: "urgent", color: "red", agents: 0, sessions: 0 },
-          ],
-          truncated: false,
-        },
-      })
-      .on("POST", "/registrations/1/approve", { body: { registration: registration() } });
-    renderAt("/registrations");
+      };
+    });
     const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    const picked = () =>
-      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
-        (each) => each.textContent,
-      );
-    const choose = (name: string) =>
-      fireEvent.change(within(pending).getByRole("combobox", { name: "Existing session" }), {
-        target: { value: name },
-      });
-    expect(picked()).toEqual(["No group", "No tags"]);
-    fireEvent.click(within(pending).getByRole("radio", { name: /An existing session of builder/ }));
-    expect(picked()).toEqual(["Group Billing", "Tag infra"]);
-    // Its group can be cleared, and its tags changed from its own.
-    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-    let picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    fireEvent.click(await within(picker).findByRole("option", { name: "Clear group" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(within(organize).getByRole("button", { name: "Tags" }));
-    picker = screen.getByRole("dialog", { name: "Tags for registration 7KQ2M-X9DPA" });
-    const infra = await within(picker).findByRole("option", { name: "infra" });
-    expect(infra.getAttribute("aria-selected")).toBe("true");
-    fireEvent.click(within(picker).getByRole("option", { name: "urgent" }));
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(picked()).toEqual(["No group", "Tag infraTag urgent"]);
-    // Another session starts the picks over, from its own.
-    choose("side");
-    expect(picked()).toEqual(["No group", "No tags"]);
-    choose("main");
-    expect(picked()).toEqual(["Group Billing", "Tag infra"]);
-    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-    picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    fireEvent.click(await within(picker).findByRole("option", { name: "Clear group" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const loads = api.callsTo("GET", "/sessions").length;
     fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await waitFor(() =>
-      expect(approvals()).toEqual([
-        {
-          agent: { name: "builder", existing: true },
-          session: { name: "main", existing: true, group: null },
-        },
-      ]),
-    );
-  });
-
-  it("starts the session and its group and tags over when the agent changes and back", async () => {
-    api
-      .on("GET", "/registrations", { body: { registrations: [registration()] } })
-      .on("GET", "/sessions", {
-        body: {
-          agents: [
-            {
-              agent: "builder",
-              tags: [],
-              sessions: [sessionSummary({ session: "main", tags: ["infra"] })],
-              truncated: false,
-            },
-            {
-              agent: "other",
-              tags: [],
-              sessions: [sessionSummary({ session: "x" })],
-              truncated: false,
-            },
-          ],
-        },
-      });
-    renderAt("/registrations");
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    const picked = () =>
-      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
-        (each) => each.textContent,
-      );
-    const existing = () =>
-      within(pending).getByRole<HTMLInputElement>("radio", { name: /An existing session of/ });
-    const agentTo = (name: string) =>
-      fireEvent.change(within(pending).getByRole("combobox", { name: "Existing agent" }), {
-        target: { value: name },
-      });
-    fireEvent.click(existing());
-    expect(picked()).toEqual(["No group", "Tag infra"]);
-    agentTo("other");
-    agentTo("builder");
-    expect(existing().checked).toBe(false);
-    expect(picked()).toEqual(["No group", "No tags"]);
-  });
-
-  it("keeps a new session's picks as it is named, and starts them over for another agent", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", {
-      body: {
-        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
-        tags: [],
-        truncated: false,
-      },
-    });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    const picked = () =>
-      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
-        (each) => each.textContent,
-      );
-    const pick = async () => {
-      fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-      const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-      fireEvent.click(await within(picker).findByRole("option", { name: "Billing" }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(picked()).toEqual(["Group Billing", "No tags"]);
-    };
-    await pick();
-    fireEvent.change(within(pending).getByLabelText("New session name"), {
-      target: { value: "night-shift" },
-    });
-    expect(picked()).toEqual(["Group Billing", "No tags"]);
-    fireEvent.change(within(pending).getByLabelText("New agent name"), {
-      target: { value: "deployer" },
-    });
-    expect(picked()).toEqual(["No group", "No tags"]);
-  });
-
-  it("drops a group created for a session the form no longer names", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", { body: { groups: [], tags: [], truncated: false } });
-    let answer = () => undefined as void;
-    api.on("POST", "/groups", async () => {
-      await new Promise<void>((resolve) => {
-        answer = resolve;
-      });
-      return { body: { id: 6, name: "Release", color: "purple" } };
-    });
-    api.on("POST", "/registrations/1/approve", { body: { registration: registration() } });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-    const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    const search = within(picker).getByRole("combobox");
-    fireEvent.change(search, { target: { value: "Release" } });
-    await within(picker).findByRole("option", { name: "Create group “Release”" });
-    fireEvent.keyDown(search, { key: "Enter" });
-    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
-    // Done closes the picker while the group is created, and another agent
-    // is named before it is.
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.change(within(pending).getByLabelText("New agent name"), {
-      target: { value: "deployer" },
-    });
-    answer();
-    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBeGreaterThan(1));
-    expect(organize.querySelector(".organize-pick > span")?.textContent).toBe("No group");
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await waitFor(() =>
-      expect(approvals()).toEqual([
-        {
-          agent: { name: "deployer", existing: false },
-          session: { name: "main", existing: false },
-        },
-      ]),
-    );
-  });
-
-  it("drops a group created before the form left its session and came back", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", { body: { groups: [], tags: [], truncated: false } });
-    let answer = () => undefined as void;
-    api.on("POST", "/groups", async () => {
-      await new Promise<void>((resolve) => {
-        answer = resolve;
-      });
-      return { body: { id: 6, name: "Release", color: "purple" } };
-    });
-    api.on("POST", "/registrations/1/approve", { body: { registration: registration() } });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-    const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    const search = within(picker).getByRole("combobox");
-    fireEvent.change(search, { target: { value: "Release" } });
-    await within(picker).findByRole("option", { name: "Create group “Release”" });
-    fireEvent.keyDown(search, { key: "Enter" });
-    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
-    // Done closes the picker while the group is created, and another agent
-    // is named, then this one again, before it is.
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    for (const value of ["deployer", "builder"]) {
-      fireEvent.change(within(pending).getByLabelText("New agent name"), { target: { value } });
-    }
-    answer();
-    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBeGreaterThan(1));
-    expect(organize.querySelector(".organize-pick > span")?.textContent).toBe("No group");
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await waitFor(() =>
-      expect(approvals()).toEqual([
-        {
-          agent: { name: "builder", existing: false },
-          session: { name: "main", existing: false },
-        },
-      ]),
-    );
-  });
-
-  it("keeps a group picked since a group created earlier, which lands after", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", {
-      body: {
-        groups: [{ id: 4, name: "Billing", color: "blue", sessions: 0 }],
-        tags: [],
-        truncated: false,
-      },
-    });
-    let answer = () => undefined as void;
-    api.on("POST", "/groups", async () => {
-      await new Promise<void>((resolve) => {
-        answer = resolve;
-      });
-      return { body: { id: 6, name: "Release", color: "purple" } };
-    });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    const shown = () => organize.querySelector(".organize-pick > span")?.textContent;
-    const opened = () => {
-      fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-      return screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    };
-    let picker = opened();
-    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "Release" } });
-    fireEvent.click(await within(picker).findByRole("option", { name: "Create group “Release”" }));
-    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    picker = opened();
-    fireEvent.click(await within(picker).findByRole("option", { name: "Billing" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(shown()).toBe("Group Billing");
-    answer();
-    await waitFor(() => expect(api.callsTo("GET", "/groups-and-tags").length).toBeGreaterThan(2));
-    expect(shown()).toBe("Group Billing");
-  });
-
-  it("keeps a group created earlier, which lands after, when tags are picked meanwhile", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", {
-      body: { groups: [], tags: [{ name: "infra", color: "teal", sessions: 0 }], truncated: false },
-    });
-    let answer = () => undefined as void;
-    api.on("POST", "/groups", async () => {
-      await new Promise<void>((resolve) => {
-        answer = resolve;
-      });
-      return { body: { id: 6, name: "Release", color: "purple" } };
-    });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const organize = within(pending).getByRole("group", { name: "Group and tags" });
-    const picked = () =>
-      Array.from(organize.querySelectorAll(".organize-pick > span")).map(
-        (each) => each.textContent,
-      );
-    fireEvent.click(within(organize).getByRole("button", { name: "Group" }));
-    let picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    fireEvent.change(within(picker).getByRole("combobox"), { target: { value: "Release" } });
-    fireEvent.click(await within(picker).findByRole("option", { name: "Create group “Release”" }));
-    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(within(organize).getByRole("button", { name: "Tags" }));
-    picker = screen.getByRole("dialog", { name: "Tags for registration 7KQ2M-X9DPA" });
-    fireEvent.click(await within(picker).findByRole("option", { name: "infra" }));
-    fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    answer();
-    await waitFor(() => expect(picked()).toEqual(["Group Release", "Tag infra"]));
-  });
-
-  it("picks nothing by Enter while an input method composes", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("GET", "/groups-and-tags", { body: { groups: [], tags: [], truncated: false } });
-    api.on("POST", "/groups", { body: { id: 6, name: "Release", color: "purple" } });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    fireEvent.click(within(pending).getByRole("button", { name: "Group" }));
-    const picker = screen.getByRole("dialog", { name: "Group for registration 7KQ2M-X9DPA" });
-    const search = within(picker).getByRole("combobox");
-    fireEvent.change(search, { target: { value: "Release" } });
-    await within(picker).findByRole("option", { name: "Create group “Release”" });
-    // Composing, and WebKit's Enter that commits what was composed, which
-    // says it is no longer composing but carries the key code 229.
-    fireEvent.keyDown(search, { key: "Enter", isComposing: true });
-    fireEvent.keyDown(search, { key: "Enter", keyCode: 229 });
-    expect(api.callsTo("POST", "/groups")).toHaveLength(0);
-    fireEvent.keyDown(search, { key: "Enter" });
-    await waitFor(() => expect(api.callsTo("POST", "/groups")).toHaveLength(1));
-  });
-
-  it("approves under other names than proposed", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    fireEvent.change(within(pending).getByLabelText("New agent name"), {
-      target: { value: "deployer" },
-    });
-    fireEvent.change(within(pending).getByLabelText("New session name"), {
-      target: { value: "night-shift" },
-    });
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await screen.findByRole("alert");
-    expect(approvals()).toEqual([
-      {
-        agent: { name: "deployer", existing: false },
-        session: { name: "night-shift", existing: false },
-      },
-    ]);
-  });
-
-  it("chooses an existing agent, and a new session of it, by default", async () => {
-    await open({
-      registrations: [registration({ proposed_session: "review" })],
-      sessions: [
-        { agent: "builder", session: "main", credential_active: true },
-        { agent: "other", session: "x", credential_active: true },
-      ],
-    });
-    api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    await waitFor(() => expect(api.callsTo("GET", "/sessions").length).toBeGreaterThan(loads));
+    // The approval stays under way meanwhile, so it cannot be sent again.
+    expect(window.location.pathname).toBe("/registrations/1");
     expect(
-      within(pending).getByRole<HTMLSelectElement>("combobox", { name: "Existing agent" }).value,
-    ).toBe("builder");
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await screen.findByRole("alert");
-    expect(approvals()).toEqual([
-      { agent: { name: "builder", existing: true }, session: { name: "review", existing: false } },
-    ]);
-  });
-
-  it("says beside an agent's sessions when the list left some of them out", async () => {
-    await open({
-      registrations: [registration({ proposed_agent: "other" })],
-      sessions: [
-        { agent: "builder", session: "main", credential_active: true },
-        { agent: "other", session: "x", credential_active: true },
-      ],
-      truncated: ["builder"],
-    });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const session = () => within(pending).getByRole("group", { name: "Session" });
-    expect(session().querySelector("p.muted")).toBeNull();
-    expect(within(pending).getByRole("group", { name: "Agent" }).querySelector("p.muted")).toBe(
-      null,
-    );
-    fireEvent.change(within(pending).getByRole("combobox", { name: "Existing agent" }), {
-      target: { value: "builder" },
-    });
-    expect(session().querySelector("p.muted")).not.toBeNull();
-  });
-
-  it("says beside the agents when the list stopped with agents left out", async () => {
-    serve({
-      registrations: [registration()],
-      sessions: [{ agent: "builder", session: "main", credential_active: true }],
-    });
-    // Every page says more follow.
-    api.on("GET", "/sessions", (call) => ({
-      body: {
-        ...agentsOf([{ agent: "builder", session: "main", credential_active: true }]),
-        next: `${Number(call.url.searchParams.get("cursor") ?? "0") + 1}`,
-      },
-    }));
-    renderAt("/registrations");
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const agent = within(pending).getByRole("group", { name: "Agent" });
-    expect(agent.querySelector("p.muted")).not.toBeNull();
-    // It asks for no more agents than the notice says it lists.
-    const asked = api
-      .callsTo("GET", "/sessions")
-      .map((call) => Number(call.url.searchParams.get("limit")));
-    expect(asked.length).toBeGreaterThan(1);
-    expect(asked.reduce((sum, limit) => sum + limit, 0)).toBe(maxListed);
-  });
-
-  it("makes the operator choose when the proposed session exists, and warns of its history", async () => {
-    await open({
-      registrations: [registration()],
-      sessions: [{ agent: "builder", session: "main", credential_active: false }],
-    });
-    api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const sessionRadios = within(
-      within(pending).getByRole("group", { name: "Session" }),
-    ).getAllByRole("radio");
-    expect(sessionRadios.map((radio) => (radio as HTMLInputElement).checked)).toEqual([
-      false,
-      false,
-    ]);
-    await refusesFor(within(pending).getByLabelText("New session name"), () =>
-      fireEvent.click(within(pending).getByRole("button", { name: "Approve" })),
-    );
-    expect(approvals()).toEqual([]);
-
-    fireEvent.click(within(pending).getByRole("radio", { name: /An existing session of builder/ }));
-    expect(historyWarning(pending)).not.toBeNull();
-    expect(
-      within(pending).getByRole("option", { name: "main (no active credential)" }),
-    ).toBeTruthy();
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await screen.findByRole("alert");
-    expect(approvals()).toEqual([
-      { agent: { name: "builder", existing: true }, session: { name: "main", existing: true } },
-    ]);
-  });
-
-  it("starts the session choice over when another agent is chosen", async () => {
-    await open({
-      registrations: [registration()],
-      sessions: [
-        { agent: "builder", session: "main", credential_active: true },
-        { agent: "other", session: "x", credential_active: true },
-      ],
-    });
-    api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    fireEvent.click(within(pending).getByRole("radio", { name: /An existing session of builder/ }));
-    expect(historyWarning(pending)).not.toBeNull();
-    fireEvent.change(within(pending).getByRole("combobox", { name: "Existing agent" }), {
-      target: { value: "other" },
-    });
-    expect(historyWarning(pending)).toBeNull();
-    expect(
-      within(pending).getByRole<HTMLInputElement>("radio", { name: "A new session" }).checked,
+      within(pending).getByRole<HTMLButtonElement>("button", { name: "Approve" }).disabled,
     ).toBe(true);
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await screen.findByRole("alert");
-    expect(approvals()).toEqual([
-      { agent: { name: "other", existing: true }, session: { name: "main", existing: false } },
-    ]);
+    release();
+    await waitFor(() => expect(window.location.pathname).toBe("/sessions/builder/main"));
+    await waitFor(() => expect(document.querySelector(".session-open")).not.toBeNull());
+    expect(document.querySelector(".session-page .empty")).toBeNull();
   });
 
-  it("follows the agent list as it changes, until the operator picks", async () => {
-    const state = await open({ registrations: [registration()], sessions: [] });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    expect(within(pending).queryByRole("combobox", { name: "Existing agent" })).toBeNull();
-    state.sessions = [{ agent: "builder", session: "review", credential_active: true }];
-    window.dispatchEvent(new Event("focus"));
-    const agent = await within(pending).findByRole<HTMLSelectElement>("combobox", {
-      name: "Existing agent",
-    });
-    expect(agent.value).toBe("builder");
-    expect(
-      within(pending).getByRole<HTMLInputElement>("radio", { name: "An existing agent" }).checked,
-    ).toBe(true);
-    fireEvent.click(within(pending).getByRole("radio", { name: "A new agent" }));
-    state.sessions = [...state.sessions, { agent: "other", session: "x", credential_active: true }];
-    window.dispatchEvent(new Event("focus"));
-    await within(pending).findByRole("option", { name: "other" });
-    expect(
-      within(pending).getByRole<HTMLInputElement>("radio", { name: "A new agent" }).checked,
-    ).toBe(true);
-  });
-
-  it("keeps a typed agent name when the proposed agent appears meanwhile", async () => {
-    const state = await open({ registrations: [registration()], sessions: [] });
-    api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    fireEvent.change(within(pending).getByLabelText("New agent name"), {
-      target: { value: "deployer" },
-    });
-    state.sessions = [{ agent: "builder", session: "review", credential_active: true }];
-    window.dispatchEvent(new Event("focus"));
-    await within(pending).findByRole("option", { name: "builder" });
-    expect(
-      within(pending).getByRole<HTMLInputElement>("radio", { name: "A new agent" }).checked,
-    ).toBe(true);
-    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    await screen.findByRole("alert");
-    expect(approvals()).toEqual([
-      { agent: { name: "deployer", existing: false }, session: { name: "main", existing: false } },
-    ]);
-  });
-
-  it("refuses a malformed name or one that exists before sending, tied to its field", async () => {
-    await open({
-      registrations: [registration()],
-      sessions: [{ agent: "builder", session: "main", credential_active: true }],
-    });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    fireEvent.click(within(pending).getByRole("radio", { name: "A new agent" }));
-    const agentName = within(pending).getByLabelText("New agent name");
-    const approve = () => fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
-    fireEvent.change(agentName, { target: { value: "Bad Name" } });
-    await refusesFor(agentName, approve);
-    expect(agentName.getAttribute("aria-invalid")).toBe("true");
-    // A well-formed name that is taken is refused for another reason.
-    const malformed = descriptions(agentName);
-    fireEvent.change(agentName, { target: { value: "builder" } });
-    approve();
-    await waitFor(() => {
-      expect(descriptions(agentName)).toHaveLength(malformed.length);
-      expect(descriptions(agentName)).not.toEqual(malformed);
-    });
-    expect(agentName.getAttribute("aria-invalid")).toBe("true");
-    expect(approvals()).toEqual([]);
-  });
-
-  it("ties the server's refusal to the name it names", async () => {
-    await open({ registrations: [registration()], sessions: [] });
+  it("stays where the operator went while a decision was on its way", async () => {
+    const state = open({ registrations: [registration()], sessions: [] });
+    let answer = () => {};
     api.on(
       "POST",
       "/registrations/1/approve",
-      failure("invalid_input", "names an agent that already exists", { field: "agent.name" }),
+      () =>
+        new Promise<Reply>((resolve) => {
+          answer = () => {
+            state.registrations = [];
+            state.sessions = [{ agent: "builder", session: "main", credential_active: true }];
+            resolve({
+              body: {
+                registration: registration({
+                  status: "approved",
+                  granted: { agent: "builder", session: "main", credential_active: true },
+                }),
+              },
+            });
+          };
+        }),
     );
     const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    const input = within(pending).getByLabelText("New agent name");
-    await refusesFor(input, () =>
-      fireEvent.click(within(pending).getByRole("button", { name: "Approve" })),
-    );
-    expect(approvals()).toHaveLength(1);
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(approvals()).toHaveLength(1));
+    await backToRows();
+    const loads = api.callsTo("GET", "/registrations").length;
+    answer();
+    await waitFor(() => expect(api.callsTo("GET", "/registrations").length).toBeGreaterThan(loads));
+    await waitFor(() => expect(waiting()).toEqual([]));
+    expect(window.location.pathname).toBe("/sessions");
+  });
+
+  it("lists every registration waiting, page by page", async () => {
+    api
+      .on("GET", "/registrations", (call) => {
+        const status = call.url.searchParams.get("status");
+        const cursor = call.url.searchParams.get("cursor");
+        return {
+          body:
+            status !== "pending"
+              ? { registrations: [] }
+              : cursor === null
+                ? { registrations: [registration({ id: 2, code: "AAAAA-AAAAA" })], next: "2" }
+                : { registrations: [registration()] },
+        };
+      })
+      .on("GET", "/sessions", { body: agentsOf([]) });
+    renderAt("/sessions");
+    await waitFor(() => expect(waiting()).toHaveLength(2));
   });
 
   it("rejects a registration after asking once more", async () => {
-    const state = await open({ registrations: [registration()], sessions: [] });
+    const state = open({ registrations: [registration()], sessions: [] });
     api.on("POST", "/registrations/1/reject", () => {
       state.registrations = [
         registration({ status: "rejected", decided_at: "2026-10-27T12:05:00.000Z" }),
       ];
       return { body: { registration: state.registrations[0] } };
     });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const pending = await pendingCard();
+    const entries = window.history.length;
     fireEvent.click(within(pending).getByRole("button", { name: "Reject" }));
     expect(api.callsTo("POST", "/registrations/1/reject")).toEqual([]);
     fireEvent.click(within(pending).getByRole("button", { name: "Reject registration" }));
+    // The page goes back to the rows, in the registration's place in the
+    // history, the request among the past ones.
+    await waitFor(() => expect(window.location.pathname).toBe("/sessions"));
+    expect(window.history.length).toBe(entries);
     await waitFor(() => expect(within(card("7KQ2M-X9DPA")).getByText("rejected")).toBeTruthy());
     expect(api.callsTo("POST", "/registrations/1/reject")).toHaveLength(1);
   });
 
-  it("moves focus to the confirming button as it asks, and back when cancelled", async () => {
-    await open({ registrations: [registration()], sessions: [] });
-    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    fireEvent.click(within(pending).getByRole("button", { name: "Reject" }));
-    expect(document.activeElement).toBe(
-      within(pending).getByRole("button", { name: "Reject registration" }),
-    );
-    fireEvent.click(within(pending).getByRole("button", { name: "Cancel" }));
-    expect(document.activeElement).toBe(within(pending).getByRole("button", { name: "Reject" }));
-    expect(approvals()).toEqual([]);
-  });
-
   it("revokes an approved credential, marking a session left without one", async () => {
-    const state = await open({
-      registrations: [
-        registration({
-          status: "approved",
-          decided_at: "2026-10-27T12:05:00.000Z",
-          granted: { agent: "builder", session: "main", credential_active: true },
-        }),
-      ],
-      sessions: [],
-    });
+    const state = open(
+      {
+        registrations: [
+          registration({
+            status: "approved",
+            decided_at: "2026-10-27T12:05:00.000Z",
+            granted: { agent: "builder", session: "main", credential_active: true },
+          }),
+        ],
+        sessions: [],
+      },
+      "/sessions",
+    );
     api.on("POST", "/registrations/1/revoke", () => {
       state.registrations = [
         registration({
@@ -844,8 +232,14 @@ describe("the sessions view's registrations", () => {
     expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull();
   });
 
+  it("says at a registration's address when it no longer waits", async () => {
+    open({ registrations: [registration({ status: "expired" })], sessions: [] });
+    expect(await screen.findByRole("heading", { level: 1, name: "Registration" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
   it("shows an expired registration as expired, with nothing to approve", async () => {
-    await open({ registrations: [registration({ status: "expired" })], sessions: [] });
+    open({ registrations: [registration({ status: "expired" })], sessions: [] }, "/sessions");
     await waitFor(() => expect(card("7KQ2M-X9DPA")).toBeTruthy());
     const expired = card("7KQ2M-X9DPA");
     expect(within(expired).getByText("expired")).toBeTruthy();

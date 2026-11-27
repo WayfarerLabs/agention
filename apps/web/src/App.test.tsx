@@ -37,6 +37,8 @@ describe("routes", () => {
     ["/sessions", { name: "sessions" }],
     // The page agents' registrations name, which shows the sessions view.
     ["/registrations", { name: "sessions" }],
+    // A registration waiting, on the sessions view, by its number.
+    ["/registrations/7", { name: "registration", id: 7 }],
     ["/settings", { name: "settings" }],
     // A section of Settings by its slug, which the Settings view looks up.
     ["/settings/voice", { name: "settings-section", section: "voice" }],

@@ -361,13 +361,14 @@ main {
   max-width: 32rem;
 }
 
-/* The Threads tab side by side, as the view renders it at a desktop's width
-   (Threads.tsx), takes the window's whole width: the list's pane 30% of it,
-   from 20rem to 36rem, and the thread's the rest, list first. The thread
-   keeps the page's own scroll, so it never scrolls within a box; the list's
-   pane stays in view, sticky at the top once the banner scrolls away, and
-   scrolls on its own, its padding leaving room for the rows' focus rings,
-   which its edge would otherwise cut. */
+/* A tab side by side, as the Threads tab and the Sessions tab render at a
+   desktop's width (side-by-side.tsx), takes the window's whole width: the
+   list's pane 30% of it, from 20rem to 36rem, and the pane of what is open,
+   a thread or a session, the rest, list first. What is open keeps the
+   page's own scroll, so it never scrolls within a box; the list's pane stays
+   in view, sticky at the top once the banner scrolls away, and scrolls on
+   its own, its padding leaving room for the rows' focus rings, which its
+   edge would otherwise cut. */
 main:has(> .side-by-side) {
   max-width: none;
 }
@@ -383,8 +384,8 @@ main:has(> .side-by-side) {
   position: sticky;
   top: 0;
   /* Until the page scrolls the banner away, the pane starts below it, so
-     its height leaves that out, which Threads.tsx measures, and the bar at
-     its foot stays on the screen. */
+     its height leaves that out, which side-by-side.tsx measures, and the bar
+     at its foot stays on the screen. */
   max-height: calc(100dvh - var(--pane-top, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1299,13 +1300,13 @@ button.picker[aria-expanded="true"] .icon {
   margin: 0;
 }
 
-/* The bars at the foot of a pane (action-bar.tsx): the thread list's and the
-   thread page's. Each is a strip docked to the foot of the screen, or beside
-   a thread to the foot of the list's pane, floating over what scrolls
-   beneath it on the Send row's surface, and in the flow after the last of
-   what it acts on, so it never covers that once scrolled to. One pane at a
-   time it reaches the screen's edges and its foot; side by side it keeps to
-   its pane. */
+/* The bars at the foot of a pane (action-bar.tsx): the thread list's, the
+   thread page's and a session's. Each is a strip docked to the foot of the
+   screen, or, for the thread list's side by side, to the foot of its pane.
+   It floats over what scrolls beneath it, on the Send row's surface, and
+   stands in the flow after the last of what it acts on, so it never covers
+   that once scrolled to. One pane at a time it reaches the screen's edges
+   and its foot; side by side it keeps to its pane. */
 .action-bar {
   position: sticky;
   bottom: 0;
@@ -1932,10 +1933,11 @@ article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) .
    focused from the keyboard, stops a little above the Send row and the
    thread's bar stuck at the foot of the screen, whose heights the composer
    and the bar measure as they change; above the Send row alone while the
-   bar rests. */
+   bar rests. A session's page has its bar alone, and keeps clear of that. */
 :root:has(article > .action-bar) {
   scroll-padding-bottom: calc(
-    var(--send-row-height, 0px) + var(--thread-bar-height, 0px) + var(--space-2)
+    var(--send-row-height, 0px) + var(--thread-bar-height, 0px) + var(--session-bar-height, 0px) +
+      var(--space-2)
   );
 }
 
@@ -2622,7 +2624,7 @@ ul.staged li {
 
 /* The sessions view */
 
-/* An agent's sessions, a folded row each, in one card under its header. */
+/* An agent's sessions, a row each, in one card under its header. */
 .session-rows {
   margin: 0 0 var(--space-3);
   padding: 0;
@@ -2636,13 +2638,30 @@ ul.staged li {
   border-top: 1px solid var(--color-border);
 }
 
-/* A folded row: the session's name, title and percent on a line beside its
+/* A row's corners follow its card's, for what the row draws on its edge. */
+.session-row:first-child {
+  border-top-left-radius: var(--radius-large);
+  border-top-right-radius: var(--radius-large);
+}
+
+.session-row:last-child {
+  border-bottom-right-radius: var(--radius-large);
+  border-bottom-left-radius: var(--radius-large);
+}
+
+/* A row with a registration waiting for approval, ruled at its left edge in
+   the attention tone, as an open ask's card is. */
+.session-row.waiting {
+  box-shadow: inset 4px 0 0 var(--color-attention);
+}
+
+/* A row: the session's name, title and percent on a line beside its
    options, when it was last seen beneath, then what stands out about it,
-   wrapping where the width ends. The fold's button, its chevron, stretches
-   over all three, so a tap anywhere on them folds or unfolds the row, while
-   the links and the controls among them sit above it and take their own
-   taps. Names and titles are cut to fit, but for an unfolded row's title,
-   which wraps whole. */
+   wrapping where the width ends. The row's chevron, the link that opens its
+   session, stretches over all three, so a tap anywhere on them opens it,
+   while the other links and the controls among them sit above it and take
+   their own taps. Names and titles are cut to fit, but for the title of the
+   session open, which wraps whole. */
 .session-summary {
   position: relative;
   padding: 0 var(--space-1) var(--space-1) var(--space-3);
@@ -2654,7 +2673,7 @@ ul.staged li {
   gap: var(--space-1);
 }
 
-.session-head :is(h4, h5) {
+.session-head :is(h1, h3, h4, h5) {
   display: flex;
   flex: 1;
   align-items: center;
@@ -2667,11 +2686,11 @@ ul.staged li {
   font-weight: 400;
 }
 
-.unfolded .session-head :is(h4, h5) {
+.session-open .session-head h1 {
   align-items: baseline;
 }
 
-button.session-fold {
+.session-lead {
   display: flex;
   flex: none;
   align-items: center;
@@ -2683,19 +2702,27 @@ button.session-fold {
   color: var(--color-text);
 }
 
-button.session-fold::after {
+.session-lead::after {
   content: "";
   position: absolute;
   inset: 0;
 }
 
-button.session-fold[aria-expanded="false"] > .icon {
+/* The chevron points along the line, to where its link opens the session. */
+.session-lead > .icon {
   transform: rotate(-90deg);
 }
 
-.session-head a {
+.session-head a:not(.session-lead) {
   position: relative;
   z-index: 1;
+}
+
+/* The row of the session open beside the rows, side by side: ringed as the
+   row of the thread open beside the thread list is. */
+.session-row:has(.session-lead[aria-current="page"]) {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
 }
 
 /* The session's name links to its threads, reading as the name still until
@@ -2732,7 +2759,7 @@ a.session-name:hover {
   white-space: nowrap;
 }
 
-.unfolded .session-title {
+.session-open .session-title {
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -2792,11 +2819,40 @@ a.session-name:hover {
   margin: 0 var(--space-3) var(--space-3);
 }
 
-/* A row unfolded: its goal over a thin bar of how far it has come, its
-   credentials, then its log, set in under its name. */
+/* A session in its own pane, or alone at its address: what its row shows,
+   the registrations waiting for it, and its detail, under the page's
+   heading, with no chevron to stand clear of and no card around it, in a
+   column no wider than reads well. */
+.session-page {
+  max-width: var(--content-width);
+}
+
+.session-open .session-summary {
+  padding: 0;
+}
+
+.session-head h1 {
+  flex-wrap: wrap;
+  font-size: 1.1875rem;
+}
+
+.session-head h1 .session-name {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.session-open :is(.session-seen, .session-facts) {
+  padding-left: 0;
+}
+
+.session-open > :is(.confirm, .notice, .status) {
+  margin: var(--space-3) 0 0;
+}
+
+/* A session's detail: its goal over a thin bar of how far it has come, its
+   credentials, then its log. */
 .session-detail {
-  padding: 0 var(--space-3) var(--space-3)
-    calc(var(--space-3) + var(--icon-size) * 1.25 + var(--space-2));
+  padding: var(--space-3) 0;
   font-size: var(--text-small);
 }
 
@@ -2931,6 +2987,51 @@ button.older[aria-disabled="true"] {
   background: none;
   font-size: 1rem;
   letter-spacing: 0.06em;
+}
+
+/* A registration waiting, on its own page: its code, the warning, what it
+   proposes, a term beside its words, then its approval, Approve and Reject
+   first among its actions. */
+.registration-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.registration-facts dt {
+  color: var(--color-muted);
+}
+
+.registration-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* What Approve grants, beside the button that shows the other choices. */
+.approve-as {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.approve-as p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* When a registration proposes a session the agent has, after the group
+   and tags: the warning of its history and the new session's name, which the
+   buttons in place of Approve grant one or the other of. */
+.decision {
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+.decision .actions button {
+  overflow-wrap: anywhere;
 }
 
 .registration-head {

@@ -17,6 +17,8 @@ export type Route =
   | { name: "threads" }
   | { name: "thread"; agent: string; session: string; thread: number }
   | { name: "sessions" }
+  | { name: "session"; agent: string; session: string }
+  | { name: "registration"; id: number }
   | { name: "settings" }
   | { name: "settings-section"; section: string }
   | { name: "sign-in" }
@@ -26,6 +28,10 @@ export type Route =
   | { name: "not-found" };
 
 const threadRoute = /^\/s\/([^/]+)\/([^/]+)\/threads\/([1-9]\d{0,15})$/;
+// A session, on the Sessions tab: /s/<agent>/<session> is the API's.
+const sessionRoute = /^\/sessions\/([^/]+)\/([^/]+)$/;
+// A registration waiting for approval, on the Sessions tab, by its number.
+const registrationRoute = /^\/registrations\/([1-9]\d{0,15})$/;
 // A section of Settings, by its slug, which the Settings view looks up.
 const settingsSectionRoute = /^\/settings\/([^/]+)$/;
 
@@ -51,6 +57,14 @@ export function matchRoute(pathname: string): Route {
   const [, section] = settingsSectionRoute.exec(pathname) ?? [];
   if (section !== undefined) {
     return { name: "settings-section", section };
+  }
+  const [, numbered] = registrationRoute.exec(pathname) ?? [];
+  if (numbered !== undefined && Number.isSafeInteger(Number(numbered))) {
+    return { name: "registration", id: Number(numbered) };
+  }
+  const [, ofAgent = "", named = ""] = sessionRoute.exec(pathname) ?? [];
+  if (namePattern.test(ofAgent) && namePattern.test(named)) {
+    return { name: "session", agent: ofAgent, session: named };
   }
   const [, agent = "", session = "", thread = ""] = threadRoute.exec(pathname) ?? [];
   const number = Number(thread);
@@ -320,6 +334,18 @@ export function safeReturnPath(value: string | null): string {
     route.name !== "link"
     ? url.pathname + url.search
     : "/";
+}
+
+// sessionHref is a session's address on the Sessions tab, which the tab's
+// arrangement follows as its query (sessions/arrangement.ts).
+export function sessionHref(agent: string, session: string): string {
+  return `/sessions/${agent}/${session}`;
+}
+
+// registrationHref is a registration's address on the Sessions tab, which
+// the tab's arrangement follows as its query, as a session's does.
+export function registrationHref(id: number): string {
+  return `/registrations/${id}`;
 }
 
 export function threadHref(agent: string, session: string, thread: number): string {

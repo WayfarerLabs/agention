@@ -91,10 +91,10 @@ const targets = (button: HTMLElement) =>
     .queryAllByRole("link")
     .map((link) => link.getAttribute("href"));
 
-// A session row's fold, by the session's name, within an agent's header's
-// fold when given.
+// A session row's lead, the link to the session, by the session's name,
+// within an agent's header's fold when given.
 const fold = (session: string, within_: HTMLElement = document.body) =>
-  within(within_).getByRole("button", { name: `Session ${session}` });
+  within(within_).getByRole("link", { name: `Session ${session}` });
 
 // A session row's head, which its fold leads.
 const headOf = (session: string) => fold(session).parentElement as HTMLElement;
@@ -152,7 +152,7 @@ describe("the sessions view", () => {
       }),
     ]);
     await open([agent("builder", [sessionSummary()])]);
-    await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    await screen.findByRole("link", { name: /^Registration 7KQ2M-X9DPA for / });
     expect(screen.getAllByRole("heading", { level: 2 }).map((each) => each.textContent)).toEqual([
       "Waiting for approval",
       "Agents",
@@ -196,58 +196,49 @@ describe("the sessions view", () => {
     await waitFor(() => expect(agents?.querySelector(".empty")).not.toBeNull());
   });
 
-  // The registrations waiting for approval, as their section and its
-  // heading.
-  const waitingSection = () => screen.getByRole("region", { name: "Waiting for approval" });
-  const waitingHeading = () => within(waitingSection()).getByRole("heading", { level: 2 });
-  const headingHidden = () => waitingHeading().classList.contains("visually-hidden");
-  const lines = () => Array.from(waitingSection().querySelectorAll("p"), (line) => line.className);
-
-  it("keeps the registrations section to a line while none waits, once some agent has a session", async () => {
-    // Each step changes what both lists answer, or what the registrations
-    // answer alone, and waits for the view to show it, so no refresh the
-    // next step starts is skipped for one still running.
-    const state = serve([]);
+  it("shows the registrations waiting above the agents only while any waits, and says when they fail to load", async () => {
+    // Each step changes what the registrations answer and waits for the view
+    // to show it, so no refresh the next step starts is skipped for one
+    // still running.
     let waiting: Registration[] = [];
     let failing = false;
     api.on("GET", "/registrations", () =>
       failing ? failure("internal", "internal error") : { body: { registrations: waiting } },
     );
     const refresh = () => window.dispatchEvent(new Event("focus"));
-    // Until some agent has a session, its heading shows over the explanation
-    // of how a registration arrives.
-    renderAt("/sessions");
-    await waitFor(() => expect(waitingSection().querySelector(".empty")).not.toBeNull());
-    expect(headingHidden()).toBe(false);
-    // Registrations waiting show under it, as cards.
-    state.agents = [agent("builder", [sessionSummary()])];
-    waiting = [registration()];
+    const group = () => screen.queryByRole("heading", { level: 2, name: "Waiting for approval" });
+    const rows = () => screen.queryAllByRole("link", { name: /^Registration \S+ for / });
+    await open([agent("builder", [sessionSummary()])]);
+    expect(group()).toBeNull();
+    // A registration of a new agent, one of a new session of an agent there
+    // is, and one of a session there is, each saying so.
+    waiting = [
+      registration({ id: 3, code: "AAAAA-AAAAA", proposed_agent: "reviewer" }),
+      registration({ id: 2, code: "BBBBB-BBBBB", proposed_session: "nightly" }),
+      registration(),
+    ];
     refresh();
-    await screen.findByRole("button", { name: /^Agent builder/ });
-    await within(waitingSection()).findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
-    expect(headingHidden()).toBe(false);
-    // Once none waits, the section is one muted line, its heading left to
-    // screen readers. The list has loaded, as the card it took away shows,
-    // so the line is not the one shown while it loads.
-    waiting = [];
-    refresh();
-    await waitFor(() => expect(within(waitingSection()).queryAllByRole("article")).toEqual([]));
-    expect(lines()).toEqual(["muted"]);
-    expect(headingHidden()).toBe(true);
-    // A failed load shows its heading over the failure and its retry.
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(group()).not.toBeNull();
+    expect(rows().map((link) => link.getAttribute("href"))).toEqual([
+      "/registrations/3",
+      "/registrations/2",
+      "/registrations/1",
+    ]);
+    const kinds = rows().map(
+      (link) => link.closest("li")?.querySelector(".session-facts li")?.className,
+    );
+    expect(kinds).toEqual(["accent", "accent", "warning"]);
+    // A failed load says so, with a retry, the agents still showing.
     failing = true;
     refresh();
-    await within(waitingSection()).findByRole("button", { name: "Try again" });
-    expect(headingHidden()).toBe(false);
-  });
-
-  it("keeps the registrations section to a line while they load, once some agent has a session", async () => {
-    // The registrations never answer.
-    api.on("GET", "/registrations", () => new Promise<never>(() => undefined));
-    await open([agent("builder", [sessionSummary()])]);
-    expect(within(waitingSection()).queryByRole("list")).toBeNull();
-    expect(lines()).toEqual(["muted"]);
-    expect(headingHidden()).toBe(true);
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(header("builder")).toBeTruthy();
+    failing = false;
+    waiting = [];
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(group()).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("folds an agent under its header, rolling up its sessions, and keeps that in this browser", async () => {
@@ -311,7 +302,7 @@ describe("the sessions view", () => {
     expect(header("reviewer").getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("carries each session's key facts on its folded row", async () => {
+  it("carries each session's key facts on its row", async () => {
     await open([
       agent("builder", [
         sessionSummary({
@@ -338,17 +329,19 @@ describe("the sessions view", () => {
       ]),
     ]);
     const main = row("main");
-    // Folded by default, so no log loads.
-    expect(fold("main").getAttribute("aria-expanded")).toBe("false");
+    // The row leads to the session's page, and loads no log itself.
+    expect(fold("main").getAttribute("href")).toBe("/sessions/builder/main");
     expect(api.callsTo("GET", "/s/builder/main/updates")).toEqual([]);
     expect(headOf("main").textContent).toContain("Retire invoices");
     expect(headOf("main").textContent).toContain("62%");
     expect(within(main).getByText("Working")).toBeTruthy();
-    // Its name links to its threads, and its heading goes by its fold's
+    // Its name links to its threads, and its heading goes by its lead's
     // name alone.
-    expect(within(headOf("main")).getByRole("link").getAttribute("href")).toBe(
-      "/?session=builder/main",
-    );
+    expect(
+      within(headOf("main"))
+        .getByRole("link", { name: /^Threads/ })
+        .getAttribute("href"),
+    ).toBe("/?session=builder/main");
     expect(within(main).getByRole("heading", { level: 4, name: "Session main" })).toBeTruthy();
     // Blocked on you while any open ask blocks, in the danger tone as the
     // thread list's own blocked mark is, linking to its blocked threads, and
@@ -443,7 +436,6 @@ describe("the sessions view", () => {
     renderAt("/sessions");
     await screen.findByRole("button", { name: "Agent builder" });
     expect(header("builder").getAttribute("aria-expanded")).toBe("true");
-    expect(fold("main").getAttribute("aria-expanded")).toBe("false");
     // The chevron is the header's one control, and folds it.
     expect(within(header("builder").closest("h3") as HTMLElement).getAllByRole("button")).toEqual([
       header("builder"),
@@ -525,8 +517,8 @@ describe("folded by group", () => {
         .map((each) => each.getAttribute("aria-label"));
     expect(agentsIn(inBilling)).toEqual(["Agent builder", "Agent reviewer"]);
     expect(agentsIn(inNone)).toEqual(["Agent builder"]);
-    expect(within(inBilling).getAllByRole("button", { name: "Session main" })).toHaveLength(2);
-    expect(within(inBilling).queryByRole("button", { name: /^Session (side|old)$/ })).toBeNull();
+    expect(within(inBilling).getAllByRole("link", { name: "Session main" })).toHaveLength(2);
+    expect(within(inBilling).queryByRole("link", { name: /^Session (side|old)$/ })).toBeNull();
     expect(fold("side", inNone)).toBeTruthy();
     // The headings nest: a group's, its agents' a level below, their
     // sessions' below those.
@@ -677,7 +669,14 @@ describe("folded by group", () => {
   });
 });
 
-describe("a session unfolded", () => {
+describe("a session opened", () => {
+  // openMain follows the row of builder/main to the session's page, which
+  // shows alone at this width.
+  const openMain = async () => {
+    fireEvent.click(fold("main"));
+    await screen.findByRole("heading", { level: 1, name: /^builder\/main/ });
+  };
+  const page = () => document.querySelector(".session-page") as HTMLElement;
   // A session's life: its first report, a goal and a percent, three updates
   // of progress alone, idle and back; read through the progress.
   const life = [
@@ -709,11 +708,11 @@ describe("a session unfolded", () => {
   it("shows its goal, how far it has come, its credentials and its log", async () => {
     serveLog(life, 5);
     await open([agent("builder", [reported])]);
-    fireEvent.click(fold("main"));
-    expect(fold("main").getAttribute("aria-expanded")).toBe("true");
-    const detail = document.getElementById(fold("main").getAttribute("aria-controls") ?? "");
-    // The title wraps whole in the row's head, so the goal does not repeat it.
-    expect(headOf("main").textContent).toContain("Retire invoices");
+    await openMain();
+    const detail = page().querySelector(".session-detail");
+    // The title wraps whole in the page's heading, so the goal does not
+    // repeat it.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("Retire invoices");
     expect(detail?.querySelector(".session-goal")?.textContent).not.toContain("Retire invoices");
     expect(detail?.textContent).toContain("Drop the table");
     expect(detail?.querySelector("progress")?.getAttribute("value")).toBe("62");
@@ -757,7 +756,7 @@ describe("a session unfolded", () => {
   it("collapses a run of progress from the first percent the session gave", async () => {
     serveLog([entry(1), entry(2, { percent: 20 }), entry(3, { percent: 60 })], 3);
     await open([agent("builder", [{ ...reported, unread_updates: 0 }])]);
-    fireEvent.click(fold("main"));
+    await openMain();
     const log = await screen.findByRole("list", { name: "Updates" });
     const lines = within(log).getAllByRole("listitem");
     expect(lines).toHaveLength(2);
@@ -767,7 +766,7 @@ describe("a session unfolded", () => {
   it("marks an entry the server inferred, which carries no note", async () => {
     serveLog([entry(1, { state: "idle", note: "Waiting." }), entry(2, { inferred: true })], 2);
     await open([agent("builder", [{ ...reported, unread_updates: 0 }])]);
-    fireEvent.click(fold("main"));
+    await openMain();
     const log = await screen.findByRole("list", { name: "Updates" });
     const lines = within(log).getAllByRole("listitem");
     expect(lines.map((line) => line.querySelector(".log-inferred") !== null)).toEqual([
@@ -780,7 +779,7 @@ describe("a session unfolded", () => {
   it("reads nothing it has read already", async () => {
     serveLog(life, 7);
     await open([agent("builder", [{ ...reported, unread_updates: 0 }])]);
-    fireEvent.click(fold("main"));
+    await openMain();
     const log = await screen.findByRole("list", { name: "Updates" });
     expect(within(log).queryAllByTitle("Unread")).toEqual([]);
     expect(api.callsTo("POST", "/s/builder/main/updates/read")).toEqual([]);
@@ -792,7 +791,7 @@ describe("a session unfolded", () => {
     );
     const state = serveLog(entries, 25);
     await open([agent("builder", [reported])]);
-    fireEvent.click(fold("main"));
+    await openMain();
     const log = await screen.findByRole("list", { name: "Updates" });
     expect(within(log).getAllByRole("listitem")).toHaveLength(10);
     const older = screen.getByRole("button", { name: "Older" });
@@ -835,18 +834,19 @@ describe("a session unfolded", () => {
     expect(focusedAsShown).toBe(oldest);
   });
 
-  it("loads and reads its log only while unfolded under an unfolded agent, starting folded on every visit", async () => {
+  it("loads and reads its log only while open", async () => {
     const entries = [...life];
     serveLog(entries, 5);
     const reads = () =>
       api.callsTo("POST", "/s/builder/main/updates/read").map((call) => call.body);
     await open([agent("builder", [reported])]);
-    fireEvent.click(fold("main"));
+    await openMain();
     await screen.findByRole("list", { name: "Updates" });
     await waitFor(() => expect(reads()).toEqual([{ through: 7 }]));
-    // Under a folded agent the row is not shown, so as new entries arrive
-    // and the view refreshes, its log neither loads nor is read.
-    fireEvent.click(header("builder"));
+    // Back on the rows, as new entries arrive and the view refreshes, its
+    // log neither loads nor is read.
+    fireEvent.click(screen.getByRole("link", { name: "Back to sessions" }));
+    await screen.findByRole("button", { name: /^Agent builder/ });
     expect(screen.queryByRole("list", { name: "Updates" })).toBeNull();
     entries.push(entry(8, { note: "Unseen" }));
     const loaded = api.callsTo("GET", "/s/builder/main/updates").length;
@@ -855,23 +855,16 @@ describe("a session unfolded", () => {
     await waitFor(() => expect(api.callsTo("GET", "/sessions").length).toBeGreaterThan(listed));
     expect(api.callsTo("GET", "/s/builder/main/updates")).toHaveLength(loaded);
     expect(reads()).toEqual([{ through: 7 }]);
-    // Unfolding the agent shows the row as it was, and reads what it shows.
-    fireEvent.click(header("builder"));
+    // Opened again, it reads what it shows.
+    await openMain();
     await screen.findByRole("list", { name: "Updates" });
     await waitFor(() => expect(reads()).toEqual([{ through: 7 }, { through: 8 }]));
-    // Opened again, the row starts folded, and nothing loads its log.
-    cleanup();
-    const before = api.callsTo("GET", "/s/builder/main/updates").length;
-    renderAt("/sessions");
-    await screen.findByRole("button", { name: /^Agent builder/ });
-    expect(fold("main").getAttribute("aria-expanded")).toBe("false");
-    expect(api.callsTo("GET", "/s/builder/main/updates")).toHaveLength(before);
   });
 
   it("says a session that never reported has no status, and loads no log", async () => {
     await open([agent("builder", [sessionSummary()])]);
-    fireEvent.click(fold("main"));
-    expect(fold("main").getAttribute("aria-expanded")).toBe("true");
+    await openMain();
+    expect(page().querySelector(".session-detail .muted")).not.toBeNull();
     expect(screen.queryByRole("list", { name: "Updates" })).toBeNull();
     expect(api.callsTo("GET", "/s/builder/main/updates")).toEqual([]);
   });

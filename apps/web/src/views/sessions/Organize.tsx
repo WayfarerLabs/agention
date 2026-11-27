@@ -12,62 +12,69 @@ interface Picks {
 
 // useOrganize picks the group and tags of the session an approval grants:
 // fields showing those it will have, each a button opening its picker, and
-// what was picked for the approval to send. Unpicked, a new session has none
-// and an existing one keeps its own, which the pickers start from. The picks
+// what was picked for the approval to send, and what they show. Unpicked, a
+// new session has none and an existing one keeps its own, which the pickers
+// start from; before a session is chosen, they start from the one the form
+// names as own, if any. The picks
 // belong to the destination they were made for, the session as the form
-// names it, new or existing, under its agent: another destination starts
-// them over, and a pick landing after the destination changed, as a group
-// created in a picker since closed, is dropped.
+// names it, new or existing, under its agent: another agent, or another
+// session once one was chosen, starts them over, and a pick landing after
+// that, as a group created in a picker since closed, is dropped. Picks made
+// before a session is chosen are for whichever session is approved, so
+// choosing one keeps them.
 export function useOrganize({
   id,
   label,
   destination,
   own,
+  hint,
 }: {
   id: string;
   // What the pickers are for, such as "registration 7KQ2M-X9DPA".
   label: string;
-  // Where the approval grants, as the form names it: its agent, and an
-  // existing session by its name or a new one, such as
-  // "existing:builder/existing:main".
-  destination: string;
-  // The existing session approved onto, if it is one.
+  // Where the approval grants, as the form names it: its agent, such as
+  // "existing:builder", and an existing session by its name or a new one,
+  // such as "existing:main" or "new", or undefined while none is chosen.
+  destination: { agent: string; session: string | undefined };
+  // The existing session whose group and tags the pickers start from: the
+  // one approved onto, if it is one.
   own: SessionSummary | undefined;
-}): { picked: Picks; fields: ReactNode } {
+  // What the hint under the legend says the picks do.
+  hint: string;
+}): { picked: Picks; shown: { group: number | null; tags: string[] }; fields: ReactNode } {
   // The group and tags picked, undefined while not picked, null for no
   // group; and the picker open, beside the button that opened it.
   const [group, setGroup] = useState<GroupRead | null>();
   const [tags, setTags] = useState<string[]>();
   const [picking, setPicking] = useState<{ kind: "group" | "tags"; opener: HTMLElement }>();
-  // The destination now, which a pick made for an earlier one is held to,
-  // and, for the group and for the tags apart, how many times that pick has
+  // For the group and for the tags apart, how many times that pick has
   // changed, by a pick or by starting over, so a pick that lands late, as a
   // group created in a picker since closed, never undoes a pick of the same
-  // since, nor lands after the form left its destination and came back. A
-  // pick of the tags leaves a late group standing, and the other way round.
-  const now = useRef(destination);
-  now.current = destination;
+  // since, nor lands after the picks started over. A pick of the tags leaves
+  // a late group standing, and the other way round.
   const applied = useRef({ group: 0, tags: 0 });
   const [pickedFor, setPickedFor] = useState(destination);
-  if (pickedFor !== destination) {
-    applied.current.group++;
-    applied.current.tags++;
+  if (pickedFor.agent !== destination.agent || pickedFor.session !== destination.session) {
     setPickedFor(destination);
-    setGroup(undefined);
-    setTags(undefined);
+    if (pickedFor.agent !== destination.agent || pickedFor.session !== undefined) {
+      applied.current.group++;
+      applied.current.tags++;
+      setGroup(undefined);
+      setTags(undefined);
+    }
   }
   const seen = { ...applied.current };
   const pickFor =
     <T,>(kind: "group" | "tags", set: (picked: T) => void) =>
     (picked: T) => {
-      if (now.current !== destination || applied.current[kind] !== seen[kind]) {
+      if (applied.current[kind] !== seen[kind]) {
         return false;
       }
       applied.current[kind]++;
       set(picked);
       return true;
     };
-  // The group and tags the session will have: those picked, or else its own.
+  // The group and tags shown: those picked, or else its own.
   const shownGroup: (GroupRef & { color?: Color }) | null =
     group !== undefined ? group : (own?.group ?? null);
   const shownTags = tags ?? own?.tags ?? [];
@@ -80,10 +87,12 @@ export function useOrganize({
       ...(group === undefined ? {} : { group: group?.id ?? null }),
       ...(tags === undefined ? {} : { tags }),
     },
+    shown: { group: shownGroup?.id ?? null, tags: shownTags },
     fields: (
       <>
         <Organize
           id={id}
+          hint={hint}
           group={shownGroup}
           tags={shownTags}
           open={(kind, opener) => setPicking({ kind, opener })}
@@ -113,14 +122,16 @@ export function useOrganize({
 
 // Organize offers the session's group and tags, each a button opening its
 // picker, beside those the session will have, in their colors, or that it
-// will have none.
+// will have none, under a hint saying what the picks do.
 function Organize({
   id,
+  hint,
   group,
   tags,
   open,
 }: {
   id: string;
+  hint: string;
   group: (GroupRef & { color?: Color | undefined }) | null;
   tags: string[];
   open: (kind: "group" | "tags", opener: HTMLElement) => void;
@@ -129,9 +140,7 @@ function Organize({
   return (
     <fieldset>
       <legend>Group and tags</legend>
-      <p className="hint">
-        A new session starts with none, and an existing one keeps its own unless changed here.
-      </p>
+      <p className="hint">{hint}</p>
       <div className="organize-pick">
         <button
           type="button"

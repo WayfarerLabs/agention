@@ -452,21 +452,35 @@ through an SSH reverse tunnel from the server's machine, with the tunnel's port 
 
 ## Approving agents
 
-A session that registers appears under **Waiting for approval**, at the top of **Sessions**, with
-its code, such as `7KQ2M-X9D4R`, in large type. Approve it only if the code matches the one the
-agent relayed to you: a registration made with any other key shows a different code. A registration
-not decided within an hour expires.
+A session that registers appears as a row under **Waiting for approval**, at the top of
+**Sessions**, named by the agent and the session it proposes and marked as a new agent, a new
+session, or an existing session. Choosing the row opens its page, beside the sessions' rows on a
+desktop's screen and on its own on a phone: its code, such as `7KQ2M-X9D4R`, in large type, then
+what it proposes, with the credentials of an existing session it proposes, and when it was submitted
+and when it expires. Approve it only if the code matches the one the agent relayed to you: a
+registration made with any other key shows a different code. A registration not decided within an
+hour expires.
 
-Approving grants the credential an agent and a session, each existing or new, under the names the
-agent proposed or others you type. Approving onto an existing session grants its whole history and
-lets the credential act as the session, so do that only to replace a credential an agent lost; when
-the proposed session already exists, you choose between it and a new one. **Group** and **Tags**
-open the pickers that [Groups and tags](web-ui.md#groups-and-tags) describes, and what you choose
-there is applied with the approval, not before; a group you create in the picker is created as you
-pick it. What you leave unpicked stays as it is: a new session has no group or tags, and an existing
-one keeps its own, which the pickers start from once you choose it. Choosing another session or
-another agent, or naming the new agent otherwise, starts your choices over; a new session keeps them
-however you name it. **Reject** refuses a registration.
+**Approve** grants the credential the agent and the session it proposes, as its **Approve grants**
+line says, and opens that session. **Change agent or session** shows the other choices: an agent and
+a session, each existing or new, under the names the agent proposed or others you type. Approving
+onto an existing session grants its whole history and lets the credential act as the session, so do
+that only to replace a credential an agent lost. When the proposed session already exists, as when
+an agent that lost its credential registers again, nothing is chosen for you: **Approve as**
+followed by the session's name grants that session, with the warning about its history, and
+**Approve as a new session** grants a new one under the name above it, which you can change; Enter
+in a field grants the new one. That session's own row also says **Registration waiting**, leading to
+the request. **Group** and **Tags** open the pickers that
+[Groups and tags](web-ui.md#groups-and-tags) describes, and what you choose there is applied with
+the approval, not before; a group you create in the picker is created as you pick it. What you leave
+unpicked stays as it is: a new session has no group or tags, and an existing one keeps its own,
+which the pickers start from once you choose it. When the proposed session already exists, the
+pickers start from its own group and tags, and either button gives the session it approves what they
+show: **Approve as** keeps them as shown for that session, and **Approve as a new session** gives
+the new session the same. Choosing another session or another agent, or naming the new agent
+otherwise, starts your choices over; a new session keeps them however you name it. **Reject**,
+beside **Approve**, refuses a registration and returns to the rows. While an approval or a rejection
+is on its way, neither can be sent again.
 
 **Revoke**, in a session's options or under **Credentials and past requests**, ends an approved
 credential at once. The session and its threads stay for you to read, answer and archive. The
@@ -487,7 +501,7 @@ The web UI has four views:
   archive what you are done with; a thread you archived comes back when its agent writes again.
 - **Sessions** shows every agent and session with what it reports, holds the registrations
   [waiting for your approval](#approving-agents), and is where you sort sessions into groups and
-  give them tags.
+  give them tags. On a desktop's screen the sessions' rows stay beside the session you open.
 - **Settings** holds your passkeys, [API keys](#api-keys), your
   [groups and tags](web-ui.md#groups-and-tags), [voice](#voice), storage and the
   [keyboard shortcuts](web-ui.md#keyboard-shortcuts).
