@@ -16,12 +16,10 @@ import { useOrganize } from "./Organize.tsx";
 
 type Choice = "existing" | "new";
 
-// The session an approval grants, as the form names it: an existing one, or
-// a new one, by its name.
-interface Destination {
-  existing: boolean;
-  session: string;
-}
+// The session an approval grants, as the form names it: an existing one, by
+// its name, or a new one, which takes the form's new session name as it then
+// stands.
+type Destination = { existing: true; session: string } | { existing: false };
 
 // newNameProblem says what is wrong with a name for a new agent or session.
 function newNameProblem(value: string, taken: string[], kind: string): string | undefined {
@@ -142,8 +140,7 @@ export function ApproveForm({
   // choose.
   const proposedExists = sessionNames.includes(registration.proposed_session);
   const target: Destination | undefined =
-    onto ??
-    (proposedExists ? undefined : { existing: false, session: registration.proposed_session });
+    onto ?? (proposedExists ? undefined : { existing: false });
   // The session the pickers start from: the existing one chosen, or, while
   // the agent has the proposed one and none is chosen, that one.
   const ownName =
@@ -334,7 +331,7 @@ export function ApproveForm({
           <p>
             Approve grants{" "}
             <strong>
-              {agentName}/{target.session}
+              {agentName}/{target.existing ? target.session : fresh}
             </strong>
             , {grantWords}.
           </p>
@@ -490,8 +487,8 @@ export function ApproveForm({
 
 // SessionFields chooses the session to grant among one agent's sessions, by
 // name, saying when the list left some of them out; the form reads the choice
-// from its fields when it is sent, and onTarget says which session is
-// chosen, new or existing, by its name, as it changes. When the agent
+// from its fields when it is sent, and onTarget says which session is chosen,
+// an existing one by its name or a new one, as it changes. When the agent
 // already has the proposed session, the choice starts undecided: approving
 // onto an existing session gives the credential its whole history, so that is
 // never chosen for the operator.
@@ -574,7 +571,7 @@ function SessionFields({
             checked={choice === "new"}
             onChange={() => {
               setChoice("new");
-              onTarget({ existing: false, session: fresh });
+              onTarget({ existing: false });
             }}
           />
           A new session
@@ -592,7 +589,9 @@ function SessionFields({
           aria-describedby={describedBy(id, error, `${id}-session-error`)}
           onChange={(event) => {
             onFresh(event.target.value);
-            onTarget({ existing: false, session: event.target.value });
+            // Typing a name counts as choosing a new session, as typing an
+            // agent's does.
+            onTarget({ existing: false });
           }}
         />
       </div>
