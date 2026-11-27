@@ -5,13 +5,17 @@ import type { InputLine } from "./profile.ts";
 // that starts with its prompt marker, at or after the marker's end, and is
 // undefined anywhere else. Its text is what follows the marker, or empty
 // where that is one of the harness's hints with the cursor right after the
-// marker. Each character of the markers the profiles know is one column
-// wide, as their captures show, so a marker's width is its count of code
-// points.
+// marker: text a hint pattern matches, or, where the profile says its
+// harness draws hints faint, text drawn faint throughout. Neither the
+// cursor's place nor the text alone makes a hint, so a draft with the
+// cursor moved to its start still reads as the draft. Each character of the
+// markers the profiles know is one column wide, as their captures show, so
+// a marker's width is its count of code points.
 export function markedInput(
   snapshot: Snapshot,
   marker: string,
   hints: readonly RegExp[] = [],
+  faintHints = false,
 ): InputLine | undefined {
   const row = cursorRow(snapshot);
   const start = [...marker].length;
@@ -19,8 +23,20 @@ export function markedInput(
     return undefined;
   }
   const typed = row.slice(marker.length);
-  const hint = snapshot.cursor.x === start && hints.some((pattern) => pattern.test(typed));
+  const hint =
+    snapshot.cursor.x === start &&
+    (hints.some((pattern) => pattern.test(typed)) ||
+      (faintHints && typed !== "" && faintThroughout(snapshot, start, [...typed].length)));
   return inputLine(snapshot, start, hint ? "" : typed);
+}
+
+// faintThroughout says whether the cursor's row shows faint text over every
+// character of a span, from a code point index for a count of them.
+function faintThroughout(snapshot: Snapshot, from: number, count: number): boolean {
+  const row = snapshot.cursor.y;
+  return (snapshot.faint ?? []).some(
+    (run) => run.row === row && run.from <= from && run.to >= from + count,
+  );
 }
 
 // rowInput reads the cursor's whole row as the input line, for a profile that

@@ -94,6 +94,12 @@ const expected: Record<
     kind: "input",
     input: input(""),
   },
+  // A suggestion of what to send next, drawn faint after a turn, is a hint.
+  "claude-code-2.1.332-vim-prompt-suggestion": {
+    profile: "claude-code",
+    kind: "input",
+    input: input(""),
+  },
   "codex-0.171.0-approval-dialog": { profile: "codex", kind: "permission_prompt" },
   "codex-0.171.0-prompt-after-denial": { profile: "codex", kind: "input", input: input("") },
   "codex-0.171.0-prompt-empty": { profile: "codex", kind: "input", input: input("") },
@@ -122,6 +128,38 @@ describe("the harness profiles", () => {
         input: { text: expect.stringMatching(/^(Try|Ask Codex)/), cursorAtEnd: false },
       });
     }
+  });
+
+  it("read faint text as a hint only where all of it is faint, the cursor right after the marker", () => {
+    const capture = "claude-code-2.1.332-vim-prompt-suggestion";
+    const snapshot = readCapture(capture);
+    const profile = profileFor(capture);
+    const suggestion = "approved, check again";
+    const typed = (changed: Partial<typeof snapshot>) =>
+      profile.screen({ ...snapshot, ...changed });
+    // Without the screen's attributes, as a draft typed there.
+    const { faint: _, ...bare } = snapshot;
+    expect(profile.screen(bare)).toMatchObject({ input: { text: suggestion } });
+    // A draft with the cursor moved to its start, or partly faint.
+    expect(typed({ faint: [] })).toMatchObject({ input: { text: suggestion } });
+    expect(typed({ faint: [{ row: 42, from: 2, to: 10 }] })).toMatchObject({
+      input: { text: suggestion },
+    });
+    // Faint, with the cursor anywhere but right after the marker.
+    expect(typed({ cursor: { ...snapshot.cursor, x: 5 } })).toMatchObject({
+      input: { text: suggestion, cursorAtEnd: false },
+    });
+    // Codex's profile reads no faint text as a hint, which its captures do
+    // not show.
+    const codex = profileFor("codex-0.171.0-prompt-empty");
+    const codexScreen = readCapture("codex-0.171.0-prompt-pasted");
+    const row = codexScreen.cursor.y;
+    const text = codex.screen({
+      ...codexScreen,
+      cursor: { ...codexScreen.cursor, x: 2 },
+      faint: [{ row, from: 2, to: 200 }],
+    });
+    expect(text).toMatchObject({ input: { text: "Run the shell command: touch x.txt" } });
   });
 
   for (const [capture, { profile, ...screen }] of Object.entries(expected)) {

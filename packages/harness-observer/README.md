@@ -13,17 +13,19 @@ Linux, for `/proc`, and tmux 3.3 or later.
 
 Two seams keep terminals and harnesses apart:
 
-- **`Pane`**, the terminal. `snapshot()` reads it once: the visible screen, the cursor, whether the
-  harness holds the terminal, whether the terminal server holds one pane, whether keys reach the
-  harness, and when an attached client last sent a key. It rejects when the pane cannot be read at
-  all, and with `PaneUnusable` where the cause is the machine or the choice of pane: no `/proc`, a
-  tmux that leaves the formats it is asked for empty, which no tmux tested, 3.3 or later, does, or a
-  pane that is not the reader's. `paste(line)` puts one line in the pane as a paste, and refuses,
-  before anything reaches the pane, a line holding a line break or a control character, so no text
-  can end the paste early or arrive as a key; `key(key)` presses Backspace or Enter, the only two
-  keys a pane sends. `TmuxPane` implements it for the one pane of a tmux server, named by its socket
-  path: a reading is one tmux client call and reads of `/proc/<pid>/stat`; keys count as blocked in
-  copy mode or any other mode and while the pane's input is off, and a client's last key is its
+- **`Pane`**, the terminal. `snapshot()` reads it once: the visible screen, where it shows faint
+  text, drawn dim as a harness draws a hint, the cursor, whether the harness holds the terminal,
+  whether the terminal server holds one pane, whether keys reach the harness, and when an attached
+  client last sent a key. It rejects when the pane cannot be read at all, and with `PaneUnusable`
+  where the cause is the machine or the choice of pane: no `/proc`, a tmux that leaves the formats
+  it is asked for empty, which no tmux tested, 3.3 or later, does, or a pane that is not the
+  reader's. `paste(line)` puts one line in the pane as a paste, and refuses, before anything reaches
+  the pane, a line holding a line break or a control character, so no text can end the paste early
+  or arrive as a key; `key(key)` presses Backspace or Enter, the only two keys a pane sends.
+  `TmuxPane` implements it for the one pane of a tmux server, named by its socket path: a reading is
+  one tmux client call, whose `capture-pane -e` gives the screen's attributes, of which it keeps
+  only which text is faint, and reads of `/proc/<pid>/stat`; keys count as blocked in copy mode or
+  any other mode and while the pane's input is off, and a client's last key is its
   `client_activity`, which tmux gives to the second, so it reads as the end of that second; a paste
   goes through a buffer of its own, loaded from the client's input and deleted once pasted, so the
   operator's buffers are never read, replaced or reordered, and `paste-buffer -p` brackets it for a
@@ -36,7 +38,9 @@ Two seams keep terminals and harnesses apart:
   many more characters fit on its row; text that is not all printable ASCII, whose width terminals
   disagree on, has no end the cursor is known to be at and no room. A harness's own profile knows
   its prompt marker, so the text is what follows it, and reads the hints its captures show in an
-  empty input as empty; a generic profile gives the cursor's whole row, so it is never nudged
+  empty input as empty, by their text or, where its harness draws them faint, by faint text that
+  fills what follows the marker with the cursor right after it, so a draft never reads as a hint
+  wherever the cursor sits; a generic profile gives the cursor's whole row, so it is never nudged
   through. Claude Code's and Codex's profiles are this package's (see
   [Harness profiles](#harness-profiles)). Adding a harness, or a version whose screens changed, is a
   change inside the package, never through its interface: internally, a harness's profiles are a
@@ -187,10 +191,14 @@ that starts with the marker:
   the trust dialog, an other prompt, shows "Accessing workspace:" and "Yes, I trust this folder".
   The marker is `❯` and a no-break space. Shell mode, entered with `!`, replaces `❯` with `!` and is
   no input line. Vim's normal mode shows no mode in the footer, the same footer as the normal
-  editor's, so the profile cannot tell them apart and does not read the footer.
+  editor's, so the profile cannot tell them apart and does not read the footer. An empty input shows
+  a hint, such as `Try "..."`, or, after a turn where the account has prompt suggestions on, a
+  suggestion of what to send next, drawn faint (2.1.332); faint text filling the input, with the
+  cursor right after the marker, reads as empty.
 - **Codex**: the approval dialog asks "Would you like to run the following command?" over a "› 1.
   Yes, proceed" choice; the trust dialog ("Trust this folder?") and the update offer at start
-  ("Update available", "› 1. Update now") are other prompts. The marker is `›` and a space.
+  ("Update available", "› 1. Update now") are other prompts. The marker is `›` and a space. Its
+  captures carry no attributes, so its profile reads its hint by text alone.
 
 Where a harness has no profile, the strict generic profile finds the input line only with the cursor
 showing at the end of its row. Terminals disagree on how many columns a wide character, such as a
@@ -214,7 +222,9 @@ capture, scrub it: replace paths, user and host names, and account, plan, organi
 text with neutral placeholders (the captures use `/path/to/project` and `PLAN`), keeping the
 screen's structure, its glyphs and the cursor's row, as they were; then read it through.
 
-The captures so far came from Claude Code 2.1.331 and 2.1.332 and Codex 0.171.0 on 2026-11-24.
+The captures so far came from Claude Code 2.1.331 and 2.1.332 and Codex 0.171.0 on 2026-11-24,
+without the screen's attributes, and Claude Code 2.1.332's prompt suggestion on 2026-11-27, with the
+faint text marked, from a live test's `capture-pane -e`.
 
 ## Tests
 
@@ -224,5 +234,6 @@ a temporary directory and killed when the test ends. Those run `test/scripted-ha
 script that draws a prompt, a running turn and a dialog and switches between them on a key, with an
 input line that takes pastes and typed characters, removes one on Backspace and submits on Enter, a
 key that redraws part of the screen around the input, and options for a Backspace that only moves
-the cursor, an Enter that does nothing and a dialog that opens at the second paste. A test that
-needs a client attached, typing, attaches one through util-linux's `script`.
+the cursor, an Enter that does nothing, a dialog that opens at the second paste and a suggestion
+drawn faint in an empty input. A test that needs a client attached, typing, attaches one through
+util-linux's `script`.

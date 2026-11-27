@@ -79,6 +79,7 @@ describe("TmuxPane", () => {
     const snapshot = await snapshotWhere(pane, showsPrompt);
     expect(snapshot).toEqual({
       lines: ["scripted harness", "", ">", "", "", "", "", "", "", "", "", ""],
+      faint: [],
       width: 80,
       cursor: { x: 2, y: 2, visible: true },
       hostHasTerminal: true,
@@ -88,6 +89,15 @@ describe("TmuxPane", () => {
       at: expect.any(Number),
     });
     expect(snapshot.at).toBeGreaterThanOrEqual(before);
+  });
+
+  it("reads faint text apart, its row's text as plain", async () => {
+    server = await TmuxServer.start([...scriptedHarness, "--suggestion"]);
+    const pane = new TmuxPane(server.socket);
+    const snapshot = await snapshotWhere(pane, (read) => read.lines[2] !== "");
+    expect(snapshot.lines[2]).toBe("> run the tests again");
+    expect(snapshot.faint).toEqual([{ row: 2, from: 2, to: 21 }]);
+    expect(snapshot.cursor).toMatchObject({ x: 2, y: 2 });
   });
 
   it("reads a hidden cursor", async () => {

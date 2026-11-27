@@ -92,12 +92,16 @@ interface Setup {
 // screen, and observes it with a profile until the observer finds it at rest.
 async function observed(
   profile: Profile,
-  options: { harness?: string[]; arrange?: (setup: Omit<Setup, "observer">) => Promise<void> } = {},
+  options: {
+    harness?: string[];
+    arrange?: (setup: Omit<Setup, "observer">) => Promise<void>;
+    pane?: (socket: string) => TmuxPane;
+  } = {},
 ): Promise<Setup> {
   server = await TmuxServer.start([...scriptedHarness, ...(options.harness ?? [])]);
-  const pane = new TmuxPane(server.socket);
+  const pane = options.pane?.(server.socket) ?? new TmuxPane(server.socket);
   const clock = new QuickClock();
-  await until(pane, (snapshot) => inputRow(snapshot) === ">");
+  await until(pane, (snapshot) => inputRow(snapshot).startsWith(">"));
   await options.arrange?.({ server, pane, clock });
   const observer = new PaneObserver(pane, profile, clock);
   const controller = new AbortController();
@@ -148,6 +152,45 @@ describe("nudge on a tmux pane", () => {
     expect(await server.tmux("show-buffer")).toBe(top);
     // The harness ran the turn and is back at its prompt, empty.
     await until(pane, (snapshot) => snapshot.lines[1] === "turns 1" && inputRow(snapshot) === ">");
+  });
+
+  it("sends past a suggestion drawn faint, which shows again once the warning is removed, pressing Enter only on its message", async () => {
+    // The input row at each reading, and at each key or paste, the row the
+    // reading before it showed.
+    const rows: string[] = [];
+    const writes: { write: string; row: string }[] = [];
+    class Recording extends TmuxPane {
+      override async snapshot(): Promise<Snapshot> {
+        const snapshot = await super.snapshot();
+        rows.push(inputRow(snapshot));
+        return snapshot;
+      }
+      override async paste(line: string): Promise<void> {
+        writes.push({ write: "paste", row: rows.at(-1) ?? "" });
+        await super.paste(line);
+      }
+      override async key(key: "Backspace" | "Enter"): Promise<void> {
+        writes.push({ write: key, row: rows.at(-1) ?? "" });
+        await super.key(key);
+      }
+    }
+    const suggested = "> run the tests again";
+    const { pane, observer } = await observed(scriptedProfile, {
+      harness: ["--suggestion"],
+      pane: (socket) => new Recording(socket),
+    });
+    expect(inputRow(await pane.snapshot())).toBe(suggested);
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "sent", step: "submitted" });
+    // The warning went in over the suggestion, which showed again once the
+    // warning was removed and before the message went in, and Enter came
+    // only right after a reading showed the message.
+    expect(writes[0]).toEqual({ write: "paste", row: suggested });
+    const message = writes.findLastIndex((write) => write.write === "paste");
+    expect(writes[message]).toEqual({ write: "paste", row: suggested });
+    expect(writes.filter((write) => write.write === "Enter")).toEqual([
+      { write: "Enter", row: `> ${texts.message}` },
+    ]);
+    await until(pane, (snapshot) => snapshot.lines[1] === "turns 1");
   });
 
   it("refuses a generic profile, which cannot tell a draft from the prompt, sending nothing", async () => {

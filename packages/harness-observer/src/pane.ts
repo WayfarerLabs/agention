@@ -20,6 +20,14 @@ export interface Pane {
 
 export type Key = "Backspace" | "Enter";
 
+// A run of faint text on a row, by the indexes of its first character and
+// of the one after its last, counted in code points of the row's text.
+export interface FaintRun {
+  readonly row: number;
+  readonly from: number;
+  readonly to: number;
+}
+
 // What one reading of a pane found. Every field comes from the terminal or
 // the operating system; the screen's text is untrusted, since whatever runs
 // in the pane draws it.
@@ -27,6 +35,11 @@ export interface Snapshot {
   // The visible screen, top to bottom, one entry per row, each without its
   // trailing spaces.
   readonly lines: readonly string[];
+  // Where the screen shows faint text, drawn dim as a harness draws a hint
+  // or a suggestion in its input: each run by its row and the characters of
+  // that row's text it spans, from up to but not including to. Absent from
+  // a pane that does not read the screen's attributes.
+  readonly faint?: readonly FaintRun[];
   // The pane's width in columns.
   readonly width: number;
   // Where the cursor is, in columns and rows from 0, and whether it shows.

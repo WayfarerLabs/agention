@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
+import { readAttributedRows } from "./attributed-rows.ts";
 import { type Key, type Pane, PaneUnusable, refusePaste, type Snapshot } from "./pane.ts";
 
 export interface TmuxPaneOptions {
@@ -82,6 +83,7 @@ export class TmuxPane implements Pane {
       ";",
       "capture-pane",
       "-p",
+      "-e",
     ]);
     const at = Date.now();
     const output = stdout.endsWith("\n") ? stdout.slice(0, -1).split("\n") : stdout.split("\n");
@@ -115,7 +117,9 @@ export class TmuxPane implements Pane {
         throw new Error(`tmux at ${this.#socket} printed an unexpected reading`);
       }
     }
-    const lines = output.slice(start + 1, start + 1 + height);
+    // The screen comes with its attributes, so faint text, as a harness
+    // draws a hint, tells from typed text.
+    const { lines, faint } = readAttributedRows(output.slice(start + 1, start + 1 + height));
     while (lines.length < height) {
       lines.push("");
     }
@@ -128,6 +132,7 @@ export class TmuxPane implements Pane {
     }
     return {
       lines,
+      faint,
       width,
       cursor: { x, y, visible: visible === 1 },
       hostHasTerminal,

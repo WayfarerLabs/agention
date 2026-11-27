@@ -22,7 +22,10 @@
 //   as in vim's normal mode;
 // - --enter-ignored: Enter does nothing;
 // - --dialog-at-second-paste: the second paste opens the dialog, which drops
-//   it, as a dialog that opens just then does.
+//   it, as a dialog that opens just then does;
+// - --suggestion: an empty input line shows a suggestion drawn faint, with
+//   the cursor before it, as Claude Code's prompt suggestions do; anything
+//   typed or pasted replaces it, and it shows again once the line is empty.
 
 type Mode = "prompt" | "editing" | "running" | "dialog" | "limited";
 
@@ -54,9 +57,13 @@ function at(x: number, y: number): string {
   return `${escape}${y + 1};${x + 1}H`;
 }
 
+// The suggestion an empty input line shows with --suggestion.
+const suggestion = options.has("--suggestion") ? "run the tests again" : "";
+
 function draw(): void {
   let screen = `${escape}2J${at(0, 0)}scripted harness`;
-  const prompt = `${at(0, 2)}> ${typed}${at(2 + cursor, 2)}${escape}?25h`;
+  const shown = typed === "" && suggestion !== "" ? `${escape}2m${suggestion}${escape}0m` : typed;
+  const prompt = `${at(0, 2)}> ${shown}${at(2 + cursor, 2)}${escape}?25h`;
   switch (mode) {
     case "prompt":
       screen +=
