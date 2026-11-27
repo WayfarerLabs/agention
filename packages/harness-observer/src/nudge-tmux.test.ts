@@ -241,11 +241,11 @@ describe("nudge on a tmux pane", () => {
     expect(inputRow(await pane.snapshot())).toBe(`> ${texts.warning}`);
   });
 
-  it("defers at the message when a dialog drops its paste, leaving nothing of the nudge's", async () => {
+  it("fails at the message when a dialog covers the line after its paste, since nothing shows the paste gone", async () => {
     const { pane, observer } = await observed(scriptedProfile, {
       harness: ["--dialog-at-second-paste"],
     });
-    expect(await observer.nudge(texts, go)).toEqual({ outcome: "deferred", step: "message" });
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "failed", step: "message" });
     expect((await pane.snapshot()).lines).toContain("Allow this action?");
   });
 

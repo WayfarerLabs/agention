@@ -33,16 +33,21 @@ export interface NudgeOptions {
 //   nudgeTextLeft where the input line held nudge text, as the texts'
 //   isNudgeText says; or, at a confirmation, the line held exactly the
 //   nudge's own text but the rest of the screen had changed, as when the
-//   harness starts a turn or redraws, and the nudge took its text back; or
-//   the line came empty, or the input line went from the screen, with no
-//   key typed, the harness having taken or cleared it.
+//   harness starts a turn or redraws, and the nudge took its text back, or
+//   the screen beside the line changed while the warning was removed, before
+//   the message went in; or, with no key typed, the line came empty or went
+//   from the screen, or the pane could not be read or written, and a reading
+//   after found the line empty, once the nudge took back its own text where
+//   the line held exactly it.
 // - stopped: someone at the terminal stopped it: a key was typed since the
 //   nudge began, or the line held something other than the warning, or the
 //   nudge's text altered once confirmed.
-// - failed: the pane could not be read or written, or the profile failed on
-//   a screen, once something was pasted; a Backspace did not shorten the
-//   line by one; the message did not show exactly; or the harness did not
-//   take it after Enter.
+// - failed: the signal stopped it once something was pasted; the pane could
+//   not be read or written, or the profile failed on a screen, and no
+//   reading after confirmed the line empty; the input line went from the
+//   screen and stayed gone; a Backspace did not shorten the line by one; the
+//   message did not show exactly; or the harness did not take it after
+//   Enter.
 // - sent: the harness took the message.
 //
 // Each step names how far the nudge got: "not-ready" pasted nothing;
@@ -72,6 +77,10 @@ export const warnFor = 5000;
 export const submitWithin = 5000;
 // How long a paste or a Backspace has to show on the screen.
 export const settleWithin = 2000;
+// How long after a reading that lost sight of the nudge's text, its line
+// empty or gone from the screen, the pane is read once more to see whether
+// the text is truly gone.
+export const recheckAfter = 500;
 // How often the pane is read while waiting for one of those.
 export const lookEvery = 50;
 
@@ -126,6 +135,10 @@ export class Nudge {
   readonly #signal: AbortSignal;
   // When a client last typed as the nudge started, which must stay so.
   #typed: number | undefined;
+  // The nudge's own text the line holds, or may, as far as it knows: from
+  // each paste, through each Backspace confirmed, until Enter. Empty once
+  // the line was confirmed empty.
+  #own = "";
 
   constructor(pane: Pane, profile: Profile, clock: Clock, signal: AbortSignal) {
     this.#pane = pane;
@@ -141,9 +154,6 @@ export class Nudge {
   ): Promise<NudgeOutcome> {
     const { warning, message } = texts;
     let step: NudgeStep = "not-ready";
-    // Whether the message may be on the line, not yet submitted: from its
-    // paste until Enter.
-    let messageIn = false;
     try {
       const ready = await this.#ready(latest, texts);
       if (!("look" in ready)) {
@@ -160,35 +170,56 @@ export class Nudge {
       await this.#still(pasted, warning);
 
       step = "cleared";
-      await this.#erase(warning, true);
+      const cleared = await this.#erase(warning, true);
+      // A turn may have started while the warning was removed: the message
+      // goes in only where nothing beside the line changed since the nudge
+      // was ready, both readings with the line empty, since a harness draws
+      // its hints by whether the line holds text; the line holds nothing of
+      // the nudge's now.
+      if (changedBesideInput(ready.look.snapshot, cleared)) {
+        throw new Ended("deferred");
+      }
 
       step = "message";
-      messageIn = true;
       await this.#paste(message);
       const confirmed = await this.#confirm(message, "failed");
 
       step = "submitted";
       const before = await this.#still(confirmed, message);
-      messageIn = false;
+      this.#own = "";
       await this.#key("Enter");
       if (!(await this.#taken(before))) {
         return { outcome: "failed", step };
       }
       return { outcome: "sent", step };
     } catch (error) {
-      // A check that ended the nudge says how. Otherwise the pane could not
-      // be read or written, the profile failed on a screen, which is
-      // untrusted input, the caller's isNudgeText failed, or the signal
-      // stopped the nudge: before anything was pasted that defers it, and
-      // after, it failed, leaving the warning where it is. Either way the
-      // message goes where it is still exactly there.
-      const outcome =
-        error instanceof Ended ? error.outcome : step === "not-ready" ? "deferred" : "failed";
-      if (messageIn) {
-        await this.#abandon(message);
-      }
-      return { outcome, step };
+      return { outcome: await this.#ended(error, message, step), step };
     }
+  }
+
+  // ended says how a nudge ends at an error. A check that ended it says how,
+  // and the message goes where it is still exactly there. Otherwise the pane
+  // could not be read or written, the profile failed on a screen, which is
+  // untrusted input, the caller's isNudgeText failed, or the signal stopped
+  // the nudge: before anything was pasted that defers it. After, a stopped
+  // nudge sends nothing more and fails, leaving its text where it is;
+  // otherwise it takes back whichever of its texts the line holds, as
+  // abandon does, and defers where a reading then confirms the line holds
+  // nothing of the nudge's, and fails where none can.
+  async #ended(error: unknown, message: string, step: NudgeStep): Promise<Unsent> {
+    if (error instanceof Ended) {
+      if (this.#own === message) {
+        await this.#abandon();
+      }
+      return error.outcome;
+    }
+    if (step === "not-ready") {
+      return "deferred";
+    }
+    if (this.#signal.aborted) {
+      return "failed";
+    }
+    return (await this.#abandon()) ? "deferred" : "failed";
   }
 
   // ready gives the reading a nudge may start from, if any: the latest
@@ -259,9 +290,11 @@ export class Nudge {
   }
 
   // paste and key write to the pane, unless the signal has stopped the
-  // nudge, when they throw instead.
+  // nudge, when they throw instead. A paste makes its text the nudge's own
+  // the line may hold.
   async #paste(text: string): Promise<void> {
     this.#signal.throwIfAborted();
+    this.#own = text;
     await this.#pane.paste(text);
   }
 
@@ -287,16 +320,38 @@ export class Nudge {
     );
   }
 
-  // ending says how a nudge ends at a reading whose line does not hold what
-  // it expects: stopped where a client typed since it started; deferred where
-  // the line is empty, or gone from the screen, with no key typed, so nothing
-  // of the nudge's is left in it; and otherwise as the step says, where the
-  // line holds other text.
-  #ending(look: Look, otherText: Unsent): Unsent {
+  // ending says how a nudge ends at a reading whose line does not hold the
+  // text it expects: stopped where a client typed since it started, and as
+  // the step says where the line holds other text. Where the line is empty,
+  // or the reading found no input line, as under a dialog or with a second
+  // pane, nothing yet proves the nudge's text is gone, since a paste can show
+  // late and a line out of sight can still hold it, so it reads the pane
+  // again once recheckAfter has passed: still with no key typed, an empty
+  // line defers it, and the text it expected, its own, it takes back and
+  // defers it; anything else fails it.
+  async #ending(look: Look, text: string, otherText: Unsent): Promise<Unsent> {
     if (this.#typedSince(look)) {
       return "stopped";
     }
-    return look.input === undefined || look.input.text === "" ? "deferred" : otherText;
+    if (look.input !== undefined && look.input.text !== "") {
+      return otherText;
+    }
+    await this.#clock.sleep(recheckAfter, this.#signal);
+    this.#signal.throwIfAborted();
+    const again = await this.#look();
+    if (this.#typedSince(again)) {
+      return "stopped";
+    }
+    if (again.input?.text === "") {
+      this.#own = "";
+      return "deferred";
+    }
+    if (text !== "" && this.#holds(again, text, false)) {
+      this.#own = text;
+      await this.#erase(text, false);
+      return "deferred";
+    }
+    return "failed";
   }
 
   // confirm reads the pane until its input line holds a text, as holds says,
@@ -308,10 +363,11 @@ export class Nudge {
     for (;;) {
       const look = await this.#look();
       if (this.#holds(look, text, untyped)) {
+        this.#own = text;
         return look.snapshot;
       }
       if (this.#clock.now() >= deadline || (untyped && this.#typedSince(look))) {
-        throw new Ended(this.#ending(look, otherText));
+        throw new Ended(await this.#ending(look, text, otherText));
       }
       await this.#clock.sleep(lookEvery, this.#signal);
       this.#signal.throwIfAborted();
@@ -328,7 +384,7 @@ export class Nudge {
     this.#signal.throwIfAborted();
     const look = await this.#look();
     if (!this.#holds(look, text, true)) {
-      throw new Ended(this.#ending(look, "stopped"));
+      throw new Ended(await this.#ending(look, text, "stopped"));
     }
     if (!sameScreen(earlier, look.snapshot)) {
       await this.#erase(text, false);
@@ -339,32 +395,41 @@ export class Nudge {
 
   // erase removes a text the line has just been confirmed to hold, one
   // Backspace at a time, confirming before each next one that the last
-  // removed one character, and at the end that the line is empty. A
-  // Backspace that did not remove one character fails the nudge, unless a
-  // key was typed or the line came empty, as ending says. untyped says
-  // whether a client typing stops it: removing a text the nudge takes back
-  // goes on regardless, as long as the line holds exactly what it expects.
-  async #erase(text: string, untyped: boolean): Promise<void> {
+  // removed one character, and at the end that the line is empty, whose
+  // reading it returns. A Backspace that did not remove one character fails
+  // the nudge, unless a key was typed or the line came empty, as ending
+  // says. untyped says whether a client typing stops it: removing a text the
+  // nudge takes back goes on regardless, as long as the line holds exactly
+  // what it expects.
+  async #erase(text: string, untyped: boolean): Promise<Snapshot> {
+    let confirmed: Snapshot | undefined;
     for (let left = text.length; left > 0; left--) {
       await this.#key("Backspace");
-      await this.#confirm(text.slice(0, left - 1), "failed", untyped);
+      confirmed = await this.#confirm(text.slice(0, left - 1), "failed", untyped);
     }
+    if (confirmed === undefined) {
+      throw new RangeError("a nudge erases only a text it pasted, which is never empty");
+    }
+    return confirmed;
   }
 
-  // abandon ends the nudge at a step after its message went in and before
-  // Enter, removing the message where a fresh reading shows the line holding
-  // exactly it. Someone having typed since the nudge started does not stop
-  // this, since the text is the nudge's own and the line is confirmed before
-  // each Backspace. A failure of its own changes nothing of the outcome, and
-  // a stopped nudge sends nothing more.
-  async #abandon(message: string): Promise<void> {
+  // abandon takes back the nudge's own text, before Enter, where a fresh
+  // reading shows the line holding exactly it, and says whether the line is
+  // then confirmed to hold nothing of the nudge's: emptied, or found empty.
+  // Someone having typed since the nudge started does not stop this, since
+  // the text is the nudge's own and the line is confirmed before each
+  // Backspace. A failure of its own changes nothing of how the nudge ended,
+  // and only confirms nothing.
+  async #abandon(): Promise<boolean> {
     try {
       const look = await this.#look();
-      if (this.#holds(look, message, false)) {
-        await this.#erase(message, false);
+      if (this.#own !== "" && this.#holds(look, this.#own, false)) {
+        await this.#erase(this.#own, false);
+        return true;
       }
-    } catch {
-      // The outcome the nudge ended with is the one it reports.
+      return look.input?.text === "";
+    } catch (error) {
+      return error instanceof Ended && error.outcome === "deferred";
     }
   }
 

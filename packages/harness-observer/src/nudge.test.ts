@@ -7,6 +7,7 @@ import {
   type NudgeStep,
   type NudgeTexts,
   quietFor,
+  recheckAfter,
   settleWithin,
   warnFor,
 } from "./nudge.ts";
@@ -489,6 +490,41 @@ describe("nudge", () => {
     pane.pasteShowsAfter = settleWithin;
     expect(await nudge(pane)).toEqual(ended("deferred", "warning"));
     expect(pane.writes).toHaveLength(1);
+    expect(pane.clock.sleeps).toContain(recheckAfter);
+  });
+
+  it("defers at the warning, taking it back, when it shows only after its confirmation gave up", async () => {
+    const pane = new FakePane(new FakeClock());
+    pane.pasteShowsAfter = settleWithin / lookEvery + 1;
+    expect(await nudge(pane)).toEqual(ended("deferred", "warning"));
+    expect(pane.text).toBe("");
+    expect(pane.writes.map(({ text: _, ...write }) => write)).toEqual([
+      { kind: "paste", line: texts.warning },
+      ...backspaces(texts.warning.length),
+    ]);
+    expectConfirmedWrites(pane.log);
+  });
+
+  it("fails at the warning, leaving it, when the input line goes from the screen during the wait and stays gone", async () => {
+    const pane = new FakePane(new FakeClock());
+    pane.clock.during = (ms) => ms === warnFor && (pane.cursorVisible = false);
+    expect(await nudge(pane)).toEqual(ended("failed", "warning"));
+    expect(pane.text).toBe(texts.warning);
+    expect(pane.writes).toHaveLength(1);
+  });
+
+  it("defers at the warning, taking it back, when the input line goes out of sight during the wait and comes back holding it", async () => {
+    const pane = new FakePane(new FakeClock());
+    pane.clock.during = (ms) => {
+      if (ms === warnFor) {
+        pane.keysBlocked = true;
+      } else if (ms === recheckAfter) {
+        pane.keysBlocked = false;
+      }
+    };
+    expect(await nudge(pane)).toEqual(ended("deferred", "warning"));
+    expect(pane.text).toBe("");
+    expectConfirmedWrites(pane.log);
   });
 
   it("defers, pasting nothing and saying so, where the line holds nudge text left by an earlier nudge", async () => {
@@ -525,6 +561,22 @@ describe("nudge", () => {
       pane.writes.filter((write) => write.kind === "key").map(({ text: _, ...key }) => key),
     ).toEqual(backspaces(texts.warning.length + texts.message.length));
     expectConfirmedWrites(pane.log);
+  });
+
+  it("stops at once, reading the pane no more, when someone types while a paste is confirmed", async () => {
+    const pane = new FakePane(new FakeClock());
+    pane.pasteShowsAfter = 3;
+    const paste = pane.paste.bind(pane);
+    let slept = 0;
+    pane.paste = async (line) => {
+      await paste(line);
+      pane.lastTyped = pane.clock.now();
+      slept = pane.clock.sleeps.length;
+    };
+    expect(await nudge(pane)).toEqual(ended("stopped", "warning"));
+    const pasted = pane.log.findIndex((event) => event.kind === "paste");
+    expect(pane.log.slice(pasted + 1).filter((event) => event.kind === "snapshot")).toHaveLength(1);
+    expect(pane.clock.sleeps.slice(slept)).toEqual([]);
   });
 
   it("stops at the message, leaving the line, when someone types into it", async () => {
@@ -583,19 +635,45 @@ describe("nudge", () => {
     expect(pane.text).toBe("");
   });
 
-  it("fails, leaving the warning, where the pane fails during its wait", async () => {
+  it("defers, taking the warning back, where the pane fails once during its wait", async () => {
     const pane = new FakePane(new FakeClock());
     pane.clock.during = (ms) => ms === warnFor && (pane.failNext = 1);
+    expect(await nudge(pane)).toEqual(ended("deferred", "warning"));
+    expect(pane.text).toBe("");
+    expect(pane.writes.map(({ text: _, ...write }) => write)).toEqual([
+      { kind: "paste", line: texts.warning },
+      ...backspaces(texts.warning.length),
+    ]);
+    expectConfirmedWrites(pane.log);
+  });
+
+  it("fails, leaving the warning, where the pane still fails when it would take it back", async () => {
+    const pane = new FakePane(new FakeClock());
+    pane.clock.during = (ms) => ms === warnFor && (pane.failNext = 2);
     expect(await nudge(pane)).toEqual(ended("failed", "warning"));
     expect(pane.text).toBe(texts.warning);
     expect(pane.writes).toHaveLength(1);
+  });
+
+  it("defers at cleared, never pasting the message, where the screen beside the line changed while the warning was removed", async () => {
+    const pane = new FakePane(new FakeClock());
+    const key = pane.key.bind(pane);
+    pane.key = async (pressed) => {
+      await key(pressed);
+      if (pane.text === "") {
+        pane.above = "a turn began";
+      }
+    };
+    expect(await nudge(pane)).toEqual(ended("deferred", "cleared"));
+    expect(pane.text).toBe("");
+    expect(pane.writes.filter((write) => write.kind === "paste")).toHaveLength(1);
   });
 
   it.each([
     ["message", 0],
     ["submitted", 1],
   ] as const)(
-    "fails, removing the message, where the pane fails at %s, though a key was typed",
+    "defers, removing the message, where the pane fails at %s, though a key was typed",
     async (step, fine) => {
       const pane = new FakePane(new FakeClock());
       const paste = pane.paste.bind(pane);
@@ -615,7 +693,7 @@ describe("nudge", () => {
           };
         }
       };
-      expect(await nudge(pane)).toEqual(ended("failed", step));
+      expect(await nudge(pane)).toEqual(ended("deferred", step));
       expect(pane.text).toBe("");
       expect(pane.writes.map(({ text: _, ...write }) => write)).toEqual([
         { kind: "paste", line: texts.warning },

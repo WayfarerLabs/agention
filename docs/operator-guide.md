@@ -614,14 +614,18 @@ Each attempt ends in one of four ways:
 
 - **Deferred**: nothing of it stayed in the input line, so it is no nudge and the bridge tries again
   while one is due. It put nothing there; or the rest of the screen changed while its warning or
-  message stood, as when the host starts a turn or redraws, and it took its text back; or the host
-  cleared the line with no one typing. You see nothing of it.
+  message stood, or while it removed the warning, as when the host starts a turn or redraws, and it
+  took its text back; or the line came empty with no one typing, or the terminal could not be read
+  for a moment and it took its text back, and a second look, half a second later, found the line
+  empty. You see nothing of it.
 - **Stopped at the terminal**: someone typed into or over its text. That is the choice of whoever is
   at the terminal, not a failure.
-- **Failed**: the terminal could not be read or written, a Backspace did not remove one character,
-  as in Claude Code's vim normal mode, where Backspace moves the cursor, the message did not show
-  exactly, or the host did not take it. It leaves what it could not remove in the input line, never
-  submitted, and removes its message where the line still holds exactly that.
+- **Failed**: the terminal could not be read or written, and no look after found the line empty; the
+  input line went from the screen, as under a dialog, and was still out of sight half a second
+  later, since a line it cannot see may still hold its text; a Backspace did not remove one
+  character, as in Claude Code's vim normal mode, where Backspace moves the cursor; the message did
+  not show exactly; or the host did not take it. It leaves what it could not remove in the input
+  line, never submitted, and removes its message where the line still holds exactly that.
 - **Sent**: the host took the message.
 
 Nudge text left in the input line, by an earlier attempt or anyone else, is never removed and never
