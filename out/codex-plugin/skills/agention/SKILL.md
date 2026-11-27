@@ -58,9 +58,10 @@ for this line of work and the `goal` if the operator gave you one. In a new conv
 and keep running in the loop below:
 
 - `nudge`: when the operator writes and you have not checked in since, the bridge **nudges** you. It
-  submits one short, fixed message at your prompt, telling you to check in with Agention, so you
-  take a turn even after ending one. The nudge names no thread and carries nothing anyone wrote;
-  what the operator wrote reaches you only through the tools.
+  submits one short message at your prompt that starts with `Agention nudge` and an id, telling you
+  to check in with Agention, so you take a turn even after ending one; that start is how you know
+  the message for a nudge, and the id only names the attempt. The nudge names no thread and carries
+  nothing anyone wrote; what the operator wrote reaches you only through the tools.
 - `check`: nothing arrives on its own; you check.
 
 ## The loop

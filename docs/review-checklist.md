@@ -121,9 +121,11 @@ threads or a session's status, inferred goals, progress or any other state, auto
 archives, or escalations, validation that second-guesses what the agent reports, and a nudge said to
 be due on anything but that rule, with a reason, a thread or presence beside it, or tried or claimed
 more than once between check-ins, by one bridge or across several, a restart or a takeover, but for
-an attempt deferred with nothing of it left in the pane, which releases its claim; and trouble the
-bridge finds after `register`, such as a pane it can no longer read, told to the agent rather than
-shown to the operator on the session.
+an attempt deferred with nothing of it left in the pane, which releases its claim, and the first
+claim since the check-in that its bridge left under way, which the server releases when another
+bridge acts for the session, a second so left settling as failed; a claim under way read as sent or
+shown to the operator before it settles; and trouble the bridge finds after `register`, such as a
+pane it can no longer read, told to the agent rather than shown to the operator on the session.
 
 ## A7. Stale writes, request ids, and read cursors
 
