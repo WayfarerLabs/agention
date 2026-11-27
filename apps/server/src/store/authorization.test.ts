@@ -1,13 +1,11 @@
 import {
   messageSendInput,
-  registrationsQuery,
-  sessionsQuery,
   sessionThreadsQuery,
   threadCreateInput,
   threadGetQuery,
-  threadsQuery,
   waitQuery,
 } from "@wayfarerlabs/agention-api";
+import { registrationsQuery, sessionsQuery, threadsQuery } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { type Identity, identityForBrowserSession, identityForRegistration } from "../identity.ts";

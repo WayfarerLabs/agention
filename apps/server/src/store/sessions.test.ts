@@ -1,11 +1,6 @@
-import {
-  formatTimestamp,
-  maxListed,
-  sessionLogQuery,
-  sessionsQuery,
-  sessionUpdateInput,
-} from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { formatTimestamp, maxListed, sessionUpdateInput } from "@wayfarerlabs/agention-api";
+import { sessionLogQuery, sessionsQuery } from "@wayfarerlabs/agention-server-api";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { archiveThread, markRead } from "./marks.ts";

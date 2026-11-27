@@ -4,7 +4,7 @@ import {
   type ApiKeyRevoked,
   type ApiKeySummary,
   maxApiKeys,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import {

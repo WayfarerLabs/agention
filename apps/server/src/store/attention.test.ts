@@ -1,4 +1,4 @@
-import { threadsQuery } from "@wayfarerlabs/agention-api";
+import { threadsQuery } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { countAttention } from "./attention.ts";

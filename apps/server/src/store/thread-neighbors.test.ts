@@ -5,7 +5,7 @@ import {
   threadSort,
   threadsQuery,
   threadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { createGroup, setSessionGroup } from "./groups-and-tags.ts";

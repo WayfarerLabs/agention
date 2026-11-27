@@ -3,9 +3,9 @@ import {
   errorBody,
   type Message,
   maxListed,
-  type SessionsPage,
   type UploadResult,
 } from "@wayfarerlabs/agention-api";
+import { type SessionsPage } from "@wayfarerlabs/agention-server-api";
 
 // The web UI's client for the server's web API, mounted at /api/web. Requests
 // carry the browser session's cookie, which the page cannot read, and every

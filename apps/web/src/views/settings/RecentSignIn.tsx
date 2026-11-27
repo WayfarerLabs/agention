@@ -1,4 +1,4 @@
-import type { PasskeyList } from "@wayfarerlabs/agention-api";
+import type { PasskeyList } from "@wayfarerlabs/agention-server-api";
 import { useLayoutEffect, useState } from "react";
 import { ApiFailure, request } from "../../api.ts";
 import { Failure, focusLeftWith } from "../../components.tsx";

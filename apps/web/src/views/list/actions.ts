@@ -1,9 +1,9 @@
+import type { ThreadSummary } from "@wayfarerlabs/agention-api";
 import type {
   ThreadAction,
   ThreadActionInput,
   ThreadActionResult,
-  ThreadSummary,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { request } from "../../api.ts";
 import { plural } from "../../format.tsx";
 

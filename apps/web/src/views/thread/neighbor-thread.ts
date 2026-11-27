@@ -1,4 +1,4 @@
-import type { ThreadNeighbors, ThreadsView } from "@wayfarerlabs/agention-api";
+import type { ThreadNeighbors, ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { query, request, threadPath } from "../../api.ts";
 import { useDeviceOption } from "../../device.ts";
 import { queryOf } from "../../router.tsx";

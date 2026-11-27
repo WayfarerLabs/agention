@@ -1,4 +1,4 @@
-import type { GroupsAndTags } from "@wayfarerlabs/agention-api";
+import type { GroupsAndTags } from "@wayfarerlabs/agention-server-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FakeApi, failure, renderAt } from "../../test-support.tsx";

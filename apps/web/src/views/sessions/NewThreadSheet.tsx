@@ -1,9 +1,5 @@
-import {
-  type SessionSummary,
-  type ThreadStartInput,
-  threadTitle,
-  type WriteResult,
-} from "@wayfarerlabs/agention-api";
+import { threadTitle, type WriteResult } from "@wayfarerlabs/agention-api";
+import { type SessionSummary, type ThreadStartInput } from "@wayfarerlabs/agention-server-api";
 import {
   type ClipboardEvent,
   type FormEvent,

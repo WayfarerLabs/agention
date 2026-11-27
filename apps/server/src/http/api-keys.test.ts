@@ -1,11 +1,11 @@
+import { formatTimestamp } from "@wayfarerlabs/agention-api";
 import {
   type ApiKeyList,
   type ApiKeyRevoked,
   apiKeySecret,
   type ApiKeySummary,
-  formatTimestamp,
   maxApiKeys,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { hour } from "../store/test-fixture.ts";

@@ -1,8 +1,6 @@
+import { fileRef, name, queryNumber, sequence, threadNumber } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
-import { queryNumber, sequence, threadNumber } from "./bounds.ts";
-import { fileRef } from "./files.ts";
 import { groupId, tagName } from "./groups-and-tags.ts";
-import { name } from "./names.ts";
 import { registrationId } from "./registrations.ts";
 
 // What the routes share: the parameters their paths carry, each read from the

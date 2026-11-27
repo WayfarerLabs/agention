@@ -10,9 +10,8 @@ import {
   type ThreadCreateInput,
   threadCreateInput,
   threadGetQuery,
-  type ThreadStartInput,
-  threadStartInput,
 } from "@wayfarerlabs/agention-api";
+import { type ThreadStartInput, threadStartInput } from "@wayfarerlabs/agention-server-api";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

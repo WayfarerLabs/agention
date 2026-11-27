@@ -3,9 +3,8 @@ import {
   messageSendInput,
   threadCreateInput,
   threadGetQuery,
-  threadStartInput,
-  threadsQuery,
 } from "@wayfarerlabs/agention-api";
+import { threadStartInput, threadsQuery } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { revokeRegistration } from "./registrations.ts";

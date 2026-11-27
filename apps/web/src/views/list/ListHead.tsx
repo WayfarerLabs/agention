@@ -4,7 +4,7 @@ import {
   type ThreadSort,
   type ThreadsView,
   threadSort,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { PickList } from "../../icon-controls.tsx";
 import { unfiltered } from "../../router.tsx";

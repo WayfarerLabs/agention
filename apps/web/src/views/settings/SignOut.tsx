@@ -1,4 +1,4 @@
-import type { SessionState } from "@wayfarerlabs/agention-api";
+import type { SessionState } from "@wayfarerlabs/agention-server-api";
 import { request } from "../../api.ts";
 import { Failure } from "../../components.tsx";
 import { useAction } from "../../data.ts";

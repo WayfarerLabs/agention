@@ -1,4 +1,5 @@
-import type { ErrorBody, GroupRead, GroupsAndTags, SessionsPage } from "@wayfarerlabs/agention-api";
+import type { ErrorBody } from "@wayfarerlabs/agention-api";
+import type { GroupRead, GroupsAndTags, SessionsPage } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { codeOf, Harness, newAgentKey } from "./test-harness.ts";
 

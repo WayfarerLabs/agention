@@ -1,10 +1,10 @@
+import { type ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
   maxActionThreads,
   statusKept,
   type ThreadAction,
-  type ThreadSummary,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   type ReactNode,
   type RefObject,

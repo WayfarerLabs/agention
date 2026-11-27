@@ -1,16 +1,14 @@
+import { sessionThreadsQuery, maxListed, type ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
   composePresence,
   composeRollup,
   type Rollup,
-  sessionThreadsQuery,
-  maxListed,
   threadFilters,
   type ThreadGrouping,
   threadGrouping,
   type ThreadList,
   threadsQuery,
-  type ThreadSummary,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { createGroup, setAgentTags, setSessionGroup, setSessionTags } from "./groups-and-tags.ts";

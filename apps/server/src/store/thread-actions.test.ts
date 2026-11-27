@@ -3,7 +3,7 @@ import {
   type ThreadAction,
   threadFilters,
   threadsQuery,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../errors.ts";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";

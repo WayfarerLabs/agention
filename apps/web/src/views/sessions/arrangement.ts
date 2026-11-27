@@ -1,4 +1,4 @@
-import { type GroupRef, noGroup, type SessionSummary } from "@wayfarerlabs/agention-api";
+import { type GroupRef, noGroup, type SessionSummary } from "@wayfarerlabs/agention-server-api";
 import type { Agents } from "../../api.ts";
 import { nameKey } from "../../organizing.tsx";
 

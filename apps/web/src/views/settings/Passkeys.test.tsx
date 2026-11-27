@@ -1,5 +1,5 @@
-import type { PasskeyList, PasskeySummary } from "@wayfarerlabs/agention-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { PasskeyList, PasskeySummary } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { keepDraft, readDraft, signOutMark } from "../../device.ts";
 import {

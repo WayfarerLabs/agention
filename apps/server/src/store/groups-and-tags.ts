@@ -1,3 +1,4 @@
+import { maxListed } from "@wayfarerlabs/agention-api";
 import {
   type Color,
   type ColorInput,
@@ -8,7 +9,6 @@ import {
   type GroupRead,
   type GroupsAndTags,
   maxGroups,
-  maxListed,
   maxTagsKept,
   type Scope,
   type SessionGroupInput,
@@ -16,7 +16,7 @@ import {
   type TagNameInput,
   type TagRead,
   type TagsInput,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notFound } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";

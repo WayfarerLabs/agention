@@ -1,4 +1,5 @@
-import type { ThreadActionResult, ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadActionResult } from "@wayfarerlabs/agention-server-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {

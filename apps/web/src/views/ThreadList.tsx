@@ -4,7 +4,7 @@ import {
   threadFilters,
   type ThreadList as ThreadListAnswer,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   useCallback,
   useContext,

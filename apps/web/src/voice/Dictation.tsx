@@ -2,7 +2,7 @@ import {
   minRecordingBytes,
   type SettingsResult,
   type TranscriptionResult,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   Fragment,
   type ReactNode,

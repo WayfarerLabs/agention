@@ -1,4 +1,5 @@
-import type { ErrorBody, OperatorWaitResult } from "@wayfarerlabs/agention-api";
+import type { ErrorBody } from "@wayfarerlabs/agention-api";
+import type { OperatorWaitResult } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { everySession, maxOperatorWaits } from "../store/index.ts";
 import { hour } from "../store/test-fixture.ts";

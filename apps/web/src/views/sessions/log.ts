@@ -1,4 +1,5 @@
-import type { SessionUpdate, WorkOutcome, WorkState } from "@wayfarerlabs/agention-api";
+import type { WorkOutcome, WorkState } from "@wayfarerlabs/agention-api";
+import type { SessionUpdate } from "@wayfarerlabs/agention-server-api";
 
 // A session's log as the sessions view shows it, newest first: each entry
 // read against the one before it, for what it changed, and consecutive

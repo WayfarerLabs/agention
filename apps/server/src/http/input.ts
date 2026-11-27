@@ -1,4 +1,5 @@
-import { apiKeyId, invalidInputBody, passkeyId, queryNumber } from "@wayfarerlabs/agention-api";
+import { invalidInputBody, queryNumber } from "@wayfarerlabs/agention-api";
+import { apiKeyId, passkeyId } from "@wayfarerlabs/agention-server-api";
 import type { Context } from "hono";
 import { ApiError } from "../errors.ts";
 

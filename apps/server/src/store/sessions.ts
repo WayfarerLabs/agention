@@ -2,22 +2,24 @@ import {
   formatTimestamp,
   maxListed,
   type PublicKey,
-  type Scope,
-  type SessionLog,
-  type SessionLogMark,
-  type SessionLogMarkInput,
-  type SessionLogQuery,
   type SessionStatus,
-  type SessionsPage,
-  type SessionsQuery,
-  type SessionSummary,
-  type SessionUpdate,
   type SessionUpdateInput,
   type WorkOutcome,
   type WorkState,
   type WriteStatus,
 } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import {
+  type Scope,
+  type SessionLog,
+  type SessionLogMark,
+  type SessionLogMarkInput,
+  type SessionLogQuery,
+  type SessionsPage,
+  type SessionsQuery,
+  type SessionSummary,
+  type SessionUpdate,
+} from "@wayfarerlabs/agention-server-api";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notAllowed } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";

@@ -4,7 +4,7 @@ import {
   noGroup,
   type SessionSummary,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { Agents } from "../../api.ts";
 import {

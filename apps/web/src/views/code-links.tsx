@@ -1,9 +1,5 @@
-import {
-  type CodeLink,
-  shortForm,
-  type SummaryLinks,
-  type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+import { type CodeLink, shortForm, type SummaryLinks } from "@wayfarerlabs/agention-api";
+import { type ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { plural } from "../format.tsx";
 import { Icon, Mark } from "../icons.tsx";
 import { ExternalLink, liveUrl } from "../markdown/Markdown.tsx";

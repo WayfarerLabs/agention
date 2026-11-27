@@ -1,4 +1,4 @@
-import type { ThreadsView } from "@wayfarerlabs/agention-api";
+import type { ThreadsView } from "@wayfarerlabs/agention-server-api";
 import type { ReactNode } from "react";
 import { plural } from "../format.tsx";
 import { UnreadCount } from "../icons.tsx";

@@ -1,9 +1,5 @@
-import type {
-  OperatorWaitQuery,
-  OperatorWaitResult,
-  WaitQuery,
-  WaitResult,
-} from "@wayfarerlabs/agention-api";
+import type { WaitQuery, WaitResult } from "@wayfarerlabs/agention-api";
+import type { OperatorWaitQuery, OperatorWaitResult } from "@wayfarerlabs/agention-server-api";
 import { performance } from "node:perf_hooks";
 import { authorizeScope, type Identity, sessionScope } from "../identity.ts";
 import { type Channel, everySession } from "./notifier.ts";

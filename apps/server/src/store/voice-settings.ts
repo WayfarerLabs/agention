@@ -8,7 +8,7 @@ import {
   type VoiceField,
   type VoiceSettings,
   type VoiceSettingsInput,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { requireRecentSignIn, signedInSession } from "../auth/browser-sessions.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput } from "../errors.ts";

@@ -1,11 +1,10 @@
+import { type ErrorBody, formatTimestamp } from "@wayfarerlabs/agention-api";
 import {
   type ApiKeyList,
-  type ErrorBody,
-  formatTimestamp,
   type Scope,
   scopes,
   threadsQuery,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey } from "../auth/api-keys.ts";
 import { listThreads } from "../store/index.ts";

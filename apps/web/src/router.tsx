@@ -1,4 +1,5 @@
-import { namePattern, type ThreadsView, threadsView } from "@wayfarerlabs/agention-api";
+import { namePattern } from "@wayfarerlabs/agention-api";
+import { type ThreadsView, threadsView } from "@wayfarerlabs/agention-server-api";
 import {
   type AnchorHTMLAttributes,
   type MouseEvent,

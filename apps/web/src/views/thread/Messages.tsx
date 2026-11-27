@@ -1,10 +1,5 @@
-import {
-  carriesAPart,
-  type Message,
-  maxAnswers,
-  type Reference,
-  type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+import { carriesAPart, type Message, maxAnswers, type Reference } from "@wayfarerlabs/agention-api";
+import { type ThreadsView } from "@wayfarerlabs/agention-server-api";
 import {
   type Dispatch,
   Fragment,

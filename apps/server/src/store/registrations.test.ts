@@ -1,11 +1,6 @@
-import {
-  type ApproveInput,
-  type PublicKey,
-  publicKey,
-  registrationsQuery,
-  threadGetQuery,
-} from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { type PublicKey, publicKey, threadGetQuery } from "@wayfarerlabs/agention-api";
+import { type ApproveInput, registrationsQuery } from "@wayfarerlabs/agention-server-api";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { identityForRegistration } from "../identity.ts";

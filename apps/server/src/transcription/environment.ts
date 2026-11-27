@@ -3,7 +3,7 @@ import {
   transcriptionKey,
   transcriptionModel,
   type VoiceField,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { VoiceEnvironment } from "../store/index.ts";
 import { checkBaseUrl } from "./base-url.ts";
 

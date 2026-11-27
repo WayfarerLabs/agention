@@ -1,4 +1,4 @@
-import type { GroupsAndTags } from "@wayfarerlabs/agention-api";
+import type { GroupsAndTags } from "@wayfarerlabs/agention-server-api";
 import { useId } from "react";
 import { request } from "../../api.ts";
 import { Failure, LeftOut, useFocusWhenShown } from "../../components.tsx";

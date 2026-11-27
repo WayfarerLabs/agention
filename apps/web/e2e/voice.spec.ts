@@ -8,7 +8,7 @@
 // microphone opens; and reading a message aloud, then stopping it.
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 import type { PublicKey, ThreadGetResult, WriteResult } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { StubProvider } from "../../server/src/transcription/test-provider.ts";
 import { Agent } from "./agent.ts";
 import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";

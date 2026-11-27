@@ -1,4 +1,5 @@
-import type { ThreadNeighbors, ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadNeighbors } from "@wayfarerlabs/agention-server-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {

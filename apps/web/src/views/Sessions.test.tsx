@@ -1,3 +1,4 @@
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type {
   GroupsAndTags,
   Registration,
@@ -5,8 +6,7 @@ import type {
   SessionsPage,
   SessionSummary,
   SessionUpdate,
-} from "@wayfarerlabs/agention-api";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type Call,

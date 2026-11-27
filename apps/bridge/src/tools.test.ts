@@ -10,7 +10,7 @@ import {
   titleSearchFilter,
   unreadFilter,
 } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { existsSync } from "node:fs";
 import { createServer } from "node:https";
 import path from "node:path";

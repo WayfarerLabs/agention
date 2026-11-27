@@ -1,16 +1,18 @@
 import {
-  type ApproveInput,
   formatTimestamp,
   type PublicKey,
-  type Registration,
-  type RegistrationResult,
-  type RegistrationsPage,
-  type RegistrationsQuery,
   type RegistrationState,
   type RegistrationStatus,
   type RegistrationSubmitInput,
 } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import {
+  type ApproveInput,
+  type Registration,
+  type RegistrationResult,
+  type RegistrationsPage,
+  type RegistrationsQuery,
+} from "@wayfarerlabs/agention-server-api";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
 import { authorizeScope, holds, type Identity } from "../identity.ts";

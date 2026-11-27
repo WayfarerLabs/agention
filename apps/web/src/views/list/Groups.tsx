@@ -1,17 +1,16 @@
+import { type Presence, type Priority } from "@wayfarerlabs/agention-api";
 import {
   composePresence,
   composeRollup,
   type GroupRef,
   keepsAsks,
   noGroup,
-  type Presence,
-  type Priority,
   priorityFilter,
   type Rollup,
   type ThreadGroups,
   type ThreadGrouping,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { ReactNode } from "react";
 import {
   Fold,

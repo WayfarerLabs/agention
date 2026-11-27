@@ -1,4 +1,4 @@
-import type { Color, GroupRead, GroupRef, SessionSummary } from "@wayfarerlabs/agention-api";
+import type { Color, GroupRead, GroupRef, SessionSummary } from "@wayfarerlabs/agention-server-api";
 import { type ReactNode, useRef, useState } from "react";
 import { OrganizedChip, usePalette } from "../../organizing.tsx";
 import { GroupPicker, TagsPicker } from "./GroupsAndTags.tsx";

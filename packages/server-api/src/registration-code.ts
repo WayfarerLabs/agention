@@ -1,5 +1,5 @@
+import type { PublicKey } from "@wayfarerlabs/agention-api";
 import { createHash } from "node:crypto";
-import type { PublicKey } from "./registrations.ts";
 
 // Crockford's base32 alphabet, which leaves out I, L, O and U so a code read
 // aloud or retyped is hard to get wrong.
@@ -8,8 +8,9 @@ const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 // registrationCode derives the code the operator matches before approving a
 // key: the first 50 bits of SHA-256 over the raw public key, in Crockford
-// base32, grouped XXXXX-XXXXX. The agent bridge and the server both compute it,
-// so matching codes mean the approved registration carries the agent's key.
+// base32, grouped XXXXX-XXXXX. The server computes it for each registration,
+// and the agent bridge relays the code the server answered its registration
+// with, so matching codes tell the operator which registration is the agent's.
 //
 // This module uses node:crypto, so it has its own entry point and stays out of
 // the web bundle.

@@ -4,7 +4,7 @@
 // phone's, each in the light and the dark theme. scripts/generate-screenshots.sh runs this file, and the
 // browser tests never do.
 import type { PublicKey } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import path from "node:path";
 import { Agent } from "./agent.ts";
 import { expect, resize, test } from "./fixtures.ts";

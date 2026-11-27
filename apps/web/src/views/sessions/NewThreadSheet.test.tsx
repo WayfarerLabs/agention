@@ -1,4 +1,4 @@
-import type { SessionSummary } from "@wayfarerlabs/agention-api";
+import type { SessionSummary } from "@wayfarerlabs/agention-server-api";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {

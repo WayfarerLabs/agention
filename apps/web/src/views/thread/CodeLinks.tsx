@@ -6,8 +6,8 @@ import {
   maxListed,
   type PullRequestLink,
   type PullRequestRollup,
-  type ThreadsView,
 } from "@wayfarerlabs/agention-api";
+import { type ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { useId, useState } from "react";
 import { Icon } from "../../icons.tsx";
 import { CodeLinkEntry, countOf } from "../code-links.tsx";

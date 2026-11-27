@@ -1,3 +1,4 @@
+import { messageSendInput, writeResult } from "@wayfarerlabs/agention-api";
 import {
   agentParams,
   approveInput,
@@ -13,7 +14,6 @@ import {
   groupRead,
   groupsAndTags,
   matchingThreadActionInput,
-  messageSendInput,
   operatorWaitQuery,
   operatorWaitResult,
   registrationParams,
@@ -44,8 +44,7 @@ import {
   threadStartInput,
   threadsQuery,
   threadsView,
-  writeResult,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import {
   actOnMatchingThreads,
   actOnThreads,

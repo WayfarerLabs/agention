@@ -1,4 +1,4 @@
-import { messageSearchFilter, type ThreadsView } from "@wayfarerlabs/agention-api";
+import { messageSearchFilter, type ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { composing } from "../../keyboard.tsx";
 import { listHref } from "../../router.tsx";

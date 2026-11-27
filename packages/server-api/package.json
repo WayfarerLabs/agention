@@ -1,0 +1,19 @@
+{
+  "name": "@wayfarerlabs/agention-server-api",
+  "private": true,
+  "description": "The parts of the HTTP API contract only the server and the web UI use.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./json-schemas": "./src/json-schemas.ts",
+    "./registration-code": "./src/registration-code.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@wayfarerlabs/agention-api": "*",
+    "zod": "4.6.7"
+  }
+}

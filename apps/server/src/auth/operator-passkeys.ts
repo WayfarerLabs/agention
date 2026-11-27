@@ -1,4 +1,5 @@
-import { formatTimestamp, type PasskeyList, type PasskeyRemoved } from "@wayfarerlabs/agention-api";
+import { formatTimestamp } from "@wayfarerlabs/agention-api";
+import { type PasskeyList, type PasskeyRemoved } from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
 import type { Identity } from "../identity.ts";

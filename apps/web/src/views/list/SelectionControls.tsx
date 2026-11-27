@@ -1,3 +1,4 @@
+import { type ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
   type MatchingThreadActionInput,
   maxActionThreads,
@@ -7,9 +8,8 @@ import {
   type ThreadActionResult,
   type ThreadCounts,
   threadFilters,
-  type ThreadSummary,
   type ThreadsView,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, query, request } from "../../api.ts";
 import { BarButton, BarCaption, BarSlots } from "../../action-bar.tsx";

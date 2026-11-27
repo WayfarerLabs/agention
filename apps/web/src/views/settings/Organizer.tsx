@@ -4,7 +4,7 @@ import {
   groupName,
   type ThreadsView,
   tagName,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type FormEvent, type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import { ConfirmButton, Failure } from "../../components.tsx";

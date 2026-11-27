@@ -1,4 +1,4 @@
-import { type BaseUrlCheck, normalizeBaseUrl } from "@wayfarerlabs/agention-api";
+import { type BaseUrlCheck, normalizeBaseUrl } from "@wayfarerlabs/agention-server-api";
 import { BlockList, isIP } from "node:net";
 
 // The base URL rule: where a transcription provider may be. It reads a base

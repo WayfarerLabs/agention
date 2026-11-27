@@ -1,6 +1,6 @@
+import { type PublicKey, publicKey, registrationCodePattern } from "@wayfarerlabs/agention-api";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { type PublicKey, publicKey, registrationCodePattern } from "./registrations.ts";
 import { registrationCode } from "./registration-code.ts";
 
 // The same derivation written another way: digest bits as a string of 0s and 1s.

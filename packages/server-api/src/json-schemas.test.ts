@@ -1,7 +1,13 @@
+import {
+  ask,
+  message,
+  messageSendInput,
+  threadGetResult,
+  threadSummary,
+} from "@wayfarerlabs/agention-api";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type JsonSchema, JsonSchemas } from "./json-schemas.ts";
-import { ask, message, messageSendInput, threadGetResult, threadSummary } from "./threads.ts";
 
 // refsIn lists every $ref a description holds.
 function refsIn(value: unknown): string[] {

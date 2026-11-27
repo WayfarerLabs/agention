@@ -1,5 +1,5 @@
+import { sequence } from "@wayfarerlabs/agention-api";
 import { z } from "zod";
-import { sequence } from "./bounds.ts";
 
 // What waits on the operator, counted for the web UI's navigation, each in
 // the view that clears it: the threads not archived that hold an unread

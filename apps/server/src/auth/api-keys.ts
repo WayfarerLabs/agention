@@ -1,3 +1,4 @@
+import { formatTimestamp, parseTimestamp } from "@wayfarerlabs/agention-api";
 import {
   type ApiKeyCreated,
   type ApiKeyCreateInput,
@@ -8,12 +9,10 @@ import {
   apiKeyScopes,
   apiKeySecret,
   type ApiKeySummary,
-  formatTimestamp,
   maxApiKeyLifetimeDays,
   maxApiKeys,
-  parseTimestamp,
   type Scope,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { apiKeyUnauthenticated, invalidInput, notFound } from "../errors.ts";
 import type { Identity } from "../identity.ts";

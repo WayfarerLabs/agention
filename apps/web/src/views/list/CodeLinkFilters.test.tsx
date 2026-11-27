@@ -1,4 +1,5 @@
-import type { ThreadCounts, ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadSummary } from "@wayfarerlabs/agention-api";
+import type { ThreadCounts } from "@wayfarerlabs/agention-server-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FakeApi, noCounts, renderAt, threadSummary } from "../../test-support.tsx";

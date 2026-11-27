@@ -5,7 +5,7 @@ import {
   maxGroups,
   maxTags,
   tagName,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { useId, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import { Failure } from "../../components.tsx";

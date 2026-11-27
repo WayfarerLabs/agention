@@ -4,7 +4,7 @@
 // key's scopes until the key is revoked; and the section, its form and a new
 // secret fit a phone's width.
 import type { BrowserContext, Page } from "@playwright/test";
-import { apiKeySecret } from "@wayfarerlabs/agention-api";
+import { apiKeySecret } from "@wayfarerlabs/agention-server-api";
 import { type Answer, callServer } from "./agent.ts";
 import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 

@@ -9,7 +9,7 @@
 // image's blob: URL outlives its loading, so none can be opened on its own.
 import type { BrowserContext, Frame, Locator, Page, Request } from "@playwright/test";
 import type { PublicKey, WriteResult } from "@wayfarerlabs/agention-api";
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { Agent } from "./agent.ts";
 import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 

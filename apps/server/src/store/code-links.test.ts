@@ -3,11 +3,9 @@ import {
   maxListed,
   maxLinks,
   sessionThreadsQuery,
-  threadFilters,
-  threadsQuery,
   type ThreadSummary,
-  threadsView,
 } from "@wayfarerlabs/agention-api";
+import { threadFilters, threadsQuery, threadsView } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
 import {

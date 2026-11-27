@@ -4,7 +4,7 @@ import {
   type ThreadAction,
   type ThreadActionInput,
   type ThreadActionResult,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";

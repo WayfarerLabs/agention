@@ -1,4 +1,4 @@
-import { holdsScope, type Scope, scopes } from "@wayfarerlabs/agention-api";
+import { holdsScope, type Scope, scopes } from "@wayfarerlabs/agention-server-api";
 import type { Database } from "./database/database.ts";
 import {
   agentUnauthenticated,

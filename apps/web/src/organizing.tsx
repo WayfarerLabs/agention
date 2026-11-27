@@ -1,4 +1,10 @@
-import type { Color, GroupId, GroupsAndTags, groupName, tagName } from "@wayfarerlabs/agention-api";
+import type {
+  Color,
+  GroupId,
+  GroupsAndTags,
+  groupName,
+  tagName,
+} from "@wayfarerlabs/agention-server-api";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { request } from "./api.ts";
 

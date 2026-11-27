@@ -1,5 +1,5 @@
-import type { SettingsResult, VoiceSettings } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { SettingsResult, VoiceSettings } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   csrf,

@@ -1,4 +1,4 @@
-import type { Registration, SessionSummary } from "@wayfarerlabs/agention-api";
+import type { Registration, SessionSummary } from "@wayfarerlabs/agention-server-api";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { type AgentList, describeFailure, listSessions } from "../api.ts";
 import { Fold, LeftOut, Loadable, MoreButton, PageHeading, usePageTitle } from "../components.tsx";

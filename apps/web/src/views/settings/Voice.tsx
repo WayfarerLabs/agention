@@ -9,7 +9,7 @@ import {
   type VoiceField,
   type VoiceSettings,
   type VoiceSettingsInput,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { type FormEvent, useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, describeFailure, request } from "../../api.ts";
 import { ConfirmButton, Failure, focusLeftWith, Loadable, Status } from "../../components.tsx";

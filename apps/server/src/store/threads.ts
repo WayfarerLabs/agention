@@ -7,15 +7,14 @@ import {
   pageLimit,
   parseTimestamp,
   type Reference,
-  type Scope,
   type ThreadCreateInput,
   type ThreadGetQuery,
   type ThreadGetResult,
-  type ThreadStartInput,
   type Withdrawal,
   type WriteResult,
   type WriteStatus,
 } from "@wayfarerlabs/agention-api";
+import { type Scope, type ThreadStartInput } from "@wayfarerlabs/agention-server-api";
 import { randomUUID } from "node:crypto";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notAllowed, notFound } from "../errors.ts";

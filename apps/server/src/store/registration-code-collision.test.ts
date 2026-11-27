@@ -4,7 +4,7 @@ import { Fixture, hour, newPublicKey } from "./test-fixture.ts";
 
 // Two keys share a code with probability 2^-50, so this file makes every key's
 // code the same to show what happens when they do.
-vi.mock("@wayfarerlabs/agention-api/registration-code", () => ({
+vi.mock("@wayfarerlabs/agention-server-api/registration-code", () => ({
   registrationCode: () => "AAAAA-AAAAA",
 }));
 

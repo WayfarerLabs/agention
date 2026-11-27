@@ -1,4 +1,4 @@
-import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import { registrationCode } from "@wayfarerlabs/agention-server-api/registration-code";
 import { performance } from "node:perf_hooks";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { BridgeHarness } from "./test-harness.ts";

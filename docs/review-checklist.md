@@ -174,9 +174,9 @@ independence"; `docs/architecture.md` "Serving"). No authentication decision or 
 source address, and each unauthenticated endpoint class has its own budget, so registration cannot
 starve passkey sign-in, and failed agent authentication never slows an approved agent (the **No
 network identity** invariant in `SECURITY.md` "Security model"; `docs/architecture.md` "Rate
-budgets"). Every field, list, and page has a documented bound: the `packages/api` schemas are the
-bounds (`docs/architecture.md` "API contract"), with the body limits in `docs/architecture.md` "HTTP
-API".
+budgets"). Every field, list, and page has a documented bound: the API contract's schemas, in
+`packages/api` and `packages/server-api`, are the bounds (`docs/architecture.md` "API contract"),
+with the body limits in `docs/architecture.md` "HTTP API".
 
 ## A11. Registration and credential lifecycle
 
@@ -193,17 +193,19 @@ re-grants that hide their consequence, and revocation that deletes or orphans da
 Refines the shared **Service-layer authority and typed errors** and **Consistent interfaces**
 checks. The store owns thread, session, and registration rules for every adapter: the CLI, the HTTP
 API's agent, web and operator mounts, and, through the agent mount, the bridge's tools
-(`docs/architecture.md` "Store" and "HTTP API"). Request and response shapes come from one shared
-schema package, `packages/api`. Once a bridge is released, agent routes only grow: each release's
-agent routes accept what earlier released bridges send and answer what they read, leaving out of an
-answer to an older bridge the fields added after its version, because agents run whatever bridge
-version their plugin pins; the agent compatibility gate holds this, and every agent contract change
-bumps the agent API version (`CONTRIBUTING.md` "The agent API"). The typed error set (at least
-invalid input, not found, stale, request-id conflict, rate limited, unauthenticated;
-`packages/api/src/errors.ts`) is the same on every mount and in the bridge's tool errors. Tool names
-use lowercase letters, digits, and underscores; tool annotations are true of the tools;
-`message_wait` stays well below the 60-second Codex tool timeout, worst case included; tool schemas
-are the payload reference (`docs/architecture.md` "Agent bridge").
+(`docs/architecture.md` "Store" and "HTTP API"). Request and response shapes come from the API
+contract: `packages/api` for what the bridge shares, and `packages/server-api` for what only the
+server and the web UI ship, which the bridge's bundle never includes
+(`apps/bridge/src/bundle.test.ts`; `docs/architecture.md` "Source and packages"). Once a bridge is
+released, agent routes only grow: each release's agent routes accept what earlier released bridges
+send and answer what they read, leaving out of an answer to an older bridge the fields added after
+its version, because agents run whatever bridge version their plugin pins; the agent compatibility
+gate holds this, and every agent contract change bumps the agent API version (`CONTRIBUTING.md` "The
+agent API"). The typed error set (at least invalid input, not found, stale, request-id conflict,
+rate limited, unauthenticated; `packages/api/src/errors.ts`) is the same on every mount and in the
+bridge's tool errors. Tool names use lowercase letters, digits, and underscores; tool annotations
+are true of the tools; `message_wait` stays well below the 60-second Codex tool timeout, worst case
+included; tool schemas are the payload reference (`docs/architecture.md` "Agent bridge").
 
 ## A13. SQLite persistence and backup
 
@@ -308,12 +310,12 @@ credential is revoked or expires (one check for both), which the store's
 `apps/server/src/store/files.test.ts` ("stops within a chunk once its credential is revoked") and
 the HTTP tests in `apps/server/src/http/files.test.ts` (the same, for a read) and
 `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
-adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
-an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the
-list, an operation with a scope wider or narrower than what it does, a read-scoped operation that
-writes or takes a body, a store operation or a file's chunk read or write that leaves its scope to
-the mount, an operation whose body or answer is bytes but not declared so, a key-reachable route
-that manages credentials or Settings, and a scope whose meaning changes.
+adds scopes of the form `<resource>:<access>` to `packages/server-api/src/scopes.ts` and never
+changes what an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added
+outside the list, an operation with a scope wider or narrower than what it does, a read-scoped
+operation that writes or takes a body, a store operation or a file's chunk read or write that leaves
+its scope to the mount, an operation whose body or answer is bytes but not declared so, a
+key-reachable route that manages credentials or Settings, and a scope whose meaning changes.
 
 ## A19. The operator API contract and its document
 

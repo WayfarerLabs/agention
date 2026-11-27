@@ -1,4 +1,5 @@
-import { cursor, threadGrouping, threadSort } from "@wayfarerlabs/agention-api";
+import { cursor } from "@wayfarerlabs/agention-api";
+import { threadGrouping, threadSort } from "@wayfarerlabs/agention-server-api";
 import { describe, expect, it } from "vitest";
 import { decodeCursor, encodeCursor } from "./opaque-cursors.ts";
 

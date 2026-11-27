@@ -1,4 +1,4 @@
-import { type OperatorApiVersions, operatorApiVersions } from "@wayfarerlabs/agention-api";
+import { type OperatorApiVersions, operatorApiVersions } from "@wayfarerlabs/agention-server-api";
 import { Hono } from "hono";
 import { authenticateApiKey } from "../auth/api-keys.ts";
 import { unauthenticated } from "../errors.ts";

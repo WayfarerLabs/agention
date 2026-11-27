@@ -1,4 +1,4 @@
-import type { ThreadsView } from "@wayfarerlabs/agention-api";
+import type { ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { useEffect, useId, useRef, useState } from "react";
 import { ActionBar, BarButton, BarCaption, BarLink, BarSlots } from "../../action-bar.tsx";
 import { listHref } from "../../router.tsx";

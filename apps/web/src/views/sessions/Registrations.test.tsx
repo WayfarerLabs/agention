@@ -1,5 +1,6 @@
-import { maxListed, type Registration, type SessionsPage } from "@wayfarerlabs/agention-api";
+import { maxListed } from "@wayfarerlabs/agention-api";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { type Registration, type SessionsPage } from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { absoluteTime } from "../../format.tsx";
 import {

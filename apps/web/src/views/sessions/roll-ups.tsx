@@ -1,4 +1,4 @@
-import type { SessionSummary, ThreadsView } from "@wayfarerlabs/agention-api";
+import type { SessionSummary, ThreadsView } from "@wayfarerlabs/agention-server-api";
 import { plural } from "../../format.tsx";
 import { FilterLink, type Scope, UnreadLink } from "../filter-links.tsx";
 

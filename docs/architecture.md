@@ -53,22 +53,34 @@ The rest of this document uses these terms:
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                        |
+| Component                | State                                                                                                                                                                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract the agent bridge shares with the server and the web UI: zod schemas for the agent API's requests and responses, and what every mount reads of threads and files, which are also their bounds, and the error codes.                                    |
+| `packages/server-api`    | The rest of the API contract, which only the server and the web UI ship: the operator's views, groups and tags, scopes and API keys, passkeys, settings, the routes' path parameters, the registration code, and the schemas' JSON Schema for the API's documentation. |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                                                                                 |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                                                                                        |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                                                                                                    |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                                                                                         |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                                                                                |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                                                                                     |
+| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                                                                                                       |
 
 ## Source and packages
 
 Node runs the TypeScript sources directly, by stripping their types, so development and the plugin
-generator need no build step; Vitest compiles the sources for the tests. `packages/api` needs no
-build either: its `exports` point at its source.
+generator need no build step; Vitest compiles the sources for the tests. The API contract's two
+packages need no build either: their `exports` point at their source.
+
+The API contract is split by what the bridge's bundle needs, a module at a time. A module stays in
+`packages/api` when the bridge's bundle includes it: the bridge imports it, or another module of
+`packages/api` does. The agent API's own requests and answers stay there with their subject, whether
+or not the bridge reads them. Every other module is in `packages/server-api`, which only the server
+and the web UI ship, and which builds on `packages/api`. Where a subject has an agent's side and the
+operator's, the operator's side is a module of the same name in `packages/server-api`. A change to
+`packages/server-api` leaves the bridge's bundle as it was. npm links every workspace package where
+the bridge resolves its imports, so nothing in the install stops the bridge importing
+`packages/server-api`; a test of the bridge, `apps/bridge/src/bundle.test.ts`, builds its bundle and
+fails if any module of `packages/server-api` is in it.
 
 The server and the bridge each build into one esbuild bundle, which is what their npm packages
 contain. The packages declare no dependencies, so installing either resolves nothing beyond what the
@@ -110,27 +122,16 @@ server is also started on loopback, and must serve the web UI its package ships 
 
 ## API contract
 
-`packages/api` defines, as zod schemas, the requests and responses of every route, and exports the
-inferred types the server, the bridge and the web UI share:
+The API contract defines, as zod schemas, the requests and responses of every route, and exports the
+inferred types the server, the bridge and the web UI share. `packages/api`, which the bridge's
+bundle includes, holds:
 
-- starting a thread, sending a message, reading a thread, a session's thread list and its long poll,
-  and the operator's wait across sessions;
-- read, unread and archive marks; the operator's thread list with its total and, grouped, its
-  groups' roll-ups; the counts of what each filter value keeps; bulk read and archive; and the
-  operator's actions on many threads, named or matching the list's filters;
-- registration submit and state, the registrations list and approval;
-- a session's status update and the status it answers with, and the status a session's writes report
-  or infer; the sessions view's page of agents, each with its tags and its sessions; how many
-  sessions have updates the operator has not read; a session's log and the operator's read mark on
-  it; and the operator's start of a thread on a session;
-- the operator's session groups and tags: the list of them, creating, renaming, recoloring, ordering
-  and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
-  group and an agent's or a session's tags, on their own or with an approval;
+- starting a thread, sending a message, reading a thread, a session's thread list and its long poll;
+- read, unread and archive marks;
+- registration submit and state;
+- a session's status update and the status it answers with, and the status a session's writes
+  report;
 - the agent API's version, the header that carries it and the oldest version the server serves;
-- the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
-- the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
-  the hosted presets, the types a recording is sent as, a transcription's answer, and the space
-  attachments take;
 - files (`packages/api/src/files.ts`): the limits on files and pending uploads, a file's name and
   reference, an upload's query and result, a message's `attachments` as written and as read, a
   thread's file list and file totals, and the types: the type an upload declares (`declaredTypeOf`),
@@ -143,10 +144,30 @@ inferred types the server, the bridge and the web UI share:
   `owner/name:branch`, their parsers, and the key, the short form with the owner and name folded to
   lower case, as GitHub compares them, the number and the branch never folded, as git compares
   branch names; and a thread's roll-up of each;
+- `canonicalOrigin` ([The origin](#the-origin)), the claims of an agent's token, and the error
+  shape.
+
+`packages/server-api`, which only the server and the web UI ship, holds:
+
+- the operator's thread list with its total and, grouped, its groups' roll-ups; the counts of what
+  each filter value keeps; the operator's wait across sessions; bulk read and archive; and the
+  operator's actions on many threads, named or matching the list's filters;
+- the registrations list and approval;
+- the sessions view's page of agents, each with its tags and its sessions; a session's log, each
+  entry saying whether the server inferred it, and the operator's read mark on it; and the
+  operator's start of a thread on a session;
+- the operator's session groups and tags: the list of them, creating, renaming, recoloring, ordering
+  and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
+  group and an agent's or a session's tags, on their own or with an approval;
+- what waits on the operator, as the web UI's navigation counts it;
+- the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
+- the operator's settings: voice's settings and their bounds, the base URL rule
+  (`normalizeBaseUrl`), the hosted presets, the types a recording is sent as, a transcription's
+  answer, and the space attachments take;
 - the scopes, `<resource>:<access>`, and which each includes (`holdsScope`); an API key's secret,
   name, scopes and expiry, the key list, a new key with its secret, a revoked key, and the bound on
   the keys the operator holds ([API keys](#api-keys)); and the operator API's versions;
-- the claims of an agent's token, and the error shape.
+- the parameters the routes' paths carry, and the answer of a change with nothing to report.
 
 ### Bounds
 
@@ -172,13 +193,14 @@ A newer bridge never relies on that ([Agent API version](#agent-api-version)).
 
 ### Entry points of their own
 
-The registration code, which the bridge and the server both derive from a session key, has its own
-entry point, `@wayfarerlabs/agention-api/registration-code`, because it uses `node:crypto` and must
-stay out of the web bundle. It takes a key the `publicKey` schema has accepted.
+The registration code, which the server derives from a session key and the bridge relays as the
+server answers it, has its own entry point, `@wayfarerlabs/agention-server-api/registration-code`,
+because it uses `node:crypto` and must stay out of the web bundle. It takes a key the `publicKey`
+schema has accepted.
 
 The schemas' JSON Schema, for the API's documentation, has its own entry point too,
-`@wayfarerlabs/agention-api/json-schemas`, which only the server imports, so the web bundle never
-carries it. `JsonSchemas` describes a schema in one direction, what a client sends or what the
+`@wayfarerlabs/agention-server-api/json-schemas`, which only the server imports, so the web bundle
+never carries it. `JsonSchemas` describes a schema in one direction, what a client sends or what the
 server answers, with zod's own `z.toJSONSchema`, which carries each field's description.
 
 - **Components.** The named schemas it lists, such as `Message` and `ThreadSummary`, are described
@@ -911,7 +933,7 @@ key on its own.
 
 Most routes are operations (`operations.ts`), each declared once: its name, method and path, a
 one-line summary, the scope it requires, its path, query and body schemas and its response schema
-from `packages/api`, and its handler, which the compiler holds to those schemas. The API's
+from the API contract, and its handler, which the compiler holds to those schemas. The API's
 documentation is built from the same lists ([API documentation](#api-documentation)).
 
 A mount builds its routes from a list of operations. Each route:
@@ -1216,7 +1238,7 @@ field or bound the server does not have.
   declares, and a file read's answer as its served types, with the `Range` header, 206 and 416.
 - **Refusals.** Every refusal is one shared `error` response, whose description gives each error
   code's status.
-- **Schemas.** The schemas come from `@wayfarerlabs/agention-api/json-schemas`
+- **Schemas.** The schemas come from `@wayfarerlabs/agention-server-api/json-schemas`
   ([API contract](#api-contract)), so each named schema is described once under `components.schemas`
   and referenced wherever it appears.
 
@@ -1387,8 +1409,8 @@ breaks them or on a key without a base URL.
 
 ### The base URL rule
 
-The base URL rule has two halves. `normalizeBaseUrl`, in `packages/api`, reads a URL into its stored
-form, which the web UI and the server both use. `checkBaseUrl`
+The base URL rule has two halves. `normalizeBaseUrl`, in `packages/server-api`, reads a URL into its
+stored form, which the web UI and the server both use. `checkBaseUrl`
 (`apps/server/src/transcription/base-url.ts`) judges the host that form holds: link-local addresses,
 the cloud metadata addresses outside them, the unspecified address and multicast are never reached,
 and plain http only `localhost` and the operator's own network. An address in the NAT64 well-known
@@ -1773,7 +1795,7 @@ to work with the new server.
 
 The thread list's page address is the API's own list query without its page, read part by part with
 the API's schemas (`listViewOf` in `src/router.tsx`), and the web UI and the server share one rule,
-from `packages/api`, for the filters on open asks and the status they keep.
+from `packages/server-api`, for the filters on open asks and the status they keep.
 [The thread list](web-ui.md#the-thread-list) describes its head, filters, rows, selection and bar,
 which the files of `src/views/list/` implement.
 

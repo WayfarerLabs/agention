@@ -6,7 +6,7 @@ import {
   sessionsQuery,
   tagCreateInput,
   threadFilters,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import type { Identity } from "../identity.ts";

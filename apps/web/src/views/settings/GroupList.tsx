@@ -1,4 +1,4 @@
-import { type GroupsAndTags, maxGroups } from "@wayfarerlabs/agention-api";
+import { type GroupsAndTags, maxGroups } from "@wayfarerlabs/agention-server-api";
 import { useId } from "react";
 import { request } from "../../api.ts";
 import { Failure, Status, useFocusWhenShown } from "../../components.tsx";

@@ -1,17 +1,19 @@
+import type {
+  ErrorBody,
+  ThreadGetResult,
+  WaitResult,
+  WriteResult,
+} from "@wayfarerlabs/agention-api";
 import {
   type AttentionCounts,
-  type ErrorBody,
   type GroupRef,
   type GroupsAndTags,
   maxActionThreads,
   type SessionState,
   type SessionsPage,
   type ThreadCounts,
-  type ThreadGetResult,
   type ThreadList,
-  type WaitResult,
-  type WriteResult,
-} from "@wayfarerlabs/agention-api";
+} from "@wayfarerlabs/agention-server-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openBrowserSession } from "../auth/browser-sessions.ts";
 import { findOperator } from "../store/index.ts";
