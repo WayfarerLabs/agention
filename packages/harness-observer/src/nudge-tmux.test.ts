@@ -20,6 +20,9 @@ const texts: NudgeTexts = {
   isNudgeText: (text) => /^Nudge [0-9a-f]{4}\b/.test(text),
 };
 
+// Not ready, having read the input line and found no nudge text there.
+const readNotReady = { ...notReady, nudgeTextLeft: false };
+
 // What lets every nudge here go ahead.
 const go: NudgeOptions = {
   begin: () => Promise.resolve(true),
@@ -176,7 +179,7 @@ describe("nudge on a tmux pane", () => {
     });
     const snapshot = await pane.snapshot();
     expect(snapshot.at - snapshot.lastTyped!).toBeLessThan(10_000);
-    expect(await observer.nudge(texts, go)).toEqual(notReady);
+    expect(await observer.nudge(texts, go)).toEqual(readNotReady);
     expect(inputRow(await pane.snapshot())).toBe(">");
   });
 
@@ -193,7 +196,7 @@ describe("nudge on a tmux pane", () => {
     const { pane, observer } = await observed(scriptedProfile, {
       arrange: ({ server, pane }) => keysShowing(server, pane, "xyz", "> xyz"),
     });
-    expect(await observer.nudge(texts, go)).toEqual(notReady);
+    expect(await observer.nudge(texts, go)).toEqual(readNotReady);
     expect(inputRow(await pane.snapshot())).toBe("> xyz");
   });
 
@@ -201,7 +204,7 @@ describe("nudge on a tmux pane", () => {
     const { observer } = await observed(scriptedProfile, {
       arrange: ({ server, pane }) => keysShowing(server, pane, "l", "usage limit reached"),
     });
-    expect(await observer.nudge(texts, go)).toEqual(notReady);
+    expect(await observer.nudge(texts, go)).toEqual(readNotReady);
   });
 
   it("stops at the warning, leaving it, when someone types over it during the wait", async () => {
