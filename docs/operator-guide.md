@@ -456,10 +456,10 @@ A session that registers appears as a row under **Waiting for approval**, at the
 **Sessions**, named by the agent and the session it proposes and marked as a new agent, a new
 session, or an existing session. Choosing the row opens its page, beside the sessions' rows on a
 desktop's screen and on its own on a phone: its code, such as `7KQ2M-X9D4R`, in large type, then
-what it proposes, with the credentials of an existing session it proposes, and when it was submitted
-and when it expires. Approve it only if the code matches the one the agent relayed to you: a
-registration made with any other key shows a different code. A registration not decided within an
-hour expires.
+what it proposes, with the credentials of an existing session it proposes, whose name opens that
+session, and when it was submitted and when it expires. Approve it only if the code matches the one
+the agent relayed to you: a registration made with any other key shows a different code. A
+registration not decided within an hour expires.
 
 **Approve** grants the credential the agent and the session it proposes, as its **Approve grants**
 line says, and opens that session. **Change agent or session** shows the other choices: an agent and

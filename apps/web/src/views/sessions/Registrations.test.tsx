@@ -13,6 +13,16 @@ import {
   waiting,
 } from "./registration-tests.tsx";
 
+// facts waits for what the registration waiting on its page proposes.
+async function facts(): Promise<HTMLElement> {
+  const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+  return waitFor(() => {
+    const list = pending.querySelector("dl");
+    expect(list).not.toBeNull();
+    return list as HTMLElement;
+  });
+}
+
 // The sessions view's registrations: those waiting, at their addresses, and
 // those decided. The approval form's own tests are in ApproveForm.test.tsx.
 describe("the sessions view's registrations", () => {
@@ -50,6 +60,26 @@ describe("the sessions view's registrations", () => {
         .getByRole("button", { name: "Change agent or session" })
         .getAttribute("aria-expanded"),
     ).toBe("false");
+  });
+
+  it("leads from what a registration proposes to the session it has, the rows' arrangement kept", async () => {
+    open(
+      {
+        registrations: [registration()],
+        sessions: [{ agent: "builder", session: "main", credential_active: true }],
+      },
+      "/registrations/1?group=agent",
+    );
+    expect(
+      within(await facts())
+        .getByRole("link", { name: "main" })
+        .getAttribute("href"),
+    ).toBe("/sessions/builder/main?group=agent");
+  });
+
+  it("names a new session it proposes without leading anywhere", async () => {
+    open({ registrations: [registration()], sessions: [] });
+    expect(within(await facts()).queryByRole("link")).toBeNull();
   });
 
   it("approves onto a new agent and session under the proposed names, going on to it", async () => {
@@ -230,6 +260,26 @@ describe("the sessions view's registrations", () => {
     expect(text.indexOf(absoluteTime("2026-10-27T13:00:00.000Z"))).toBeGreaterThan(approvedAt);
     expect(card("7KQ2M-X9DPA").querySelector(".muted")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull();
+  });
+
+  it("leads from a past request to the session it granted, the rows' arrangement kept", async () => {
+    open(
+      {
+        registrations: [
+          registration({
+            status: "approved",
+            decided_at: "2026-10-27T12:05:00.000Z",
+            granted: { agent: "builder", session: "main", credential_active: true },
+          }),
+        ],
+        sessions: [],
+      },
+      "/sessions?group=session",
+    );
+    await waitFor(() => expect(card("7KQ2M-X9DPA")).toBeTruthy());
+    expect(
+      within(card("7KQ2M-X9DPA")).getByRole("link", { name: "builder/main" }).getAttribute("href"),
+    ).toBe("/sessions/builder/main?group=session");
   });
 
   it("says at a registration's address when it no longer waits", async () => {

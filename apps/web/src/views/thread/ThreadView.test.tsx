@@ -753,6 +753,36 @@ describe("the head", () => {
     ]).toEqual(["T", "true", "Topic"]);
   });
 
+  it("leads to its session's own page from beside the session's part, a link of its own", async () => {
+    await page.open({
+      thread: threadSummary({ unread: 0, topic: "storage" }),
+      messages: [message(1)],
+    });
+    const where = threadHeader().querySelector(".where") as HTMLElement;
+    const links = within(where).getAllByRole("link");
+    const session = within(where).getByRole("link", { name: "Session main" });
+    const opens = within(where).getByRole("link", { name: "Open session builder/main" });
+    expect(opens.getAttribute("href")).toBe("/sessions/builder/main");
+    // It follows the session's part, before the topic's, and neither holds
+    // the other.
+    expect(links.indexOf(opens)).toBe(links.indexOf(session) + 1);
+    expect(session.contains(opens) || opens.contains(session)).toBe(false);
+    // The agent has no page of its own, so its part leads to its threads
+    // alone.
+    expect(links).toHaveLength(4);
+  });
+
+  it("leads from its notice of a session without a credential to the session's page", async () => {
+    await page.open({
+      thread: threadSummary({ unread: 0, credential_active: false }),
+      messages: [message(1)],
+    });
+    const notice = document.querySelector(".thread-header ~ .notice") as HTMLElement;
+    expect(within(notice).getByRole("link", { name: "builder/main" }).getAttribute("href")).toBe(
+      "/sessions/builder/main",
+    );
+  });
+
   it("keeps returning to the list first opened from across links between threads", async () => {
     page.api.on("GET", "/s/builder/main/threads/7", {
       body: threadAnswer(threadSummary({ number: 7, title: "An earlier thread", unread: 0 }), [

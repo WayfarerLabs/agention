@@ -4,10 +4,10 @@ import type { Agents } from "../../api.ts";
 import { MenuItem, OptionsMenu, PageHeading } from "../../components.tsx";
 import { plural, Since, Spoken, Time, workStateWords } from "../../format.tsx";
 import { Icon } from "../../icons.tsx";
-import { Link, registrationHref, sessionHref, useLocation } from "../../router.tsx";
+import { Link, registrationHref, sessionHref } from "../../router.tsx";
 import { BlockedLink, FilterLink, UnreadLink } from "../filter-links.tsx";
 import { ListBeside, landFrom } from "../side-by-side.tsx";
-import { sessionsQuery, sessionsViewOf } from "./arrangement.ts";
+import { useArranged } from "./arrangement.ts";
 import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
 import { type Credential, proposalOf, proposalWords, Revocation } from "./Registrations.tsx";
 import { OpenAsksLink, rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
@@ -59,7 +59,7 @@ export const WaitingRegistrations = createContext<readonly Registration[]>([]);
 function RowLead({ id, href, name }: { id: string; href: string; name: string }) {
   const link = useRef<HTMLAnchorElement>(null);
   const beside = useContext(ListBeside);
-  const arranged = sessionsQuery(sessionsViewOf(useLocation().searchParams));
+  const arranged = useArranged();
   const current = beside?.open === href;
   return (
     <Link
@@ -388,7 +388,7 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
 // be approved onto it, a fact each, flagged in the attention tone, as open
 // asks are, since it waits on the operator too.
 function WaitingLinks({ agent, session }: { agent: string; session: string }) {
-  const arranged = sessionsQuery(sessionsViewOf(useLocation().searchParams));
+  const arranged = useArranged();
   return useContext(WaitingRegistrations)
     .filter((each) => each.proposed_agent === agent && each.proposed_session === session)
     .map((registration) => (
