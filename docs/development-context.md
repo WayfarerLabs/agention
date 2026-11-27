@@ -9,9 +9,12 @@ index of those docs.
 - Tester: none; live testing follows the shared `integration-testing` tester method with Agention's
   surfaces, layers, hunts and bed rails in `docs/live-testing.md`
 - SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"); active efforts: pull request and
-  branch links (`docs/sdd/2026-11-25-pr-and-branch-links/`), accepted 2026-11-25, and session
-  monitoring and nudge (`docs/sdd/2026-11-23-session-monitoring-and-nudge/`), accepted 2026-11-27;
-  SDD check: `scripts/check-sdd.sh`, in the "SDD records" gate of `scripts/check.sh`
+  branch links (`docs/sdd/2026-11-25-pr-and-branch-links/`), accepted 2026-11-25, saved views
+  (`docs/sdd/2026-11-25-saved-views/`), accepted 2026-11-25, the audit log
+  (`docs/sdd/2026-11-24-audit-log/`), accepted 2026-11-25, notifications
+  (`docs/sdd/2026-11-23-notifications/`), accepted 2026-11-25, and session monitoring and nudge
+  (`docs/sdd/2026-11-23-session-monitoring-and-nudge/`), accepted 2026-11-27; SDD check:
+  `scripts/check-sdd.sh`, in the "SDD records" gate of `scripts/check.sh`
 
 ## Identity and design
 
@@ -85,9 +88,11 @@ index of those docs.
   generated from the server's operation declarations and the `packages/api` schemas they use by
   `apps/server/generate-api-docs.ts`, through `scripts/generate-api-docs.sh`, with the parity test
   `apps/server/src/http/api-docs.test.ts` in the "Tests" gate (`CONTRIBUTING.md` "Generated API
-  document"); and the screenshots in `docs/images/`, retaken by `apps/web/e2e/readme-screenshots.ts`
+  document"); the screenshots in `docs/images/`, retaken by `apps/web/e2e/readme-screenshots.ts`
   through `scripts/generate-screenshots.sh`, with no drift check (`CONTRIBUTING.md` "README
-  screenshots")
+  screenshots"); and the app icons in `apps/web/public/icons/`, drawn from
+  `apps/web/public/favicon.svg` and `apps/web/icons/maskable.svg` by `apps/web/generate-icons.ts`
+  through `scripts/generate-icons.sh`, with no drift check (`CONTRIBUTING.md` "App icons")
 - Everything CI requires on a pull request, in order: `.github/workflows/ci.yml`: the `check` job
   runs `scripts/check.sh`, whose gates `CONTRIBUTING.md` "Checks" lists in order; then `ci-success`,
   the one required check, which passes only when `check` succeeded
@@ -95,9 +100,9 @@ index of those docs.
 ## Invariants and collateral
 
 - Trust model, security checklist, and invariants reviewers check clause by clause: `SECURITY.md`
-  "Security model", with "Voice", "API keys", "Attachments", "Private files" and "The agent bridge";
-  the project checks A1 to A19 in `docs/review-checklist.md`; the deliberate limits in ADR 0001 "Not
-  doing"
+  "Security model", with "Voice", "API keys", "Audit log", "Attachments", "Private files" and "The
+  agent bridge"; the project checks A1 to A20 in `docs/review-checklist.md`; the deliberate limits
+  in ADR 0001 "Not doing"
 - Collateral to keep in sync: docs `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `docs/architecture.md`, `docs/operator-guide.md`, `docs/web-ui.md`, `docs/operator-api.md`,
   `docs/tunnel.md`, `docs/adrs/`, `docs/review-checklist.md`, `docs/live-testing.md`, this file, and

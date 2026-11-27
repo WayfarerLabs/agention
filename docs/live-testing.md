@@ -24,6 +24,19 @@ disagreement is the finding.
   environment variables, each value that breaks its rules, and a key without a base URL, refusing
   the start by naming the variable and never printing the value (`docs/operator-guide.md` "Voice
   from the environment").
+- **Audit log**, on the packed server: `agention serve --audit-stdout --audit-dir DIR` on a loopback
+  instance, an API key's writes appearing on standard output and in `DIR/audit.jsonl`, each with the
+  key's id and name, the file read by a collector tailing it (Vector, Grafana Alloy or `tail -F`),
+  and every line a valid OCSF 1.9.0 event (`docs/operator-guide.md` "Audit log"); standard output
+  holding nothing but those lines; the directory and file modes, and with `--audit-group` a
+  collector running as its own user reading the files through the operator guide's recipe and
+  writing none; a sink made to fail, such as a directory made unwritable, named on standard error,
+  then recovering with nothing lost; a failed sign-in counted into one event, delivered once its
+  minute ends; a restart without a sink's option naming its cursor, and `agention audit forget-sink`
+  removing it, on a running server too, which stops that sink; the file rotated away by logrotate,
+  and the next event starting a new one; a stdout reader that stops reading named as stalled;
+  retention keeping what a sink has not received; and a restore from a backup reusing sequences
+  under new ids (`docs/operator-guide.md` "Backing up").
 - **HTTP API** through the real listener: the agent mount (key-signed tokens) and the web mount
   (passkey session and CSRF). The token cases: no token, a signature by another key than the one it
   names, an unknown key, another audience (refused naming the expected origin), an expiry past or
@@ -53,9 +66,14 @@ disagreement is the finding.
   page at `/docs/api/` and `/docs/api/openapi.json` without sign-in, `/docs/api` leading to the
   page, the page running no script, the document equal to `docs/api/openapi.json` at the head, and
   without the flag every path under `/docs/api` the JSON `not_found` (`docs/architecture.md` "HTTP
-  API", "API documentation" and "Authentication"; `docs/operator-api.md`). The file routes on every
-  mount, the operator mount with a key of each threads scope among them: an upload's answer, each of
-  its refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
+  API", "API documentation" and "Authentication"; `docs/operator-api.md`). The operator mount's
+  `saved-views` operations with a key of each scope: `saved-views:read` listing the views,
+  `saved-views:write` saving, renaming, replacing and removing them, a name another view has refused
+  as `conflict`, a list the thread list refuses as `invalid_input` naming the part, and each refused
+  as `not_found` to a key without its scope; a tag renamed with `sessions:write` renaming it in the
+  views naming it (`docs/architecture.md` "Saved views"). The file routes on every mount, the
+  operator mount with a key of each threads scope among them: an upload's answer, each of its
+  refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
   `storage_full` with the disk filled, a length that does not match), a message naming another
   writer's, another session's, an expired or an attached upload refused alike, `keep` on a
   replacement; a file read with each single range, several ranges answered whole, a range outside
@@ -89,6 +107,11 @@ disagreement is the finding.
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.
+- **The web UI's files**, served by the packed server: each script and style sheet sent as Brotli to
+  a browser that accepts it and as it is to a client that does not, kept across a second load with
+  nothing sent again, the page and every other file of the build `no-store`, and a name an upgrade
+  removed, which a page loaded before it still asks for, answered `not_found`, status 404, uncached
+  (`docs/architecture.md` "The web UI's files").
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
@@ -134,59 +157,79 @@ disagreement is the finding.
   desktop's width, filling it, the list kept as chosen beside each thread opened, the open thread's
   row marked, Back from thread to thread, focus back on the row left, and one at a time below that
   width; stranded's reasons, in the warning's color in both tabs; the sessions view, its group and
-  agent folds and folded rows with what each session reports, when it was last seen and whether it
+  agent folds and session rows with what each session reports, when it was last seen and whether it
   is quiet, how old its status is, its open asks in the thread list's words and its threads'
   roll-up, the links from a row, an agent and a group, their names and every chip standing for
   threads among them, to the thread list filtered to them, folding nothing, and from a row's and an
-  agent's stranded flag to their stranded threads, a row unfolded to its log and marking it read,
+  agent's stranded flag to their stranded threads, a row opening its session and reading its log,
   the Sessions tab's count of registrations waiting falling as they are approved or rejected, their
-  section one line while none waits, the Threads tab's count of unread threads falling as they are
+  rows atop the agents while any do, the Threads tab's count of unread threads falling as they are
   read or archived, and the folds kept, on a phone's width too; the operator's session groups and
   tags: a session's group and an agent's and a session's tags picked from their options, each pick
   applied at once, by pointer and by the keys, the pickers beside the menu on a wide screen and as a
   sheet on a phone, the chips that show them in their colors in both color schemes, and Settings'
   groups and tags, with create, rename, its refusal of a name another group or tag has, recolor,
   removal, asked first, and the groups' order by their buttons and by dragging, followed by the
-  sessions view; the sessions view's arrangement, grouped by group, by agent and by session, sorted
-  alphabetically, by registration time and manually, each way, no group last, its groups moved in
-  the manual order by their buttons and by dragging, and the arrangement kept in the address through
-  a reload, Back and a shared link; a thread the operator starts there, with the warning for a
-  session not there to see it, and the agent's reply in it; registration approval, with a group and
-  tags picked, rejection, and revocation from past requests and a session's options; diagrams, drawn
-  in light and dark, with their Source toggle, their fallback, and the viewer's gestures, buttons
-  and keys, on a phone's width too; Settings in sections, listed beside the open one on a wide
-  screen and listed first on a phone with each section's way back, with `/passkeys` leading to
-  Passkeys; API keys: one created with each expiry choice, the no-expiry warning and the list's
-  flag, a scope that a chosen one includes shown chosen with it, the secret shown once with Copy and
-  gone once dismissed, nowhere in storage or the address, the list's last use, Revoke asked first,
-  creating and revoking held back without a recent sign-in, and Create held back at 20 live keys, at
-  a phone's width too; and voice set up, with the write-only key shown masked but for its last four
-  characters, what the environment supplies shown read-only, Turn off and Try it; dictation through
-  Chromium's fake microphone and a stub provider, its text at the caret with nothing sent, the
-  microphone and what it says beside Send on a short screen, its failures keeping the recording for
-  a retry, and a recording stopped when the page is hidden, alike in the composer, an ask's
-  own-words field and the new-thread sheet; and Read aloud and Stop, in WebKit too where it
-  installs; a message's copy button, with its details folded and open; attachments: **Attach**, its
-  menu on a touch device (each item's picker, Escape and a tap elsewhere), a pasted image and a
-  paste carrying text, progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on
-  uploads, a message of files alone, an edit keeping and removing files, a new thread started with
-  files and its sheet cancelled with uploads, each kind of file shown in place, **Show image** and
-  **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
-  **Files** fold, and **Storage**, on a phone's width too; and pull requests and branches: a
-  message's one entry and its fold, the thread's fold, a row's one entry, beside its checkbox too,
-  and its mark counting several, each entry leading to the thread list filtered by it, alone from a
-  message or the thread's fold and added to the list on screen from a row, but selecting the row in
-  its place when held by touch, and when tapped while a touch selection is under way, the forge link
-  beside a message's or the fold's entry opening the forge's page in a new tab, and the filter
-  sheet's **Pull request** and **Branch** with their counts, chips, and the address, on a phone's
-  width too (`docs/operator-guide.md` "Signing in", "Voice", "Attachments" and "Approving agents";
-  `docs/web-ui.md`). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
-  with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
-  opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick
-  list told at a glance from the thread bar's arrow buttons just below it, its choices read in the
-  phone's own picker, and a photo from the phone read by an agent, with an image, a PDF, a video and
-  a text file an agent attached opened in Android Chrome and Windows Edge or Chrome, are the
-  operator's acceptance, not the tester's.
+  sessions view; saved views: the list's **Saved views** first in its head, named with the views
+  current, its sheet from the bottom on a phone and as a panel side by side, a view saved, opened in
+  another browser to the same list, its link, Back and a reload behaving as the address's, current
+  with its filters chosen in another order, replaced only once asked, and `g v` opening the sheet
+  from a thread, from Sessions and from Settings, on a phone and side by side; Settings' saved
+  views, with rename, its refusal of a name another view has, and removal, asked first; and a view
+  naming a renamed tag still keeping its threads, and one naming a removed group or tag showing the
+  chip as removed with the list kept narrow; the sessions view's arrangement, grouped by group, by
+  agent and by session, sorted alphabetically, by registration time and manually, each way, no group
+  last, its groups moved in the manual order by their buttons and by dragging, and the arrangement
+  kept in the address through a reload, Back and a shared link; a thread the operator starts there,
+  with the warning for a session not there to see it, and the agent's reply in it; registration
+  approval, with a group and tags picked, rejection, and revocation from past requests and a
+  session's options; diagrams, drawn in light and dark, with their Source toggle, their fallback,
+  and the viewer's gestures, buttons and keys, on a phone's width too; Settings in sections, listed
+  beside the open one on a wide screen and listed first on a phone with each section's way back,
+  with `/passkeys` leading to Passkeys; API keys: one created with each expiry choice, the no-expiry
+  warning and the list's flag, a scope that a chosen one includes shown chosen with it, the secret
+  shown once with Copy and gone once dismissed, nowhere in storage or the address, the list's last
+  use, Revoke asked first, creating and revoking held back without a recent sign-in, and Create held
+  back at 20 live keys, at a phone's width too; and voice set up, with the write-only key shown
+  masked but for its last four characters, what the environment supplies shown read-only, Turn off
+  and Try it; dictation through Chromium's fake microphone and a stub provider, its text at the
+  caret with nothing sent, the microphone and what it says beside Send on a short screen, its
+  failures keeping the recording for a retry, and a recording stopped when the page is hidden, alike
+  in the composer, an ask's own-words field and the new-thread sheet; and Read aloud and Stop, in
+  WebKit too where it installs; a message's copy button, with its details folded and open, and a
+  code block's, from the keyboard and beside a long line; attachments: **Attach**, its menu on a
+  touch device (each item's picker, Escape and a tap elsewhere), a pasted image and a paste carrying
+  text, progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message
+  of files alone, an edit keeping and removing files, a new thread started with files and its sheet
+  cancelled with uploads, each kind of file shown in place, **Show image** and **Show text**, a
+  PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's **Files** fold, and
+  **Storage**, on a phone's width too; and pull requests and branches: a message's one entry and its
+  fold, the thread's fold, a row's one entry, beside its checkbox too, and its mark counting
+  several, each entry leading to the thread list filtered by it, alone from a message or the
+  thread's fold and added to the list on screen from a row, but selecting the row in its place when
+  held by touch, and when tapped while a touch selection is under way, the forge link beside a
+  message's or the fold's entry opening the forge's page in a new tab, and the filter sheet's **Pull
+  request** and **Branch** with their counts, chips, and the address, on a phone's width too
+  (`docs/operator-guide.md` "Signing in", "Adding it to a phone or a desktop", "Voice",
+  "Attachments" and "Approving agents"; `docs/web-ui.md`). Real-phone passkeys, the web UI added to
+  a phone's home screen and opening standalone, Send above a phone's keyboard while writing,
+  dictation with a real provider, diagrams and their viewer in iOS Safari, what each item of
+  Attach's menu opens on a real phone, holding a row down to select it in Android Chrome, After
+  sending's pick list told at a glance from the thread bar's arrow buttons just below it, its
+  choices read in the phone's own picker, and a photo from the phone read by an agent, with an
+  image, a PDF, a video and a text file an agent attached opened in Android Chrome and Windows Edge
+  or Chrome, are the operator's acceptance, not the tester's.
+- **The Sessions tab side by side**, in the same browser: at a desktop's width, a row opening its
+  session beside the rows at its own address, the open session's row marked, Back from session to
+  session and onto the rows, focus back on the row left, and the arrangement kept through it; below
+  that width, each row opening its session or registration on a page of its own, with no sideways
+  scroll at 390 and 320 pixels; the registrations waiting, a row each above the agents in every
+  arrangement, marked as a new agent, a new session or an existing session, whose own row links to
+  the request; a registration's page with its code, what it proposes and its times, its group and
+  tags, Approve going on to the session granted and Reject back to the rows, the choice of another
+  agent or session folded until asked for, and a button each for the session there is and a new one
+  when the proposed session exists; and a form half filled keeping what it holds, and focus, across
+  that width (`docs/web-ui.md` "The sessions view").
 
 ## Layers to cross-check
 
@@ -275,6 +318,10 @@ On top of the method's failure classes, look for:
   default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
   an upload cut off, or the server killed during one, leaving no file or chunks after the next
   sweep; a `file_get` that fails leaving no partial file.
+- **Audit gaps**: a write, sign-in or credential change without its event, or an event without its
+  change; an event naming another credential than the one that made the write; a message's or an
+  answer's text, a title, a file name, or any secret in a line or a stderr message; an event
+  delivered out of order, or lost across a restart or a failing sink.
 - **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
   between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong

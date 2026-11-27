@@ -144,7 +144,7 @@ export const threadOperations = (messageInput: DescribedSchema<AgentMessageSendI
     params: fileParams,
     query: fileReadQuery,
     response: fileBytes,
-    handler: ({ store, identity, params, query, request, log, dropConnection }) =>
+    handler: ({ store, identity, params, query, request, log, dropConnection, refused }) =>
       serveFile({
         store,
         identity,
@@ -152,6 +152,7 @@ export const threadOperations = (messageInput: DescribedSchema<AgentMessageSendI
         request,
         log,
         dropConnection,
+        refused,
       }),
   }),
 ];

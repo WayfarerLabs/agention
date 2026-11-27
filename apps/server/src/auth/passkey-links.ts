@@ -1,5 +1,6 @@
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
-import type { Store } from "../store/index.ts";
+import { findOperator, type Store } from "../store/index.ts";
 import { hashOfSecret, newSecret } from "./secrets.ts";
 
 // A passkey link, which `agention passkey-link` issues on the server's
@@ -18,16 +19,24 @@ function deleteExpired(db: Database, now: number): void {
 
 // issuePasskeyLink issues a link, revoking every unused one, and returns its
 // token. operatorName is the name the operator gets if the link creates them.
+// Only agention passkey-link issues links, so the audit log records the
+// command line as who issued it.
 export function issuePasskeyLink(store: Store, operatorName: string): string {
   const { db } = store;
   return db.transaction(() => {
+    const now = store.clock();
     const secret = newSecret();
+    const expiresAt = now + passkeyLinkLifetime;
     db.prepare("DELETE FROM passkey_links").run();
     db.prepare("INSERT INTO passkey_links (hash, operator_name, expires_at) VALUES (?, ?, ?)").run(
       secret.hash,
       operatorName,
-      store.clock() + passkeyLinkLifetime,
+      expiresAt,
     );
+    recordAudit(store, now, { kind: "cli", command: "passkey-link" }, "issuePasskeyLink", {
+      expiresAt,
+      replacesPasskeys: findOperator(db) !== undefined,
+    });
     return secret.token;
   });
 }

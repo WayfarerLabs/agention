@@ -1,8 +1,8 @@
 // cspell:ignore filechooser
 // The web UI in Chromium against the real server: the server's name in the
-// banner and titles, linking the first passkey, approving an agent and the
-// Sessions tab's count of registrations waiting, their section a line once
-// none waits, at a phone's width too, answering its asks, a
+// banner and titles, linking the first passkey, approving an agent from its
+// registration's row and page and the Sessions tab's count of registrations
+// waiting, answering its asks, a
 // message's detail folded under its text and the message copied with it,
 // the composer's Details box, a stale write, a draft kept across the
 // Sessions tab and a reload until discarded,
@@ -17,7 +17,7 @@
 // side at a desktop's width and one at a time on a phone, the threads above
 // and below and where archiving goes, alike in both, an ask the agent withdraws and the
 // way back under the composer, the sessions view with a session's status and
-// log, at a phone's width too, a thread the operator starts there with a file
+// log, beside the rows and alone at a phone's width, a thread the operator starts there with a file
 // and stranded's reason, a session's options menu over the next agent's header and
 // the picker it opens beside it on a wide screen and as a sheet on a phone,
 // the sessions view folded by group, a group created and tags picked in the
@@ -26,7 +26,12 @@
 // do, and a tag as tall in a header as in a row, at a phone's width too, its
 // groups moved in their manual order and its grouping and sort chosen, kept
 // in the address through a reload and Back, the
-// last session's options menu over the folds below it, grouped or not,
+// last session's options menu over the folds below it, grouped or not, the
+// sessions' rows and the session open side by side at a desktop's width,
+// each session at its own address, and on its own page on a phone, a
+// registration's page, what it proposes, its form, its picker and its
+// approval under way as the window crosses that width and as a session opens
+// in its place,
 // Settings' groups ordered by their buttons and by dragging, signing out from
 // Settings and in again, a second passkey that takes
 // over from the first in Settings' passkeys, which /passkeys leads to, and a
@@ -50,7 +55,16 @@ import type {
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { expect, hostName, resize, secondServerName, serverName, test } from "./fixtures.ts";
+import {
+  approve,
+  expect,
+  hostName,
+  reportPolicyRefusals,
+  resize,
+  secondServerName,
+  serverName,
+  test,
+} from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -65,6 +79,7 @@ const requestedHosts = new Set<string>();
 
 test.beforeAll(async ({ browser, agention }) => {
   context = await browser.newContext({ baseURL: agention.origin });
+  await reportPolicyRefusals(context);
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: agention.origin,
   });
@@ -168,46 +183,25 @@ test("the operator approves an agent's registration by its code", async () => {
   expect(submitted.body.code).toBe(code);
 
   // Going to the sessions view, its tab counts the registration waiting,
-  // until it is approved.
+  // until it is approved. It waits above the agents, a row leading to its
+  // page, which shows its code to match.
   await tab("Sessions").click();
   await expect(tab("Sessions")).toHaveAccessibleName(/^Sessions\s*1\b/);
+  await page
+    .getByRole("link", { name: new RegExp(`^Registration ${code} for builder/main`) })
+    .click();
+  await expect(page).toHaveURL(/\/registrations\/\d+$/);
   const card = page.getByRole("article", { name: `Registration ${code}` });
   await expect(card.getByText(code, { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "Approve" }).click();
-  // The registration leaves the waiting list, approved, among the past
-  // requests folded under the session that now stands under its agent.
-  await expect(
-    page.getByRole("region", { name: "Waiting for approval" }).getByRole("article"),
-  ).toHaveCount(0);
+  // The page goes on to the session approved, which now stands under its
+  // agent, and the registration leaves those waiting, approved, among the
+  // past requests.
+  await expect(page).toHaveURL(/\/sessions\/builder\/main$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("builder/main");
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Session main" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Waiting for approval" })).toHaveCount(0);
   await expect(tab("Sessions")).toHaveAccessibleName("Sessions");
-  // With none waiting, the section takes one line on the narrowest phone,
-  // in whatever font the machine running the tests has for the system's,
-  // and in Arial. The widest of them is DejaVu Sans, the usual system font
-  // on Linux, which sets the limit on the line's words.
-  const wide = page.viewportSize();
-  const waiting = page.getByRole("region", { name: "Waiting for approval" });
-  await resize(page, { width: 320, height: 844 });
-  for (const font of [undefined, "Arial"]) {
-    const { height, line } = await waiting.evaluate((section, family) => {
-      const root = document.documentElement.style;
-      if (family === undefined) {
-        root.removeProperty("--font-body");
-      } else {
-        root.setProperty("--font-body", family);
-      }
-      return {
-        height: section.getBoundingClientRect().height,
-        line: parseFloat(getComputedStyle(section.querySelector("p") as Element).lineHeight),
-      };
-    }, font);
-    expect(height).toBeLessThanOrEqual(line);
-  }
-  await page.evaluate(() => document.documentElement.style.removeProperty("--font-body"));
-  if (wide !== null) {
-    await resize(page, wide);
-  }
   await page.getByRole("button", { name: "Credentials and past requests" }).click();
   await expect(card.locator(".state")).toHaveText("approved");
 
@@ -270,10 +264,17 @@ test("the operator answers two asks in one message, and the agent reads the answ
   await expect(first.getByRole("heading", { name: "Rollback plan" })).toBeVisible();
   // Copy, beside the message's options, copies its Markdown as written, with
   // the detail while it is open.
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
   await first.getByRole("button", { name: "Copy message 1" }).click();
-  await expect
-    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe(`${text}\n\n${detail}`);
+  await expect.poll(clipboard).toBe(`${text}\n\n${detail}`);
+  // A code block's own button, beside the code rather than over it, copies
+  // just its text, from the keyboard.
+  const copyCode = first.getByRole("button", { name: "Copy code" });
+  const [code, button] = [await first.locator("pre").boundingBox(), await copyCode.boundingBox()];
+  expect(button!.x).toBeGreaterThanOrEqual(code!.x + code!.width);
+  await copyCode.focus();
+  await page.keyboard.press("Space");
+  await expect.poll(clipboard).toBe("npm run build");
   await details.focus();
   await page.keyboard.press("Space");
   await expect(details).toHaveAttribute("aria-expanded", "false");
@@ -734,7 +735,9 @@ test("the keyboard moves through the list with j and k, its focus ring showing, 
   await expect(rows.nth(0)).toBeFocused();
   await page.keyboard.press("j");
   await expect(rows.nth(1)).toBeFocused();
-  await expect(rows.nth(1)).toHaveCSS("outline-style", "solid");
+  // The ring is the row's, around its card (selection.spec.ts).
+  await expect(rows.nth(1).locator("..")).toHaveCSS("outline-style", "solid");
+  await expect(rows.nth(1)).toHaveCSS("outline-style", "none");
   const title = (await rows.nth(1).getByRole("heading").textContent()) ?? "";
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
@@ -886,7 +889,7 @@ async function clearOfTheBar(area: Locator): Promise<void> {
   expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual((shown?.y ?? 0) + 1);
 }
 
-test("from 41rem across, and only from there, the list's head shows every control's words on one row, its widest by touch with every control set, in the system's font and in Arial", async () => {
+test("from 44rem across, and only from there, the list's head shows the words of every control that has them on one row, its widest by touch with every control set, in the system's font and in Arial", async () => {
   const wide = page.viewportSize();
   // Twelve filters on, for a count of two digits, and the order and
   // grouping whose words run longest.
@@ -904,7 +907,7 @@ test("from 41rem across, and only from there, the list's head shows every contro
     element.clientWidth,
     parseFloat(getComputedStyle(document.documentElement).fontSize),
   ]);
-  const tier = 41 * (rem ?? 16);
+  const tier = 44 * (rem ?? 16);
   await resize(page, { width: first + tier - (width ?? 0), height: 844 }, true);
   expect(await head.evaluate((element) => element.clientWidth)).toBe(tier);
   // In whatever font the machine running the tests has for the system's,
@@ -924,7 +927,7 @@ test("from 41rem across, and only from there, the list's head shows every contro
     await onOneRow(head);
     await fitsAcross(head, page.locator("main"));
   }
-  // A pixel narrower, the buttons show their icons alone, so 41rem is the
+  // A pixel narrower, the buttons show their icons alone, so 44rem is the
   // narrowest the row shows every word at.
   await resize(page, { width: first + tier - (width ?? 0) - 1, height: 844 }, true);
   expect(await head.evaluate((element) => element.clientWidth)).toBe(tier - 1);
@@ -1156,9 +1159,8 @@ test("the sessions view shows a session's status and log, and starts a thread th
   }
 
   await tab("Sessions").click();
-  const fold = page.getByRole("button", { name: "Session main" });
-  const row = page.getByRole("listitem").filter({ has: fold });
-  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  const lead = page.getByRole("link", { name: "Session main", exact: true });
+  const row = page.getByRole("listitem").filter({ has: lead });
   await expect(row.getByText("Idle", { exact: true })).toBeVisible();
   // It was seen just now, on the line under its head, so it is not quiet,
   // and the line says how old its status is too.
@@ -1167,28 +1169,35 @@ test("the sessions view shows a session's status and log, and starts a thread th
   await expect(row.getByText("4 new updates")).toBeVisible();
   await expect(row.getByText("Waiting on CI")).toBeVisible();
 
-  // Unfolded by a click on its title, as anywhere on the row but its links
-  // and controls, the log shows newest first, the two updates of progress
-  // alone in one line, and reads it.
+  // Opened by a click on its title, as anywhere on the row but its other
+  // links and its controls, the session shows beside the rows, at its own
+  // address: its log newest first, the two updates of progress alone in one
+  // line, which showing it reads.
   const titled = await row.getByText("Retire invoices", { exact: true }).boundingBox();
   expect(titled).not.toBeNull();
   if (titled !== null) {
     await page.mouse.click(titled.x + titled.width / 2, titled.y + titled.height / 2);
   }
-  await expect(fold).toHaveAttribute("aria-expanded", "true");
-  const log = row.getByRole("list", { name: "Updates" });
+  await expect(page).toHaveURL(/\/sessions\/builder\/main$/);
+  await expect(lead).toHaveAttribute("aria-current", "page");
+  const log = page
+    .getByRole("region", { name: "Session", exact: true })
+    .getByRole("list", { name: "Updates" });
   await expect(log.getByRole("listitem")).toHaveCount(3);
   await expect(log.getByRole("listitem").nth(1)).toContainText(/20%.*60%/);
   await expect(row.getByText("4 new updates")).toHaveCount(0);
 
-  // At a phone's width, the view and its sheet scroll only up and down.
+  // At a phone's width, the session shows alone at its address, and it and
+  // its sheet scroll only up and down.
   const wide = page.viewportSize();
   await resize(page, { width: 390, height: 844 });
+  await expect(page.getByRole("list", { name: "Updates" }).getByRole("listitem")).toHaveCount(3);
+  await expect(lead).toHaveCount(0);
   const scrollsSideways = () =>
     page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(await scrollsSideways()).toBe(false);
 
-  const options = page.getByRole("button", { name: "Options for builder/main" });
+  const options = page.getByRole("button", { name: "Session options" });
   await options.click();
   await page.getByRole("button", { name: "New thread" }).click();
   const sheet = page.getByRole("dialog", { name: "New thread" });
@@ -1249,12 +1258,9 @@ test("a session's options menu lies over the next agent's header, at a phone's w
   // with builder folded, its header.
   const deployer = new Agent(agention);
   await deployer.send("POST", "/registrations", { agent: "deployer", session: "main" });
-  await page.getByRole("link", { name: "Sessions" }).click();
-  const code = registrationCode(deployer.publicKey as PublicKey);
-  await page
-    .getByRole("article", { name: `Registration ${code}` })
-    .getByRole("button", { name: "Approve" })
-    .click();
+  await approve(page, registrationCode(deployer.publicKey as PublicKey));
+  // Approving opened the session; the rows are the tab's own page.
+  await tab("Sessions").click();
   await expect(page.getByRole("button", { name: /^Agent deployer/ })).toBeVisible();
 
   const wide = page.viewportSize();
@@ -1491,10 +1497,14 @@ test("the sessions view moves its groups in their manual order, and groups and s
   // reload and back from the thread list.
   await page.getByRole("combobox", { name: "Group" }).selectOption("session");
   await expect(page).toHaveURL(/\/sessions\?group=session&reverse=true$/);
-  await expect(page.getByRole("button", { name: "Session deployer/main" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Session deployer/main", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: /^Agent / })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Session deployer/main" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Session deployer/main", exact: true }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Threads of session builder/main" }).click();
   await expect(page).toHaveURL(/\/\?session=builder\/main$/);
   await page.goBack();
@@ -1574,6 +1584,251 @@ test("the last session's options menu lies over the folds below it, grouped or n
   if (wide !== null) {
     await resize(page, wide);
   }
+});
+
+test("at a desktop's width the sessions' rows stand beside the session open, each session at its own address, and on a phone each opens on a page of its own", async () => {
+  await tab("Sessions").click();
+  await expect(page).toHaveURL(/\/sessions$/);
+  const list = page.getByRole("region", { name: "Session list" });
+  const pane = page.getByRole("region", { name: "Session", exact: true });
+  const rowOf = (path: string) => list.locator(`a.session-lead[href^="/sessions/${path}"]`);
+  const [builder, deployer] = [rowOf("builder/main"), rowOf("deployer/main")];
+  const heading = pane.getByRole("heading", { level: 1 });
+  const log = pane.getByRole("list", { name: "Updates" });
+  const scrollsSideways = () =>
+    page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+
+  // With none open, the pane says how to open one, to the right of the
+  // rows, which keep the past requests.
+  await expect(pane.locator(".empty")).toBeVisible();
+  await expect(list.getByRole("button", { name: /^Session / })).toHaveCount(0);
+  await expect(list.getByRole("button", { name: /^Credentials and past requests/ })).toBeVisible();
+
+  // Opening a session shows it beside the rows, at its own address, its row
+  // marked current and focus on its heading; the rows stay as they were,
+  // scrolling on their own while the session scrolls with the page.
+  await builder.click();
+  await expect(page).toHaveURL(/\/sessions\/builder\/main$/);
+  await expect(heading).toContainText("builder/main");
+  await expect(heading).toBeFocused();
+  await expect(page).toHaveTitle(`builder/main · ${serverName}`);
+  await expect(log).toBeVisible();
+  await expect(builder).toHaveAttribute("aria-current", "page");
+  await expect(list.locator('.session-row:has(a.session-lead[aria-current="page"])')).toHaveCSS(
+    "outline-style",
+    "solid",
+  );
+  const [listBox, paneBox] = await Promise.all([list.boundingBox(), pane.boundingBox()]);
+  expect((listBox?.x ?? 0) + (listBox?.width ?? 0)).toBeLessThanOrEqual(paneBox?.x ?? 0);
+  await expect(list).toHaveCSS("position", "sticky");
+  await expect(list).toHaveCSS("overflow-y", "auto");
+  await expect(pane).toHaveCSS("overflow-y", "visible");
+  // Focus goes on from the heading within the session's pane, the rows
+  // before it in the page.
+  await page.keyboard.press("Tab");
+  expect(await pane.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+  expect(
+    await list.evaluate(
+      (rows, session) =>
+        (rows.compareDocumentPosition(session as Node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      await pane.elementHandle(),
+    ),
+  ).toBe(true);
+
+  // Moving through the rows opens nothing until asked, from the session's
+  // pane too.
+  await page.keyboard.press("j");
+  await expect(deployer).toBeFocused();
+  await expect(page).toHaveURL(/\/sessions\/builder\/main$/);
+  await page.keyboard.press("o");
+  await expect(page).toHaveURL(/\/sessions\/deployer\/main$/);
+  await expect(heading).toContainText("deployer/main");
+  await expect(deployer).toHaveAttribute("aria-current", "page");
+  await expect(builder).not.toHaveAttribute("aria-current");
+
+  // Back returns to the session before, at its own address, and then to
+  // the rows, landing on the row of the session left; u does the same from
+  // a session.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/sessions\/builder\/main$/);
+  await expect(heading).toContainText("builder/main");
+  await expect(heading).toBeFocused();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(builder).toBeFocused();
+  await expect(pane.locator(".empty")).toBeVisible();
+  await page.goForward();
+  await expect(heading).toContainText("builder/main");
+  await page.keyboard.press("u");
+  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(builder).toBeFocused();
+
+  // The arrangement goes with each session's address, and Back keeps it as
+  // last set; a reload shows the session beside the rows again.
+  const group = list.getByRole("combobox", { name: "Group" });
+  await builder.click();
+  await group.selectOption("agent");
+  await expect(page).toHaveURL(/\/sessions\/builder\/main\?group=agent$/);
+  await deployer.click();
+  await expect(page).toHaveURL(/\/sessions\/deployer\/main\?group=agent$/);
+  await group.selectOption("session");
+  await expect(page).toHaveURL(/\/sessions\/deployer\/main\?group=session$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/sessions\/builder\/main\?group=session$/);
+  await expect(group).toHaveValue("session");
+  await page.reload();
+  await expect(heading).toContainText("builder/main");
+  await expect(group).toHaveValue("session");
+  await expect(builder).toHaveAttribute("aria-current", "page");
+  await group.selectOption("session_group");
+  await list.getByRole("combobox", { name: "Sort" }).selectOption("manual");
+  await expect(page).toHaveURL(/\/sessions\/builder\/main$/);
+
+  // The rows' head fits its pane on one row, and nothing scrolls sideways,
+  // down to the narrowest width side by side.
+  const sideBySide = page.viewportSize();
+  for (const width of [1024, sideBySide?.width ?? 1280]) {
+    await resize(page, { width, height: sideBySide?.height ?? 720 });
+    await expect(pane).toBeVisible();
+    await fitsAcross(list.locator(".list-head"), list);
+    await onOneRow(list.locator(".list-head"));
+  }
+
+  // At a phone's width the session open shows alone, its bar leading back
+  // to the rows, which show alone too, each opening its session on a page
+  // of its own, down to the narrowest phone.
+  await resize(page, { width: 390, height: 844 });
+  await expect(list).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Agent / })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("builder/main");
+  expect(await scrollsSideways()).toBe(false);
+  await page
+    .getByRole("region", { name: "Session actions" })
+    .getByRole("link", { name: "Back to sessions" })
+    .click();
+  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sessions");
+  for (const width of [390, 320]) {
+    await resize(page, { width, height: 844 });
+    expect(await scrollsSideways()).toBe(false);
+  }
+  await page.locator('a.session-lead[href^="/sessions/deployer/main"]').click();
+  await expect(page).toHaveURL(/\/sessions\/deployer\/main$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("deployer/main");
+  await expect(page.getByRole("button", { name: /^Agent / })).toHaveCount(0);
+  expect(await scrollsSideways()).toBe(false);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/sessions$/);
+  if (sideBySide !== null) {
+    await resize(page, sideBySide);
+  }
+  await expect(pane.locator(".empty")).toBeVisible();
+});
+
+test("a registration waits above the agents, its page saying what it proposes, its form going on across the width", async ({
+  agention,
+}) => {
+  // A new agent's registration, and one to approve onto a session there is,
+  // as from an agent that lost its credential.
+  const reviewer = new Agent(agention);
+  const again = new Agent(agention);
+  await showList();
+  await reviewer.send("POST", "/registrations", { agent: "reviewer", session: "main" });
+  await again.send("POST", "/registrations", { agent: "builder", session: "main" });
+  const code = registrationCode(reviewer.publicKey as PublicKey);
+  const againCode = registrationCode(again.publicKey as PublicKey);
+  await tab("Sessions").click();
+  const list = page.getByRole("region", { name: "Session list" });
+  const pane = page.getByRole("region", { name: "Session", exact: true });
+  const waitingRow = list.getByRole("link", { name: new RegExp(`^Registration ${code} for `) });
+  const builder = list.locator('a.session-lead[href^="/sessions/builder/main"]');
+  const wide = page.viewportSize() ?? { width: 1280, height: 720 };
+  const narrow = { width: 1000, height: wide.height };
+
+  // The requests wait above the agents, and the session one would be
+  // approved onto leads to it too.
+  await expect(waitingRow).toBeVisible();
+  const agentsTop = await list.getByRole("heading", { level: 2, name: "Agents" }).boundingBox();
+  const rowTop = await waitingRow.boundingBox();
+  expect((rowTop?.y ?? 0) < (agentsTop?.y ?? 0)).toBe(true);
+  await builder
+    .locator("xpath=ancestor::li[1]")
+    .getByRole("link", { name: new RegExp(`^Registration ${againCode}`) })
+    .click();
+  await expect(page).toHaveURL(/\/registrations\/\d+$/);
+  // Its row's chip, in the warning's tone, says it would be approved onto a
+  // session there is, which its page offers as a button of its own.
+  const rowOfCode = (each: string) =>
+    list
+      .getByRole("link", { name: new RegExp(`^Registration ${each} for `) })
+      .locator("xpath=ancestor::li[1]");
+  await expect(rowOfCode(againCode).locator(".session-facts li.warning")).toHaveCount(1);
+  const againCard = pane.getByRole("article", { name: `Registration ${againCode}` });
+  await expect(againCard.getByRole("button", { name: "Approve as builder/main" })).toBeVisible();
+  await expect(againCard.getByRole("group", { name: "Session" })).toBeHidden();
+
+  // Its page beside the rows: the code, and its approval.
+  await waitingRow.click();
+  await expect(page).toHaveURL(/\/registrations\/\d+$/);
+  await expect(waitingRow).toHaveAttribute("aria-current", "page");
+  // At every width, as the pane names itself only side by side.
+  const card = page.getByRole("article", { name: `Registration ${code}` });
+  await expect(card.getByText(code, { exact: true })).toBeVisible();
+  await expect(rowOfCode(code).locator(".session-facts li.accent")).toHaveCount(1);
+
+  // Half filled: an agent chosen from the list, a session of it half named,
+  // the caret within the name.
+  const name = card.getByRole("textbox", { name: "New session name" });
+  await card.getByRole("button", { name: "Change agent or session" }).click();
+  await card.getByRole("radio", { name: "An existing agent" }).check();
+  await card.getByRole("combobox", { name: "Existing agent" }).selectOption("deployer");
+  await card.getByRole("radio", { name: "A new session" }).check();
+  await name.fill("nightly");
+  await name.press("Home");
+  await name.press("ArrowRight");
+  await name.press("ArrowRight");
+  const typedIn = await name.elementHandle();
+  const asItWas = async () => {
+    await expect(card).toHaveCount(1);
+    expect(await name.evaluate((input, before) => input === before, typedIn)).toBe(true);
+    await expect(card.getByRole("radio", { name: "An existing agent" })).toBeChecked();
+    await expect(card.getByRole("combobox", { name: "Existing agent" })).toHaveValue("deployer");
+    await expect(card.getByRole("radio", { name: "A new session" })).toBeChecked();
+    await expect(name).toHaveValue("nightly");
+  };
+  const caret = () => name.evaluate((input: HTMLInputElement) => input.selectionStart);
+  const scrollsSideways = () =>
+    page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  for (const size of [narrow, { width: 390, height: 844 }, { width: 320, height: 700 }, wide]) {
+    await resize(page, size);
+    await asItWas();
+    await expect(name).toBeFocused();
+    expect(await caret()).toBe(2);
+    expect(await scrollsSideways()).toBe(false);
+  }
+
+  // A question it asks stays asked.
+  await card.getByRole("button", { name: "Reject" }).click();
+  await resize(page, narrow);
+  await expect(card.getByRole("button", { name: "Reject registration" })).toBeFocused();
+  await resize(page, wide);
+  await card.getByRole("button", { name: "Cancel" }).click();
+
+  // Going back to the rows lands on the row of the registration left.
+  await page.keyboard.press("u");
+  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(waitingRow).toBeFocused();
+
+  // Rejecting returns to the rows, the request gone.
+  for (const rejected of [code, againCode]) {
+    await list.getByRole("link", { name: new RegExp(`^Registration ${rejected} for `) }).click();
+    const shown = pane.getByRole("article", { name: `Registration ${rejected}` });
+    await shown.getByRole("button", { name: "Reject" }).click();
+    await shown.getByRole("button", { name: "Reject registration" }).click();
+    await expect(page).toHaveURL(/\/sessions$/);
+  }
+  await expect(list.getByRole("heading", { name: "Waiting for approval" })).toHaveCount(0);
+  await expect(pane.locator(".empty")).toBeVisible();
 });
 
 test("Settings orders the groups by their buttons and by dragging, keeping the order", async () => {

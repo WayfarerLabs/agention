@@ -8,7 +8,7 @@ import {
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../errors.ts";
-import { sweepFiles } from "./file-sweep.ts";
+import { sweepFiles } from "./sweep.ts";
 import {
   abortUpload,
   beginUpload,

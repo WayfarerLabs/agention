@@ -9,7 +9,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { deflateSync, crc32 } from "node:zlib";
 import { Agent } from "./agent.ts";
-import { type Agention, expect } from "./fixtures.ts";
+import { type Agention, approve, expect, reportPolicyRefusals } from "./fixtures.ts";
 
 export const threads = "/s/builder/main/threads";
 
@@ -123,6 +123,7 @@ export async function signIn(
     baseURL: server.origin,
     viewport: { width: 1280, height: 800 },
   });
+  await reportPolicyRefusals(context);
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
@@ -142,12 +143,7 @@ export async function signIn(
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   const agent = new Agent(server);
   await agent.send("POST", "/registrations", { agent: "builder", session: "main" });
-  await page.getByRole("link", { name: "Sessions" }).click();
-  const code = registrationCode(agent.publicKey as PublicKey);
-  await page
-    .getByRole("article", { name: `Registration ${code}` })
-    .getByRole("button", { name: "Approve" })
-    .click();
+  await approve(page, registrationCode(agent.publicKey as PublicKey));
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
   return { context, page, agent };
 }

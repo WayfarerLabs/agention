@@ -81,11 +81,14 @@ function Shell() {
   const operatorExists = state.signed_in || state.operator_exists;
   const nav = state.signed_in ? <Navigation route={route} /> : undefined;
   // Each route gets a view of its own, loaded afresh, except that the thread
-  // list and the threads share one, the Threads tab, which mounts afresh
-  // what it shows. A query alone, such as the thread list's filter, is the
-  // view's to follow.
+  // list and the threads share one, the Threads tab, and the sessions' rows
+  // and the sessions another, the Sessions tab, each mounting afresh what it
+  // shows. A query alone, such as the thread list's filter, is the view's to
+  // follow.
   const threadsTab = route.name === "threads" || route.name === "thread";
-  const view = threadsTab ? "threads" : location.pathname;
+  const sessionsTab =
+    route.name === "sessions" || route.name === "session" || route.name === "registration";
+  const view = threadsTab ? "threads" : sessionsTab ? "sessions" : location.pathname;
   const frame = (
     <Frame nav={nav} view={view}>
       {route.name === "sign-in" ? (
@@ -94,6 +97,10 @@ function Shell() {
         <LinkPage operatorExists={operatorExists} />
       ) : threadsTab ? (
         <Threads thread={route.name === "thread" ? route : undefined} />
+      ) : sessionsTab ? (
+        <Sessions
+          open={route.name === "session" || route.name === "registration" ? route : undefined}
+        />
       ) : (
         <View route={route} key={view} />
       )}
@@ -110,8 +117,6 @@ function Shell() {
 
 function View({ route }: { route: Route }) {
   switch (route.name) {
-    case "sessions":
-      return <Sessions />;
     case "settings":
       return <Settings />;
     case "settings-section":
@@ -125,10 +130,15 @@ function View({ route }: { route: Route }) {
 // and the pages within it, such as a thread within the list's. A tab marks
 // its own page as the page on screen, and a page within it as the current
 // section only, since the tab links elsewhere.
-const sections: { to: string; label: string; route: Route["name"]; within?: Route["name"] }[] = [
-  { to: "/", label: "Threads", route: "threads", within: "thread" },
-  { to: "/sessions", label: "Sessions", route: "sessions" },
-  { to: "/settings", label: "Settings", route: "settings", within: "settings-section" },
+const sections: {
+  to: string;
+  label: string;
+  route: Route["name"];
+  within: readonly Route["name"][];
+}[] = [
+  { to: "/", label: "Threads", route: "threads", within: ["thread"] },
+  { to: "/sessions", label: "Sessions", route: "sessions", within: ["session", "registration"] },
+  { to: "/settings", label: "Settings", route: "settings", within: ["settings-section"] },
 ];
 
 function Navigation({ route }: { route: Route }) {
@@ -142,7 +152,7 @@ function Navigation({ route }: { route: Route }) {
               aria-current={
                 section.route === route.name
                   ? "page"
-                  : section.within === route.name
+                  : section.within.includes(route.name)
                     ? "true"
                     : undefined
               }

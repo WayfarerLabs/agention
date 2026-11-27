@@ -49,8 +49,16 @@ import {
 import { Icon, Mark } from "../../icons.tsx";
 import { useShortcuts } from "../../keyboard.tsx";
 import { takeNotice } from "../../notice.ts";
-import { Link, listHref, navigate, threadPathParts, useListView } from "../../router.tsx";
+import {
+  Link,
+  listHref,
+  navigate,
+  sessionHref,
+  threadPathParts,
+  useListView,
+} from "../../router.tsx";
 import { useVoiceOn } from "../../voice/Dictation.tsx";
+import { SessionPageLink } from "../session-page-link.tsx";
 import { Composer, useAfterSending } from "./Composer.tsx";
 import { ThreadCodeLinks } from "./CodeLinks.tsx";
 import { ThreadFiles } from "./files/FileList.tsx";
@@ -887,12 +895,17 @@ function ThreadPage({
           </PageHeading>
           {thread.archived && <Mark icon="archive" label="Archived" />}
         </div>
+        {/* Where the thread is: each part opens the list narrowed to it,
+            and beside the session, a small link opens its own page. */}
         <p className="where">
           {threadPathParts(thread, origin).map((part) => (
             <Fragment key={part.kind}>
               <Link to={part.href}>
                 <PathPart kind={part.kind}>{part.label}</PathPart>
-              </Link>{" "}
+              </Link>
+              {part.kind === "session" && (
+                <SessionPageLink agent={thread.agent} session={thread.session} />
+              )}{" "}
             </Fragment>
           ))}
           · started <Time value={thread.created_at} />
@@ -919,10 +932,15 @@ function ThreadPage({
       <ThreadFiles target={target} totals={data.files} showMessage={(seq) => focusOn({ seq })} />
       <ThreadCodeLinks pullRequests={data.pull_requests} branches={data.branches} origin={origin} />
 
+      {/* The session named leads to its page, which shows its credentials
+          and any registration waiting to be approved onto it. */}
       {!thread.credential_active && (
         <p className="notice">
-          {thread.agent}/{thread.session} has no active credential, so the agent cannot read what
-          you write until a registration for this session is approved.
+          <Link to={sessionHref(thread.agent, thread.session)}>
+            {thread.agent}/{thread.session}
+          </Link>{" "}
+          has no active credential, so the agent cannot read what you write until a registration for
+          this session is approved.
         </p>
       )}
 

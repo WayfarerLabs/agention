@@ -1,31 +1,19 @@
 import { useShortcuts } from "../../keyboard.tsx";
+import { currentRow, openRow, stepRow } from "../row-keys.ts";
 import type { MarkKey } from "./ListBar.tsx";
 import { needsYou, rowLinks } from "./ThreadRow.tsx";
 
 // The thread list's keyboard shortcuts. The current row is the row holding
-// focus, on its link, its checkbox, or its pull request or branch, so moving
-// from row to row moves focus, which a screen reader follows, and the focus
-// ring shows it. With focus on no row, side by side, the row of the thread
-// open beside the list is current, so moving starts from it and opens
-// nothing; with none current, moving goes to the first row there is to move
-// to. Selecting threads to act on together (selection.tsx) is apart from
-// this: x selects the current row's thread, and I and U mark read or unread
-// the threads selected, or with none, the current row's.
+// focus, on its link, its checkbox, or its pull request or branch, or else,
+// side by side, the row of the thread open beside the list; o opens only the
+// row holding focus (row-keys.ts). Selecting threads to act on together
+// (selection.tsx) is apart from this: x selects the current row's thread, and
+// I and U mark read or unread the threads selected, or with none, the
+// current row's.
 
-function current(links: HTMLAnchorElement[]): number {
-  const row = document.activeElement?.closest(".thread-row") ?? null;
-  const focused = row === null ? -1 : links.findIndex((link) => row.contains(link));
-  return focused !== -1
-    ? focused
-    : links.findIndex((link) => link.getAttribute("aria-current") === "page");
-}
-
-// step moves focus by one row, stopping at either end.
-function step(by: 1 | -1): void {
-  const links = rowLinks();
-  const at = current(links);
-  (at === -1 ? links[0] : links[at + by])?.focus();
-}
+const row = ".thread-row";
+const current = (links: HTMLAnchorElement[]) => currentRow(links, row);
+const step = (by: 1 | -1) => stepRow(rowLinks(), row, by);
 
 // seek moves focus to the next row, or the previous, whose thread is
 // unread or blocked on the operator, going round past either end.
@@ -44,11 +32,9 @@ function seek(by: 1 | -1): void {
   }
 }
 
-// open opens the current row's thread, as following its link does.
-function open(): void {
-  const links = rowLinks();
-  links[current(links)]?.click();
-}
+// open opens the thread of the row holding focus, as following its link
+// does.
+const open = () => openRow(rowLinks(), row);
 
 // The current row's thread, by its key, if a row is current.
 function currentKey(): string | undefined {

@@ -27,6 +27,7 @@ import {
   newPublicKey,
   requestId,
   threadTarget,
+  testOrigin,
 } from "./test-fixture.ts";
 import { listSessionThreads, listThreads } from "./thread-lists.ts";
 import { createThread, getThread, sendMessage } from "./threads.ts";
@@ -96,7 +97,7 @@ function sessionOperations(identity: Identity, target: { agent: string; session:
 function crossSessionOperations(identity: Identity) {
   const pending = () => {
     const publicKey = newPublicKey();
-    submitRegistration(fixture.store, publicKey, { agent: "new", session: "one" });
+    submitRegistration(fixture.store, publicKey, { agent: "new", session: "one" }, testOrigin);
     return (
       fixture.db.prepare("SELECT id FROM registrations WHERE public_key = ?").get(publicKey) as {
         id: number;
@@ -215,13 +216,13 @@ describe("a credential revoked after authentication", () => {
 
   it("is an identity no more once its registration is gone from approval", () => {
     const publicKey = newPublicKey();
-    submitRegistration(fixture.store, publicKey, { agent: "builder", session: "main" });
+    submitRegistration(fixture.store, publicKey, { agent: "builder", session: "main" }, testOrigin);
     const { id } = fixture.db
       .prepare("SELECT id FROM registrations WHERE public_key = ?")
       .get(publicKey) as { id: number };
-    expect(identityForRegistration(fixture.db, id)).toBeUndefined();
+    expect(identityForRegistration(fixture.db, id, testOrigin)).toBeUndefined();
     rejectRegistration(fixture.store, fixture.operator, id);
-    expect(identityForRegistration(fixture.db, id)).toBeUndefined();
+    expect(identityForRegistration(fixture.db, id, testOrigin)).toBeUndefined();
   });
 });
 
@@ -258,7 +259,9 @@ describe("an expired browser session", () => {
       .catch((error: unknown) => error);
     expect(refusal).toBeInstanceOf(ApiError);
     expect((refusal as ApiError).message).not.toMatch(/\bregister\b/);
-    expect(identityForBrowserSession(fixture.db, fixture.browserSession)).toBeUndefined();
+    expect(
+      identityForBrowserSession(fixture.db, fixture.browserSession, testOrigin),
+    ).toBeUndefined();
   });
 });
 

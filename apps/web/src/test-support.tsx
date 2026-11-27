@@ -16,7 +16,7 @@ import {
   type ThreadList,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { vi } from "vitest";
 import { App } from "./App.tsx";
 
@@ -106,8 +106,8 @@ export class FakeApi {
   readonly #routes = new Map<string, Handler>();
 
   // Signed in, with an empty thread list, no sessions, nothing waiting on
-  // the operator, and no groups or tags, unless a test registers other
-  // answers.
+  // the operator, and no groups, tags or saved views, unless a test registers
+  // other answers.
   constructor() {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
@@ -115,6 +115,7 @@ export class FakeApi {
     this.on("GET", "/sessions", { body: { agents: [] } });
     this.on("GET", "/attention", { body: noAttention });
     this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
+    this.on("GET", "/saved-views", { body: { views: [] } });
     this.on("GET", "/settings", { body: noSettings });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),
@@ -279,6 +280,29 @@ if (HTMLDialogElement.prototype.showModal === undefined) {
       this.dispatchEvent(new Event("close"));
     }
   };
+}
+
+// stubWidth stands in for the window's width, which jsdom has none of: at a
+// desktop's, where a tab's list and what is open stand side by side
+// (views/side-by-side.tsx), unless wide says narrower. It gives a way to
+// take the page across that width, as a window resized does, or, before
+// the page renders, to start it on the other side.
+export function stubWidth(wide = true): (toWide: boolean) => void {
+  // What follows the page's media queries.
+  const followers = new Set<() => void>();
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    media: query,
+    get matches() {
+      return query === "(min-width: 64rem)" && wide;
+    },
+    addEventListener: (_: string, follow: () => void) => followers.add(follow),
+    removeEventListener: (_: string, follow: () => void) => followers.delete(follow),
+  }));
+  return (toWide) =>
+    act(() => {
+      wide = toWide;
+      followers.forEach((follow) => follow());
+    });
 }
 
 // renderAt renders the application at a path, with state in its history

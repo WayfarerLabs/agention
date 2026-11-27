@@ -7,7 +7,7 @@ import {
 import { compactVerify, decodeProtectedHeader, importJWK } from "jose";
 import type { Database } from "../database/database.ts";
 import { agentUnauthenticated, ApiError, unapprovedKey, unauthenticated } from "../errors.ts";
-import { type Identity, identityForRegistration } from "../identity.ts";
+import { type Identity, identityForRegistration, type RequestOrigin } from "../identity.ts";
 import { findRegistrationByKey } from "../store/index.ts";
 
 // Agents authenticate every request with a token they mint themselves: a
@@ -95,6 +95,7 @@ export async function verifyRegistrationToken(
 
 // authenticateAgent authenticates a request on a session: the token's key must
 // belong to an approved registration, whose session the identity reaches. The
+// identity carries the request it arrived as. The
 // operation's transaction confirms the registration is still approved. Its
 // refusals also tell the agent to call register, which reports what the
 // operator still has to do.
@@ -103,6 +104,7 @@ export async function authenticateAgent(
   authorization: string | undefined,
   origin: string,
   now: number,
+  request: RequestOrigin,
 ): Promise<{ identity: Identity; publicKey: PublicKey }> {
   try {
     const { token, kid } = keyIdOf(authorization);
@@ -112,7 +114,9 @@ export async function authenticateAgent(
     }
     await verifySignedBy(token, kid, origin, now);
     const identity =
-      registration.status === "approved" ? identityForRegistration(db, registration.id) : undefined;
+      registration.status === "approved"
+        ? identityForRegistration(db, registration.id, request)
+        : undefined;
     if (identity === undefined) {
       throw unauthenticated(unapprovedKey(registration.status));
     }

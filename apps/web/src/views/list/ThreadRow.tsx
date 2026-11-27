@@ -1,5 +1,6 @@
 import type { AskSummary, OpenAsks, ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
+  type FocusEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -9,14 +10,7 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import {
-  type FoldLevel,
-  focusLanding,
-  PathParts,
-  placeOf,
-  Tags,
-  ThreadTitle,
-} from "../../components.tsx";
+import { type FoldLevel, PathParts, placeOf, Tags, ThreadTitle } from "../../components.tsx";
 import {
   absenceOf,
   absenceWords,
@@ -35,7 +29,7 @@ import { readDraft } from "../../device.ts";
 import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
 import { CodeLinksMark, RowCodeLink } from "../code-links.tsx";
 import type { ListShown } from "../filter-links.tsx";
-import { ListBeside } from "./beside.ts";
+import { ListBeside, landFrom } from "../side-by-side.tsx";
 import { RowFocusOwed } from "./focus-owed.ts";
 import { ListSelection, longPress, threadKey } from "./selection.tsx";
 
@@ -163,13 +157,16 @@ export function ThreadRow({
       }
     };
   }, []);
-  // Opening the thread already open beside the list lands in its pane.
-  const openAgain = () => {
-    const page = link.current?.closest("main");
-    if (page !== null && page !== undefined) {
-      focusLanding(page);
+  // The browser brings into view only the link that takes focus, so a row
+  // whose ring shows comes into view whole, the ring and anything beneath
+  // the link included, however focus came: a key, Tab or a landing.
+  const onFocus = (event: FocusEvent) => {
+    if (event.target === link.current && event.target.matches(":focus-visible")) {
+      event.currentTarget.scrollIntoView?.({ block: "nearest" });
     }
   };
+  // Opening the thread already open beside the list lands in its pane.
+  const openAgain = () => landFrom(link.current);
   const selection = useContext(ListSelection);
   const key = threadKey(thread);
   const selected = selection?.isSelected(key) === true;
@@ -196,6 +193,7 @@ export function ThreadRow({
     <li
       className={classes.filter(Boolean).join(" ")}
       onClickCapture={onClickCapture}
+      onFocus={onFocus}
       {...press.handlers}
     >
       {selection !== undefined && (!selection.touch || selection.selecting) && (

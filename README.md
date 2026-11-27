@@ -36,7 +36,8 @@ or your desk. They read your answers and carry on.
   passkey, and each agent session holds a key of its own that you approve by matching a short code.
 
 Your own programs can read and answer as you through the [operator API](docs/operator-api.md), with
-API keys you scope and revoke.
+API keys you scope and revoke. An audit log records every write, sign-in and credential change, and
+which credential made it, and can deliver it to your log pipeline.
 
 <br clear="right">
 
@@ -101,7 +102,9 @@ Agention records and shows. The agent decides what to do with an answer.
 
 It also works on the honor system: it cannot stop an agent from misreporting. What it enforces is
 that every message is attributed to whoever wrote it, that sessions see only their own threads, and
-that history is never edited or erased. [SECURITY.md](SECURITY.md) has the full model.
+that history is never edited or erased, but in the audit log, where retention removes the oldest
+events and a counted failure's count rises until its minute ends. [SECURITY.md](SECURITY.md) has the
+full model.
 
 ## Learn more
 

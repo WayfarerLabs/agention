@@ -19,8 +19,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Database } from "../database/database.ts";
 import { openTestDatabase } from "../database/test-database.ts";
-import { type Identity, identityForBrowserSession, identityForRegistration } from "../identity.ts";
+import {
+  type Identity,
+  identityForBrowserSession,
+  identityForRegistration,
+  type RequestOrigin,
+} from "../identity.ts";
 import { insertOperator } from "./directory.ts";
+import { storeName } from "./server-name.ts";
 import { markSeen } from "./presence.ts";
 import { approveRegistration, submitRegistration } from "./registrations.ts";
 import { updateSession } from "./sessions.ts";
@@ -35,6 +41,18 @@ import {
 } from "./threads.ts";
 
 export const start = Date.UTC(2026, 9, 27, 12);
+
+// The origin of a store test's calls, which arrive from no request: an
+// in-process call to a route of the web mount.
+export const testOrigin: RequestOrigin = {
+  ip: undefined,
+  userAgent: undefined,
+  method: "POST",
+  path: "/api/web/test",
+  route: "/api/web/test",
+  service: "web",
+  serverOrigin: "https://agention.test",
+};
 export const hour = 60 * 60 * 1000;
 
 export interface Agent {
@@ -89,22 +107,28 @@ export class Fixture {
   now = start;
 
   // options.quietAfter is how long a session goes unseen before it is quiet,
-  // by default the server's own.
-  constructor(options: { quietAfter?: number } = {}) {
+  // by default the server's own. The server's name is stored, as the first
+  // start to serve stores it, Agention unless options.name gives another.
+  constructor(options: { quietAfter?: number; name?: string } = {}) {
     this.root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-store-")));
     this.db = openTestDatabase(path.join(this.root, "agention.db"));
-    this.store = createStore(this.db, { clock: () => this.now, ...options });
+    storeName(this.db, options.name ?? "Agention");
+    this.store = createStore(this.db, {
+      clock: () => this.now,
+      ...(options.quietAfter === undefined ? {} : { quietAfter: options.quietAfter }),
+    });
     this.browserSession = randomBytes(32);
     this.passkeyId = this.db.transaction(() => {
       const operator = insertOperator(this.db, "operator", this.now);
       const passkeyId = insertTestPasskey(this.db, operator.personId, this.now);
       this.db
         .prepare(
-          `INSERT INTO browser_sessions (hash, person_id, passkey_id, csrf_token, created_at,
-             idle_expires_at, absolute_expires_at) VALUES (?, ?, ?, 'csrf', ?, ?, ?)`,
+          `INSERT INTO browser_sessions (hash, id, person_id, passkey_id, csrf_token, created_at,
+             idle_expires_at, absolute_expires_at) VALUES (?, ?, ?, ?, 'csrf', ?, ?, ?)`,
         )
         .run(
           this.browserSession,
+          randomBytes(16).toString("hex"),
           operator.personId,
           passkeyId,
           this.now,
@@ -113,7 +137,7 @@ export class Fixture {
         );
       return passkeyId;
     });
-    const operator = identityForBrowserSession(this.db, this.browserSession);
+    const operator = identityForBrowserSession(this.db, this.browserSession, testOrigin);
     if (operator === undefined) {
       throw new Error("no operator identity");
     }
@@ -133,7 +157,7 @@ export class Fixture {
   // either when it does not exist yet.
   registerAgent(agent: string, session: string): Agent {
     const key = newPublicKey();
-    submitRegistration(this.store, key, { agent, session });
+    submitRegistration(this.store, key, { agent, session }, testOrigin);
     const { id } = this.db
       .prepare("SELECT id FROM registrations WHERE public_key = ?")
       .get(key) as {
@@ -151,7 +175,7 @@ export class Fixture {
       agent: { name: agent, existing: agentExists },
       session: { name: session, existing: sessionExists },
     });
-    const identity = identityForRegistration(this.db, id);
+    const identity = identityForRegistration(this.db, id, testOrigin);
     if (identity === undefined) {
       throw new Error("no agent identity");
     }

@@ -14,9 +14,10 @@ import {
   parseTimestamp,
   type Scope,
 } from "@wayfarerlabs/agention-api";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { apiKeyUnauthenticated, invalidInput, notFound } from "../errors.ts";
-import type { Identity } from "../identity.ts";
+import { type Identity, keyRefusalCode, type RequestOrigin } from "../identity.ts";
 import { everySession, type Store } from "../store/index.ts";
 import { requireRecentSignIn, signedInSession } from "./browser-sessions.ts";
 import { hashOfSecret, newSecret } from "./secrets.ts";
@@ -153,6 +154,11 @@ export function createApiKey(
         now,
         expiresAt,
       ) as unknown as KeyRow;
+    recordAudit(store, now, { kind: "identity", identity }, "createApiKey", {
+      key: { id: row.id, name: row.name },
+      scopes: scopesOf(row),
+      expiresAt: row.expires_at,
+    });
     return { key: summaryOf(row, now), secret: secret.token };
   });
 }
@@ -180,6 +186,9 @@ export function revokeApiKey(store: Store, identity: Identity, id: number): ApiK
          RETURNING id, person_id, name, scopes, created_at, expires_at, last_used_at, revoked_at`,
       )
       .get(now, id) as unknown as KeyRow;
+    recordAudit(store, now, { kind: "identity", identity }, "revokeApiKey", {
+      key: { id: row.id, name: row.name },
+    });
     return { key: summaryOf(row, now) };
   });
   store.notifier.notify(everySession);
@@ -188,12 +197,14 @@ export function revokeApiKey(store: Store, identity: Identity, id: number): ApiK
 
 // authenticateApiKey authenticates an Authorization header carrying a key as
 // a bearer token: the key must exist, unrevoked and unexpired. Every refusal
-// is the same, so it tells no one whether a key ever existed. Its use is
-// recorded at most hourly. Operations still confirm the key in their own
-// transaction.
+// is the same, so it tells no one whether a key ever existed; one of a key
+// the server found names it, for the audit log alone. Its use is recorded at
+// most hourly, and its first use in the audit log too, in one transaction.
+// Operations still confirm the key in their own transaction.
 export function authenticateApiKey(
   store: Store,
   authorization: string | undefined,
+  origin: RequestOrigin,
 ): { identity: Identity; keyId: number } {
   const { db } = store;
   const presented = apiKeySecret.safeParse(/^Bearer (\S+)$/i.exec(authorization ?? "")?.[1]);
@@ -209,18 +220,32 @@ export function authenticateApiKey(
       ? undefined
       : (db.prepare("SELECT id FROM actors WHERE person_id = ?").get(row.person_id) as
           { id: number } | undefined);
-  if (row === undefined || actor === undefined || !isLive(row, now)) {
+  if (row === undefined || actor === undefined) {
     throw apiKeyUnauthenticated();
   }
-  if (row.last_used_at === null || now - row.last_used_at >= lastUsedStep) {
+  const code = keyRefusalCode(row, now);
+  if (code !== undefined) {
+    throw apiKeyUnauthenticated({ key: row.id, code });
+  }
+  const identity: Identity = {
+    actor: actor.id,
+    credential: { kind: "api_key", id: row.id },
+    grants: { sessions: "all", scopes: scopesOf(row) },
+    origin,
+  };
+  if (row.last_used_at === null) {
+    db.transaction(() => {
+      const first = db
+        .prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ? AND last_used_at IS NULL")
+        .run(now, row.id);
+      if (first.changes === 1) {
+        recordAudit(store, now, { kind: "identity", identity }, "activateApiKey", {
+          key: { id: row.id, name: row.name },
+        });
+      }
+    });
+  } else if (now - row.last_used_at >= lastUsedStep) {
     db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(now, row.id);
   }
-  return {
-    identity: {
-      actor: actor.id,
-      credential: { kind: "api_key", id: row.id },
-      grants: { sessions: "all", scopes: scopesOf(row) },
-    },
-    keyId: row.id,
-  };
+  return { identity, keyId: row.id };
 }

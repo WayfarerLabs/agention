@@ -4,9 +4,9 @@
 // key's scopes until the key is revoked; and the section, its form and a new
 // secret fit a phone's width.
 import type { BrowserContext, Page } from "@playwright/test";
-import { apiKeySecret } from "@wayfarerlabs/agention-api";
+import { apiKeySecret, scopes } from "@wayfarerlabs/agention-api";
 import { type Answer, callServer } from "./agent.ts";
-import { type Agention, expect, resize, test } from "./fixtures.ts";
+import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -21,6 +21,7 @@ const phone = { width: 390, height: 844 };
 test.beforeAll(async ({ browser, keysServer }) => {
   server = keysServer;
   context = await browser.newContext({ baseURL: server.origin, viewport: wide });
+  await reportPolicyRefusals(context);
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: server.origin });
   page = await context.newPage();
   page.on("console", (message) => {
@@ -124,7 +125,7 @@ test("the keys, the form and a new secret fit a phone's width", async () => {
 
     await section().getByRole("button", { name: "Create an API key" }).click();
     await section().getByLabel("Name").fill("Phone");
-    await expect(section().getByRole("checkbox")).toHaveCount(5);
+    await expect(section().getByRole("checkbox")).toHaveCount(scopes.length);
     await section().getByRole("checkbox", { name: "threads:write" }).check();
     await expect(section().getByRole("checkbox", { name: "threads:read" })).toBeChecked();
     await expect(section().getByRole("checkbox", { name: "threads:read" })).toBeDisabled();

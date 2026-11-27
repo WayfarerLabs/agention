@@ -2,6 +2,7 @@ import {
   type Color,
   colors,
   groupName,
+  savedViewName,
   type ThreadsView,
   tagName,
 } from "@wayfarerlabs/agention-api";
@@ -14,8 +15,9 @@ import { FilterLink } from "../filter-links.tsx";
 import { type Drag, DragHandle, useDropTarget } from "../group-order.tsx";
 
 // The parts Settings' lists of groups and of tags share: a list's head, with
-// its search box and New; the form that names a group or a tag; and one group
-// or tag in its list, with what it holds, Rename, its color and Remove.
+// its search box and New; the form that names a group or a tag, which saved
+// views' names share too; and one group or tag in its list, with what it
+// holds, Rename, its color and Remove.
 
 // useSearch gives a list's search box, and the words it narrows the list to.
 export function useSearch(label: string): [ReactNode, string] {
@@ -79,14 +81,29 @@ function NameField({
   );
 }
 
-// How a group's or a tag's name is typed: a group's as written, trimmed, and
-// a tag's in lowercase, as the API takes each.
-const typedName = (kind: "group" | "tag", value: string) =>
-  kind === "group" ? value.trim() : value.trim().toLowerCase();
+// What a name form names.
+export type NamedKind = "group" | "tag" | "view";
 
-// NameForm names a group or a tag, new or renamed, with the API's rule for
-// the name, and Save and Cancel; done says whether it took the name.
-function NameForm({
+// Each kind's name as the API takes it: its rule, its longest, and how it is
+// typed, a group's and a view's as written, trimmed, and a tag's in
+// lowercase.
+const nameRules: Record<
+  NamedKind,
+  {
+    schema: typeof groupName | typeof tagName | typeof savedViewName;
+    maxLength: number;
+    typed: (value: string) => string;
+  }
+> = {
+  group: { schema: groupName, maxLength: 100, typed: (value) => value.trim() },
+  tag: { schema: tagName, maxLength: 63, typed: (value) => value.trim().toLowerCase() },
+  view: { schema: savedViewName, maxLength: 100, typed: (value) => value.trim() },
+};
+
+// NameForm names a group, a tag or a saved view, new or renamed, with the
+// API's rule for the name, and its submit button and Cancel; done says
+// whether it took the name.
+export function NameForm({
   kind,
   label,
   start,
@@ -94,7 +111,7 @@ function NameForm({
   done,
   onCancel,
 }: {
-  kind: "group" | "tag";
+  kind: NamedKind;
   label: string;
   start: string;
   submitLabel: string;
@@ -103,8 +120,9 @@ function NameForm({
 }) {
   const [value, setValue] = useState(start);
   const [shown, setShown] = useState(false);
-  const typed = typedName(kind, value);
-  const problem = nameProblem(kind === "group" ? groupName : tagName, "name", typed);
+  const rule = nameRules[kind];
+  const typed = rule.typed(value);
+  const problem = nameProblem(rule.schema, "name", typed);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setShown(true);
@@ -120,7 +138,7 @@ function NameForm({
         value={value}
         onChange={setValue}
         problem={shown || value !== start ? problem : undefined}
-        maxLength={kind === "group" ? 100 : 63}
+        maxLength={rule.maxLength}
       />
       <div className="actions">
         <button type="submit">{submitLabel}</button>

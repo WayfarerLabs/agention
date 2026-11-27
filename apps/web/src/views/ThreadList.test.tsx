@@ -57,6 +57,7 @@ const lastQuery = () => api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
 const address = () => window.location.search;
 
 const filtersButton = () => screen.getByRole("button", { name: /^Filters/ });
+const savedViewsButton = () => screen.getByRole("button", { name: /^Saved views/ });
 // Search, which opens the head's search field, its name saying the search
 // on; the field's box, while it is open; and the sheet's.
 const searchButton = () => screen.getByRole("button", { name: /^Search(, "[^"]*")?$/ });
@@ -362,13 +363,14 @@ describe("the thread list", () => {
     expect(api.callsTo("GET", "/threads/counts")).toEqual([]);
   });
 
-  it("heads the list with one row of Search, Filters, the order and its direction, and the grouping, after its heading", async () => {
+  it("heads the list with one row of Saved views, Search, Filters, the order and its direction, and the grouping, after its heading", async () => {
     serve([]);
     renderAt("/");
     const heading = await screen.findByRole("heading", { level: 1 });
     const head = filtersButton().parentElement as HTMLElement;
     const controls = Array.from(head.querySelectorAll("h1, input, select, button"));
     expect(controls).toEqual([
+      savedViewsButton(),
       searchButton(),
       filtersButton(),
       sortSelect(),
@@ -1632,6 +1634,33 @@ describe("the chips", () => {
     ]);
     expect(chips()).toHaveLength(on.length - 3);
     expect(new URLSearchParams(address()).get("group")).toBe("agent");
+  });
+
+  it("end a chip naming one session in a link of its own to the session's page, the chip still removing its filter", async () => {
+    serve([]);
+    renderAt("/?session=builder/main&topic=builder/main/auth&group=agent");
+    await screen.findByRole("heading", { level: 1 });
+    const chip = screen.getByRole("button", { name: "Remove filter: Session builder/main" });
+    const opens = screen.getByRole("link", { name: "Open session builder/main" });
+    expect(opens.getAttribute("href")).toBe("/sessions/builder/main");
+    // The link stands beside the chip's button, neither holding the other.
+    expect(chip.nextElementSibling).toBe(opens);
+    expect(opens.closest("button")).toBeNull();
+    expect(chip.querySelector("a")).toBeNull();
+    // A topic names its session, but its chip leads nowhere else.
+    expect(screen.getAllByRole("link", { name: /^Open session/ })).toHaveLength(1);
+    chip.focus();
+    fireEvent.click(chip);
+    await waitFor(() => expect(new URLSearchParams(address()).has("session")).toBe(false));
+    expect(screen.queryByRole("link", { name: /^Open session/ })).toBeNull();
+  });
+
+  it("give a chip naming several sessions no link to a session's page", async () => {
+    serve([]);
+    renderAt("/?session=builder/main&session=reviewer/main");
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.getByRole("button", { name: "Remove filter: 2 sessions" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Open session/ })).toBeNull();
   });
 
   it("fit a label of up to 20 characters, a badge counting as two, cutting a longer one short and naming it whole", async () => {

@@ -19,6 +19,7 @@ import {
 } from "react";
 import { describeFailure } from "../../api.ts";
 import { MenuItem, OptionsMenu, Status } from "../../components.tsx";
+import { CopyButton, useCopy } from "../../copy.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import {
   absoluteTime,
@@ -43,7 +44,7 @@ import {
   wordsOf,
 } from "../../voice/speech.ts";
 import { MessageCodeLinks } from "./CodeLinks.tsx";
-import { type Copying, markdownOf, useCopy } from "./copy.ts";
+import { markdownOf } from "./message-markdown.ts";
 import { useMessageFiles } from "./files/FileList.tsx";
 import {
   type AnswerDraft,
@@ -941,39 +942,6 @@ function MessageOptions({
   );
 }
 
-// CopyButton copies a message, as copy.ts's markdownOf gives it, from the
-// end of its head, as a control of the whole message. It shows a check while
-// the copy's confirmation lasts, which a polite live region beside it also
-// says. The region is there before it speaks, since a screen reader may not
-// announce one that arrives already holding its words; it is a live region
-// rather than a status so that it is not one more status on the page.
-function CopyButton({
-  seq,
-  copying,
-  markdown,
-}: {
-  seq: number;
-  copying: Copying;
-  markdown: string;
-}) {
-  const copied = copying.outcome === "copied";
-  return (
-    <>
-      <button
-        type="button"
-        className="copy-button"
-        aria-label={`Copy message ${seq}`}
-        onClick={() => copying.copy(markdown)}
-      >
-        <Icon name={copied ? "check" : "copy"} />
-      </button>
-      <span className="visually-hidden" aria-live="polite" aria-atomic="true">
-        {copied ? "Copied." : ""}
-      </span>
-    </>
-  );
-}
-
 // MessageReadMark says, in the head of a live message of the agent's,
 // whether the operator had read it when the page first showed it: the closed
 // envelope, accented, if not. It says nothing where the page does not know.
@@ -1052,7 +1020,7 @@ function MessageBody({
         {(markdown !== undefined || (menu !== undefined && options.length > 0)) && (
           <div className="head-controls">
             {markdown !== undefined && (
-              <CopyButton seq={message.seq} copying={copying} markdown={markdown} />
+              <CopyButton label={`Copy message ${message.seq}`} copying={copying} text={markdown} />
             )}
             {menu !== undefined && options.length > 0 && (
               <MessageOptions

@@ -4,6 +4,7 @@ import { errorBody } from "./errors.ts";
 import { groupRef } from "./groups-and-tags.ts";
 import { reference } from "./references.ts";
 import { registration } from "./registrations.ts";
+import { savedView, viewWritten } from "./saved-views.ts";
 import {
   presence,
   sessionStatus,
@@ -70,6 +71,7 @@ const named: Record<string, ApiSchema> = {
   pullRequestLink,
   reference,
   registration,
+  savedView,
   sessionStatus,
   sessionSummary,
   sessionUpdate,
@@ -77,6 +79,7 @@ const named: Record<string, ApiSchema> = {
   threadPresence,
   threadStatus,
   threadSummary,
+  viewWritten,
   withdrawal,
   workOutcome,
   workState,

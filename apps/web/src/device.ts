@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 
 // What the operator keeps on one device, in the browser's storage: the
 // choices they make, and their drafts. A browser that holds no choice, or
@@ -100,36 +100,73 @@ export function useDeviceOption<T extends string>(
   return [value, choose];
 }
 
+// The names kept under each key while the page shows them, one set for every
+// hook reading the key, so that two parts of a page keeping names under one
+// key, as the sessions view's group heads do, see and keep each other's:
+// read from storage once something on the page first reads them, and let go
+// once nothing does, so the next to read them reads storage afresh.
+const keptNames = new Map<string, { names: ReadonlySet<string>; listeners: Set<() => void> }>();
+
+function namesUnder(key: string) {
+  let kept = keptNames.get(key);
+  if (kept === undefined) {
+    kept = { names: new Set(readNames(key)), listeners: new Set() };
+    keptNames.set(key, kept);
+  }
+  return kept;
+}
+
 // useDeviceNames gives the names kept under key, none by default, and a way
-// to change and keep them.
-function useDeviceNames(key: string): [ReadonlySet<string>, (names: ReadonlySet<string>) => void] {
-  const [names, setNames] = useState<ReadonlySet<string>>(() => new Set(readNames(key)));
-  const choose = (next: ReadonlySet<string>) => {
-    setNames(next);
-    keep(key, JSON.stringify([...next]));
+// to change and keep them, from the names as they stand then.
+function useDeviceNames(
+  key: string,
+): [ReadonlySet<string>, (change: (names: ReadonlySet<string>) => ReadonlySet<string>) => void] {
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const kept = namesUnder(key);
+      kept.listeners.add(listener);
+      return () => {
+        kept.listeners.delete(listener);
+        if (kept.listeners.size === 0 && keptNames.get(key) === kept) {
+          keptNames.delete(key);
+        }
+      };
+    },
+    [key],
+  );
+  const names = useSyncExternalStore(subscribe, () => namesUnder(key).names);
+  const change = (next: (names: ReadonlySet<string>) => ReadonlySet<string>) => {
+    const kept = namesUnder(key);
+    kept.names = next(kept.names);
+    keep(key, JSON.stringify([...kept.names]));
+    for (const listener of [...kept.listeners]) {
+      listener();
+    }
   };
-  return [names, choose];
+  return [names, change];
 }
 
 // Folds are what this browser folded, or unfolded, of a view's headers, by
 // name, such as the thread list's groups: whether it holds a name, and a way
-// to flip it, which the browser keeps under key.
+// to flip it, which the browser keeps under key. Every Folds of one key holds
+// the same names.
 export interface Folds {
   has(name: string): boolean;
   toggle(name: string): void;
 }
 
 export function useFolds(key: string): Folds {
-  const [names, keep] = useDeviceNames(key);
+  const [names, change] = useDeviceNames(key);
   return {
     has: (name) => names.has(name),
-    toggle: (name) => {
-      const next = new Set(names);
-      if (!next.delete(name)) {
-        next.add(name);
-      }
-      keep(next);
-    },
+    toggle: (name) =>
+      change((current) => {
+        const next = new Set(current);
+        if (!next.delete(name)) {
+          next.add(name);
+        }
+        return next;
+      }),
   };
 }
 

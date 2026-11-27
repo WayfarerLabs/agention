@@ -1,5 +1,6 @@
 import type { RegistrationState } from "@wayfarerlabs/agention-api";
 import { Hono, type MiddlewareHandler } from "hono";
+import type { FailureRecorder } from "../audit/record.ts";
 import { authenticateAgent, verifyRegistrationToken } from "../auth/agent-tokens.ts";
 import { unauthenticated } from "../errors.ts";
 import { findRegistrationByKey, markSeen, type Store, submitRegistration } from "../store/index.ts";
@@ -11,12 +12,14 @@ import {
 } from "./agent-api-version.ts";
 import { parseBody } from "./input.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
+import { requestOrigin } from "./origin.ts";
 import type { RateBudgets } from "./rates.ts";
 
 export interface AgentApiOptions {
   store: Store;
   origin: string;
   budgets: RateBudgets;
+  recordFailure: FailureRecorder;
   // Aborts when the server shuts down, ending the long polls.
   shutdown: AbortSignal;
   // Where a failure the call carries on past is written.
@@ -77,7 +80,12 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
       seen(known.id);
     }
     const input = await parseBody(c, registration.body);
-    const state: RegistrationState = submitRegistration(store, key, input);
+    const state: RegistrationState = submitRegistration(
+      store,
+      key,
+      input,
+      requestOrigin(c, "agent", origin),
+    );
     return c.json(state);
   });
 
@@ -86,7 +94,13 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
   // its session seen before its own work, so one refused later counts too.
   const authenticate: MiddlewareHandler<IdentityEnv> = async (c, next) => {
     const { identity, publicKey } = await budgets.spendOnFailure("failedAgentAuth", () =>
-      authenticateAgent(store.db, c.req.header("authorization"), origin, store.clock()),
+      authenticateAgent(
+        store.db,
+        c.req.header("authorization"),
+        origin,
+        store.clock(),
+        requestOrigin(c, "agent", origin),
+      ),
     );
     budgets.spendForKey(publicKey);
     if (identity.credential.kind === "registration") {
@@ -100,6 +114,7 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
     store,
     shutdown: options.shutdown,
     log,
+    recordFailure: options.recordFailure,
     authenticate: (c) => c.var.identity,
   });
   return api;

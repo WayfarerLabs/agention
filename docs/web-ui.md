@@ -2,8 +2,8 @@
 
 This page describes the web UI you answer your agents in, control by control: the thread list, a
 thread, the sessions view and Settings, with the Markdown messages are written in, groups and tags,
-and the keyboard shortcuts. The [operator guide](operator-guide.md) covers installing, running and
-connecting an instance, and the settings each feature needs.
+saved views, and the keyboard shortcuts. The [operator guide](operator-guide.md) covers installing,
+running and connecting an instance, and the settings each feature needs.
 
 The web UI is laid out for a phone first and follows the browser's light or dark setting. With a
 mouse or a trackpad, its controls and spacing are more compact than on a touch screen. Every view
@@ -34,17 +34,18 @@ beside its session it shows alone, and elsewhere as `session/topic`.
 **The thread list**, **Threads**, shows every thread you have not archived. The **Threads** tab
 counts those holding a message you have not read, the threads the **Unread** filter keeps with no
 other filter on, and reading or archiving them clears the count. The list's head is one row of icon
-controls: **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the filters
+controls: **Saved views**, a bookmark, which opens your saved views, as [Saved views](#saved-views)
+describes; **Search**, a magnifying glass; **Filters**, a funnel with a badge counting the filters
 that are on; **Sort**, the order the list is in, beside a checkbox, an arrow pointing up, that
 reverses it; and **Group**, how the list is grouped. Holding the pointer over one names it, and
 **Search**, **Sort**, and **Group** each carry a dot while set to anything but their default. Where
 the list has room, as in a tablet's window or beside a thread on a wide screen, **Sort** and
-**Group** show their choice beside their icons, and with more room every button shows its words.
-**Sort** and **Group** are pick lists, and here as everywhere in the web UI the lower corner of such
-a compact control says what kind it is: a small down caret marks a pick list, which opens its
-choices and changes nothing until you choose one; a small box marks a checkbox, hollow while it is
-off and filled, with the control tinted and outlined, while it is on; and a button, which acts when
-pressed or opens a dialog or a menu of things to do, has nothing there.
+**Group** show their choice beside their icons, and with more room every button but **Saved views**
+shows its words. **Sort** and **Group** are pick lists, and here as everywhere in the web UI the
+lower corner of such a compact control says what kind it is: a small down caret marks a pick list,
+which opens its choices and changes nothing until you choose one; a small box marks a checkbox,
+hollow while it is off and filled, with the control tinted and outlined, while it is on; and a
+button, which acts when pressed or opens a dialog or a menu of things to do, has nothing there.
 
 - **Search** opens the search field in the row's place, holding the search on, such as
   **"release"**, which its chip shows, with focus in it; this is where you change the search. Its
@@ -90,10 +91,12 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   answer, and the priority those with an ask at that priority or higher. While a filter on open asks
   is on, **Blocked on you** and the priority link nowhere, since they count every open ask of the
   threads shown while those filters keep a thread for one ask meeting them all. **No topic**, which
-  no filter names, the archive box and **last seen** link nowhere. The chevron before a header's
-  name collapses everything under it or expands it again, as a click anywhere else on the header
-  does but on a link. Every header starts expanded, and this browser keeps the ones you collapse,
-  for each way of grouping, a session group's however you rename it.
+  no filter names, the archive box and **last seen** link nowhere. A session's header, whichever way
+  the list is grouped, follows its name with a small arrow of its own, which opens the session's
+  page in the sessions view; an agent's, a topic's and a group's have none. The chevron before a
+  header's name collapses everything under it or expands it again, as a click anywhere else on the
+  header does but on a link. Every header starts expanded, and this browser keeps the ones you
+  collapse, for each way of grouping, a session group's however you rename it.
 - Every way of narrowing the list is a filter. Different filters combine, each narrowing what the
   others keep; several values chosen in one filter, such as two agents, each keep their own threads.
   **Filters** opens a sheet holding them all, each a row of choices whose first turns it off, and
@@ -159,8 +162,9 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   shows beside an icon of two lines merging into one, by its short form, or as **2 pull requests**
   or **2 branches**. A long label is cut short, at its front for an agent, session, topic, pull
   request, or branch, so its end stays; holding the pointer over a chip says it whole. Choosing a
-  chip removes its filter. The grouping, the order and its direction are no filters, so they stay
-  when filters go.
+  chip removes its filter. A chip naming one session ends in an arrow of its own, which opens the
+  session's page in the sessions view; the rest of the chip still removes the filter. The grouping,
+  the order and its direction are no filters, so they stay when filters go.
 - The page's address holds the filters, the order, its direction and the grouping, so a list you
   bookmark or share opens as you left it.
 - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -241,13 +245,14 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
 number, as a row's does, and shows the archive box beside it while the thread is archived for you.
 Under it, its agent, session and topic say where the thread is, and each opens the list narrowed to
 it alone, with no other filter on, showing everything there in the order and grouping you left the
-list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row does,
-and a stranded thread says why its session has not read your latest messages: it stopped, and how,
-or its agent was last seen when, or never; a session with no active credential says so in a notice
-under the head. **Threads** stays marked in the navigation. The head holds **Jump to unread** while
-anything is unread or an ask is open to you. The messages open on the newest ones, or on the first
-one you had not read after those you archived when that comes before them, and show earlier and
-later ones when you ask.
+list in. A small arrow just after the session opens the session's own page in the sessions view, and
+**Back** returns to the thread. Beneath, muted, a thread whose asks were answered or withdrawn says
+so, as its row does, and a stranded thread says why its session has not read your latest messages:
+it stopped, and how, or its agent was last seen when, or never; a session with no active credential
+says so in a notice under the head, its name opening the session's page. **Threads** stays marked in
+the navigation. The head holds **Jump to unread** while anything is unread or an ask is open to you.
+The messages open on the newest ones, or on the first one you had not read after those you archived
+when that comes before them, and show earlier and later ones when you ask.
 
 - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it, each
   an icon over a short word: **Threads**, back to the list as you left it, with its filters, order,
@@ -326,7 +331,8 @@ later ones when you ask.
   them open. Its asks, answers, references and files are not copied. Every message with text has
   one, a replaced message too once you open it, and a message without text has none. The button
   shows a check for a moment once the message is copied. Where the browser refuses the clipboard,
-  the message says so, and you can select the text to copy it by hand.
+  the message says so, and you can select the text to copy it by hand. Each code block in a message
+  has a copy button of its own, as [Markdown and diagrams](#markdown-and-diagrams) describes.
 - A message's files show under it, and **Attach** beside **Send** adds yours, as
   [Attachments](operator-guide.md#attachments) describes. While the thread's current messages carry
   any, its head holds **Files**, folded, with how many there are and the space they take.
@@ -480,12 +486,32 @@ message it replaced.
 ## The sessions view
 
 **The sessions view**, **Sessions**, shows every session of your agents in one place, and is also
-what `/registrations` shows, the page an agent waiting for approval sends you to. From the top:
+what `/registrations` shows, the page an agent waiting for approval sends you to.
 
-- **Waiting for approval** holds the registrations to approve, as
-  [Approving agents](operator-guide.md#approving-agents) describes. The **Sessions** tab counts
-  them, and approving or rejecting them clears the count. While none is waiting the section is one
-  short line, and until some agent has a session it explains instead how a registration arrives.
+Choosing a row's chevron, or anywhere on it but its other links and buttons, opens what the row
+stands for. On a desktop's screen, at the width where **Threads** shows the list and a thread side
+by side, it opens on the right of the rows, its row outlined; on a narrower screen, as on a phone,
+it opens on a page of its own, as a thread does. Each session has its own address,
+`/sessions/<agent>/<session>`, and each registration waiting its own, `/registrations/<number>`, so
+**Back** and **Forward** move between what you opened, and back to the rows with none open, and a
+reload or a bookmark returns to it. The rows stay as you arranged them while sessions open beside
+them and as you go back and forward. A session shows there what its row shows, then its detail,
+described below, over a bar at its foot, whose **Sessions** closes it, returning to the rows; its
+**⋯** button holds its row's options. While nothing is open, the right side holds a line on choosing
+a session.
+
+From the top:
+
+- **Waiting for approval**, shown while any registration waits, holds a row for each, newest first,
+  above the agents however you arrange them. A row names the agent and the session the registration
+  proposes, such as **reviewer/main**, says when it was submitted and when it expires, and marks
+  what approving it would do: **New agent**, **New session** of an agent you have, or **Existing
+  session** when the agent proposes a session you have, as an agent that lost its credential does
+  when it registers again. Its code follows. Choosing the row opens its page, which
+  [Approving agents](operator-guide.md#approving-agents) describes: for an existing session, a
+  button each for that session and for a new one, the group and tags starting from the session's
+  own. The **Sessions** tab counts the registrations waiting, and approving or rejecting them clears
+  the count. Until some agent has a session, the view explains instead how a registration arrives.
 - Everything in the view that stands for threads is a link opening the thread list on those threads
   alone, with no other filter on: a group's, an agent's or a session's name, a count of threads, the
   envelope, **Blocked on you**, open asks and stranded threads, each within the header or row it
@@ -503,17 +529,18 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   blocks an agent's work on your answer, and a link opening the thread list on the group's threads.
   An agent with sessions in two groups shows under each with that group's sessions, and its threads'
   links open its threads, and its stranded threads, in that group. This browser keeps the groups you
-  fold, a group however you rename it. Under each agent, each session is a folded row, so that many
-  fit on a screen. Its first line holds the session's name, the title its agent gave this line of
-  work, cut to fit, and its percent toward the goal; the second, **Last seen** and when, or **Never
-  seen**, in the warning's color while the session is quiet and has not stopped, and once it has
-  reported a status, how long ago it last updated it, such as **status updated 2 hours ago**, since
-  a session can go on checking Agention long after its status stopped saying what it does; a session
-  marked working because it wrote counts as an update then. While a session is **Working**, its
-  bridge reminds it to update its status once it has sent none for 20 minutes, counting a write that
-  marked it working. The bridge counts from the session's own last update through it, not from the
-  age you see, so the two differ when the bridge has restarted or another bridge shares the session.
-  The third line, wrapping on a phone:
+  fold, a group however you rename it. Under each agent, each session is a row, so that many fit on
+  a screen. Its first line holds the session's name, the title its agent gave this line of work, cut
+  to fit, and its percent toward the goal; the second, **Last seen** and when, or **Never seen**, in
+  the warning's color while the session is quiet and has not stopped, and once it has reported a
+  status, how long ago it last updated it, such as **status updated 2 hours ago**, since a session
+  can go on checking Agention long after its status stopped saying what it does; a session marked
+  working because it wrote counts as an update then. While a session is **Working**, its bridge
+  reminds it to update its status once it has sent none for 20 minutes, counting a write that marked
+  it working. The bridge counts from the session's own last update through it, not from the age you
+  see, so the two differ when the bridge has restarted or another bridge shares the session. The
+  third line, wrapping on a phone:
+  - **Registration waiting**, while a registration proposes this session, opening its page;
   - what the session reports it is doing: **Working** while it does something; **Idle** while it has
     nothing left to do but wait, for your answers, CI or a review, and still checks Agention;
     **Stopped** once it stops checking, with why, such as **Stopped · completed**; or **No status**
@@ -532,14 +559,12 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   - its unread updates, such as **2 new updates**;
   - and its latest update's note, cut to fit, with none after the server marked it working.
 
-  Choosing a row's chevron, or anywhere on it but its links and buttons, lets its title wrap whole
-  and unfolds it to its goal over a bar of how far it has come, its credentials and its log: what
-  each update changed, newest first, with its note, and **inferred from a write** on one the server
-  logged when the idle session wrote. Consecutive updates that changed only the percent show as one
-  line, such as **Progress 20% → 60%**, and **Older** shows the updates before. Unfolding reads the
-  updates it shows, which stay marked unread until you fold the row again. Rows start folded each
-  time you open the view, and a row under an agent or a group you folded reads nothing, since it is
-  not shown. This browser keeps the agents you fold, under each group apart.
+  Opening a session lets its title wrap whole and shows its goal over a bar of how far it has come,
+  its credentials and its log: what each update changed, newest first, with its note, and **inferred
+  from a write** on one the server logged when the idle session wrote. Consecutive updates that
+  changed only the percent show as one line, such as **Progress 20% → 60%**, and **Older** shows the
+  updates before. Opening it reads the updates it shows, which stay marked unread until you close it
+  or open another. This browser keeps the agents you fold, under each group apart.
 
   A row's **⋯** button opens its options: **New thread**; **Group** and **Tags**, each naming what
   the session has now; and **Revoke** for each of the session's credentials, which asks once more.
@@ -574,7 +599,8 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   no other; one another browser made stale is refused, and the groups show as they are.
 
 - **Credentials and past requests**, folded until you open it, holds every registration already
-  decided.
+  decided, each one approved, revoked or not, naming the session it granted, which opens that
+  session.
 
 ## Settings
 
@@ -583,15 +609,15 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
 **API keys** (`/settings/api-keys`), as [API keys](operator-guide.md#api-keys) describes; under
 **Features**, **Threads** (`/settings/threads`), whose **Auto-advance** chooses where **Archive
 all** takes you, as [A thread](#a-thread) describes, **Groups and tags**
-(`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Voice**
-(`/settings/voice`), as [Voice](operator-guide.md#voice) describes, **Storage**
-(`/settings/storage`), as [Attachments](operator-guide.md#attachments) describes, and **Keyboard**
-(`/settings/keyboard`), as [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out**
-(`/settings/sign-out`), which signs this browser out, forgetting the drafts it kept, and leaves your
-others signed in. On a wide screen the sections are listed beside the one open; on a phone Settings
-opens on the list, and each section has a link back to it. `/passkeys` leads to Passkeys. While your
-sign-in is too old for a change to passkeys, API keys or voice, those sections offer **Sign in
-again** first.
+(`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Saved views**
+(`/settings/saved-views`), as [Saved views](#saved-views) describes, **Voice** (`/settings/voice`),
+as [Voice](operator-guide.md#voice) describes, **Storage** (`/settings/storage`), as
+[Attachments](operator-guide.md#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
+[Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`), which
+signs this browser out, forgetting the drafts it kept, and leaves your others signed in. On a wide
+screen the sections are listed beside the one open; on a phone Settings opens on the list, and each
+section has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too old for a
+change to passkeys, API keys or voice, those sections offer **Sign in again** first.
 
 ## Markdown and diagrams
 
@@ -602,16 +628,22 @@ link whose text is not its own address shows the address's host after it. Titles
 suggested answers, the own words of an answer and other fields show exactly as written, as plain
 text.
 
+Each code block, a diagram's source included, has a copy button at its top right, beside the code
+rather than over it, so it stays in place while a long line scrolls sideways. It copies exactly the
+block's text, without the fences, and shows a check for a moment once copied. Where the browser
+refuses the clipboard, a note under the block says so, and you can select the code to copy it by
+hand.
+
 A fenced code block whose language is `mermaid` shows as a diagram, drawn by
 [Mermaid](https://mermaid.js.org/) in isolation from the page, as an image at its natural size, no
 wider than the column. Its alternative text is the title the diagram declares with `accTitle`, or
 "Diagram" without one, and a description it declares with `accDescr` describes it to a screen
-reader. **Source** under the diagram shows the text it was drawn from. A diagram over 10,000
-characters shows its source instead, with a note that it is too long to draw; one Mermaid cannot
-draw, and one not drawn within 10 seconds, show their source with a note that it could not be drawn.
-The first diagram on a page also waits for the drawing script to download, for up to a minute on a
-slow connection. Diagrams follow the light or dark color scheme, and are drawn again when it
-changes.
+reader. **Source** under the diagram shows the text it was drawn from, as a code block you can copy
+from. A diagram over 10,000 characters shows its source instead, with a note that it is too long to
+draw; one Mermaid cannot draw, and one not drawn within 10 seconds, show their source with a note
+that it could not be drawn. The first diagram on a page also waits for the drawing script to
+download, for up to a minute on a slow connection. Diagrams follow the light or dark color scheme,
+and are drawn again when it changes.
 
 Tap a diagram to open it full screen. Pinch or use the mouse wheel to zoom, drag to move it, and
 double-tap to zoom in on a point or back out to fit; the buttons and the keys `+` and `-` zoom, `0`
@@ -662,6 +694,42 @@ which the sessions view and the thread list's **Group** filter follow; a new gro
   When another browser changed the groups since the list loaded, the move is refused and the list
   shows them as they are.
 
+## Saved views
+
+A saved view keeps a thread list you return to under a name, such as **Blocking me**, **Billing
+migration, by session** or **Overdue**: every filter, the order and its direction, and the grouping,
+as the list's address holds them. Your views are kept by the server, so every browser you sign in on
+has the same ones, and a backup holds them. Agents never see them, and they grant nothing.
+
+- **Saved views**, the bookmark first in the thread list's head, opens them, at every width and
+  beside a thread too, and so does `g` then `v` from anywhere, going to the thread list first where
+  it is not on screen. Its name and tooltip say which views the list on screen is, such as **Saved
+  views, Blocking me**. It opens a sheet from the bottom on a phone, and a panel on a wide screen,
+  listing your views by name.
+- **A view is current** while the list on screen is its list, the values chosen in a filter in any
+  order and a pull request's or branch's repository in any case, and the sheet checks it. Two views
+  of the same list are both current.
+- **Opening a view**, by its name in the sheet, shows its list just as its address would, so
+  **Back**, reloading and copying the link behave as for any list. A filter that depends on the
+  time, such as **Overdue**, is judged as the list shows, not when the view was saved. Changing the
+  list after opening a view leaves the view as it was.
+- **Replace with this list**, on each view that is not current, puts the list on screen in place of
+  the view's own, after asking. Nothing else changes a view's list.
+- **Save as new view** names the list on screen and saves it, every part of it, even one at its
+  default, so a later change to a default leaves your view as you saved it. A name is up to 100
+  characters on one line and unique, whatever the case of its letters A to Z; you can keep up to 200
+  views.
+- **Manage saved views** opens **Settings**, under **Saved views** (`/settings/saved-views`), which
+  lists your views by name, each linking to its list, with **Rename** and **Remove**, which asks
+  first and leaves every list and thread as it was.
+
+**Threads** and `g` then `t` still open the list with no filter on: no view takes its place.
+
+A view naming a session group or a tag keeps naming it after you rename it. One naming a group or a
+tag you removed keeps that filter, whose chip says the group or tag was removed, and keeps no
+threads rather than showing more. Tags are named by their names, as in the list's address, so once a
+tag of a removed one's name exists again, the view matches it.
+
 ## Keyboard shortcuts
 
 With a keyboard, single keys do the everyday things, in the manner of mail and code-review tools.
@@ -675,9 +743,10 @@ anywhere to list them all.
 | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Anywhere        | `?`                         | Lists the shortcuts                                                                                                                                                                         |
 | Anywhere        | `g` then `t`, `s` or `,`    | Goes to Threads, Sessions or Settings, the second key within 1.5 seconds; any other key after `g` does what it does alone                                                                   |
+| Anywhere        | `g` then `v`                | Opens **Saved views**, going to the thread list first where it is not on screen                                                                                                             |
 | The thread list | `j` and `k`                 | Moves to the next or previous thread, stopping at either end                                                                                                                                |
 | The thread list | `n` and `N`                 | Moves to the next or previous thread that is unread or blocked on you, going round                                                                                                          |
-| The thread list | `o`                         | Opens the thread, as `Enter` on its row does                                                                                                                                                |
+| The thread list | `o`                         | Opens the thread of the row that has focus, as `Enter` on its link does                                                                                                                     |
 | The thread list | `x`                         | Selects or unselects the thread, to act on it with others                                                                                                                                   |
 | The thread list | `I` and `U`                 | Marks read or unread the threads selected, as **Read** and **Unread** in the bar do, or with none selected, the thread                                                                      |
 | The thread list | `/`                         | Opens the list's search field, selecting what it holds                                                                                                                                      |
@@ -691,6 +760,9 @@ anywhere to list them all.
 | A thread        | `[` and `]`                 | **Thread above** and **Thread below**                                                                                                                                                       |
 | A thread        | `n`                         | **Jump to unread**, or **Jump to open ask**                                                                                                                                                 |
 | A thread        | `1` to `9`                  | Chooses that suggested answer on the ask that has focus, or else the first open ask                                                                                                         |
+| The sessions    | `j` and `k`                 | Moves to the next or previous row, a session's or a registration's, stopping at either end                                                                                                  |
+| The sessions    | `o`                         | Opens the session or the registration of the row that has focus                                                                                                                             |
+| A session       | `u` or `Esc`                | Returns to the sessions' rows                                                                                                                                                               |
 | The composer    | `Ctrl+Enter` or `Cmd+Enter` | **Send**, once there is something to send                                                                                                                                                   |
 | The composer    | `Esc`                       | Leaves the composer for its heading, where the thread's keys act again                                                                                                                      |
 
@@ -699,14 +771,17 @@ on a thread looks only at the messages the page has loaded, so on a thread you h
 last wrote before the newest 50 messages, `U` does nothing until you focus a message or show earlier
 ones. Moving through the list moves focus from row to row, so a screen reader reads each row as it
 is reached. With the list and a thread side by side, the list's keys act wherever focus is, and
-moving through the list starts from the open thread's row and opens nothing until `o`; the thread's
-keys act only while focus is outside the list, as after clicking the thread; `I` from the thread
-marks it read in the list and leaves focus in the thread; and `n` and `U`, which both use, act in
-the list while focus is in it, and in the thread otherwise. A screen reader in its browse mode keeps
-single keys for its own navigation, so the shortcuts act only once it passes keys through, as in its
-focus mode. To turn the shortcuts listed here off in this browser, if they get in the way of a
-screen reader, voice control or another tool, clear **Keyboard shortcuts** in **Settings**, under
-**Keyboard**, which also lists them. The diagram viewer's own keys stay on.
+moving through the list starts from the open thread's row and opens nothing until `o`, which opens
+only the row that has focus, so from the thread it does nothing; the thread's keys act only while
+focus is outside the list, as after clicking the thread; `I` from the thread marks it read in the
+list and leaves focus in the thread; and `n` and `U`, which both use, act in the list while focus is
+in it, and in the thread otherwise. The sessions' rows and a session open beside them share keys the
+same way: `j` and `k` act wherever focus is, starting from the open session's row, `o` only on the
+row that has focus, and `u` and `Esc` only while focus is outside the rows. A screen reader in its
+browse mode keeps single keys for its own navigation, so the shortcuts act only once it passes keys
+through, as in its focus mode. To turn the shortcuts listed here off in this browser, if they get in
+the way of a screen reader, voice control or another tool, clear **Keyboard shortcuts** in
+**Settings**, under **Keyboard**, which also lists them. The diagram viewer's own keys stay on.
 
 **Enter sends**, also under **Keyboard**, is off until you turn it on in a browser, which keeps the
 choice. On, `Enter` in the composer's message or **Details** box sends, once there is something to

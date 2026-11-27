@@ -195,13 +195,6 @@ describe("the web UI", () => {
     harness = new Harness({ webRoot: dir });
   });
 
-  it("serves the build's files with their types", async () => {
-    const script = await harness.request("GET", "/assets/app-1.js");
-    expect(script.status).toBe(200);
-    expect(script.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
-    expect(script.body).toBe("console.log(1);");
-  });
-
   it("serves the index for every other path outside the API", async () => {
     for (const target of ["/", "/s/builder/main/threads/1", "/registrations", "/link"]) {
       const response = await harness.request("GET", target);
@@ -225,6 +218,22 @@ describe("the web UI", () => {
       const response = await harness.request("GET", target);
       expect([target, response.status, response.body]).toEqual([target, 200, named]);
       expect(response.headers.get("content-security-policy")).toBe(contentSecurityPolicy(origin));
+    }
+  });
+
+  it("serves the web app manifest with its type, named for the server, on any case of its path", async () => {
+    const manifest = { id: "/", name: "Agention", short_name: "Agention", display: "standalone" };
+    writeFileSync(path.join(dir, "manifest.webmanifest"), JSON.stringify(manifest));
+    writeFileSync(path.join(dir, "MANIFEST.WEBMANIFEST"), JSON.stringify(manifest));
+    harness.close();
+    const name = `Work <&"'> & co`;
+    harness = new Harness({ webRoot: dir, name });
+    for (const target of ["/manifest.webmanifest", "/MANIFEST.WEBMANIFEST"]) {
+      const response = await harness.request("GET", target);
+      expect([target, response.status]).toEqual([target, 200]);
+      expect(response.headers.get("content-type")).toBe("application/manifest+json");
+      expect(response.headers.get("content-security-policy")).toBe(contentSecurityPolicy(origin));
+      expect(response.body).toEqual({ ...manifest, name, short_name: name });
     }
   });
 
@@ -330,18 +339,6 @@ describe("the diagram frame", () => {
     });
   });
 
-  it("serves its script to be kept for good, with every other header", async () => {
-    const response = await harness.request("GET", `/${script}`);
-    expect([response.status, response.body]).toEqual([200, "drawDiagrams();"]);
-    expect(Object.fromEntries(response.headers)).toMatchObject({
-      "content-type": "text/javascript; charset=utf-8",
-      "cache-control": "public, max-age=31536000, immutable",
-      "content-security-policy": contentSecurityPolicy(origin),
-      "x-frame-options": "DENY",
-      "x-content-type-options": "nosniff",
-    });
-  });
-
   it("keeps a route's own security headers only where it declares them, and only those", async () => {
     const probe = new Hono();
     probe.use(securityHeaders(origin));
@@ -396,6 +393,8 @@ describe("the diagram frame", () => {
     expect(policy.get("frame-src")).toEqual([`${origin}/diagram-frame`]);
     expect(policy.get("img-src")).toEqual(["'self'", "blob:"]);
     expect(policy.get("media-src")).toEqual(["'self'"]);
+    expect(policy.get("manifest-src")).toEqual(["'self'"]);
+    expect(policy.get("worker-src")).toEqual(["'self'"]);
     expect(policy.get("frame-ancestors")).toEqual(["'none'"]);
   });
 

@@ -12,6 +12,7 @@ export * from "./passkeys.ts";
 export * from "./references.ts";
 export * from "./registrations.ts";
 export * from "./routes.ts";
+export * from "./saved-views.ts";
 export * from "./scopes.ts";
 export * from "./sessions.ts";
 export * from "./settings.ts";

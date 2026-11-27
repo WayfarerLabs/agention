@@ -11,7 +11,7 @@ import type { BrowserContext, Frame, Locator, Page, Request } from "@playwright/
 import type { PublicKey, WriteResult } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent } from "./agent.ts";
-import { type Agention, expect, resize, test } from "./fixtures.ts";
+import { type Agention, approve, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -45,6 +45,7 @@ const fenced = (source: string) => ["```mermaid", source, "```"].join("\n");
 test.beforeAll(async ({ browser, diagramsServer }) => {
   server = diagramsServer;
   context = await browser.newContext({ baseURL: server.origin });
+  await reportPolicyRefusals(context);
   page = await context.newPage();
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -77,12 +78,7 @@ test.beforeAll(async ({ browser, diagramsServer }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Threads");
   agent = new Agent(server);
   await agent.send("POST", "/registrations", { agent: "builder", session: "main" });
-  await page.getByRole("link", { name: "Sessions" }).click();
-  const code = registrationCode(agent.publicKey as PublicKey);
-  await page
-    .getByRole("article", { name: `Registration ${code}` })
-    .getByRole("button", { name: "Approve" })
-    .click();
+  await approve(page, registrationCode(agent.publicKey as PublicKey));
   await expect(page.getByRole("button", { name: /^Agent builder/ })).toBeVisible();
 });
 
@@ -156,13 +152,17 @@ test("a mermaid block draws through the frame as an image, under the app's polic
   await expect(message.getByRole("img", { name: "Diagram" })).toBeVisible();
   // Each is an image the page made from the frame's answer, with its natural
   // size, whose URL is gone once it has loaded, and nothing the Markdown
-  // holds is a frame or an SVG.
+  // holds is a frame or an SVG, but the icons of its code blocks' copy
+  // buttons.
   for (const image of await message.locator("figure img").all()) {
     expect(await image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
     expect(await opensOnItsOwn(image)).toBe(false);
     await expect(image).toBeVisible();
   }
-  await expect(message.locator(".markdown iframe, .markdown svg")).toHaveCount(0);
+  await expect(
+    message.locator(".markdown iframe, .markdown svg:not(button.copy-button > svg)"),
+  ).toHaveCount(0);
+  await expect(message.locator(".markdown button.copy-button > svg")).toHaveCount(1);
   await expect(message.locator("pre code")).toHaveText("plain");
   // One frame drew both.
   await expect(page.locator("iframe")).toHaveCount(1);

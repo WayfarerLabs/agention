@@ -2,9 +2,8 @@ import type { Context } from "hono";
 
 // The security headers middleware sets every security header on every
 // response, replacing what a route set, except the headers a route declares
-// as its own for its response: the diagram frame's policy and framing, its
-// script's caching, and a file's sandbox policy and caching. A route declares
-// them as it sets them, so the rule follows the route whatever its path.
+// as its own for its response. A route declares them as it sets them, so the
+// rule follows the route whatever its path.
 
 // The headers each request's route declared its own, by name in lower case.
 const declared = new WeakMap<Request, Set<string>>();

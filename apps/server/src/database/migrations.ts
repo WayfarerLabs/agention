@@ -678,4 +678,143 @@ export const migrations: readonly string[] = [
     SELECT RAISE(ABORT, 'message links are append-only');
   END;
   `,
+  `
+  -- The audit log: one row per event, in the order events were recorded. seq
+  -- is the event's place in that order and its metadata.sequence; AUTOINCREMENT
+  -- never reuses one, even once pruning empties the table, and each event takes
+  -- the next. uid is its metadata.uid, a random UUID. event is the OCSF object
+  -- as the builder wrote it; the other columns copy its fields for filtering.
+  -- credential_id is the credential's id as text, null for the command line and
+  -- for no credential. open_until marks a coalesced failure: until then later
+  -- failures of its kind raise its count, and no sink receives it.
+  CREATE TABLE audit_events (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid TEXT NOT NULL UNIQUE CHECK (length(uid) = 36),
+    time INTEGER NOT NULL,
+    class_uid INTEGER NOT NULL CHECK (class_uid IN (3002, 3004, 6003)),
+    action TEXT NOT NULL CHECK (length(action) BETWEEN 1 AND 64),
+    outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure')),
+    credential_kind TEXT NOT NULL
+      CHECK (credential_kind IN ('browser_session', 'api_key', 'registration', 'cli', 'none')),
+    credential_id TEXT
+      CHECK ((credential_id IS NULL) = (credential_kind IN ('cli', 'none'))),
+    event TEXT NOT NULL CHECK (json_valid(event) AND json_type(event) = 'object'),
+    open_until INTEGER CHECK (open_until IS NULL OR (outcome = 'failure' AND open_until > time))
+  ) STRICT;
+  -- The coalesced failures, by the end of their minute: the open ones, which
+  -- coalescing looks up and delivery stops before.
+  CREATE INDEX audit_events_open ON audit_events (open_until) WHERE open_until IS NOT NULL;
+
+  -- Each event takes the next sequence, and carries its own seq and uid.
+  CREATE TRIGGER audit_events_in_order BEFORE INSERT ON audit_events
+  WHEN new.seq IS NOT coalesce((SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'), 0) + 1
+    OR json_extract(new.event, '$.metadata.sequence') IS NOT new.seq
+    OR json_extract(new.event, '$.metadata.uid') IS NOT new.uid
+  BEGIN
+    SELECT RAISE(ABORT, 'an audit event takes the next sequence and carries its seq and uid');
+  END;
+
+  -- An event never changes, but for an open coalesced failure, which no sink
+  -- has received: its count rises and its end_time moves on, within its
+  -- minute, both staying integers, and nothing else changes; or it closes,
+  -- open_until becoming null and nothing else changing, as delivery closes it
+  -- once it takes it.
+  CREATE TRIGGER audit_events_fixed BEFORE UPDATE ON audit_events
+  WHEN NOT (old.open_until IS NOT NULL AND new.open_until IS NULL
+      AND new.seq IS old.seq AND new.uid IS old.uid AND new.time IS old.time
+      AND new.class_uid IS old.class_uid AND new.action IS old.action
+      AND new.outcome IS old.outcome AND new.credential_kind IS old.credential_kind
+      AND new.credential_id IS old.credential_id AND new.event IS old.event)
+  AND (old.open_until IS NULL
+    OR EXISTS (SELECT 1 FROM audit_sinks WHERE delivered_seq >= old.seq)
+    OR new.seq IS NOT old.seq OR new.uid IS NOT old.uid OR new.time IS NOT old.time
+    OR new.class_uid IS NOT old.class_uid OR new.action IS NOT old.action
+    OR new.outcome IS NOT old.outcome OR new.credential_kind IS NOT old.credential_kind
+    OR new.credential_id IS NOT old.credential_id OR new.open_until IS NOT old.open_until
+    OR json_type(new.event, '$.count') IS NOT 'integer'
+    OR json_type(new.event, '$.end_time') IS NOT 'integer'
+    OR json_remove(new.event, '$.count', '$.end_time')
+      IS NOT json_remove(old.event, '$.count', '$.end_time')
+    OR json_extract(new.event, '$.count') <= json_extract(old.event, '$.count')
+    OR json_extract(new.event, '$.end_time') < json_extract(old.event, '$.end_time')
+    OR json_extract(new.event, '$.end_time') >= old.open_until)
+  BEGIN
+    SELECT RAISE(ABORT, 'an audit event changes only as an open failure counts another or closes');
+  END;
+
+  -- Only the oldest event is ever removed, and only once every sink has it.
+  CREATE TRIGGER audit_events_pruned_in_order BEFORE DELETE ON audit_events
+  WHEN old.seq IS NOT (SELECT min(seq) FROM audit_events)
+    OR EXISTS (SELECT 1 FROM audit_sinks WHERE delivered_seq < old.seq)
+  BEGIN
+    SELECT RAISE(ABORT, 'only the oldest audit event is removed, once every sink has it');
+  END;
+
+  -- Each sink's cursor: the kind it is configured as, which names it, and the
+  -- last sequence it delivered, which only moves forward. A sink's row stays
+  -- when the sink is no longer configured, so retention waits for it, until
+  -- agention audit forget-sink removes it.
+  CREATE TABLE audit_sinks (
+    name TEXT PRIMARY KEY CHECK (name IN ('stdout', 'file')),
+    delivered_seq INTEGER NOT NULL CHECK (delivered_seq >= 0),
+    created_at INTEGER NOT NULL
+  ) STRICT, WITHOUT ROWID;
+  CREATE TRIGGER audit_sinks_forward BEFORE UPDATE OF delivered_seq ON audit_sinks
+  WHEN new.delivered_seq < old.delivered_seq
+  BEGIN
+    SELECT RAISE(ABORT, 'a sink''s cursor only moves forward');
+  END;
+
+  -- This instance's id: random and not secret, made once with this migration
+  -- and never changed after, which every audit event carries so a destination
+  -- shared by several servers tells them apart.
+  ALTER TABLE instance ADD COLUMN uid TEXT
+    CHECK (uid IS NULL OR (length(uid) = 32 AND uid NOT GLOB '*[^0-9a-f]*'));
+  UPDATE instance SET uid = lower(hex(randomblob(16)));
+  CREATE TRIGGER instance_uid_fixed BEFORE UPDATE OF uid ON instance
+  WHEN old.uid IS NOT NULL AND new.uid IS NOT old.uid
+  BEGIN
+    SELECT RAISE(ABORT, 'a server''s instance id never changes');
+  END;
+
+  -- A browser session's id: random and not secret, so the audit log can name
+  -- the session without its cookie or anything derived from it. The table is
+  -- rebuilt to hold it as a constrained column, and each session open now gets
+  -- one.
+  CREATE TABLE browser_sessions_with_ids (
+    hash BLOB PRIMARY KEY CHECK (length(hash) = 32),
+    id TEXT NOT NULL UNIQUE CHECK (length(id) = 32 AND id NOT GLOB '*[^0-9a-f]*'),
+    person_id INTEGER NOT NULL REFERENCES people (id),
+    passkey_id INTEGER NOT NULL REFERENCES passkeys (id) ON DELETE CASCADE,
+    csrf_token TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    idle_expires_at INTEGER NOT NULL,
+    absolute_expires_at INTEGER NOT NULL
+  ) STRICT, WITHOUT ROWID;
+  INSERT INTO browser_sessions_with_ids (hash, id, person_id, passkey_id, csrf_token, created_at,
+      idle_expires_at, absolute_expires_at)
+    SELECT hash, lower(hex(randomblob(16))), person_id, passkey_id, csrf_token, created_at,
+      idle_expires_at, absolute_expires_at
+    FROM browser_sessions;
+  DROP TABLE browser_sessions;
+  ALTER TABLE browser_sessions_with_ids RENAME TO browser_sessions;
+  CREATE TRIGGER browser_sessions_id_fixed BEFORE UPDATE OF id ON browser_sessions
+  WHEN new.id IS NOT old.id
+  BEGIN
+    SELECT RAISE(ABORT, 'a browser session''s id never changes');
+  END;
+  `,
+  `
+  -- The operator's saved views, each a name and one thread list. view is the
+  -- list as the API reads it, a JSON object holding every part, those at
+  -- their default when it was saved included. A view is updated in place, as
+  -- a group is. Names are unique ignoring the case of ASCII letters, and ids
+  -- never repeat, so nothing naming a removed view reaches a later one.
+  CREATE TABLE saved_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    view TEXT NOT NULL CHECK (json_valid(view) AND json_type(view) = 'object'),
+    created_at INTEGER NOT NULL
+  ) STRICT;
+  `,
 ];

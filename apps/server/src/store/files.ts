@@ -8,6 +8,7 @@ import {
   type UploadResult,
 } from "@wayfarerlabs/agention-api";
 import { randomBytes } from "node:crypto";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
 import { authorize, authorizeScope, type Identity } from "../identity.ts";
@@ -27,13 +28,15 @@ import type { SessionTarget } from "./threads.ts";
 // defaulting to this value, so every older row still reads right.
 export const chunkBytes = 1024 * 1024;
 
-// An upload in progress: the file row Begin made, and who is uploading it.
+// An upload in progress: the file row Begin made, the session it is for, and
+// who is uploading it.
 export interface Upload {
   id: number;
   ref: string;
   name: string;
   type: string;
   size: number;
+  sessionId: number;
   identity: Identity;
 }
 
@@ -97,7 +100,7 @@ export function beginUpload(
         identity.credential.kind === "registration" ? identity.credential.registrationId : null,
         now,
       ) as { id: number };
-    return { id, ref, ...file, identity };
+    return { id, ref, ...file, sessionId, identity };
   });
   store.uploadsInFlight.add(upload.id);
   return upload;
@@ -134,6 +137,12 @@ export function completeUpload(
     store.db
       .prepare("UPDATE files SET sha256 = ?, completed_at = ? WHERE id = ?")
       .run(sha256, now, upload.id);
+    recordAudit(store, now, { kind: "identity", identity: upload.identity }, "uploadFile", {
+      file: upload.id,
+      size: upload.size,
+      mediaType: upload.type,
+      session: upload.sessionId,
+    });
     return now;
   });
   store.uploadsInFlight.delete(upload.id);
@@ -162,12 +171,13 @@ export function removeUpload(
 ): void {
   const { db } = store;
   db.transaction(() => {
+    const now = store.clock();
     const sessionId = authorize(
       db,
       identity,
       "threads:write",
       resolveSession(db, target.agent, target.session),
-      store.clock(),
+      now,
     );
     const file = db
       .prepare(
@@ -180,6 +190,7 @@ export function removeUpload(
       throw notFound("upload");
     }
     deletePending(db, file.id);
+    recordAudit(store, now, { kind: "identity", identity }, "removeUpload", { file: file.id });
   });
 }
 
