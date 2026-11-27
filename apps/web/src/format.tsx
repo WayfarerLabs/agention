@@ -307,8 +307,8 @@ export type Absence = (
 // come since the earliest message the session has not read there, failed or
 // was stopped at the terminal, or no nudge came since, as when its terminal
 // never showed it ready or nudge text left at the prompt held it off, which
-// it says. Waiting at its prompt, quiet or
-// stopped, it is not away, since the nudge will bring it.
+// it says. Waiting at its prompt, quiet or stopped, it is not away, since
+// the nudge will bring it.
 // Any other session is away when it stopped, with its outcome; or it is
 // quiet, with when its agent last checked in; or it has no active credential;
 // or its bridge is not connected, the first of them that holds. Each comes

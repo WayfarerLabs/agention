@@ -547,9 +547,9 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // session's presence, with its state and what its bridge last reported of
 // its terminal and its latest nudge, whether it is stranded or ignored, as
 // the agent_read filter's description says, and whether that nudge came
-// since the earliest of its messages the session has not read. links counts the pull
-// requests and branches its live messages name, giving the one entry when
-// there is exactly one.
+// since the earliest of its messages the session has not read. links counts
+// the pull requests and branches its live messages name, giving the one
+// entry when there is exactly one.
 export const threadSummary = z.object({
   agent: name,
   session: name,
