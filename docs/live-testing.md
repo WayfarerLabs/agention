@@ -105,7 +105,8 @@ disagreement is the finding.
   the head, which it still serves, where the charter names those releases; the agent compatibility
   gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
-  it. Codex runs only basic plugin-integration prompts, an operator bound.
+  it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
+  an operator bound.
 - **The web UI's files**, served by the packed server: each script and style sheet sent as Brotli to
   a browser that accepts it and as it is to a client that does not, kept across a second load with
   nothing sent again, the page and every other file of the build `no-store`, and a name an upgrade

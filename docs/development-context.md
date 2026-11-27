@@ -11,9 +11,10 @@ index of those docs.
 - SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"); active efforts: pull request and
   branch links (`docs/sdd/2026-11-25-pr-and-branch-links/`), accepted 2026-11-25, saved views
   (`docs/sdd/2026-11-25-saved-views/`), accepted 2026-11-25, the audit log
-  (`docs/sdd/2026-11-24-audit-log/`), accepted 2026-11-25, and notifications
-  (`docs/sdd/2026-11-23-notifications/`), accepted 2026-11-25; SDD check: `scripts/check-sdd.sh`, in
-  the "SDD records" gate of `scripts/check.sh`
+  (`docs/sdd/2026-11-24-audit-log/`), accepted 2026-11-25, notifications
+  (`docs/sdd/2026-11-23-notifications/`), accepted 2026-11-25, and session monitoring and nudge
+  (`docs/sdd/2026-11-23-session-monitoring-and-nudge/`), accepted 2026-11-27; SDD check:
+  `scripts/check-sdd.sh`, in the "SDD records" gate of `scripts/check.sh`
 
 ## Identity and design
 
@@ -155,7 +156,8 @@ index of those docs.
 - Test beds: local loopback runs with temporary state; a live instance behind `tailscale serve` on
   an operator-chosen host, the operator running every Tailscale command; real-phone passkey
   acceptance, and dictation with a real transcription provider, by the operator; Codex used only for
-  basic plugin-integration prompts (an operator bound); private inventory location: none
+  basic plugin-integration prompts and live checks of monitoring and the nudge (an operator bound);
+  private inventory location: none
 - Known acceptance gaps and standing issues not to re-report: the residual `fast-uri` and `katex`
   advisories recorded in `CONTRIBUTING.md` "Dependencies"; live Codex checks need an authenticated
   Codex session; the macOS launchd setup is untested (`docs/operator-guide.md` "macOS: a launchd
