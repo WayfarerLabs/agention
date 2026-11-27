@@ -10,6 +10,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type Call,
+  clickFold,
   csrf,
   FakeApi,
   failure,
@@ -165,7 +166,7 @@ describe("the sessions view", () => {
     const statuses = () =>
       api.callsTo("GET", "/registrations").map((call) => call.url.searchParams.get("status"));
     expect(new Set(statuses())).toEqual(new Set(["pending"]));
-    fireEvent.click(past);
+    await clickFold(past);
     await screen.findByRole("article", { name: "Registration WE26Z-8SH11" });
     expect(statuses()).toContain(null);
     // Opened again in this browser, they stay unfolded.
@@ -290,7 +291,7 @@ describe("the sessions view", () => {
     expect(builder.getAttribute("aria-expanded")).toBe("true");
     expect(fold("side", folded(builder))).toBeTruthy();
     builder.focus();
-    fireEvent.click(builder);
+    await clickFold(builder);
     expect(builder.getAttribute("aria-expanded")).toBe("false");
     expect(folded(builder).hidden).toBe(true);
     expect(document.activeElement).toBe(builder);
@@ -440,7 +441,7 @@ describe("the sessions view", () => {
     expect(within(header("builder").closest("h3") as HTMLElement).getAllByRole("button")).toEqual([
       header("builder"),
     ]);
-    fireEvent.click(header("builder"));
+    await clickFold(header("builder"));
     expect(header("builder").getAttribute("aria-expanded")).toBe("false");
   });
 
@@ -629,11 +630,11 @@ describe("folded by group", () => {
 
   it("keeps a group's fold by its id, and an agent's within each group apart", async () => {
     await open(grouped);
-    fireEvent.click(groupHeader("Group Billing"));
+    await clickFold(groupHeader("Group Billing"));
     expect(folded(groupHeader("Group Billing")).hidden).toBe(true);
     // builder folded under no group stays unfolded under Billing.
     const inNone = folded(groupHeader("No group"));
-    fireEvent.click(within(inNone).getByRole("button", { name: /^Agent builder/ }));
+    await clickFold(within(inNone).getByRole("button", { name: /^Agent builder/ }));
     cleanup();
     const ledger = { ...billing, name: "Ledger" };
     serve(
@@ -647,7 +648,7 @@ describe("folded by group", () => {
     renderAt("/sessions");
     await screen.findByRole("button", { name: /^Group Ledger/ });
     expect(groupHeader("Group Ledger").getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(groupHeader("Group Ledger"));
+    await clickFold(groupHeader("Group Ledger"));
     expect(
       within(folded(groupHeader("Group Ledger")))
         .getByRole("button", { name: /^Agent builder/ })

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sinceTime } from "../../format.tsx";
 import type { ListedThread } from "./listing.ts";
 import {
+  clickFold,
   FakeApi,
   type Reply,
   renderAt,
@@ -268,7 +269,7 @@ describe("grouped by topic", () => {
     await screen.findByRole("heading", { name: titled("Auth one") });
     const builder = header("Agent builder Session main");
     builder.focus();
-    fireEvent.click(builder);
+    await clickFold(builder);
     expect(builder.getAttribute("aria-expanded")).toBe("false");
     const body = document.getElementById(builder.getAttribute("aria-controls") ?? "");
     expect(body?.hidden).toBe(true);
@@ -281,10 +282,10 @@ describe("grouped by topic", () => {
     renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Review") });
     expect(header("Agent builder Session main").getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(header("Agent builder Session main"));
+    await clickFold(header("Agent builder Session main"));
     expect(screen.getByRole("heading", { name: titled("Auth one") })).toBeTruthy();
     // Grouped another way, the headers are its own.
-    fireEvent.click(header("Agent builder Session main"));
+    await clickFold(header("Agent builder Session main"));
     cleanup();
     renderAt("/?group=agent");
     await screen.findByRole("heading", { name: titled("Review") });
@@ -296,7 +297,7 @@ describe("grouped by topic", () => {
     api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
     renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Auth one") });
-    fireEvent.click(header("Agent builder Session main"));
+    await clickFold(header("Agent builder Session main"));
     // The list reads the rows shown as the page changes, once the click is
     // handled, as a browser does before the next one.
     await new Promise((resolve) => setTimeout(resolve));
@@ -346,7 +347,7 @@ describe("grouped by topic", () => {
     api.on("POST", "/threads/actions", { body: { acted: [], declined: [], kept: [] } });
     renderAt("/?group=topic");
     await screen.findByRole("heading", { name: titled("Auth one") });
-    fireEvent.click(header("Agent builder Session main"));
+    await clickFold(header("Agent builder Session main"));
     fireEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
     await waitFor(() => expect(api.callsTo("POST", "/threads/actions")).toHaveLength(1));
     // builder/main's are folded away: only reviewer/main's unread thread.
@@ -581,7 +582,7 @@ describe("grouped by session group", () => {
     serve(inGroups, [], grouped);
     renderAt("/?group=session_group");
     await screen.findByRole("heading", { name: titled("Auth one") });
-    fireEvent.click(header("Group Billing"));
+    await clickFold(header("Group Billing"));
     expect(screen.queryByRole("heading", { name: titled("Auth one") })).toBeNull();
     cleanup();
     api = new FakeApi();
