@@ -156,27 +156,39 @@ package's tests cover the sequence:
    its reset; the host holds the terminal; keys are not blocked; no key from any client for the last
    ten seconds; the profile knows its prompt marker; the input line is empty and has room for the
    warning and the message; and the caller's `begin` agrees, which is where the bridge claims the
-   nudge from the server. Otherwise `not-ready`, and nothing was sent.
+   nudge from the server. Otherwise the nudge is deferred, nothing sent; where the line holds nudge
+   text, as the caller's `isNudgeText` says (N2's marker), the deferral says so, so the bridge can
+   report why the nudge is held off.
 2. **Warning.** Paste it through a buffer of the observer's own, loaded from standard input
    (`load-buffer -b ... -`, then `paste-buffer -p -d -b ...`), so the operator's paste buffer is
    untouched and no text is read as tmux command syntax; confirm the input line holds exactly it,
-   cursor at its end; wait five seconds; confirm again. A failure abandons at `warning`, removing
-   nothing.
+   cursor at its end; wait five seconds; confirm again.
 3. **Clear.** Send one Backspace per character, each right after a reading that shows the line one
-   character shorter than the last, until the line is empty; otherwise `cleared`.
-4. **Message.** Paste it and confirm it as in step 2; otherwise remove it if it is still exactly
-   there, and abandon at `message`.
+   character shorter than the last, until the line is empty.
+4. **Message.** Paste it and confirm it as in step 2.
 5. **Submit.** Confirm, send Enter, and within five seconds see the line clear and the screen
-   change; otherwise `submitted`, the one failure after the message went in.
+   change.
+
+Each nudge ends in one outcome (N6), which `nudge()` returns with the step it ended at, for the log:
+
+- **Deferred**: nothing was pasted; or, at a confirmation, the line held exactly the nudge's own
+  text but the rest of the screen had changed, and the nudge took that text back, one confirmed
+  Backspace at a time; or the line had come empty with no key typed, the harness having taken or
+  cleared it. Only the line and the cursor are compared for the warning and the message themselves;
+  a change elsewhere is what takes the text back, never what fails the nudge.
+- **Stopped**: a key was typed since the nudge began, or the line held something other than the
+  nudge's text, or its text altered.
+- **Failed**: the pane could not be read or written; a Backspace did not shorten the line by one;
+  the message did not show exactly; or the host did not take it after Enter.
+- **Sent**: the host took the message.
 
 Only Backspace and Enter are ever sent, never an ordinary character or Escape (the spike), and each
-only right after a confirmation, and none once the caller's `signal` aborts. An error ends the nudge
-as a failed check at its step does: the warning stays, and the message is removed where it is still
-exactly there. Every confirmation also requires one pane, the host holding the terminal, keys not
-blocked and no key typed since the nudge began; the one before Enter, and the one after the
-warning's wait, require the whole screen unchanged as well. `paste` refuses control characters, so
-no text can end the bracketed paste early, and `nudge()` throws for a text that is empty or not
-printable ASCII, whose width it could never confirm: a caller's mistake, not a moment to wait out.
+only right after a confirmation, and none once the caller's `signal` aborts. A nudge that does not
+go on removes its own message where a fresh reading shows the line holding exactly it, and leaves
+anything else. Every confirmation also requires one pane, the host holding the terminal and keys not
+blocked. `paste` refuses control characters, so no text can end the bracketed paste early, and
+`nudge()` throws for a text that is empty or not printable ASCII, whose width it could never
+confirm: a caller's mistake, not a moment to wait out.
 
 ### Captures
 
@@ -281,29 +293,43 @@ Delivery 2 bumps the agent API to version 9:
   the bridge learns only that one is due, never why: nothing about threads or presence reaches the
   agent through it.
 - **The claim and the outcome.** `POST .../monitor/nudge` starts a nudge, in one transaction: the
-  server checks that the bridge acts for the session and that one is due, records the nudge at its
-  own clock with no outcome yet, and answers whether to go. The bridge types nothing until it does,
-  and retries the claim inside `begin`; a claim whose answer was lost and is then refused is
-  reported not sent, so a nudge never typed never reads as sent. The same route takes the outcome,
-  sent or not, filling only a nudge that has none. A nudge whose outcome never arrives, because its
-  bridge died, counts as sent. The check-in stamp moves whenever it is older than the latest nudge,
-  so an agent that checks in while the nudge is under way counts as answering it. The server shows
-  "not responding to the nudge" while a nudge it recorded has no check-in after it (N6), and applies
-  M6's nudge branches, which strand the thread once the quiet time passes, or mark it ignored where
-  the agent checked in since without reading it (ruling 8), one ordered decision in the thread read
-  so a thread is never both. The report gains only whether the session can be nudged.
+  server checks that the bridge acts for the session and that one is due, records the claim with the
+  attempt's id (N2) at its own clock, and answers whether to go. The bridge types nothing until it
+  does, and retries the claim inside `begin`; a claim whose answer was lost and is then refused is
+  released, so a nudge never typed never reads as one. The same route takes the outcome, filling
+  only the claim it names: **sent**, **stopped** or **failed** settle the claim as the session's
+  latest nudge, which then counts (N3); **deferred** releases it, leaving the latest nudge as it
+  was, so the nudge is due again. A claim whose outcome never arrives, because its bridge died,
+  counts as sent. The claim and the latest nudge are columns of their own on the session, so a
+  release needs nothing remembered. The check-in stamp moves whenever it is older than the latest
+  nudge, so an agent that checks in while the nudge is under way counts as answering it. The server
+  shows "not responding to the nudge" while a nudge it recorded has no check-in after it (N6), and
+  applies M6's nudge branches, which strand the thread once the quiet time passes, or mark it
+  ignored where the agent checked in since without reading it (ruling 8), one ordered decision in
+  the thread read so a thread is never both. A nudge that failed or was stopped at the terminal
+  strands the thread at once, with that reason; one that failed reads as a problem, one stopped as
+  the choice of whoever was at the terminal.
+- **Reasons on the session (CF4).** The report gains whether the session can be nudged and, where it
+  cannot be monitored or nudged, one reason from a fixed list, with since when: `nudge_off`,
+  `unknown_nudge_type`, `no_socket`, `pane_unreachable`, `not_one_pane`, `unknown_profile`,
+  `generic_profile`, `nudge_text_left` and `claims_refused`. The bridge reports a reason as it
+  arises, as it reports a condition, so trouble that starts after `register` reaches the operator
+  without the agent (ruling 9). The operator API's session reads carry it and the sessions view
+  shows it; no agent-facing answer does (M8).
 
-On a due answer, the reporter calls `observer.nudge()` with the warning (fixed words and a token
-from a cryptographic random source), the message (fixed words), the claim as `begin`, and a signal
-it aborts when it is replaced or stops. It retries `not-ready` about once a second from the pane
-alone until the observer is ready or a poll says the nudge lapsed, then sends the outcome; a
-`not-ready` outcome is not a nudge and is not reported. The bridge's log names the step a nudge
-stopped at, never pane text. A bridge whose claim or outcome the server refuses as invalid stops
-nudging until it restarts, and reports that the session cannot be nudged, so it cannot loop. A
-session whose profile is generic cannot be nudged: a generic profile cannot tell a draft on the
-input line from its prompt, and N2 and N5 allow nothing on the line but the nudge's own text. T1's
-`register` answer carries how answers reach the agent (`answers`: `nudge` or `check`), so the usage
-skill can point at it; it and the skill come with this delivery.
+On a due answer, the reporter calls `observer.nudge()` with the warning and the message, each fixed
+words plus the nudge marker and the attempt's id, drawn from a cryptographic random source (N2), the
+claim as `begin`, and a signal it aborts when it is replaced or stops. A deferral before any claim
+is retried about once a second from the pane alone until the observer is ready or a poll says the
+nudge lapsed; one held off by nudge text at the prompt is also reported as `nudge_text_left` until
+the line clears. Every claimed attempt's outcome is sent, a deferred one releasing the claim. The
+bridge's log names each attempt's id, outcome and step, never pane text. A bridge whose claim or
+outcome the server refuses as invalid stops nudging until it restarts, and reports that the session
+cannot be nudged, so it cannot loop. A session whose profile is generic cannot be nudged: a generic
+profile cannot tell a draft on the input line from its prompt, and N2 and N5 allow nothing on the
+line but the nudge's own text. T1's `register` answer carries how answers reach the agent
+(`answers`: `nudge` or `check`), so the usage skill can point at it; it and the skill come with this
+delivery.
 
 ## Configuration
 
@@ -314,20 +340,28 @@ skill can point at it; it and the skill come with this delivery.
 | `--nudge`           | `AGENTION_NUDGE`           | `tmux`; absent means off                                                      |
 
 An option wins over its variable. The bridge never reads `TMUX` or `TMUX_PANE`. The plugin
-definition forwards the three variables on both hosts (CF3), and Agentworks sets them through its
-templating once it exposes the socket path; until then, by hand.
+definition forwards the three variables on both hosts (CF3), and the execution platform running the
+session sets them. They are named for what they configure, never for a platform; Agentworks, the
+first platform, sets them through its templating once it exposes the socket path, and until then
+they are set by hand.
 
 What goes wrong, and where it shows (CF4):
 
-| Case                                           | Log                  | `register` answer           | Condition |
-| ---------------------------------------------- | -------------------- | --------------------------- | --------- |
-| No socket                                      | nothing              | answers arrive when checked | none      |
-| Socket unreachable, path too long, or no tmux  | the error, once      | answers arrive when checked | unknown   |
-| More than one pane, or the host lacks the pane | once                 | answers arrive when checked | unknown   |
-| Unknown profile name                           | once; strict generic | answers arrive when checked | as read   |
-| Unknown nudge type, or a nudge type, no socket | once; nudge off      | answers arrive when checked | as read   |
+| Case                                           | Log                  | `register` answer           | Condition | Reason on the session |
+| ---------------------------------------------- | -------------------- | --------------------------- | --------- | --------------------- |
+| No nudge type                                  | nothing              | answers arrive when checked | as read   | `nudge_off`           |
+| No socket                                      | nothing              | answers arrive when checked | none      | `no_socket`           |
+| Socket unreachable, path too long, or no tmux  | the error, once      | answers arrive when checked | unknown   | `pane_unreachable`    |
+| More than one pane, or the host lacks the pane | once                 | answers arrive when checked | unknown   | `not_one_pane`        |
+| Unknown profile name                           | once; strict generic | answers arrive when checked | as read   | `unknown_profile`     |
+| A generic profile                              | nothing              | answers arrive when checked | as read   | `generic_profile`     |
+| Unknown nudge type                             | once; nudge off      | answers arrive when checked | as read   | `unknown_nudge_type`  |
+| Nudge text left at the prompt                  | once, with the id    | (arises later)              | as read   | `nudge_text_left`     |
+| A claim or outcome refused as invalid          | once; nudge off      | (arises later)              | as read   | `claims_refused`      |
 
-The tools work as without monitoring in every case.
+Every case that arises after the bridge starts, a pane becoming unreachable among them, shows on the
+session as it arises; the agent is not told (ruling 9). The tools work as without monitoring in
+every case.
 
 ## Security
 
@@ -337,8 +371,9 @@ The tools work as without monitoring in every case.
   honor system. The screen can imitate a condition, so a report is never authority for anything but
   what the operator sees; only `nudge()`'s own checks, at the moment of each key, let one be
   pressed.
-- **The nudge's texts** are constants in the bridge plus a random token; nothing from the server or
-  the screen reaches them (N2). The due answer carries no thread, message or presence.
+- **The nudge's texts** are constants in the bridge plus the marker and a random attempt id; nothing
+  from the server or the screen reaches them (N2). The due answer carries no thread, message or
+  presence.
 - **Rights.** The bridge runs as the account that owns the tmux server; it gains no access it
   lacked.
 
@@ -394,7 +429,8 @@ The tools work as without monitoring in every case.
   it. Claude Code and Codex both do, and only their profiles nudge; a profile added for a harness
   that does not must be checked for it, since that harness would receive each text as typed keys.
 - **Keys go to tmux's default target**, as reads do. Each key follows a reading that found one pane,
-  and Agentworks sessions hold one pane, so only a pane created in the milliseconds between could
-  receive it.
-- **A restarted bridge outside Agentworks** starts reporting only at the agent's next tool call,
-  since it learns its session's names then; until then the session shows disconnected.
+  and the platform's sessions hold one pane, as Agentworks's do, so only a pane created in the
+  milliseconds between could receive it.
+- **A restarted bridge whose platform names no default session** starts reporting only at the
+  agent's next tool call, since it learns its session's names then; until then the session shows
+  disconnected.
