@@ -44,6 +44,13 @@ export {
   revokeRegistration,
   submitRegistration,
 } from "./registrations.ts";
+export {
+  createSavedView,
+  listSavedViews,
+  removeSavedView,
+  renameSavedView,
+  replaceSavedView,
+} from "./saved-views.ts";
 export { serverName, storedName, storeName } from "./server-name.ts";
 export { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
 export { createStore, type Store } from "./store.ts";

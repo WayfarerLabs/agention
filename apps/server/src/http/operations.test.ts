@@ -1,4 +1,10 @@
-import { holdsScope, type Scope, scopes, threadsQuery } from "@wayfarerlabs/agention-api";
+import {
+  holdsScope,
+  type Scope,
+  scopes,
+  threadsQuery,
+  threadsView,
+} from "@wayfarerlabs/agention-api";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
@@ -7,6 +13,7 @@ import {
   beginUpload,
   completeUpload,
   createGroup,
+  createSavedView,
   setSessionTags,
   submitRegistration,
   writeChunk,
@@ -174,6 +181,9 @@ const bodies: Record<string, unknown> = {
   setSessionGroup: { group: 1 },
   setSessionTags: { tags: [] },
   setAgentTags: { tags: [] },
+  createSavedView: { name: "Overdue", view: { overdue: true } },
+  renameSavedView: { name: "Blocked" },
+  replaceSavedView: { view: { unread: true } },
   approveRegistration: {
     agent: { name: "builder", existing: true },
     session: { name: "second", existing: false },
@@ -241,6 +251,10 @@ const holding = (identity: Identity, chosen: readonly Scope[]): Identity => ({
 describe("the store work of an operation", () => {
   beforeEach(() => {
     createGroup(fixture.store, fixture.operator, { name: "Work" });
+    createSavedView(fixture.store, fixture.operator, {
+      name: "Blocking me",
+      view: threadsView.parse({ impact: "blocking" }),
+    });
     setSessionTags(fixture.store, fixture.operator, agent.target, { tags: ["infra"] });
     submitRegistration(
       fixture.store,

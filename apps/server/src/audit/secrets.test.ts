@@ -102,6 +102,17 @@ it("keeps every secret and all content out of the log", async () => {
     prompt: `${marker}-prompt`,
     api_key: `sk-${marker}-transcription-key`,
   });
+  // A saved view, whose list's search is text the operator typed.
+  const saved = await harness.web("POST", "/saved-views", {
+    name: "Searching",
+    view: { search: `${marker}-search` },
+  });
+  expect(codeOf(saved)).toBe("ok");
+  const view = (saved.body as { id: number }).id;
+  const replaced = await harness.web("POST", `/saved-views/${view}/view`, {
+    view: { search: `${marker}-replaced-search` },
+  });
+  expect(codeOf(replaced)).toBe("ok");
   await harness.web("POST", "/transcriptions", Buffer.from(`${marker}-audio`), {
     headers: { "content-type": "audio/webm" },
   });

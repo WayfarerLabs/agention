@@ -24,33 +24,37 @@
 
 ## P1: saved views
 
-- [ ] `packages/api`: `saved-views.ts` (id, name, `maxSavedViews`, the view as read, the list, and
-      the inputs); `saved-views:read` and `saved-views:write` in `scopes.ts`; the route params.
-- [ ] Migration: `saved_views`; its frozen hash.
-- [ ] Store: `saved-views.ts`, create, list by name, rename, replace, and remove, each confirming
+- [x] `packages/api`: `saved-views.ts` (id, name, `maxSavedViews`, the view as read, the list, and
+      the inputs); `saved-views:read` and `saved-views:write` in `scopes.ts`; the route params
+      (#184).
+- [x] Migration: `saved_views`; its frozen hash (#184).
+- [x] Store: `saved-views.ts`, create, list by name, rename, replace, and remove, each confirming
       its scope in its transaction, reading strictly; `renameTag` rewriting the views naming the
-      tag, without duplicates.
-- [ ] HTTP: the five operations in the operator operations list; the API reference regenerated.
-- [ ] Web: **Saved views** in the list's head, with the current view in its name; the sheet, with
+      tag, without duplicates (#184).
+- [x] HTTP: the five operations in the operator operations list; the API reference regenerated
+      (#184).
+- [x] Web: **Saved views** in the list's head, with the current view in its name; the sheet, with
       **Replace with this list**, **Save as new view**, and **Manage saved views**; `g v` in the
-      shortcuts and their help; the `bookmark` icon.
-- [ ] Web: Settings' **Saved views** section with rename and remove; the API key form's two new
-      scopes.
-- [ ] Docs:
-  - [ ] architecture: the table, the store, the operations, the scopes, and the web UI;
-  - [ ] the web UI page: using saved views, the Settings section, and `g v` in its keyboard
-        shortcuts; the operator guide's API key scope table;
-  - [ ] `SECURITY.md`'s API keys: the two scopes;
-  - [ ] the review checklist: A18 gains the scopes and records the intended crossing, `renameTag`
-        under `sessions:write` rewriting saved views to keep their meaning; A19 gains the line that
-        a change to the list's view schema ships with a migration of stored views;
-  - [ ] `docs/live-testing.md` surfaces: on the web, the sheet, `g v`, and the Settings section; on
+      shortcuts and their help; the `bookmark` icon (#184).
+- [x] Web: Settings' **Saved views** section with rename and remove; the API key form's two new
+      scopes (#184).
+- [x] Docs (#184):
+  - [x] architecture: the table, the store, the operations, the scopes, and the web UI (#184);
+  - [x] the web UI page: using saved views, the Settings section, and `g v` in its keyboard
+        shortcuts; the operator guide's API key scope table (#184);
+  - [x] `SECURITY.md`: the two scopes in API keys, and saved views in the Isolation invariant, which
+        no agent sees or changes (#184);
+  - [x] the review checklist: A3's look-for names saved views, which no agent sees or changes; A18
+        gains the scopes and records the intended crossing, `renameTag` under `sessions:write`
+        rewriting saved views to keep their meaning; A19 gains the line that a change to the list's
+        view schema ships with a migration of stored views (#184);
+  - [x] `docs/live-testing.md` surfaces: on the web, the sheet, `g v`, and the Settings section; on
         the HTTP API, the operator mount's `saved-views` operations with a key of each scope, and
-        their refusals to a key without them;
-  - [ ] the README's description of the web UI, which names the list's filters.
-  - [ ] a new ADR in the format of ADR 0000, the contract's home for decision records, carrying the
+        their refusals to a key without them (#184);
+  - [x] the README: no change, since it names none of the list's filters (#184);
+  - [x] a new ADR in the format of ADR 0000, the contract's home for decision records, carrying the
         durable rationale: the whole list saved as it was, strict reads with migrations, scopes of
-        their own, no agent access, and no default view.
+        their own, no agent access, and no default view (#184).
 - Done when:
   - the operator sets filters, an order, and a grouping, saves them as a view, reloads in another
     browser, and opens the same list from the view, with the link and Back behaving as the

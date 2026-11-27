@@ -1,4 +1,11 @@
-import type { Color, GroupId, GroupsAndTags, groupName, tagName } from "@wayfarerlabs/agention-api";
+import type {
+  Color,
+  GroupId,
+  GroupsAndTags,
+  groupName,
+  savedViewName,
+  tagName,
+} from "@wayfarerlabs/agention-api";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { request } from "./api.ts";
 
@@ -14,7 +21,7 @@ export const loadGroupsAndTags = () => request<GroupsAndTags>("GET", "/groups-an
 // nameProblem says why a name cannot be used, in the API's words for the
 // rule it breaks.
 export function nameProblem(
-  schema: typeof groupName | typeof tagName,
+  schema: typeof groupName | typeof tagName | typeof savedViewName,
   what: string,
   name: string,
 ): string | undefined {

@@ -57,6 +57,7 @@ const lastQuery = () => api.callsTo("GET", "/threads").at(-1)?.url.searchParams;
 const address = () => window.location.search;
 
 const filtersButton = () => screen.getByRole("button", { name: /^Filters/ });
+const savedViewsButton = () => screen.getByRole("button", { name: /^Saved views/ });
 // Search, which opens the head's search field, its name saying the search
 // on; the field's box, while it is open; and the sheet's.
 const searchButton = () => screen.getByRole("button", { name: /^Search(, "[^"]*")?$/ });
@@ -362,13 +363,14 @@ describe("the thread list", () => {
     expect(api.callsTo("GET", "/threads/counts")).toEqual([]);
   });
 
-  it("heads the list with one row of Search, Filters, the order and its direction, and the grouping, after its heading", async () => {
+  it("heads the list with one row of Saved views, Search, Filters, the order and its direction, and the grouping, after its heading", async () => {
     serve([]);
     renderAt("/");
     const heading = await screen.findByRole("heading", { level: 1 });
     const head = filtersButton().parentElement as HTMLElement;
     const controls = Array.from(head.querySelectorAll("h1, input, select, button"));
     expect(controls).toEqual([
+      savedViewsButton(),
       searchButton(),
       filtersButton(),
       sortSelect(),

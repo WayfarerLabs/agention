@@ -106,8 +106,8 @@ export class FakeApi {
   readonly #routes = new Map<string, Handler>();
 
   // Signed in, with an empty thread list, no sessions, nothing waiting on
-  // the operator, and no groups or tags, unless a test registers other
-  // answers.
+  // the operator, and no groups, tags or saved views, unless a test registers
+  // other answers.
   constructor() {
     this.on("GET", "/session", { body: signedIn });
     this.on("GET", "/threads", { body: emptyList });
@@ -115,6 +115,7 @@ export class FakeApi {
     this.on("GET", "/sessions", { body: { agents: [] } });
     this.on("GET", "/attention", { body: noAttention });
     this.on("GET", "/groups-and-tags", { body: noGroupsOrTags });
+    this.on("GET", "/saved-views", { body: { views: [] } });
     this.on("GET", "/settings", { body: noSettings });
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
       this.#fetch(input, init),

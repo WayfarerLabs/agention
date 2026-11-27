@@ -132,6 +132,11 @@ async function group(context: Context, name = "Work"): Promise<number> {
   return (created.body as { id: number }).id;
 }
 
+async function savedView(context: Context): Promise<number> {
+  const created = await context.harness.web("POST", "/saved-views", { name: "Overdue", view: {} });
+  return (created.body as { id: number }).id;
+}
+
 const target = (thread: number, through: number) => ({
   agent: "builder",
   session: "main",
@@ -301,6 +306,30 @@ const declarations: Record<string, Driver[]> = {
     }),
   ],
   removeTag: [async () => ({ call: ["POST", "/tags/infra/remove"], events: ["removeTag"] })],
+  createSavedView: [
+    async () => ({
+      call: ["POST", "/saved-views", { name: "Overdue", view: { overdue: true } }],
+      events: ["createSavedView"],
+    }),
+  ],
+  renameSavedView: [
+    async (context) => ({
+      call: ["POST", `/saved-views/${await savedView(context)}/name`, { name: "Blocked" }],
+      events: ["renameSavedView"],
+    }),
+  ],
+  replaceSavedView: [
+    async (context) => ({
+      call: ["POST", `/saved-views/${await savedView(context)}/view`, { view: { unread: true } }],
+      events: ["replaceSavedView"],
+    }),
+  ],
+  removeSavedView: [
+    async (context) => ({
+      call: ["POST", `/saved-views/${await savedView(context)}/remove`],
+      events: ["removeSavedView"],
+    }),
+  ],
   setSessionGroup: [
     async (context) => ({
       call: ["POST", "/s/builder/main/group", { group: await group(context) }],

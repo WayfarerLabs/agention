@@ -585,12 +585,15 @@ legend {
    their place. A control shows its words beside its icon only where the head
    has room for them, which it measures as its own container, so the list
    beside a thread, as narrow as a phone, keeps its icons alone: a pick list's
-   words, what it holds, from 28rem; every control's from 41rem, past the
-   widest that row gets by touch with every control set in the widest font
-   measured, DejaVu Sans, a common Linux system font (about 40.2rem; Arial
-   about 36.6rem). The browser tests hold the row to it in the system's own
-   font and in Arial. The row wraps rather than scroll sideways should a wider
-   font leave it no room. */
+   words, what it holds, from 28rem; every other control's from 44rem, past
+   the widest that row gets by touch with every control set in the widest
+   font measured, DejaVu Sans, a common Linux system font (about 43.7rem;
+   Arial about 39.8rem), which is the widest the head gets alone, in the
+   page's content, by touch. Saved views shows its icon alone: its words
+   would take that row to about 49.5rem, wider than the head ever is by
+   touch. The browser tests hold the row to it in the system's own font and
+   in Arial. The row wraps rather than scroll sideways should a wider font
+   leave it no room. */
 .list-head {
   display: flex;
   flex-wrap: wrap;
@@ -632,7 +635,7 @@ legend {
   }
 }
 
-@container list-head (min-width: 41rem) {
+@container list-head (min-width: 44rem) {
   .control-label {
     display: inline;
   }
@@ -776,6 +779,27 @@ legend {
 .sort-control {
   display: flex;
   gap: var(--space-2);
+}
+
+/* The narrowest phones keep the head's controls closer, and draw Filters'
+   count on its corner, as a set control's mark is, so the count takes no
+   room from the row and its six touch targets still share one row at 320
+   pixels with every control set. */
+@media (max-width: 22.5rem) {
+  .list-head,
+  .sort-control {
+    gap: var(--space-1);
+  }
+
+  .list-head .icon-control .badge {
+    position: absolute;
+    top: -0.375rem;
+    right: -0.375rem;
+    min-width: 1.125rem;
+    padding: 0 0.1875rem;
+    line-height: 1.125rem;
+    box-shadow: 0 0 0 2px var(--color-bg);
+  }
 }
 
 /* The search field in the row's place, beside the button closing it, with
@@ -985,6 +1009,57 @@ button.chip {
     margin: auto;
     border-radius: var(--radius-large);
   }
+}
+
+/* A link a sheet's foot holds beside its buttons, such as Saved views'
+   Manage saved views. */
+.sheet-foot .sheet-link {
+  align-self: center;
+}
+
+/* The Saved views sheet: each view on a line of its own, its name after a
+   column that checks the current one, as a picker marks its choice, and
+   Replace with this list at the line's end where there is room, beneath it
+   otherwise, its question taking the whole line. */
+.saved-views {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.saved-views > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.saved-view-line {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--touch);
+}
+
+.saved-view-line a {
+  overflow-wrap: anywhere;
+}
+
+.saved-view-check {
+  display: inline-flex;
+  flex: none;
+  width: 1.25rem;
+  color: var(--color-accent);
+}
+
+.saved-views .confirm {
+  flex: 1 1 100%;
+  margin: var(--space-1) 0;
 }
 
 /* The keyboard shortcuts' overlay: each place's shortcuts, the keys beside

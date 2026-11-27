@@ -60,7 +60,7 @@ No agent route, tool or answer changes.
   checklist's rule that derived signals never trigger actions. Rules never key on what messages say.
 - **The service worker is push-only**: `push` and `notificationclick`, no fetch handler, no cache.
 - **A new ADR** records Web Push to the operator and marks ADR 0001's "No push" line superseded for
-  the operator; reaching an agent only when it checks stays. It amends ADR 0006's "One crossing is
+  the operator; reaching an agent only when it checks stays. It amends ADR 0007's "One crossing is
   intended" with the second crossing, and says that "never changes what an existing scope grants"
   (review check A18, `SECURITY.md`) holds because saved views and notifications ship in one release
   (ruling 10).
@@ -336,7 +336,7 @@ Two pull requests, each usable on its own:
    scope tables and the sentence under `docs/architecture.md`'s that one operation reaches across
    resources, `SECURITY.md`'s API keys, whose "and nothing more" no longer holds, review check A18's
    crossing sentence and its look-for of a write across resources beyond the tag rename's, the new
-   ADR's amendment of ADR 0006's one crossing, `docs/web-ui.md`'s Saved views and Settings, and the
+   ADR's amendment of ADR 0007's one crossing, `docs/web-ui.md`'s Saved views and Settings, and the
    live testing guide's saved views operations. It builds on saved views (agention#184), and the two
    ship in the same release (ruling 10).
 

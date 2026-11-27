@@ -31,6 +31,8 @@ const grants: Record<Scope, string> = {
   "sessions:write": "Also mark a session's log read, and manage groups and tags.",
   "sessions:approve":
     "Also approve, reject and revoke agents' registrations: whoever holds the key can let an agent into your sessions.",
+  "saved-views:read": "Read your saved views, each with its thread list.",
+  "saved-views:write": "Also save, rename, replace and remove saved views.",
 };
 
 // The scopes a scope includes besides itself.

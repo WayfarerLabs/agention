@@ -129,7 +129,7 @@ Web UI:
 Collateral:
 
 - [ ] New ADR: Web Push to the operator; ADR 0001's "No push" line marked superseded for the
-      operator; ADR 0006's "One crossing is intended" amended with the second crossing; and one line
+      operator; ADR 0007's "One crossing is intended" amended with the second crossing; and one line
       that "never changes what an existing scope grants" (review check A18, `SECURITY.md`) holds
       because saved views and notifications ship in one release (FRD ruling 10).
 - [ ] SECURITY.md: what reaches push services and devices, outbound limits, keys, and backups; and

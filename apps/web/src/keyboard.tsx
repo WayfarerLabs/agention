@@ -12,6 +12,7 @@ import {
 import { anyMenuOpen, Sheet } from "./components.tsx";
 import { useDeviceChoice } from "./device.ts";
 import { Link, navigate, useLocation } from "./router.tsx";
+import { openSavedViews } from "./saved-views.ts";
 
 // Keyboard shortcuts: single keys, in the manner of mail and code-review
 // tools, that act only while focus is outside a text field, an open menu and
@@ -94,6 +95,7 @@ export const shortcuts = {
   goThreads: { place: "Anywhere", keys: ["g t"], description: "Go to Threads" },
   goSessions: { place: "Anywhere", keys: ["g s"], description: "Go to Sessions" },
   goSettings: { place: "Anywhere", keys: ["g ,"], description: "Go to Settings" },
+  goSavedViews: { place: "Anywhere", keys: ["g v"], description: "Go to saved views" },
   nextThread: { place: "Thread list", keys: ["j"], description: "Move to the next thread" },
   previousThread: { place: "Thread list", keys: ["k"], description: "Move to the previous thread" },
   nextNeeding: {
@@ -437,6 +439,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     goThreads: () => navigate("/"),
     goSessions: () => navigate("/sessions"),
     goSettings: () => navigate("/settings"),
+    goSavedViews: openSavedViews,
   });
 
   useEffect(() => {

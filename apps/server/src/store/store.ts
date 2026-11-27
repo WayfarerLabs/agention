@@ -1,4 +1,8 @@
+import type { Scope } from "@wayfarerlabs/agention-api";
+import type { AuditAction, AuditInput } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
+import { authorizeScope, type Identity } from "../identity.ts";
 import { OperatorWaits } from "./operator-waits.ts";
 import { SessionNotifier } from "./notifier.ts";
 
@@ -52,3 +56,24 @@ export function createStore(
     auditWake: new AuditWake(),
   };
 }
+
+// operate runs fn in a transaction once the identity is found to hold the
+// scope, as the operations that need one scope do, with record, which records
+// the change's audit event in the same transaction.
+export function operate<T>(
+  store: Store,
+  identity: Identity,
+  scope: Scope,
+  fn: (db: Database, record: Recorder) => T,
+): T {
+  const { db } = store;
+  return db.transaction(() => {
+    const now = store.clock();
+    authorizeScope(db, identity, scope, now);
+    return fn(db, (action, input) => {
+      recordAudit(store, now, { kind: "identity", identity }, action, input);
+    });
+  });
+}
+
+type Recorder = <A extends AuditAction>(action: A, input: AuditInput<A>) => void;

@@ -2,8 +2,8 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram, voice, API key, attachment, selection and
-// session link tests' own.
+// and so do servers of the diagram, voice, API key, attachment, selection,
+// session link, and saved views tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -49,9 +49,10 @@ export const filesServerName = "Files";
 export const linksServerName = "Links";
 // The name of the server the selection tests start for themselves.
 export const selectionServerName = "Selection";
-
 // The name of the server the session link tests start for themselves.
 export const sessionLinksServerName = "Session links";
+// The name of the server the saved views tests start for themselves.
+export const savedViewsServerName = "Saved views";
 
 // The name of the server the README's screenshots are taken of.
 export const screenshotsServerName = "Agention";
@@ -216,6 +217,7 @@ export const test = base.extend<
     linksServer: Agention;
     selectionServer: Agention;
     sessionLinksServer: Agention;
+    savedViewsServer: Agention;
     screenshotsServer: Agention;
   }
 >({
@@ -234,6 +236,7 @@ export const test = base.extend<
   linksServer: [serving(linksServerName), { scope: "worker" }],
   selectionServer: [serving(selectionServerName), { scope: "worker" }],
   sessionLinksServer: [serving(sessionLinksServerName), { scope: "worker" }],
+  savedViewsServer: [serving(savedViewsServerName), { scope: "worker" }],
   screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {

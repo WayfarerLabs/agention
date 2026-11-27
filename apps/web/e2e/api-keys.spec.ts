@@ -4,7 +4,7 @@
 // key's scopes until the key is revoked; and the section, its form and a new
 // secret fit a phone's width.
 import type { BrowserContext, Page } from "@playwright/test";
-import { apiKeySecret } from "@wayfarerlabs/agention-api";
+import { apiKeySecret, scopes } from "@wayfarerlabs/agention-api";
 import { type Answer, callServer } from "./agent.ts";
 import { type Agention, expect, reportPolicyRefusals, resize, test } from "./fixtures.ts";
 
@@ -125,7 +125,7 @@ test("the keys, the form and a new secret fit a phone's width", async () => {
 
     await section().getByRole("button", { name: "Create an API key" }).click();
     await section().getByLabel("Name").fill("Phone");
-    await expect(section().getByRole("checkbox")).toHaveCount(5);
+    await expect(section().getByRole("checkbox")).toHaveCount(scopes.length);
     await section().getByRole("checkbox", { name: "threads:write" }).check();
     await expect(section().getByRole("checkbox", { name: "threads:read" })).toBeChecked();
     await expect(section().getByRole("checkbox", { name: "threads:read" })).toBeDisabled();
