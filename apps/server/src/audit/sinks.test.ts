@@ -80,11 +80,16 @@ describe("the file sink", () => {
       clock,
     });
   const read = (name: string) => readFileSync(path.join(root, "audit", name), "utf8");
+  // stamp sets a file's last write to the test clock's time, as a write at
+  // that time would: the sink dates a file it opens by its last write.
+  const stamp = (name: string) =>
+    utimesSync(path.join(root, "audit", name), new Date(now), new Date(now));
 
   it("appends lines to audit.jsonl in a directory only its user can enter", async () => {
     const sink = open();
     await sink.deliver([record(1)]);
     await sink.close();
+    stamp("audit.jsonl");
     // A restart appends to the file there.
     const again = open();
     await again.deliver([record(2), record(3)]);
@@ -152,6 +157,7 @@ describe("the file sink", () => {
     const directory = path.join(root, "audit");
     mkdirSync(directory, { mode: 0o700 });
     writeFileSync(path.join(directory, "audit.jsonl"), '{"torn":', { mode: 0o600 });
+    stamp("audit.jsonl");
     const sink = open();
     await sink.deliver([record(1)]);
     await sink.close();
