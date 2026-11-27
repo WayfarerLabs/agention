@@ -114,8 +114,8 @@
       session's threads, and a claim whose outcome never came reads as under way, settling as
       deferred when another bridge comes to act, or as failed if one already was since the last
       check-in (HLA "The nudge"). Done when the store's, HTTP and web tests show a call just after a
-      message counting as a check-in since it, an under-way claim shown and never read as sent, and
-      both settlements.
+      message counting as a check-in since it, an under-way claim neither shown to the operator nor
+      read as sent, and both settlements.
 - [ ] Permanent docs name Agentworks as the first execution platform, never an assumption (CF3,
       ruling 9). Done when the project review finds none that assumes it.
 - [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
