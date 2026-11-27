@@ -1,8 +1,8 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { performance } from "node:perf_hooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { notReady } from "@wayfarerlabs/agention-harness-observer";
 import type { Monitor } from "./monitoring.ts";
-import { notReady } from "./nudge.ts";
 import { DrawnPane, eventually, MonitorHarness, timing } from "./monitoring-test-support.ts";
 import { Reporter } from "./reporter.ts";
 import { Session } from "./session.ts";

@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import {
   type LatestReading,
+  notReady,
   Nudge,
   type NudgeOptions,
   type NudgeOutcome,
@@ -34,7 +35,8 @@ export interface Observer {
   observations(signal: AbortSignal): AsyncIterable<Observation>;
   // nudge puts a warning and then a message in the harness's input line and
   // submits the message, with every check before each key that the package's
-  // README lists, and says how it ended. It starts from the latest
+  // README lists, and says how it ended: deferred, stopped, failed or sent,
+  // with the step it ended at. It starts from the latest
   // observation, so it is never ready while observations is not running, and
   // asks options.begin before it writes anything; options.signal stops it.
   // It throws, before anything reaches the pane, a RangeError for a text it
@@ -149,7 +151,7 @@ export class PaneObserver implements Observer {
       throw new Error(`the ${this.#profile.name} profile cannot tell when a harness may be nudged`);
     }
     if (this.#nudging) {
-      return { sent: false, step: "not-ready" };
+      return notReady;
     }
     this.#nudging = true;
     try {

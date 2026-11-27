@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { scriptedProfile } from "../test/scripted-profile.ts";
 import { scriptedHarness, TmuxServer } from "../test/tmux-server.ts";
 import { genericStrict } from "./generic-profiles.ts";
-import { type NudgeOptions, type NudgeTexts, warnFor } from "./nudge.ts";
+import { notReady, type NudgeOptions, type NudgeTexts, warnFor } from "./nudge.ts";
 import { type Clock, PaneObserver } from "./observer.ts";
 import type { Snapshot } from "./pane.ts";
 import type { Profile } from "./profile.ts";
@@ -15,8 +15,9 @@ import { TmuxPane } from "./tmux-pane.ts";
 // passes at once.
 
 const texts: NudgeTexts = {
-  warning: "A nudge is coming; type anything to stop it. 3f9a",
-  message: "Check in with your inbox.",
+  warning: "Nudge 3f9a is coming; type anything to stop it.",
+  message: "Nudge 3f9a: check in with your inbox.",
+  isNudgeText: (text) => /^Nudge [0-9a-f]{4}\b/.test(text),
 };
 
 // What lets every nudge here go ahead.
@@ -138,7 +139,7 @@ describe("nudge on a tmux pane", () => {
     });
     const before = await buffers(server);
     const top = await server.tmux("show-buffer");
-    expect(await observer.nudge(texts, go)).toEqual({ sent: true });
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "sent", step: "submitted" });
     expect(await buffers(server)).toBe(before);
     // What the operator's paste key pastes.
     expect(await server.tmux("show-buffer")).toBe(top);
@@ -159,7 +160,7 @@ describe("nudge on a tmux pane", () => {
       arrange: ({ server, pane }) => keysShowing(server, pane, "d", "Allow this action?"),
     });
     const shown = await pane.snapshot();
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "not-ready" });
+    expect(await observer.nudge(texts, go)).toEqual(notReady);
     expect((await pane.snapshot()).lines).toEqual(shown.lines);
   });
 
@@ -175,7 +176,7 @@ describe("nudge on a tmux pane", () => {
     });
     const snapshot = await pane.snapshot();
     expect(snapshot.at - snapshot.lastTyped!).toBeLessThan(10_000);
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "not-ready" });
+    expect(await observer.nudge(texts, go)).toEqual(notReady);
     expect(inputRow(await pane.snapshot())).toBe(">");
   });
 
@@ -183,7 +184,7 @@ describe("nudge on a tmux pane", () => {
     const { server, pane, observer } = await observed(scriptedProfile);
     await server.tmux("copy-mode");
     await until(pane, (snapshot) => snapshot.keysBlocked);
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "not-ready" });
+    expect(await observer.nudge(texts, go)).toEqual(notReady);
     await server.tmux("send-keys", "-X", "cancel");
     expect(inputRow(await until(pane, (snapshot) => !snapshot.keysBlocked))).toBe(">");
   });
@@ -192,7 +193,7 @@ describe("nudge on a tmux pane", () => {
     const { pane, observer } = await observed(scriptedProfile, {
       arrange: ({ server, pane }) => keysShowing(server, pane, "xyz", "> xyz"),
     });
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "not-ready" });
+    expect(await observer.nudge(texts, go)).toEqual(notReady);
     expect(inputRow(await pane.snapshot())).toBe("> xyz");
   });
 
@@ -200,35 +201,57 @@ describe("nudge on a tmux pane", () => {
     const { observer } = await observed(scriptedProfile, {
       arrange: ({ server, pane }) => keysShowing(server, pane, "l", "usage limit reached"),
     });
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "not-ready" });
+    expect(await observer.nudge(texts, go)).toEqual(notReady);
   });
 
-  it("abandons at the warning, leaving it, when someone types over it during the wait", async () => {
+  it("stops at the warning, leaving it, when someone types over it during the wait", async () => {
     const { server, pane, observer, clock } = await observed(scriptedProfile);
     clock.during = () => keysShowing(server, pane, "x", `> ${texts.warning}x`);
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "warning" });
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "stopped", step: "warning" });
     expect(inputRow(await pane.snapshot())).toBe(`> ${texts.warning}x`);
   });
 
-  it("abandons at cleared where Backspace does not delete", async () => {
+  it("defers at the warning, taking it back, when the rest of the screen changes during the wait", async () => {
+    const { server, pane, observer, clock } = await observed(scriptedProfile);
+    clock.during = () => keysShowing(server, pane, "n", "a note");
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "deferred", step: "warning" });
+    const after = await pane.snapshot();
+    expect(inputRow(after)).toBe(">");
+    expect(after.lines).toContain("a note");
+  });
+
+  it("defers, sending nothing and saying so, with nudge text left in the input", async () => {
+    const left = "Nudge 9f9f is coming; type";
+    const { pane, observer } = await observed(scriptedProfile, {
+      arrange: ({ server, pane }) => keysShowing(server, pane, left, `> ${left}`),
+    });
+    expect(await observer.nudge(texts, go)).toEqual({
+      outcome: "deferred",
+      step: "not-ready",
+      nudgeTextLeft: true,
+    });
+    expect(inputRow(await pane.snapshot())).toBe(`> ${left}`);
+  });
+
+  it("fails at cleared where Backspace does not delete", async () => {
     const { pane, observer } = await observed(scriptedProfile, {
       harness: ["--backspace-moves"],
     });
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "cleared" });
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "failed", step: "cleared" });
     expect(inputRow(await pane.snapshot())).toBe(`> ${texts.warning}`);
   });
 
-  it("abandons at the message when a dialog drops its paste", async () => {
+  it("defers at the message when a dialog drops its paste, leaving nothing of the nudge's", async () => {
     const { pane, observer } = await observed(scriptedProfile, {
       harness: ["--dialog-at-second-paste"],
     });
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "message" });
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "deferred", step: "message" });
     expect((await pane.snapshot()).lines).toContain("Allow this action?");
   });
 
-  it("abandons at submitted when Enter does not submit", async () => {
+  it("fails at submitted when Enter does not submit", async () => {
     const { pane, observer } = await observed(scriptedProfile, { harness: ["--enter-ignored"] });
-    expect(await observer.nudge(texts, go)).toEqual({ sent: false, step: "submitted" });
+    expect(await observer.nudge(texts, go)).toEqual({ outcome: "failed", step: "submitted" });
     expect(inputRow(await pane.snapshot())).toBe(`> ${texts.message}`);
   });
 });

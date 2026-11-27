@@ -195,7 +195,9 @@ describe("monitoring", () => {
     const bridge = await harness.registered();
     await eventually(() => harness.held(), "the report");
     await delay(1500);
-    expect(harness.reports()).toEqual([{ monitored: false }]);
+    expect(harness.reports()).toEqual([
+      { monitored: false, unable: { reason: "no_socket", since: expect.any(String) } },
+    ]);
     expect(bridge.logged).toEqual([]);
   });
 
@@ -218,8 +220,12 @@ describe("monitoring", () => {
         "nudge",
         "profile",
         "since",
+        "unable",
       ]);
+      // The nudge is off, which the operator sees as the reason, from start.
+      expect(report).toMatchObject({ unable: { reason: "nudge_off" } });
     }
+    expect(new Set(harness.reports().map((report) => report.unable?.since)).size).toBe(1);
   });
 
   it("chooses the profile of the harness the MCP client names", async () => {
@@ -253,8 +259,58 @@ describe("monitoring", () => {
       { pane: () => pane, client: { name: "claude-code", version: "2.1.332" } },
     );
     await eventually(() => harness.held(), "the report");
-    expect(harness.held()?.profile).toBe("generic-strict");
+    expect(harness.held()).toMatchObject({ profile: "generic-strict", unable: "unknown_profile" });
     expect(bridge.logged).toHaveLength(1);
+  });
+
+  it("reports why it cannot read the pane as that arises after it starts, changes and ends", async () => {
+    const pane = new DrawnPane();
+    const drawn = pane.snapshot.bind(pane);
+    let trouble: "none" | "unreadable" | "panes" = "none";
+    pane.snapshot = async () => {
+      if (trouble === "unreadable") {
+        throw new Error("no server running on the socket");
+      }
+      const snapshot = await drawn();
+      return trouble === "panes" ? { ...snapshot, onePane: false } : snapshot;
+    };
+    const bridge = await harness.registered(
+      { AGENTION_TMUX_SOCKET: "/drawn" },
+      { pane: () => pane },
+    );
+    await eventually(
+      () => (harness.held()?.condition === "at_prompt" ? true : undefined),
+      "at_prompt",
+    );
+    expect(harness.held()?.unable).toBe("nudge_off");
+    trouble = "unreadable";
+    await eventually(
+      () => (harness.held()?.unable === "pane_unreachable" ? true : undefined),
+      "the pane unreachable",
+    );
+    expect(harness.held()?.condition).toBe("unknown");
+    // The condition stays unknown while the reason changes.
+    trouble = "panes";
+    await eventually(
+      () => (harness.held()?.unable === "not_one_pane" ? true : undefined),
+      "more than one pane",
+    );
+    trouble = "none";
+    await eventually(
+      () => (harness.held()?.unable === "nudge_off" ? true : undefined),
+      "the pane back",
+    );
+    const reasons = harness.reports().map((report) => report.unable?.reason);
+    expect(reasons.filter((reason, i) => reason !== reasons[i - 1])).toEqual([
+      "nudge_off",
+      "pane_unreachable",
+      "not_one_pane",
+      "nudge_off",
+    ]);
+    // The agent is never told, and the tools work as without monitoring.
+    const answer = await bridge.call("thread_list");
+    expect(answer.isError).toBe(false);
+    expect(JSON.stringify(answer)).not.toMatch(/pane_unreachable|not_one_pane|nudge_off/);
   });
 
   it.each([
@@ -265,6 +321,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("pane_unreachable");
     expect(bridge.logged).toHaveLength(1);
     // The tools work as without monitoring.
     expect((await bridge.call("thread_list")).isError).toBe(false);
@@ -278,6 +335,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("pane_unreachable");
     expect(bridge.logged).toHaveLength(1);
   });
 
@@ -288,6 +346,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("not_one_pane");
     expect(bridge.logged).toHaveLength(1);
   });
 
@@ -320,6 +379,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("not_one_pane");
     expect(bridge.logged).toHaveLength(1);
     // Nothing of the screen reaches the log.
     expect(bridge.logged[0]).not.toContain("scripted");

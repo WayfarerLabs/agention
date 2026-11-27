@@ -1,4 +1,4 @@
-import type { NudgeOutcome, NudgeTexts } from "@wayfarerlabs/agention-harness-observer";
+import type { NudgeTexts } from "@wayfarerlabs/agention-harness-observer";
 import { randomBytes } from "node:crypto";
 
 // The nudge's side in the bridge: the two texts a nudge asks the harness
@@ -21,7 +21,8 @@ export const nudgeMarker = "Agention nudge";
 // never share one.
 const idDigits = 12;
 
-// markedBy matches the marker and an attempt id, as the start of either text.
+// markedBy matches the marker and an attempt id, as the start of either text,
+// and of what is left of one that was partly removed or typed after.
 export const markedBy = new RegExp(`^${nudgeMarker} [0-9a-f]{${idDigits}}\\b`);
 
 // The texts of one nudge attempt, with the id they carry.
@@ -34,6 +35,8 @@ export interface AttemptTexts extends NudgeTexts {
 // and that typing anything stops it; the message, the same every time beyond
 // its id, tells the agent to check in with Agention, names no thread, and
 // keeps the id, so the harness's transcript records which attempt woke it.
+// Nudge text, any attempt's, is whatever markedBy matches, so the observer
+// never pastes over what an earlier attempt, or anyone, left at the prompt.
 export function nudgeTexts(): AttemptTexts {
   const id = randomBytes(idDigits / 2).toString("hex");
   const mark = `${nudgeMarker} ${id}`;
@@ -41,9 +44,6 @@ export function nudgeTexts(): AttemptTexts {
     id,
     warning: `${mark} coming; type anything to stop it.`,
     message: `${mark}: read unread threads, update your status.`,
+    isNudgeText: (text) => markedBy.test(text),
   };
 }
-
-// The outcome of a nudge the bridge cannot ask for, with nothing put in the
-// pane.
-export const notReady: NudgeOutcome = { sent: false, step: "not-ready" };

@@ -100,20 +100,21 @@ export class MonitorHarness extends BridgeHarness {
   // The report the server holds for the session, as its row has it.
   held(): Record<string, unknown> | undefined {
     return this.server.fixture.db
-      .prepare("SELECT monitored, profile, condition, stopped_by, nudge FROM monitor_reports")
+      .prepare(
+        "SELECT monitored, profile, condition, stopped_by, nudge, unable FROM monitor_reports",
+      )
       .get() as Record<string, unknown> | undefined;
   }
 
-  // The session's latest nudge, as its row has it: when it was claimed, by
-  // the server's clock, and whether it was sent, null while that is not
-  // known; or undefined before any claim.
-  nudged(): { nudged_at: number; nudge_sent: number | null } | undefined {
-    const row = this.server.fixture.db
-      .prepare("SELECT nudged_at, nudge_sent FROM sessions")
-      .get() as { nudged_at: number | null; nudge_sent: number | null } | undefined;
-    return row === undefined || row.nudged_at === null
-      ? undefined
-      : { nudged_at: row.nudged_at, nudge_sent: row.nudge_sent };
+  // The session's claim under way and latest nudge, as its row has them: the
+  // id of the attempt claimed, and the id and outcome of the latest that
+  // settled, each null while there is none.
+  nudged(): Nudged {
+    return this.server.fixture.db
+      .prepare(
+        "SELECT nudge_claim_id AS claim, nudge_id AS id, nudge_outcome AS outcome FROM sessions",
+      )
+      .get() as unknown as Nudged;
   }
 
   // The nudges' claims and outcomes bridges sent.
@@ -171,6 +172,12 @@ export class MonitorHarness extends BridgeHarness {
   claims(): Seen[] {
     return this.polls().filter((seen) => seen.query.get("claim") === "true");
   }
+}
+
+export interface Nudged {
+  claim: string | null;
+  id: string | null;
+  outcome: string | null;
 }
 
 // A pane whose screen a test sets: a prompt, ">" with the cursor after it,

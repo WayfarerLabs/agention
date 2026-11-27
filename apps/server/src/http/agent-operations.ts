@@ -121,7 +121,7 @@ export const agentOperations = [
     method: "POST",
     path: "/s/:agent/:session/monitor/nudge",
     summary:
-      "Claim the nudge that is due for the session before trying it, or report how a claimed one ended",
+      "Claim the nudge that is due for the session before trying it, or report how an attempt ended",
     scope: "threads:write",
     params: sessionParams,
     query: monitorNudgeQuery,
@@ -129,8 +129,8 @@ export const agentOperations = [
     response: monitorNudgeAnswer,
     handler: ({ store, identity, params, query, body }) =>
       body.phase === "start"
-        ? claimNudge(store, identity, params, query)
-        : recordNudgeOutcome(store, identity, params, query, body.sent),
+        ? claimNudge(store, identity, params, query, body.id)
+        : recordNudgeOutcome(store, identity, params, query, body.id, body.outcome),
   }),
 ];
 

@@ -5,6 +5,7 @@ import { groupRef } from "./groups-and-tags.ts";
 import {
   monitorCondition,
   monitorProfile,
+  monitorReason,
   monitorReport,
   monitorState,
   nudgeState,
@@ -74,6 +75,7 @@ const named: Record<string, ApiSchema> = {
   message,
   monitorCondition,
   monitorProfile,
+  monitorReason,
   monitorReport,
   monitorState,
   nudgeState,

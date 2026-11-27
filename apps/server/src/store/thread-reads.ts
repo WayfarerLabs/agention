@@ -26,7 +26,7 @@ import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
-import { connectedFor, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
+import { connectedFor, latestNudgeOf, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -100,7 +100,8 @@ export function quietOf(sessions: string): string {
 // live message in any of the session's threads, by anyone but its agent,
 // that its agent has not read, by the rule its own unread count follows,
 // written after the agent last checked in, where no nudge was claimed since
-// that check-in. It reads the session's own rows alone, never its bridge's
+// that check-in: none under way, and none settled, since an attempt deferred
+// releases its claim and leaves the nudge due. It reads the session's own rows alone, never its bridge's
 // report, so whether the session can be nudged and is ready for it is the
 // caller's to check.
 export function nudgeDueSince(sessions: string): string {
@@ -111,6 +112,8 @@ export function nudgeDueSince(sessions: string): string {
     LEFT JOIN thread_marks agent_mark ON agent_mark.actor_id = agent.id
       AND agent_mark.thread_id = due_thread.id
     WHERE due_thread.session_id = ${sessions}.id
+      AND (${sessions}.nudge_claimed_at IS NULL
+        OR ${sessions}.nudge_claimed_at <= ${sessions}.last_seen_at)
       AND (${sessions}.nudged_at IS NULL OR ${sessions}.nudged_at <= ${sessions}.last_seen_at)
       AND due.seq > max(COALESCE(agent_mark.read_seq, 0), COALESCE(agent_mark.archived_seq, 0))
       AND (${sessions}.last_seen_at IS NULL OR due.created_at > ${sessions}.last_seen_at)
@@ -166,9 +169,12 @@ export function connectedOf(sessions: string): string {
 //     screen or held by a usage limit, which nudgeDue finds none due for,
 //     waits here as if one were.
 //  5. Otherwise it is neither until the latest nudge since the earliest such
-//     message was not sent, or was sent (or its outcome is not known) before
-//     the quiet cut-off, or, with none claimed since, that message was
-//     written before it.
+//     message failed or was stopped at the terminal, which strands it at
+//     once, the reason the operator sees being that nudge's outcome; or was
+//     sent (or is under way, or its outcome never came) before the quiet
+//     cut-off; or, with none claimed since, that message was written before
+//     it. latestNudgeOf gives the latest nudge, a claim under way reading as
+//     sent, and an attempt deferred being none.
 //  6. Then it is ignored where the agent checked in at or after both that
 //     message and the latest nudge, if any, and that message was written
 //     before the quiet cut-off: the agent was there and left the thread
@@ -200,7 +206,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
         ${quietOf("s")} AS quiet,
         ${connectedOf("s")} AS connected,
         mr.monitored, mr.profile, mr.condition, mr.since, mr.stopped_by, mr.resets_at, mr.nudge,
-        s.nudged_at, s.nudge_sent,
+        mr.unable, mr.unable_since, ${latestNudgeOf("s")},
         reported.state AS session_state, reported.outcome AS session_outcome,
         member.group_id, grouped.name AS group_name
       FROM threads t
@@ -329,7 +335,7 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
             THEN IIF(joined.nudge_due_since < :quiet_before, 'stranded', NULL)
           WHEN NOT IIF(
             joined.nudged_at >= joined.unread_by_other_since,
-            joined.nudge_sent IS 0 OR joined.nudged_at < :quiet_before,
+            joined.nudge_outcome IN ('stopped', 'failed') OR joined.nudged_at < :quiet_before,
             joined.unread_by_other_since < :quiet_before
           ) THEN NULL
           WHEN joined.last_seen_at >= joined.unread_by_other_since

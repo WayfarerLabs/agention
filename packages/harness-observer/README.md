@@ -81,15 +81,16 @@ observations carry only fixed kinds, times and fixed reasons.
 
 ## Nudging
 
-`nudge({ warning, message }, { begin, signal })` puts two texts in the harness's input line, both
-the caller's, and submits only the second: a warning that a nudge is coming, which anyone at the
-terminal can stop by typing over it, and then the message. It starts from the latest observation of
-a running `observations`, so it is never ready without one, and runs one nudge at a time. It nudges
-only through a profile that knows its harness's prompt marker, a harness's own: a generic profile
-reads the cursor's whole row as the input line, so it cannot tell a draft someone left at the prompt
-from an empty prompt, and `nudge` throws, before anything reaches the pane, for an observer with
-one. It resolves to `{ sent: true }`, or `{ sent: false, step }` with the step it stopped at, in
-this order:
+`nudge({ warning, message, isNudgeText }, { begin, signal })` puts two texts in the harness's input
+line, both the caller's, and submits only the second: a warning that a nudge is coming, which anyone
+at the terminal can stop by typing over it, and then the message. `isNudgeText` is how the caller
+tells nudge text, its own or an earlier nudge's, from anything else the line may hold, as by a
+marker every nudge's texts carry. It starts from the latest observation of a running `observations`,
+so it is never ready without one, and runs one nudge at a time. It nudges only through a profile
+that knows its harness's prompt marker, a harness's own: a generic profile reads the cursor's whole
+row as the input line, so it cannot tell a draft someone left at the prompt from an empty prompt,
+and `nudge` throws, before anything reaches the pane, for an observer with one. It goes through
+these steps:
 
 1. **`not-ready`**: nothing is sent unless the latest observation is at rest at the input line, with
    no usage limit before its reset, and a fresh reading shows the same screen, with one pane, the
@@ -98,23 +99,39 @@ this order:
    once, as when its caller claims the nudge, and goes on only where that answers true and a reading
    after it still shows the same screen with no key typed meanwhile.
 2. **`warning`**: it pastes the warning and confirms the line holds exactly it, cursor at its end;
-   waits 5 seconds; and confirms again, with nothing else on the screen changed and no client having
-   typed. A failure leaves the warning where it is.
+   waits 5 seconds; and confirms again, with no client having typed.
 3. **`cleared`**: it removes the warning one Backspace at a time, confirming before each next one
-   that the last removed one character, until the line is empty. A failure, such as in vim's normal
-   mode, where Backspace moves the cursor, leaves what is left.
-4. **`message`**: it pastes the message and confirms it as it did the warning. A failure removes the
-   message where the line still holds exactly it, and otherwise leaves the line.
+   that the last removed one character, until the line is empty.
+4. **`message`**: it pastes the message and confirms it as it did the warning.
 5. **`submitted`**: it confirms the message once more, presses Enter, and within 5 seconds sees the
-   line empty again and another row of the screen changed, as a turn starting shows. A failure
-   before Enter removes the message as step 4 does; after Enter, the message is the harness's.
+   line empty again and another row of the screen changed, as a turn starting shows.
+
+It resolves to `{ outcome, step }`, the step it ended at and one of four outcomes:
+
+- **`deferred`**: nothing of the nudge's stayed in the pane, so it may be tried again. Nothing was
+  pasted, at `not-ready`, with `nudgeTextLeft: true` where the input line held nudge text, as
+  `isNudgeText` says, which a nudge never pastes over; or, at the confirmation after the warning's
+  wait or before Enter, the line held exactly the nudge's own text but the rest of the screen had
+  changed since it was pasted, as when the harness starts a turn or redraws, and the nudge took its
+  text back, one confirmed Backspace at a time; or the line came empty, or the input line went from
+  the screen, with no key typed, the harness having taken or cleared the text.
+- **`stopped`**: someone at the terminal stopped it: a key was typed since the nudge began, or the
+  line held something other than the warning, or the nudge's text altered once confirmed.
+- **`failed`**: the pane could not be read or written, or the profile failed on a screen, once
+  something was pasted; a Backspace did not shorten the line by one, such as in vim's normal mode,
+  where Backspace moves the cursor; the message did not show exactly; or the harness did not take it
+  after Enter.
+- **`sent`**: the harness took the message.
+
+Only the input line and the cursor are compared for the texts themselves: a change elsewhere on the
+screen takes the nudge's text back and defers it, never fails it. A nudge that ends before Enter
+leaves the warning where it is, unless it took it back, and removes its message where a fresh
+reading shows the line holding exactly it, in a pane that takes keys; a failure of that removal
+changes nothing of the outcome. After Enter, the message is the harness's.
 
 `signal` stops it: once it aborts, nothing more reaches the pane, not even a key that would remove
-the nudge's own text, as suits a caller that another has taken over from. Where reading or writing
-the pane fails, or the profile fails on a screen, the nudge stops as a failed check at the step it
-reached does: the warning stays, and the message is removed where a fresh reading shows the line
-holding exactly it, in a pane that takes keys. A failure of that removal changes nothing of the
-outcome.
+the nudge's own text, as suits a caller that another has taken over from; it ends deferred where
+nothing was pasted, and failed otherwise.
 
 Its guarantees:
 
@@ -194,7 +211,7 @@ The captures so far came from Claude Code 2.1.331 and 2.1.332 and Codex 0.171.0 
 captures, and the tests against real tmux servers, each started with no configuration on a socket in
 a temporary directory and killed when the test ends. Those run `test/scripted-harness.ts`, a Node
 script that draws a prompt, a running turn and a dialog and switches between them on a key, with an
-input line that takes pastes and typed characters, removes one on Backspace and submits on Enter,
-and options for a Backspace that only moves the cursor, an Enter that does nothing and a dialog that
-opens at the second paste. A test that needs a client attached, typing, attaches one through
-util-linux's `script`.
+input line that takes pastes and typed characters, removes one on Backspace and submits on Enter, a
+key that redraws part of the screen around the input, and options for a Backspace that only moves
+the cursor, an Enter that does nothing and a dialog that opens at the second paste. A test that
+needs a client attached, typing, attaches one through util-linux's `script`.

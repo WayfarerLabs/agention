@@ -745,21 +745,26 @@ describe("monitoring", () => {
     }
   });
 
-  it("says what came of the latest nudge, in the warning's tone with no check-in since", async () => {
+  it("says what came of the latest nudge, with its id, in the warning's tone where it failed or has no check-in since", async () => {
     const at = "2026-10-27T11:59:00.000Z";
-    const nudged = (session: string, last_nudge: { sent: boolean; answered: boolean }) =>
+    const id = "3f9a0c1d2e4b";
+    const nudged = (
+      session: string,
+      last_nudge: { outcome: "sent" | "stopped" | "failed"; answered: boolean },
+    ) =>
       sessionSummary({
         session,
         presence: {
           ...connected({ ...observed("at_prompt"), nudge: true }),
-          last_nudge: { at, ...last_nudge },
+          last_nudge: { at, id, ...last_nudge },
         },
       });
     await open([
       agent("builder", [
-        nudged("answered", { sent: true, answered: true }),
-        nudged("unresponsive", { sent: true, answered: false }),
-        nudged("unsent", { sent: false, answered: false }),
+        nudged("answered", { outcome: "sent", answered: true }),
+        nudged("unresponsive", { outcome: "sent", answered: false }),
+        nudged("failed", { outcome: "failed", answered: true }),
+        nudged("stopped", { outcome: "stopped", answered: false }),
         watched("main", observed("at_prompt")),
       ]),
     ]);
@@ -776,11 +781,52 @@ describe("monitoring", () => {
     const nudge = (session: string) => part(session, "nudge");
     expect(nudge("answered")?.classList.contains("warning")).toBe(false);
     expect(nudge("unresponsive")?.classList.contains("warning")).toBe(true);
-    expect(nudge("unsent")?.classList.contains("warning")).toBe(true);
-    expect(
-      new Set(["answered", "unresponsive", "unsent"].map((each) => nudge(each)?.textContent)).size,
-    ).toBe(3);
+    expect(nudge("failed")?.classList.contains("warning")).toBe(true);
+    expect(nudge("stopped")?.classList.contains("warning")).toBe(false);
+    const outcomes = ["answered", "unresponsive", "failed", "stopped"];
+    expect(new Set(outcomes.map((each) => nudge(each)?.textContent)).size).toBe(4);
+    for (const each of outcomes) {
+      expect(nudge(each)?.querySelector(".code")?.textContent).toBe(id);
+    }
     expect(nudge("main")).toBeNull();
+  });
+
+  it("says why a session cannot be monitored or nudged, with since when, in the warning's tone for nudge text left", async () => {
+    const since = "2026-10-27T11:58:00.000Z";
+    const unable = (session: string, reason: string, monitor: object = observed("at_prompt")) =>
+      sessionSummary({
+        session,
+        presence: connected({ ...monitor, unable: { reason, since } } as never),
+      });
+    await open([
+      agent("builder", [
+        unable("left", "nudge_text_left"),
+        unable("unreachable", "pane_unreachable", observed("unknown")),
+        unable("off", "nudge_off"),
+        unable("bare", "no_socket", { monitored: false }),
+        watched("main", observed("at_prompt")),
+      ]),
+    ]);
+    const shown = (session: string) => part(session, "unable");
+    expect(shown("left")?.classList.contains("warning")).toBe(true);
+    expect(shown("unreachable")?.classList.contains("warning")).toBe(false);
+    expect(shown("left")?.textContent).not.toBe(shown("unreachable")?.textContent);
+    for (const session of ["left", "unreachable"]) {
+      expect(shown(session)?.querySelector("time")?.getAttribute("datetime")).toBe(since);
+    }
+    // How a session was set up shows only unfolded.
+    expect(shown("off")).toBeNull();
+    expect(shown("bare")).toBeNull();
+    expect(shown("main")).toBeNull();
+    for (const session of ["off", "bare"]) {
+      serveLog([], 0, `/s/builder/${session}`);
+      fireEvent.click(fold(session));
+      expect(
+        row(session)
+          .querySelector(".session-can-nudge .session-unable time")
+          ?.getAttribute("datetime"),
+      ).toBe(since);
+    }
   });
 
   it("says whether its bridge can nudge the agent, unfolded", async () => {

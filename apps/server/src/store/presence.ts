@@ -2,7 +2,9 @@ import {
   formatTimestamp,
   type MonitorCondition,
   type MonitorProfile,
+  type MonitorReason,
   type MonitorState,
+  type NudgeState,
   type SessionPresence,
   type StoppedBy,
 } from "@wayfarerlabs/agention-api";
@@ -28,9 +30,10 @@ export const connectedFor = 60_000;
 // its last check-in a minute or more, when its last check-in is after now,
 // so a clock stepped back never holds it still, when the version differs
 // from the last one's, so a session pinned to an older bridge is read by its
-// rule at once, or when its last check-in is before the latest claim of a
-// nudge (claimNudge), so a check-in during a nudge, or in reply to one,
-// always shows, at the cost of one stamp more for each claim. A stamp wakes
+// rule at once, or when its last check-in is before the claim of a nudge
+// under way (claimNudge) or the latest nudge, so a check-in during a nudge,
+// or in reply to one, always shows, at the cost of one stamp more for each
+// claim. A stamp wakes
 // no poll, though it can end a nudge being due: a claim checks again that
 // one is. The agent mount calls it on every call by an approved key but its
 // bridge's background ones, before the call's own work, in a transaction of
@@ -46,7 +49,8 @@ export function markCheckedIn(store: Store, registrationId: number, version: num
            SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
          )
          AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-           OR last_seen_version IS NOT :version OR last_seen_at < nudged_at)`,
+           OR last_seen_version IS NOT :version OR last_seen_at < nudge_claimed_at
+           OR last_seen_at < nudged_at)`,
     ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
   });
 }
@@ -77,14 +81,21 @@ export interface MonitorRow {
   stopped_by: StoppedBy["reason"] | null;
   resets_at: number | null;
   nudge: number | null;
+  unable: MonitorReason | null;
+  unable_since: number | null;
 }
 
 // monitorStateOf describes a report the row holds, as the operator sees it.
-// The table's checks hold a monitored row's profile, condition and since,
-// and a reset time only beside a usage limit.
+// The table's checks hold a monitored row's profile, condition and since, a
+// reset time only beside a usage limit, and why the bridge cannot monitor or
+// nudge only with since when.
 export function monitorStateOf(row: MonitorRow): MonitorState {
+  const unable =
+    row.unable === null || row.unable_since === null
+      ? {}
+      : { unable: { reason: row.unable, since: formatTimestamp(row.unable_since) } };
   if (row.monitored !== 1 || row.profile === null || row.condition === null || row.since === null) {
-    return { monitored: false };
+    return { monitored: false, ...unable };
   }
   const stoppedBy =
     row.stopped_by === null
@@ -102,28 +113,40 @@ export function monitorStateOf(row: MonitorRow): MonitorState {
     since: formatTimestamp(row.since),
     nudge: row.nudge === 1,
     ...(stoppedBy === undefined ? {} : { stopped_by: stoppedBy }),
+    ...unable,
   };
+}
+
+// latestNudgeOf selects, for the sessions read as sessions, their latest
+// nudge as the operator sees it: the claim under way where there is one,
+// which reads as sent, as one whose outcome never arrives counts; otherwise
+// the latest claim that settled. Its columns are null until a bridge first
+// claims one.
+export function latestNudgeOf(sessions: string): string {
+  return `COALESCE(${sessions}.nudge_claimed_at, ${sessions}.nudged_at) AS nudged_at,
+    COALESCE(${sessions}.nudge_claim_id, ${sessions}.nudge_id) AS nudge_id,
+    IIF(${sessions}.nudge_claimed_at IS NULL, ${sessions}.nudge_outcome, 'sent')
+      AS nudge_outcome`;
 }
 
 // The columns of a session's presence, as a read selects them: when its
 // agent last checked in, whether it is quiet and connected, as quietOf and
-// connectedOf say, its bridge's latest report, and its latest nudge, its
-// time null until its bridge first claims one and its outcome null while
-// none is known.
+// connectedOf say, its bridge's latest report, and its latest nudge, as
+// latestNudgeOf says.
 export interface PresenceRow extends MonitorRow {
   last_seen_at: number | null;
   quiet: number;
   connected: number | null;
   nudged_at: number | null;
-  nudge_sent: number | null;
+  nudge_id: string | null;
+  nudge_outcome: NudgeState["outcome"] | null;
 }
 
 // presenceOf describes a session's presence as the operator sees it. A
 // report shows only while its bridge is connected, so a bridge that ended
 // never leaves its last one standing as current. The latest nudge shows
-// whether its bridge is connected or not, as sent unless its bridge said it
-// was not, so one under way or whose outcome never arrived counts as sent,
-// with whether the agent has checked in since: the check-in stamp that
+// whether its bridge is connected or not, with its id and outcome, and
+// whether the agent has checked in since: the check-in stamp that
 // markCheckedIn always moves past it.
 export function presenceOf(row: PresenceRow): SessionPresence {
   return {
@@ -131,12 +154,13 @@ export function presenceOf(row: PresenceRow): SessionPresence {
     quiet: row.quiet === 1,
     ...(row.connected === null ? {} : { connected: row.connected === 1 }),
     ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
-    ...(row.nudged_at === null
+    ...(row.nudged_at === null || row.nudge_id === null || row.nudge_outcome === null
       ? {}
       : {
           last_nudge: {
             at: formatTimestamp(row.nudged_at),
-            sent: row.nudge_sent !== 0,
+            id: row.nudge_id,
+            outcome: row.nudge_outcome,
             answered: row.last_seen_at !== null && row.last_seen_at >= row.nudged_at,
           },
         }),

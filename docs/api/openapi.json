@@ -7816,7 +7816,7 @@
     "/api/agent/s/{agent}/{session}/monitor/nudge": {
       "post": {
         "operationId": "agentRecordNudge",
-        "summary": "Claim the nudge that is due for the session before trying it, or report how a claimed one ended",
+        "summary": "Claim the nudge that is due for the session before trying it, or report how an attempt ended",
         "tags": [
           "agent"
         ],
@@ -7869,10 +7869,16 @@
                       "phase": {
                         "type": "string",
                         "const": "start"
+                      },
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{12}$",
+                        "description": "The nudge attempt's id, which its texts in the terminal carry."
                       }
                     },
                     "required": [
-                      "phase"
+                      "phase",
+                      "id"
                     ]
                   },
                   {
@@ -7882,13 +7888,25 @@
                         "type": "string",
                         "const": "done"
                       },
-                      "sent": {
-                        "type": "boolean"
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{12}$",
+                        "description": "The nudge attempt's id, which its texts in the terminal carry."
+                      },
+                      "outcome": {
+                        "type": "string",
+                        "enum": [
+                          "deferred",
+                          "stopped",
+                          "failed",
+                          "sent"
+                        ]
                       }
                     },
                     "required": [
                       "phase",
-                      "sent"
+                      "id",
+                      "outcome"
                     ]
                   }
                 ]
@@ -8587,6 +8605,21 @@
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
         "description": "The profile the bridge reads the terminal with, such as claude-code."
       },
+      "MonitorReason": {
+        "type": "string",
+        "enum": [
+          "no_socket",
+          "pane_unreachable",
+          "not_one_pane",
+          "unknown_profile",
+          "unknown_nudge_type",
+          "nudge_off",
+          "generic_profile",
+          "claims_refused",
+          "nudge_text_left"
+        ],
+        "description": "Why the bridge cannot monitor the session's terminal or nudge its agent: no_socket, no tmux socket configured; pane_unreachable, the pane cannot be read; not_one_pane, the tmux server holds more than one pane or one that is not the session's; unknown_profile, a harness profile the bridge does not know; unknown_nudge_type, a nudge type it does not know; nudge_off, no nudge type configured; generic_profile, a generic profile, which never nudges; claims_refused, the server refused its nudges as invalid; nudge_text_left, nudge text left at the prompt, which holds the nudge off until it is cleared."
+      },
       "MonitorReport": {
         "oneOf": [
           {
@@ -8595,6 +8628,23 @@
               "monitored": {
                 "type": "boolean",
                 "const": false
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ]
               }
             },
             "required": [
@@ -8667,6 +8717,23 @@
               },
               "nudge": {
                 "type": "boolean"
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ]
               }
             },
             "required": [
@@ -8686,6 +8753,23 @@
               "monitored": {
                 "type": "boolean",
                 "const": false
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "description": "Since when, by the bridge's clock."
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ],
+                "description": "Why the bridge cannot monitor the session's terminal or nudge its agent, where it cannot, and since when; absent where it can, and from a bridge older than the nudge."
               }
             },
             "required": [
@@ -8756,6 +8840,23 @@
                   }
                 ],
                 "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "description": "Since when, by the bridge's clock."
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ],
+                "description": "Why the bridge cannot monitor the session's terminal or nudge its agent, where it cannot, and since when; absent where it can, and from a bridge older than the nudge."
               }
             },
             "required": [
@@ -8775,9 +8876,19 @@
             "type": "string",
             "description": "When the bridge claimed the nudge, by the server's clock."
           },
-          "sent": {
-            "type": "boolean",
-            "description": "Whether the nudge was sent; true too while it is under way or where its outcome never came."
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$",
+            "description": "The nudge attempt's id, which its texts in the terminal carry."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "stopped",
+              "failed",
+              "sent"
+            ],
+            "description": "How the nudge ended: sent, the agent's host took the message, which it also reads while the nudge is under way or where its outcome never came; stopped by someone at the terminal; or failed."
           },
           "answered": {
             "type": "boolean",
@@ -8786,7 +8897,8 @@
         },
         "required": [
           "at",
-          "sent",
+          "id",
+          "outcome",
           "answered"
         ]
       },

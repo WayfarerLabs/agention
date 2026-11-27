@@ -717,12 +717,27 @@ export const migrations: readonly string[] = [
   ALTER TABLE monitor_reports ADD COLUMN nudge INTEGER NOT NULL DEFAULT 0
     CHECK (nudge IN (0, 1) AND (nudge = 0 OR monitored = 1));
 
-  -- The session's latest nudge: nudged_at is when its bridge claimed it, by
-  -- the server's clock, null until a bridge first does; nudge_sent, whether
-  -- it was sent, null while it is under way or where its outcome never
-  -- arrived.
+  -- Why the bridge cannot monitor or nudge, one of a fixed list, and since
+  -- when, by its clock, both null where it can or the bridge does not say.
+  ALTER TABLE monitor_reports ADD COLUMN unable TEXT CHECK (unable IN ('no_socket',
+    'pane_unreachable', 'not_one_pane', 'unknown_profile', 'unknown_nudge_type', 'nudge_off',
+    'generic_profile', 'claims_refused', 'nudge_text_left'));
+  ALTER TABLE monitor_reports ADD COLUMN unable_since INTEGER
+    CHECK ((unable IS NULL) = (unable_since IS NULL));
+
+  -- A session's nudges. The claim is the attempt its bridge claimed and has
+  -- not yet said the outcome of: claimed_at, by the server's clock, and the
+  -- attempt's id, both null while there is none. The latest nudge is the
+  -- latest claim that settled: when it was claimed, its id, and how it ended,
+  -- sent, stopped or failed, all null until one first settles. A deferred
+  -- attempt releases its claim and leaves the latest nudge as it was.
+  ALTER TABLE sessions ADD COLUMN nudge_claimed_at INTEGER;
+  ALTER TABLE sessions ADD COLUMN nudge_claim_id TEXT
+    CHECK ((nudge_claim_id IS NULL) = (nudge_claimed_at IS NULL));
   ALTER TABLE sessions ADD COLUMN nudged_at INTEGER;
-  ALTER TABLE sessions ADD COLUMN nudge_sent INTEGER
-    CHECK (nudge_sent IS NULL OR (nudge_sent IN (0, 1) AND nudged_at IS NOT NULL));
+  ALTER TABLE sessions ADD COLUMN nudge_id TEXT CHECK ((nudge_id IS NULL) = (nudged_at IS NULL));
+  ALTER TABLE sessions ADD COLUMN nudge_outcome TEXT
+    CHECK (nudge_outcome IN ('sent', 'stopped', 'failed')
+      AND (nudge_outcome IS NULL) = (nudged_at IS NULL));
   `,
 ];

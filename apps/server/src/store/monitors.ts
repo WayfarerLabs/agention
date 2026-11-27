@@ -6,6 +6,7 @@ import {
   type MonitorPollQuery,
   type MonitorReport,
   type MonitorReportQuery,
+  type NudgeOutcome,
   parseTimestamp,
 } from "@wayfarerlabs/agention-api";
 import type { Database } from "../database/database.ts";
@@ -33,8 +34,9 @@ import { longPoll } from "./wait.ts";
 // disconnects or the server shuts down, as an agent's wait does. What can
 // make a nudge due notifies the session's channel, which wakes the poll to
 // look again: a report that leaves the session ready for one, and a message.
-// What ends one being due, a check-in, a mark of the agent's own or a claim,
-// wakes nothing, so a bridge told one is due learns it lapsed when its claim
+// So does an attempt deferred after its claim, which makes the nudge due
+// again. What ends one being due, a check-in, a mark of the agent's own or a
+// claim, wakes nothing, so a bridge told one is due learns it lapsed when its claim
 // is refused, since a claim checks again, or when its poll's wait ends.
 export async function pollMonitor(
   store: Store,
@@ -81,8 +83,9 @@ export async function pollMonitor(
 // its agent has not read, written after the agent last checked in, and no
 // nudge was claimed since that check-in. The session's own rows decide it,
 // so it holds across a server restart, a bridge restart and a takeover
-// alike. markCheckedIn stamps any check-in before the latest claim, so the
-// agent checking in while the nudge is under way counts as answering it.
+// alike. markCheckedIn stamps any check-in before the latest claim or nudge,
+// so the agent checking in while the nudge is under way counts as answering
+// it.
 function nudgeDue(db: Database, sessionId: number, now: number): boolean {
   return (
     db
@@ -97,59 +100,89 @@ function nudgeDue(db: Database, sessionId: number, now: number): boolean {
   );
 }
 
-// claimNudge is a bridge's claim of the nudge due for its session, in one
-// transaction. It goes ahead only from the bridge that acts for the session,
-// as reportMonitor admits one, while a nudge is due: it records the claim as
-// the session's latest nudge, at the server's time, its outcome not yet
-// known, so none is due again until the agent checks in, whatever bridge asks
-// or however the server restarts.
+// claimNudge is a bridge's claim of the nudge due for its session, by its
+// attempt's id, in one transaction. It goes ahead only from the bridge that
+// acts for the session, as reportMonitor admits one, while a nudge is due: it
+// records the claim, at the server's time, with the attempt's id, its outcome
+// not yet known, so none is due again until the agent checks in or the
+// attempt is deferred, whatever bridge asks or however the server restarts.
+// A claim before it whose outcome never came, its bridge having ended, counts
+// as sent, and settles as the latest nudge first.
 export function claimNudge(
   store: Store,
   identity: Identity,
   target: SessionTarget,
   query: MonitorNudgeQuery,
+  id: string,
 ): MonitorNudgeAnswer {
   return forActingBridge(store, identity, target, query, (db, sessionId, now) => {
     const go = nudgeDue(db, sessionId, now);
     if (go) {
-      db.prepare("UPDATE sessions SET nudged_at = ?, nudge_sent = NULL WHERE id = ?").run(
+      settleClaim(db, sessionId, "sent");
+      db.prepare("UPDATE sessions SET nudge_claimed_at = ?, nudge_claim_id = ? WHERE id = ?").run(
         now,
+        id,
         sessionId,
       );
     }
-    return go;
+    return { go, wakes: false };
   });
 }
 
-// recordNudgeOutcome is a bridge's report of how a nudge it claimed ended,
-// sent or not, in one transaction. From the bridge that acts for the session
-// it fills in the latest nudge's outcome where none is recorded yet, so
-// sending it again changes nothing, and it never says go.
+// recordNudgeOutcome is a bridge's report of how an attempt it claimed, or may
+// have, ended, in one transaction. From the bridge that acts for the session
+// it fills in only the claim that attempt's id names, so sending it again, or
+// for a claim the server never took, changes nothing: sent, stopped or
+// failed settle the claim as the session's latest nudge, which then counts
+// until the agent checks in; deferred releases it, leaving the latest nudge
+// as it was, so the nudge is due again, and wakes the bridge's poll to say
+// so. It never says go.
 export function recordNudgeOutcome(
   store: Store,
   identity: Identity,
   target: SessionTarget,
   query: MonitorNudgeQuery,
-  sent: boolean,
+  id: string,
+  outcome: NudgeOutcome,
 ): MonitorNudgeAnswer {
   return forActingBridge(store, identity, target, query, (db, sessionId) => {
-    db.prepare(
-      `UPDATE sessions SET nudge_sent = :sent
-       WHERE id = :session AND nudged_at IS NOT NULL AND nudge_sent IS NULL`,
-    ).run({ session: sessionId, sent: Number(sent) });
-    return false;
+    const claimed = db
+      .prepare("SELECT 1 FROM sessions WHERE id = ? AND nudge_claim_id IS ?")
+      .get(sessionId, id);
+    if (claimed === undefined) {
+      return { go: false, wakes: false };
+    }
+    if (outcome === "deferred") {
+      db.prepare(
+        "UPDATE sessions SET nudge_claimed_at = NULL, nudge_claim_id = NULL WHERE id = ?",
+      ).run(sessionId);
+      return { go: false, wakes: true };
+    }
+    settleClaim(db, sessionId, outcome);
+    return { go: false, wakes: false };
   });
+}
+
+// settleClaim makes the session's claim, if any, its latest nudge, with how it
+// ended, and clears the claim.
+function settleClaim(db: Database, sessionId: number, outcome: Exclude<NudgeOutcome, "deferred">) {
+  db.prepare(
+    `UPDATE sessions SET nudged_at = nudge_claimed_at, nudge_id = nudge_claim_id,
+       nudge_outcome = :outcome, nudge_claimed_at = NULL, nudge_claim_id = NULL
+     WHERE id = :session AND nudge_claimed_at IS NOT NULL`,
+  ).run({ session: sessionId, outcome });
 }
 
 // forActingBridge runs a nudge's write in one transaction, only where the
 // bridge asking acts for the session, and answers whether the write lets it
-// go ahead. A replaced bridge's request changes nothing.
+// go ahead, waking the bridge's poll where the write made a nudge due. A
+// replaced bridge's request changes nothing.
 function forActingBridge(
   store: Store,
   identity: Identity,
   target: SessionTarget,
   query: MonitorNudgeQuery,
-  write: (db: Database, sessionId: number, now: number) => boolean,
+  write: (db: Database, sessionId: number, now: number) => { go: boolean; wakes: boolean },
 ): MonitorNudgeAnswer {
   const { db, bridges } = store;
   const outcome = db.transaction(() => {
@@ -158,12 +191,15 @@ function forActingBridge(
     if (bridges.admission(sessionId, query.bridge, false) === "replaced") {
       return "replaced";
     }
-    return { sessionId, go: write(db, sessionId, now) };
+    return { sessionId, ...write(db, sessionId, now) };
   });
   if (outcome === "replaced") {
     return { replaced: true, go: false };
   }
   bridges.hold(outcome.sessionId, query.bridge);
+  if (outcome.wakes) {
+    store.notifier.notify(outcome.sessionId);
+  }
   return { replaced: false, go: outcome.go };
 }
 
@@ -215,15 +251,21 @@ export function reportMonitor(
           };
     db.prepare(
       `INSERT INTO monitor_reports (session_id, monitored, profile, condition, since, stopped_by,
-         resets_at, nudge)
+         resets_at, nudge, unable, unable_since)
        VALUES (:session, :monitored, :profile, :condition, :since, :stopped_by, :resets_at,
-         :nudge)
+         :nudge, :unable, :unable_since)
        ON CONFLICT (session_id) DO UPDATE SET
          monitored = excluded.monitored, profile = excluded.profile,
          condition = excluded.condition, since = excluded.since,
          stopped_by = excluded.stopped_by, resets_at = excluded.resets_at,
-         nudge = excluded.nudge`,
-    ).run({ session: sessionId, monitored: Number(report.monitored), ...observed });
+         nudge = excluded.nudge, unable = excluded.unable, unable_since = excluded.unable_since`,
+    ).run({
+      session: sessionId,
+      monitored: Number(report.monitored),
+      ...observed,
+      unable: report.unable?.reason ?? null,
+      unable_since: report.unable === undefined ? null : parseTimestamp(report.unable.since),
+    });
     return { sessionId, wakes: observed.nudge === 1 && observed.condition === "at_prompt" };
   });
   if (outcome === "replaced") {

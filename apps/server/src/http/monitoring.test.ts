@@ -281,6 +281,11 @@ describe("the nudge", () => {
       body,
       nudging,
     );
+  // The id of the attempts the tests claim.
+  const id = "0123456789ab";
+  const start = { phase: "start", id };
+  const done = (outcome: string) => ({ phase: "done", id, outcome });
+
   const nudgeClaim = (body: unknown, bridge = first) =>
     harness.agent(
       approved,
@@ -321,16 +326,16 @@ describe("the nudge", () => {
     // A poll that knows it is due waits while it still is.
     expect((await nudgePoll("nudge=true&wait=0")).body).toEqual({ replaced: false, nudge: true });
     const claimed = harness.fixture.now;
-    expect((await nudgeClaim({ phase: "start" })).body).toEqual({ replaced: false, go: true });
+    expect((await nudgeClaim(start)).body).toEqual({ replaced: false, go: true });
     expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
     harness.fixture.advance(6_000);
-    expect((await nudgeClaim({ phase: "done", sent: true })).body).toEqual({
+    expect((await nudgeClaim(done("sent"))).body).toEqual({
       replaced: false,
       go: false,
     });
     const { secret } = await harness.createKey(["sessions:read", "threads:read"]);
     const page = (await harness.operator(secret, "GET", "/sessions")).body as SessionsPage;
-    const shown = { at: formatTimestamp(claimed), sent: true, answered: false };
+    const shown = { at: formatTimestamp(claimed), id, outcome: "sent", answered: false };
     expect(page.agents[0]?.sessions[0]?.presence).toMatchObject({
       monitor: canBeNudged,
       last_nudge: shown,
@@ -342,10 +347,28 @@ describe("the nudge", () => {
     expect((await presence())?.last_nudge).toMatchObject({ answered: true });
   });
 
+  it("is due again once an attempt is deferred, the latest nudge left as it was", async () => {
+    expect((await nudgeClaim(start)).body).toEqual({ replaced: false, go: true });
+    expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: false });
+    expect((await nudgeClaim(done("deferred"))).body).toEqual({ replaced: false, go: false });
+    expect((await nudgePoll()).body).toEqual({ replaced: false, nudge: true });
+    expect(await presence()).not.toHaveProperty("last_nudge");
+  });
+
+  it("shows the operator why the session cannot be nudged, with since when, on its session reads", async () => {
+    const unable = { reason: "nudge_text_left", since: canBeNudged.since };
+    await nudgeReport({ ...canBeNudged, unable });
+    const { secret } = await harness.createKey(["sessions:read", "threads:read"]);
+    const page = (await harness.operator(secret, "GET", "/sessions")).body as SessionsPage;
+    expect(page.agents[0]?.sessions[0]?.presence?.monitor).toEqual({ ...canBeNudged, unable });
+    const listed = (await harness.operator(secret, "GET", "/threads")).body as ThreadPage;
+    expect(listed.threads[0]?.presence?.monitor).toEqual({ ...canBeNudged, unable });
+  });
+
   it("leaves the thread ignored once the agent checks in after it without reading it, until it does", async () => {
     const { secret } = await harness.createKey(["threads:read"]);
-    await nudgeClaim({ phase: "start" });
-    await nudgeClaim({ phase: "done", sent: true });
+    await nudgeClaim(start);
+    await nudgeClaim(done("sent"));
     // The agent checks in in answer, without reading the thread.
     await list(agentApi.version);
     harness.fixture.advance(defaultQuietAfter + hour);
@@ -371,7 +394,7 @@ describe("the nudge", () => {
   it("is claimed as a background request, never a check-in", async () => {
     const before = stamps();
     harness.fixture.advance(1_000);
-    await nudgeClaim({ phase: "start" });
+    await nudgeClaim(start);
     expect(stamps()).toEqual({ ...before, background_at: harness.fixture.now });
   });
 
@@ -383,17 +406,23 @@ describe("the nudge", () => {
       undefined,
       nudging,
     );
-    expect((await nudgeClaim({ phase: "start" })).body).toEqual({ replaced: true, go: false });
-    for (const body of [{}, { phase: "later" }, { phase: "done" }]) {
+    expect((await nudgeClaim(start)).body).toEqual({ replaced: true, go: false });
+    for (const body of [
+      {},
+      { phase: "later", id },
+      { phase: "start" },
+      { phase: "done", id },
+      { phase: "done", id, sent: true },
+    ]) {
       expect(codeOf(await nudgeClaim(body, second))).toBe("invalid_input");
     }
-    expect(codeOf(await nudgeClaim({ phase: "start" }, "short"))).toBe("invalid_input");
+    expect(codeOf(await nudgeClaim(start, "short"))).toBe("invalid_input");
     expect(await presence()).not.toHaveProperty("last_nudge");
   });
 
   it("never reaches the agent, but for the due answer and the claim's own", async () => {
-    await nudgeClaim({ phase: "start" });
-    await nudgeClaim({ phase: "done", sent: false });
+    await nudgeClaim(start);
+    await nudgeClaim(done("failed"));
     const answers: Response[] = [
       await list(agentApi.version),
       await harness.agent(approved, "GET", "/s/builder/main/threads/1", undefined, nudging),
@@ -405,17 +434,28 @@ describe("the nudge", () => {
         { agent: "builder", session: "main" },
         nudging,
       ),
-      await nudgeReport(canBeNudged),
+      await nudgeReport({
+        ...canBeNudged,
+        unable: { reason: "nudge_text_left", since: canBeNudged.since },
+      }),
     ];
     for (const answer of answers) {
       expect(answer.status).toBe(200);
       const text = JSON.stringify(answer.body);
-      for (const field of ["presence", "nudge", "last_nudge", "answered", "sent", "stranded"]) {
+      for (const field of [
+        "presence",
+        "nudge",
+        "last_nudge",
+        "answered",
+        "outcome",
+        "unable",
+        "stranded",
+      ]) {
         expect(text).not.toContain(`"${field}"`);
       }
     }
     expect(Object.keys((await nudgePoll()).body as object).sort()).toEqual(["nudge", "replaced"]);
-    expect(Object.keys((await nudgeClaim({ phase: "start" })).body as object).sort()).toEqual([
+    expect(Object.keys((await nudgeClaim(start)).body as object).sort()).toEqual([
       "go",
       "replaced",
     ]);

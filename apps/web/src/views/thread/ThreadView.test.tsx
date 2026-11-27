@@ -714,7 +714,12 @@ describe("the head", () => {
           quiet: false,
           connected: true,
           monitor: { ...observed("running"), nudge: true },
-          last_nudge: { at: "2026-10-27T11:59:00.000Z", sent: true, answered: true },
+          last_nudge: {
+            at: "2026-10-27T11:59:00.000Z",
+            id: "3f9a0c1d2e4b",
+            outcome: "sent",
+            answered: true,
+          },
         },
       }),
       messages: [message(1), operatorMessage(2)],

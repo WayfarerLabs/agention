@@ -2,6 +2,7 @@ import {
   genericStrict,
   type HarnessClient,
   type Key,
+  notReady,
   type NudgeOptions,
   type NudgeOutcome,
   type NudgeTexts,
@@ -20,17 +21,19 @@ import {
 import {
   formatTimestamp,
   type MonitorCondition,
+  type MonitorReason,
   type MonitorReport,
+  type MonitorUnable,
   quoted,
   timestamp,
 } from "@wayfarerlabs/agention-api";
-import { notReady } from "./nudge.ts";
 
 // Monitoring's side in the bridge: what its configuration names, the reports
 // the reporter sends of what the harness observer reads from the session's
 // tmux pane, and the nudges it asks the observer for. Nothing read from the
-// pane leaves here but the condition, the reason it stopped, their times and
-// whether the session can be nudged; the log names the problem with the pane,
+// pane leaves here but the condition, the reason it stopped, their times,
+// whether the session can be nudged and, where it cannot be monitored or
+// nudged, why, from a fixed list; the log names the problem with the pane,
 // never what it shows.
 
 // Writes one line to the bridge's log, its standard error.
@@ -84,6 +87,8 @@ export const nudgeTypes: readonly string[] = ["tmux"];
 
 // A source of the reports the bridge sends while it acts for its session,
 // each yielded report replacing the one before, and of the nudges it tries.
+// A report says why the session cannot be monitored or nudged where the
+// configuration or the pane is why, and comes again whenever that changes.
 // None of its methods throws.
 export interface Monitor {
   reports(signal: AbortSignal): AsyncIterable<MonitorReport>;
@@ -135,10 +140,19 @@ function sessionPane(socket: string): Pane {
 // on, it nudges only through a profile that knows its harness's prompt
 // marker, so never through a generic one, which cannot tell a draft at the
 // prompt from an empty one.
+//
+// Each report says why the session cannot be monitored or nudged, where it
+// cannot, with since when, in the order of MonitorReason: no socket; a pane
+// that cannot be read, or holds more than one pane or one not this
+// session's, from when that began; and then, from when the bridge started,
+// an unknown profile name, the nudge off or of a type the bridge does not
+// know, and a generic profile.
 export function createMonitor(options: PaneMonitorOptions): Monitor {
   const { settings, log } = options;
+  const started = formatTimestamp(Date.now());
   const name = settings.harnessProfile;
-  if (name !== autoProfile && !profileNames.includes(name)) {
+  const unknownProfile = name !== autoProfile && !profileNames.includes(name);
+  if (unknownProfile) {
     log(
       `the harness profile ${quoted(name)} is none of ` +
         `${[autoProfile, ...profileNames].join(", ")}, so monitoring reads the pane with ` +
@@ -148,8 +162,9 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
   const socket = settings.tmuxSocket;
   const nudgeOn = nudgeConfigured(settings, log);
   if (socket === undefined) {
+    const unable: MonitorUnable = { reason: "no_socket", since: started };
     return {
-      reports: unmonitored,
+      reports: (signal) => unmonitored(unable, signal),
       canNudge: () => Promise.resolve(false),
       nudge: () => Promise.resolve(notReady),
     };
@@ -161,6 +176,23 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
   let chosen = options.profile;
   const profileOf = (): Profile => (chosen ??= selectProfile(name, options.client()));
   const nudges = () => nudgeOn && profileOf().knowsMarker;
+  // Why the configuration keeps the session from being nudged, if it does.
+  const configured = (): MonitorReason | undefined => {
+    if (unknownProfile) {
+      return "unknown_profile";
+    }
+    if (settings.nudge === undefined) {
+      return "nudge_off";
+    }
+    if (!nudgeTypes.includes(settings.nudge)) {
+      return "unknown_nudge_type";
+    }
+    return profileOf().knowsMarker ? undefined : "generic_profile";
+  };
+  const unableNow = (): MonitorUnable | undefined => {
+    const reason = configured();
+    return pane.unable ?? (reason === undefined ? undefined : { reason, since: started });
+  };
   // The observer while the reports are being read, which nudges.
   let observer: Observer | undefined;
   return {
@@ -168,14 +200,50 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
       const profile = profileOf();
       const watching = observe(pane, profile);
       observer = watching;
+      const observations = watching.observations(signal)[Symbol.asyncIterator]();
+      let next = observations.next();
+      let latest: Observation | undefined;
+      let yielded: string | undefined;
+      // Whether why the pane cannot be read changed since the last report,
+      // which may happen while the observation stays unknown, and what wakes
+      // the wait for one.
+      let changed = false;
+      let wake: (() => void) | undefined;
+      pane.onUnableChange = () => {
+        changed = true;
+        wake?.();
+      };
       try {
-        for await (const observation of watching.observations(signal)) {
-          yield reportOf(profile.name, observation, nudges());
+        for (;;) {
+          const unable = changed
+            ? Promise.resolve("unable" as const)
+            : new Promise<"unable">((resolve) => (wake = () => resolve("unable")));
+          const step = await Promise.race([next, unable]);
+          changed = false;
+          wake = undefined;
+          if (step !== "unable") {
+            if (step.done === true) {
+              return;
+            }
+            latest = step.value;
+            next = observations.next();
+          }
+          if (latest === undefined) {
+            continue;
+          }
+          const report = withUnable(reportOf(profile.name, latest, nudges()), unableNow());
+          const written = JSON.stringify(report);
+          if (written !== yielded) {
+            yielded = written;
+            yield report;
+          }
         }
       } finally {
+        pane.onUnableChange = undefined;
         if (observer === watching) {
           observer = undefined;
         }
+        void observations.return?.();
       }
     },
     async canNudge() {
@@ -219,13 +287,25 @@ function nudgeConfigured(settings: MonitoringSettings, log: Log): boolean {
   return true;
 }
 
-async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
-  yield { monitored: false };
+async function* unmonitored(
+  unable: MonitorUnable,
+  signal: AbortSignal,
+): AsyncIterable<MonitorReport> {
+  yield { monitored: false, unable };
   if (!signal.aborted) {
     await new Promise<void>((resolve) =>
       signal.addEventListener("abort", () => resolve(), { once: true }),
     );
   }
+}
+
+// withUnable gives a report why the session cannot be monitored or nudged,
+// where it cannot.
+export function withUnable(
+  report: MonitorReport,
+  unable: MonitorUnable | undefined,
+): MonitorReport {
+  return unable === undefined ? report : { ...report, unable };
 }
 
 // reportOf is the report of an observation: the profile's name, the
@@ -290,8 +370,22 @@ function stoppedByOf(
 // pane that is not this session's, a terminal server holding more than one
 // pane, or a harness that does not hold the terminal. The observer reads each
 // as unknown. A reading that finds the pane as it should be ends the stretch,
-// so a later problem is logged again.
+// so a later problem is logged again. It keeps, too, the reason the operator
+// sees for each, with since when, and says when that changes: a pane it
+// cannot read is pane_unreachable, and one that is not this session's alone
+// not_one_pane. A harness that does not hold the terminal, such as one that
+// opened an editor, gives no reason: it is a condition, read as unknown, not
+// trouble with the configuration or the pane.
 type PaneProblem = "unreadable" | PaneUnusable["reason"] | "panes" | "terminal";
+
+const reasonOf: Record<PaneProblem, MonitorReason | undefined> = {
+  unreadable: "pane_unreachable",
+  "no-proc": "pane_unreachable",
+  "old-tmux": "pane_unreachable",
+  "not-ancestor": "not_one_pane",
+  panes: "not_one_pane",
+  terminal: undefined,
+};
 
 const unknown = "so the session's condition is unknown";
 
@@ -299,6 +393,10 @@ class LoggedPane implements Pane {
   readonly #pane: Pane;
   readonly #log: Log;
   #problem: PaneProblem | undefined;
+  // Why the pane cannot be read, with since when, and what to call when that
+  // changes.
+  unable: MonitorUnable | undefined;
+  onUnableChange: (() => void) | undefined;
 
   constructor(pane: Pane, log: Log) {
     this.#pane = pane;
@@ -337,6 +435,7 @@ class LoggedPane implements Pane {
       );
     } else {
       this.#problem = undefined;
+      this.#reason(undefined);
     }
     return snapshot;
   }
@@ -356,6 +455,15 @@ class LoggedPane implements Pane {
       this.#problem = problem;
       this.#log(line);
     }
+    this.#reason(reasonOf[problem]);
+  }
+
+  #reason(reason: MonitorReason | undefined): void {
+    if (reason === this.unable?.reason) {
+      return;
+    }
+    this.unable = reason === undefined ? undefined : { reason, since: formatTimestamp(Date.now()) };
+    this.onUnableChange?.();
   }
 }
 

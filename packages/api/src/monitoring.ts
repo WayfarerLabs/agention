@@ -71,14 +71,53 @@ export const stoppedBy = z
   .describe(stoppedByDescription);
 export type StoppedBy = z.infer<typeof stoppedBy>;
 
+// Why a bridge cannot monitor its session's terminal or nudge its agent, one
+// of a fixed list: the nudge off (nudge_off) or of a type the bridge does not
+// know (unknown_nudge_type); no tmux socket configured (no_socket); a pane it
+// cannot read (pane_unreachable), or one that is not the session's alone
+// (not_one_pane); a profile name it does not know (unknown_profile), or a
+// generic profile, which never nudges (generic_profile); nudge text left at
+// the prompt, which holds the nudge off until it is cleared
+// (nudge_text_left); and a server that refused its nudges as invalid
+// (claims_refused). A bridge reports the one that matters most, from the
+// first: what keeps it from the pane before what keeps it from nudging.
+export const monitorReason = z
+  .enum([
+    "no_socket",
+    "pane_unreachable",
+    "not_one_pane",
+    "unknown_profile",
+    "unknown_nudge_type",
+    "nudge_off",
+    "generic_profile",
+    "claims_refused",
+    "nudge_text_left",
+  ])
+  .describe(
+    "Why the bridge cannot monitor the session's terminal or nudge its agent: no_socket, no " +
+      "tmux socket configured; pane_unreachable, the pane cannot be read; not_one_pane, the " +
+      "tmux server holds more than one pane or one that is not the session's; unknown_profile, " +
+      "a harness profile the bridge does not know; unknown_nudge_type, a nudge type it does not " +
+      "know; nudge_off, no nudge type configured; generic_profile, a generic profile, which " +
+      "never nudges; claims_refused, the server refused its nudges as invalid; nudge_text_left, " +
+      "nudge text left at the prompt, which holds the nudge off until it is cleared.",
+  );
+export type MonitorReason = z.infer<typeof monitorReason>;
+
+// Why a bridge cannot monitor or nudge, and since when, by the bridge's
+// clock.
+export const monitorUnable = z.object({ reason: monitorReason, since: timestamp });
+export type MonitorUnable = z.infer<typeof monitorUnable>;
+
 // A bridge's report: whether it monitors a terminal pane at all, and while it
 // does, the profile it reads it with, the session's condition and since when,
-// and what stopped it, which only a condition at rest may carry; and whether
-// the session can be nudged: its nudge on, its pane read, and a profile that
-// can tell when the session is at its prompt, absent from a bridge older than
-// the nudge, which never nudges. A report replaces the one before it.
+// and what stopped it, which only a condition at rest may carry; whether the
+// session can be nudged: its nudge on, its pane read, and a profile that can
+// tell when the session is at its prompt, absent from a bridge older than the
+// nudge, which never nudges; and, either way, why it cannot monitor or nudge,
+// where it cannot, as it finds now. A report replaces the one before it.
 export const monitorReport = z.discriminatedUnion("monitored", [
-  z.object({ monitored: z.literal(false) }),
+  z.object({ monitored: z.literal(false), unable: monitorUnable.optional() }),
   z
     .object({
       monitored: z.literal(true),
@@ -87,6 +126,7 @@ export const monitorReport = z.discriminatedUnion("monitored", [
       since: timestamp,
       stopped_by: stoppedBy.optional(),
       nudge: z.boolean().optional(),
+      unable: monitorUnable.optional(),
     })
     .superRefine((value, context) => {
       if (value.stopped_by !== undefined && !atRest.includes(value.condition)) {
@@ -142,14 +182,27 @@ export type MonitorPollAnswer = z.infer<typeof monitorPollAnswer>;
 export const monitorNudgeQuery = monitorQuery;
 export type MonitorNudgeQuery = z.infer<typeof monitorNudgeQuery>;
 
-// A nudge's claim and its outcome, which the bridge sends for the nudge it
-// tries: start, once the session is ready for it and before anything reaches
-// the pane, which claims the nudge that is due; and done, once a nudge it
-// claimed ends, saying whether it was sent, the message submitted at the
-// agent's prompt, or abandoned at a step before or after that.
+// A nudge attempt's id, which the bridge draws at random for each attempt and
+// puts in the texts it types, so the harness's transcript names the attempt
+// that woke the agent.
+export const nudgeId = z
+  .string()
+  .regex(/^[0-9a-f]{12}$/, "must be 12 lowercase hex digits")
+  .describe("The nudge attempt's id, which its texts in the terminal carry.");
+
+// How a nudge attempt ended: deferred, nothing of it left in the terminal, so
+// it is no nudge and the bridge tries again; stopped by someone at the
+// terminal; failed; or sent, the agent's host having taken the message.
+export const nudgeOutcome = z.enum(["deferred", "stopped", "failed", "sent"]);
+export type NudgeOutcome = z.infer<typeof nudgeOutcome>;
+
+// A nudge's claim and its outcome, which the bridge sends for the attempt it
+// makes, by the attempt's id: start, once the session is ready for it and
+// before anything reaches the pane, which claims the nudge that is due; and
+// done, once an attempt it claimed, or may have, ends, with how.
 export const monitorNudge = z.discriminatedUnion("phase", [
-  z.object({ phase: z.literal("start") }),
-  z.object({ phase: z.literal("done"), sent: z.boolean() }),
+  z.object({ phase: z.literal("start"), id: nudgeId }),
+  z.object({ phase: z.literal("done"), id: nudgeId, outcome: nudgeOutcome }),
 ]);
 export type MonitorNudge = z.infer<typeof monitorNudge>;
 
@@ -160,11 +213,23 @@ export type MonitorNudge = z.infer<typeof monitorNudge>;
 export const monitorNudgeAnswer = monitorAnswer.extend({ go: z.boolean() });
 export type MonitorNudgeAnswer = z.infer<typeof monitorNudgeAnswer>;
 
+// Why a session's bridge cannot monitor or nudge, as the operator sees it.
+const unableState = z
+  .object({
+    reason: monitorReason,
+    since: z.string().describe("Since when, by the bridge's clock."),
+  })
+  .optional()
+  .describe(
+    "Why the bridge cannot monitor the session's terminal or nudge its agent, where it cannot, " +
+      "and since when; absent where it can, and from a bridge older than the nudge.",
+  );
+
 // A session's latest report as the operator sees it, its times as the server
 // writes them, with whether the session can be nudged, false for a bridge
-// older than the nudge.
+// older than the nudge, and why it cannot monitor or nudge, where it cannot.
 export const monitorState = z.discriminatedUnion("monitored", [
-  z.object({ monitored: z.literal(false) }),
+  z.object({ monitored: z.literal(false), unable: unableState }),
   z.object({
     monitored: z.literal(true),
     profile: monitorProfile,
@@ -183,21 +248,25 @@ export const monitorState = z.discriminatedUnion("monitored", [
       ])
       .optional()
       .describe(stoppedByDescription),
+    unable: unableState,
   }),
 ]);
 export type MonitorState = z.infer<typeof monitorState>;
 
 // A session's latest nudge as the operator sees it: when its bridge claimed
-// it, by the server's clock; whether it was sent, true too while it is under
-// way or where its outcome never arrived; and whether the agent has checked
-// in since. A nudge sent with no check-in since is one the agent is not
-// responding to.
+// it, by the server's clock; its attempt's id; how it ended, sent too while it
+// is under way or where its outcome never arrived, since an attempt deferred
+// is no nudge; and whether the agent has checked in since. A nudge sent with
+// no check-in since is one the agent is not responding to.
 export const nudgeState = z.object({
   at: z.string().describe("When the bridge claimed the nudge, by the server's clock."),
-  sent: z
-    .boolean()
+  id: nudgeId,
+  outcome: nudgeOutcome
+    .exclude(["deferred"])
     .describe(
-      "Whether the nudge was sent; true too while it is under way or where its outcome never came.",
+      "How the nudge ended: sent, the agent's host took the message, which it also reads while " +
+        "the nudge is under way or where its outcome never came; stopped by someone at the " +
+        "terminal; or failed.",
     ),
   answered: z
     .boolean()

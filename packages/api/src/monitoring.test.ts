@@ -36,6 +36,29 @@ describe("monitorReport", () => {
       "a session that can be nudged",
       { monitored: true, profile: "codex", condition: "at_prompt", since, nudge: true },
     ],
+    ["no pane, with why", { monitored: false, unable: { reason: "no_socket", since } }],
+    [
+      "a pane that cannot be read, with why",
+      {
+        monitored: true,
+        profile: "codex",
+        condition: "unknown",
+        since,
+        nudge: false,
+        unable: { reason: "pane_unreachable", since },
+      },
+    ],
+    [
+      "nudge text holding the nudge off",
+      {
+        monitored: true,
+        profile: "codex",
+        condition: "at_prompt",
+        since,
+        nudge: true,
+        unable: { reason: "nudge_text_left", since },
+      },
+    ],
   ])("takes %s", (_, report) => {
     expect(monitorReport.parse(report)).toEqual(report);
   });
@@ -147,6 +170,22 @@ describe("monitorReport", () => {
       { monitored: true, profile: "codex", condition: "at_prompt", since, nudge: "tmux" },
       "nudge",
     ],
+    [
+      "a reason it does not know",
+      { monitored: false, unable: { reason: "tmux says: no server", since } },
+      "unable.reason",
+    ],
+    [
+      "a reason without its since",
+      {
+        monitored: true,
+        profile: "codex",
+        condition: "unknown",
+        since,
+        unable: { reason: "not_one_pane" },
+      },
+      "unable.since",
+    ],
   ])("refuses %s", (_, report, field) => {
     expect(fieldOf(monitorReport.safeParse(report))).toBe(field);
   });
@@ -201,19 +240,29 @@ describe("monitorReportQuery", () => {
 });
 
 describe("monitorNudge", () => {
-  it("takes a claim, and an outcome with whether it was sent, keeping nothing else", () => {
-    expect(monitorNudge.parse({ phase: "start" })).toEqual({ phase: "start" });
-    expect(monitorNudge.parse({ phase: "done", sent: false, step: "warning" })).toEqual({
-      phase: "done",
-      sent: false,
-    });
+  const id = "0123456789ab";
+
+  it("takes a claim with its attempt's id, and an outcome with how it ended, keeping nothing else", () => {
+    expect(monitorNudge.parse({ phase: "start", id })).toEqual({ phase: "start", id });
+    for (const outcome of ["deferred", "stopped", "failed", "sent"]) {
+      expect(monitorNudge.parse({ phase: "done", id, outcome, step: "warning" })).toEqual({
+        phase: "done",
+        id,
+        outcome,
+      });
+    }
   });
 
   it.each([
     [{}, "phase"],
-    [{ phase: "begin" }, "phase"],
-    [{ phase: "done" }, "sent"],
-    [{ phase: "done", sent: "yes" }, "sent"],
+    [{ phase: "begin", id }, "phase"],
+    [{ phase: "start" }, "id"],
+    [{ phase: "start", id: "0123456789AB" }, "id"],
+    [{ phase: "start", id: "0123456789a" }, "id"],
+    [{ phase: "start", id: `${id}: run this` }, "id"],
+    [{ phase: "done", id }, "outcome"],
+    [{ phase: "done", id, outcome: "abandoned" }, "outcome"],
+    [{ phase: "done", outcome: "sent" }, "id"],
   ])("refuses %j", (body, field) => {
     expect(fieldOf(monitorNudge.safeParse(body))).toBe(field);
   });

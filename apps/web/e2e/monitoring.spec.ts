@@ -220,7 +220,7 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
   );
 });
 
-test("a session whose nudge was not sent shows it, and strands the thread written to it", async () => {
+test("a session whose nudge failed shows it with its id, and strands the thread written to it, saying so", async () => {
   const agent = agentOf("review");
   const canBeNudged = (): MonitorReport => ({ ...at("at_prompt"), nudge: true });
   await report("review", canBeNudged());
@@ -241,24 +241,35 @@ test("a session whose nudge was not sent shows it, and strands the thread writte
   await page.reload();
   await expect(page.locator(".thread-header .why-unread")).toHaveCount(0);
 
-  // The bridge is told a nudge is due, claims it, and says it was not sent.
+  // The bridge is told a nudge is due, claims it by its attempt's id, and
+  // says it failed.
   const path = `/s/builder/review/monitor?bridge=${sessions.review.bridge}`;
   const polled = await agent.send<{ nudge: boolean }>("GET", `${path}&wait=0`);
   expect(polled.body.nudge).toBe(true);
   const claim = `/s/builder/review/monitor/nudge?bridge=${sessions.review.bridge}`;
-  const claimed = await agent.send<{ go: boolean }>("POST", claim, { phase: "start" });
+  const id = "3f9a0c1d2e4b";
+  const claimed = await agent.send<{ go: boolean }>("POST", claim, { phase: "start", id });
   expect(claimed.body.go).toBe(true);
-  const done = await agent.send("POST", claim, { phase: "done", sent: false });
+  const done = await agent.send("POST", claim, { phase: "done", id, outcome: "failed" });
   expect(done.status).toBe(200);
   await page.reload();
-  await expect(page.locator(".thread-header .why-unread")).toBeVisible();
+  await expect(page.locator(".thread-header .why-unread")).toContainText(/nudge.*failed/);
 
-  // The sessions view shows the nudge in the warning's tone, its line
-  // fitting a phone's width.
+  // Nudge text left at the prompt shows on the session, as its bridge says.
+  await report("review", {
+    ...canBeNudged(),
+    unable: { reason: "nudge_text_left", since: canBeNudged().since },
+  });
+
+  // The sessions view shows the nudge and why it cannot be nudged in the
+  // warning's tone, the attempt's id with them, its line fitting a phone's
+  // width.
   for (const size of [wide, phone]) {
     await resize(page, size);
     await page.goto("/sessions");
-    await expect(row("review").locator(".session-seen .session-nudge.warning")).toBeVisible();
+    const seen = row("review").locator(".session-seen");
+    await expect(seen.locator(".session-nudge.warning")).toContainText(id);
+    await expect(seen.locator(".session-unable.warning")).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
     ).toBe(false);

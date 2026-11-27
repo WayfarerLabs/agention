@@ -650,6 +650,18 @@ describe("monitor reports", () => {
     ["a usage limit with its reset", { stopped_by: "usage_limit", resets_at: 2 }],
     ["a block at a permission prompt", { condition: "permission_prompt", stopped_by: "block" }],
     ["a session that can be nudged", { nudge: 1 }],
+    ["why it cannot be nudged, with since when", { unable: "nudge_off", unable_since: 2 }],
+    [
+      "why there is no pane, with since when",
+      {
+        monitored: 0,
+        profile: null,
+        condition: null,
+        since: null,
+        unable: "no_socket",
+        unable_since: 2,
+      },
+    ],
   ])("hold %s", (_, columns) => {
     reported(columns);
     expect(database.prepare("SELECT count(*) AS count FROM monitor_reports").get()).toEqual({
@@ -673,6 +685,9 @@ describe("monitor reports", () => {
       "a nudge without a pane",
       { monitored: 0, profile: null, condition: null, since: null, nudge: 1 },
     ],
+    ["a reason why it cannot that is not one of the list", { unable: "tired", unable_since: 2 }],
+    ["a reason why it cannot without its since", { unable: "nudge_off" }],
+    ["a since without its reason", { unable_since: 2 }],
   ])("refuse %s", (_, columns) => {
     expect(() => reported(columns)).toThrow();
   });
@@ -683,7 +698,7 @@ describe("monitor reports", () => {
   });
 });
 
-describe("a session's latest nudge", () => {
+describe("a session's nudges", () => {
   let database: Database;
 
   beforeEach(() => {
@@ -696,7 +711,7 @@ describe("a session's latest nudge", () => {
     database.close();
   });
 
-  const nudged = (columns: Record<string, number | null>) =>
+  const nudged = (columns: Record<string, string | number | null>) =>
     database
       .prepare(
         `UPDATE sessions SET ${Object.keys(columns)
@@ -705,17 +720,36 @@ describe("a session's latest nudge", () => {
       )
       .run(...Object.values(columns));
 
-  it("holds its time, with its outcome or none while it is under way", () => {
-    nudged({ nudged_at: 2, nudge_sent: null });
-    nudged({ nudge_sent: 1 });
-    nudged({ nudged_at: 4, nudge_sent: 0 });
-    expect(database.prepare("SELECT nudge_sent FROM sessions").get()).toEqual({ nudge_sent: 0 });
+  it("hold a claim and the latest nudge apart, each with its time and id", () => {
+    nudged({ nudge_claimed_at: 2, nudge_claim_id: "0123456789ab" });
+    nudged({
+      nudge_claimed_at: null,
+      nudge_claim_id: null,
+      nudged_at: 2,
+      nudge_id: "0123456789ab",
+      nudge_outcome: "stopped",
+    });
+    nudged({ nudge_claimed_at: 4, nudge_claim_id: "ba9876543210" });
+    expect(
+      database.prepare("SELECT nudge_claim_id, nudge_id, nudge_outcome FROM sessions").get(),
+    ).toEqual({
+      nudge_claim_id: "ba9876543210",
+      nudge_id: "0123456789ab",
+      nudge_outcome: "stopped",
+    });
   });
 
   it.each([
-    ["an outcome without a time", { nudge_sent: 1 }],
-    ["an outcome as neither", { nudged_at: 2, nudge_sent: 2 }],
-  ])("refuses %s", (_, columns) => {
+    ["a claim without its id", { nudge_claimed_at: 2 }],
+    ["a claim's id without its time", { nudge_claim_id: "0123456789ab" }],
+    ["a nudge without its outcome", { nudged_at: 2, nudge_id: "0123456789ab" }],
+    ["a nudge without its id", { nudged_at: 2, nudge_outcome: "sent" }],
+    ["an outcome without a nudge", { nudge_outcome: "failed" }],
+    [
+      "an outcome it does not know",
+      { nudged_at: 2, nudge_id: "0123456789ab", nudge_outcome: "deferred" },
+    ],
+  ])("refuse %s", (_, columns) => {
     expect(() => nudged(columns)).toThrow();
   });
 });
@@ -769,8 +803,11 @@ describe("a database an earlier release wrote", () => {
           ...(JSON.parse(row) as object),
           last_seen_version: null,
           background_at: null,
+          nudge_claimed_at: null,
+          nudge_claim_id: null,
           nudged_at: null,
-          nudge_sent: null,
+          nudge_id: null,
+          nudge_outcome: null,
         }),
       ),
     };

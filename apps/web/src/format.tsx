@@ -2,6 +2,7 @@ import {
   type Author,
   type Effort,
   type Impact,
+  type MonitorReason,
   type MonitorState,
   monitorCondition,
   type NudgeState,
@@ -222,6 +223,34 @@ export function ConditionClause({ observed }: { observed: Observed }) {
   );
 }
 
+// Why a session's bridge cannot monitor or nudge, as its sessions line and
+// detail say it, after "Can't be monitored: " or "Can't be nudged: ".
+const unableWords: Record<MonitorReason, { cannot: "monitored" | "nudged"; why: string }> = {
+  no_socket: { cannot: "monitored", why: "no tmux socket configured" },
+  pane_unreachable: { cannot: "monitored", why: "tmux socket unreachable" },
+  not_one_pane: { cannot: "monitored", why: "the tmux server holds more than this session's pane" },
+  unknown_profile: { cannot: "nudged", why: "harness profile unknown" },
+  unknown_nudge_type: { cannot: "nudged", why: "nudge type unknown" },
+  nudge_off: { cannot: "nudged", why: "the nudge is off" },
+  generic_profile: { cannot: "nudged", why: "a generic harness profile" },
+  claims_refused: { cannot: "nudged", why: "the server refused its nudges" },
+  nudge_text_left: { cannot: "nudged", why: "nudge text left at the prompt" },
+};
+
+// unableReasonWords says why a session's bridge cannot monitor or nudge, as
+// in "Can't be nudged: nudge text left at the prompt", or "Can't be nudged"
+// alone for a reason a newer server gives that this page does not know.
+export function unableReasonWords(reason: MonitorReason): string {
+  const words = Object.hasOwn(unableWords, reason) ? unableWords[reason] : undefined;
+  return words === undefined ? "Can't be nudged" : `Can't be ${words.cannot}: ${words.why}`;
+}
+
+// unableNeedsYou says whether why a session cannot be nudged is trouble for
+// the operator to look at: nudge text left at the prompt, which holds the
+// nudge off until someone clears it. Every other reason is the
+// configuration's choice or shows as the session's condition.
+export const unableNeedsYou = (reason: MonitorReason): boolean => reason === "nudge_text_left";
+
 // What the operator knows of a session that says whether it is there to see
 // what they write: the state it last reported, if any, and the outcome a
 // stopped one gave; its presence, with what its bridge last observed of its
@@ -246,18 +275,19 @@ export type Absence = (
   | { kind: "disconnected" }
   | { kind: "nudge"; nudge: NudgeState }
   | { kind: "ignored"; last_seen_at: string }
-  | { kind: "no_nudge" }
+  | { kind: "no_nudge"; unable?: MonitorReason | undefined }
 ) & { observed?: Observed | undefined };
 
 // absenceOf says why a session is not likely to see what the operator writes
 // until something starts it again, if it is not. Of an ignored thread, its
 // agent checked in, when it last did, without reading the thread. A session
 // its bridge can nudge is away only once that will not bring it: it has no
-// active credential; or its latest nudge has had no check-in since, whether
-// sent, so it is not responding to the nudge, or not sent; or, of a stranded
-// thread, no nudge came, as when its terminal never showed it ready. Waiting
-// at its prompt, quiet or stopped, it is not away, since the nudge will bring
-// it.
+// active credential; or its latest nudge has had no check-in since, so it is
+// not responding to the nudge, or failed or was stopped at the terminal; or,
+// of a stranded thread, its latest nudge failed or was stopped, or no nudge
+// came, as when its terminal never showed it ready or nudge text left at the
+// prompt held it off, which it says. Waiting at its prompt, quiet or
+// stopped, it is not away, since the nudge will bring it.
 // Any other session is away when it stopped, with its outcome; or it is
 // quiet, with when its agent last checked in; or it has no active credential;
 // or its bridge is not connected, the first of them that holds. Each comes
@@ -276,10 +306,15 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
     if (!session.credential_active) {
       return { kind: "credential", ...beside };
     }
-    if (nudge !== undefined && !nudge.answered) {
+    if (
+      nudge !== undefined &&
+      (!nudge.answered || (session.stranded === true && nudge.outcome !== "sent"))
+    ) {
       return { kind: "nudge", nudge, ...beside };
     }
-    return session.stranded === true ? { kind: "no_nudge", ...beside } : undefined;
+    return session.stranded === true
+      ? { kind: "no_nudge", unable: observed.unable?.reason, ...beside }
+      : undefined;
   }
   if (session.state === "stopped") {
     return { kind: "stopped", outcome: session.outcome, ...beside };
@@ -296,8 +331,10 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
 // absenceWords says briefly why a session is not likely to see what the
 // operator writes, as a tag says it: "stopped, completed", "last check-in
 // 14:02", "never checked in", "no active credential", "not connected", "not
-// responding to the nudge at 14:05", "nudge not sent at 14:05", "checked in at
-// 14:05 without reading this" or "not nudged", followed by what its terminal
+// responding to the nudge at 14:05", "nudge failed at 14:05", "nudge stopped
+// at the terminal at 14:05", "checked in at 14:05 without reading this", "not
+// nudged" or "not nudged: nudge text left at the prompt", followed by what
+// its terminal
 // shows, where its bridge observes one, as in "last check-in 14:02 · stopped
 // at a permission prompt".
 export function absenceWords(absence: Absence): string {
@@ -320,28 +357,45 @@ function absenceWhyWords(absence: Absence): string {
     case "ignored":
       return `checked in at ${sinceTime(absence.last_seen_at)} without reading this`;
     case "no_nudge":
-      return "not nudged";
+      return absence.unable === undefined ? "not nudged" : `not nudged: ${whyNot(absence.unable)}`;
   }
 }
 
+// whyNot says why a session cannot be nudged, after "not nudged: ".
+const whyNot = (reason: MonitorReason): string =>
+  Object.hasOwn(unableWords, reason) ? unableWords[reason].why : "it cannot be";
+
 // nudgeWords says briefly what came of a session's latest nudge, as a part of
 // its line says it: "not responding to the nudge at 14:05" for one sent with
-// no check-in since, "nudged 14:05" for one sent and answered, and "nudge not
-// sent at 14:05" for one that was not sent.
+// no check-in since, "nudged 14:05" for one sent and answered, "nudge failed
+// at 14:05" and "nudge stopped at the terminal at 14:05". An outcome a newer
+// server gives that this page does not know reads as sent.
 export function nudgeWords(nudge: NudgeState): string {
   const when = sinceTime(nudge.at);
-  if (!nudge.sent) {
-    return `nudge not sent at ${when}`;
+  switch (nudge.outcome) {
+    case "failed":
+      return `nudge failed at ${when}`;
+    case "stopped":
+      return `nudge stopped at the terminal at ${when}`;
+    default:
+      return nudge.answered ? `nudged ${when}` : `not responding to the nudge at ${when}`;
   }
-  return nudge.answered ? `nudged ${when}` : `not responding to the nudge at ${when}`;
 }
+
+// nudgeNeedsYou says whether a session's latest nudge is trouble for the
+// operator to look at: one that failed, and one sent with no check-in since.
+// One stopped at the terminal was the choice of whoever was there.
+export const nudgeNeedsYou = (nudge: NudgeState): boolean =>
+  nudge.outcome === "failed" || (nudge.outcome !== "stopped" && !nudge.answered);
 
 // AbsenceReason says, as a clause, why a session is not likely to see what
 // the operator writes: "it stopped, completed", "it has not checked in since
 // 14:02", "it has never checked in", "it has no active credential", "its
 // bridge is not connected", "it is not responding to the nudge at 14:05",
-// "its nudge at 14:05 was not sent", "it checked in at 14:05 without reading
-// this thread" or "it has not been nudged", and what its terminal shows,
+// "its nudge at 14:05 failed", "its nudge at 14:05 was stopped at the
+// terminal", "it checked in at 14:05 without reading this thread", "it has
+// not been nudged" or "it has not been nudged: nudge text left at the
+// prompt", and what its terminal shows,
 // where its bridge observes one, as in "it has not checked in since 14:02,
 // and its terminal shows it stopped at a permission prompt".
 export function AbsenceReason({ absence }: { absence: Absence }) {
@@ -374,15 +428,26 @@ function AbsenceWhy({ absence }: { absence: Absence }) {
     case "disconnected":
       return <>its bridge is not connected</>;
     case "nudge":
-      return absence.nudge.sent ? (
-        <>
-          it is not responding to the nudge at <Since value={absence.nudge.at} />
-        </>
-      ) : (
-        <>
-          its nudge at <Since value={absence.nudge.at} /> was not sent
-        </>
-      );
+      switch (absence.nudge.outcome) {
+        case "failed":
+          return (
+            <>
+              its nudge at <Since value={absence.nudge.at} /> failed
+            </>
+          );
+        case "stopped":
+          return (
+            <>
+              its nudge at <Since value={absence.nudge.at} /> was stopped at the terminal
+            </>
+          );
+        default:
+          return (
+            <>
+              it is not responding to the nudge at <Since value={absence.nudge.at} />
+            </>
+          );
+      }
     case "ignored":
       return (
         <>
@@ -390,7 +455,11 @@ function AbsenceWhy({ absence }: { absence: Absence }) {
         </>
       );
     case "no_nudge":
-      return <>it has not been nudged</>;
+      return absence.unable === undefined ? (
+        <>it has not been nudged</>
+      ) : (
+        <>it has not been nudged: {whyNot(absence.unable)}</>
+      );
   }
 }
 

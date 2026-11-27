@@ -7,7 +7,9 @@
 // - e: at its prompt with a draft, the cursor showing in the middle of it;
 // - r: running a turn, redrawing a counter every 200 ms, the prompt live;
 // - d: a dialog, still, with the cursor hidden;
-// - l: at its prompt, under a line saying a usage limit was reached.
+// - l: at its prompt, under a line saying a usage limit was reached;
+// - n: shows or hides a note below the input line, leaving the input as it
+//   is, as a harness redrawing part of its screen at its prompt does.
 //
 // It starts at its prompt, and asks for bracketed paste. At its prompt the
 // input line takes pastes and typed characters, Backspace removes the last
@@ -36,6 +38,7 @@ const modes: Record<string, Mode> = {
   l: "limited",
 };
 let mode: Mode = "prompt";
+let note = false;
 let turn = 0;
 let turns = 0;
 let timer: NodeJS.Timeout | undefined;
@@ -56,7 +59,8 @@ function draw(): void {
   const prompt = `${at(0, 2)}> ${typed}${at(2 + cursor, 2)}${escape}?25h`;
   switch (mode) {
     case "prompt":
-      screen += (turns > 0 ? `${at(0, 1)}turns ${turns}` : "") + prompt;
+      screen +=
+        (turns > 0 ? `${at(0, 1)}turns ${turns}` : "") + (note ? `${at(0, 3)}a note` : "") + prompt;
       break;
     case "editing":
       screen += `${at(0, 2)}> a draft${at(4, 2)}${escape}?25h`;
@@ -164,6 +168,11 @@ function take(data: string): void {
 process.stdin.setRawMode(true);
 process.stdin.on("data", (data: Buffer) => {
   const text = data.toString("utf8");
+  if (text === "n") {
+    note = !note;
+    draw();
+    return;
+  }
   const next = modes[text];
   if (next !== undefined) {
     typed = "";
