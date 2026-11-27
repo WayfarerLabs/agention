@@ -109,6 +109,9 @@ export interface FileRead {
   request: Request;
   log: (message: string) => void;
   dropConnection: (() => void) | undefined;
+  // Records a refusal met once the answer started, which the answer can no
+  // longer show.
+  refused: (error: unknown) => void;
 }
 
 // serveFile answers a file read: the file a message carries under a name,
@@ -117,9 +120,10 @@ export interface FileRead {
 // transaction, which confirms the scope and re-checks the credential. A
 // read that fails partway, at a refusal, a missing chunk or anything else,
 // is logged and its connection dropped, so the client sees the body cut
-// short; in process, with no connection, the body errors instead.
+// short; in process, with no connection, the body errors instead. A refusal
+// partway is recorded as one the answer did not show.
 export function serveFile(read: FileRead): Response {
-  const { store, identity, target, request, log, dropConnection } = read;
+  const { store, identity, target, request, log, dropConnection, refused } = read;
   const file = findCarriedFile(store, identity, target);
   const served = servedTypeOf(file.type);
   const wanted = wantedOf(request.headers.get("range") ?? undefined, file.size);
@@ -187,6 +191,7 @@ export function serveFile(read: FileRead): Response {
           // logged with its stack as the app logs every internal error.
           const why =
             error instanceof ApiError ? error.message : ((error as Error).stack ?? String(error));
+          refused(error);
           cutShort(controller, why, error);
           return;
         }

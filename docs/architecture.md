@@ -53,16 +53,16 @@ The rest of this document uses these terms:
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                        |
+| Component                | State                                                                                                                                                                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation.                                                             |
+| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                                                              |
+| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                                                                     |
+| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store, and delivers the audit log; `backup` copies the database; `audit forget-sink` removes an audit sink's cursor. |
+| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                                                                      |
+| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                                                             |
+| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                                                                  |
+| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                                                                                    |
 
 ## Source and packages
 
@@ -208,9 +208,10 @@ string, so both ends must spell it alike.
 ## Private files
 
 [SECURITY.md](../SECURITY.md#private-files) states the private-file rule that the server's data
-directory and database and the bridge's key files obey. `packages/private-files` holds the functions
-that apply it and the `PrivateFileError` they refuse with, which each caller words in its own error;
-the server and the bridge bundle it.
+directory and database, the audit log's directory and files, and the bridge's key files obey.
+`packages/private-files` holds the functions that apply it, private or shared with a reading group,
+and the `PrivateFileError` they refuse with, which each caller words in its own error; the server
+and the bridge bundle it.
 
 ## Database
 
@@ -329,6 +330,32 @@ expiry, and otherwise after its creation), when it was last used, kept to the ho
 revoked. A revoked or expired key keeps its row, so the operator's list can show it, until the
 cleanup [Browser sessions, stored secrets and cleanup](#browser-sessions-stored-secrets-and-cleanup)
 describes. Ids never repeat, so an id names one key for good.
+
+### Audit tables
+
+`audit_events` holds the [audit log](#audit-log), one row per event: `seq`, its place in the log's
+one order, `AUTOINCREMENT`, so a sequence is never reused while the database lives, even once
+retention empties the table; `uid`, a random UUID; `event`, the OCSF JSON as the builder wrote it;
+copies of its time, class, action, outcome and credential for filtering; and `open_until`, the end
+of a coalesced failure's minute. Its triggers hold the log to its rules:
+
+- each insert takes the next sequence, and its JSON carries its own `seq` and `uid`;
+- no update, except an open failure's, before any sink has it: its `count` rises and its `end_time`
+  moves on within its minute, both staying integers, and nothing else changes; or it closes, its
+  `open_until` becoming null and nothing else changing;
+- a delete only of the oldest row, and only once every sink's cursor has passed it.
+
+`audit_events_open`, a partial index on `open_until`, holds only the coalesced failures; the three
+queries that look for open ones, coalescing's and delivery's two, name it with `INDEXED BY`, since
+without `ANALYZE`, which the server never runs, SQLite would answer their `min(seq)` by walking the
+primary key, the whole backlog. A failure is open while its minute's end is ahead and at most a
+minute ahead: one further ahead was recorded before the clock stepped back, and counts as closed.
+
+`audit_sinks` holds each sink's cursor, keyed by its kind, the last sequence it delivered, which a
+trigger lets move only forward. `instance.uid` is the instance's random id, made once by the
+migration and never changed, which every event carries. `browser_sessions.id` is each browser
+session's random id, which names it where its cookie must not; the migration rebuilt the table to
+add it as a unique, constrained column, giving every open session one.
 
 ### Incremental vacuuming
 
@@ -668,12 +695,13 @@ in the roll-up; its replacement counts when it names an entry again.
   entry's key, which are exactly those whose roll-up lists it; the filter, the roll-up and the
   summary all read the same live mentions (`liveLinks`).
 
-### The upload sweep
+### The sweep
 
-The sweep (`store/file-sweep.ts`) removes the uploads no message will name: those past their expiry
-([Uploads](#uploads)), and those left incomplete that are not in the set of uploads in flight.
+The sweep (`store/sweep.ts`) removes what the server keeps no longer: the audit log's events past
+their retention ([Retention](#retention)), then the uploads no message will name, those past their
+expiry ([Uploads](#uploads)) and those left incomplete that are not in the set of uploads in flight.
 `agention serve` runs it once before it listens, when nothing is in flight, so every incomplete
-upload goes, and then every 10 minutes; a pass that fails is logged and the next tries again.
+upload goes, and then every 10 minutes; a part that fails is logged and the next pass tries again.
 
 When a pass freed pages on a database using incremental vacuuming, it returns them to the disk 2,048
 pages, 8 MiB, at a time. The set of uploads in flight is in the process, so one server serves a
@@ -1333,7 +1361,8 @@ the key is created.
   stops within a chunk ([Uploads](#uploads), [Reading a file](#reading-a-file)).
 - **Refusals.** Every refusal of a key is the same `unauthenticated`, telling the client to check
   the key or create a new one in Settings, so it never says whether a key existed.
-- **Use.** A key's use is recorded at most hourly.
+- **Use.** A key's use is recorded at most hourly, and its first use in the audit log too, in the
+  same transaction.
 - **Reach.** A key acts as the operator over every session, within its scopes; the API keys,
   passkeys, settings and transcription are [web-only routes](#web-only-routes), so no key reaches
   them.
@@ -1344,6 +1373,9 @@ A finished sign-in or link opens a session in the `__Host-agention-<port>-sessio
 `HttpOnly`, `SameSite=Strict`), closing the one the browser held before. The session ends after
 seven days without use or thirty days after it opened. Every web mutation also needs the session's
 CSRF token in `X-CSRF-Token` and an `Origin` equal to the origin.
+
+Each browser session also has an id of its own, 128 random bits in hexadecimal, which is not a
+secret and names it in the audit log, where its cookie and the cookie's hash must not appear.
 
 Browser sessions, links and API keys are 256 random bits, stored only as their SHA-256. Expired
 sessions, links and used challenges are deleted whenever their table is next written, and so are
@@ -1458,6 +1490,102 @@ An exhausted budget answers `rate_limited`, with a `Retry-After` header, as does
 sessions past its credential's limit ([Waits](#waits)). The
 [operator guide](operator-guide.md#rate-budgets) lists the rates.
 
+## Audit log
+
+Every write, sign-in and credential change records an event, an OCSF 1.9.0 JSON object, in
+`audit_events` ([Audit tables](#audit-tables)), which is both the log's system of record and every
+sink's outbox. The operator guide's "Audit log" says what is recorded, and SECURITY.md "Audit log"
+what never is.
+
+### Recording
+
+- **An identity carries its request.** `Identity` (`apps/server/src/identity.ts`) carries the
+  request it arrived as, `RequestOrigin`, which `requestOrigin` (`http/origin.ts`) reads where each
+  mount authenticates: the connection's peer address, the user agent cut to 256 code units, the
+  method, the routed path, the matched route's pattern, the mount, and the server's origin, which a
+  sign-in's event names as its service with the server's stored name. A browser session's credential
+  carries its id and passkey beside its hash, which only the store's lookups use. The writes with no
+  identity yet, a sign-in, a link and an agent's registration, take an origin of their own.
+- **In the change's transaction.** Every store function that writes calls `recordAudit`
+  (`audit/record.ts`) inside its transaction, after its change, with the action and its typed input,
+  so neither the change nor its event exists without the other, and a failed insert fails the write.
+  It reads the actor's names, the instance's id and name, and the next sequence, builds the event
+  (`audit/events.ts`), inserts it, and wakes the dispatcher with `queueMicrotask`, which runs once
+  the synchronous transaction has committed or rolled back.
+- **Typed inputs only.** The action table (`audit/actions.ts`) holds one entry per action: its
+  class, its activity, and its `build`, whose parameter types the action's input: ids, numbers,
+  flags, and the names the operator and agents chose, read from rows the store holds. No input has a
+  field for a request body, message or answer text, a title, a file name or a secret. The builder
+  (`audit/events.ts`) adds what every event shares, and writes each event as one line, escaping the
+  characters some readers take for a line's end.
+- **Failures in a transaction of their own.** A failed sign-in or link, and a refusal of an API key
+  the server found, are recorded by `recordFailure` once the refusal has spent its rate budget:
+  `spendOnFailure` passes it to a recorder once its token is spent, and `addOperations` catches the
+  refusals of a known key after authentication, a scope refused at the mount or in the store, or a
+  key revoked or expired since it authenticated, as `ApiError`s that name the key and why beside
+  their code, which no answer shows. A key refused partway through a download, once its answer has
+  started, is recorded through the operation's `refused`, with no `http_response`, since its client
+  was answered 200 or 206 and then cut off. The first failure of a kind in a UTC minute, its kind
+  being its action, credential, code, and the status its caller was answered with, inserts an event
+  with a count of 1, open until the minute ends; a later one raises that event's count and moves its
+  `end_time` on, unless delivery has taken that event, which starts a new one. A failure that cannot
+  be recorded is logged at most once a minute, and the answer is unchanged.
+- **Every write is covered.** `audit/coverage.test.ts` drives every `POST` declaration on the three
+  mounts and every `POST` route of the web mount's own, fails on one without a driver, holds the one
+  list of those that record nothing, the read marks, and finds exactly the events each records, each
+  valid against the pinned OCSF class schemas in `audit/fixtures/`.
+
+### Delivery
+
+The dispatcher (`audit/dispatcher.ts`) runs in `agention serve` only, one loop per configured sink.
+A sink is the small `Sink` interface: it delivers a batch, in sequence order, resolving once the
+whole batch is delivered and throwing when it failed, which sends the batch again.
+
+- **From its cursor.** Each sink's batch is the events after its cursor (`audit/cursors.ts`), at
+  most 100 or 1 MiB, stopping before the first coalesced failure still open; the loop wakes when
+  that minute ends. The transaction that reads a batch closes each coalesced failure in it, so a
+  count is final when it leaves, even once a clock stepped back. A delivered batch moves the cursor
+  in a short transaction of its own, so a restart resumes where the sink stopped, and a sink
+  receives every event at least once, in order. A sink new to the database starts from the oldest
+  retained event; `agention serve` gives each configured sink its cursor before the first prune. A
+  cursor removed while the server runs, by `agention audit forget-sink`, stops its sink, saying so
+  on stderr, until the next start gives it a new one.
+- **Waking.** A transaction that recorded events wakes every loop; a loop with nothing to deliver
+  also reads again every 30 seconds, which is how it finds what the command line records.
+- **Failing.** A failed delivery is tried again after 5 seconds. The dispatcher keeps each sink's
+  state in memory, and says on stderr, naming the sink by its kind, when it starts failing, every 15
+  minutes while it goes on failing, with how far behind it is and its oldest undelivered event, and
+  when it recovers. A delivery still under way after 60 seconds is named on stderr as stalled, every
+  15 minutes while it stays so, without being ended, and again once it completes. Nothing waits for
+  a sink: a write only inserts its row.
+- **A cursor no sink is configured for** stays, so retention waits for it, and is named on stderr at
+  start and every 15 minutes. `agention audit forget-sink` removes it, in one transaction with the
+  event that records it.
+
+The two sinks (`audit/sinks/`):
+
+- **stdout** writes each event's JSON as a line to standard output, which `agention serve` writes
+  nothing else to, and delivers a batch once the write has drained to the stream.
+- **file** appends the lines to `audit.jsonl` in `--audit-dir` and `fsync`s it before delivering,
+  and `fsync`s the directory whenever a file in it is made or renamed. At the first write of a later
+  UTC day it renames the file for the day it held, `audit-YYYY-MM-DD.jsonl`, or with `.1`, `.2` and
+  so on when that name is taken, starts a new one, and removes the renamed files beyond
+  `--audit-keep-days`. Every line is whole: a file left ending partway through a line is ended
+  before the next write, and a write that fails is cut back off. A file moved or removed from under
+  it, as by logrotate, is let go, and the next write starts a new one. Closing waits for the write
+  under way. The directory and files follow the private-file rule, or its variant shared with
+  `--audit-group`'s group, which `agention serve` resolves at start through `getent`, run without a
+  shell and given 10 seconds, refusing a group its user is not in. `agention serve` opens the sinks
+  before the database, so a directory the rule refuses stops it before anything else.
+
+### Retention
+
+The sweep removes events older than `--audit-retention-days` ([The sweep](#the-sweep)), oldest
+first, once every cursor has passed them, in transactions of at most 1,000 deletions, yielding
+between them. Each deletion removes the oldest row alone, as the delete trigger checks every row a
+statement deletes, and pruning stops at the first row too new to remove, so removal follows the
+sequence even where a clock stepped back. A retention of 0 removes nothing.
+
 ## Serving
 
 ### Starting
@@ -1475,8 +1603,9 @@ feeds the index page, the relying party and new passkeys' user names.
 The server listens on `--listen`, an IP address and port. With `--tls-cert` and `--tls-key` it
 terminates TLS 1.3 itself; without them it serves plain HTTP, which it refuses on a non-loopback
 address unless `--allow-plain-http` is given. Before it listens, it runs the first sweep of uploads
-([The upload sweep](#the-upload-sweep)). A client gets 10 seconds to send its request headers,
-checked every second, and an idle keep-alive connection closes after 120 seconds.
+([The sweep](#the-sweep)), once the [audit log's dispatcher](#delivery) has started with the sinks
+its options configure. A client gets 10 seconds to send its request headers, checked every second,
+and an idle keep-alive connection closes after 120 seconds.
 
 ### Request deadlines
 
@@ -1502,7 +1631,12 @@ after its answer started, or after it finished, has its connection destroyed.
 On `SIGINT` or `SIGTERM` the server ends its long polls, answers every request still open with
 `Connection: close`, closes idle connections, and exits once the open requests finish. Three seconds
 after it starts stopping it closes every connection still open, whatever its state, a TLS handshake
-that never finished included.
+that never finished included. The audit log's sinks then have 5 seconds to deliver what is pending;
+what is still undelivered waits in the database for the next start. The dispatcher's loops stop,
+then the sweep and the database close, and the sinks close last. A file sink's close waits for its
+write under way, so a write a stalled disk holds keeps the process from exiting until the service
+manager kills it; the database is closed by then, and since that write's cursor never moved, no
+event is lost.
 
 ## Agent bridge
 

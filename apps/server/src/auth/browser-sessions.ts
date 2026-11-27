@@ -1,6 +1,13 @@
+import { randomBytes } from "node:crypto";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { notAllowed, notFound } from "../errors.ts";
-import { checkCredential, type Identity, identityForBrowserSession } from "../identity.ts";
+import {
+  checkCredential,
+  type Identity,
+  identityForBrowserSession,
+  type RequestOrigin,
+} from "../identity.ts";
 import { everySession, findOperator, type Store } from "../store/index.ts";
 import { hashOfSecret, newSecret } from "./secrets.ts";
 
@@ -28,15 +35,21 @@ function deleteExpired(db: Database, now: number): void {
 }
 
 export interface OpenedBrowserSession {
-  // The cookie value, which only the browser keeps.
+  // The cookie value, which only the browser keeps, and the hash the session
+  // is stored under.
   token: string;
+  hash: Buffer;
   csrfToken: string;
+  // The session's own id, which is not secret, and its absolute expiry.
+  id: string;
+  expiresAt: number;
   // Seconds until the session's absolute expiry, for the cookie's Max-Age.
   maxAge: number;
 }
 
 // openBrowserSession opens a session for the person, signed in with the
-// passkey, inside the caller's transaction.
+// passkey, inside the caller's transaction, with a new random id that names
+// it where its cookie must not.
 export function openBrowserSession(
   db: Database,
   personId: number,
@@ -46,40 +59,81 @@ export function openBrowserSession(
   deleteExpired(db, now);
   const session = newSecret();
   const csrfToken = newSecret().token;
+  const id = randomBytes(16).toString("hex");
+  const expiresAt = now + browserSessionLifetime;
   db.prepare(
-    `INSERT INTO browser_sessions (hash, person_id, passkey_id, csrf_token, created_at,
-       idle_expires_at, absolute_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO browser_sessions (hash, id, person_id, passkey_id, csrf_token, created_at,
+       idle_expires_at, absolute_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     session.hash,
+    id,
     personId,
     passkeyId,
     csrfToken,
     now,
     now + browserSessionIdleLifetime,
-    now + browserSessionLifetime,
+    expiresAt,
   );
-  return { token: session.token, csrfToken, maxAge: browserSessionLifetime / 1000 };
+  return {
+    token: session.token,
+    hash: session.hash,
+    csrfToken,
+    id,
+    expiresAt,
+    maxAge: browserSessionLifetime / 1000,
+  };
 }
 
 // closeBrowserSession ends the session a cookie names, if it exists, inside the
-// caller's transaction, and says whether it did, so the caller wakes the waits
-// across sessions once that transaction commits.
+// caller's transaction, and answers the id of the session it ended, if any, so
+// the caller wakes the waits across sessions once that transaction commits.
 export function closeBrowserSession(
   db: Database,
   cookie: string | undefined,
   now: number,
-): boolean {
+): string | undefined {
   deleteExpired(db, now);
   const hash = hashOfSecret(cookie);
-  return (
-    hash !== undefined &&
-    db.prepare("DELETE FROM browser_sessions WHERE hash = ?").run(hash).changes === 1
-  );
+  if (hash === undefined) {
+    return undefined;
+  }
+  const row = db.prepare("DELETE FROM browser_sessions WHERE hash = ? RETURNING id").get(hash) as
+    { id: string } | undefined;
+  return row?.id;
 }
 
-// signOut ends the session a cookie names, if it exists.
-export function signOut(store: Store, cookie: string | undefined): void {
-  const closed = store.db.transaction(() => closeBrowserSession(store.db, cookie, store.clock()));
+// liveSessionsOf lists the ids of the live browser sessions a passkey signed
+// in, or a person holds, for the event of an action that ends them, read
+// before it does.
+export function liveSessionsOf(
+  db: Database,
+  of: { passkeyId: number } | { personId: number },
+  now: number,
+): string[] {
+  const [column, value] =
+    "passkeyId" in of ? ["passkey_id", of.passkeyId] : ["person_id", of.personId];
+  return (
+    db
+      .prepare(
+        `SELECT id FROM browser_sessions
+         WHERE ${column} = ? AND idle_expires_at > ? AND absolute_expires_at > ? ORDER BY id`,
+      )
+      .all(value, now, now) as { id: string }[]
+  ).map((row) => row.id);
+}
+
+// signOut ends the session a cookie names, the identity's, if it exists,
+// recording that the operator signed out of the service.
+export function signOut(store: Store, identity: Identity, cookie: string | undefined): void {
+  const { db } = store;
+  const closed = db.transaction(() => {
+    const now = store.clock();
+    const ended = closeBrowserSession(db, cookie, now);
+    if (ended !== undefined) {
+      recordAudit(store, now, { kind: "identity", identity }, "signOut", {});
+    }
+    return ended !== undefined;
+  });
   if (closed) {
     store.notifier.notify(everySession);
   }
@@ -97,6 +151,7 @@ export interface ResumedBrowserSession {
 export function resumeBrowserSession(
   store: Store,
   cookie: string | undefined,
+  origin: RequestOrigin,
 ): ResumedBrowserSession | undefined {
   const { db } = store;
   const hash = hashOfSecret(cookie);
@@ -111,7 +166,7 @@ export function resumeBrowserSession(
     )
     .get(hash, now, now) as
     { csrf_token: string; idle_expires_at: number; absolute_expires_at: number } | undefined;
-  const identity = row === undefined ? undefined : identityForBrowserSession(db, hash);
+  const identity = row === undefined ? undefined : identityForBrowserSession(db, hash, origin);
   const operator = findOperator(db);
   if (row === undefined || identity === undefined || operator === undefined) {
     return undefined;

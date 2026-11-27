@@ -161,6 +161,22 @@ describe("files on the operator mount", () => {
   });
 });
 
+// The key refusals the audit log holds: each one's key, its code, and the
+// status its caller was answered with, if any, with its count.
+const refusals = () =>
+  (
+    harness.fixture.db
+      .prepare("SELECT credential_id, event FROM audit_events WHERE outcome = 'failure'")
+      .all() as { credential_id: string; event: string }[]
+  ).map((row) => {
+    const event = JSON.parse(row.event) as {
+      status_detail: string;
+      count: number;
+      http_response?: { code: number };
+    };
+    return [row.credential_id, event.status_detail, event.http_response?.code, event.count];
+  });
+
 describe("a key's file transfer", () => {
   it("stops a read within a chunk once the key is revoked", async () => {
     const { key, secret } = await harness.createKey(["threads:write"]);
@@ -176,10 +192,22 @@ describe("a key's file transfer", () => {
     expect((await reader?.read())?.value?.length).toBe(chunkBytes);
     await harness.web("POST", `/keys/${key.id}/revoke`);
     await expect(reader?.read()).rejects.toBeInstanceOf(ApiError);
+    // Recorded once, with no status: the client was answered 200, then cut off.
+    expect(refusals()).toEqual([[String(key.id), "key_revoked", undefined, 1]]);
+    // A later read, refused 401 at authentication in the same minute, counts
+    // apart from the refusal its client never saw.
+    await readFile(secret, seq, "big.bin");
+    expect(refusals()).toEqual([
+      [String(key.id), "key_revoked", undefined, 1],
+      [String(key.id), "key_revoked", 401, 1],
+    ]);
   });
 
   it("stops a read within a chunk once the key expires", async () => {
-    const { secret } = await harness.createKey(["threads:write"], { kind: "days", days: 7 });
+    const { key, secret } = await harness.createKey(["threads:write"], {
+      kind: "days",
+      days: 7,
+    });
     const big = Buffer.alloc(chunkBytes * 3);
     const { upload: ref } = json(await upload(secret, big, "big.bin")) as UploadResult;
     const seq = await attach(secret, ref);
@@ -191,6 +219,7 @@ describe("a key's file transfer", () => {
     expect((await reader?.read())?.value?.length).toBe(chunkBytes);
     harness.fixture.advance(7 * 24 * hour);
     await expect(reader?.read()).rejects.toBeInstanceOf(ApiError);
+    expect(refusals()).toEqual([[String(key.id), "key_expired", undefined, 1]]);
   });
 
   it("stops an upload at its next chunk once the key is revoked, before its last arrives, keeping nothing", async () => {
@@ -248,5 +277,6 @@ describe("a key's file transfer", () => {
     ]);
     expect(pulls).toBe(2);
     expect([count("files"), count("file_chunks")]).toEqual([0, 0]);
+    expect(refusals()).toEqual([[String(key.id), "key_revoked", 401, 1]]);
   });
 });

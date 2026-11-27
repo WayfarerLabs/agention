@@ -11,9 +11,17 @@ import {
   type RegistrationSubmitInput,
 } from "@wayfarerlabs/agention-api";
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
+import type { AuditInput, RegistrationRef } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { invalidInput, notFound } from "../errors.ts";
-import { authorizeScope, holds, type Identity } from "../identity.ts";
+import {
+  authorizeScope,
+  holds,
+  type Identity,
+  type RequestOrigin,
+  scopeRefused,
+} from "../identity.ts";
 import { findAgentId, findSessionId, insertAgent, insertSession } from "./directory.ts";
 import { putInGroup, tagSession } from "./groups-and-tags.ts";
 import { pageOf } from "./thread-reads.ts";
@@ -96,6 +104,16 @@ function toRegistration(row: RegistrationRow): Registration {
   };
 }
 
+// refOf names a registration for an audit event, by its agent and session:
+// those granted, or else those proposed.
+function refOf(row: RegistrationRow): RegistrationRef {
+  return {
+    id: row.id,
+    agent: row.granted_agent ?? row.proposed_agent,
+    session: row.granted_session ?? row.proposed_session,
+  };
+}
+
 function toState(row: RegistrationRow): RegistrationState {
   return {
     status: row.status,
@@ -129,6 +147,7 @@ export function submitRegistration(
   store: Store,
   publicKey: PublicKey,
   input: RegistrationSubmitInput,
+  origin: RequestOrigin,
 ): RegistrationState {
   const { db } = store;
   return db.transaction(() => {
@@ -157,7 +176,14 @@ export function submitRegistration(
       .get(publicKey, input.agent, input.session, now, now + registrationLifetime) as {
       id: number;
     };
-    return toState(readRegistration(db, id, now) as RegistrationRow);
+    const row = readRegistration(db, id, now) as RegistrationRow;
+    recordAudit(store, now, { kind: "registration_key", registrationId: id, origin }, "register", {
+      registration: refOf(row),
+      proposedAgent: input.agent,
+      proposedSession: input.session,
+      expiresAt: row.expires_at,
+    });
+    return toState(row);
   });
 }
 
@@ -212,13 +238,13 @@ export function countPendingRegistrations(db: Database, now: number): number {
 
 // decide runs one registration decision for the operator: it loads the
 // registration, requires the status shown to be the one the decision starts
-// from, and applies it.
-function decide(
+// from, applies it, and records it with what apply answers of it.
+function decide<A extends "approveRegistration" | "rejectRegistration" | "revokeRegistration">(
   store: Store,
   identity: Identity,
   id: number,
-  from: RegistrationStatus,
-  apply: (db: Database, row: RegistrationRow, now: number) => void,
+  decision: { from: RegistrationStatus; action: A },
+  apply: (db: Database, row: RegistrationRow, now: number) => Omit<AuditInput<A>, "registration">,
 ): RegistrationRow {
   const { db } = store;
   return db.transaction(() => {
@@ -228,12 +254,17 @@ function decide(
     if (row === undefined) {
       throw notFound();
     }
-    if (row.status !== from) {
-      throw invalidInput(undefined, `the registration is ${row.status}, not ${from}`);
+    if (row.status !== decision.from) {
+      throw invalidInput(undefined, `the registration is ${row.status}, not ${decision.from}`);
     }
-    apply(db, row, now);
+    const details = apply(db, row, now);
     deleteExpiredPending(db, now);
-    return readRegistration(db, id, now) as RegistrationRow;
+    const decided = readRegistration(db, id, now) as RegistrationRow;
+    recordAudit(store, now, { kind: "identity", identity }, decision.action, {
+      ...details,
+      registration: refOf(decided),
+    } as AuditInput<A>);
+    return decided;
   });
 }
 
@@ -253,7 +284,8 @@ export function approveRegistration(
   id: number,
   input: ApproveInput,
 ): RegistrationResult {
-  const row = decide(store, identity, id, "pending", (db, _, now) => {
+  const decision = { from: "pending", action: "approveRegistration" } as const;
+  const row = decide(store, identity, id, decision, (db, _, now) => {
     const existingAgent = findAgentId(db, input.agent.name);
     if (input.agent.existing !== (existingAgent !== undefined)) {
       throw invalidInput(
@@ -279,7 +311,7 @@ export function approveRegistration(
       ["session.tags", tags],
     ] as const) {
       if (given !== undefined && !holds(identity, "sessions:write")) {
-        throw notFound(field);
+        throw scopeRefused(identity, field);
       }
     }
     const agentId = existingAgent ?? insertAgent(db, input.agent.name, now);
@@ -293,6 +325,13 @@ export function approveRegistration(
     db.prepare(
       "UPDATE registrations SET status = 'approved', session_id = ?, decided_at = ? WHERE id = ?",
     ).run(sessionId, now, id);
+    return {
+      session: sessionId,
+      newAgent: existingAgent === undefined,
+      newSession: existingSession === undefined,
+      ...(group === undefined ? {} : { group }),
+      ...(tags === undefined ? {} : { tags: [...tags] }),
+    };
   });
   return { registration: toRegistration(row) };
 }
@@ -303,11 +342,13 @@ export function rejectRegistration(
   identity: Identity,
   id: number,
 ): RegistrationResult {
-  const row = decide(store, identity, id, "pending", (db, _, now) => {
+  const decision = { from: "pending", action: "rejectRegistration" } as const;
+  const row = decide(store, identity, id, decision, (db, _, now) => {
     db.prepare("UPDATE registrations SET status = 'rejected', decided_at = ? WHERE id = ?").run(
       now,
       id,
     );
+    return {};
   });
   return { registration: toRegistration(row) };
 }
@@ -320,11 +361,13 @@ export function revokeRegistration(
   identity: Identity,
   id: number,
 ): RegistrationResult {
-  const row = decide(store, identity, id, "approved", (db, _, now) => {
+  const decision = { from: "approved", action: "revokeRegistration" } as const;
+  const row = decide(store, identity, id, decision, (db, _, now) => {
     db.prepare("UPDATE registrations SET status = 'revoked', revoked_at = ? WHERE id = ?").run(
       now,
       id,
     );
+    return {};
   });
   if (row.session_id !== null) {
     store.notifier.notify(row.session_id);

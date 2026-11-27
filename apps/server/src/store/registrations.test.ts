@@ -18,7 +18,7 @@ import {
   revokeRegistration,
   submitRegistration,
 } from "./registrations.ts";
-import { Fixture, hour, newPublicKey, start, threadTarget } from "./test-fixture.ts";
+import { Fixture, hour, newPublicKey, start, threadTarget, testOrigin } from "./test-fixture.ts";
 import { getThread } from "./threads.ts";
 
 let fixture: Fixture;
@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 function submit(publicKey = newPublicKey(), agent = "builder", session = "main") {
-  const state = submitRegistration(fixture.store, publicKey, { agent, session });
+  const state = submitRegistration(fixture.store, publicKey, { agent, session }, testOrigin);
   const id = findRegistrationByKey(fixture.db, publicKey)?.id ?? 0;
   return { publicKey, state, id };
 }
@@ -155,7 +155,7 @@ describe("approveRegistration", () => {
       id,
       approval(["builder", true], ["side", false]),
     );
-    expect(identityForRegistration(fixture.db, id)).toBeDefined();
+    expect(identityForRegistration(fixture.db, id, testOrigin)).toBeDefined();
   });
 
   it("grants an existing session with its whole history to a further credential", () => {
@@ -168,7 +168,7 @@ describe("approveRegistration", () => {
       id,
       approval(["builder", true], ["main", true]),
     );
-    const second = identityForRegistration(fixture.db, id);
+    const second = identityForRegistration(fixture.db, id, testOrigin);
     if (second === undefined) {
       throw new Error("no identity");
     }
@@ -257,7 +257,7 @@ describe("rejectRegistration", () => {
         ),
       ),
     ).toEqual(["invalid_input", undefined]);
-    expect(identityForRegistration(fixture.db, id)).toBeUndefined();
+    expect(identityForRegistration(fixture.db, id, testOrigin)).toBeUndefined();
   });
 });
 

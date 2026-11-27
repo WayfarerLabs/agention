@@ -7,6 +7,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { failureRecorder } from "../audit/record.ts";
 import { ApiError } from "../errors.ts";
 import type { Store, VoiceEnvironment } from "../store/index.ts";
 import { openAiCompatible, type TranscriptionProvider } from "../transcription/provider.ts";
@@ -114,6 +115,7 @@ export function createApp(options: AppOptions): Hono {
   const budgets = new RateBudgets(options.rates ?? defaultRates, store.clock);
   const shutdown = options.shutdown ?? new AbortController().signal;
   const log = options.log ?? ((message: string) => process.stderr.write(`agention: ${message}\n`));
+  const recordFailure = failureRecorder(store, log);
   const app = new Hono();
 
   app.use(securityHeaders(origin));
@@ -164,7 +166,7 @@ export function createApp(options: AppOptions): Hono {
     (isUploadRequest(c.req.method, c.req.url) ? fileLimit : requestLimit)(c, next),
   );
 
-  app.route("/api/agent", agentApi({ store, origin, budgets, shutdown, log }));
+  app.route("/api/agent", agentApi({ store, origin, budgets, recordFailure, shutdown, log }));
   app.route(
     "/api/web",
     webApi({
@@ -175,11 +177,15 @@ export function createApp(options: AppOptions): Hono {
       voiceEnvironment: options.voiceEnvironment ?? {},
       transcription: options.transcription ?? openAiCompatible(),
       log,
+      recordFailure,
       shutdown,
     }),
   );
   app.on(versionsDeclaration.method, "/api/operator", (c) => c.json(servedVersions));
-  app.route(operatorApiPrefix, operatorApi({ store, budgets, shutdown, log }));
+  app.route(
+    operatorApiPrefix,
+    operatorApi({ store, origin, budgets, recordFailure, shutdown, log }),
+  );
   app.all("/api", (c) => c.json(notFoundBody, 404));
   app.all("/api/*", (c) => c.json(notFoundBody, 404));
   if (options.apiDocs === true) {

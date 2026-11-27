@@ -9,6 +9,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import type { FailureRecorder } from "../audit/record.ts";
 import { createApiKey, listApiKeys, revokeApiKey } from "../auth/api-keys.ts";
 import { resumeBrowserSession, signOut } from "../auth/browser-sessions.ts";
 import { listPasskeys, removePasskey, renamePasskey } from "../auth/operator-passkeys.ts";
@@ -40,6 +41,7 @@ import type { TranscriptionProvider } from "../transcription/provider.ts";
 import { apiKeyOf, parseBody, passkeyOf } from "./input.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
+import { requestOrigin } from "./origin.ts";
 import type { RateBudgets } from "./rates.ts";
 import { transcribe } from "./transcription-route.ts";
 
@@ -73,6 +75,7 @@ export interface WebApiOptions {
   voiceEnvironment: VoiceEnvironment;
   transcription: TranscriptionProvider;
   log: (message: string) => void;
+  recordFailure: FailureRecorder;
   // Aborts when the server shuts down.
   shutdown: AbortSignal;
 }
@@ -89,8 +92,17 @@ function signedIn(operatorName: string, csrfToken: string): SessionState {
 // and carry the session's CSRF token, and any request with an Authorization
 // header is refused, so an agent's token never works here.
 export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
-  const { store, origin, name, budgets, voiceEnvironment } = options;
+  const { store, origin, name, budgets, voiceEnvironment, recordFailure } = options;
   const rp = relyingParty(origin, name);
+  // A failed sign-in or link has no actor; once it has spent its budget, it
+  // is recorded under the request it arrived as.
+  const recordAs =
+    (c: Context, action: "signIn" | "usePasskeyLink") =>
+    (error: { code: string }): void => {
+      if (error.code === "unauthenticated") {
+        recordFailure({ kind: "none", origin: requestOrigin(c, "web", origin) }, { action });
+      }
+    };
   const { session: sessionCookie, challenge: challengeCookie } = cookieNames(origin);
   const api = new Hono<IdentityEnv>();
 
@@ -107,7 +119,11 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   // The operator's routes need a live browser session, and changes need its
   // CSRF token too.
   const sessionIdentity = (c: Context): Identity => {
-    const session = resumeBrowserSession(store, getCookie(c, sessionCookie));
+    const session = resumeBrowserSession(
+      store,
+      getCookie(c, sessionCookie),
+      requestOrigin(c, "web", origin),
+    );
     if (session === undefined) {
       throw unauthenticated("sign in first");
     }
@@ -122,7 +138,11 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   };
 
   api.get("/session", (c) => {
-    const session = resumeBrowserSession(store, getCookie(c, sessionCookie));
+    const session = resumeBrowserSession(
+      store,
+      getCookie(c, sessionCookie),
+      requestOrigin(c, "web", origin),
+    );
     const state: SessionState =
       session === undefined
         ? { signed_in: false, operator_exists: findOperator(store.db) !== undefined }
@@ -159,8 +179,10 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     const sealed = takeChallengeCookie(c);
     const input = await parseBody(c, signInFinishInput);
     const previous = getCookie(c, sessionCookie);
-    const result = await budgets.spendOnFailure("failedSignIn", () =>
-      finishSignIn(store, rp, sealed, input, previous),
+    const result = await budgets.spendOnFailure(
+      "failedSignIn",
+      () => finishSignIn(store, rp, sealed, input, previous, requestOrigin(c, "web", origin)),
+      recordAs(c, "signIn"),
     );
     return opened(c, result);
   });
@@ -168,7 +190,11 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     const { token, name } = await parseBody(c, passkeyLinkBeginInput);
     return started(
       c,
-      await budgets.spendOnFailure("failedLink", () => beginLink(store, rp, token, name)),
+      await budgets.spendOnFailure(
+        "failedLink",
+        () => beginLink(store, rp, token, name),
+        recordAs(c, "usePasskeyLink"),
+      ),
     );
   });
   api.post("/auth/link/finish", async (c) => {
@@ -176,11 +202,15 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     const input = await parseBody(c, newPasskeyInput);
     return opened(
       c,
-      await budgets.spendOnFailure("failedLink", () => finishLink(store, rp, sealed, input)),
+      await budgets.spendOnFailure(
+        "failedLink",
+        () => finishLink(store, rp, sealed, input, requestOrigin(c, "web", origin)),
+        recordAs(c, "usePasskeyLink"),
+      ),
     );
   });
   api.post("/auth/signout", requireSession, (c) => {
-    signOut(store, getCookie(c, sessionCookie));
+    signOut(store, c.var.identity, getCookie(c, sessionCookie));
     deleteCookie(c, sessionCookie, cookieAttributes);
     const state: SessionState = { signed_in: false, operator_exists: true };
     return c.json(state);
@@ -250,6 +280,7 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
     store,
     shutdown: options.shutdown,
     log: options.log,
+    recordFailure,
     authenticate: sessionIdentity,
   });
   return api;

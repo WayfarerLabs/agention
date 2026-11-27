@@ -17,6 +17,8 @@ import {
   type TagRead,
   type TagsInput,
 } from "@wayfarerlabs/agention-api";
+import type { AuditAction, AuditInput, GroupRef } from "../audit/actions.ts";
+import { recordAudit } from "../audit/record.ts";
 import type { Database } from "../database/database.ts";
 import { ApiError, invalidInput, notFound } from "../errors.ts";
 import { authorizeScope, type Identity } from "../identity.ts";
@@ -42,14 +44,25 @@ function conflict(what: string): ApiError {
 }
 
 // operate runs fn in a transaction once the identity is found to hold the
-// scope.
-function operate<T>(store: Store, identity: Identity, scope: Scope, fn: (db: Database) => T): T {
+// scope, with the time, and record, which records the change's audit event
+// in the same transaction.
+function operate<T>(
+  store: Store,
+  identity: Identity,
+  scope: Scope,
+  fn: (db: Database, record: Recorder) => T,
+): T {
   const { db } = store;
   return db.transaction(() => {
-    authorizeScope(db, identity, scope, store.clock());
-    return fn(db);
+    const now = store.clock();
+    authorizeScope(db, identity, scope, now);
+    return fn(db, (action, input) => {
+      recordAudit(store, now, { kind: "identity", identity }, action, input);
+    });
   });
 }
+
+type Recorder = <A extends AuditAction>(action: A, input: AuditInput<A>) => void;
 
 // colorInTurn is the color a group or a tag created without one takes: the
 // palette's colors in turn, by how many of its kind there are before it.
@@ -109,7 +122,7 @@ function readGroup(db: Database, id: number): GroupRead {
 // color given or the next in turn, while the instance holds fewer than
 // maxGroups.
 export function createGroup(store: Store, identity: Identity, input: GroupCreateInput): GroupRead {
-  return operate(store, identity, "sessions:write", (db) => {
+  return operate(store, identity, "sessions:write", (db, record) => {
     if (groupNamed(db, input.name) !== undefined) {
       throw conflict("group");
     }
@@ -119,14 +132,16 @@ export function createGroup(store: Store, identity: Identity, input: GroupCreate
     if (count >= maxGroups) {
       throw invalidInput(undefined, `there are already ${maxGroups} groups, the most there can be`);
     }
+    const color = input.color ?? colorInTurn(count);
     const { id } = db
       .prepare(
         `INSERT INTO session_groups (name, color, position, created_at) VALUES (?, ?, ?, ?)
          RETURNING id`,
       )
-      .get(input.name, input.color ?? colorInTurn(count), last + 1, store.clock()) as {
+      .get(input.name, color, last + 1, store.clock()) as {
       id: number;
     };
+    record("createGroup", { group: { id, name: input.name }, color, position: last + 1 });
     return readGroup(db, id);
   });
 }
@@ -139,17 +154,14 @@ export function renameGroup(
   id: number,
   input: GroupNameInput,
 ): GroupRead {
-  return operate(store, identity, "sessions:write", (db) => {
+  return operate(store, identity, "sessions:write", (db, record) => {
     const holder = groupNamed(db, input.name);
     if (holder !== undefined && holder !== id) {
       throw conflict("group");
     }
-    const renamed = db
-      .prepare("UPDATE session_groups SET name = ? WHERE id = ?")
-      .run(input.name, id);
-    if (renamed.changes !== 1) {
-      throw notFound("id");
-    }
+    const previous = readGroup(db, id);
+    db.prepare("UPDATE session_groups SET name = ? WHERE id = ?").run(input.name, id);
+    record("renameGroup", { group: { id, name: input.name }, previousName: previous.name });
     return readGroup(db, id);
   });
 }
@@ -161,9 +173,11 @@ export function recolorGroup(
   id: number,
   input: ColorInput,
 ): GroupRead {
-  return operate(store, identity, "sessions:write", (db) => {
+  return operate(store, identity, "sessions:write", (db, record) => {
     db.prepare("UPDATE session_groups SET color = ? WHERE id = ?").run(input.color, id);
-    return readGroup(db, id);
+    const group = readGroup(db, id);
+    record("recolorGroup", { group: { id, name: group.name }, color: input.color });
+    return group;
   });
 }
 
@@ -173,10 +187,13 @@ export function recolorGroup(
 // unique, so they move in two steps: every group past the highest position,
 // then each to its place, neither step ever holding one position twice.
 export function orderGroups(store: Store, identity: Identity, input: GroupOrderInput): void {
-  operate(store, identity, "sessions:write", (db) => {
-    const ids = (db.prepare("SELECT id FROM session_groups").all() as { id: number }[]).map(
-      (row) => row.id,
+  operate(store, identity, "sessions:write", (db, record) => {
+    const names = new Map(
+      (db.prepare("SELECT id, name FROM session_groups").all() as unknown as GroupRef[]).map(
+        (row) => [row.id, row.name],
+      ),
     );
+    const ids = [...names.keys()];
     const given = new Set(input.groups);
     if (ids.length !== given.size || ids.some((id) => !given.has(id))) {
       throw invalidInput(
@@ -191,16 +208,25 @@ export function orderGroups(store: Store, identity: Identity, input: GroupOrderI
     input.groups.forEach((id, index) => {
       place.run(index + 1, id);
     });
+    record("orderGroups", {
+      groups: input.groups.map((id, index) => ({
+        group: { id, name: names.get(id) ?? "" },
+        position: index + 1,
+      })),
+    });
   });
 }
 
 // removeGroup removes a group, which leaves its sessions in no group: the
 // cascade takes its memberships in the same statement.
 export function removeGroup(store: Store, identity: Identity, id: number): void {
-  operate(store, identity, "sessions:write", (db) => {
-    if (db.prepare("DELETE FROM session_groups WHERE id = ?").run(id).changes !== 1) {
-      throw notFound("id");
-    }
+  operate(store, identity, "sessions:write", (db, record) => {
+    const group = readGroup(db, id);
+    const { sessions } = db
+      .prepare("SELECT count(*) AS sessions FROM session_group_members WHERE group_id = ?")
+      .get(id) as { sessions: number };
+    db.prepare("DELETE FROM session_groups WHERE id = ?").run(id);
+    record("removeGroup", { group: { id, name: group.name }, sessions });
   });
 }
 
@@ -232,12 +258,14 @@ function insertTag(db: Database, name: string, color: Color | undefined): void {
 
 // createTag creates a tag that nothing carries yet.
 export function createTag(store: Store, identity: Identity, input: TagCreateInput): TagRead {
-  return operate(store, identity, "sessions:write", (db) => {
+  return operate(store, identity, "sessions:write", (db, record) => {
     if (tagExists(db, input.name)) {
       throw conflict("tag");
     }
     insertTag(db, input.name, input.color);
-    return readTag(db, input.name);
+    const tag = readTag(db, input.name);
+    record("createTag", { tag: tag.name, color: tag.color });
+    return tag;
   });
 }
 
@@ -249,7 +277,7 @@ export function renameTag(
   tag: string,
   input: TagNameInput,
 ): void {
-  operate(store, identity, "sessions:write", (db) => {
+  operate(store, identity, "sessions:write", (db, record) => {
     if (!tagExists(db, tag)) {
       throw notFound("tag");
     }
@@ -260,6 +288,7 @@ export function renameTag(
       throw conflict("tag");
     }
     db.prepare("UPDATE tags SET name = ? WHERE name = ?").run(input.name, tag);
+    record("renameTag", { tag: input.name, previousName: tag });
   });
 }
 
@@ -270,18 +299,21 @@ export function recolorTag(
   tag: string,
   input: ColorInput,
 ): TagRead {
-  return operate(store, identity, "sessions:write", (db) => {
+  return operate(store, identity, "sessions:write", (db, record) => {
     db.prepare("UPDATE tags SET color = ? WHERE name = ?").run(input.color, tag);
-    return readTag(db, tag);
+    const recolored = readTag(db, tag);
+    record("recolorTag", { tag, color: input.color });
+    return recolored;
   });
 }
 
 // removeTag removes a tag, which takes it off everything that carries it.
 export function removeTag(store: Store, identity: Identity, tag: string): void {
-  operate(store, identity, "sessions:write", (db) => {
+  operate(store, identity, "sessions:write", (db, record) => {
     if (db.prepare("DELETE FROM tags WHERE name = ?").run(tag).changes !== 1) {
       throw notFound("tag");
     }
+    record("removeTag", { tag });
   });
 }
 
@@ -324,24 +356,31 @@ export function setSessionGroup(
   target: SessionTarget,
   input: SessionGroupInput,
 ): void {
-  operate(store, identity, "sessions:write", (db) => {
-    putInGroup(db, sessionOf(db, target), input.group, "group");
+  operate(store, identity, "sessions:write", (db, record) => {
+    const session = sessionOf(db, target);
+    putInGroup(db, session, input.group, "group");
+    record("setSessionGroup", {
+      session: { id: session, agent: target.agent, session: target.session },
+      group: input.group,
+    });
   });
 }
 
 // replaceTags makes the tags of one agent or session, a row of table keyed
 // on column, exactly those given, inside the caller's transaction, creating
-// each tag that does not exist yet.
+// each tag that does not exist yet, and answers those it created.
 function replaceTags(
   db: Database,
   table: "agent_tags" | "session_tags",
   column: "agent_id" | "session_id",
   id: number,
   tags: readonly string[],
-): void {
+): string[] {
+  const created: string[] = [];
   for (const tag of tags) {
     if (!tagExists(db, tag)) {
       insertTag(db, tag, undefined);
+      created.push(tag);
     }
   }
   db.prepare(
@@ -352,12 +391,13 @@ function replaceTags(
   for (const tag of tags) {
     insert.run(id, tag);
   }
+  return created;
 }
 
 // tagSession makes a session's tags exactly those given, inside the caller's
-// transaction.
-export function tagSession(db: Database, sessionId: number, tags: readonly string[]): void {
-  replaceTags(db, "session_tags", "session_id", sessionId, tags);
+// transaction, and answers the tags it created.
+export function tagSession(db: Database, sessionId: number, tags: readonly string[]): string[] {
+  return replaceTags(db, "session_tags", "session_id", sessionId, tags);
 }
 
 // setSessionTags sets the tags a session carries.
@@ -367,8 +407,14 @@ export function setSessionTags(
   target: SessionTarget,
   input: TagsInput,
 ): void {
-  operate(store, identity, "sessions:write", (db) => {
-    tagSession(db, sessionOf(db, target), input.tags);
+  operate(store, identity, "sessions:write", (db, record) => {
+    const session = sessionOf(db, target);
+    const createdTags = tagSession(db, session, input.tags);
+    record("setSessionTags", {
+      session: { id: session, agent: target.agent, session: target.session },
+      tags: [...input.tags],
+      createdTags,
+    });
   });
 }
 
@@ -380,11 +426,16 @@ export function setAgentTags(
   agent: string,
   input: TagsInput,
 ): void {
-  operate(store, identity, "sessions:write", (db) => {
+  operate(store, identity, "sessions:write", (db, record) => {
     const agentId = findAgentId(db, agent);
     if (agentId === undefined) {
       throw notFound();
     }
-    replaceTags(db, "agent_tags", "agent_id", agentId, input.tags);
+    const createdTags = replaceTags(db, "agent_tags", "agent_id", agentId, input.tags);
+    record("setAgentTags", {
+      agent: { id: agentId, agent },
+      tags: [...input.tags],
+      createdTags,
+    });
   });
 }

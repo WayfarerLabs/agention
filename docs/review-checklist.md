@@ -15,8 +15,8 @@ Agention is a standalone, self-hosted attention inbox on an honor system. It enf
 honor system cannot provide (identity and provenance, isolation, append-only attributed history,
 role checks, inert content) and makes everything else easy and visible (`SECURITY.md` "Security
 model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes to both halves:
-enforcement must not be missing where the trust model requires it (A2 to A9, A17, A18), and must not
-be built where the trust model says it does not belong (A6).
+enforcement must not be missing where the trust model requires it (A2 to A9, A17, A18, A20), and
+must not be built where the trust model says it does not belong (A6).
 
 ## A1. Standalone and runtime-neutral
 
@@ -220,7 +220,8 @@ nothing: `agention backup` opens the database read-only without migrating it and
 SQLite's online backup in one step, into a new private file that it checks and removes on failure
 (`docs/architecture.md` "Database"); a raw copy of a running instance's files is no proof of a valid
 live backup. Restore is stop, replace the database and its `-wal` and `-shm` files, start
-(`docs/operator-guide.md` "Backing up"). History is retained indefinitely (ADR 0001 "Consequences").
+(`docs/operator-guide.md` "Backing up"). History is retained indefinitely (ADR 0001 "Consequences"),
+but for the audit log, whose retention removes its oldest events once every sink has them (A20).
 
 ## A14. Reproducibility and contract tests
 
@@ -332,3 +333,26 @@ regenerated, a regenerated document whose diff removes or narrows anything a ser
 agent API (A12) carries, a document that describes more than the server checks (it may describe
 less: a rule enforced only in code answers `invalid_input`, naming the field when the rule concerns
 one), and documentation served with anything beyond the contract or without `--api-docs`.
+
+## A20. The audit log
+
+Every write, sign-in and credential change records its event in the same transaction as the change,
+through `recordAudit` in the store function that makes it, so neither exists without the other and a
+failed insert fails the write; a failure is recorded in a transaction of its own, only once it has
+spent its rate budget, and coalesced per kind and minute (`docs/architecture.md` "Audit log";
+`SECURITY.md` "Audit log"). Nothing secret or content-bearing reaches the builder: its inputs are
+typed ids, numbers, flags and the names the operator and agents chose, read from rows the store
+holds, with no field for a request body, message or answer text, a title, a file name or a secret.
+What clients chose reaches an event only as bounded, grammar-checked names and media types, and the
+user agent, cut to 256 units, is the only free-form client text; a failure names its route's
+pattern, never the path the client sent. A new write joins the coverage test,
+`apps/server/src/audit/coverage.test.ts`, which fails on a `POST` declaration or a web route without
+a driver, and its event validates against the pinned OCSF schemas; an action that records nothing
+joins its one list of read marks only by a maintainer's decision. The log stays append-only: its
+triggers allow only an open failure's count to change and only the oldest event, once every sink's
+cursor has passed it, to be removed. Sinks are configured only by `serve` options, none of which
+takes a secret, and no API key, agent or browser can change one; a sink's stderr lines name it by
+its kind, never its destination. Reads record nothing, the log's own included (A18). Look for a
+write without its `recordAudit`, an event recorded outside its change's transaction, an input field
+that could carry text a client chose or a secret, a failure recorded before its budget is spent or
+twice, a sink that can block a write, and a delivery that can skip or reorder events.

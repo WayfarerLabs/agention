@@ -160,13 +160,20 @@ export class RateBudgets {
 
   // spendOnFailure runs an attempt and, when it fails as unauthenticated,
   // spends a token from the budget, answering rate_limited instead once the
-  // budget is exhausted. A successful attempt spends nothing.
-  async spendOnFailure<T>(budget: SharedBudget, attempt: () => Promise<T>): Promise<T> {
+  // budget is exhausted. A successful attempt spends nothing. A failure that
+  // has spent its token is given to record, so a request the budget refuses
+  // is never recorded.
+  async spendOnFailure<T>(
+    budget: SharedBudget,
+    attempt: () => Promise<T>,
+    record?: (error: ApiError) => void,
+  ): Promise<T> {
     try {
       return await attempt();
     } catch (error) {
       if (error instanceof ApiError && error.code === "unauthenticated") {
         this.spend(budget);
+        record?.(error);
       }
       throw error;
     }
