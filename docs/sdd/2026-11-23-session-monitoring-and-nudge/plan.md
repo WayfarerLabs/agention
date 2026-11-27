@@ -9,7 +9,7 @@
 
 ## Delivery 1: monitoring
 
-### Pull request 1a: the observer, the reporter and the server
+### Pull request 1a (#140): the observer, the reporter and the server
 
 - [x] Captures: Claude Code and Codex at their current releases, in a clean scratch home with
       default settings, for the prompt, a running turn, the permission and trust dialogs, and Claude
@@ -55,7 +55,7 @@
       branch links: monitoring is agent API version 8 and migration 11. Done when the gates pass on
       the pull request brought up to date with main.
 
-### Pull request 1b: the sessions view
+### Pull request 1b (#152): the sessions view
 
 - [x] The sessions view shows connection, last check-in and condition, flags sessions at a prompt or
       stopped by something with a filter listing them, and names the condition in a stranded
@@ -79,7 +79,7 @@
 
 ## Delivery 2: the nudge
 
-### Pull request 2
+### Pull request 2 (#157)
 
 - [x] `Observer.nudge()` with every N4 and N5 check, refusing a generic profile. Done when tests
       against a real tmux server and the scripted harness show a nudge sent at a still prompt and
@@ -112,6 +112,12 @@
       observer's, bridge's, store's, HTTP and web tests show each outcome and reason, a screen
       change while the warning stands defers rather than fails, and nudge text left at the prompt
       holds the nudge off until cleared.
+- [ ] A check-in is stamped whenever it is older than the latest message someone else wrote in the
+      session's threads, and a claim whose outcome never came reads as under way, settling as
+      deferred when another bridge comes to act, or as failed if one already was since the last
+      check-in (HLA "The nudge"). Done when the store's, HTTP and web tests show a call just after a
+      message counting as a check-in since it, an under-way claim neither shown to the operator nor
+      read as sent, and both settlements.
 - [ ] Permanent docs name Agentworks as the first execution platform, never an assumption (CF3,
       ruling 9). Done when the project review finds none that assumes it.
 - [ ] Live again on the same bed on Claude Code and Codex, for ruling 9's cases of the definition of
