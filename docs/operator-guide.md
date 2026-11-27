@@ -459,7 +459,17 @@ checked in ([Operator API](operator-api.md#reading-and-waiting)). Given the tmux
 host runs in, the bridge also monitors the session's terminal and reports its condition: unknown, at
 a permission prompt or another prompt, running, at its prompt, or waiting, and since when. It reads
 the screen of that server's one pane on the agent's machine and sends only the condition and its
-time, never the screen's text.
+time, never the screen's text. At rest, a session may also have been stopped by something, where its
+profile can tell: its account's usage limit, with when it resets where the host shows it; a block,
+the host refusing an action on a safety or permission rule; or an error from its model provider. Any
+prompt on the screen is then beside the reason, such as a menu the host shows at its usage limit,
+while a permission prompt or another prompt with no reason is what stopped it. No profile tells a
+reason yet.
+
+The sessions view shows each connected session's condition, apart from the state its agent reports,
+flags each one at a permission prompt or another prompt, or stopped by something, as **Needs you**,
+and lists just those; a stranded thread's reason names its session's condition
+([The web UI](web-ui.md#the-sessions-view)).
 
 The bridge takes the tmux server's socket and how to read the terminal from options or variables, an
 option winning over its variable:
@@ -749,13 +759,13 @@ keys**. **Create an API key** asks for:
 - **Name**: up to 50 characters on one line, such as the program that will hold the key.
 - **Scopes**: what the key may do, as you, at least one of them:
 
-  | Scope              | What it grants                                                                                                                                                                                                                                    |
-  | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `threads:read`     | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session                                                                            |
-  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                         |
-  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                         |
-  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags |
-  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                    |
+  | Scope              | What it grants                                                                                                                                                                                                                                                         |
+  | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `threads:read`     | Reading the thread list and its counts, the threads above and below one in it, any thread with its messages and its files, and waiting for new messages in any session; each thread's presence carries what its session's terminal shows, where its bridge monitors it |
+  | `threads:write`    | Also starting threads, writing in them, answering asks, uploading files to attach and removing those not yet sent, and marking threads read, unread or archived, one at a time or in bulk                                                                              |
+  | `sessions:read`    | Reading the sessions view with its agents, groups and tags, each session's log, and agents' registrations                                                                                                                                                              |
+  | `sessions:write`   | Also marking a session's log read, and managing groups and tags: creating, renaming, recoloring, ordering and removing groups, creating, renaming, recoloring and removing tags, and setting a session's group and an agent's or a session's tags                      |
+  | `sessions:approve` | Also approving, rejecting and revoking agents' registrations; with `sessions:write` too, an approval can also set the session's group and tags                                                                                                                         |
 
   A write or approve scope includes its resource's read; `sessions:write` and `sessions:approve`
   include neither the other. `sessions:approve` lets whoever holds the key let an agent into your

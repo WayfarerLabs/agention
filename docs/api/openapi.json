@@ -9101,6 +9101,10 @@
             "type": "boolean",
             "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
           },
+          "monitor": {
+            "$ref": "#/components/schemas/MonitorState",
+            "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
+          },
           "state": {
             "$ref": "#/components/schemas/WorkState"
           },

@@ -1,5 +1,6 @@
 import { type GroupRef, noGroup, type SessionSummary } from "@wayfarerlabs/agention-api";
 import type { Agents } from "../../api.ts";
+import { observedOf, terminalNeedsYou } from "../../format.tsx";
 import { nameKey } from "../../organizing.tsx";
 
 // How the sessions view arranges its sessions, as the thread list arranges
@@ -13,10 +14,16 @@ import { nameKey } from "../../organizing.tsx";
 // reversed, every level runs the other way. Manual is
 // offered only grouped by session group: the groups go in the operator's
 // order, the agents and sessions within them alphabetically, and it has no
-// direction. Under any of them, no group comes last. All of it lives in the
-// address, as /sessions?group=agent&sort=registered&reverse=true, each part
+// direction. Under any of them, no group comes last. The view's one filter,
+// Needs you, shows only the sessions that need the operator (sessionNeedsYou),
+// and the agents and groups holding any, arranged as they would be without
+// it; it hides rows and nothing else, so what an agent's header or a group's
+// head says of its sessions still counts them all. All of it lives in the
+// address, as
+// /sessions?group=agent&sort=registered&reverse=true&needs_you=true, each part
 // left out at its default: grouped by session group, sorted manually, or,
-// grouped otherwise, alphabetically, in the sort's own direction.
+// grouped otherwise, alphabetically, in the sort's own direction, and with no
+// filter.
 
 export const sessionGroupings = ["session_group", "agent", "session"] as const;
 export type SessionGrouping = (typeof sessionGroupings)[number];
@@ -28,6 +35,7 @@ export interface SessionsView {
   group: SessionGrouping;
   sort: SessionSort;
   reverse: boolean;
+  needsYou: boolean;
 }
 
 // The sorts a grouping offers, in the order the operator is offered them,
@@ -47,7 +55,12 @@ export function sessionsViewOf(search: URLSearchParams): SessionsView {
   };
   const group = sessionGroupings.find((each) => each === one("group")) ?? "session_group";
   const sort = sortsOf(group).find((each) => each === one("sort")) ?? defaultSortOf(group);
-  return { group, sort, reverse: sort !== "manual" && one("reverse") === "true" };
+  return {
+    group,
+    sort,
+    reverse: sort !== "manual" && one("reverse") === "true",
+    needsYou: one("needs_you") === "true",
+  };
 }
 
 // sessionsQuery writes an arrangement as the address's query, its parts not
@@ -63,24 +76,39 @@ export function sessionsQuery(view: SessionsView): string {
   if (view.reverse) {
     parts.set("reverse", "true");
   }
+  if (view.needsYou) {
+    parts.set("needs_you", "true");
+  }
   const text = parts.toString();
   return text === "" ? "" : `?${text}`;
 }
 
 // regrouped gives the arrangement another grouping leaves: the sort and its
 // direction as they were, while the grouping offers that sort, and else its
-// default sort in its own direction.
+// default sort in its own direction; the filter stays as it was.
 export function regrouped(view: SessionsView, group: SessionGrouping): SessionsView {
   return sortsOf(group).includes(view.sort)
     ? { ...view, group }
-    : { group, sort: defaultSortOf(group), reverse: false };
+    : { group, sort: defaultSortOf(group), reverse: false, needsYou: view.needsYou };
 }
 
-// An agent with its sessions as the view arranges them: all of them, or
-// under a group, those in that group.
-export type Held = Agents[number];
+// sessionNeedsYou says whether a session needs the operator: its terminal,
+// as its bridge last observed it, shows a permission prompt or another
+// prompt, or something that stopped it.
+export const sessionNeedsYou = (session: SessionSummary): boolean =>
+  terminalNeedsYou(observedOf(session.presence));
 
-// A group of the view: the group, absent for no group, and its agents.
+// An agent with its sessions as the view arranges them: all of them, or
+// under a group, those in that group, which its header's facts count; and
+// those of them the filter shows, as rows.
+export type Held = Agents[number] & { shown: SessionSummary[] };
+
+// shows says whether an agent has any row to show.
+export const shows = (entry: Held) => entry.shown.length > 0;
+
+// A group of the view: the group, absent for no group, and every agent with
+// sessions in it, which its head's facts count, though only those that show
+// any row are headed beneath it.
 export interface GroupFold {
   group: GroupRef | undefined;
   agents: Held[];
@@ -133,31 +161,42 @@ function sorted<T>(
   );
 }
 
-// arrangeAgents sorts agents and the sessions each holds.
-function arrangeAgents(view: SessionsView, agents: Held[]): Held[] {
+// arrangeAgents sorts agents and the sessions each holds, and keeps beside
+// them those the filter shows.
+function arrangeAgents(view: SessionsView, agents: Agents): Held[] {
   return sorted(
     view,
-    agents.map((entry) => ({
-      ...entry,
-      sessions: sorted(
+    agents.map((entry) => {
+      const sessions = sorted(
         view,
         entry.sessions,
         (session) => [session.session],
         (session) => [session],
-      ),
-    })),
+      );
+      return {
+        ...entry,
+        sessions,
+        shown: view.needsYou ? sessions.filter(sessionNeedsYou) : sessions,
+      };
+    }),
     (entry) => [entry.agent],
     (entry) => entry.sessions,
   );
 }
 
+// A group, before its agents are arranged.
+interface Split {
+  group: GroupRef | undefined;
+  agents: Agents;
+}
+
 // foldByGroup splits each agent's sessions by their group, each group
 // holding the agents with sessions in it, each with that group's sessions
 // only.
-function foldByGroup(agents: Agents): GroupFold[] {
-  const folds = new Map<string, GroupFold>();
+function foldByGroup(agents: Agents): Split[] {
+  const folds = new Map<string, Split>();
   for (const entry of agents) {
-    const split = new Map<string, Held>();
+    const split = new Map<string, Agents[number]>();
     for (const session of entry.sessions) {
       const key = groupKeyOf(session.group);
       const held = split.get(key) ?? { ...entry, sessions: [] };
@@ -178,34 +217,37 @@ function foldByGroup(agents: Agents): GroupFold[] {
 export const groupKeyOf = (group: GroupRef | undefined) =>
   group === undefined ? noGroup : String(group.id);
 
-// arrange gives what the view shows of the agents under an arrangement, the
-// groups in the operator's order, by their ids, when Manual, any the order
-// does not hold yet after them by name.
+// arrange gives what the view shows of the agents under an arrangement and
+// its filter, the groups in the operator's order, by their ids, when Manual,
+// any the order does not hold yet after them by name. Everything is arranged
+// as it would be without the filter, which then leaves out the sessions it
+// hides, and the agents and groups left showing none.
 export function arrange(view: SessionsView, agents: Agents, order: number[]): Arranged {
+  const grouped = agents.some((entry) =>
+    entry.sessions.some((session) => session.group !== undefined),
+  );
   if (view.group === "session") {
     const lone = agents.flatMap((entry) =>
       entry.sessions.map((session) => ({ agent: entry.agent, session })),
     );
+    const placed = sorted(
+      view,
+      lone,
+      ({ agent, session }) => [agent, session.session],
+      ({ session }) => [session],
+    );
     return {
       kind: "sessions",
-      sessions: sorted(
-        view,
-        lone,
-        ({ agent, session }) => [agent, session.session],
-        ({ session }) => [session],
-      ),
+      sessions: view.needsYou ? placed.filter(({ session }) => sessionNeedsYou(session)) : placed,
     };
   }
-  const grouped = agents.some((entry) =>
-    entry.sessions.some((session) => session.group !== undefined),
-  );
   if (view.group === "agent" || !grouped) {
-    return { kind: "agents", agents: arrangeAgents(view, agents) };
+    return { kind: "agents", agents: arrangeAgents(view, agents).filter(shows) };
   }
-  const folds = foldByGroup(agents).map((fold) => ({
-    ...fold,
-    agents: arrangeAgents(view, fold.agents),
-  }));
+  const folds = foldByGroup(agents).flatMap((fold) => {
+    const held = arrangeAgents(view, fold.agents);
+    return held.some(shows) ? [{ ...fold, agents: held }] : [];
+  });
   const groups = folds.filter((fold) => fold.group !== undefined);
   const none = folds.filter((fold) => fold.group === undefined);
   // A group's name is its own, whatever the case of its letters.

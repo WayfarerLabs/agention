@@ -279,6 +279,30 @@ describe("stranded", () => {
     });
   });
 
+  it("carries the latest report on the thread's presence while the bridge is connected", async () => {
+    await writtenTo(monitoringAgentApiVersion);
+    await poll(first);
+    await report(first, atPrompt);
+    await harness.agent(
+      approved,
+      "POST",
+      "/s/builder/main/status",
+      { state: "stopped", outcome: "stalled" },
+      monitoring,
+    );
+    expect(await thread()).toMatchObject({
+      stranded: true,
+      presence: { connected: true, state: "stopped", monitor: atPrompt },
+    });
+    // The operator API's thread reads carry it too.
+    const { secret } = await harness.createKey(["threads:read"]);
+    const listed = (await harness.operator(secret, "GET", "/threads")).body as ThreadPage;
+    expect(listed.threads[0]?.presence?.monitor).toEqual(atPrompt);
+    harness.fixture.advance(connectedFor + 1);
+    expect(await thread()).toMatchObject({ stranded: true, presence: { connected: false } });
+    expect((await thread())?.presence).not.toHaveProperty("monitor");
+  });
+
   it("follows the older rule for a bridge before monitoring, never shown disconnected", async () => {
     await writtenTo(4);
     expect(await thread()).toMatchObject({ stranded: false, presence: { quiet: false } });

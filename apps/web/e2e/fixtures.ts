@@ -2,7 +2,7 @@
 // UI over TLS at https://agention.test:<port>, and a Chromium that trusts it.
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
-// and so do servers of the diagram, voice, API key, attachment and selection
+// and so do servers of the diagram, voice, API key, attachment, selection and monitoring
 // tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
@@ -52,6 +52,9 @@ export const selectionServerName = "Selection";
 
 // The name of the server the README's screenshots are taken of.
 export const screenshotsServerName = "Agention";
+
+// The name of the server the monitoring tests start for themselves.
+export const monitoringServerName = "Monitoring";
 
 // The server bundle the server package's build writes, beside the web UI it
 // ships in web/.
@@ -210,6 +213,7 @@ export const test = base.extend<
     voiceServer: Agention;
     keysServer: Agention;
     filesServer: Agention;
+    monitoringServer: Agention;
     linksServer: Agention;
     selectionServer: Agention;
     screenshotsServer: Agention;
@@ -227,6 +231,7 @@ export const test = base.extend<
   voiceServer: [serving(voiceServerName), { scope: "worker" }],
   keysServer: [serving(keysServerName), { scope: "worker" }],
   filesServer: [serving(filesServerName), { scope: "worker" }],
+  monitoringServer: [serving(monitoringServerName), { scope: "worker" }],
   linksServer: [serving(linksServerName), { scope: "worker" }],
   selectionServer: [serving(selectionServerName), { scope: "worker" }],
   screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],

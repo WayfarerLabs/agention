@@ -6,6 +6,7 @@ import {
   type ErrorCode,
   type GroupsAndTags,
   type Message,
+  type MonitorCondition,
   type Registration,
   type SessionState,
   type SessionSummary,
@@ -19,6 +20,7 @@ import {
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 import { App } from "./App.tsx";
+import type { Observed } from "./format.tsx";
 
 export interface Call {
   method: string;
@@ -395,6 +397,19 @@ export function registration(overrides: Partial<Registration> = {}): Registratio
     created_at: time,
     expires_at: "2026-10-27T13:00:00.000Z",
     ...overrides,
+  };
+}
+
+// What a session's bridge observed of its terminal, as the operator API
+// shows it: the condition, since a few minutes before the fixtures' time,
+// read with the Codex profile, with what stopped it when given.
+export function observed(condition: MonitorCondition, stopped?: Observed["stopped_by"]): Observed {
+  return {
+    monitored: true,
+    profile: "codex",
+    condition,
+    since: "2026-10-27T11:58:00.000Z",
+    ...(stopped === undefined ? {} : { stopped_by: stopped }),
   };
 }
 

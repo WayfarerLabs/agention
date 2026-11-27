@@ -34,10 +34,10 @@ export const impactShown: Record<(typeof impactFilter.options)[number], string> 
   assuming: "Assuming",
 };
 
-// A filter that is on: its chip's label, as shown and as said, what removing
-// it changes, and, for a filter on where threads are, the part of it whose
-// badge the chip shows.
-interface Chip {
+// A filter that is on, as its chip shows it: its label, as shown and as
+// said, and, for a filter on where threads are, the part of it whose badge
+// the chip shows.
+export interface ChipShown {
   key: string;
   kind?: PathKind;
   // The icon a chip on pull requests or branches shows before its label.
@@ -45,6 +45,10 @@ interface Chip {
   // The color of the one group or tag a chip names, when known.
   color?: Color | undefined;
   label: TerseLabel;
+}
+
+// A filter on in the thread list, with what removing it changes.
+interface Chip extends ChipShown {
   remove: Partial<ThreadsView>;
 }
 
@@ -234,9 +238,16 @@ function chipText(label: string, badged: boolean): string {
 }
 
 // Chips lists the filters that are on, each a button that removes it, in one
-// row that wraps. A chip fits its label, cut short past a generous length,
-// and carries the whole of it in words as its tooltip and in its name.
-export function Chips({ chips, remove }: { chips: Chip[]; remove: (chip: Chip) => void }) {
+// row that wraps, for the thread list and any other view with filters. A
+// chip fits its label, cut short past a generous length, and carries the
+// whole of it in words as its tooltip and in its name.
+export function Chips<T extends ChipShown>({
+  chips,
+  remove,
+}: {
+  chips: T[];
+  remove: (chip: T) => void;
+}) {
   if (chips.length === 0) {
     return null;
   }

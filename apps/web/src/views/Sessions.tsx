@@ -8,6 +8,7 @@ import { loadGroupsAndTags, PaletteProvider } from "../organizing.tsx";
 import { navigate, useLocation } from "../router.tsx";
 import { type SessionsView, sessionsQuery, sessionsViewOf } from "./sessions/arrangement.ts";
 import { SessionGroupPicker, TagsSetter } from "./sessions/GroupsAndTags.tsx";
+import { NeedsYouChip } from "./sessions/needs-you.tsx";
 import { NewThreadSheet } from "./sessions/NewThreadSheet.tsx";
 import {
   DecidedRegistration,
@@ -18,30 +19,30 @@ import { type Organizing, SessionFolds, SessionsHead } from "./sessions/SessionF
 
 // The sessions view: every session the operator's agents run, in one view.
 // Top to bottom: the registrations waiting for approval, their section one
-// muted line while none waits, or explaining how one arrives until some
-// agent has a session; the agents and their sessions, under a head choosing
-// how they are grouped and sorted (sessions/arrangement.ts), as the thread
-// list's head does, which the address keeps; and, folded, the credentials
+// muted line while none waits, or explaining how one arrives until some agent
+// has a session; the agents and their sessions, under a head choosing how
+// they are grouped and sorted (sessions/arrangement.ts), as the thread list's
+// head does, which the address keeps, with the chip of its one filter, Needs
+// you, while it is on (sessions/needs-you.tsx); and, folded, the credentials
 // and past requests. By default, once some session is in a group, the agents
 // fold under their groups, in the operator's order, which each group's head
-// moves, and no group last, an agent with sessions in two groups coming
-// under each with that group's sessions alone; until then, and grouped by
-// agent, each agent folds under its header, rolling up its sessions'
-// threads, open asks, unread updates and stranded threads, with links to its
-// threads and its stranded threads, its tags and a menu setting them, over a
-// folded row for each of its sessions; grouped by session, the rows stand
-// alone. Every chip that stands for threads, the names of groups, agents and
-// sessions among them, links to those threads on the thread list, and
-// following one never folds anything; a header's chevron folds it, as a
-// click on the rest of its bar does. The view reads every session before it
-// shows any, so it arranges them whole. It refreshes as every view does. The
-// operator's groups and tags load beside the sessions, for their colors and
-// the groups' order; a session's group and an agent's or a session's tags
-// are picked from their options menus, each pick applied at once. This
-// browser keeps the groups and agents it folds and whether the past requests
-// are shown; a session's row starts folded on every visit. What a fold hides
-// is not loaded, so a session's log loads and is read only while its row is
-// unfolded and shown.
+// moves, and no group last, an agent with sessions in two groups coming under
+// each with that group's sessions alone; until then, and grouped by agent,
+// each agent folds under its header, rolling up its sessions' threads, open
+// asks, unread updates and stranded threads, with links to its threads and
+// its stranded threads, its tags and a menu setting them, over a folded row
+// for each of its sessions; grouped by session, the rows stand alone. Every
+// chip that stands for threads, the names of groups, agents and sessions
+// among them, links to those threads on the thread list, and following one
+// never folds anything; a header's chevron folds it, as a click on the rest
+// of its bar does. The view reads every session before it shows any, so it
+// arranges them whole. It refreshes as every view does. The operator's groups
+// and tags load beside the sessions, for their colors and the groups' order;
+// a session's group and an agent's or a session's tags are picked from their
+// options menus, each pick applied at once. This browser keeps the groups and
+// agents it folds and whether the past requests are shown; a session's row
+// starts folded on every visit. What a fold hides is not loaded, so a
+// session's log loads and is read only while its row is unfolded and shown.
 
 // Where this browser keeps its folds: the groups and agents folded, and the
 // sections unfolded.
@@ -50,13 +51,17 @@ const pastRequests = "past-requests";
 
 export function Sessions() {
   usePageTitle("Sessions");
-  // How the view arranges the sessions, which lives in the address.
-  // Choosing another arrangement replaces the address, so going back leaves
-  // the view rather than stepping through every choice.
+  // How the view arranges the sessions, and its filter, which live in the
+  // address. Choosing another arrangement replaces the address, so going
+  // back leaves the view rather than stepping through every choice; turning
+  // the filter on or off adds an entry, as following a link does, so going
+  // back returns to the view as it was.
   const location = useLocation();
   const view = sessionsViewOf(location.searchParams);
   const choose = (next: SessionsView) =>
-    navigate(`${location.pathname}${sessionsQuery(next)}`, { replace: true });
+    navigate(`${location.pathname}${sessionsQuery(next)}`, {
+      replace: next.needsYou === view.needsYou,
+    });
   const pending = usePages<Registration>(loadRegistrations("pending"));
   const sessions = useResource<AgentList>(listSessions);
   // Each decision or read the view makes reloads it, and the past requests
@@ -79,6 +84,8 @@ export function Sessions() {
     refreshKnown();
   };
   const sections = useFolds(unfoldedSections);
+  // The head's grouping, which focus moves to once the filter's chip goes.
+  const grouping = useRef<HTMLSelectElement>(null);
   // The session the new-thread sheet is open on, as it was when it opened,
   // and the control focus returns to when it closes. The sheet follows the
   // session as the view refreshes.
@@ -156,7 +163,8 @@ export function Sessions() {
               </p>
             ) : (
               <>
-                <SessionsHead view={view} choose={choose} />
+                <SessionsHead view={view} choose={choose} groupRef={grouping} />
+                <NeedsYouChip shown={{ view, choose }} after={grouping} />
                 {/* The groups and tags color the view and give the groups'
                     order, so a failed load of them says so, with a retry. */}
                 {known.failure !== undefined && (
@@ -172,7 +180,7 @@ export function Sessions() {
                 <SessionFolds
                   agents={agents}
                   truncated={truncated}
-                  view={view}
+                  shown={{ view, choose }}
                   known={known.data}
                   knownFailure={known.failure}
                   refreshKnown={refreshKnown}

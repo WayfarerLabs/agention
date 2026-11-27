@@ -496,8 +496,11 @@ From those the reads derive, against the request's clock and never stored:
   is not there to read it.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
-reported, which say why it is stranded; a grouped list's presence for a session or an agent carries
-quiet, last seen and connected, and neither state nor outcome.
+reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as
+the sessions view's page carries it, so a stranded thread can say what the session's terminal shows;
+a grouped list's presence for a session or an agent carries quiet, last seen and connected, and
+neither state, outcome nor report. One function describes a session's presence for both reads
+(`presenceOf`, `apps/server/src/store/presence.ts`).
 
 ### Monitoring reports
 
@@ -879,7 +882,9 @@ with its group, and, grouped by topic, of each of its topics:
 
 `composeRollup` rolls up groups into the one holding them, as the web UI does for a session group's
 sessions and an agent's, and `composePresence` sessions' presence into their agent's, quiet when all
-are, last seen when the latest was, and connected when any is.
+are, last seen when the latest was, connected when any is, and not connected only when every one
+says so: a session whose bridge predates monitoring states no connection and may be running, so
+beside one, with none connected, the agent states none either.
 
 ### Counts
 
@@ -2055,11 +2060,11 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
   part the view cannot take, such as manual grouped by agent, reads as its default. Choosing
   replaces the address, as the thread list's head does, sharing its controls
   (`src/views/list-head.tsx`).
-- **Sources.** A row's last seen comes from the session's presence, how long ago its status was
-  updated from the status's `updated_at`, and its threads' roll-up from its summary; an agent's
-  header and a group's head compose theirs from the sessions they show, none when the view or the
-  agent left sessions out. Each session's group and tags, and each agent's tags, come from the
-  sessions view's page.
+- **Sources.** A row's connection, its bridge's latest report and its agent's last check-in come
+  from the session's presence, how long ago its status was updated from the status's `updated_at`,
+  and its threads' roll-up from its summary; an agent's header and a group's head compose theirs
+  from the sessions they show, none when the view or the agent left sessions out. Each session's
+  group and tags, and each agent's tags, come from the sessions view's page.
 - **Groups and tags.** The view loads `GET /groups-and-tags` beside its sessions, for the groups'
   order and the colors, which views that show groups and tags pass down through a palette
   (`src/organizing.tsx`); the stylesheet draws each of the API's named colors as a tone and a
@@ -2075,6 +2080,16 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
   as Settings does, and the file's comments give what shows until a later load succeeds. A move or a
   color under way marks its controls `aria-disabled` rather than disabling them, so keyboard focus
   stays where it was.
+- **Conditions.** The words for a condition come from one function (`conditionWords`,
+  `src/format.tsx`), following the API's model: a stopped-by reason leads, with any prompt on the
+  screen beside it, and a condition or reason the page does not know, which a newer server may
+  report, reads as unknown or as stopped by something.
+- **Needs you.** A session needs the operator while its report shows a permission or other prompt or
+  a stopped-by reason (`terminalNeedsYou` in `src/format.tsx`, and `sessionNeedsYou` in
+  `arrangement.ts`). The view's one filter lives in the address beside the arrangement, as
+  `needs_you=true`, and hides rows and nothing else, so every count and link on a header or a head
+  still covers all its sessions. Turning it on or off pushes a history entry, while choosing the
+  arrangement replaces the one it was chosen in (`needs-you.tsx`, `src/views/Sessions.tsx`).
 - **Pickers** (`Picker.tsx`) are modal dialogs whose search box is a combobox owning a listbox of
   the groups or tags, the item the arrow keys are on its active descendant. A picker takes one pick
   at a time, its items unavailable until the change settles, so tags picked fast never land out of
@@ -2082,8 +2097,9 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
   approval request, and create a group picked new at once, since the approval names its group by id.
 
 Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
-summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
-seen; otherwise no active credential; otherwise its bridge not connected.
+summary: the stop the session reported, with its outcome; otherwise quiet, with when its agent last
+checked in; otherwise no active credential; otherwise its bridge not connected; and, beside any but
+the last, what its terminal shows, where the bridge reports it.
 
 ### Navigation counts
 

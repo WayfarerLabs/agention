@@ -1,9 +1,18 @@
+import {
+  formatTimestamp,
+  type MonitorCondition,
+  type MonitorProfile,
+  type MonitorState,
+  type SessionPresence,
+  type StoppedBy,
+} from "@wayfarerlabs/agention-api";
 import type { Store } from "./store.ts";
 
 // A session's presence: when its agent last checked in, kept to the minute,
 // with the agent API version it checked in with, and when its bridge last
 // made a background request. The reads derive from them whether it is quiet,
-// whether it is connected and whether its threads are stranded.
+// whether it is connected and whether its threads are stranded, and describe
+// it to the operator, with its bridge's latest report, as presenceOf does.
 
 // The step last seen moves in: a check-in stamps it only once that moves it
 // this far, so a polling agent writes about once a minute.
@@ -52,4 +61,61 @@ export function markBackground(store: Store, registrationId: number): void {
        )`,
     ).run({ now: store.clock(), registration: registrationId });
   });
+}
+
+// A session's latest report as a read selects it from monitor_reports, every
+// column null when no bridge has reported.
+export interface MonitorRow {
+  monitored: number | null;
+  profile: MonitorProfile | null;
+  condition: MonitorCondition | null;
+  since: number | null;
+  stopped_by: StoppedBy["reason"] | null;
+  resets_at: number | null;
+}
+
+// monitorStateOf describes a report the row holds, as the operator sees it.
+// The table's checks hold a monitored row's profile, condition and since,
+// and a reset time only beside a usage limit.
+export function monitorStateOf(row: MonitorRow): MonitorState {
+  if (row.monitored !== 1 || row.profile === null || row.condition === null || row.since === null) {
+    return { monitored: false };
+  }
+  const stoppedBy =
+    row.stopped_by === null
+      ? undefined
+      : row.stopped_by === "usage_limit"
+        ? {
+            reason: row.stopped_by,
+            ...(row.resets_at === null ? {} : { resets_at: formatTimestamp(row.resets_at) }),
+          }
+        : { reason: row.stopped_by };
+  return {
+    monitored: true,
+    profile: row.profile,
+    condition: row.condition,
+    since: formatTimestamp(row.since),
+    ...(stoppedBy === undefined ? {} : { stopped_by: stoppedBy }),
+  };
+}
+
+// The columns of a session's presence, as a read selects them: when its
+// agent last checked in, whether it is quiet and connected, as quietOf and
+// connectedOf say, and its bridge's latest report.
+export interface PresenceRow extends MonitorRow {
+  last_seen_at: number | null;
+  quiet: number;
+  connected: number | null;
+}
+
+// presenceOf describes a session's presence as the operator sees it. A
+// report shows only while its bridge is connected, so a bridge that ended
+// never leaves its last one standing as current.
+export function presenceOf(row: PresenceRow): SessionPresence {
+  return {
+    ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
+    quiet: row.quiet === 1,
+    ...(row.connected === null ? {} : { connected: row.connected === 1 }),
+    ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
+  };
 }

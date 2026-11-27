@@ -6,6 +6,7 @@ import type {
 } from "@wayfarerlabs/agention-api";
 import {
   type MouseEvent,
+  type ReactNode,
   type Ref,
   useId,
   useLayoutEffect,
@@ -16,23 +17,37 @@ import {
 import { query, request, sessionPath } from "../../api.ts";
 import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
-import { plural, Since, Spoken, Time, workStateWords } from "../../format.tsx";
+import {
+  conditionWords,
+  type Observed,
+  observedOf,
+  plural,
+  Since,
+  Spoken,
+  Time,
+  terminalNeedsYou,
+  workStateWords,
+} from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
 import { BlockedLink, FilterLink, UnreadLink } from "../filter-links.tsx";
+import { sessionNeedsYou } from "./arrangement.ts";
 import { type Change, type LogLine, logLines } from "./log.ts";
 import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
+import { NeedsYouFlag, type ViewShown } from "./needs-you.tsx";
 import { OpenAsksLink, rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
 import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of three short lines, its
-// head, when it was last seen and its status updated, and its key facts, the
-// facts wrapping on a phone, so that many fit on a screen; unfolded, its title
-// wrapping whole in its head, and beneath, its goal, its credentials and its
-// log. The row's chevron folds or unfolds it, as a tap anywhere else on the
-// row does, but for the links and the controls on it: the session's name and
-// every fact that stands for threads link to them on the thread list. A
-// row's log loads, refreshes and is read only while the row is unfolded and
-// shown.
+// head; where it is, as the server knows it, apart from what its agent
+// reports: whether its bridge is connected and what its terminal shows, when
+// its agent last checked in and when it last updated its status; and its key
+// facts, the facts wrapping on a phone, so that many fit on a screen;
+// unfolded, its title wrapping whole in its head, and beneath, its goal, its
+// credentials, how its terminal is monitored and its log. The row's chevron
+// folds or unfolds it, as a tap anywhere else on the row does, but for the
+// links and the controls on it: the session's name and every fact that
+// stands for threads link to them on the thread list. A row's log loads,
+// refreshes and is read only while the row is unfolded and shown.
 
 // A session's path, by which the view names it.
 export const sessionKey = (agent: string, session: string) => `${agent}/${session}`;
@@ -41,6 +56,7 @@ export function SessionRow({
   level,
   agent,
   session,
+  shown,
   unfolded,
   toggle,
   refresh,
@@ -53,6 +69,8 @@ export function SessionRow({
   level: 3 | 4 | 5;
   agent: string;
   session: SessionSummary;
+  // The view on screen, which the row's Needs you flag filters.
+  shown: ViewShown;
   unfolded: boolean;
   toggle: () => void;
   // Reloads the view, after something here changed it.
@@ -126,8 +144,8 @@ export function SessionRow({
             ))}
           </OptionsMenu>
         </div>
-        <Recency session={session} />
-        <SessionFacts agent={agent} session={session} />
+        <PresenceLine session={session} />
+        <SessionFacts agent={agent} session={session} shown={shown} />
       </div>
       <Revocation
         asking={revoking}
@@ -144,44 +162,108 @@ export function SessionRow({
   );
 }
 
-// Recency is the line under a session's head saying when it was last seen,
-// in the words the thread list's headers use, and how long ago its status
-// was last updated, once it has one, since a session can keep being seen
-// long after its status stopped saying what it does. The line takes the
-// warning's tone while the session is quiet and has not stopped, which a
-// stopped session's state says already, and is said as quiet then.
-function Recency({ session }: { session: SessionSummary }) {
+// PresenceLine is the line under a session's head saying where the session
+// is, as the server knows it, apart from what its agent reports: whether its
+// bridge is connected, which a bridge from before monitoring never says;
+// while it is, what its terminal shows and since when, where the bridge
+// monitors it; when its agent last checked in, or that it never did; and
+// how long ago its status was last updated, once it has one, since an agent
+// can keep checking in long after its status stopped saying what it does,
+// as in "Connected, at its prompt since 14:02 · last check-in 11:40 · status
+// updated 3 hours ago". What needs the operator takes the warning's tone: a
+// bridge not connected and a check-in long enough ago to be quiet, unless
+// the session has stopped, which its state says already, and a terminal
+// showing a prompt or something that stopped it.
+function PresenceLine({ session }: { session: SessionSummary }) {
   const { presence, status } = session;
-  const quiet = presence.quiet && status?.state !== "stopped";
-  const seen = presence.last_seen_at === undefined ? "Never seen" : "Last seen";
-  return (
-    <p className={quiet ? "session-seen last-seen warning" : "session-seen"}>
-      {quiet ? <Spoken shown={seen} spoken={`Quiet, ${seen.toLowerCase()}`} /> : seen}
+  const stopped = status?.state === "stopped";
+  const observed = observedOf(presence);
+  const parts: ReactNode[] = [];
+  if (presence.connected === true) {
+    parts.push(
+      <span className="session-connection">
+        Connected
+        {observed !== undefined && (
+          <>
+            , <Condition observed={observed} />
+          </>
+        )}
+      </span>,
+    );
+  } else if (presence.connected === false) {
+    parts.push(
+      <span className={stopped ? "session-connection" : "session-connection warning"}>
+        Not connected
+      </span>,
+    );
+  }
+  const quiet = presence.quiet && !stopped;
+  const never = presence.last_seen_at === undefined;
+  const words = never ? "never checked in" : "last check-in";
+  // The line's first part starts it, as a sentence starts.
+  const checkIn = parts.length > 0 ? words : never ? "Never checked in" : "Last check-in";
+  parts.push(
+    <span className={quiet ? "session-check-in warning" : "session-check-in"}>
+      {quiet ? <Spoken shown={checkIn} spoken={`Quiet, ${words}`} /> : checkIn}
       {presence.last_seen_at !== undefined && (
         <>
           {" "}
           <Since value={presence.last_seen_at} />
         </>
       )}
-      {status !== undefined && (
-        <span className="session-status-age">
-          {" "}
-          · status updated <Time value={status.updated_at} />
+    </span>,
+  );
+  if (status !== undefined) {
+    parts.push(
+      <span className="session-status-age">
+        status updated <Time value={status.updated_at} />
+      </span>,
+    );
+  }
+  return (
+    <p className="session-seen">
+      {parts.map((part, index) => (
+        <span key={index}>
+          {index > 0 && " · "}
+          {part}
         </span>
-      )}
+      ))}
     </p>
   );
 }
 
-// The session's facts on its folded row: what it is doing; Blocked on you
-// while any open ask blocks its work, linking to its blocked threads, and its
-// open asks, linking to its open threads; whether it has no credential; the
+// Condition says what a session's terminal shows and since when, as in "at
+// its prompt since 14:02", in the warning's tone when it needs the operator.
+function Condition({ observed }: { observed: Observed }) {
+  return (
+    <span className="session-condition">
+      <span className={terminalNeedsYou(observed) ? "warning" : undefined}>
+        {conditionWords(observed)}
+      </span>{" "}
+      since <Since value={observed.since} />
+    </span>
+  );
+}
+
+// The session's facts on its folded row: what it is doing, as it reports;
+// Needs you while its terminal shows a prompt or something that stopped it,
+// linking to the view's filter on such sessions; Blocked on you while any
+// open ask blocks its work, linking to its blocked threads, and its open
+// asks, linking to its open threads; whether it has no credential; the
 // operator's group and tags for it, each linking to its threads; its
 // threads' roll-up, linking to them, and how many are stranded, linking to
 // those, but for blocked, which leads its open asks already, and the
 // envelope, linking to its unread threads; its unread updates; and its
 // latest note, cut to fit, which its log holds whole.
-function SessionFacts({ agent, session }: { agent: string; session: SessionSummary }) {
+function SessionFacts({
+  agent,
+  session,
+  shown,
+}: {
+  agent: string;
+  session: SessionSummary;
+  shown: ViewShown;
+}) {
   const { status, open_asks: asks, threads } = session;
   const path = sessionKey(agent, session.session);
   const rollup = rollupOfSession(session);
@@ -191,6 +273,11 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
       <li className={status === undefined ? "muted" : stateTone[status.state]}>
         {status === undefined ? "No status" : workStateWords(status)}
       </li>
+      {sessionNeedsYou(session) && (
+        <li className="bare">
+          <NeedsYouFlag path={path} shown={shown} />
+        </li>
+      )}
       {asks.blocking_count > 0 && (
         <li className="bare">
           <BlockedLink {...scope} />
@@ -235,7 +322,8 @@ function SessionFacts({ agent, session }: { agent: string; session: SessionSumma
 const stateTone = { working: "success", idle: "accent", stopped: undefined } as const;
 
 // SessionDetail is what a session unfolds beneath its head: its goal whole,
-// with how far it has come, its credentials, and its log.
+// with how far it has come, its credentials, how its connected bridge
+// monitors its terminal, once it has said, and its log.
 function SessionDetail({
   agent,
   session,
@@ -249,6 +337,7 @@ function SessionDetail({
   const goal = status?.goal;
   const percent = status?.percent;
   const codes = session.registrations.map((registration) => registration.code);
+  const { monitor } = session.presence;
   return (
     <>
       {(goal !== undefined || percent !== undefined) && (
@@ -280,6 +369,17 @@ function SessionDetail({
             </>
           )}
         </li>
+        {monitor !== undefined && (
+          <li>
+            {monitor.monitored ? (
+              <>
+                Terminal read with the <span className="code small">{monitor.profile}</span> profile
+              </>
+            ) : (
+              "Terminal not monitored"
+            )}
+          </li>
+        )}
       </ul>
       {status === undefined ? (
         <p className="muted">
