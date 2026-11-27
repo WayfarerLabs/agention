@@ -706,6 +706,35 @@ describe("the approval form", () => {
     ).toBe("nightly");
   });
 
+  it("grants a new session under its name as it stands when the agent's sessions change", async () => {
+    const state = open({
+      registrations: [registration()],
+      sessions: [{ agent: "builder", session: "main", credential_active: true }],
+    });
+    api.on("POST", "/registrations/1/approve", failure("internal", "internal error"));
+    const pending = await pendingCard();
+    fireEvent.click(within(pending).getByRole("radio", { name: "A new session" }));
+    const granted = () => pending.querySelector(".approve-as strong")?.textContent;
+    expect(granted()).toBe("builder/main-2");
+    // Another approval takes main-2 meanwhile, so the name suggested moves on,
+    // and Approve grants that one, as it sends.
+    state.sessions = [
+      ...state.sessions,
+      { agent: "builder", session: "main-2", credential_active: true },
+    ];
+    window.dispatchEvent(new Event("focus"));
+    const name = within(pending).getByRole<HTMLInputElement>("textbox", {
+      name: "New session name",
+    });
+    await waitFor(() => expect(name.value).toBe("main-3"));
+    expect(granted()).toBe("builder/main-3");
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await screen.findByRole("alert");
+    expect(approvals()).toEqual([
+      { agent: { name: "builder", existing: true }, session: { name: "main-3", existing: false } },
+    ]);
+  });
+
   it("shows the server's refusal of the session approved onto by its button as the form's", async () => {
     open({
       registrations: [registration()],
@@ -876,6 +905,43 @@ describe("the approval form", () => {
       fireEvent.click(within(pending).getByRole("button", { name: "Approve" })),
     );
     expect(approvals()).toHaveLength(1);
+  });
+
+  it("ties the server's refusal of the new session's name, by its button, to that name", async () => {
+    open({
+      registrations: [registration()],
+      sessions: [{ agent: "builder", session: "main", credential_active: true }],
+    });
+    api.on(
+      "POST",
+      "/registrations/1/approve",
+      failure("invalid_input", "names a session the agent already has", { field: "session.name" }),
+    );
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    const name = await within(pending).findByRole("textbox", { name: "New session name" });
+    await refusesFor(name, () =>
+      fireEvent.click(within(pending).getByRole("button", { name: "Approve as a new session" })),
+    );
+    expect(name.getAttribute("aria-invalid")).toBe("true");
+    expect(approvals()).toHaveLength(1);
+  });
+
+  it("shows the server's refusal of a field other than the names as the form's", async () => {
+    open({ registrations: [registration()], sessions: [] });
+    api.on(
+      "POST",
+      "/registrations/1/approve",
+      failure("not_found", "not found", { field: "session.group" }),
+    );
+    const pending = await screen.findByRole("article", { name: "Registration 7KQ2M-X9DPA" });
+    fireEvent.click(within(pending).getByRole("button", { name: "Approve" }));
+    await within(pending).findByRole("alert");
+    // The names stay folded, neither of them refused.
+    const change = within(pending).getByRole("button", { name: "Change agent or session" });
+    expect(change.getAttribute("aria-expanded")).toBe("false");
+    for (const name of ["New agent name", "New session name"]) {
+      expect(within(pending).getByLabelText(name).getAttribute("aria-invalid")).toBeNull();
+    }
   });
 
   it("moves focus to the confirming button as it asks, and back when cancelled", async () => {
