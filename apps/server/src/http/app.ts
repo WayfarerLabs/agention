@@ -32,8 +32,8 @@ import { serveWebUi } from "./web-ui.ts";
 // pair. An upload's body is the file, up to maxFileBytes.
 export const maxBodyBytes = 2 * 1024 * 1024;
 
-// The content security policy of every response but the diagram frame's and
-// files': the UI loads only its own scripts, styles, images and media, talks
+// The content security policy of every response whose route declares none of
+// its own: the UI loads only its own scripts, styles, images and media, talks
 // only to its own origin, and cannot be framed. Message text is rendered
 // inert, and this backs that up. The UI frames only the diagram frame, and
 // shows the images it makes from the frame's answers as blob: URLs.

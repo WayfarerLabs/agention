@@ -79,7 +79,10 @@ its own for its npm page.
 The server's build first runs the web UI's build and copies it into the package's `web/` directory.
 The web UI's build is Vite's, followed by a pass of its own that builds the diagram frame's script
 with esbuild, through `packages/build`, as one classic script named for its content's hash, which
-`web/diagram-frame.json` names for the server ([The diagram frame](#the-diagram-frame)).
+`web/diagram-frame.json` names for the server ([The diagram frame](#the-diagram-frame)). Beside each
+file in `web/assets/` the server's build then writes a Brotli copy, which the server serves
+([The web UI's files](#the-web-uis-files)), and it fails on a file there whose name does not have
+the form of one ending in a content hash.
 
 ### License notices
 
@@ -1020,10 +1023,11 @@ frame, and no framing of its own pages, HSTS, `nosniff`, `DENY` framing, no refe
 
 The security headers middleware sets every one of them after the route has run, replacing what the
 route set, except those the route declared its own for its response with `ownHeaders`
-(`apps/server/src/http/own-headers.ts`). Three kinds of response do:
+(`apps/server/src/http/own-headers.ts`). Four kinds of response do:
 
-- the diagram frame's page and script, their policy, framing and caching
-  ([The diagram frame](#the-diagram-frame));
+- the diagram frame's page, its policy and framing ([The diagram frame](#the-diagram-frame));
+- the files under `assets/` in the web UI's build, their caching
+  ([The web UI's files](#the-web-uis-files));
 - a file's response, its policy and caching ([Files](#files));
 - the API documentation's page, its policy ([API documentation](#api-documentation)).
 
@@ -1066,13 +1070,21 @@ serve is unknown, as any unknown API route is.
 ### The web UI's files
 
 Every path that is not an API route serves the web UI: a file of the Vite build, or the UI's index
-page for any other path, whose router shows the route. The exception is every path under `/docs/api`
-while the API's documentation is not served, which answers `not_found`.
+page for any other path, whose router shows the route. The exceptions answer `not_found`: every path
+under `/assets` that names no file of the build, since the UI has no route there, and every path
+under `/docs/api` while the API's documentation is not served.
 
 The server prepares the index page once, as it starts, writing its name, HTML-escaped, into the
 page's title and its `application-name` and `apple-mobile-web-app-title` metadata, and never serves
-the page's file as it is; a build whose page lacks one of those stops the server from starting. A
-server built without the UI serves a placeholder page instead.
+the page's file as it is. A test holds that the web UI's source page carries each of those places
+exactly once. A server built without the UI serves a placeholder page instead.
+
+The build's files under `assets/`, which are named for their content, are cached for good
+(`public, max-age=31536000, immutable`). Each is served as the Brotli copy the package's build wrote
+beside it when the browser accepts Brotli, as browsers do over HTTPS, and otherwise as it is, with
+`Vary: Accept-Encoding`. The index page, like every file outside `assets/`, is neither cached nor
+encoded. The server compresses nothing as it runs, so the sizes of compressed answers tell nothing
+about private content.
 
 ### The diagram frame
 
@@ -1082,8 +1094,8 @@ names; a manifest that names no script of the build stops the server from starti
 
 The page's response carries its own content security policy, `sandbox allow-scripts`, nothing
 allowed but that script, named by its full URL, and inline styles, and `frame-ancestors` naming the
-server's origin, with `X-Frame-Options: SAMEORIGIN`. The script's name carries its content's hash,
-so its response is cached for good.
+server's origin, with `X-Frame-Options: SAMEORIGIN`. The script is served as the build's other files
+under `assets/` are ([The web UI's files](#the-web-uis-files)).
 
 ### Files
 

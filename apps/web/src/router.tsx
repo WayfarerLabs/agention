@@ -10,8 +10,8 @@ import { type QueryValues, query } from "./api.ts";
 import { type PathKind, placeOf } from "./components.tsx";
 
 // The UI's routes, over the History API. The server answers every path that is
-// not an API route or a file of the build with the UI's page, so each route is
-// also a URL that can be opened directly.
+// not an API route, a file of the build, or under assets/ with the UI's page,
+// so each route is also a URL that can be opened directly.
 
 export type Route =
   | { name: "threads" }

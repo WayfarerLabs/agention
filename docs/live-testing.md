@@ -88,6 +88,11 @@ disagreement is the finding.
   gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts, an operator bound.
+- **The web UI's files**, served by the packed server: each script and style sheet sent as Brotli to
+  a browser that accepts it and as it is to a client that does not, kept across a second load with
+  nothing sent again, the page and every other file of the build `no-store`, and a name an upgrade
+  removed, which a page loaded before it still asks for, answered `not_found`, status 404, uncached
+  (`docs/architecture.md` "The web UI's files").
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
