@@ -1520,10 +1520,12 @@ still serves, and every tool answers with what the operator must change, when:
 - the home directory is not an absolute path of at most 4,096 bytes;
 - `NODE_TLS_REJECT_UNAUTHORIZED` turns certificate checks off.
 
-The session's names come from the first `register` call that gives them, else from
-`AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, a name `register` leaves out falling back to its
-variable. Whichever the bridge uses first fixes the session for the life of the process; naming
-another afterwards is `invalid_input`.
+The session's names come from the first `register` call that gives them, else from `AGENTION_AGENT`
+and `AGENTION_SESSION`, a name `register` leaves out falling back to its variable. For a name whose
+variable is unset or empty, the bridge reads `AGENTWORKS_AGENT` or `AGENTWORKS_SESSION` instead,
+which hosts on Agentworks set; a variable that is set but not a name is an error, never a reason to
+read the other. Whichever the bridge uses first fixes the session for the life of the process;
+naming another afterwards is `invalid_input`.
 
 ### Key file
 
@@ -2208,10 +2210,10 @@ plugin root. The definition names the bridge's package, and the generator pins i
 version: `npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the server its whole
 environment. Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those
 the server lists, so the Codex declaration lists the bridge's configuration variables:
-`AGENTION_CONNECT`, `AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and
-`NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes the Codex declaration's
-`tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
-can take longer; Claude Code's plugin format has no such setting.
+`AGENTION_AGENT`, `AGENTION_CONNECT`, `AGENTION_SESSION`, `AGENTION_URL`, `AGENTWORKS_AGENT`,
+`AGENTWORKS_SESSION` and `NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes
+the Codex declaration's `tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default
+and a file's transfer can take longer; Claude Code's plugin format has no such setting.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a

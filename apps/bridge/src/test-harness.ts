@@ -177,8 +177,8 @@ export class BridgeHarness {
     const server = createBridge({
       environment: {
         AGENTION_URL: this.#origin,
-        AGENTWORKS_AGENT: agent,
-        AGENTWORKS_SESSION: session,
+        AGENTION_AGENT: agent,
+        AGENTION_SESSION: session,
         ...environment,
       },
       home,
@@ -216,6 +216,10 @@ export class BridgeHarness {
         // The run's own temporary directory, as an agent host passes its own.
         TMPDIR: tmpdir(),
         AGENTION_URL: this.#origin,
+        // Both pairs of names, since released bridges read only the
+        // AGENTWORKS_ pair.
+        AGENTION_AGENT: agent,
+        AGENTION_SESSION: session,
         AGENTWORKS_AGENT: agent,
         AGENTWORKS_SESSION: session,
         ...(trust ? { NODE_EXTRA_CA_CERTS: authority } : {}),

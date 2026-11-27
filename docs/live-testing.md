@@ -274,8 +274,9 @@ On top of the method's failure classes, look for:
   default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
   an upload cut off, or the server killed during one, leaving no file or chunks after the next
   sweep; a `file_get` that fails leaving no partial file.
-- **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
-  between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
+- **Environment masking**: the session name variables, `AGENTION_` and `AGENTWORKS_`, present,
+  absent, empty or mixed, a different umask, clock skew between bridge and server,
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong
   origin, a skewed clock), a long poll that outlives its ceiling, a code that is hard to read aloud.
 
@@ -290,10 +291,10 @@ On top of the method's safety rails:
 - Never run a `tailscale` command: on the live instance behind `tailscale serve`, the operator runs
   every one.
 - Start every host and bridge with `AGENTION_URL`, `AGENTION_CONNECT`, `NODE_EXTRA_CA_CERTS`,
-  `AGENTWORKS_AGENT`, and `AGENTWORKS_SESSION` set for the run (the Agentworks pair from the
-  tester's namespace, or unset; `AGENTION_CONNECT` empty unless the run tests it), never inherited,
-  so nothing registers, signs, or stores a key as the operator's real session, or connects through
-  the operator's tunnel.
+  `AGENTION_AGENT`, `AGENTION_SESSION`, `AGENTWORKS_AGENT`, and `AGENTWORKS_SESSION` set for the run
+  (the session names from the tester's namespace, or unset; `AGENTION_CONNECT` empty unless the run
+  tests it), never inherited, so nothing registers, signs, or stores a key as the operator's real
+  session, or connects through the operator's tunnel.
 - Write nothing to shared `/tmp`: set `TMPDIR` to the run's scratch directory for every process the
   run starts, and put tarballs, renders, and certificates there too.
 - The bridge's key path and its fetched files' directory are fixed under the home directory, so use

@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sessionVariables } from "./session.ts";
 import { agent, BridgeHarness, session } from "./test-harness.ts";
 
 let harness: BridgeHarness;
@@ -126,7 +127,7 @@ describe("register", () => {
     const key = harness.keyOnDisk();
     harness.server.fixture.advance(hour + 1);
     // Another session's registration writes the table, pruning the expired one.
-    const other = await harness.bridge({ AGENTWORKS_SESSION: "other" });
+    const other = await harness.bridge({ AGENTION_SESSION: "other" });
     await other.ok("register");
     expect(harness.registrations().map((row) => row.public_key)).not.toContain(key);
     const answer = await bridge.ok("register");
@@ -196,10 +197,14 @@ describe("register", () => {
   });
 
   it.each([
-    ["no names", { AGENTWORKS_AGENT: undefined, AGENTWORKS_SESSION: undefined }],
-    ["empty names", { AGENTWORKS_AGENT: "", AGENTWORKS_SESSION: "" }],
-    ["only an agent", { AGENTWORKS_SESSION: undefined }],
-    ["a name the API refuses", { AGENTWORKS_AGENT: "Builder" }],
+    ["no names", { AGENTION_AGENT: undefined, AGENTION_SESSION: undefined }],
+    ["empty names", { AGENTION_AGENT: "", AGENTION_SESSION: "" }],
+    ["only an agent", { AGENTION_SESSION: undefined }],
+    ["a name the API refuses", { AGENTION_AGENT: "Builder" }],
+    [
+      "a name the API refuses, over a fallback it accepts",
+      { AGENTION_AGENT: "Builder", AGENTWORKS_AGENT: "builder" },
+    ],
   ])("answers in plain text, creating nothing, given %s", async (_, environment) => {
     const bridge = await harness.bridge(environment);
     for (const tool of ["register", "thread_list"]) {
@@ -208,6 +213,53 @@ describe("register", () => {
     }
     expect(existsSync(path.join(harness.home, ".config"))).toBe(false);
     expect(harness.registrations()).toEqual([]);
+  });
+});
+
+// An agent host names the session with the AGENTION_ variables, or with the
+// AGENTWORKS_ ones, which the bridge still reads, each name on its own.
+describe("the session's names from the environment", () => {
+  const neutral = { agent: "neutral", session: "nightly" };
+  const agentworks = { agent: "agentworks", session: "daily" };
+  const both = {
+    AGENTION_AGENT: neutral.agent,
+    AGENTION_SESSION: neutral.session,
+    AGENTWORKS_AGENT: agentworks.agent,
+    AGENTWORKS_SESSION: agentworks.session,
+  };
+
+  it.each([
+    ["the AGENTION_ names over the AGENTWORKS_ ones", both, neutral],
+    [
+      "the AGENTWORKS_ names alone",
+      { ...both, AGENTION_AGENT: undefined, AGENTION_SESSION: undefined },
+      agentworks,
+    ],
+    [
+      "an AGENTION_ agent with an AGENTWORKS_ session",
+      { ...both, AGENTION_SESSION: undefined },
+      { agent: neutral.agent, session: agentworks.session },
+    ],
+    [
+      "an AGENTWORKS_ agent, for an empty AGENTION_AGENT, with an AGENTION_ session",
+      { ...both, AGENTION_AGENT: "" },
+      { agent: agentworks.agent, session: neutral.session },
+    ],
+  ])("registers the session by %s", async (_, environment, expected) => {
+    const bridge = await harness.bridge(environment);
+    const answer = await bridge.ok("register");
+    expect(answer.code).toBe(registrationCode(harness.keyOnDisk(expected)));
+    expect(harness.registrations()).toHaveLength(1);
+  });
+
+  // Codex passes a server only the variables its plugin lists.
+  it("are all forwarded by the plugin definition", () => {
+    const file = path.join(import.meta.dirname, "..", "..", "agent-plugin", "plugin.json");
+    const definition = JSON.parse(readFileSync(file, "utf8")) as {
+      mcpServer: { environment: string[] };
+    };
+    const variables = Object.values(sessionVariables).flat();
+    expect(definition.mcpServer.environment).toEqual(expect.arrayContaining(variables));
   });
 });
 
