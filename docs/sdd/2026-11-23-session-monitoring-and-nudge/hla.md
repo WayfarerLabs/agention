@@ -452,6 +452,12 @@ every case.
   the warning's erasure is confirmed and before the message shows, usually one reading and at most
   two seconds, is not seen, since both harnesses change their hint rows once the line holds text.
   Closing it needs each profile to name those rows; accepted until it proves to happen.
+- **A claim its own bridge left under way** is settled only by another bridge taking the session or
+  by the agent's next check-in: a bridge that stops acting mid-attempt, as when its key is refused,
+  and then acts again under the same bridge id leaves its claim holding the nudge off. A restart
+  registers, which is a check-in, so only a refusal followed by re-approval is left, and the thread
+  then shows stranded, so the operator sees it. Settling it would need the server to tell a resumed
+  bridge from one still mid-attempt; accepted until it proves to happen.
 - **A restarted bridge whose platform names no default session** starts reporting only at the
   agent's next tool call, since it learns its session's names then; until then the session shows
   disconnected.
